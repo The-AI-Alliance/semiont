@@ -1,8 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import {
-  GoogleAuthRequestSchema as BaseGoogleAuthRequestSchema,
-  AuthResponseSchema as BaseAuthResponseSchema,
-  UserResponseSchema as BaseUserResponseSchema,
   AcceptTermsResponseSchema,
   TokenRefreshResponseSchema,
   MCPGenerateResponseSchema,
@@ -20,17 +17,41 @@ import { User } from '@prisma/client';
 import { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 
 // OpenAPI-wrapped schemas for this route
-export const GoogleAuthRequestSchema = BaseGoogleAuthRequestSchema.extend({
+export const GoogleAuthRequestSchema = z.object({
   access_token: z.string().openapi({
     example: 'ya29.a0AfH6SMBx...',
     description: 'Google OAuth access token'
   }),
 }).openapi('GoogleAuthRequest');
 
-export const AuthResponseSchema = BaseAuthResponseSchema.openapi('AuthResponse');
+export const AuthResponseSchema = z.object({
+  success: z.boolean().openapi({ example: true }),
+  user: z.object({
+    id: z.string().openapi({ example: 'user-123' }),
+    email: z.string().email().openapi({ example: 'user@example.com' }),
+    name: z.string().nullable().openapi({ example: 'John Doe' }),
+    image: z.string().nullable().openapi({ example: 'https://example.com/avatar.jpg' }),
+    domain: z.string().nullable().openapi({ example: 'example.com' }),
+    isAdmin: z.boolean().openapi({ example: false }),
+  }),
+  token: z.string().openapi({ example: 'eyJhbGciOiJIUzI1NiIs...' }),
+  isNewUser: z.boolean().openapi({ example: false }),
+}).openapi('AuthResponse');
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
-export const UserResponseSchema = BaseUserResponseSchema.openapi('UserResponse');
+export const UserResponseSchema = z.object({
+  id: z.string().openapi({ example: 'user-123' }),
+  email: z.string().email().openapi({ example: 'user@example.com' }),
+  name: z.string().nullable().openapi({ example: 'John Doe' }),
+  image: z.string().nullable().openapi({ example: 'https://example.com/avatar.jpg' }),
+  domain: z.string().nullable().openapi({ example: 'example.com' }),
+  provider: z.string().openapi({ example: 'google' }),
+  isAdmin: z.boolean().openapi({ example: false }),
+  isActive: z.boolean().openapi({ example: true }),
+  termsAcceptedAt: z.string().nullable().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+  lastLogin: z.string().nullable().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+  created: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+}).openapi('UserResponse');
 export type UserResponse = z.infer<typeof UserResponseSchema>;
 
 // Token refresh request schema

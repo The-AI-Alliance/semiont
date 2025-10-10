@@ -1,13 +1,9 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import {
-  StatusResponseSchema as BaseStatusResponseSchema,
-  ErrorResponseSchema as BaseErrorResponseSchema,
-} from '@semiont/core-types';
 import { authMiddleware } from '../middleware/auth';
 import { User } from '@prisma/client';
 
 // OpenAPI-wrapped schemas for this route
-export const StatusResponseSchema = BaseStatusResponseSchema.extend({
+export const StatusResponseSchema = z.object({
   status: z.string().openapi({ example: 'operational' }),
   version: z.string().openapi({ example: '0.1.0' }),
   features: z.object({
@@ -19,7 +15,7 @@ export const StatusResponseSchema = BaseStatusResponseSchema.extend({
   authenticatedAs: z.string().optional().openapi({ example: 'user@example.com' }),
 }).openapi('StatusResponse');
 
-export const ErrorResponseSchema = BaseErrorResponseSchema.extend({
+export const ErrorResponseSchema = z.object({
   error: z.string().openapi({ example: 'An error occurred' }),
   code: z.string().optional().openapi({ example: 'ERROR_CODE' }),
 }).openapi('ErrorResponse');
