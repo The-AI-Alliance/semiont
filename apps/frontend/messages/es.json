@@ -290,5 +290,57 @@
     "minutesAgo": "hace {count}m",
     "hoursAgo": "hace {count}h",
     "daysAgo": "hace {count}d"
+  },
+  "CreateAnnotationPopup": {
+    "title": "Crear Anotación",
+    "createHighlight": "Crear Destacado",
+    "entityTypesOptional": "Tipos de Entidad (Opcional)",
+    "referenceTypeOptional": "Tipo de Referencia (Opcional)",
+    "none": "Ninguno",
+    "createReference": "Crear Referencia"
+  },
+  "ResolvedReferencePopup": {
+    "title": "Referencia Resuelta",
+    "resolvedTo": "Resuelto a:",
+    "document": "Documento",
+    "openInNewTab": "Abrir en Nueva Pestaña",
+    "copyLinkText": "Copiar texto del enlace",
+    "unlinkDocument": "Desvincular Documento",
+    "convertToHighlight": "Convertir a Destacado",
+    "deleteReference": "Eliminar Referencia"
+  },
+  "StubReferencePopup": {
+    "title": "Referencia Stub",
+    "linkToDocument": "Vincular a Documento",
+    "generate": "Generar",
+    "generating": "Generando...",
+    "search": "Buscar",
+    "composeNew": "Redactar Nuevo",
+    "convertToHighlight": "Convertir a Destacado",
+    "deleteReference": "Eliminar Referencia"
+  },
+  "HighlightPopup": {
+    "title": "Destacado",
+    "convertToReference": "Convertir a Referencia",
+    "deleteHighlight": "Eliminar Destacado"
+  },
+  "SortableDocumentTab": {
+    "dragToReorder": "Arrastrar para reordenar",
+    "dragToReorderDoc": "Arrastrar para reordenar {name}",
+    "closeDocument": "Cerrar documento"
+  },
+  "DetectionProgressWidget": {
+    "title": "Detectando Referencias de Entidad",
+    "cancelDetection": "Cancelar detección",
+    "found": "{count} encontrados",
+    "complete": "¡Detección completa!",
+    "failed": "Detección fallida",
+    "current": "Actual: {entityType}",
+    "progress": "{processed} de {total} tipos de entidad",
+    "infoText": "Las nuevas referencias aparecen en el Historial del documento a medida que se detectan"
+  },
+  "AnnotateView": {
+    "ariaLabel": "Crear anotación del texto seleccionado. Presione H para destacado o R para referencia.",
+    "tooltip": "Clic para crear destacado • Clic derecho para más opciones"
   }
 }

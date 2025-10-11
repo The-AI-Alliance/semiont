@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Annotation } from '@semiont/core-types';
 import { getTextPositionSelector } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
@@ -113,6 +114,7 @@ export function AnnotateView({
   onConvertAnnotation,
   showLineNumbers = false
 }: Props) {
+  const t = useTranslations('AnnotateView');
   const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
   const [annotationState, setSelectionState] = useState<{
@@ -277,8 +279,8 @@ export function AnnotateView({
                   top: `${lastRect.top - containerRect.top + lastRect.height / 2}px`,
                   transform: 'translateY(-50%)'
                 }}
-                aria-label="Create annotation from selected text. Press H for highlight or R for reference."
-                title="Click to create highlight • Right-click for more options"
+                aria-label={t('ariaLabel')}
+                title={t('tooltip')}
                 data-annotation-ui
               >
                 <span className="relative inline-flex items-center justify-center">

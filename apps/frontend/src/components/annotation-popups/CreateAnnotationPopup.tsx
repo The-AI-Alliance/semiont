@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader, SelectedTextDisplay } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
 import { api } from '@/lib/api-client';
@@ -26,6 +27,7 @@ export function CreateAnnotationPopup({
   onCreateHighlight,
   onCreateReference,
 }: CreateAnnotationPopupProps) {
+  const t = useTranslations('CreateAnnotationPopup');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [selectedReferenceType, setSelectedReferenceType] = useState<string>('');
 
@@ -57,7 +59,7 @@ export function CreateAnnotationPopup({
 
   return (
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-      <PopupHeader title="Create Annotation" onClose={onClose} />
+      <PopupHeader title={t('title')} onClose={onClose} />
 
       <SelectedTextDisplay exact={selection.exact} />
 
@@ -67,14 +69,14 @@ export function CreateAnnotationPopup({
           onClick={handleCreateHighlight}
           className={`${buttonStyles.warning.base} w-full justify-center`}
         >
-          🖍 Create Highlight
+          🖍 {t('createHighlight')}
         </button>
       </div>
 
       {/* Entity Types */}
       <div className="mb-4">
         <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Entity Types (Optional)
+          {t('entityTypesOptional')}
         </p>
         <div className="flex flex-wrap gap-2">
           {entityTypes.map((type: string) => (
@@ -97,14 +99,14 @@ export function CreateAnnotationPopup({
       {referenceTypes.length > 0 && (
         <div className="mb-4">
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Reference Type (Optional)
+            {t('referenceTypeOptional')}
           </p>
           <select
             value={selectedReferenceType}
             onChange={(e) => setSelectedReferenceType(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
-            <option value="">None</option>
+            <option value="">{t('none')}</option>
             {referenceTypes.map((type: string) => (
               <option key={type} value={type}>
                 {type}
@@ -123,7 +125,7 @@ export function CreateAnnotationPopup({
           onClick={handleCreateStubReference}
           className={`${buttonStyles.primary.base} w-full justify-center`}
         >
-          🔗 Create Reference
+          🔗 {t('createReference')}
         </button>
       </div>
     </PopupContainer>

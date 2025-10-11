@@ -290,5 +290,57 @@
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
     "daysAgo": "{count}d ago"
+  },
+  "CreateAnnotationPopup": {
+    "title": "Create Annotation",
+    "createHighlight": "Create Highlight",
+    "entityTypesOptional": "Entity Types (Optional)",
+    "referenceTypeOptional": "Reference Type (Optional)",
+    "none": "None",
+    "createReference": "Create Reference"
+  },
+  "ResolvedReferencePopup": {
+    "title": "Resolved Reference",
+    "resolvedTo": "Resolved to:",
+    "document": "Document",
+    "openInNewTab": "Open in New Tab",
+    "copyLinkText": "Copy link text",
+    "unlinkDocument": "Unlink Document",
+    "convertToHighlight": "Convert to Highlight",
+    "deleteReference": "Delete Reference"
+  },
+  "StubReferencePopup": {
+    "title": "Stub Reference",
+    "linkToDocument": "Link to Document",
+    "generate": "Generate",
+    "generating": "Generating...",
+    "search": "Search",
+    "composeNew": "Compose New",
+    "convertToHighlight": "Convert to Highlight",
+    "deleteReference": "Delete Reference"
+  },
+  "HighlightPopup": {
+    "title": "Highlight",
+    "convertToReference": "Convert to Reference",
+    "deleteHighlight": "Delete Highlight"
+  },
+  "SortableDocumentTab": {
+    "dragToReorder": "Drag to reorder",
+    "dragToReorderDoc": "Drag to reorder {name}",
+    "closeDocument": "Close document"
+  },
+  "DetectionProgressWidget": {
+    "title": "Detecting Entity References",
+    "cancelDetection": "Cancel detection",
+    "found": "{count} found",
+    "complete": "Detection complete!",
+    "failed": "Detection failed",
+    "current": "Current: {entityType}",
+    "progress": "{processed} of {total} entity types",
+    "infoText": "New references appear in document's History as they're detected"
+  },
+  "AnnotateView": {
+    "ariaLabel": "Create annotation from selected text. Press H for highlight or R for reference.",
+    "tooltip": "Click to create highlight • Right-click for more options"
   }
 }
