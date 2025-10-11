@@ -345,6 +345,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+        id: 'hl-123',
         target: {
           source: 'doc-123',
           selector: {
@@ -426,6 +427,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+        id: 'ref-123',
         target: {
           source: 'doc-123',
           selector: {
@@ -475,6 +477,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+        id: 'ref-456',
         target: {
           source: 'doc-123',
           selector: {
