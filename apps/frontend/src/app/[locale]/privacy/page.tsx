@@ -1,187 +1,180 @@
+'use client';
+
 import React from 'react';
-import { Metadata } from 'next';
-import { CookiePreferences } from '@/components/CookiePreferences';
+import { useTranslations } from 'next-intl';
 import { PageLayout } from '@/components/PageLayout';
 
-export const metadata: Metadata = {
-  title: 'Privacy Policy - Semiont',
-  description: 'Privacy policy and cookie information for Semiont AI-Powered Research Environment',
-};
-
 export default function PrivacyPolicyPage() {
+  const t = useTranslations('Privacy');
+
   return (
     <PageLayout className="bg-gray-50">
       <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">Privacy Policy</h1>
-          
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">{t('pageTitle')}</h1>
+
           <div className="prose prose-lg max-w-none space-y-6">
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Introduction</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('introTitle')}</h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                Semiont is an AI-Powered Research Environment designed to facilitate collaborative knowledge work and analysis. 
-                We are committed to protecting your privacy and handling your personal information transparently and securely.
+                {t('introPara1')}
               </p>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform.
+                {t('introPara2')}
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Information We Collect</h2>
-              
-              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">Personal Information</h3>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('infoCollectTitle')}</h2>
+
+              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">{t('personalInfoTitle')}</h3>
               <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                <li>Email address and name (when you sign in with Google OAuth)</li>
-                <li>User preferences and settings</li>
-                <li>Research data and content you create or upload</li>
+                <li>{t('personalInfoItem1')}</li>
+                <li>{t('personalInfoItem2')}</li>
+                <li>{t('personalInfoItem3')}</li>
               </ul>
 
-              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2 mt-4">Automatically Collected Information</h3>
+              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2 mt-4">{t('autoCollectTitle')}</h3>
               <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                <li>IP address and device information</li>
-                <li>Browser type and version</li>
-                <li>Usage patterns and interaction data</li>
-                <li>Performance and error logs</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">How We Use Your Information</h2>
-              <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                <li>Provide and maintain our research platform services</li>
-                <li>Authenticate users and manage accounts</li>
-                <li>Improve platform performance and user experience</li>
-                <li>Communicate important updates and security notices</li>
-                <li>Comply with legal obligations</li>
+                <li>{t('autoCollectItem1')}</li>
+                <li>{t('autoCollectItem2')}</li>
+                <li>{t('autoCollectItem3')}</li>
+                <li>{t('autoCollectItem4')}</li>
               </ul>
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Cookie Policy</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('howWeUseTitle')}</h2>
+              <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
+                <li>{t('howWeUseItem1')}</li>
+                <li>{t('howWeUseItem2')}</li>
+                <li>{t('howWeUseItem3')}</li>
+                <li>{t('howWeUseItem4')}</li>
+                <li>{t('howWeUseItem5')}</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('cookiePolicyTitle')}</h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
-                We use cookies and similar technologies to enhance your experience, analyze usage, and provide personalized content.
+                {t('cookiePolicyIntro')}
               </p>
 
-              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">Cookie Categories</h3>
-              
+              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">{t('cookieCategoriesTitle')}</h3>
+
               <div className="space-y-4">
                 <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900">Strictly Necessary Cookies</h4>
+                  <h4 className="font-medium text-gray-900">{t('necessaryCookiesTitle')}</h4>
                   <p className="text-sm text-gray-600 mt-1">
-                    Essential for website functionality, including authentication and security features.
+                    {t('necessaryCookiesDesc')}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Examples: next-auth.session-token, next-auth.csrf-token
+                    {t('necessaryCookiesExamples')}
                   </p>
                 </div>
 
                 <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900">Analytics Cookies</h4>
+                  <h4 className="font-medium text-gray-900">{t('analyticsCookiesTitle')}</h4>
                   <p className="text-sm text-gray-600 mt-1">
-                    Help us understand how visitors interact with our website to improve user experience.
+                    {t('analyticsCookiesDesc')}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Examples: _ga, _gid, lighthouse-*
+                    {t('analyticsCookiesExamples')}
                   </p>
                 </div>
 
                 <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900">Marketing Cookies</h4>
+                  <h4 className="font-medium text-gray-900">{t('marketingCookiesTitle')}</h4>
                   <p className="text-sm text-gray-600 mt-1">
-                    Used to track visitors across websites for relevant advertising and campaign measurement.
+                    {t('marketingCookiesDesc')}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Examples: _fbp, _fbc, fr
+                    {t('marketingCookiesExamples')}
                   </p>
                 </div>
 
                 <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900">Preference Cookies</h4>
+                  <h4 className="font-medium text-gray-900">{t('preferenceCookiesTitle')}</h4>
                   <p className="text-sm text-gray-600 mt-1">
-                    Remember your choices and preferences for a personalized experience.
+                    {t('preferenceCookiesDesc')}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Examples: theme-preference, language-preference
+                    {t('preferenceCookiesExamples')}
                   </p>
                 </div>
               </div>
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Your Rights</h2>
-              
-              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">GDPR Rights (EU Residents)</h3>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('yourRightsTitle')}</h2>
+
+              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">{t('gdprRightsTitle')}</h3>
               <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                <li>Right to access your personal data</li>
-                <li>Right to rectification of inaccurate data</li>
-                <li>Right to erasure (right to be forgotten)</li>
-                <li>Right to restrict processing</li>
-                <li>Right to data portability</li>
-                <li>Right to object to processing</li>
-                <li>Right to withdraw consent</li>
+                <li>{t('gdprRight1')}</li>
+                <li>{t('gdprRight2')}</li>
+                <li>{t('gdprRight3')}</li>
+                <li>{t('gdprRight4')}</li>
+                <li>{t('gdprRight5')}</li>
+                <li>{t('gdprRight6')}</li>
+                <li>{t('gdprRight7')}</li>
               </ul>
 
-              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2 mt-4">CCPA Rights (California Residents)</h3>
+              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2 mt-4">{t('ccpaRightsTitle')}</h3>
               <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                <li>Right to know what personal information is collected</li>
-                <li>Right to delete personal information</li>
-                <li>Right to opt-out of the sale of personal information</li>
-                <li>Right to non-discrimination for exercising privacy rights</li>
+                <li>{t('ccpaRight1')}</li>
+                <li>{t('ccpaRight2')}</li>
+                <li>{t('ccpaRight3')}</li>
+                <li>{t('ccpaRight4')}</li>
               </ul>
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Data Security</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('dataSecurityTitle')}</h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                We implement appropriate technical and organizational measures to protect your personal information against 
-                unauthorized access, alteration, disclosure, or destruction. This includes:
+                {t('dataSecurityIntro')}
               </p>
               <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1 mt-2">
-                <li>Encryption of data in transit and at rest</li>
-                <li>Regular security assessments and monitoring</li>
-                <li>Access controls and authentication mechanisms</li>
-                <li>Secure cloud infrastructure on AWS</li>
+                <li>{t('dataSecurityItem1')}</li>
+                <li>{t('dataSecurityItem2')}</li>
+                <li>{t('dataSecurityItem3')}</li>
+                <li>{t('dataSecurityItem4')}</li>
               </ul>
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Data Retention</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('dataRetentionTitle')}</h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                We retain personal information only as long as necessary to provide our services and comply with legal obligations. 
-                Research data is retained according to your account settings and applicable data retention policies.
+                {t('dataRetentionDesc')}
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">International Transfers</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('internationalTransfersTitle')}</h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                Your information may be transferred to and processed in countries other than your country of residence. 
-                We ensure appropriate safeguards are in place for such transfers in compliance with applicable privacy laws.
+                {t('internationalTransfersDesc')}
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Contact Information</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('contactTitle')}</h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                For questions about this Privacy Policy or to exercise your privacy rights, please contact us at:
+                {t('contactIntro')}
               </p>
               <div className="bg-gray-50 rounded-lg p-4 mt-4">
                 <p className="text-gray-700 dark:text-gray-300">
-                  <strong>Email:</strong> privacy@semiont.com<br />
-                  <strong>Address:</strong> [Your Company Address]
+                  <strong>{t('contactEmail')}</strong> privacy@semiont.com<br />
+                  <strong>{t('contactAddress')}</strong> [Your Company Address]
                 </p>
               </div>
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Updates to This Policy</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('updatesTitle')}</h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                We may update this Privacy Policy from time to time. We will notify you of any material changes by 
-                posting the new Privacy Policy on this page and updating the effective date.
+                {t('updatesPara1')}
               </p>
               <p className="text-gray-600 text-sm mt-4">
-                <strong>Last updated:</strong> {new Date().toLocaleDateString()}
+                <strong>{t('lastUpdated', { date: new Date().toLocaleDateString() })}</strong>
               </p>
             </section>
           </div>
