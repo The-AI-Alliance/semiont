@@ -503,5 +503,32 @@
     "cancel": "Cancelar",
     "deleteConfirmTitle": "Eliminar Todos los Datos",
     "deleteConfirmDescription": "Esto eliminará permanentemente todos tus datos, incluidas cookies, preferencias e información de sesión. Esta acción no se puede deshacer y recargará la página."
+  },
+  "About": {
+    "pageTitle": "Acerca de Semiont",
+    "tagline": "El marco de código abierto y a prueba de futuro que permite a humanos y agentes inteligentes co-crear conocimiento compartido — gobernado por ti y construido para durar.",
+    "signUp": "Registrarse",
+    "signIn": "Iniciar Sesión",
+    "missionTitle": "Nuestra Misión",
+    "missionDescription": "Semiont está construyendo la base para una nueva era de gestión del conocimiento donde la creatividad humana y la inteligencia artificial trabajan juntas sin problemas. Creemos que el futuro de la información pertenece a todos, no solo a unas pocas grandes corporaciones. Nuestra plataforma garantiza que tu conocimiento siga siendo tuyo mientras habilita poderosas capacidades de colaboración.",
+    "coreFeaturesTitle": "Características Principales",
+    "semanticContentTitle": "Contenido Semántico",
+    "semanticContentSubtitle": "Reconocimiento de entidades, grafos de conocimiento y relaciones semánticas",
+    "semanticContentPara1": "Nuestro motor de contenido semántico va más allá del simple almacenamiento de texto. Entiende el significado y las relaciones dentro de tus documentos, identificando automáticamente entidades como personas, lugares, conceptos y eventos.",
+    "semanticContentPara2": "Al construir grafos de conocimiento a partir de tu contenido, Semiont crea una red rica e interconectada de información que permite consultas poderosas, sugerencias inteligentes y conocimientos profundos que serían imposibles con los sistemas tradicionales de gestión de documentos.",
+    "collaborationTitle": "Colaboración en Tiempo Real",
+    "collaborationSubtitle": "Edición en vivo, flujos de trabajo asistidos por IA, resolución de conflictos y coordinación de equipo",
+    "collaborationPara1": "Trabaja junto con tu equipo y asistentes de IA en tiempo real. Ve los cambios a medida que ocurren, con resolución inteligente de conflictos que entiende el contexto y la intención, no solo las diferencias de texto.",
+    "collaborationPara2": "Nuestros flujos de trabajo asistidos por IA ayudan a automatizar tareas rutinarias, sugerir mejoras y mantener la consistencia en tu base de conocimientos. La plataforma aprende de los patrones y preferencias de tu equipo, volviéndose más útil con el tiempo mientras respeta tu control creativo.",
+    "rbacTitle": "RBAC Avanzado",
+    "rbacSubtitle": "Permisos detallados, control a nivel de activos y registros de auditoría",
+    "rbacPara1": "Toma el control completo sobre quién puede acceder, modificar y compartir tu conocimiento. Nuestro sistema de control de acceso basado en roles proporciona permisos granulares hasta documentos individuales, secciones o incluso puntos de datos específicos.",
+    "rbacPara2": "Cada acción se registra en registros de auditoría inmutables, garantizando transparencia y cumplimiento completos. Define roles personalizados que coincidan con la estructura de tu organización, con permisos dinámicos que pueden adaptarse según el contexto, el tiempo o el estado del flujo de trabajo.",
+    "planned": "Planeado",
+    "openSourceTitle": "Código Abierto e Impulsado por la Comunidad",
+    "openSourceDescription": "Semiont es orgullosamente de código abierto. Creemos que las herramientas para gestionar el conocimiento de la humanidad deben ser transparentes, auditables y propiedad de todos. Únete a nuestra comunidad de desarrolladores, investigadores y trabajadores del conocimiento que construyen el futuro juntos.",
+    "viewOnGitHub": "Ver en GitHub",
+    "futureVisionTitle": "Construyendo el Futuro",
+    "futureVisionDescription": "Apenas estamos comenzando. Semiont está evolucionando hacia una plataforma integral para la creación, curación y colaboración de conocimiento. Mantente atento mientras lanzamos nuevas funciones y capacidades que transformarán cómo trabajas con la información."
   }
 }

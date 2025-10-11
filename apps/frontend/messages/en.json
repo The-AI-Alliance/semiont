@@ -503,5 +503,32 @@
     "cancel": "Cancel",
     "deleteConfirmTitle": "Delete All Data",
     "deleteConfirmDescription": "This will permanently delete all your data including cookies, preferences, and session information. This action cannot be undone and will reload the page."
+  },
+  "About": {
+    "pageTitle": "About Semiont",
+    "tagline": "The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.",
+    "signUp": "Sign Up",
+    "signIn": "Sign In",
+    "missionTitle": "Our Mission",
+    "missionDescription": "Semiont is building the foundation for a new era of knowledge management where human creativity and artificial intelligence work together seamlessly. We believe that the future of information belongs to everyone, not just a few large corporations. Our platform ensures that your knowledge remains yours while enabling powerful collaborative capabilities.",
+    "coreFeaturesTitle": "Core Features",
+    "semanticContentTitle": "Semantic Content",
+    "semanticContentSubtitle": "Entity recognition, knowledge graphs, and semantic relationships",
+    "semanticContentPara1": "Our semantic content engine goes beyond simple text storage. It understands the meaning and relationships within your documents, automatically identifying entities like people, places, concepts, and events.",
+    "semanticContentPara2": "By building knowledge graphs from your content, Semiont creates a rich, interconnected web of information that enables powerful queries, intelligent suggestions, and deep insights that would be impossible with traditional document management systems.",
+    "collaborationTitle": "Real-time Collaboration",
+    "collaborationSubtitle": "Live editing, AI-assisted workflows, conflict resolution, and team coordination",
+    "collaborationPara1": "Work together with your team and AI assistants in real-time. See changes as they happen, with intelligent conflict resolution that understands context and intent, not just text differences.",
+    "collaborationPara2": "Our AI-assisted workflows help automate routine tasks, suggest improvements, and maintain consistency across your knowledge base. The platform learns from your team's patterns and preferences, becoming more helpful over time while respecting your creative control.",
+    "rbacTitle": "Advanced RBAC",
+    "rbacSubtitle": "Fine-grained permissions, asset-level control, and audit trails",
+    "rbacPara1": "Take complete control over who can access, modify, and share your knowledge. Our role-based access control system provides granular permissions down to individual documents, sections, or even specific data points.",
+    "rbacPara2": "Every action is logged in immutable audit trails, ensuring complete transparency and compliance. Define custom roles that match your organization's structure, with dynamic permissions that can adapt based on context, time, or workflow state.",
+    "planned": "Planned",
+    "openSourceTitle": "Open Source & Community Driven",
+    "openSourceDescription": "Semiont is proudly open source. We believe that the tools for managing humanity's knowledge should be transparent, auditable, and owned by everyone. Join our community of developers, researchers, and knowledge workers building the future together.",
+    "viewOnGitHub": "View on GitHub",
+    "futureVisionTitle": "Building the Future",
+    "futureVisionDescription": "We're just getting started. Semiont is evolving into a comprehensive platform for knowledge creation, curation, and collaboration. Stay tuned as we roll out new features and capabilities that will transform how you work with information."
   }
 }
