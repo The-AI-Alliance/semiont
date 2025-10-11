@@ -4,11 +4,13 @@ import React from 'react';
 import { signIn } from 'next-auth/react';
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { PageLayout } from '@/components/PageLayout';
 import { buttonStyles } from '@/lib/button-styles';
 
 function SignUpContent() {
+  const t = useTranslations('AuthSignUp');
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const callbackUrl = searchParams?.get('callbackUrl') || '/auth/welcome';
@@ -32,10 +34,10 @@ function SignUpContent() {
         <div className="max-w-md w-full space-y-8">
           <div>
             <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-              Create your Semiont account
+              {t('pageTitle')}
             </h2>
             <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-              Sign up with your Google account to get started
+              {t('signUpPrompt')}
             </p>
           </div>
 
@@ -55,12 +57,12 @@ function SignUpContent() {
                 <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
             )}
-            {isLoading ? 'Creating account...' : 'Sign Up with Google'}
+            {isLoading ? t('creatingAccount') : t('signUpWithGoogle')}
           </button>
-          
+
           <div className="text-xs text-center text-gray-500 dark:text-gray-400">
-            Only users with approved email domains can create accounts.<br/>
-            By signing up, you'll be asked to agree to our terms of service.
+            {t('approvedDomainsInfo')}<br/>
+            {t('termsAgreement')}
           </div>
 
           <div className="text-center">
@@ -68,7 +70,7 @@ function SignUpContent() {
               href="/auth/signin"
               className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
             >
-              Already have an account? Sign in instead
+              {t('alreadyHaveAccount')}
             </Link>
           </div>
           </div>
@@ -78,9 +80,14 @@ function SignUpContent() {
   );
 }
 
+function LoadingFallback() {
+  const t = useTranslations('AuthSignUp');
+  return <div>{t('loading')}</div>;
+}
+
 export default function SignUp() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<LoadingFallback />}>
       <SignUpContent />
     </Suspense>
   );

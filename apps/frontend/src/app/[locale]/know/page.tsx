@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 export default function KnowledgePage() {
+  const t = useTranslations('Knowledge');
   const router = useRouter();
   const [checking, setChecking] = useState(true);
 
@@ -25,14 +27,14 @@ export default function KnowledgePage() {
   if (checking) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+        <p className="text-gray-600 dark:text-gray-300">{t('loading')}</p>
       </div>
     );
   }
 
   return (
     <div className="flex items-center justify-center py-20">
-      <p className="text-gray-600 dark:text-gray-300">Redirecting...</p>
+      <p className="text-gray-600 dark:text-gray-300">{t('redirecting')}</p>
     </div>
   );
 }

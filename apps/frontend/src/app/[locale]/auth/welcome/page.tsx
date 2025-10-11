@@ -4,12 +4,14 @@ import React from 'react';
 import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { PageLayout } from '@/components/PageLayout';
 import { useToast } from '@/components/Toast';
 import { api } from '@/lib/api-client';
 
 export default function Welcome() {
+  const t = useTranslations('AuthWelcome');
   const { data: session, status } = useSession();
   const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -60,7 +62,7 @@ export default function Welcome() {
       }, 1000);
     } catch (error) {
       console.error('Terms acceptance error:', error);
-      showError('There was an error recording your terms acceptance. Please try again.');
+      showError(t('errorAcceptingTerms'));
     }
   };
 
@@ -71,7 +73,7 @@ export default function Welcome() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
             <div className="w-8 h-8 mx-auto animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">Loading...</p>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">{t('loading')}</p>
           </div>
         </div>
       </PageLayout>
@@ -90,9 +92,9 @@ export default function Welcome() {
               </svg>
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome to Semiont!</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('welcomeTitle')}</h2>
               <p className="mt-2 text-gray-600 dark:text-gray-400">
-                Thanks for accepting our terms. Redirecting you to the app...
+                {t('thanksForAccepting')}
               </p>
             </div>
           </div>
@@ -113,106 +115,106 @@ export default function Welcome() {
               </svg>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Welcome to Semiont, {session?.user?.name?.split(' ')[0]}!
+              {t('welcomeUser', { firstName: session?.user?.name?.split(' ')[0] ?? '' })}
             </h1>
             <p className="mt-2 text-gray-600 dark:text-gray-400">
-              Before you can start using Semiont, please review and accept our terms of service
+              {t('reviewTermsPrompt')}
             </p>
           </div>
 
           <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-6 mb-6 bg-gray-50 dark:bg-gray-900">
             <div className="prose dark:prose-invert max-w-none text-sm">
-              <h3>Terms of Service Summary</h3>
-              <p>By using Semiont, you agree to:</p>
-              
-              <h4>✅ Acceptable Use</h4>
+              <h3>{t('termsSummaryTitle')}</h3>
+              <p>{t('termsSummaryIntro')}</p>
+
+              <h4>{t('acceptableUseTitle')}</h4>
               <ul>
-                <li>Use the platform responsibly and lawfully</li>
-                <li>Respect other users and maintain a constructive environment</li>
-                <li>Follow the AI Alliance Code of Conduct principles</li>
+                <li>{t('acceptableUseResponsible')}</li>
+                <li>{t('acceptableUseRespect')}</li>
+                <li>{t('acceptableUseConduct')}</li>
               </ul>
 
-              <h4>❌ Prohibited Content</h4>
-              <p>You agree not to upload or share:</p>
+              <h4>{t('prohibitedContentTitle')}</h4>
+              <p>{t('prohibitedContentIntro')}</p>
               <ul>
-                <li>Illegal, harmful, or abusive content</li>
-                <li>Adult content, pornography, or sexually explicit material</li>
-                <li>Hate speech, harassment, or discriminatory content</li>
-                <li>Violence, threats, or content promoting harm</li>
-                <li>Misinformation or deliberately false content</li>
-                <li>Privacy violations or personal information without consent</li>
-                <li>Copyrighted material without authorization</li>
-                <li>Malware, viruses, or security threats</li>
-                <li>Spam or manipulative content</li>
+                <li>{t('prohibitedIllegal')}</li>
+                <li>{t('prohibitedAdult')}</li>
+                <li>{t('prohibitedHate')}</li>
+                <li>{t('prohibitedViolence')}</li>
+                <li>{t('prohibitedMisinformation')}</li>
+                <li>{t('prohibitedPrivacy')}</li>
+                <li>{t('prohibitedCopyright')}</li>
+                <li>{t('prohibitedMalware')}</li>
+                <li>{t('prohibitedSpam')}</li>
               </ul>
 
-              <h4>🤝 AI Alliance Code of Conduct</h4>
+              <h4>{t('conductTitle')}</h4>
               <p>
-                This platform follows the{' '}
-                <a 
+                {t('conductDescription')}{' '}
+                <a
                   href="https://ai-alliance.cdn.prismic.io/ai-alliance/Zl-MG5m069VX1dgH_AIAllianceCodeofConduct.pdf"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  AI Alliance Code of Conduct
+                  {t('conductLink')}
                 </a>
-                , promoting responsible AI development, transparency, privacy protection, and ethical considerations.
+                {t('conductPromotion')}
               </p>
 
-              <h4>🔒 Your Responsibilities</h4>
+              <h4>{t('responsibilitiesTitle')}</h4>
               <ul>
-                <li>Keep your account secure</li>
-                <li>Report violations you encounter</li>
-                <li>Provide accurate information</li>
-                <li>Comply with all applicable laws</li>
+                <li>{t('responsibilitiesSecure')}</li>
+                <li>{t('responsibilitiesReport')}</li>
+                <li>{t('responsibilitiesAccurate')}</li>
+                <li>{t('responsibilitiesComply')}</li>
               </ul>
 
               <p className="mt-4 font-medium">
-                Violations may result in content removal, account suspension, or termination.
+                {t('violationsWarning')}
               </p>
             </div>
           </div>
 
           <div className="text-center space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Read the full{' '}
-              <Link 
-                href="/terms" 
+              {t('readFullTerms')}{' '}
+              <Link
+                href="/terms"
                 target="_blank"
                 className="text-blue-600 dark:text-blue-400 hover:underline"
               >
-                Terms of Service
+                {t('termsOfService')}
               </Link>
-              {' '}and{' '}
-              <Link 
-                href="/privacy" 
+              {' '}{t('and')}{' '}
+              <Link
+                href="/privacy"
                 target="_blank"
                 className="text-blue-600 dark:text-blue-400 hover:underline"
               >
-                Privacy Policy
+                {t('privacyPolicy')}
               </Link>
             </p>
-            
+
             <div className="flex justify-center gap-4">
               <button
                 onClick={() => handleTermsAcceptance(false)}
                 disabled={acceptTermsMutation.isPending}
                 className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
               >
-                Decline & Sign Out
+                {t('declineAndSignOut')}
               </button>
               <button
                 onClick={() => handleTermsAcceptance(true)}
                 disabled={acceptTermsMutation.isPending}
                 className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
               >
-                {acceptTermsMutation.isPending ? 'Processing...' : 'Accept & Continue'}
+                {acceptTermsMutation.isPending ? t('processing') : t('acceptAndContinue')}
               </button>
             </div>
 
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              By clicking "Accept & Continue", you agree to be legally bound by these terms.
+              {t('legallyBound')}
             </p>
           </div>
         </div>
