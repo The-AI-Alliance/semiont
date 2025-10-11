@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface Props {
   showLineNumbers: boolean;
@@ -9,12 +9,27 @@ interface Props {
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
 }
 
+const LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'zh', name: 'Mandarin' },
+  { code: 'es', name: 'Spanish' },
+  { code: 'fr', name: 'French' },
+  { code: 'de', name: 'German' },
+  { code: 'ja', name: 'Japanese' },
+  { code: 'pt', name: 'Portuguese' },
+  { code: 'ar', name: 'Arabic' },
+  { code: 'hi', name: 'Hindi' },
+  { code: 'vi', name: 'Vietnamese' },
+] as const;
+
 export function SettingsPanel({
   showLineNumbers,
   onLineNumbersToggle,
   theme,
   onThemeChange
 }: Props) {
+  const [language, setLanguage] = useState('en');
+
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
@@ -88,6 +103,28 @@ export function SettingsPanel({
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {theme === 'system' ? 'Using system preference' : `${theme.charAt(0).toUpperCase() + theme.slice(1)} mode active`}
+            </p>
+          </div>
+
+          {/* Language Selection */}
+          <div>
+            <label htmlFor="language-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+              Language
+            </label>
+            <select
+              id="language-select"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              UI language (localization coming soon)
             </p>
           </div>
         </div>
