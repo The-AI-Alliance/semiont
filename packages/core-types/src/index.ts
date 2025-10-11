@@ -31,6 +31,7 @@ export type {
 export type {
   BaseEvent,
   DocumentEvent,
+  DocumentEventType,
   DocumentCreatedEvent,
   DocumentClonedEvent,
   DocumentArchivedEvent,

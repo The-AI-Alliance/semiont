@@ -12,6 +12,7 @@
  */
 
 import type { Annotation } from './annotation-schemas';
+import type { CreationMethod } from './creation-methods';
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
@@ -28,6 +29,7 @@ export interface DocumentCreatedEvent extends BaseEvent {
     name: string;
     format: string;              // MIME type
     contentHash: string;        // SHA-256 of content (should match documentId)
+    creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];
     metadata?: Record<string, any>;
   };
@@ -40,6 +42,7 @@ export interface DocumentClonedEvent extends BaseEvent {
     format: string;              // MIME type
     contentHash: string;        // SHA-256 of new content
     parentDocumentId: string;   // Content hash of parent document
+    creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];
     metadata?: Record<string, any>;
   };
@@ -135,6 +138,9 @@ export type DocumentEvent =
   | ReferenceDeletedEvent
   | EntityTagAddedEvent
   | EntityTagRemovedEvent;
+
+// Extract just the event type strings from the union
+export type DocumentEventType = DocumentEvent['type'];
 
 // Type guards
 export function isDocumentEvent(event: any): event is DocumentEvent {

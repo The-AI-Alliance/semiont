@@ -6,12 +6,21 @@
  */
 
 import { z } from 'zod';
+import { CREATION_METHODS } from './creation-methods';
 
 // Document lifecycle event payloads
 export const DocumentCreatedPayloadSchema = z.object({
   name: z.string(),
   format: z.string(), // MIME type
   contentHash: z.string(),
+  creationMethod: z.enum([
+    CREATION_METHODS.API,
+    CREATION_METHODS.UPLOAD,
+    CREATION_METHODS.UI,
+    CREATION_METHODS.REFERENCE,
+    CREATION_METHODS.CLONE,
+    CREATION_METHODS.GENERATED,
+  ] as const),
   entityTypes: z.array(z.string()).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
@@ -21,6 +30,14 @@ export const DocumentClonedPayloadSchema = z.object({
   format: z.string(), // MIME type
   contentHash: z.string(),
   parentDocumentId: z.string(),
+  creationMethod: z.enum([
+    CREATION_METHODS.API,
+    CREATION_METHODS.UPLOAD,
+    CREATION_METHODS.UI,
+    CREATION_METHODS.REFERENCE,
+    CREATION_METHODS.CLONE,
+    CREATION_METHODS.GENERATED,
+  ] as const),
   entityTypes: z.array(z.string()).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
@@ -34,7 +51,7 @@ export const DocumentUnarchivedPayloadSchema = z.object({});
 // Highlight event payloads
 export const HighlightAddedPayloadSchema = z.object({
   highlightId: z.string(),
-  text: z.string(),
+  exact: z.string(),  // W3C Web Annotation standard
   position: z.object({
     offset: z.number(),
     length: z.number(),
@@ -48,7 +65,7 @@ export const HighlightRemovedPayloadSchema = z.object({
 // Reference event payloads
 export const ReferenceCreatedPayloadSchema = z.object({
   referenceId: z.string(),
-  text: z.string(),
+  exact: z.string(),  // W3C Web Annotation standard
   position: z.object({
     offset: z.number(),
     length: z.number(),

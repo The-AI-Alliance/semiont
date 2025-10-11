@@ -117,6 +117,79 @@ export type Agent = z.infer<typeof AgentSchema>;
  * - Single target only (no multi-target arrays) - our architecture is document-centric
  * - Single body only (no multi-body arrays) - application-specific body structure
  * - Application-specific 'entityTypes' field for classification tags
+ *
+ * EXAMPLES:
+ *
+ * 1. Highlight (TextualBody with motivation 'highlighting'):
+ * {
+ *   id: "urn:uuid:abc123",
+ *   motivation: "highlighting",
+ *   target: {
+ *     source: "doc-abc123",
+ *     selector: {
+ *       type: "TextPositionSelector",
+ *       exact: "important text to highlight",
+ *       offset: 100,
+ *       length: 26
+ *     }
+ *   },
+ *   body: {
+ *     type: "TextualBody",
+ *     value: undefined,  // highlights don't have comments
+ *     source: null,
+ *     entityTypes: []
+ *   },
+ *   creator: { id: "did:web:example.com:users:alice", type: "Person", name: "Alice" },
+ *   created: "2025-01-10T10:00:00Z"
+ * }
+ *
+ * 2. Stub Reference (SpecificResource with source=null, motivation 'linking'):
+ * {
+ *   id: "urn:uuid:def456",
+ *   motivation: "linking",
+ *   target: {
+ *     source: "doc-abc123",
+ *     selector: {
+ *       type: "TextPositionSelector",
+ *       exact: "Einstein's theory",
+ *       offset: 200,
+ *       length: 17
+ *     }
+ *   },
+ *   body: {
+ *     type: "SpecificResource",
+ *     source: null,  // NULL = unresolved stub reference
+ *     entityTypes: ["Person", "Scientist"]
+ *   },
+ *   creator: { id: "did:web:example.com:users:alice", type: "Person", name: "Alice" },
+ *   created: "2025-01-10T10:05:00Z"
+ * }
+ *
+ * 3. Resolved Reference (SpecificResource with source set, motivation 'linking'):
+ * {
+ *   id: "urn:uuid:def456",  // Same ID as stub, updated in place
+ *   motivation: "linking",
+ *   target: {
+ *     source: "doc-abc123",
+ *     selector: {
+ *       type: "TextPositionSelector",
+ *       exact: "Einstein's theory",
+ *       offset: 200,
+ *       length: 17
+ *     }
+ *   },
+ *   body: {
+ *     type: "SpecificResource",
+ *     source: "doc-xyz789",  // Now links to target document
+ *     entityTypes: ["Person", "Scientist"]
+ *   },
+ *   creator: { id: "did:web:example.com:users:alice", type: "Person", name: "Alice" },
+ *   created: "2025-01-10T10:05:00Z",
+ *   modified: "2025-01-10T10:10:00Z",  // Updated when resolved
+ *   generator: { id: "did:web:example.com:ai:assistant", type: "Software", name: "AI Assistant" }
+ * }
+ *
+ * KEY INSIGHT: The text being annotated is in target.selector.exact
  */
 export const AnnotationSchema = z.object({
   id: z.string(),
