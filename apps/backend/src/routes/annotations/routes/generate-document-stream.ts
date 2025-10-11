@@ -81,10 +81,22 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
 
     // Validate reference exists using Layer 3
     const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
-    const reference = projection.references.find((r: any) => r.id === referenceId);
+
+    // Debug: log what references exist
+    console.log(`[GenerateDocument] Found ${projection.references.length} references in document`);
+    projection.references.forEach((r: any, i: number) => {
+      console.log(`  [${i}] id: ${r.id}`);
+    });
+
+    // Compare by ID portion (handle both URI and simple ID formats)
+    const reference = projection.references.find((r: any) => {
+      const rId = r.id.includes('/') ? r.id.split('/').pop() : r.id;
+      console.log(`[GenerateDocument] Comparing ${rId} === ${referenceId}`);
+      return rId === referenceId;
+    });
 
     if (!reference) {
-      throw new HTTPException(404, { message: 'Reference not found in document' });
+      throw new HTTPException(404, { message: `Reference ${referenceId} not found in document ${body.documentId}` });
     }
 
     // Create a generation job (this decouples event emission from HTTP client)

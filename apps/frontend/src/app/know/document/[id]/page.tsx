@@ -119,7 +119,7 @@ function DocumentView({
   const router = useRouter();
   const { data: session } = useSession();
   const { addDocument } = useOpenDocuments();
-  const { triggerSparkleAnimation, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
+  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
   const { fetchAPI } = useAuthenticatedAPI();
   const queryClient = useQueryClient();
@@ -356,16 +356,11 @@ function DocumentView({
     clearProgress
   } = useGenerationProgress({
     onComplete: (progress) => {
-      // Note: The reference.resolved event will trigger onReferenceResolved which refetches
+      // Sparkle animation was already triggered when generation started (in handleGenerateDocument)
+      // It will continue pulsing until reference.resolved event updates the cache
 
-      // Trigger sparkle animation on the now-resolved reference
-      if (progress.referenceId) {
-        triggerSparkleAnimation(progress.referenceId);
-      }
-
-      // Clear progress after a brief delay to allow the refetch to complete
-      // This removes the pulsing sparkle and lets the link icon show
-      setTimeout(() => clearProgress(), 100);
+      // Clear progress widget
+      setTimeout(() => clearProgress(), 1000);
     },
     onError: (error) => {
       console.error('[Generation] Error:', error);
@@ -380,8 +375,18 @@ function DocumentView({
 
   // Handle document generation from stub reference
   const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
+    // Clear CSS sparkle animation if reference was recently created
+    // (it may still be in newAnnotationIds with a 6-second timer from creation)
+    // We only want the widget sparkle (✨ emoji) during generation, not the CSS pulse
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const fullUri = referenceId.includes('/')
+      ? referenceId
+      : `${apiUrl}/annotations/${referenceId}`;
+    clearNewAnnotationId(fullUri);
+
+    // Widget sparkle (✨ emoji) will show automatically during generation via generatingReferenceId
     startGeneration(referenceId, documentId, options);
-  }, [startGeneration, documentId]);
+  }, [startGeneration, documentId, clearNewAnnotationId]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useDocumentEvents({
@@ -403,11 +408,39 @@ function DocumentView({
     }, [debouncedInvalidateAnnotations]),
 
     onReferenceResolved: useCallback((event) => {
-      // Immediately refetch references to update UI (don't debounce for this critical update)
-      refetchReferences();
-      // Immediately invalidate events to update History Panel (don't debounce this either)
+      // Optimistically update the reference in cache
+      queryClient.setQueryData(
+        QUERY_KEYS.documents.references(documentId),
+        (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            references: old.references.map((ref: any) => {
+              // Match by ID portion (handle both URI and internal ID formats)
+              const refIdPortion = ref.id.includes('/') ? ref.id.split('/').pop() : ref.id;
+              const eventIdPortion = event.payload.referenceId.includes('/')
+                ? event.payload.referenceId.split('/').pop()
+                : event.payload.referenceId;
+
+              if (refIdPortion === eventIdPortion) {
+                return {
+                  ...ref,
+                  body: {
+                    ...ref.body,
+                    source: event.payload.targetDocumentId,
+                  },
+                };
+              }
+              return ref;
+            }),
+          };
+        }
+      );
+
+      // Widget sparkle (✨ emoji) will clear automatically when generatingReferenceId changes
+      // Immediately invalidate events to update History Panel
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
-    }, [refetchReferences, queryClient, documentId]),
+    }, [queryClient, documentId]),
 
     onReferenceDeleted: useCallback((event) => {
       console.log('[RealTime] Reference deleted:', event.payload);

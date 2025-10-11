@@ -8,6 +8,7 @@
 import { getEventStore } from '../event-store';
 import { getGraphDatabase } from '../../graph/factory';
 import { getStorageService } from '../../storage/filesystem';
+import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { DocumentEvent, StoredEvent, Annotation } from '@semiont/core-types';
 
@@ -130,6 +131,7 @@ export class GraphDBConsumer {
 
       case 'highlight.added':
         await graphDb.createAnnotation({
+          id: event.payload.highlightId,
           target: {
             source: event.documentId,
             selector: {
@@ -143,7 +145,7 @@ export class GraphDBConsumer {
             type: 'TextualBody',
             entityTypes: [],
           },
-          creator: event.userId,
+          creator: didToAgent(event.userId),
         });
         break;
 
@@ -153,6 +155,7 @@ export class GraphDBConsumer {
 
       case 'reference.created':
         await graphDb.createAnnotation({
+          id: event.payload.referenceId,  // Use ID from event, not generated
           target: {
             source: event.documentId,
             selector: {
@@ -167,19 +170,25 @@ export class GraphDBConsumer {
             entityTypes: event.payload.entityTypes || [],
             source: event.payload.targetDocumentId,
           },
-          creator: event.userId,
+          creator: didToAgent(event.userId),
         });
         break;
 
       case 'reference.resolved':
         // TODO: Graph implementation should handle partial body updates properly
-        await graphDb.updateAnnotation(event.payload.referenceId, {
-          body: {
-            type: 'SpecificResource',
-            entityTypes: [],  // Graph impl should merge, not replace
-            source: event.payload.targetDocumentId,
-          },
-        } as Partial<Annotation>);
+        try {
+          await graphDb.updateAnnotation(event.payload.referenceId, {
+            body: {
+              type: 'SpecificResource',
+              entityTypes: [],  // Graph impl should merge, not replace
+              source: event.payload.targetDocumentId,
+            },
+          } as Partial<Annotation>);
+        } catch (error) {
+          // If annotation doesn't exist in graph (e.g., created before consumer started),
+          // log warning but don't fail - event store is source of truth
+          console.warn(`[GraphDBConsumer] Could not update annotation ${event.payload.referenceId} in graph: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
         break;
 
       case 'reference.deleted':

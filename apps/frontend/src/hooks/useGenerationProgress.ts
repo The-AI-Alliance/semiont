@@ -55,7 +55,9 @@ export function useGenerationProgress({
 
     // Build SSE URL
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const url = `${apiUrl}/api/annotations/${referenceId}/generate-document-stream`;
+    // Extract ID from URI if referenceId is a full URI (Phase 5: URI-based IDs)
+    const id = referenceId.includes('/') ? referenceId.split('/').pop() : referenceId;
+    const url = `${apiUrl}/api/annotations/${id}/generate-document-stream`;
 
     try {
       await fetchEventSource(url, {

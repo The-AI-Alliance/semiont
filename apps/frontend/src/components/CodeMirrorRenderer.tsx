@@ -167,7 +167,10 @@ function buildWidgetDecorations(
       const targetName = annotation.body.source
         ? callbacks.getTargetDocumentName?.(annotation.body.source)
         : undefined;
-      const isGenerating = generatingReferenceId === annotation.id;
+      // Compare by ID portion (handle both URI and internal ID formats)
+      const annotationIdPortion = annotation.id.includes('/') ? annotation.id.split('/').pop() : annotation.id;
+      const generatingIdPortion = generatingReferenceId?.includes('/') ? generatingReferenceId.split('/').pop() : generatingReferenceId;
+      const isGenerating = generatingIdPortion === annotationIdPortion;
       const widget = new ReferenceResolutionWidget(
         annotation,
         targetName,

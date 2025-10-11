@@ -1,18 +1,28 @@
 import { nanoid } from 'nanoid';
 import { User } from '@prisma/client';
+import type { Agent } from '@semiont/core-types';
 
 /**
- * Generate a unique ID for annotations (highlights/references)
+ * Generate a unique URI for annotations (highlights/references)
  *
- * This is a backend-internal ID generation utility that does NOT depend on
- * any graph database. Each graph implementation (Neo4j, JanusGraph, Neptune, etc.)
- * can do whatever they need internally, but our Layer 2/3 architecture uses
- * these IDs as the canonical identifiers.
+ * W3C Web Annotation Data Model requires annotations to have URI identifiers.
+ * This function generates full URIs based on the backend base URL.
+ *
+ * Format: {BACKEND_URL}/annotations/{nanoid}
+ * Example: https://api.semiont.ai/annotations/abc123xyz
  *
  * Uses nanoid for URL-safe, collision-resistant IDs.
+ *
+ * @throws Error if BACKEND_URL environment variable is not set
  */
 export function generateAnnotationId(): string {
-  return `ann-${nanoid(21)}`;
+  const baseUrl = process.env.BACKEND_URL;
+  if (!baseUrl) {
+    throw new Error('BACKEND_URL environment variable is required to generate annotation URIs');
+  }
+  // Remove trailing slash if present
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  return `${normalizedBase}/annotations/${nanoid(21)}`;
 }
 
 /**
@@ -36,4 +46,37 @@ export function generateDocumentId(): string {
  */
 export function userToDid(user: Pick<User, 'id' | 'domain'>): string {
   return `did:web:${user.domain}:users:${user.id}`;
+}
+
+/**
+ * Convert a User object to a W3C Agent object with DID:WEB identifier
+ *
+ * Creates a full Agent object for W3C Web Annotation compliance.
+ * Includes DID:WEB identifier, type, and name.
+ */
+export function userToAgent(user: Pick<User, 'id' | 'domain' | 'name' | 'email'>): Agent {
+  return {
+    type: 'Person' as const,
+    id: userToDid(user),
+    name: user.name || user.email,
+  };
+}
+
+/**
+ * Convert a DID string to a minimal W3C Agent object
+ *
+ * Used when reconstructing annotations from events where only the DID is available.
+ * Creates a minimal Agent with just the required fields (id, type).
+ * Name is derived from the DID for display purposes.
+ */
+export function didToAgent(did: string): Agent {
+  // Extract user ID from DID format: did:web:domain.com:users:userId
+  const parts = did.split(':');
+  const userId = parts[parts.length - 1] || 'unknown';
+
+  return {
+    type: 'Person' as const,
+    id: did,
+    name: userId, // Use user ID as name since we don't have full user data
+  };
 }

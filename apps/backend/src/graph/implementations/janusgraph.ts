@@ -123,6 +123,10 @@ export class JanusGraphDatabase implements GraphDatabase {
     // Derive motivation from type if not present (backward compatibility)
     const motivation = this.getPropertyValue(props, 'motivation') || (type === 'TextualBody' ? 'highlighting' : 'linking');
 
+    // Parse creator - always stored as JSON string in DB
+    const creatorJson = this.getPropertyValue(props, 'creator');
+    const creator = JSON.parse(creatorJson);
+
     const annotation: Annotation = {
       id: this.getPropertyValue(props, 'id'),
       motivation,
@@ -136,7 +140,7 @@ export class JanusGraphDatabase implements GraphDatabase {
         entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
         source: this.getPropertyValue(props, 'source') || undefined,
       },
-      creator: this.getPropertyValue(props, 'creator'),
+      creator,
       created: this.getPropertyValue(props, 'created'), // ISO string from DB
     };
 
@@ -151,7 +155,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       try {
         annotation.generator = JSON.parse(generatorJson);
       } catch (e) {
-        // Ignore parse errors for backward compatibility
+        // Ignore parse errors
       }
     }
 
@@ -313,7 +317,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('selector', JSON.stringify(input.target.selector))
       .property('type', input.body.type)
       .property('motivation', motivation)
-      .property('creator', input.creator)
+      .property('creator', JSON.stringify(input.creator))
       .property('created', annotation.created)
       .property('entityTypes', JSON.stringify(input.body.entityTypes || []));
 

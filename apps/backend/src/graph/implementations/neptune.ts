@@ -117,11 +117,14 @@ function vertexToAnnotation(vertex: any): Annotation {
   const documentId = getValue('documentId', true);
   const type = getValue('type', true) as 'TextualBody' | 'SpecificResource';
   const selectorRaw = getValue('selector', true);
-  const creator = getValue('creator', true);
+  const creatorRaw = getValue('creator', true);
   const createdRaw = getValue('created', true);
 
   // Derive motivation from type if not present (backward compatibility)
   const motivation = getValue('motivation') || (type === 'TextualBody' ? 'highlighting' : 'linking');
+
+  // Parse creator - always stored as JSON string in DB
+  const creator = JSON.parse(creatorRaw);
 
   const annotation: Annotation = {
     id,
@@ -153,7 +156,7 @@ function vertexToAnnotation(vertex: any): Annotation {
     try {
       annotation.generator = JSON.parse(generatorJson);
     } catch (e) {
-      // Ignore parse errors for backward compatibility
+      // Ignore parse errors
     }
   }
 
@@ -498,7 +501,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('selector', JSON.stringify(annotation.target.selector))
         .property('type', annotation.body.type)
         .property('motivation', motivation)
-        .property('creator', annotation.creator)
+        .property('creator', JSON.stringify(annotation.creator))
         .property('created', annotation.created)
         .property('entityTypes', JSON.stringify(annotation.body.entityTypes));
 

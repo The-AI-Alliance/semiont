@@ -64,7 +64,11 @@ describe('StubReferencePopup', () => {
         source: null,
       },
       motivation: 'linking',
-      creator: 'test-user',
+      creator: {
+        type: 'Person',
+        id: 'did:web:test.com:users:test-user',
+        name: 'test-user',
+      },
       created: new Date().toISOString(),
     } as ReferenceAnnotation,
     onUpdateAnnotation: mockOnUpdateAnnotation,

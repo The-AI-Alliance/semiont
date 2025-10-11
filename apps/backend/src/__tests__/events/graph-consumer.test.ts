@@ -345,6 +345,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+        id: 'hl-123',
         target: {
           source: 'doc-123',
           selector: {
@@ -358,7 +359,11 @@ describe('GraphDBConsumer', () => {
           type: 'TextualBody',
           entityTypes: [],
         },
-        creator: 'user1',
+        creator: {
+          type: 'Person',
+          id: 'user1',
+          name: 'user1',
+        },
       });
     });
   });
@@ -422,6 +427,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+        id: 'ref-123',
         target: {
           source: 'doc-123',
           selector: {
@@ -436,7 +442,11 @@ describe('GraphDBConsumer', () => {
           source: 'doc-456',
           entityTypes: ['Person', 'Organization'],
         },
-        creator: 'user1',
+        creator: {
+          type: 'Person',
+          id: 'user1',
+          name: 'user1',
+        },
       });
     });
 
@@ -467,6 +477,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+        id: 'ref-456',
         target: {
           source: 'doc-123',
           selector: {
@@ -481,7 +492,11 @@ describe('GraphDBConsumer', () => {
           source: undefined,
           entityTypes: [],
         },
-        creator: 'user1',
+        creator: {
+          type: 'Person',
+          id: 'user1',
+          name: 'user1',
+        },
       });
     });
   });
