@@ -7,6 +7,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FilesystemStorage } from '../../storage/filesystem';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import { EventStore } from '../../events/event-store';
+import { CREATION_METHODS } from '@semiont/core-types';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -204,6 +205,7 @@ describe('Layered Storage', () => {
           name: 'Integration Test',
           format: 'text/plain',
           contentHash: 'hash1',
+          creationMethod: CREATION_METHODS.API,
         },
       });
 
@@ -226,6 +228,7 @@ describe('Layered Storage', () => {
           name: 'Update Test',
           format: 'text/plain',
           contentHash: 'hash2',
+          creationMethod: CREATION_METHODS.API,
         },
       });
 
@@ -265,6 +268,7 @@ describe('Layered Storage', () => {
           name: 'Load Test',
           format: 'text/plain',
           contentHash: 'hash3',
+          creationMethod: CREATION_METHODS.API,
         },
       });
 

@@ -6,7 +6,7 @@
  */
 
 import { getEventStore } from './event-store';
-import type { StoredEvent } from '@semiont/core-types';
+import type { StoredEvent, CreationMethod } from '@semiont/core-types';
 
 /**
  * Emit a document.created event
@@ -17,6 +17,7 @@ export async function emitDocumentCreated(params: {
   name: string;
   format: string;
   contentHash: string;
+  creationMethod: CreationMethod;
   entityTypes?: string[];
   metadata?: Record<string, any>;
 }): Promise<StoredEvent> {
@@ -33,6 +34,7 @@ export async function emitDocumentCreated(params: {
       name: params.name,
       format: params.format,
       contentHash: params.contentHash,
+      creationMethod: params.creationMethod,
       entityTypes: params.entityTypes,
       metadata: params.metadata,
     },
@@ -53,6 +55,7 @@ export async function emitDocumentCloned(params: {
   format: string;
   contentHash: string;
   parentDocumentId: string;
+  creationMethod: CreationMethod;
   entityTypes?: string[];
   metadata?: Record<string, any>;
 }): Promise<StoredEvent> {
@@ -68,6 +71,7 @@ export async function emitDocumentCloned(params: {
       format: params.format,
       contentHash: params.contentHash,
       parentDocumentId: params.parentDocumentId,
+      creationMethod: params.creationMethod,
       entityTypes: params.entityTypes,
       metadata: params.metadata,
     },

@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { EventStore } from '../../events/event-store';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
+import { CREATION_METHODS } from '@semiont/core-types';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -44,6 +45,7 @@ describe('Event Store', () => {
         name: 'Test',
         format: 'text/plain',
         contentHash: 'hash1',
+        creationMethod: CREATION_METHODS.API,
       },
     });
 
@@ -62,7 +64,7 @@ describe('Event Store', () => {
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { name: 'Test', format: 'text/plain', contentHash: 'h1' },
+      payload: { name: 'Test', format: 'text/plain', contentHash: 'h1', creationMethod: CREATION_METHODS.API },
     });
 
     const e2 = await eventStore.appendEvent({
@@ -88,7 +90,7 @@ describe('Event Store', () => {
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { name: 'Doc', format: 'text/plain', contentHash: 'h1' },
+      payload: { name: 'Doc', format: 'text/plain', contentHash: 'h1', creationMethod: CREATION_METHODS.API },
     });
 
     await eventStore.appendEvent({
