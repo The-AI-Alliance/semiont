@@ -204,6 +204,15 @@
     "userAccount": "Cuenta de Usuario",
     "settings": "Configuración"
   },
+  "DocumentPanel": {
+    "title": "Acciones del Documento",
+    "clone": "Clonar",
+    "cloneDescription": "Crear una copia de este documento",
+    "archive": "Archivar",
+    "archiveDescription": "Mover este documento al estado archivado",
+    "unarchive": "Desarchivar",
+    "unarchiveDescription": "Restaurar este documento al estado activo"
+  },
   "UserPanel": {
     "account": "Cuenta",
     "user": "Usuario",
