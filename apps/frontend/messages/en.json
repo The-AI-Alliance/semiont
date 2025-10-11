@@ -204,6 +204,17 @@
     "userAccount": "User Account",
     "settings": "Settings"
   },
+  "DetectPanel": {
+    "title": "Detect References",
+    "selectEntityTypes": "Select entity types to detect:",
+    "select": "Select",
+    "deselect": "Deselect",
+    "noEntityTypes": "No entity types available",
+    "typesSelected": "{count, plural, =1 {1 type selected} other {# types selected}}",
+    "startDetection": "Start Detection",
+    "found": "{count} found",
+    "more": "More"
+  },
   "DocumentPanel": {
     "title": "Document Actions",
     "clone": "Clone",
