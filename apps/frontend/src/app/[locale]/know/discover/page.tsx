@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/routing';
 import { api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
@@ -15,11 +16,15 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 const DocumentCard = React.memo(({
   doc,
   onOpen,
-  tabIndex = 0
+  tabIndex = 0,
+  archivedLabel,
+  createdLabel
 }: {
   doc: Document;
   onOpen: (doc: Document) => void;
   tabIndex?: number;
+  archivedLabel: string;
+  createdLabel: string;
 }) => (
   <div
     onClick={() => onOpen(doc)}
@@ -40,14 +45,14 @@ const DocumentCard = React.memo(({
       </h4>
       {doc.archived && (
         <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
-          Archived
+          {archivedLabel}
         </span>
       )}
     </div>
 
     {/* Document Metadata */}
     <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-500">
-      <span>Created {new Date(doc.created).toLocaleDateString()}</span>
+      <span>{createdLabel} {new Date(doc.created).toLocaleDateString()}</span>
       {doc.entityTypes && doc.entityTypes.length > 0 && (
         <div className="flex gap-1">
           {doc.entityTypes.slice(0, 2).map((type) => (
@@ -89,6 +94,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function DiscoverPage() {
+  const t = useTranslations('Discover');
   const router = useRouter();
   const { addDocument } = useOpenDocuments();
 
@@ -173,7 +179,7 @@ export default function DiscoverPage() {
   if (isLoadingRecent) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-gray-600 dark:text-gray-300">Loading knowledge base...</p>
+        <p className="text-gray-600 dark:text-gray-300">{t('loadingKnowledgeBase')}</p>
       </div>
     );
   }
@@ -186,9 +192,9 @@ export default function DiscoverPage() {
       <div className="flex-1 overflow-y-auto px-4 py-8 space-y-6">
         {/* Page Header */}
         <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Discover Knowledge</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{t('title')}</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Explore your knowledge graph and discover connections
+          {t('subtitle')}
         </p>
       </div>
 
@@ -201,7 +207,7 @@ export default function DiscoverPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search documents by name or content..."
+              placeholder={t('searchPlaceholder')}
               className="flex-1 px-4 py-2 bg-gray-50/50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 dark:focus:ring-cyan-400/50 focus:border-cyan-500/50 dark:focus:border-cyan-400/50 dark:text-white placeholder:text-gray-400 transition-colors"
               disabled={isSearching}
             />
@@ -210,7 +216,7 @@ export default function DiscoverPage() {
               disabled={isSearching}
               className="px-6 py-2 bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20 border border-black/20 dark:border-white/20 text-gray-900 dark:text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
             >
-              {isSearching ? 'Searching...' : 'Search'}
+              {isSearching ? t('searching') : t('searchButton')}
             </button>
           </div>
         </form>
@@ -219,7 +225,7 @@ export default function DiscoverPage() {
         {entityTypes.length > 0 && (
           <div className="mb-6">
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-              Filter by Entity Type (use arrow keys to navigate)
+              {t('filterByEntityType')}
             </h3>
             <div
               ref={entityFilterRoving.containerRef}
@@ -238,7 +244,7 @@ export default function DiscoverPage() {
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
-                All
+                {t('all')}
               </button>
               {entityTypes.map((type: string) => (
                 <button
@@ -263,19 +269,19 @@ export default function DiscoverPage() {
         <div>
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             {showNoResultsWarning
-              ? 'Recent Documents'
+              ? t('recentDocuments')
               : hasSearchResults
-                ? `Search Results (${searchDocuments.length})`
+                ? t('searchResults', { count: searchDocuments.length })
                 : selectedEntityType
-                  ? `Documents tagged with "${selectedEntityType}"`
-                  : 'Recent Documents'
+                  ? t('documentsTaggedWith', { entityType: selectedEntityType })
+                  : t('recentDocuments')
             }
           </h3>
-          
+
           {showNoResultsWarning && (
             <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                No results found for "{searchQuery}". Showing recent documents instead.
+                {t('noResultsFound', { query: searchQuery })}
               </p>
             </div>
           )}
@@ -294,20 +300,22 @@ export default function DiscoverPage() {
                   doc={doc}
                   onOpen={openDocument}
                   tabIndex={index === 0 ? 0 : -1}
+                  archivedLabel={t('archived')}
+                  createdLabel={t('created')}
                 />
               ))}
             </div>
           ) : (
             <div className="text-center py-12">
               <p className="text-gray-500 dark:text-gray-400">
-                No documents available. Create your first document to get started.
+                {t('noDocumentsAvailable')}
               </p>
               {!hasSearchQuery && (
                 <button
                   onClick={() => router.push('/know/compose')}
                   className="mt-4 px-6 py-2 bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20 border border-black/20 dark:border-white/20 text-gray-900 dark:text-white rounded-lg transition-all duration-300 transform hover:scale-105"
                 >
-                  Compose First Document
+                  {t('composeFirstDocument')}
                 </button>
               )}
             </div>

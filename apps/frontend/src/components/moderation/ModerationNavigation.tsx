@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { 
+import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/routing';
+import { usePathname } from '@/i18n/routing';
+import {
   ClockIcon,
   TagIcon,
   LinkIcon,
@@ -11,49 +12,50 @@ import {
   ChartBarIcon
 } from '@heroicons/react/24/outline';
 
-const navigation = [
-  {
-    name: 'Recent Documents',
-    href: '/moderate/recent',
-    icon: ClockIcon,
-    description: 'View recently submitted and modified documents'
-  },
-  {
-    name: 'Entity Tags',
-    href: '/moderate/entity-tags',
-    icon: TagIcon,
-    description: 'Manage document classification tags'
-  },
-  {
-    name: 'Reference Tags',
-    href: '/moderate/reference-tags',
-    icon: LinkIcon,
-    description: 'Manage document relationship types'
-  }
-  // Future navigation items can be added here
-  // {
-  //   name: 'Content Review',
-  //   href: '/moderate/review',
-  //   icon: FlagIcon,
-  //   description: 'Review flagged content'
-  // },
-  // {
-  //   name: 'Analytics',
-  //   href: '/moderate/analytics',
-  //   icon: ChartBarIcon,
-  //   description: 'Tag usage and content statistics'
-  // }
-];
-
 export function ModerationNavigation() {
+  const t = useTranslations('Moderation');
   const pathname = usePathname();
+
+  const navigation = [
+    {
+      name: t('recentDocuments'),
+      href: '/moderate/recent',
+      icon: ClockIcon,
+      description: t('recentDocumentsDescription')
+    },
+    {
+      name: t('entityTags'),
+      href: '/moderate/entity-tags',
+      icon: TagIcon,
+      description: t('entityTagsDescription')
+    },
+    {
+      name: t('referenceTags'),
+      href: '/moderate/reference-tags',
+      icon: LinkIcon,
+      description: t('referenceTagsDescription')
+    }
+    // Future navigation items can be added here
+    // {
+    //   name: 'Content Review',
+    //   href: '/moderate/review',
+    //   icon: FlagIcon,
+    //   description: 'Review flagged content'
+    // },
+    // {
+    //   name: 'Analytics',
+    //   href: '/moderate/analytics',
+    //   icon: ChartBarIcon,
+    //   description: 'Tag usage and content statistics'
+    // }
+  ];
 
   return (
     <div className="p-4">
       <div className="space-y-1">
         <div>
           <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-            Moderation
+            {t('title')}
           </div>
 
           {navigation.map((item) => {

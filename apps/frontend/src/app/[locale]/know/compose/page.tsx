@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, Suspense, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/routing';
+import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
@@ -15,6 +17,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 
 function ComposeDocumentContent() {
+  const t = useTranslations('Compose');
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
@@ -273,20 +276,20 @@ function ComposeDocumentContent() {
         {/* Page Title */}
         <div className="mb-8">
         <h1 className="text-2xl font-bold text-black dark:text-white">
-          {isClone ? 'Edit Cloned Document' : isReferenceCompletion ? 'Complete Reference' : 'Compose New Document'}
+          {isClone ? t('titleEditClone') : isReferenceCompletion ? t('titleCompleteReference') : t('title')}
         </h1>
         {(isClone || isReferenceCompletion) && (
           <p className="mt-2 text-gray-600 dark:text-gray-400">
             {isClone
-              ? 'Review and edit your cloned document before saving'
-              : shouldGenerate ? 'AI-generated content has been created for your reference' : 'Create a document to complete the reference you started'}
+              ? t('subtitleClone')
+              : shouldGenerate ? t('subtitleReferenceAI') : t('subtitleReference')}
           </p>
         )}
         {isReferenceCompletion && (
           <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              This document will be linked to the reference you created.
-              {shouldGenerate && ' The content below was generated automatically.'}
+              {t('linkedNoticePrefix')}
+              {shouldGenerate && t('linkedNoticeGenerated')}
             </p>
           </div>
         )}
@@ -297,14 +300,14 @@ function ComposeDocumentContent() {
         <form onSubmit={handleSaveDocument} className="space-y-6">
           <div>
             <label htmlFor="docName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Title
+              {t('documentName')}
             </label>
             <input
               id="docName"
               type="text"
               value={newDocName}
               onChange={(e) => setNewDocName(e.target.value)}
-              placeholder="Enter document title..."
+              placeholder={t('documentNamePlaceholder')}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
               disabled={isCreating}
@@ -315,7 +318,7 @@ function ComposeDocumentContent() {
           {(!isReferenceCompletion || selectedEntityTypes.length === 0) && (
             <fieldset>
               <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Entity Types (Optional)
+                {t('entityTypes')}
               </legend>
               <div
                 className="flex flex-wrap gap-2 mb-2"
@@ -365,7 +368,7 @@ function ComposeDocumentContent() {
           {isReferenceCompletion && selectedEntityTypes.length > 0 && (
             <div role="region" aria-labelledby="selected-entity-types-label">
               <h3 id="selected-entity-types-label" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Entity Types
+                {t('entityTypes')}
               </h3>
               <div className="flex flex-wrap gap-2" role="list">
                 {selectedEntityTypes.map((type) => (
@@ -388,7 +391,7 @@ function ComposeDocumentContent() {
           {/* Content editor */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {isClone ? 'Document Content' : 'Content'}
+              {isClone ? t('documentContent') : t('content')}
             </label>
             <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
               <CodeMirrorRenderer
@@ -413,11 +416,11 @@ function ComposeDocumentContent() {
                 disabled={isCreating}
               />
               <label htmlFor="archiveOriginal" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                Archive original document after saving clone
+                {t('archiveOriginal')}
               </label>
             </div>
           )}
-          
+
           <div className="flex gap-4 justify-end">
             <button
               type="button"
@@ -425,16 +428,16 @@ function ComposeDocumentContent() {
               disabled={isCreating}
               className={buttonStyles.tertiary.base}
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="submit"
               disabled={isCreating || !newDocName.trim()}
               className={buttonStyles.primary.base}
             >
-              {isCreating 
-                ? (isClone ? 'Saving...' : isReferenceCompletion ? 'Creating and Linking...' : 'Creating...') 
-                : (isClone ? 'Save Cloned Document' : isReferenceCompletion ? 'Create & Link Document' : 'Create Document')}
+              {isCreating
+                ? (isClone ? t('saving') : isReferenceCompletion ? t('creatingAndLinking') : t('creating'))
+                : (isClone ? t('saveClonedDocument') : isReferenceCompletion ? t('createAndLinkDocument') : t('createDocument'))}
             </button>
           </div>
         </form>
@@ -464,11 +467,13 @@ function ComposeDocumentContent() {
 }
 
 export default function ComposeDocumentPage() {
+  const t = useTranslations('Compose');
+
   return (
     <Suspense fallback={
       <div className="px-4 py-8">
         <div className="flex items-center justify-center py-20">
-          <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+          <p className="text-gray-600 dark:text-gray-300">{t('loading')}</p>
         </div>
       </div>
     }>

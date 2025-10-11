@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';

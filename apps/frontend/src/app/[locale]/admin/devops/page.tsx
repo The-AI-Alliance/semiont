@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   ChartBarIcon,
   ServerIcon,
@@ -17,6 +18,8 @@ import { useLineNumbers } from '@/hooks/useLineNumbers';
 // Only authenticated admins can reach this page
 
 export default function DevOpsPage() {
+  const t = useTranslations('AdminDevOps');
+
   // Toolbar and settings state
   const { activePanel, togglePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
@@ -24,22 +27,22 @@ export default function DevOpsPage() {
 
   const suggestedFeatures = [
     {
-      title: 'System Monitoring',
-      description: 'Real-time service health, metrics, and logs',
+      title: t('systemMonitoring'),
+      description: t('systemMonitoringDescription'),
       icon: ChartBarIcon,
-      available: 'CLI: semiont check'
+      available: t('systemMonitoringCLI')
     },
     {
-      title: 'Service Management',
-      description: 'Start, stop, and restart services',
+      title: t('serviceManagement'),
+      description: t('serviceManagementDescription'),
       icon: ServerIcon,
-      available: 'CLI: semiont start/stop/restart'
+      available: t('serviceManagementCLI')
     },
     {
-      title: 'Deployment Control',
-      description: 'Deploy updates and manage configurations',
+      title: t('deploymentControl'),
+      description: t('deploymentControlDescription'),
       icon: CommandLineIcon,
-      available: 'CLI: semiont update'
+      available: t('deploymentControlCLI')
     },
   ];
 
@@ -49,23 +52,23 @@ export default function DevOpsPage() {
       <div className="flex-1 overflow-y-auto px-4 py-8">
         {/* Page Title */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">DevOps</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            System monitoring and management operations
+            {t('subtitle')}
           </p>
         </div>
 
         {/* System Status */}
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">System Status</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t('systemStatus')}</h2>
           <StatusDisplay />
         </div>
 
         {/* CLI Operations */}
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">CLI Operations</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t('cliOperations')}</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            These operations are available through the Semiont CLI for enhanced control and automation.
+            {t('cliOperationsDescription')}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {suggestedFeatures.map((feature) => (
@@ -102,11 +105,11 @@ export default function DevOpsPage() {
             </div>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                Semiont CLI for Advanced Operations
+                {t('cliTitle')}
               </h3>
               <div className="mt-2 text-xs text-blue-700 dark:text-blue-400">
                 <p>
-                  For infrastructure management, deployments, and monitoring, use the Semiont CLI:
+                  {t('cliDescription')}
                 </p>
                 <code className="block mt-2 p-2 bg-blue-100 dark:bg-blue-800/50 rounded">
                   semiont --help

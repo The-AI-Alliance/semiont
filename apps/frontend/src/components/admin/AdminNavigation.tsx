@@ -1,44 +1,46 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { 
+import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/routing';
+import { usePathname } from '@/i18n/routing';
+import {
   UsersIcon,
   ShieldCheckIcon,
   CommandLineIcon
 } from '@heroicons/react/24/outline';
 
-const navigation = [
-  {
-    name: 'Users',
-    href: '/admin/users',
-    icon: UsersIcon,
-    description: 'User management and permissions'
-  },
-  {
-    name: 'OAuth Settings',
-    href: '/admin/security',
-    icon: ShieldCheckIcon,
-    description: 'View OAuth configuration'
-  },
-  {
-    name: 'DevOps',
-    href: '/admin/devops',
-    icon: CommandLineIcon,
-    description: 'System monitoring and management'
-  },
-];
-
 export function AdminNavigation() {
+  const t = useTranslations('Administration');
   const pathname = usePathname();
+
+  const navigation = [
+    {
+      name: t('users'),
+      href: '/admin/users',
+      icon: UsersIcon,
+      description: t('usersDescription')
+    },
+    {
+      name: t('oauthSettings'),
+      href: '/admin/security',
+      icon: ShieldCheckIcon,
+      description: t('oauthSettingsDescription')
+    },
+    {
+      name: t('devops'),
+      href: '/admin/devops',
+      icon: CommandLineIcon,
+      description: t('devopsDescription')
+    },
+  ];
 
   return (
     <div className="p-4">
       <div className="space-y-1">
         <div>
           <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-            Administration
+            {t('title')}
           </div>
 
           {navigation.map((item) => {

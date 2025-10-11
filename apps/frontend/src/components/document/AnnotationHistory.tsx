@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api-client';
 import type { StoredEvent } from '@semiont/core-types';
 import { HistoryEvent } from './HistoryEvent';
@@ -14,6 +15,8 @@ interface Props {
 }
 
 export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHover, onEventClick }: Props) {
+  const t = useTranslations('AnnotationHistory');
+
   // Load events using React Query
   // React Query will automatically refetch when the query is invalidated by the parent
   const { data: eventsData, isLoading: loading, isError: error } = api.documents.events.useQuery(documentId);
@@ -70,9 +73,9 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-          History
+          {t('history')}
         </h3>
-        <div className="text-sm text-gray-500 dark:text-gray-400">Loading...</div>
+        <div className="text-sm text-gray-500 dark:text-gray-400">{t('loading')}</div>
       </div>
     );
   }
@@ -88,7 +91,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 flex flex-col h-full">
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-        History
+        {t('history')}
       </h3>
       <div ref={containerRef} className="space-y-1.5 overflow-y-auto flex-1 min-h-0">
         {events.map((stored) => {
@@ -102,6 +105,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
               highlights={highlights}
               allEvents={events}
               isRelated={isRelated}
+              t={t}
               onEventRef={(annotationId, el) => {
                 if (el && annotationId) {
                   eventRefs.current.set(annotationId, el);

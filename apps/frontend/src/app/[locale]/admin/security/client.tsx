@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   ShieldCheckIcon,
   GlobeAltIcon,
@@ -17,6 +18,7 @@ import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 
 export default function AdminSecurity() {
+  const t = useTranslations('AdminSecurity');
   const { data: session } = useSession();
 
   // Toolbar and settings state
@@ -37,9 +39,9 @@ export default function AdminSecurity() {
         <div className="space-y-6">
           {/* Page Header */}
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">OAuth Configuration</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              View OAuth providers and allowed domains
+              {t('subtitle')}
             </p>
           </div>
 
@@ -48,8 +50,8 @@ export default function AdminSecurity() {
             <div className="flex items-center mb-4">
               <ShieldCheckIcon className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-3" />
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">OAuth Providers</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Configured authentication providers</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('oauthProviders')}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{t('oauthProvidersDescription')}</p>
               </div>
             </div>
 
@@ -68,19 +70,19 @@ export default function AdminSecurity() {
                       </span>
                       {provider.clientId && (
                         <span className="ml-3 text-xs text-gray-500 dark:text-gray-400 font-mono">
-                          Client ID: {provider.clientId}
+                          {t('clientId')}: {provider.clientId}
                         </span>
                       )}
                     </div>
                     <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
-                      Configured
+                      {t('configured')}
                     </span>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-gray-500 dark:text-gray-400 text-sm">
-                No OAuth providers configured
+                {t('noProvidersConfigured')}
               </div>
             )}
           </div>
@@ -90,8 +92,8 @@ export default function AdminSecurity() {
             <div className="flex items-center mb-4">
               <GlobeAltIcon className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-3" />
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Allowed Email Domains</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Users from these domains can sign in</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('allowedDomains')}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{t('allowedDomainsDescription')}</p>
               </div>
             </div>
 
@@ -110,7 +112,7 @@ export default function AdminSecurity() {
               </div>
             ) : (
               <div className="text-gray-500 dark:text-gray-400 text-sm">
-                No allowed domains configured - all sign-ins will be rejected
+                {t('noDomainsConfigured')}
               </div>
             )}
           </div>
@@ -120,14 +122,14 @@ export default function AdminSecurity() {
             <div className="flex">
               <InformationCircleIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
               <div className="ml-3 text-sm">
-                <p className="text-blue-800 dark:text-blue-300 font-medium">Configuration Management</p>
+                <p className="text-blue-800 dark:text-blue-300 font-medium">{t('configManagementTitle')}</p>
                 <p className="text-blue-700 dark:text-blue-400 mt-1">
-                  OAuth settings are managed through environment variables. To modify these settings:
+                  {t('configManagementDescription')}
                 </p>
                 <ul className="list-disc list-inside text-blue-700 dark:text-blue-400 mt-2 space-y-1">
-                  <li>For local development: Update your .env files</li>
-                  <li>For cloud deployments: Use <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-800 rounded">semiont update -e &lt;environment&gt;</code> to apply changes from config files</li>
-                  <li>For AWS: Settings are stored in AWS Secrets Manager and ECS task definitions</li>
+                  <li>{t('configLocalDev')}</li>
+                  <li>{t('configCloudDeploy')} <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-800 rounded">{t('configCloudDeployCommand')}</code> {t('configCloudDeployEnd')}</li>
+                  <li>{t('configAWS')}</li>
                 </ul>
               </div>
             </div>

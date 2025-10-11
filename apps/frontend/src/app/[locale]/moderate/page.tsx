@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/routing';
 
 export default function ModeratePage() {
+  const t = useTranslations('Moderation');
   const router = useRouter();
 
   useEffect(() => {
@@ -13,7 +15,7 @@ export default function ModeratePage() {
 
   return (
     <div className="flex items-center justify-center py-20">
-      <p className="text-gray-600 dark:text-gray-300">Redirecting...</p>
+      <p className="text-gray-600 dark:text-gray-300">{t('redirecting')}</p>
     </div>
   );
 }

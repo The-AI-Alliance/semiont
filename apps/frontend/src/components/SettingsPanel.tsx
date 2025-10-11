@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useTransition } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { usePathname, useRouter } from 'next/navigation';
 
 interface Props {
   showLineNumbers: boolean;
@@ -47,12 +49,27 @@ export function SettingsPanel({
   theme,
   onThemeChange
 }: Props) {
-  const [language, setLanguage] = useState('en');
+  const t = useTranslations('Settings');
+  const locale = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isPending, startTransition] = useTransition();
+
+  const handleLocaleChange = (newLocale: string) => {
+    if (!pathname) return;
+
+    // Replace the locale in the current pathname
+    const newPathname = pathname.replace(/^\/[a-z]{2}/, `/${newLocale}`);
+
+    startTransition(() => {
+      router.replace(newPathname);
+    });
+  };
 
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-        User Settings
+        {t('title')}
       </h3>
 
         <div className="space-y-4">
@@ -60,7 +77,7 @@ export function SettingsPanel({
           <div>
             <label className="flex items-center justify-between cursor-pointer">
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Line Numbers
+                {t('lineNumbers')}
               </span>
               <button
                 type="button"
@@ -79,14 +96,14 @@ export function SettingsPanel({
               </button>
             </label>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {showLineNumbers ? 'Line numbers visible' : 'Line numbers hidden'}
+              {showLineNumbers ? t('lineNumbersVisible') : t('lineNumbersHidden')}
             </p>
           </div>
 
           {/* Theme Selection */}
           <div>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
-              Theme
+              {t('theme')}
             </label>
             <div className="flex gap-2">
               <button
@@ -97,7 +114,7 @@ export function SettingsPanel({
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
               >
-                ☀️ Light
+                ☀️ {t('themeLight')}
               </button>
               <button
                 onClick={() => onThemeChange('dark')}
@@ -107,7 +124,7 @@ export function SettingsPanel({
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
               >
-                🌙 Dark
+                🌙 {t('themeDark')}
               </button>
               <button
                 onClick={() => onThemeChange('system')}
@@ -117,24 +134,25 @@ export function SettingsPanel({
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
               >
-                💻 System
+                💻 {t('themeSystem')}
               </button>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {theme === 'system' ? 'Using system preference' : `${theme.charAt(0).toUpperCase() + theme.slice(1)} mode active`}
+              {theme === 'system' ? t('themeSystemActive') : t('themeModeActive', { mode: theme.charAt(0).toUpperCase() + theme.slice(1) })}
             </p>
           </div>
 
           {/* Language Selection */}
           <div>
             <label htmlFor="language-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
-              Language
+              {t('language')}
             </label>
             <select
               id="language-select"
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={locale}
+              onChange={(e) => handleLocaleChange(e.target.value)}
+              disabled={isPending}
+              className="w-full px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
             >
               {LANGUAGES.map((lang) => (
                 <option key={lang.code} value={lang.code}>
@@ -143,7 +161,7 @@ export function SettingsPanel({
               ))}
             </select>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              UI language (localization coming soon)
+              {t('languageHint')}
             </p>
           </div>
         </div>
