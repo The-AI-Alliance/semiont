@@ -431,5 +431,36 @@
     "processing": "Processing...",
     "legallyBound": "By clicking \"Accept & Continue\", you agree to be legally bound by these terms.",
     "errorAcceptingTerms": "There was an error recording your terms acceptance. Please try again."
+  },
+  "ModerateEntityTags": {
+    "loading": "Loading...",
+    "pageTitle": "Entity Tags",
+    "pageDescription": "Manage tags used to classify and categorize documents. These tags help users organize and find content more effectively. Tags are append-only and cannot be deleted once created.",
+    "sectionTitle": "Document Classification Tags",
+    "sectionDescription": "Tags that can be applied to documents for categorization",
+    "inputPlaceholder": "Enter new entity tag...",
+    "adding": "Adding...",
+    "addTag": "Add Tag",
+    "errorFailedToAdd": "Failed to add tag"
+  },
+  "ModerateReferenceTags": {
+    "loading": "Loading...",
+    "pageTitle": "Reference Tags",
+    "pageDescription": "Manage semantic relationship types between documents. These tags define how documents can reference and relate to each other. Tags are append-only and cannot be deleted once created.",
+    "sectionTitle": "Document Relationship Types",
+    "sectionDescription": "Semantic relationships that can connect documents",
+    "inputPlaceholder": "Enter new reference tag...",
+    "adding": "Adding...",
+    "addTag": "Add Tag",
+    "errorFailedToAdd": "Failed to add tag"
+  },
+  "ModerateRecent": {
+    "loading": "Loading...",
+    "pageTitle": "Recent Documents",
+    "pageDescription": "Monitor recent document submissions and modifications across the platform.",
+    "sectionTitle": "Document Activity",
+    "sectionDescription": "View and review recently added or modified documents",
+    "noRecentDocuments": "No recent documents",
+    "activityWillAppear": "Document activity will appear here as users submit new content"
   }
 }

@@ -3,6 +3,7 @@
 import { notFound } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   LinkIcon,
   PlusIcon,
@@ -17,6 +18,7 @@ import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 
 export default function ReferenceTagsPage() {
+  const t = useTranslations('ModerateReferenceTags');
   const { data: session, status } = useSession();
   const [newTag, setNewTag] = useState('');
   const [error, setError] = useState('');
@@ -56,7 +58,7 @@ export default function ReferenceTagsPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/reference-types'] });
       setNewTag('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add tag');
+      setError(err instanceof Error ? err.message : t('errorFailedToAdd'));
     }
   };
 
@@ -64,7 +66,7 @@ export default function ReferenceTagsPage() {
   if (status === 'loading' || isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+        <p className="text-gray-600 dark:text-gray-300">{t('loading')}</p>
       </div>
     );
   }
@@ -80,10 +82,9 @@ export default function ReferenceTagsPage() {
       <div className="flex-1 overflow-y-auto px-4 py-8">
         {/* Page Title */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reference Tags</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('pageTitle')}</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Manage semantic relationship types between documents. These tags define how documents
-            can reference and relate to each other. Tags are append-only and cannot be deleted once created.
+            {t('pageDescription')}
           </p>
         </div>
 
@@ -94,9 +95,9 @@ export default function ReferenceTagsPage() {
               <LinkIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Document Relationship Types</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('sectionTitle')}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Semantic relationships that can connect documents
+                {t('sectionDescription')}
               </p>
             </div>
           </div>
@@ -122,7 +123,7 @@ export default function ReferenceTagsPage() {
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-              placeholder="Enter new reference tag..."
+              placeholder={t('inputPlaceholder')}
               className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
               disabled={createReferenceTypeMutation.isPending}
             />
@@ -132,11 +133,11 @@ export default function ReferenceTagsPage() {
               className="px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-blue-600 hover:bg-blue-700 text-white"
             >
               {createReferenceTypeMutation.isPending ? (
-                'Adding...'
+                t('adding')
               ) : (
                 <>
                   <PlusIcon className="w-5 h-5 inline-block mr-1" />
-                  Add Tag
+                  {t('addTag')}
                 </>
               )}
             </button>

@@ -431,5 +431,36 @@
     "processing": "Procesando...",
     "legallyBound": "Al hacer clic en \"Aceptar y Continuar\", aceptas estar legalmente obligado por estos términos.",
     "errorAcceptingTerms": "Hubo un error al registrar tu aceptación de los términos. Por favor, inténtalo de nuevo."
+  },
+  "ModerateEntityTags": {
+    "loading": "Cargando...",
+    "pageTitle": "Etiquetas de Entidad",
+    "pageDescription": "Gestiona etiquetas utilizadas para clasificar y categorizar documentos. Estas etiquetas ayudan a los usuarios a organizar y encontrar contenido de manera más efectiva. Las etiquetas solo se pueden agregar y no se pueden eliminar una vez creadas.",
+    "sectionTitle": "Etiquetas de Clasificación de Documentos",
+    "sectionDescription": "Etiquetas que se pueden aplicar a documentos para su categorización",
+    "inputPlaceholder": "Ingrese nueva etiqueta de entidad...",
+    "adding": "Agregando...",
+    "addTag": "Agregar Etiqueta",
+    "errorFailedToAdd": "No se pudo agregar la etiqueta"
+  },
+  "ModerateReferenceTags": {
+    "loading": "Cargando...",
+    "pageTitle": "Etiquetas de Referencia",
+    "pageDescription": "Gestiona tipos de relaciones semánticas entre documentos. Estas etiquetas definen cómo los documentos pueden referenciarse y relacionarse entre sí. Las etiquetas solo se pueden agregar y no se pueden eliminar una vez creadas.",
+    "sectionTitle": "Tipos de Relaciones de Documentos",
+    "sectionDescription": "Relaciones semánticas que pueden conectar documentos",
+    "inputPlaceholder": "Ingrese nueva etiqueta de referencia...",
+    "adding": "Agregando...",
+    "addTag": "Agregar Etiqueta",
+    "errorFailedToAdd": "No se pudo agregar la etiqueta"
+  },
+  "ModerateRecent": {
+    "loading": "Cargando...",
+    "pageTitle": "Documentos Recientes",
+    "pageDescription": "Monitorea los envíos y modificaciones recientes de documentos en la plataforma.",
+    "sectionTitle": "Actividad de Documentos",
+    "sectionDescription": "Ver y revisar documentos agregados o modificados recientemente",
+    "noRecentDocuments": "No hay documentos recientes",
+    "activityWillAppear": "La actividad de documentos aparecerá aquí a medida que los usuarios envíen nuevo contenido"
   }
 }

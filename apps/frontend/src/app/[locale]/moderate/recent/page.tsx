@@ -3,6 +3,7 @@
 import { notFound } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   ClockIcon
 } from '@heroicons/react/24/outline';
@@ -13,6 +14,7 @@ import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 
 export default function RecentDocumentsPage() {
+  const t = useTranslations('ModerateRecent');
   const { data: session, status } = useSession();
 
   // Toolbar and settings state
@@ -35,7 +37,7 @@ export default function RecentDocumentsPage() {
   if (status === 'loading') {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+        <p className="text-gray-600 dark:text-gray-300">{t('loading')}</p>
       </div>
     );
   }
@@ -51,9 +53,9 @@ export default function RecentDocumentsPage() {
       <div className="flex-1 overflow-y-auto px-4 py-8">
         {/* Page Title */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Recent Documents</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('pageTitle')}</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Monitor recent document submissions and modifications across the platform.
+            {t('pageDescription')}
           </p>
         </div>
 
@@ -64,9 +66,9 @@ export default function RecentDocumentsPage() {
               <ClockIcon className="w-6 h-6 text-gray-600 dark:text-gray-400" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Document Activity</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('sectionTitle')}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                View and review recently added or modified documents
+                {t('sectionDescription')}
               </p>
             </div>
           </div>
@@ -75,9 +77,9 @@ export default function RecentDocumentsPage() {
             <svg className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-gray-500 dark:text-gray-400">No recent documents</p>
+            <p className="text-gray-500 dark:text-gray-400">{t('noDocuments')}</p>
             <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-              Document activity will appear here as users submit new content
+              {t('activityWillAppear')}
             </p>
           </div>
         </div>
