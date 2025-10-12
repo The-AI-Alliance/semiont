@@ -2,7 +2,7 @@
 
 import React, { useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter } from '@/i18n/routing';
 
 interface Props {
   showLineNumbers: boolean;
@@ -58,11 +58,9 @@ export function SettingsPanel({
   const handleLocaleChange = (newLocale: string) => {
     if (!pathname) return;
 
-    // Replace the locale in the current pathname
-    const newPathname = pathname.replace(/^\/[a-z]{2}/, `/${newLocale}`);
-
     startTransition(() => {
-      router.replace(newPathname);
+      // The router from @/i18n/routing is locale-aware and will handle the locale prefix
+      router.replace(pathname, { locale: newLocale });
     });
   };
 
