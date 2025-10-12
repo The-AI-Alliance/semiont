@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import type { GoogleAuthRequest } from '@semiont/sdk';
 
-// JWT Payload schema - matches the structure from api-contracts but defined locally
+// JWT Payload schema - backend-specific internal type for JWT validation
 export const JWTPayloadSchema = z.object({
   userId: z.string().regex(/^c[a-z0-9]{24,}$/), // CUID format
   email: z.string().email(),
@@ -14,9 +15,5 @@ export const JWTPayloadSchema = z.object({
 
 export type JWTPayload = z.infer<typeof JWTPayloadSchema>;
 
-// Google Auth Request schema
-export const GoogleAuthRequestSchema = z.object({
-  token: z.string(),
-});
-
-export type GoogleAuthRequest = z.infer<typeof GoogleAuthRequestSchema>;
+// Re-export GoogleAuthRequest type from SDK
+export type { GoogleAuthRequest };

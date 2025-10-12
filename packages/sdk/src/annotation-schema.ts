@@ -5,7 +5,7 @@
  * All other annotation-related schemas derive from or reference this.
  */
 
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 
 /**
  * W3C Web Annotation Selector Types
@@ -326,3 +326,14 @@ export function extractAnnotationId(fullUriOrId: string): string {
 export function compareAnnotationIds(id1: string, id2: string): boolean {
   return extractAnnotationId(id1) === extractAnnotationId(id2);
 }
+
+// ============================================================================
+// OpenAPI-wrapped Schemas (for Hono routes - call .openapi() on schemas above)
+// ============================================================================
+
+export const TextPositionSelectorSchemaOpenAPI = TextPositionSelectorSchema.openapi('TextPositionSelector');
+export const TextQuoteSelectorSchemaOpenAPI = TextQuoteSelectorSchema.openapi('TextQuoteSelector');
+export const SelectorSchemaOpenAPI = SelectorSchema.openapi('Selector');
+export const MotivationSchemaOpenAPI = MotivationSchema.openapi('Motivation');
+export const AgentSchemaOpenAPI = AgentSchema.openapi('Agent');
+export const AnnotationSchemaOpenAPI = AnnotationSchema.openapi('Annotation');

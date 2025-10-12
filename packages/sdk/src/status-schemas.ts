@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 
 /**
  * Status Response - returned by /api/status
@@ -41,3 +41,11 @@ export const ErrorResponseSchema = z.object({
 });
 
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
+
+// ============================================================================
+// OpenAPI-wrapped Schemas (for Hono routes - call .openapi() on schemas above)
+// ============================================================================
+
+export const StatusResponseSchemaOpenAPI = StatusResponseSchema.openapi('StatusResponse');
+export const HealthResponseSchemaOpenAPI = HealthResponseSchema.openapi('HealthResponse');
+export const ErrorResponseSchemaOpenAPI = ErrorResponseSchema.openapi('ErrorResponse');

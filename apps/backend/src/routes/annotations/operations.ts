@@ -7,10 +7,10 @@ import { calculateChecksum } from '@semiont/sdk';
 import { userToAgent } from '../../utils/id-generator';
 import {
   CREATION_METHODS,
-  GenerateDocumentFromAnnotationRequestSchema,
-  GenerateDocumentFromAnnotationResponseSchema,
-  CreateDocumentFromSelectionResponseSchema,
-  AnnotationContextResponseSchema,
+  GenerateDocumentFromAnnotationRequestSchemaOpenAPI as GenerateDocumentFromAnnotationRequestSchema,
+  GenerateDocumentFromAnnotationResponseSchemaOpenAPI as GenerateDocumentFromAnnotationResponseSchema,
+  CreateDocumentFromSelectionResponseSchemaOpenAPI as CreateDocumentFromSelectionResponseSchema,
+  AnnotationContextResponseSchemaOpenAPI as AnnotationContextResponseSchema,
   ContextualSummaryResponseSchema,
   getAnnotationExactText,
   getTextPositionSelector,

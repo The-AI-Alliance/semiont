@@ -3,13 +3,13 @@ import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
 import {
-  CreateAnnotationRequestSchema,
-  CreateAnnotationResponseSchema,
-  ResolveAnnotationRequestSchema,
-  ResolveAnnotationResponseSchema,
-  DeleteAnnotationRequestSchema,
-  GetAnnotationResponseSchema,
-  ListAnnotationsResponseSchema,
+  CreateAnnotationRequestSchemaOpenAPI as CreateAnnotationRequestSchema,
+  CreateAnnotationResponseSchemaOpenAPI as CreateAnnotationResponseSchema,
+  ResolveAnnotationRequestSchemaOpenAPI as ResolveAnnotationRequestSchema,
+  ResolveAnnotationResponseSchemaOpenAPI as ResolveAnnotationResponseSchema,
+  DeleteAnnotationRequestSchemaOpenAPI as DeleteAnnotationRequestSchema,
+  GetAnnotationResponseSchemaOpenAPI as GetAnnotationResponseSchema,
+  ListAnnotationsResponseSchemaOpenAPI as ListAnnotationsResponseSchema,
   getExactText,
   getTextPositionSelector,
   type CreateAnnotationResponse,

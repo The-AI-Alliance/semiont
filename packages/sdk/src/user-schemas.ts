@@ -1,20 +1,20 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 
 /**
  * Auth Response - returned by login endpoints
  */
 export const AuthResponseSchema = z.object({
-  success: z.boolean(),
+  success: z.boolean().openapi({ example: true }),
   user: z.object({
-    id: z.string(),
-    email: z.string(),
-    name: z.string().nullable(),
-    image: z.string().nullable(),
-    domain: z.string(),
-    isAdmin: z.boolean(),
+    id: z.string().openapi({ example: 'user-123' }),
+    email: z.string().openapi({ example: 'user@example.com' }),
+    name: z.string().nullable().openapi({ example: 'John Doe' }),
+    image: z.string().nullable().openapi({ example: 'https://example.com/avatar.jpg' }),
+    domain: z.string().openapi({ example: 'example.com' }),
+    isAdmin: z.boolean().openapi({ example: false }),
   }),
-  token: z.string(),
-  isNewUser: z.boolean(),
+  token: z.string().openapi({ example: 'eyJhbGciOiJIUzI1NiIs...' }),
+  isNewUser: z.boolean().openapi({ example: false }),
 });
 
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
@@ -23,17 +23,17 @@ export type AuthResponse = z.infer<typeof AuthResponseSchema>;
  * User Response - returned by /api/users/me
  */
 export const UserResponseSchema = z.object({
-  id: z.string(),
-  email: z.string(),
-  name: z.string().nullable(),
-  image: z.string().nullable(),
-  domain: z.string(),
-  provider: z.string(),
-  isAdmin: z.boolean(),
-  isActive: z.boolean(),
-  termsAcceptedAt: z.string().nullable(),
-  lastLogin: z.string().nullable(),
-  created: z.string(),
+  id: z.string().openapi({ example: 'user-123' }),
+  email: z.string().openapi({ example: 'user@example.com' }),
+  name: z.string().nullable().openapi({ example: 'John Doe' }),
+  image: z.string().nullable().openapi({ example: 'https://example.com/avatar.jpg' }),
+  domain: z.string().openapi({ example: 'example.com' }),
+  provider: z.string().openapi({ example: 'google' }),
+  isAdmin: z.boolean().openapi({ example: false }),
+  isActive: z.boolean().openapi({ example: true }),
+  termsAcceptedAt: z.string().nullable().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+  lastLogin: z.string().nullable().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+  created: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
 });
 
 export type UserResponse = z.infer<typeof UserResponseSchema>;
@@ -181,3 +181,12 @@ export const DeleteUserResponseSchema = z.object({
 });
 
 export type DeleteUserResponse = z.infer<typeof DeleteUserResponseSchema>;
+
+// ============================================================================
+// OpenAPI-wrapped Schemas (for Hono routes - just call .openapi() on schemas above)
+// ============================================================================
+
+export const AuthResponseSchemaOpenAPI = AuthResponseSchema.openapi('AuthResponse');
+export const UserResponseSchemaOpenAPI = UserResponseSchema.openapi('UserResponse');
+export const UpdateUserResponseSchemaOpenAPI = UpdateUserResponseSchema.openapi('UpdateUserResponse');
+export const DeleteUserResponseSchemaOpenAPI = DeleteUserResponseSchema.openapi('DeleteUserResponse');

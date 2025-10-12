@@ -1,7 +1,11 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import type { DocumentsRouterType } from '../shared';
-import { UpdateDocumentRequestSchema, GetDocumentResponseSchema, type GetDocumentResponse } from '@semiont/sdk';
+import {
+  UpdateDocumentRequestSchemaOpenAPI as UpdateDocumentRequestSchema,
+  GetDocumentResponseSchemaOpenAPI as GetDocumentResponseSchema,
+  type GetDocumentResponse,
+} from '@semiont/sdk';
 import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';

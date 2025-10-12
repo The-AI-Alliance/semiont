@@ -1,5 +1,4 @@
-
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 
 /**
  * Add Entity Type Response
@@ -20,3 +19,10 @@ export const AddReferenceTypeResponseSchema = z.object({
 });
 
 export type AddReferenceTypeResponse = z.infer<typeof AddReferenceTypeResponseSchema>;
+
+// ============================================================================
+// OpenAPI-wrapped Schemas (for Hono routes - call .openapi() on schemas above)
+// ============================================================================
+
+export const AddEntityTypeResponseSchemaOpenAPI = AddEntityTypeResponseSchema.openapi('AddEntityTypeResponse');
+export const AddReferenceTypeResponseSchemaOpenAPI = AddReferenceTypeResponseSchema.openapi('AddReferenceTypeResponse');

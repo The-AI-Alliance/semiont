@@ -5,10 +5,10 @@ import { getStorageService } from '../../../storage/filesystem';
 import { calculateChecksum } from '@semiont/sdk';
 import {
   CREATION_METHODS,
-  GetDocumentByTokenResponseSchema,
-  CreateDocumentFromTokenRequestSchema,
-  CreateDocumentFromTokenResponseSchema,
-  CloneDocumentWithTokenResponseSchema,
+  GetDocumentByTokenResponseSchemaOpenAPI as GetDocumentByTokenResponseSchema,
+  CreateDocumentFromTokenRequestSchemaOpenAPI as CreateDocumentFromTokenRequestSchema,
+  CreateDocumentFromTokenResponseSchemaOpenAPI as CreateDocumentFromTokenResponseSchema,
+  CloneDocumentWithTokenResponseSchemaOpenAPI as CloneDocumentWithTokenResponseSchema,
   type GetDocumentByTokenResponse,
   type CreateDocumentFromTokenResponse,
   type CloneDocumentWithTokenResponse,

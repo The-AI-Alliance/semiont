@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { User } from '@prisma/client';
-import { AddReferenceTypeResponseSchema } from '@semiont/sdk';
+import { AddReferenceTypeResponseSchemaOpenAPI as AddReferenceTypeResponseSchema } from '@semiont/sdk';
 import { authMiddleware } from '../middleware/auth';
 import { getGraphDatabase } from '../graph/factory';
 

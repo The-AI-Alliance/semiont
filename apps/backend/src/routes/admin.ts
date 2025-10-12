@@ -1,60 +1,19 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import {
-  UpdateUserResponseSchema,
-  DeleteUserResponseSchema,
-  OAuthConfigResponseSchemaActual,
+  UserListResponseSchema,
+  UserStatsResponseSchema,
+  UpdateUserRequestSchema,
+  UpdateUserResponseSchemaOpenAPI as UpdateUserResponseSchema,
+  DeleteUserResponseSchemaOpenAPI as DeleteUserResponseSchema,
+  OAuthConfigResponseSchemaActualOpenAPI as OAuthConfigResponseSchemaActual,
   type UpdateUserResponse,
   type DeleteUserResponse,
-  type OAuthConfigResponseActual
+  type OAuthConfigResponseActual,
 } from '@semiont/sdk';
 import { ErrorResponseSchema } from '../openapi';
 import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
-
-// OpenAPI-wrapped schemas for this route
-export const UserListResponseSchema = z.object({
-  success: z.boolean().openapi({ example: true }),
-  users: z.array(z.object({
-    id: z.string().openapi({ example: 'user-123' }),
-    email: z.string().openapi({ example: 'user@example.com' }),
-    name: z.string().nullable().openapi({ example: 'John Doe' }),
-    image: z.string().nullable().openapi({ example: 'https://example.com/avatar.jpg' }),
-    domain: z.string().openapi({ example: 'example.com' }),
-    provider: z.string().openapi({ example: 'google' }),
-    isAdmin: z.boolean().openapi({ example: false }),
-    isActive: z.boolean().openapi({ example: true }),
-    lastLogin: z.string().nullable().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-    created: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-    updatedAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-  })),
-}).openapi('UserListResponse');
-
-export const UserStatsResponseSchema = z.object({
-  success: z.boolean().openapi({ example: true }),
-  stats: z.object({
-    totalUsers: z.number().openapi({ example: 100 }),
-    activeUsers: z.number().openapi({ example: 85 }),
-    adminUsers: z.number().openapi({ example: 5 }),
-    regularUsers: z.number().openapi({ example: 95 }),
-    domainBreakdown: z.array(z.object({
-      domain: z.string().openapi({ example: 'example.com' }),
-      count: z.number().openapi({ example: 50 }),
-    })),
-    recentSignups: z.array(z.object({
-      id: z.string().openapi({ example: 'user-123' }),
-      email: z.string().openapi({ example: 'user@example.com' }),
-      name: z.string().nullable().openapi({ example: 'John Doe' }),
-      created: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-    })),
-  }),
-}).openapi('UserStatsResponse');
-
-export const UpdateUserRequestSchema = z.object({
-  isAdmin: z.boolean().optional().openapi({ example: false }),
-  isActive: z.boolean().optional().openapi({ example: true }),
-  name: z.string().optional().openapi({ example: 'John Doe' }),
-}).openapi('UpdateUserRequest');
 
 // Admin middleware to check admin privileges
 const adminMiddleware = async (c: any, next: any) => {

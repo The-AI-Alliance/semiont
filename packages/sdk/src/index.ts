@@ -79,6 +79,10 @@ export {
 export {
   DocumentSchema,
 } from './document-schemas';
+export {
+  // OpenAPI-wrapped version for Hono routes
+  DocumentSchemaOpenAPI,
+} from './document';
 export type {
   Document,
 } from './document-schemas';
@@ -92,6 +96,15 @@ export {
   TextQuoteSelectorSchema,
   SelectorSchema,
 } from './annotation-schemas';
+export {
+  // OpenAPI-wrapped versions for Hono routes
+  AnnotationSchemaOpenAPI,
+  MotivationSchemaOpenAPI,
+  AgentSchemaOpenAPI,
+  TextPositionSelectorSchemaOpenAPI,
+  TextQuoteSelectorSchemaOpenAPI,
+  SelectorSchemaOpenAPI,
+} from './annotation-schema';
 export type {
   Annotation,
   HighlightAnnotation,
@@ -128,6 +141,10 @@ export {
   StatusResponseSchema,
   HealthResponseSchema,
   ErrorResponseSchema,
+  // OpenAPI-wrapped versions for Hono routes
+  StatusResponseSchemaOpenAPI,
+  HealthResponseSchemaOpenAPI,
+  ErrorResponseSchemaOpenAPI,
 } from './status-schemas';
 export type {
   StatusResponse,
@@ -138,6 +155,8 @@ export type {
 // Auth schemas and types
 export {
   GoogleAuthRequestSchema,
+  // OpenAPI-wrapped version for Hono routes
+  GoogleAuthRequestSchemaOpenAPI,
 } from './auth-schemas';
 export type {
   GoogleAuthRequest,
@@ -150,6 +169,9 @@ export {
   UserListResponseSchema,
   UserStatsResponseSchema,
   UpdateUserRequestSchema,
+  // OpenAPI-wrapped versions for Hono routes
+  AuthResponseSchemaOpenAPI,
+  UserResponseSchemaOpenAPI,
 } from './user-schemas';
 export type {
   AuthResponse,
@@ -178,6 +200,23 @@ export {
   ReferencedBySchema,
   GetReferencedByResponseSchema,
   ReferenceLLMContextResponseSchema,
+  // OpenAPI-wrapped versions for Hono routes
+  CreateAnnotationRequestSchemaOpenAPI,
+  CreateAnnotationResponseSchemaOpenAPI,
+  GetHighlightsResponseSchemaOpenAPI,
+  GetReferencesResponseSchemaOpenAPI,
+  GetAnnotationsResponseSchemaOpenAPI,
+  DeleteAnnotationRequestSchemaOpenAPI,
+  DeleteAnnotationResponseSchemaOpenAPI,
+  GetAnnotationResponseSchemaOpenAPI,
+  ListAnnotationsResponseSchemaOpenAPI,
+  DetectAnnotationsResponseSchemaOpenAPI,
+  ResolveAnnotationRequestSchemaOpenAPI,
+  ResolveAnnotationResponseSchemaOpenAPI,
+  AnnotationContextResponseSchemaOpenAPI,
+  ReferencedBySchemaOpenAPI,
+  GetReferencedByResponseSchemaOpenAPI,
+  ReferenceLLMContextResponseSchemaOpenAPI,
 } from './annotation-schemas';
 
 // Document API schemas
@@ -195,6 +234,20 @@ export {
   CreateDocumentFromTokenResponseSchema,
   CloneDocumentWithTokenResponseSchema,
   DocumentLLMContextResponseSchema,
+  // OpenAPI-wrapped versions for Hono routes
+  CreateDocumentRequestSchemaOpenAPI,
+  CreateDocumentResponseSchemaOpenAPI,
+  UpdateDocumentRequestSchemaOpenAPI,
+  GetDocumentResponseSchemaOpenAPI,
+  ListDocumentsResponseSchemaOpenAPI,
+  GenerateDocumentFromAnnotationRequestSchemaOpenAPI,
+  GenerateDocumentFromAnnotationResponseSchemaOpenAPI,
+  CreateDocumentFromSelectionResponseSchemaOpenAPI,
+  GetDocumentByTokenResponseSchemaOpenAPI,
+  CreateDocumentFromTokenRequestSchemaOpenAPI,
+  CreateDocumentFromTokenResponseSchemaOpenAPI,
+  CloneDocumentWithTokenResponseSchemaOpenAPI,
+  DocumentLLMContextResponseSchemaOpenAPI,
 } from './document-schemas';
 
 // User/Admin API schemas
@@ -204,6 +257,9 @@ export {
   AdminUserStatsResponseSchema,
   UpdateUserResponseSchema,
   DeleteUserResponseSchema,
+  // OpenAPI-wrapped versions for Hono routes
+  UpdateUserResponseSchemaOpenAPI,
+  DeleteUserResponseSchemaOpenAPI,
 } from './user-schemas';
 
 // Auth API schemas
@@ -215,12 +271,21 @@ export {
   MCPGenerateResponseSchema,
   LogoutResponseSchema,
   OAuthConfigResponseSchemaActual,
+  // OpenAPI-wrapped versions for Hono routes
+  OAuthConfigResponseSchemaActualOpenAPI,
+  TokenRefreshResponseSchemaOpenAPI,
+  MCPGenerateResponseSchemaOpenAPI,
+  LogoutResponseSchemaOpenAPI,
+  AcceptTermsResponseSchemaOpenAPI,
 } from './auth-schemas';
 
 // Type schemas
 export {
   AddEntityTypeResponseSchema,
   AddReferenceTypeResponseSchema,
+  // OpenAPI-wrapped versions for Hono routes
+  AddEntityTypeResponseSchemaOpenAPI,
+  AddReferenceTypeResponseSchemaOpenAPI,
 } from './type-schemas';
 
 // Discovery schemas

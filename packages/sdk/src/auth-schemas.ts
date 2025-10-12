@@ -1,10 +1,13 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 
 /**
  * Google Auth Request - OAuth access token for login
  */
 export const GoogleAuthRequestSchema = z.object({
-  access_token: z.string(),
+  access_token: z.string().openapi({
+    example: 'ya29.a0AfH6SMBx...',
+    description: 'OAuth 2.0 access token from authentication provider',
+  }),
 });
 
 export type GoogleAuthRequest = z.infer<typeof GoogleAuthRequestSchema>;
@@ -81,3 +84,14 @@ export const AcceptTermsResponseSchema = z.object({
 });
 
 export type AcceptTermsResponse = z.infer<typeof AcceptTermsResponseSchema>;
+
+// ============================================================================
+// OpenAPI-wrapped Schemas (for Hono routes - just call .openapi() on schemas above)
+// ============================================================================
+
+export const GoogleAuthRequestSchemaOpenAPI = GoogleAuthRequestSchema.openapi('GoogleAuthRequest');
+export const OAuthConfigResponseSchemaActualOpenAPI = OAuthConfigResponseSchemaActual.openapi('OAuthConfigResponse');
+export const TokenRefreshResponseSchemaOpenAPI = TokenRefreshResponseSchema.openapi('TokenRefreshResponse');
+export const MCPGenerateResponseSchemaOpenAPI = MCPGenerateResponseSchema.openapi('MCPGenerateResponse');
+export const LogoutResponseSchemaOpenAPI = LogoutResponseSchema.openapi('LogoutResponse');
+export const AcceptTermsResponseSchemaOpenAPI = AcceptTermsResponseSchema.openapi('AcceptTermsResponse');

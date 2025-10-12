@@ -2,7 +2,10 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getEventStore } from '../../../events/event-store';
 import type { DocumentsRouterType } from '../shared';
-import { GetDocumentResponseSchema, type GetDocumentResponse } from '@semiont/sdk';
+import {
+  GetDocumentResponseSchemaOpenAPI as GetDocumentResponseSchema,
+  type GetDocumentResponse,
+} from '@semiont/sdk';
 
 export const getDocumentRoute = createRoute({
   method: 'get',
