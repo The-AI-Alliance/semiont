@@ -385,7 +385,7 @@ await Promise.all(scriptFiles.map(async (name) => {
         'constructs',
         // Local workspace packages - keep external to avoid CommonJS/ESM issues
         '@semiont/api-types',
-        '@semiont/core-types',
+        '@semiont/sdk',
         '@semiont/utils',
         // Native binaries that can't be bundled
         'ssh2',
