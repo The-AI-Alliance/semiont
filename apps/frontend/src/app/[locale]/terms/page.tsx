@@ -26,22 +26,15 @@ export default function TermsOfService() {
             <h2 className="font-sans">{t('aupTitle')}</h2>
 
             <p>
-              {t('aupIntro')}
+              {t('aup')}
             </p>
 
             <h3 className="font-sans">{t('prohibitedTitle')}</h3>
             <p>{t('prohibitedIntro')}</p>
             <ul>
-              <li>{t('prohibitedIllegal')}</li>
-              <li>{t('prohibitedMinors')}</li>
-              <li>{t('prohibitedAdult')}</li>
-              <li>{t('prohibitedViolence')}</li>
-              <li>{t('prohibitedHate')}</li>
-              <li>{t('prohibitedMisinfo')}</li>
-              <li>{t('prohibitedPrivacy')}</li>
-              <li>{t('prohibitedIP')}</li>
-              <li>{t('prohibitedMalicious')}</li>
-              <li>{t('prohibitedSpam')}</li>
+              {t('prohibited').split('\n').map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
             </ul>
 
             <h3 className="font-sans">{t('aiAllianceTitle')}</h3>
@@ -58,56 +51,51 @@ export default function TermsOfService() {
               {t('aiAllianceIncludes')}
             </p>
             <ul>
-              <li>{t('aiAlliance1')}</li>
-              <li>{t('aiAlliance2')}</li>
-              <li>{t('aiAlliance3')}</li>
-              <li>{t('aiAlliance4')}</li>
-              <li>{t('aiAlliance5')}</li>
+              {t('aiAlliance').split('\n').map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
             </ul>
 
             <h3 className="font-sans">{t('responsibilitiesTitle')}</h3>
             <p>{t('responsibilitiesIntro')}</p>
             <ul>
-              <li>{t('responsibility1')}</li>
-              <li>{t('responsibility2')}</li>
-              <li>{t('responsibility3')}</li>
-              <li>{t('responsibility4')}</li>
-              <li>{t('responsibility5')}</li>
-              <li>{t('responsibility6')}</li>
+              {t('responsibilities').split('\n').map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
             </ul>
 
             <h3 className="font-sans">{t('moderationTitle')}</h3>
             <p>
-              {t('moderationText')}
+              {t('moderation')}
             </p>
 
             <h3 className="font-sans">{t('privacyTitle')}</h3>
             <p>
-              {t('privacyText')}{' '}
+              {t('privacy').split(t('privacyLink'))[0]}
               <Link href={`/${locale}/privacy`} className="text-blue-600 dark:text-blue-400 hover:underline">
                 {t('privacyLink')}
               </Link>
-              {' '}{t('privacyEnd')}
+              {t('privacy').split(t('privacyLink'))[1]}
             </p>
 
             <h3 className="font-sans">{t('ipTitle')}</h3>
             <p>
-              {t('ipText')}
+              {t('ip')}
             </p>
 
             <h3 className="font-sans">{t('liabilityTitle')}</h3>
             <p>
-              {t('liabilityText')}
+              {t('liability')}
             </p>
 
             <h3 className="font-sans">{t('changesTitle')}</h3>
             <p>
-              {t('changesText')}
+              {t('changes')}
             </p>
 
             <h3 className="font-sans">{t('contactTitle')}</h3>
             <p>
-              {t('contactText')}
+              {t('contact')}
             </p>
 
             <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">

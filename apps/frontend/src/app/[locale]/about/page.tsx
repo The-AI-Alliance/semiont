@@ -46,7 +46,7 @@ export default function AboutPage() {
             {t('missionTitle')}
           </h2>
           <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
-            {t('missionDescription')}
+            {t('mission')}
           </p>
         </section>
 
@@ -68,12 +68,9 @@ export default function AboutPage() {
                   {t('semanticContentSubtitle')}
                 </p>
                 <div className="text-gray-600 dark:text-gray-300 space-y-3">
-                  <p>
-                    {t('semanticContentPara1')}
-                  </p>
-                  <p>
-                    {t('semanticContentPara2')}
-                  </p>
+                  {t('semanticContent').split('\n\n').map((para, i) => (
+                    <p key={i}>{para}</p>
+                  ))}
                 </div>
                 <span className="inline-block mt-4 text-sm font-medium text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full bg-amber-100/20 dark:bg-amber-900/20">
                   {t('planned')}
@@ -94,12 +91,9 @@ export default function AboutPage() {
                   {t('collaborationSubtitle')}
                 </p>
                 <div className="text-gray-600 dark:text-gray-300 space-y-3">
-                  <p>
-                    {t('collaborationPara1')}
-                  </p>
-                  <p>
-                    {t('collaborationPara2')}
-                  </p>
+                  {t('collaboration').split('\n\n').map((para, i) => (
+                    <p key={i}>{para}</p>
+                  ))}
                 </div>
                 <span className="inline-block mt-4 text-sm font-medium text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full bg-amber-100/20 dark:bg-amber-900/20">
                   {t('planned')}
@@ -120,12 +114,9 @@ export default function AboutPage() {
                   {t('rbacSubtitle')}
                 </p>
                 <div className="text-gray-600 dark:text-gray-300 space-y-3">
-                  <p>
-                    {t('rbacPara1')}
-                  </p>
-                  <p>
-                    {t('rbacPara2')}
-                  </p>
+                  {t('rbac').split('\n\n').map((para, i) => (
+                    <p key={i}>{para}</p>
+                  ))}
                 </div>
                 <span className="inline-block mt-4 text-sm font-medium text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full bg-amber-100/20 dark:bg-amber-900/20">
                   {t('planned')}
@@ -141,7 +132,7 @@ export default function AboutPage() {
             {t('openSourceTitle')}
           </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-6">
-            {t('openSourceDescription')}
+            {t('openSource')}
           </p>
           <div className="flex gap-4">
             <a
@@ -161,7 +152,7 @@ export default function AboutPage() {
             {t('futureVisionTitle')}
           </h2>
           <p className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            {t('futureVisionDescription')}
+            {t('futureVision')}
           </p>
         </section>
       </div>

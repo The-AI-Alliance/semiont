@@ -16,12 +16,11 @@ export default function PrivacyPolicyPage() {
           <div className="prose prose-lg max-w-none space-y-6">
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('introTitle')}</h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {t('introPara1')}
-              </p>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {t('introPara2')}
-              </p>
+              {t('intro').split('\n\n').map((para, i) => (
+                <p key={i} className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                  {para}
+                </p>
+              ))}
             </section>
 
             <section>
@@ -29,28 +28,25 @@ export default function PrivacyPolicyPage() {
 
               <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">{t('personalInfoTitle')}</h3>
               <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                <li>{t('personalInfoItem1')}</li>
-                <li>{t('personalInfoItem2')}</li>
-                <li>{t('personalInfoItem3')}</li>
+                {t('personalInfo').split('\n').map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
               </ul>
 
               <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2 mt-4">{t('autoCollectTitle')}</h3>
               <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                <li>{t('autoCollectItem1')}</li>
-                <li>{t('autoCollectItem2')}</li>
-                <li>{t('autoCollectItem3')}</li>
-                <li>{t('autoCollectItem4')}</li>
+                {t('autoCollect').split('\n').map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
               </ul>
             </section>
 
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('howWeUseTitle')}</h2>
               <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                <li>{t('howWeUseItem1')}</li>
-                <li>{t('howWeUseItem2')}</li>
-                <li>{t('howWeUseItem3')}</li>
-                <li>{t('howWeUseItem4')}</li>
-                <li>{t('howWeUseItem5')}</li>
+                {t('howWeUse').split('\n').map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
               </ul>
             </section>
 
@@ -65,42 +61,38 @@ export default function PrivacyPolicyPage() {
               <div className="space-y-4">
                 <div className="border border-gray-200 rounded-lg p-4">
                   <h4 className="font-medium text-gray-900">{t('necessaryCookiesTitle')}</h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {t('necessaryCookiesDesc')}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {t('necessaryCookiesExamples')}
-                  </p>
+                  {t('necessaryCookies').split('\n\n').map((para, i) => (
+                    <p key={i} className={i === 0 ? "text-sm text-gray-600 mt-1" : "text-xs text-gray-500 mt-1"}>
+                      {para}
+                    </p>
+                  ))}
                 </div>
 
                 <div className="border border-gray-200 rounded-lg p-4">
                   <h4 className="font-medium text-gray-900">{t('analyticsCookiesTitle')}</h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {t('analyticsCookiesDesc')}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {t('analyticsCookiesExamples')}
-                  </p>
+                  {t('analyticsCookies').split('\n\n').map((para, i) => (
+                    <p key={i} className={i === 0 ? "text-sm text-gray-600 mt-1" : "text-xs text-gray-500 mt-1"}>
+                      {para}
+                    </p>
+                  ))}
                 </div>
 
                 <div className="border border-gray-200 rounded-lg p-4">
                   <h4 className="font-medium text-gray-900">{t('marketingCookiesTitle')}</h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {t('marketingCookiesDesc')}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {t('marketingCookiesExamples')}
-                  </p>
+                  {t('marketingCookies').split('\n\n').map((para, i) => (
+                    <p key={i} className={i === 0 ? "text-sm text-gray-600 mt-1" : "text-xs text-gray-500 mt-1"}>
+                      {para}
+                    </p>
+                  ))}
                 </div>
 
                 <div className="border border-gray-200 rounded-lg p-4">
                   <h4 className="font-medium text-gray-900">{t('preferenceCookiesTitle')}</h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {t('preferenceCookiesDesc')}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {t('preferenceCookiesExamples')}
-                  </p>
+                  {t('preferenceCookies').split('\n\n').map((para, i) => (
+                    <p key={i} className={i === 0 ? "text-sm text-gray-600 mt-1" : "text-xs text-gray-500 mt-1"}>
+                      {para}
+                    </p>
+                  ))}
                 </div>
               </div>
             </section>
@@ -110,48 +102,50 @@ export default function PrivacyPolicyPage() {
 
               <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">{t('gdprRightsTitle')}</h3>
               <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                <li>{t('gdprRight1')}</li>
-                <li>{t('gdprRight2')}</li>
-                <li>{t('gdprRight3')}</li>
-                <li>{t('gdprRight4')}</li>
-                <li>{t('gdprRight5')}</li>
-                <li>{t('gdprRight6')}</li>
-                <li>{t('gdprRight7')}</li>
+                {t('gdprRights').split('\n').map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
               </ul>
 
               <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2 mt-4">{t('ccpaRightsTitle')}</h3>
               <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
-                <li>{t('ccpaRight1')}</li>
-                <li>{t('ccpaRight2')}</li>
-                <li>{t('ccpaRight3')}</li>
-                <li>{t('ccpaRight4')}</li>
+                {t('ccpaRights').split('\n').map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
               </ul>
             </section>
 
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('dataSecurityTitle')}</h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {t('dataSecurityIntro')}
-              </p>
-              <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1 mt-2">
-                <li>{t('dataSecurityItem1')}</li>
-                <li>{t('dataSecurityItem2')}</li>
-                <li>{t('dataSecurityItem3')}</li>
-                <li>{t('dataSecurityItem4')}</li>
-              </ul>
+              {t('dataSecurity').split('\n\n').map((block, i) => {
+                if (i === 0) {
+                  return (
+                    <p key={i} className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                      {block}
+                    </p>
+                  );
+                }
+                return (
+                  <ul key={i} className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1 mt-2">
+                    {block.split('\n').map((item, j) => (
+                      <li key={j}>{item}</li>
+                    ))}
+                  </ul>
+                );
+              })}
             </section>
 
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('dataRetentionTitle')}</h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {t('dataRetentionDesc')}
+                {t('dataRetention')}
               </p>
             </section>
 
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('internationalTransfersTitle')}</h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {t('internationalTransfersDesc')}
+                {t('internationalTransfers')}
               </p>
             </section>
 
@@ -171,7 +165,7 @@ export default function PrivacyPolicyPage() {
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('updatesTitle')}</h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {t('updatesPara1')}
+                {t('updates')}
               </p>
               <p className="text-gray-600 text-sm mt-4">
                 <strong>{t('lastUpdated', { date: new Date().toLocaleDateString() })}</strong>
