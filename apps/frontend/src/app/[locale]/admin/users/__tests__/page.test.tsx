@@ -270,9 +270,10 @@ describe('AdminUsers Page', () => {
         </TestWrapper>
       );
 
-      const adminBadges = screen.getAllByText('admin');
-      const userBadges = screen.getAllByText('user');
-      
+      // Use more specific selector to find role badges, not button titles
+      const adminBadges = screen.getAllByText('admin', { selector: 'span.inline-flex' });
+      const userBadges = screen.getAllByText('user', { selector: 'span.inline-flex' });
+
       expect(adminBadges).toHaveLength(1);
       expect(userBadges).toHaveLength(2);
     });
@@ -284,9 +285,10 @@ describe('AdminUsers Page', () => {
         </TestWrapper>
       );
 
-      const activeBadges = screen.getAllByText('active');
-      const inactiveBadges = screen.getAllByText('inactive');
-      
+      // Use more specific selector to find status badges, not button titles
+      const activeBadges = screen.getAllByText('active', { selector: 'span.inline-flex' });
+      const inactiveBadges = screen.getAllByText('inactive', { selector: 'span.inline-flex' });
+
       expect(activeBadges).toHaveLength(2);
       expect(inactiveBadges).toHaveLength(1);
     });

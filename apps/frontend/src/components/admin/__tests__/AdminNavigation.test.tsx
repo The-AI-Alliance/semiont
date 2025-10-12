@@ -9,6 +9,15 @@ vi.mock('next/navigation', () => ({
   usePathname: vi.fn(),
 }));
 
+// Mock @/i18n/routing to use the same mock as next/navigation
+vi.mock('@/i18n/routing', async () => {
+  const { usePathname } = await import('next/navigation');
+  return {
+    usePathname,
+    Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
+  };
+});
+
 // Mock Heroicons
 vi.mock('@heroicons/react/24/outline', () => ({
   UsersIcon: ({ className }: { className?: string }) => (

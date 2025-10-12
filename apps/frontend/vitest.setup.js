@@ -96,31 +96,17 @@ vi.mock('next-intl/routing', () => ({
 }));
 
 // Mock next-intl/navigation (which depends on next/navigation)
-vi.mock('next-intl/navigation', () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    prefetch: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-  }),
-  usePathname: () => '/',
-  redirect: vi.fn(),
-  Link: ({ children, href, ...props }) => {
-    // Simple Link component mock
-    return typeof children === 'function'
-      ? children({ isActive: false })
-      : children;
-  },
-  createNavigation: vi.fn(() => ({
-    Link: ({ children, href, ...props }) => {
-      return typeof children === 'function'
-        ? children({ isActive: false })
-        : children;
-    },
-    redirect: vi.fn(),
-    usePathname: () => '/',
+vi.mock('next-intl/navigation', async () => {
+  const React = await import('react');
+
+  const MockLink = ({ children, href, ...props }) => {
+    // Render as an actual anchor tag for testing
+    return React.createElement('a', { href, ...props },
+      typeof children === 'function' ? children({ isActive: false }) : children
+    );
+  };
+
+  return {
     useRouter: () => ({
       push: vi.fn(),
       replace: vi.fn(),
@@ -129,8 +115,25 @@ vi.mock('next-intl/navigation', () => ({
       forward: vi.fn(),
       refresh: vi.fn(),
     }),
-  })),
-}));
+    usePathname: () => '/',
+    redirect: vi.fn(),
+    Link: MockLink,
+    createNavigation: vi.fn((config) => {
+      // Dynamically require next/navigation to get the mocked hooks
+      // This way tests that re-mock next/navigation will work
+      const { usePathname, useRouter } = require('next/navigation');
+
+      return {
+        Link: MockLink,
+        redirect: vi.fn(),
+        // Re-export the mocked hooks from next/navigation
+        // This way components using routing.ts will get the same mocks as tests expect
+        usePathname,
+        useRouter,
+      };
+    }),
+  };
+});
 
 // Set test environment variables
 process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
