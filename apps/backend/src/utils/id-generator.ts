@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { User } from '@prisma/client';
-import type { Agent } from '@semiont/core-types';
+import type { Agent } from '@semiont/sdk';
 
 /**
  * Generate a unique URI for annotations (highlights/references)

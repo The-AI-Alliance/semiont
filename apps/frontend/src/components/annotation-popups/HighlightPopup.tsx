@@ -4,7 +4,7 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader, SelectedTextDisplay } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
-import type { HighlightAnnotation, AnnotationUpdate, TextSelection } from '@semiont/core-types';
+import type { HighlightAnnotation, AnnotationUpdate, TextSelection } from '@semiont/sdk';
 
 interface HighlightPopupProps {
   isOpen: boolean;

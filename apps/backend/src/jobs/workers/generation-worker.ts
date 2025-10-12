@@ -13,10 +13,10 @@ import { getStorageService } from '../../storage/filesystem';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
-import { CREATION_METHODS } from '@semiont/core-types';
+import { CREATION_METHODS } from '@semiont/sdk';
 import { calculateChecksum } from '@semiont/utils';
 import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
-import { getExactText, compareAnnotationIds } from '@semiont/core-types';
+import { getExactText, compareAnnotationIds } from '@semiont/sdk';
 
 export class GenerationWorker extends JobWorker {
   protected getWorkerName(): string {

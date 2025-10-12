@@ -7,7 +7,7 @@ import {
   type TokenRefreshResponse,
   type MCPGenerateResponse,
   type LogoutResponse
-} from '@semiont/core-types';
+} from '@semiont/sdk';
 import { ErrorResponseSchema } from '../openapi';
 import { OAuthService } from '../auth/oauth';
 import { JWTService } from '../auth/jwt';

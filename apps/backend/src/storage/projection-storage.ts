@@ -11,7 +11,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from './shard-utils';
 import { getFilesystemConfig } from '../config/environment-loader';
-import type { Document, DocumentAnnotations } from '@semiont/core-types';
+import type { Document, DocumentAnnotations } from '@semiont/sdk';
 
 // Complete state for a document in Layer 3 (metadata + annotations)
 export interface DocumentState {

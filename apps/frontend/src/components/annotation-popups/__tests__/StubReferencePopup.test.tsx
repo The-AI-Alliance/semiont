@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { StubReferencePopup } from '../StubReferencePopup';
 import { useRouter } from '@/i18n/routing';
-import type { ReferenceAnnotation, TextSelection } from '@semiont/core-types';
+import type { ReferenceAnnotation, TextSelection } from '@semiont/sdk';
 
 // Mock @/i18n/routing
 vi.mock('@/i18n/routing', () => ({

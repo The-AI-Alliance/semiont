@@ -6,7 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartme
 import { markdown } from '@codemirror/lang-markdown';
 import { annotationStyles } from '@/lib/annotation-styles';
 import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
-import { isHighlight, isReference, isResolvedReference, compareAnnotationIds, type Annotation } from '@semiont/core-types';
+import { isHighlight, isReference, isResolvedReference, compareAnnotationIds, type Annotation } from '@semiont/sdk';
 import '@/styles/animations.css';
 
 // Export W3C Annotation type for use by other components

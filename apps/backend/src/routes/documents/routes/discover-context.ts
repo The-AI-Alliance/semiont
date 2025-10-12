@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { getGraphDatabase } from '../../../graph/factory';
 import type { DocumentsRouterType } from '../shared';
-import { DiscoverContextResponseSchema, type DiscoverContextResponse } from '@semiont/core-types';
+import { DiscoverContextResponseSchema, type DiscoverContextResponse } from '@semiont/sdk';
 
 export const discoverContextRoute = createRoute({
   method: 'post',

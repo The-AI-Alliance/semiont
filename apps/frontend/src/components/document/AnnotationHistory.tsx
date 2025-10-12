@@ -3,7 +3,7 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api-client';
-import type { StoredEvent } from '@semiont/core-types';
+import type { StoredEvent } from '@semiont/sdk';
 import { HistoryEvent } from './HistoryEvent';
 import { isEventRelatedToAnnotation } from '@/lib/annotation-history-utils';
 

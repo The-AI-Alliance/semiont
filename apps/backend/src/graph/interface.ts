@@ -11,7 +11,7 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
-} from '@semiont/core-types';
+} from '@semiont/sdk';
 
 export interface GraphDatabase {
   // Connection management

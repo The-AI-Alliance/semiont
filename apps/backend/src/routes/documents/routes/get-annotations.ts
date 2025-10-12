@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-import { GetAnnotationsResponseSchema, type GetAnnotationsResponse } from '@semiont/core-types';
+import { GetAnnotationsResponseSchema, type GetAnnotationsResponse } from '@semiont/sdk';
 
 // GET /api/documents/{id}/annotations
 export const getDocumentAnnotationsRoute = createRoute({

@@ -6,7 +6,7 @@ import {
   type UpdateUserResponse,
   type DeleteUserResponse,
   type OAuthConfigResponseActual
-} from '@semiont/core-types';
+} from '@semiont/sdk';
 import { ErrorResponseSchema } from '../openapi';
 import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';

@@ -6,7 +6,7 @@
  */
 
 import { getEventStore } from './event-store';
-import type { StoredEvent, CreationMethod } from '@semiont/core-types';
+import type { StoredEvent, CreationMethod } from '@semiont/sdk';
 
 /**
  * Emit a document.created event

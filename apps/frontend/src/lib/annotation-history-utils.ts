@@ -17,8 +17,8 @@ import type {
   EntityTagRemovedEvent,
   Annotation,
   CreationMethod,
-} from '@semiont/core-types';
-import { getExactText, compareAnnotationIds } from '@semiont/core-types';
+} from '@semiont/sdk';
+import { getExactText, compareAnnotationIds } from '@semiont/sdk';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 

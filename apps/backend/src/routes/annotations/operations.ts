@@ -20,7 +20,7 @@ import {
   type CreateDocumentFromSelectionResponse,
   type AnnotationContextResponse,
   type ContextualSummaryResponse,
-} from '@semiont/core-types';
+} from '@semiont/sdk';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';

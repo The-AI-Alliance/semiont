@@ -16,7 +16,7 @@ import {
   type ResolveAnnotationResponse,
   type GetAnnotationResponse,
   type ListAnnotationsResponse,
-} from '@semiont/core-types';
+} from '@semiont/sdk';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';

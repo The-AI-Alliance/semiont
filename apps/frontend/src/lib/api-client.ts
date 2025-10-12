@@ -1,7 +1,7 @@
 /**
  * Frontend API Client
  *
- * Pure TanStack Query hooks that use types from @semiont/core-types.
+ * Pure TanStack Query hooks that use types from @semiont/sdk.
  * NO hand-written type definitions - all types imported from core-types.
  */
 
@@ -48,7 +48,7 @@ import type {
   // Tag types
   AddEntityTypeResponse,
   AddReferenceTypeResponse,
-} from '@semiont/core-types';
+} from '@semiont/sdk';
 
 // Re-export types for convenience
 export type {

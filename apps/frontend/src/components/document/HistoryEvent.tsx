@@ -2,7 +2,7 @@
 
 import React, { useRef, useCallback } from 'react';
 import { Link } from '@/i18n/routing';
-import type { StoredEvent } from '@semiont/core-types';
+import type { StoredEvent } from '@semiont/sdk';
 import {
   formatEventType,
   getEventEmoji,

@@ -3,8 +3,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { api } from '@/lib/api-client';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { Annotation, CreateAnnotationRequest } from '@semiont/core-types';
-import { getExactText, getTextPositionSelector } from '@semiont/core-types';
+import type { Annotation, CreateAnnotationRequest } from '@semiont/sdk';
+import { getExactText, getTextPositionSelector } from '@semiont/sdk';
 
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components

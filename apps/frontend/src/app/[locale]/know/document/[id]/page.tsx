@@ -31,7 +31,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
 import { Toolbar } from '@/components/Toolbar';
-import { extractAnnotationId, compareAnnotationIds } from '@semiont/core-types';
+import { extractAnnotationId, compareAnnotationIds } from '@semiont/sdk';
 
 // Loading state component
 function DocumentLoadingState() {

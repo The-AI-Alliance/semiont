@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
 import { getGraphDatabase } from '../../../graph/factory';
-import { StoredEventApiSchema } from '@semiont/core-types';
+import { StoredEventApiSchema } from '@semiont/sdk';
 
 const GetAnnotationHistoryResponse = z.object({
   events: z.array(StoredEventApiSchema),
