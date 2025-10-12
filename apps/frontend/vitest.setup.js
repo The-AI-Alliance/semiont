@@ -90,6 +90,11 @@ vi.mock('next-intl', async () => {
   };
 });
 
+// Mock next-intl/routing
+vi.mock('next-intl/routing', () => ({
+  defineRouting: vi.fn((config) => config),
+}));
+
 // Mock next-intl/navigation (which depends on next/navigation)
 vi.mock('next-intl/navigation', () => ({
   useRouter: () => ({
@@ -108,6 +113,23 @@ vi.mock('next-intl/navigation', () => ({
       ? children({ isActive: false })
       : children;
   },
+  createNavigation: vi.fn(() => ({
+    Link: ({ children, href, ...props }) => {
+      return typeof children === 'function'
+        ? children({ isActive: false })
+        : children;
+    },
+    redirect: vi.fn(),
+    usePathname: () => '/',
+    useRouter: () => ({
+      push: vi.fn(),
+      replace: vi.fn(),
+      prefetch: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+    }),
+  })),
 }));
 
 // Set test environment variables
