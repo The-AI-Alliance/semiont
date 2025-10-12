@@ -1,13 +1,10 @@
-import { z } from '@hono/zod-openapi';
+import { z } from 'zod';
 
 /**
  * Google Auth Request - OAuth access token for login
  */
 export const GoogleAuthRequestSchema = z.object({
-  access_token: z.string().openapi({
-    example: 'ya29.a0AfH6SMBx...',
-    description: 'OAuth 2.0 access token from authentication provider',
-  }),
+  access_token: z.string(),
 });
 
 export type GoogleAuthRequest = z.infer<typeof GoogleAuthRequestSchema>;
@@ -85,13 +82,6 @@ export const AcceptTermsResponseSchema = z.object({
 
 export type AcceptTermsResponse = z.infer<typeof AcceptTermsResponseSchema>;
 
-// ============================================================================
-// OpenAPI-wrapped Schemas (for Hono routes - just call .openapi() on schemas above)
-// ============================================================================
-
-export const GoogleAuthRequestSchemaOpenAPI = GoogleAuthRequestSchema.openapi('GoogleAuthRequest');
-export const OAuthConfigResponseSchemaActualOpenAPI = OAuthConfigResponseSchemaActual.openapi('OAuthConfigResponse');
-export const TokenRefreshResponseSchemaOpenAPI = TokenRefreshResponseSchema.openapi('TokenRefreshResponse');
-export const MCPGenerateResponseSchemaOpenAPI = MCPGenerateResponseSchema.openapi('MCPGenerateResponse');
-export const LogoutResponseSchemaOpenAPI = LogoutResponseSchema.openapi('LogoutResponse');
-export const AcceptTermsResponseSchemaOpenAPI = AcceptTermsResponseSchema.openapi('AcceptTermsResponse');
+// Note: OpenAPI-wrapped versions removed from SDK
+// Backend routes should import plain schemas and wrap with @hono/zod-openapi locally
+// This ensures type compatibility with frontend code that uses plain zod

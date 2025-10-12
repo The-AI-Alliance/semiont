@@ -5,7 +5,7 @@
  * Core annotation schema is in ./annotation-schema.ts
  */
 
-import { z } from '@hono/zod-openapi';
+import { z } from 'zod';
 import { AnnotationSchema, SelectorSchema, AgentSchema } from './annotation-schema';
 import { DocumentSchema } from './document';
 
@@ -281,24 +281,3 @@ export const AnnotationContextResponseSchema = z.object({
 });
 
 export type AnnotationContextResponse = z.infer<typeof AnnotationContextResponseSchema>;
-
-// ============================================================================
-// OpenAPI-wrapped Schemas (for Hono routes - call .openapi() on schemas above)
-// ============================================================================
-
-export const CreateAnnotationRequestSchemaOpenAPI = CreateAnnotationRequestSchema.openapi('CreateAnnotationRequest');
-export const CreateAnnotationResponseSchemaOpenAPI = CreateAnnotationResponseSchema.openapi('CreateAnnotationResponse');
-export const GetHighlightsResponseSchemaOpenAPI = GetHighlightsResponseSchema.openapi('GetHighlightsResponse');
-export const GetReferencesResponseSchemaOpenAPI = GetReferencesResponseSchema.openapi('GetReferencesResponse');
-export const GetAnnotationsResponseSchemaOpenAPI = GetAnnotationsResponseSchema.openapi('GetAnnotationsResponse');
-export const DeleteAnnotationRequestSchemaOpenAPI = DeleteAnnotationRequestSchema.openapi('DeleteAnnotationRequest');
-export const DeleteAnnotationResponseSchemaOpenAPI = DeleteAnnotationResponseSchema.openapi('DeleteAnnotationResponse');
-export const ReferencedBySchemaOpenAPI = ReferencedBySchema.openapi('ReferencedBy');
-export const GetReferencedByResponseSchemaOpenAPI = GetReferencedByResponseSchema.openapi('GetReferencedByResponse');
-export const ResolveAnnotationRequestSchemaOpenAPI = ResolveAnnotationRequestSchema.openapi('ResolveAnnotationRequest');
-export const ResolveAnnotationResponseSchemaOpenAPI = ResolveAnnotationResponseSchema.openapi('ResolveAnnotationResponse');
-export const DetectAnnotationsResponseSchemaOpenAPI = DetectAnnotationsResponseSchema.openapi('DetectAnnotationsResponse');
-export const ReferenceLLMContextResponseSchemaOpenAPI = ReferenceLLMContextResponseSchema.openapi('ReferenceLLMContextResponse');
-export const GetAnnotationResponseSchemaOpenAPI = GetAnnotationResponseSchema.openapi('GetAnnotationResponse');
-export const ListAnnotationsResponseSchemaOpenAPI = ListAnnotationsResponseSchema.openapi('ListAnnotationsResponse');
-export const AnnotationContextResponseSchemaOpenAPI = AnnotationContextResponseSchema.openapi('AnnotationContextResponse');

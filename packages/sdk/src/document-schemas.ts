@@ -5,7 +5,7 @@
  * Core document schema is in ./document.ts
  */
 
-import { z } from '@hono/zod-openapi';
+import { z } from 'zod';
 import { DocumentSchema } from './document';
 import { AnnotationSchema } from './annotation-schema';
 
@@ -178,21 +178,3 @@ export const CreateDocumentFromSelectionResponseSchema = z.object({
 });
 
 export type CreateDocumentFromSelectionResponse = z.infer<typeof CreateDocumentFromSelectionResponseSchema>;
-
-// ============================================================================
-// OpenAPI-wrapped Schemas (for Hono routes - call .openapi() on schemas above)
-// ============================================================================
-
-export const CreateDocumentRequestSchemaOpenAPI = CreateDocumentRequestSchema.openapi('CreateDocumentRequest');
-export const UpdateDocumentRequestSchemaOpenAPI = UpdateDocumentRequestSchema.openapi('UpdateDocumentRequest');
-export const CreateDocumentResponseSchemaOpenAPI = CreateDocumentResponseSchema.openapi('CreateDocumentResponse');
-export const GetDocumentResponseSchemaOpenAPI = GetDocumentResponseSchema.openapi('GetDocumentResponse');
-export const ListDocumentsResponseSchemaOpenAPI = ListDocumentsResponseSchema.openapi('ListDocumentsResponse');
-export const GenerateDocumentFromAnnotationRequestSchemaOpenAPI = GenerateDocumentFromAnnotationRequestSchema.openapi('GenerateDocumentFromAnnotationRequest');
-export const GenerateDocumentFromAnnotationResponseSchemaOpenAPI = GenerateDocumentFromAnnotationResponseSchema.openapi('GenerateDocumentFromAnnotationResponse');
-export const GetDocumentByTokenResponseSchemaOpenAPI = GetDocumentByTokenResponseSchema.openapi('GetDocumentByTokenResponse');
-export const CreateDocumentFromTokenRequestSchemaOpenAPI = CreateDocumentFromTokenRequestSchema.openapi('CreateDocumentFromTokenRequest');
-export const CreateDocumentFromTokenResponseSchemaOpenAPI = CreateDocumentFromTokenResponseSchema.openapi('CreateDocumentFromTokenResponse');
-export const CloneDocumentWithTokenResponseSchemaOpenAPI = CloneDocumentWithTokenResponseSchema.openapi('CloneDocumentWithTokenResponse');
-export const DocumentLLMContextResponseSchemaOpenAPI = DocumentLLMContextResponseSchema.openapi('DocumentLLMContextResponse');
-export const CreateDocumentFromSelectionResponseSchemaOpenAPI = CreateDocumentFromSelectionResponseSchema.openapi('CreateDocumentFromSelectionResponse');

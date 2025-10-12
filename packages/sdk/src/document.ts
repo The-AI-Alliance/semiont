@@ -3,7 +3,7 @@
  *
  */
 
-import { z } from '@hono/zod-openapi';
+import { z } from 'zod';
 import { CreationMethod } from './creation-methods';
 import { CREATION_METHODS } from './creation-methods';
 
@@ -74,9 +74,3 @@ export const DocumentSchema = z.object({
 });
 
 export type Document = z.infer<typeof DocumentSchema>;
-
-// ============================================================================
-// OpenAPI-wrapped Schema (for Hono routes - call .openapi() on schema above)
-// ============================================================================
-
-export const DocumentSchemaOpenAPI = DocumentSchema.openapi('Document');

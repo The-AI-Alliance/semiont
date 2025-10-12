@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
-import { HealthResponseSchemaOpenAPI as HealthResponseSchema } from '@semiont/sdk';
+import { HealthResponseSchema } from '@semiont/sdk';
 import { DatabaseConnection } from '../db';
 
 // Define the health check route

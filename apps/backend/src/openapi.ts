@@ -1,4 +1,4 @@
-import { ErrorResponseSchemaOpenAPI as ErrorResponseSchema } from '@semiont/sdk';
+import { ErrorResponseSchema } from '@semiont/sdk';
 
 // Shared error response schema used across all routes (imported from SDK)
 export { ErrorResponseSchema };

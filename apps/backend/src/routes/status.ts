@@ -1,7 +1,7 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
 import {
-  StatusResponseSchemaOpenAPI as StatusResponseSchema,
-  ErrorResponseSchemaOpenAPI as ErrorResponseSchema,
+  StatusResponseSchema,
+  ErrorResponseSchema,
 } from '@semiont/sdk';
 import { authMiddleware } from '../middleware/auth';
 import { User } from '@prisma/client';
