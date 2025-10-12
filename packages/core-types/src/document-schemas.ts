@@ -19,8 +19,8 @@ export type { Document, CreateDocumentInput, UpdateDocumentInput, DocumentFilter
 export const CreateDocumentRequestSchema = z.object({
   name: z.string().min(1).max(500),
   content: z.string(),
-  format: z.string().optional().default('text/plain'), // MIME type
-  entityTypes: z.array(z.string()).optional().default([]),
+  format: z.string(), // MIME type (required)
+  entityTypes: z.array(z.string()), // Required - caller must explicitly pass [] for no types
   creationMethod: z.string().optional(),
   sourceAnnotationId: z.string().optional(),
   sourceDocumentId: z.string().optional(),

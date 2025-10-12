@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useCallback } from 'react';
+import { Link } from '@/i18n/routing';
 import type { StoredEvent } from '@semiont/core-types';
 import {
   formatEventType,
@@ -12,12 +13,15 @@ import {
   getAnnotationIdFromEvent,
 } from '@/lib/annotation-history-utils';
 
+type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
+
 interface Props {
   event: StoredEvent;
   references: any[];
   highlights: any[];
   allEvents: StoredEvent[];
   isRelated: boolean;
+  t: TranslateFn;
   onEventRef?: (annotationId: string | null, element: HTMLElement | null) => void;
   onEventClick?: (annotationId: string | null) => void;
   onEventHover?: (annotationId: string | null) => void;
@@ -29,6 +33,7 @@ export function HistoryEvent({
   highlights,
   allEvents,
   isRelated,
+  t,
   onEventRef,
   onEventClick,
   onEventHover
@@ -76,7 +81,7 @@ export function HistoryEvent({
   const eventWrapperProps = annotationId ? {
     type: 'button' as const,
     onClick: () => onEventClick?.(annotationId),
-    'aria-label': `View annotation: ${displayContent?.exact || formatEventType(event.event.type)}`,
+    'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.event.type, t) }),
     className: `w-full text-left text-xs ${borderClass} pl-2 py-0.5 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset`
   } : {
     className: `text-xs ${borderClass} pl-2 py-0.5`
@@ -115,14 +120,14 @@ export function HistoryEvent({
           )
         ) : (
           <span className="font-medium text-gray-900 dark:text-gray-100">
-            {formatEventType(event.event.type)}
+            {formatEventType(event.event.type, t)}
           </span>
         )}
         <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-auto">
-          {formatRelativeTime(event.event.timestamp)}
+          {formatRelativeTime(event.event.timestamp, t)}
         </span>
       </div>
-      {entityTypes && entityTypes.length > 0 && (
+      {entityTypes.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1">
           {entityTypes.map((type) => (
             <span
@@ -136,24 +141,20 @@ export function HistoryEvent({
       )}
       {creationDetails && (
         <div className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
-          {creationDetails.userId && (
-            <span className="mr-2">
-              User: <span className="font-mono">{creationDetails.userId}</span>
-            </span>
-          )}
-          {creationDetails.method && (
-            <span className="mr-2">
-              Method: <span className="uppercase">{creationDetails.method}</span>
-            </span>
-          )}
-          {creationDetails.sourceDocId && (
-            <a
+          <span className="mr-2">
+            {t('user')}: <span className="font-mono">{creationDetails.userId}</span>
+          </span>
+          <span className="mr-2">
+            {t('method')}: <span className="uppercase">{creationDetails.method}</span>
+          </span>
+          {creationDetails.type === 'cloned' && (
+            <Link
               href={`/know/document/${encodeURIComponent(creationDetails.sourceDocId)}`}
               className="text-blue-600 dark:text-blue-400 hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
-              View original
-            </a>
+              {t('viewOriginal')}
+            </Link>
           )}
         </div>
       )}

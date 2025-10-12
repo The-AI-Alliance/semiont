@@ -67,9 +67,10 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       documentId,
       userId: user.id,
       name: body.name,
-      format: body.format || 'text/plain',
+      format: body.format,
       contentHash: checksum,
-      entityTypes: body.entityTypes || [],
+      creationMethod,
+      entityTypes: body.entityTypes,
     });
 
     // Return optimistic response
@@ -77,8 +78,8 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       id: documentId,
       name: body.name,
       archived: false,
-      format: body.format || 'text/plain',
-      entityTypes: body.entityTypes || [],
+      format: body.format,
+      entityTypes: body.entityTypes,
       creationMethod,
       contentChecksum: checksum,
       creator: user.id,

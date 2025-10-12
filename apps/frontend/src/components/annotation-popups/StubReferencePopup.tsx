@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader, SelectedTextDisplay, EntityTypeBadges } from './SharedPopupElements';
 import { SearchDocumentsModal } from '../modals/SearchDocumentsModal';
 import { buttonStyles } from '@/lib/button-styles';
@@ -28,6 +29,7 @@ export function StubReferencePopup({
   onDeleteAnnotation,
   onGenerateDocument,
 }: StubReferencePopupProps) {
+  const t = useTranslations('StubReferencePopup');
   const router = useRouter();
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -81,7 +83,7 @@ export function StubReferencePopup({
   return (
     <>
       <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-        <PopupHeader title="Stub Reference" onClose={onClose} />
+        <PopupHeader title={t('title')} onClose={onClose} />
 
         <SelectedTextDisplay exact={selection.exact} />
 
@@ -92,7 +94,7 @@ export function StubReferencePopup({
         {/* Link Options */}
         <div className="mb-4">
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Link to Document
+            {t('linkToDocument')}
           </p>
           <div className="space-y-2">
             <button
@@ -103,23 +105,23 @@ export function StubReferencePopup({
               {isGenerating ? (
                 <span className="flex items-center justify-center">
                   <span className="animate-spin mr-2">⏳</span>
-                  Generating...
+                  {t('generating')}
                 </span>
               ) : (
-                '✨ Generate'
+                `✨ ${t('generate')}`
               )}
             </button>
             <button
               onClick={handleSearchDocuments}
               className={`${buttonStyles.secondary.base} w-full justify-center`}
             >
-              🔍 Search
+              🔍 {t('search')}
             </button>
             <button
               onClick={handleComposeDocument}
               className={`${buttonStyles.secondary.base} w-full justify-center`}
             >
-              ✏️ Compose New
+              ✏️ {t('composeNew')}
             </button>
           </div>
         </div>
@@ -130,13 +132,13 @@ export function StubReferencePopup({
             onClick={handleConvertToHighlight}
             className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
           >
-            🖍 Convert to Highlight
+            🖍 {t('convertToHighlight')}
           </button>
           <button
             onClick={handleDelete}
             className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
           >
-            🗑️ Delete Reference
+            🗑️ {t('deleteReference')}
           </button>
         </div>
       </PopupContainer>

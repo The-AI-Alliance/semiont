@@ -100,6 +100,7 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
     name: body.name,
     format: body.format,
     contentHash: checksum,
+    creationMethod: CREATION_METHODS.API,
     entityTypes: body.entityTypes || [],
     metadata: body.metadata || {},
   });
@@ -224,6 +225,7 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
     name: documentName,
     format: 'text/markdown',
     contentHash: checksum,
+    creationMethod: CREATION_METHODS.GENERATED,
     entityTypes: body.entityTypes || annotation.body.entityTypes || [],
     metadata: {
       generatedFrom: id,

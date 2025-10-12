@@ -12,7 +12,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 const CreateFromSelectionRequest = z.object({
   name: z.string(),
   content: z.string(),
-  format: z.string().optional(),
+  format: z.string(), // Required - caller must specify MIME type
   metadata: z.record(z.string(), z.any()).optional(),
 });
 
@@ -72,8 +72,8 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       id: Math.random().toString(36).substring(2, 11),
       name: body.name,
       archived: false,
-      format: body.format || 'text/plain',
-      entityTypes: annotation.body.entityTypes || [],
+      format: body.format,
+      entityTypes: annotation.body.entityTypes,
       creationMethod: CREATION_METHODS.REFERENCE,
       sourceAnnotationId: annotationId,
       sourceDocumentId: annotation.target.source,

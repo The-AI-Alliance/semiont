@@ -4,7 +4,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GraphDBConsumer } from '../../events/consumers/graph-consumer';
-import type { StoredEvent, DocumentEvent } from '@semiont/core-types';
+import type { StoredEvent, DocumentEvent, DocumentCreatedEvent, DocumentClonedEvent } from '@semiont/core-types';
+import { CREATION_METHODS } from '@semiont/core-types';
 import type { GraphDatabase } from '../../graph/interface';
 
 // Mock GraphDB
@@ -138,7 +139,7 @@ describe('GraphDBConsumer', () => {
 
   describe('document.created event', () => {
     it('should create document in GraphDB', async () => {
-      const event: DocumentEvent = {
+      const event: DocumentCreatedEvent = {
         id: 'evt-1',
         type: 'document.created',
         documentId: 'doc-123',
@@ -149,6 +150,7 @@ describe('GraphDBConsumer', () => {
           name: 'Test Document',
           format: 'text/plain',
           contentHash: 'hash123',
+          creationMethod: CREATION_METHODS.API,
           entityTypes: ['entity1', 'entity2'],
           metadata: { foo: 'bar' },
         },
@@ -189,6 +191,7 @@ describe('GraphDBConsumer', () => {
           name: 'Test Document',
           format: 'text/plain',
           contentHash: 'hash123',
+          creationMethod: CREATION_METHODS.API,
         },
       };
 
@@ -218,7 +221,7 @@ describe('GraphDBConsumer', () => {
 
   describe('document.cloned event', () => {
     it('should create cloned document in GraphDB', async () => {
-      const event: DocumentEvent = {
+      const event: DocumentClonedEvent = {
         id: 'evt-2',
         type: 'document.cloned',
         documentId: 'doc-456',
@@ -230,6 +233,7 @@ describe('GraphDBConsumer', () => {
           format: 'text/plain',
           contentHash: 'hash456',
           parentDocumentId: 'doc-123',
+          creationMethod: CREATION_METHODS.CLONE,
           entityTypes: ['entity1'],
           metadata: { clonedFrom: 'doc-123' },
         },

@@ -3,48 +3,89 @@
  * Extracted to reduce component complexity and improve testability
  */
 
-import type { StoredEvent } from '@semiont/core-types';
+import type {
+  StoredEvent,
+  DocumentEventType,
+  DocumentCreatedEvent,
+  DocumentClonedEvent,
+  HighlightAddedEvent,
+  HighlightRemovedEvent,
+  ReferenceCreatedEvent,
+  ReferenceResolvedEvent,
+  ReferenceDeletedEvent,
+  EntityTagAddedEvent,
+  EntityTagRemovedEvent,
+  Annotation,
+  CreationMethod,
+} from '@semiont/core-types';
+import { getExactText } from '@semiont/core-types';
+
+type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 // Format event type for display
-export function formatEventType(type: string): string {
-  const typeMap: Record<string, string> = {
-    'document.created': 'Created Document',
-    'document.cloned': 'Cloned',
-    'document.archived': 'Archived',
-    'document.unarchived': 'Unarchived',
-    'highlight.added': 'Highlight Added',
-    'highlight.removed': 'Highlight Removed',
-    'reference.created': 'Reference Created',
-    'reference.resolved': 'Reference Resolved',
-    'reference.deleted': 'Reference Deleted',
-    'entitytag.added': 'Tag Added',
-    'entitytag.removed': 'Tag Removed',
-  };
-
-  return typeMap[type] || type;
+export function formatEventType(type: DocumentEventType, t: TranslateFn): string {
+  // Using a switch for exhaustive checking - TypeScript will error if we miss a case
+  switch (type) {
+    case 'document.created':
+      return t('documentCreated');
+    case 'document.cloned':
+      return t('documentCloned');
+    case 'document.archived':
+      return t('documentArchived');
+    case 'document.unarchived':
+      return t('documentUnarchived');
+    case 'highlight.added':
+      return t('highlightAdded');
+    case 'highlight.removed':
+      return t('highlightRemoved');
+    case 'reference.created':
+      return t('referenceCreated');
+    case 'reference.resolved':
+      return t('referenceResolved');
+    case 'reference.deleted':
+      return t('referenceDeleted');
+    case 'entitytag.added':
+      return t('entitytagAdded');
+    case 'entitytag.removed':
+      return t('entitytagRemoved');
+    default:
+      // Exhaustive check: if we get here, we missed a case
+      const _exhaustiveCheck: never = type;
+      return _exhaustiveCheck;
+  }
 }
 
 // Get emoji for event type
-export function getEventEmoji(type: string): string {
-  const emojiMap: Record<string, string> = {
-    'document.created': '📄',
-    'document.cloned': '📄',
-    'document.archived': '📄',
-    'document.unarchived': '📄',
-    'highlight.added': '🟡',
-    'highlight.removed': '🗑️',
-    'reference.created': '🔵',
-    'reference.resolved': '🔗',
-    'reference.deleted': '🗑️',
-    'entitytag.added': '🏷️',
-    'entitytag.removed': '🗑️',
-  };
-
-  return emojiMap[type] || '📝';
+export function getEventEmoji(type: DocumentEventType): string {
+  // Using a switch for exhaustive checking - TypeScript will error if we miss a case
+  switch (type) {
+    case 'document.created':
+    case 'document.cloned':
+    case 'document.archived':
+    case 'document.unarchived':
+      return '📄';
+    case 'highlight.added':
+      return '🟡';
+    case 'highlight.removed':
+      return '🗑️';
+    case 'reference.created':
+      return '🔵';
+    case 'reference.resolved':
+      return '🔗';
+    case 'reference.deleted':
+      return '🗑️';
+    case 'entitytag.added':
+    case 'entitytag.removed':
+      return '🏷️';
+    default:
+      // Exhaustive check: if we get here, we missed a case
+      const _exhaustiveCheck: never = type;
+      return _exhaustiveCheck;
+  }
 }
 
 // Format relative time
-export function formatRelativeTime(timestamp: string): string {
+export function formatRelativeTime(timestamp: string, t: TranslateFn): string {
   const date = new Date(timestamp);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -52,93 +93,119 @@ export function formatRelativeTime(timestamp: string): string {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffMins < 1) return t('justNow');
+  if (diffMins < 60) return t('minutesAgo', { count: diffMins });
+  if (diffHours < 24) return t('hoursAgo', { count: diffHours });
+  if (diffDays < 7) return t('daysAgo', { count: diffDays });
 
   return date.toLocaleDateString();
+}
+
+// Helper to truncate text for display
+function truncateText(text: string, maxLength = 50): string {
+  const trimmed = text.trim();
+  return trimmed.length > maxLength ? trimmed.substring(0, maxLength) + '...' : trimmed;
 }
 
 // Extract display content from event payload
 export function getEventDisplayContent(
   event: StoredEvent,
-  references: any[],
-  highlights: any[],
+  references: Annotation[],
+  highlights: Annotation[],
   allEvents: StoredEvent[]
 ): { exact: string; isQuoted: boolean; isTag: boolean } | null {
-  const payload = event.event.payload as any;
+  const eventData = event.event;
 
-  // For document creation/clone events, show the document name (not quoted)
-  if ((event.event.type === 'document.created' || event.event.type === 'document.cloned') && 'name' in payload && typeof payload.name === 'string') {
-    return { exact: payload.name, isQuoted: false, isTag: false };
-  }
-
-  // For reference.resolved events, look up the reference text
-  if (event.event.type === 'reference.resolved' && 'referenceId' in payload) {
-    const reference = references.find((r: any) => r.id === payload.referenceId);
-    if (reference?.exact) {
-      const maxLength = 50;
-      const text = reference.exact.trim();
-      const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-      return { exact: displayText, isQuoted: true, isTag: false };
+  // Use type discriminators instead of runtime typeof checks
+  switch (eventData.type) {
+    case 'document.created':
+    case 'document.cloned': {
+      const payload = eventData.payload as DocumentCreatedEvent['payload'] | DocumentClonedEvent['payload'];
+      return { exact: payload.name, isQuoted: false, isTag: false };
     }
-  }
 
-  // For highlight.removed events, look up the text from the original highlight.added event
-  if (event.event.type === 'highlight.removed' && 'highlightId' in payload) {
-    const addedEvent = allEvents.find((e: StoredEvent) =>
-      e.event.type === 'highlight.added' &&
-      (e.event.payload as any).highlightId === payload.highlightId
-    );
-    if (addedEvent && (addedEvent.event.payload as any).exact) {
-      const maxLength = 50;
-      const text = ((addedEvent.event.payload as any).exact as string).trim();
-      const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-      return { exact: displayText, isQuoted: true, isTag: false };
+    case 'reference.resolved': {
+      const payload = eventData.payload as ReferenceResolvedEvent['payload'];
+
+      // Handle both URI format (http://localhost:4000/annotations/ID) and simple ID format
+      // The event payload may have just the ID, but annotations are stored with full URI
+      const reference = references.find(r => {
+        // Extract ID from URI if it's in URI format
+        const refId = r.id.includes('/') ? r.id.split('/').pop() : r.id;
+        const payloadId = payload.referenceId.includes('/')
+          ? payload.referenceId.split('/').pop()
+          : payload.referenceId;
+        return refId === payloadId;
+      });
+
+      if (reference?.target?.selector) {
+        const exact = getExactText(reference.target.selector);
+        if (exact) {
+          return { exact: truncateText(exact), isQuoted: true, isTag: false };
+        }
+      }
+      return null;
     }
-  }
 
-  // For reference.deleted events, look up the text from the original reference.created event
-  if (event.event.type === 'reference.deleted' && 'referenceId' in payload) {
-    const createdEvent = allEvents.find((e: StoredEvent) =>
-      e.event.type === 'reference.created' &&
-      (e.event.payload as any).referenceId === payload.referenceId
-    );
-    if (createdEvent && (createdEvent.event.payload as any).exact) {
-      const maxLength = 50;
-      const text = ((createdEvent.event.payload as any).exact as string).trim();
-      const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-      return { exact: displayText, isQuoted: true, isTag: false };
+    case 'highlight.removed': {
+      const payload = eventData.payload as HighlightRemovedEvent['payload'];
+      // Find the original highlight.added event
+      const addedEvent = allEvents.find(e =>
+        e.event.type === 'highlight.added' &&
+        (e.event.payload as HighlightAddedEvent['payload']).highlightId === payload.highlightId
+      );
+      if (addedEvent) {
+        const addedPayload = addedEvent.event.payload as HighlightAddedEvent['payload'];
+        return { exact: truncateText(addedPayload.exact), isQuoted: true, isTag: false };
+      }
+      return null;
     }
-  }
 
-  // For highlight and reference events, show the text (quoted)
-  if ('exact' in payload && typeof payload.exact === 'string') {
-    const maxLength = 50;
-    const text = payload.exact.trim();
-    const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-    return { exact: displayText, isQuoted: true, isTag: false };
-  }
+    case 'reference.deleted': {
+      const payload = eventData.payload as ReferenceDeletedEvent['payload'];
+      // Find the original reference.created event
+      const createdEvent = allEvents.find(e =>
+        e.event.type === 'reference.created' &&
+        (e.event.payload as ReferenceCreatedEvent['payload']).referenceId === payload.referenceId
+      );
+      if (createdEvent) {
+        const createdPayload = createdEvent.event.payload as ReferenceCreatedEvent['payload'];
+        return { exact: truncateText(createdPayload.exact), isQuoted: true, isTag: false };
+      }
+      return null;
+    }
 
-  // For entity tag events, show the tag (as tag style)
-  if ('entityType' in payload && typeof payload.entityType === 'string') {
-    return { exact: payload.entityType, isQuoted: false, isTag: true };
-  }
+    case 'highlight.added': {
+      const payload = eventData.payload as HighlightAddedEvent['payload'];
+      return { exact: truncateText(payload.exact), isQuoted: true, isTag: false };
+    }
 
-  return null;
+    case 'reference.created': {
+      const payload = eventData.payload as ReferenceCreatedEvent['payload'];
+      return { exact: truncateText(payload.exact), isQuoted: true, isTag: false };
+    }
+
+    case 'entitytag.added':
+    case 'entitytag.removed': {
+      const payload = eventData.payload as EntityTagAddedEvent['payload'] | EntityTagRemovedEvent['payload'];
+      return { exact: payload.entityType, isQuoted: false, isTag: true };
+    }
+
+    default:
+      return null;
+  }
 }
 
 // Extract entity types from event payload
-export function getEventEntityTypes(event: StoredEvent): string[] | null {
-  const payload = event.event.payload as any;
+export function getEventEntityTypes(event: StoredEvent): string[] {
+  const eventData = event.event;
 
-  // For reference events, show entity types if present
-  if (event.event.type === 'reference.created' && 'entityTypes' in payload && Array.isArray(payload.entityTypes)) {
-    return payload.entityTypes;
+  if (eventData.type === 'reference.created') {
+    const payload = eventData.payload as ReferenceCreatedEvent['payload'];
+    return payload.entityTypes ?? [];
   }
 
-  return null;
+  return [];
 }
 
 // Format user ID for display
@@ -162,35 +229,71 @@ function formatUserId(userId: string): string {
   return userId.substring(0, 8);
 }
 
+// Document creation details - discriminated by event type
+type DocumentCreatedDetails = {
+  type: 'created';
+  userId: string;
+  method: CreationMethod;
+};
+
+type DocumentClonedDetails = {
+  type: 'cloned';
+  userId: string;
+  method: CreationMethod;
+  sourceDocId: string;
+};
+
+export type DocumentCreationDetails = DocumentCreatedDetails | DocumentClonedDetails;
+
 // Extract additional metadata for document creation events
-export function getDocumentCreationDetails(event: StoredEvent): { method?: string; sourceDocId?: string; userId?: string } | null {
-  if (event.event.type !== 'document.created' && event.event.type !== 'document.cloned') {
-    return null;
+export function getDocumentCreationDetails(event: StoredEvent): DocumentCreationDetails | null {
+  const eventData = event.event;
+
+  if (eventData.type === 'document.created') {
+    const payload = eventData.payload as DocumentCreatedEvent['payload'];
+
+    return {
+      type: 'created',
+      userId: formatUserId(eventData.userId),
+      method: payload.creationMethod,
+    };
   }
 
-  const payload = event.event.payload as any;
-  const metadata = payload.metadata || {};
+  if (eventData.type === 'document.cloned') {
+    const payload = eventData.payload as DocumentClonedEvent['payload'];
 
-  return {
-    method: metadata.creationMethod,
-    sourceDocId: event.event.type === 'document.cloned' ? payload.parentDocumentId : undefined,
-    userId: formatUserId(event.event.userId),
-  };
+    return {
+      type: 'cloned',
+      userId: formatUserId(eventData.userId),
+      method: payload.creationMethod,
+      sourceDocId: payload.parentDocumentId,
+    };
+  }
+
+  return null;
 }
 
 // Extract annotation ID from event payload
 export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
-  const payload = event.event.payload as any;
+  const eventData = event.event;
 
-  // Check for highlightId or referenceId in payload
-  if ('highlightId' in payload && typeof payload.highlightId === 'string') {
-    return payload.highlightId;
-  }
-  if ('referenceId' in payload && typeof payload.referenceId === 'string') {
-    return payload.referenceId;
-  }
+  switch (eventData.type) {
+    case 'highlight.added':
+    case 'highlight.removed': {
+      const payload = eventData.payload as HighlightAddedEvent['payload'] | HighlightRemovedEvent['payload'];
+      return payload.highlightId;
+    }
 
-  return null;
+    case 'reference.created':
+    case 'reference.resolved':
+    case 'reference.deleted': {
+      const payload = eventData.payload as ReferenceCreatedEvent['payload'] | ReferenceResolvedEvent['payload'] | ReferenceDeletedEvent['payload'];
+      return payload.referenceId;
+    }
+
+    default:
+      return null;
+  }
 }
 
 // Check if event relates to the hovered annotation

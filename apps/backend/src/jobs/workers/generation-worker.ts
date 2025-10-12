@@ -13,6 +13,7 @@ import { getStorageService } from '../../storage/filesystem';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
+import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
 import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
 import { getExactText } from '@semiont/core-types';
@@ -121,6 +122,7 @@ export class GenerationWorker extends JobWorker {
       name: documentName,
       format: 'text/markdown',
       contentHash: checksum,
+      creationMethod: CREATION_METHODS.GENERATED,
       entityTypes: job.entityTypes || reference.body.entityTypes || [],
       metadata: {
         isDraft: true,

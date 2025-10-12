@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { SemiontBranding } from '../SemiontBranding';
+import { NavigationMenu } from './NavigationMenu';
 import { useAuth } from '@/hooks/useAuth';
 import { useDropdown } from '@/hooks/useUI';
 import { ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
@@ -20,7 +20,7 @@ export function LeftSidebar({
   collapsible = false,
   storageKey = 'leftSidebarCollapsed'
 }: LeftSidebarProps) {
-  const { isAuthenticated, isAdmin, isModerator } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { isOpen, toggle, close, dropdownRef } = useDropdown();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -82,57 +82,7 @@ export function LeftSidebar({
             aria-orientation="vertical"
             aria-labelledby="sidebar-nav-button"
           >
-            <div className="p-3">
-              <Link
-                href={brandingLink}
-                onClick={close}
-                className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
-                role="menuitem"
-                tabIndex={0}
-                aria-label="Go to home page"
-              >
-                Home
-              </Link>
-              <hr className="my-2 border-gray-200 dark:border-gray-600" />
-              <Link
-                href="/know"
-                onClick={close}
-                className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
-                role="menuitem"
-                tabIndex={0}
-                aria-label="Go to knowledge base"
-              >
-                Know
-              </Link>
-              <hr className="my-2 border-gray-200 dark:border-gray-600" />
-              {(isModerator || isAdmin) && (
-                <>
-                  <Link
-                    href="/moderate"
-                    onClick={close}
-                    className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
-                    role="menuitem"
-                    tabIndex={0}
-                    aria-label="Access moderation dashboard"
-                  >
-                    Moderate
-                  </Link>
-                  <hr className="my-2 border-gray-200 dark:border-gray-600" />
-                </>
-              )}
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  onClick={close}
-                  className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
-                  role="menuitem"
-                  tabIndex={0}
-                  aria-label="Access admin dashboard"
-                >
-                  Administer
-                </Link>
-              )}
-            </div>
+            <NavigationMenu brandingLink={brandingLink} onItemClick={close} />
           </div>
         )}
       </div>

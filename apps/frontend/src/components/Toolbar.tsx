@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user';
 type ToolbarContext = 'document' | 'simple';
@@ -26,6 +27,8 @@ export function Toolbar<T extends string = string>({
   onAnnotateModeToggle,
   isArchived = false
 }: Props<T>) {
+  const t = useTranslations('Toolbar');
+
   const buttonClass = (panel: string) =>
     `p-2 rounded-md transition-colors relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
       activePanel === panel
@@ -45,8 +48,8 @@ export function Toolbar<T extends string = string>({
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-400 dark:hover:bg-gray-600'
             }`}
-            aria-label={annotateMode ? 'Switch to Browse Mode' : 'Switch to Annotate Mode'}
-            title={annotateMode ? 'Browse Mode' : 'Annotate Mode'}
+            aria-label={annotateMode ? t('switchToBrowse') : t('switchToAnnotate')}
+            title={annotateMode ? t('browseMode') : t('annotateMode')}
           >
             <span className="text-xl" aria-hidden="true">{annotateMode ? '✏️' : '📖'}</span>
           </button>
@@ -63,9 +66,9 @@ export function Toolbar<T extends string = string>({
           <button
             onClick={() => onPanelToggle('document' as T)}
             className={buttonClass('document')}
-            aria-label="Document"
+            aria-label={t('document')}
             aria-pressed={activePanel === 'document'}
-            title="Document"
+            title={t('document')}
           >
             <span className="text-xl" aria-hidden="true">📄</span>
           </button>
@@ -75,9 +78,9 @@ export function Toolbar<T extends string = string>({
             <button
               onClick={() => onPanelToggle('detect' as T)}
               className={buttonClass('detect')}
-              aria-label="Detect References"
+              aria-label={t('detectReferences')}
               aria-pressed={activePanel === 'detect'}
-              title="Detect References"
+              title={t('detectReferences')}
             >
               <span className="text-xl" aria-hidden="true">🔵</span>
             </button>
@@ -87,9 +90,9 @@ export function Toolbar<T extends string = string>({
           <button
             onClick={() => onPanelToggle('history' as T)}
             className={buttonClass('history')}
-            aria-label="History"
+            aria-label={t('history')}
             aria-pressed={activePanel === 'history'}
-            title="History"
+            title={t('history')}
           >
             <span className="text-xl" aria-hidden="true">📒</span>
           </button>
@@ -98,9 +101,9 @@ export function Toolbar<T extends string = string>({
           <button
             onClick={() => onPanelToggle('info' as T)}
             className={buttonClass('info')}
-            aria-label="Document Information"
+            aria-label={t('documentInfo')}
             aria-pressed={activePanel === 'info'}
-            title="Document Info"
+            title={t('documentInfo')}
           >
             <span className="text-xl" aria-hidden="true">ℹ️</span>
           </button>
@@ -109,9 +112,9 @@ export function Toolbar<T extends string = string>({
           <button
             onClick={() => onPanelToggle('collaboration' as T)}
             className={buttonClass('collaboration')}
-            aria-label="Collaboration"
+            aria-label={t('collaboration')}
             aria-pressed={activePanel === 'collaboration'}
-            title="Collaboration"
+            title={t('collaboration')}
           >
             <span className="text-xl" aria-hidden="true">👥</span>
           </button>
@@ -122,9 +125,9 @@ export function Toolbar<T extends string = string>({
       <button
         onClick={() => onPanelToggle('user' as T)}
         className={buttonClass('user')}
-        aria-label="User Account"
+        aria-label={t('userAccount')}
         aria-pressed={activePanel === 'user'}
-        title="User Account"
+        title={t('userAccount')}
       >
         <span className="text-xl" aria-hidden="true">👤</span>
       </button>
@@ -133,9 +136,9 @@ export function Toolbar<T extends string = string>({
       <button
         onClick={() => onPanelToggle('settings' as T)}
         className={buttonClass('settings')}
-        aria-label="Settings"
+        aria-label={t('settings')}
         aria-pressed={activePanel === 'settings'}
-        title="Settings"
+        title={t('settings')}
       >
         <span className="text-xl" aria-hidden="true">⚙️</span>
       </button>

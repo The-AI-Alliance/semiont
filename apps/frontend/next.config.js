@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 
+const withNextIntl = require('next-intl/plugin')('./src/i18n.ts');
+
 // Only load bundle analyzer in development or when explicitly analyzing
 let withBundleAnalyzer = (config) => config;
 if (process.env.NODE_ENV !== 'production' || process.env.ANALYZE === 'true') {
@@ -30,7 +32,8 @@ const securityHeaders = [
       "form-action 'self'",
       "base-uri 'self'",
       "object-src 'none'",
-      "upgrade-insecure-requests",
+      // Upgrade to HTTPS except in development
+      ...(process.env.NODE_ENV !== 'development' ? ["upgrade-insecure-requests"] : []),
     ].join('; '),
   },
   // Prevent clickjacking
@@ -187,5 +190,5 @@ const baseConfig = {
   },
 };
 
-// Export configuration with bundle analyzer
-module.exports = withBundleAnalyzer(baseConfig);
+// Export configuration with bundle analyzer and next-intl
+module.exports = withNextIntl(withBundleAnalyzer(baseConfig));

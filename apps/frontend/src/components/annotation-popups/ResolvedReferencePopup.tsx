@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader, SelectedTextDisplay, EntityTypeBadges } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
 import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@semiont/core-types';
@@ -27,6 +28,7 @@ export function ResolvedReferencePopup({
   onUpdateAnnotation,
   onDeleteAnnotation,
 }: ResolvedReferencePopupProps) {
+  const t = useTranslations('ResolvedReferencePopup');
   const router = useRouter();
   const resolvedDocumentId = annotation.body.source;
 
@@ -76,7 +78,7 @@ export function ResolvedReferencePopup({
 
   return (
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-      <PopupHeader title="Resolved Reference" onClose={onClose} />
+      <PopupHeader title={t('title')} onClose={onClose} />
 
       <SelectedTextDisplay exact={selection.exact} />
 
@@ -88,10 +90,10 @@ export function ResolvedReferencePopup({
       {/* Resolved Document Info */}
       <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">
-          Resolved to:
+          {t('resolvedTo')}
         </p>
         <p className="text-sm text-blue-700 dark:text-blue-300">
-          {documentName || resolvedDocumentId || 'Document'}
+          {documentName || resolvedDocumentId || t('document')}
         </p>
       </div>
 
@@ -102,12 +104,12 @@ export function ResolvedReferencePopup({
             onClick={handleOpenInNewTab}
             className={`${buttonStyles.primary.base} flex-1 justify-center`}
           >
-            🔗 Open in New Tab
+            🔗 {t('openInNewTab')}
           </button>
           <button
             onClick={handleCopyLinkText}
             className={`${buttonStyles.secondary.base} px-3 flex items-center justify-center`}
-            title="Copy link text"
+            title={t('copyLinkText')}
           >
             📋
           </button>
@@ -120,19 +122,19 @@ export function ResolvedReferencePopup({
           onClick={handleUnlinkDocument}
           className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
         >
-          🔗 Unlink Document
+          🔗 {t('unlinkDocument')}
         </button>
         <button
           onClick={handleConvertToHighlight}
           className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
         >
-          🖍 Convert to Highlight
+          🖍 {t('convertToHighlight')}
         </button>
         <button
           onClick={handleDelete}
           className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
         >
-          🗑️ Delete Reference
+          🗑️ {t('deleteReference')}
         </button>
       </div>
     </PopupContainer>

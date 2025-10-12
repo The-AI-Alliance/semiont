@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader, SelectedTextDisplay } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
 import type { HighlightAnnotation, AnnotationUpdate, TextSelection } from '@semiont/core-types';
@@ -24,6 +25,8 @@ export function HighlightPopup({
   onUpdateAnnotation,
   onDeleteAnnotation,
 }: HighlightPopupProps) {
+  const t = useTranslations('HighlightPopup');
+
   const handleConvertToReference = () => {
     onUpdateAnnotation({
       body: {
@@ -39,7 +42,7 @@ export function HighlightPopup({
 
   return (
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-      <PopupHeader title="Highlight" onClose={onClose} />
+      <PopupHeader title={t('title')} onClose={onClose} />
 
       <SelectedTextDisplay exact={selection.exact} />
 
@@ -49,14 +52,14 @@ export function HighlightPopup({
           onClick={handleConvertToReference}
           className={`${buttonStyles.primary.base} w-full justify-center`}
         >
-          🔗 Convert to Reference
+          🔗 {t('convertToReference')}
         </button>
 
         <button
           onClick={handleDelete}
           className={`${buttonStyles.danger.base} w-full justify-center`}
         >
-          🗑️ Delete Highlight
+          🗑️ {t('deleteHighlight')}
         </button>
       </div>
     </PopupContainer>
