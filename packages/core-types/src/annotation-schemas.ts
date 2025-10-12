@@ -22,6 +22,8 @@ export {
   isReference,
   isStubReference,
   isResolvedReference,
+  extractAnnotationId,
+  compareAnnotationIds,
 } from './annotation-schema';
 export type {
   Annotation,

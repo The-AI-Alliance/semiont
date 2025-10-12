@@ -16,7 +16,7 @@ import { generateDocumentFromTopic } from '../../inference/factory';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
 import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
-import { getExactText } from '@semiont/core-types';
+import { getExactText, compareAnnotationIds } from '@semiont/core-types';
 
 export class GenerationWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -52,11 +52,9 @@ export class GenerationWorker extends JobWorker {
     // Fetch reference from Layer 3
     const projection = await AnnotationQueryService.getDocumentAnnotations(job.sourceDocumentId);
     // Compare by ID portion (handle both URI and simple ID formats)
-    const reference = projection.references.find((r: any) => {
-      const rId = r.id.includes('/') ? r.id.split('/').pop() : r.id;
-      const jobRefId = job.referenceId.includes('/') ? job.referenceId.split('/').pop() : job.referenceId;
-      return rId === jobRefId;
-    });
+    const reference = projection.references.find((r: any) =>
+      compareAnnotationIds(r.id, job.referenceId)
+    );
 
     if (!reference) {
       throw new Error(`Reference ${job.referenceId} not found in document ${job.sourceDocumentId}`);

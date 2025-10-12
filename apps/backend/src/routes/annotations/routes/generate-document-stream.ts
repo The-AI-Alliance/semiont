@@ -6,7 +6,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
-import { getExactText } from '@semiont/core-types';
+import { getExactText, compareAnnotationIds } from '@semiont/core-types';
 
 interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
@@ -89,11 +89,9 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
     });
 
     // Compare by ID portion (handle both URI and simple ID formats)
-    const reference = projection.references.find((r: any) => {
-      const rId = r.id.includes('/') ? r.id.split('/').pop() : r.id;
-      console.log(`[GenerateDocument] Comparing ${rId} === ${referenceId}`);
-      return rId === referenceId;
-    });
+    const reference = projection.references.find((r: any) =>
+      compareAnnotationIds(r.id, referenceId)
+    );
 
     if (!reference) {
       throw new HTTPException(404, { message: `Reference ${referenceId} not found in document ${body.documentId}` });

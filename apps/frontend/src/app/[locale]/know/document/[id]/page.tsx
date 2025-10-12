@@ -31,6 +31,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
 import { Toolbar } from '@/components/Toolbar';
+import { extractAnnotationId, compareAnnotationIds } from '@semiont/core-types';
 
 // Loading state component
 function DocumentLoadingState() {
@@ -417,12 +418,7 @@ function DocumentView({
             ...old,
             references: old.references.map((ref: any) => {
               // Match by ID portion (handle both URI and internal ID formats)
-              const refIdPortion = ref.id.includes('/') ? ref.id.split('/').pop() : ref.id;
-              const eventIdPortion = event.payload.referenceId.includes('/')
-                ? event.payload.referenceId.split('/').pop()
-                : event.payload.referenceId;
-
-              if (refIdPortion === eventIdPortion) {
+              if (compareAnnotationIds(ref.id, event.payload.referenceId)) {
                 return {
                   ...ref,
                   body: {
