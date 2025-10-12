@@ -20,6 +20,7 @@ afterEach(() => {
 afterAll(() => server.close());
 
 // Mock Next.js navigation before any imports
+// Note: Must be defined before next-intl mock since next-intl depends on it
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
   redirect: vi.fn(),
   notFound: vi.fn(),
+  useParams: () => ({ locale: 'en' }),
 }));
 
 // Mock NextAuth
@@ -87,6 +89,26 @@ vi.mock('next-intl', async () => {
     useMessages: vi.fn(() => translations),
   };
 });
+
+// Mock next-intl/navigation (which depends on next/navigation)
+vi.mock('next-intl/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+  usePathname: () => '/',
+  redirect: vi.fn(),
+  Link: ({ children, href, ...props }) => {
+    // Simple Link component mock
+    return typeof children === 'function'
+      ? children({ isActive: false })
+      : children;
+  },
+}));
 
 // Set test environment variables
 process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
