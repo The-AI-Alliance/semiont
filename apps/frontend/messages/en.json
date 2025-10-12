@@ -138,7 +138,8 @@
     "changes": "We may update these terms periodically. Users will be notified of significant changes, and continued use of the platform constitutes acceptance of updated terms.",
     "contactTitle": "Contact",
     "contact": "If you have questions about these terms or need to report violations, please contact our support team through the platform or at the contact information provided in our Privacy Policy.",
-    "lastUpdated": "Last updated: {date}"
+    "lastUpdated": "Last updated: {date}",
+    "aup": "By using Semiont, you agree to use our platform responsibly and in accordance with these terms. We are committed to maintaining a safe, respectful, and productive environment for all users."
   },
   "NotFound": {
     "title": "404",

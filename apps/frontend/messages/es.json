@@ -138,7 +138,8 @@
     "changes": "Podemos actualizar estos términos periódicamente. Los usuarios serán notificados de cambios significativos, y el uso continuo de la plataforma constituye la aceptación de los términos actualizados.",
     "contactTitle": "Contacto",
     "contact": "Si tienes preguntas sobre estos términos o necesitas reportar violaciones, por favor contacta a nuestro equipo de soporte a través de la plataforma o en la información de contacto proporcionada en nuestra Política de Privacidad.",
-    "lastUpdated": "Última actualización: {date}"
+    "lastUpdated": "Última actualización: {date}",
+    "aup": "Al usar Semiont, aceptas usar nuestra plataforma de manera responsable y de acuerdo con estos términos. Estamos comprometidos a mantener un entorno seguro, respetuoso y productivo para todos los usuarios."
   },
   "NotFound": {
     "title": "404",

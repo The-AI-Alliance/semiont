@@ -52,6 +52,42 @@ vi.mock('next-auth/react', () => ({
   SessionProvider: ({ children }) => children,
 }));
 
+// Mock next-intl with actual English translations
+vi.mock('next-intl', async () => {
+  // Load the actual English translations
+  const fs = await import('fs');
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const translationsPath = path.join(__dirname, 'messages', 'en.json');
+  const translations = JSON.parse(fs.readFileSync(translationsPath, 'utf8'));
+
+  const mockTranslations = (namespace) => {
+    return (key, params) => {
+      // Get the translation from the namespace
+      const namespaceData = translations[namespace] || {};
+      let result = namespaceData[key] || key;
+
+      // Handle parameterized translations (like {date})
+      if (params) {
+        Object.entries(params).forEach(([paramKey, paramValue]) => {
+          result = result.replace(`{${paramKey}}`, String(paramValue));
+        });
+      }
+
+      return result;
+    };
+  };
+
+  return {
+    useTranslations: vi.fn((namespace) => mockTranslations(namespace)),
+    useLocale: vi.fn(() => 'en'),
+    NextIntlClientProvider: ({ children }) => children,
+    useMessages: vi.fn(() => translations),
+  };
+});
+
 // Set test environment variables
 process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
 process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
