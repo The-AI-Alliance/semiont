@@ -1,5 +1,5 @@
 /**
- * @semiont/core-types
+ * @semiont/sdk
  *
  * Core domain types for the Semiont semantic knowledge platform.
  * This package provides the single source of truth for all domain models.
