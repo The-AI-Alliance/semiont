@@ -3,11 +3,11 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { StubReferencePopup } from '../StubReferencePopup';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import type { ReferenceAnnotation, TextSelection } from '@semiont/core-types';
 
-// Mock next/navigation
-vi.mock('next/navigation', () => ({
+// Mock @/i18n/routing
+vi.mock('@/i18n/routing', () => ({
   useRouter: vi.fn()
 }));
 
