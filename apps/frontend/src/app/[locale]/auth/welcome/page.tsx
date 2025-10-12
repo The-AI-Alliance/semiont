@@ -3,9 +3,9 @@
 import React from 'react';
 import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import Link from 'next/link';
+import { Link } from '@/i18n/routing';
 import { PageLayout } from '@/components/PageLayout';
 import { useToast } from '@/components/Toast';
 import { api } from '@/lib/api-client';

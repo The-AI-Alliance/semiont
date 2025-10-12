@@ -4,7 +4,8 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { signIn, useSession, signOut } from 'next-auth/react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 
@@ -40,15 +41,20 @@ vi.mock('next-auth/react', () => ({
   useSession: vi.fn(() => ({
     data: null,
     status: 'unauthenticated',
-  })), 
+  })),
   signOut: vi.fn(),
   SessionProvider: ({ children }: any) => children,
 }));
 
-// Mock next/navigation
+// Mock next/navigation (only useSearchParams)
 vi.mock('next/navigation', () => ({
   useSearchParams: vi.fn(),
+}));
+
+// Mock @/i18n/routing (for useRouter)
+vi.mock('@/i18n/routing', () => ({
   useRouter: vi.fn(),
+  Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
 describe('Sign-Up Flow Integration Tests', () => {

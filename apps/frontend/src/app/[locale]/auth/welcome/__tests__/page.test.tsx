@@ -3,7 +3,7 @@ import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useSession, signOut } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 import Welcome from '../page';
@@ -38,9 +38,10 @@ vi.mock('next-auth/react', () => ({
   SessionProvider: ({ children }: any) => children,
 }));
 
-// Mock next/navigation
-vi.mock('next/navigation', () => ({
+// Mock @/i18n/routing
+vi.mock('@/i18n/routing', () => ({
   useRouter: vi.fn(),
+  Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
 describe('Welcome Page', () => {

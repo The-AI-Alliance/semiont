@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient, UseMutationOptions } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import { useToast } from '@/components/Toast';
 import { dispatch401Error, dispatch403Error } from '@/lib/auth-events';
 
