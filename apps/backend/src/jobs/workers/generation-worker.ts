@@ -14,7 +14,7 @@ import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
 import { CREATION_METHODS } from '@semiont/sdk';
-import { calculateChecksum } from '@semiont/utils';
+import { calculateChecksum } from '@semiont/sdk';
 import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
 import { getExactText, compareAnnotationIds } from '@semiont/sdk';
 

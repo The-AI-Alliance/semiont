@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { getStorageService } from '../../storage/filesystem';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
-import { calculateChecksum } from '@semiont/utils';
+import { calculateChecksum } from '@semiont/sdk';
 import { userToAgent } from '../../utils/id-generator';
 import {
   CREATION_METHODS,

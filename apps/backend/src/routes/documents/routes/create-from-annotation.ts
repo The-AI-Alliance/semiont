@@ -4,7 +4,7 @@ import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import type { Document, CreateDocumentInput } from '@semiont/sdk';
 import { CREATION_METHODS } from '@semiont/sdk';
-import { calculateChecksum } from '@semiont/utils';
+import { calculateChecksum } from '@semiont/sdk';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 

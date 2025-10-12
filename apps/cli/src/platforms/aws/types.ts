@@ -1,5 +1,5 @@
 
-import { ScriptError } from '@semiont/utils';
+import { ScriptError } from '@semiont/sdk';
 
 // AWS CloudFormation Stack Output types
 export interface StackOutput {

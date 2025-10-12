@@ -33,7 +33,7 @@ export interface CommandResult {
 }
 
 // Re-export error types from utils for backward compatibility
-export { ScriptError, ValidationError } from '@semiont/utils';
+export { ScriptError, ValidationError } from '@semiont/sdk';
 
 // Service types for script operations
 // export type ServiceType = 'frontend' | 'backend' | 'both';
@@ -49,7 +49,7 @@ export interface Awaitable<T> {
 }
 
 // Re-export type guards from utils for backward compatibility
-export { isString, isNumber, isObject } from '@semiont/utils';
+export { isString, isNumber, isObject } from '@semiont/sdk';
 
 export function isLogMode(value: string): value is LogMode {
   return ['tail', 'follow', 'all', 'waf'].includes(value);
