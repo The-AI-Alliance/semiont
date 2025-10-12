@@ -87,11 +87,11 @@ describe('Terms of Service Page', () => {
 
   it('references privacy policy', () => {
     render(<TermsOfService />);
-    
+
     expect(screen.getByText('Privacy and Data Protection')).toBeInTheDocument();
-    
+
     const privacyLink = screen.getByRole('link', { name: /Privacy Policy/ });
-    expect(privacyLink).toHaveAttribute('href', '/privacy');
+    expect(privacyLink).toHaveAttribute('href', '/en/privacy');
   });
 
   it('includes intellectual property section', () => {
