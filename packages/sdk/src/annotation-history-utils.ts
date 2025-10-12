@@ -15,10 +15,11 @@ import type {
   ReferenceDeletedEvent,
   EntityTagAddedEvent,
   EntityTagRemovedEvent,
-  Annotation,
-  CreationMethod,
-} from '@semiont/sdk';
-import { getExactText, compareAnnotationIds } from '@semiont/sdk';
+} from './events';
+import type { Annotation } from './annotation-schema';
+import type { CreationMethod } from './creation-methods';
+import { getExactText } from './selector-utils';
+import { compareAnnotationIds } from './annotation-schema';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
@@ -111,7 +112,7 @@ function truncateText(text: string, maxLength = 50): string {
 export function getEventDisplayContent(
   event: StoredEvent,
   references: Annotation[],
-  highlights: Annotation[],
+  _highlights: Annotation[], // underscore prefix to indicate intentionally unused
   allEvents: StoredEvent[]
 ): { exact: string; isQuoted: boolean; isTag: boolean } | null {
   const eventData = event.event;

@@ -67,3 +67,19 @@ export class ConflictError extends SemiontError {
     this.name = 'ConflictError';
   }
 }
+
+/**
+ * API Error class for handling HTTP errors
+ * Used by API clients to represent failed HTTP requests
+ */
+export class APIError extends Error {
+  constructor(
+    public status: number,
+    public data: any,
+    message?: string
+  ) {
+    super(message || `API Error: ${status}`);
+    this.name = 'APIError';
+    Error.captureStackTrace(this, this.constructor);
+  }
+}

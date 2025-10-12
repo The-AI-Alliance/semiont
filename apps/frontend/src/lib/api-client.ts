@@ -62,8 +62,8 @@ export type {
   OAuthConfigResponse,
 };
 
-// API Error class
-export { APIError } from './api-error';
+// API Error class (from SDK)
+export { APIError } from '@semiont/sdk';
 
 // Query keys for React Query cache management
 export { QUERY_KEYS } from './query-keys';

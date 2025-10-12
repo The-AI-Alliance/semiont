@@ -322,6 +322,9 @@ export * from './errors';
 // Validation utilities
 export * from './validation';
 
+// Annotation history utilities
+export * from './annotation-history-utils';
+
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';
 export const SDK_VERSION = '0.1.0';
