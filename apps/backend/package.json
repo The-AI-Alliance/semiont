@@ -30,8 +30,7 @@
     "@hono/swagger-ui": "^0.5.2",
     "@hono/zod-openapi": "^1.1.1",
     "@prisma/client": "^6.13.0",
-    "@semiont/core-types": "*",
-    "@semiont/utils": "*",
+    "@semiont/sdk": "*",
     "dotenv": "^16.3.1",
     "google-auth-library": "^9.10.0",
     "gremlin": "^3.7.4",
@@ -39,7 +38,7 @@
     "jsonwebtoken": "^9.0.2",
     "neo4j-driver": "^5.28.2",
     "uuid": "^9.0.1",
-    "zod": "^4.1.11"
+    "zod": "4.1.12"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.9.0",

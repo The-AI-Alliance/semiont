@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { User } from '@prisma/client';
-import { AddReferenceTypeResponseSchema } from '@semiont/core-types';
+import { AddReferenceTypeResponseSchema } from '@semiont/sdk';
 import { authMiddleware } from '../middleware/auth';
 import { getGraphDatabase } from '../graph/factory';
 
@@ -60,7 +60,7 @@ const addReferenceTypeRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AddReferenceTypeResponseSchema,
+          schema: AddReferenceTypeResponseSchema as any,
         },
       },
       description: 'Reference type added successfully',
@@ -117,7 +117,7 @@ const bulkAddReferenceTypesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AddReferenceTypeResponseSchema,
+          schema: AddReferenceTypeResponseSchema as any,
         },
       },
       description: 'Reference types added successfully',

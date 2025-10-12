@@ -1,7 +1,12 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { getGraphDatabase } from '../../../graph/factory';
-import { GetReferencedByResponseSchema, type GetReferencedByResponse, getExactText } from '@semiont/core-types';
+import {
+  GetReferencedByResponseSchema as GetReferencedByResponseSchema,
+  type GetReferencedByResponse,
+  getExactText,
+} from '@semiont/sdk';
 import type { DocumentsRouterType } from '../shared';
+
 
 export const getReferencedByRoute = createRoute({
   method: 'get',
@@ -19,7 +24,7 @@ export const getReferencedByRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetReferencedByResponseSchema,
+          schema: GetReferencedByResponseSchema as any,
         },
       },
       description: 'Documents that reference this document',

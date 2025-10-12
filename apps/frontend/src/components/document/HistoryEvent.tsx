@@ -2,8 +2,8 @@
 
 import React, { useRef, useCallback } from 'react';
 import { Link } from '@/i18n/routing';
-import type { StoredEvent } from '@semiont/core-types';
 import {
+  type StoredEvent,
   formatEventType,
   getEventEmoji,
   formatRelativeTime,
@@ -11,7 +11,7 @@ import {
   getEventEntityTypes,
   getDocumentCreationDetails,
   getAnnotationIdFromEvent,
-} from '@/lib/annotation-history-utils';
+} from '@semiont/sdk';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 

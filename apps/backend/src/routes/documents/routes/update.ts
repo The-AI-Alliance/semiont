@@ -1,10 +1,15 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import type { DocumentsRouterType } from '../shared';
-import { UpdateDocumentRequestSchema, GetDocumentResponseSchema, type GetDocumentResponse } from '@semiont/core-types';
+import {
+  UpdateDocumentRequestSchema as UpdateDocumentRequestSchema,
+  GetDocumentResponseSchema as GetDocumentResponseSchema,
+  type GetDocumentResponse,
+} from '@semiont/sdk';
 import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
+
 
 export const updateDocumentRoute = createRoute({
   method: 'patch',
@@ -20,7 +25,7 @@ export const updateDocumentRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: UpdateDocumentRequestSchema,
+          schema: UpdateDocumentRequestSchema as any,
         },
       },
     },
@@ -29,7 +34,7 @@ export const updateDocumentRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetDocumentResponseSchema,
+          schema: GetDocumentResponseSchema as any,
         },
       },
       description: 'Document updated successfully',
@@ -66,8 +71,8 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
 
     // Emit entity tag change events (event store updates Layer 3, graph consumer updates Layer 4)
     if (body.entityTypes && doc.entityTypes) {
-      const added = body.entityTypes.filter(et => !doc.entityTypes.includes(et));
-      const removed = doc.entityTypes.filter(et => !body.entityTypes!.includes(et));
+      const added = body.entityTypes.filter((et: string) => !doc.entityTypes.includes(et));
+      const removed = doc.entityTypes.filter((et: string) => !body.entityTypes!.includes(et));
 
       for (const entityType of added) {
         await emitEntityTagAdded({ documentId: id, userId: user.id, entityType });

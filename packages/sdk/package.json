@@ -1,7 +1,7 @@
 {
-  "name": "@semiont/core-types",
+  "name": "@semiont/sdk",
   "version": "0.1.0",
-  "description": "Core domain types for Semiont - Document, Selection, and Graph models",
+  "description": "Core domain types for Semiont - Document, Annotation, and Graph models",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

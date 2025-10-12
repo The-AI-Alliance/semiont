@@ -1,7 +1,7 @@
 /**
  * Frontend API Client
  *
- * Pure TanStack Query hooks that use types from @semiont/core-types.
+ * Pure TanStack Query hooks that use types from @semiont/sdk.
  * NO hand-written type definitions - all types imported from core-types.
  */
 
@@ -48,7 +48,7 @@ import type {
   // Tag types
   AddEntityTypeResponse,
   AddReferenceTypeResponse,
-} from '@semiont/core-types';
+} from '@semiont/sdk';
 
 // Re-export types for convenience
 export type {
@@ -62,13 +62,13 @@ export type {
   OAuthConfigResponse,
 };
 
-// API Error class
-export { APIError } from './api-error';
+// API Error class (from SDK)
+export { APIError } from '@semiont/sdk';
+import { APIError } from '@semiont/sdk';
 
 // Query keys for React Query cache management
 export { QUERY_KEYS } from './query-keys';
 import { QUERY_KEYS } from './query-keys';
-import { APIError } from './api-error';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 

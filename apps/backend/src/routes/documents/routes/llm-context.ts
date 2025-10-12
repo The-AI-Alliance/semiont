@@ -4,7 +4,11 @@ import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
-import { DocumentLLMContextResponseSchema, type DocumentLLMContextResponse } from '@semiont/core-types';
+import {
+  DocumentLLMContextResponseSchema as DocumentLLMContextResponseSchema,
+  type DocumentLLMContextResponse,
+} from '@semiont/sdk';
+
 
 export const getDocumentLLMContextRoute = createRoute({
   method: 'get',
@@ -36,7 +40,7 @@ export const getDocumentLLMContextRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: DocumentLLMContextResponseSchema,
+          schema: DocumentLLMContextResponseSchema as any,
         },
       },
       description: 'LLM context',

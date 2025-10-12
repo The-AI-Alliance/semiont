@@ -2,9 +2,9 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import type { Document, CreateDocumentInput } from '@semiont/core-types';
-import { CREATION_METHODS } from '@semiont/core-types';
-import { calculateChecksum } from '@semiont/utils';
+import type { Document, CreateDocumentInput } from '@semiont/sdk';
+import { CREATION_METHODS } from '@semiont/sdk';
+import { calculateChecksum } from '@semiont/sdk';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 

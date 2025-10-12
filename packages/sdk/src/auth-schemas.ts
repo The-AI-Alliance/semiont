@@ -81,3 +81,7 @@ export const AcceptTermsResponseSchema = z.object({
 });
 
 export type AcceptTermsResponse = z.infer<typeof AcceptTermsResponseSchema>;
+
+// Note: OpenAPI-wrapped versions removed from SDK
+// Backend routes should import plain schemas and wrap with @hono/zod-openapi locally
+// This ensures type compatibility with frontend code that uses plain zod

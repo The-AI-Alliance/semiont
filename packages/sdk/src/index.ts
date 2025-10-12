@@ -1,5 +1,5 @@
 /**
- * @semiont/core-types
+ * @semiont/sdk
  *
  * Core domain types for the Semiont semantic knowledge platform.
  * This package provides the single source of truth for all domain models.
@@ -309,5 +309,25 @@ export type {
   GetEventsResponse,
 } from './event-schemas';
 
+// Utility functions (formerly @semiont/sdk)
+// Type guards
+export * from './type-guards';
+
+// Cryptographic utilities
+export * from './crypto';
+
+// Error classes
+export * from './errors';
+
+// Validation utilities
+export * from './validation';
+
+// Annotation history utilities
+export * from './annotation-history-utils';
+
+// DID and W3C Agent utilities
+export * from './did-utils';
+
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';
+export const SDK_VERSION = '0.1.0';

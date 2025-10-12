@@ -10,7 +10,7 @@ import { getGraphDatabase } from '../../graph/factory';
 import { getStorageService } from '../../storage/filesystem';
 import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
-import type { DocumentEvent, StoredEvent, Annotation } from '@semiont/core-types';
+import type { DocumentEvent, StoredEvent, Annotation } from '@semiont/sdk';
 
 export class GraphDBConsumer {
   private graphDb: GraphDatabase | null = null;

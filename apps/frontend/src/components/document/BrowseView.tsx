@@ -5,8 +5,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { remarkAnnotations } from '@/lib/remark-annotations';
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
-import type { Annotation } from '@semiont/core-types';
-import { getExactText, getTextPositionSelector, isReference, isStubReference } from '@semiont/core-types';
+import type { Annotation } from '@semiont/sdk';
+import { getExactText, getTextPositionSelector, isReference, isStubReference } from '@semiont/sdk';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import '@/styles/animations.css';
 

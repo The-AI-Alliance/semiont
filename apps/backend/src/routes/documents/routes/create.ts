@@ -1,9 +1,17 @@
 import { createRoute } from '@hono/zod-openapi';
 import { getStorageService } from '../../../storage/filesystem';
-import { CREATION_METHODS, type CreationMethod, CreateDocumentRequestSchema, CreateDocumentResponseSchema, type Document, type CreateDocumentResponse } from '@semiont/core-types';
-import { calculateChecksum } from '@semiont/utils';
+import {
+  CREATION_METHODS,
+  type CreationMethod,
+  CreateDocumentRequestSchema as CreateDocumentRequestSchema,
+  CreateDocumentResponseSchema as CreateDocumentResponseSchema,
+  type Document,
+  type CreateDocumentResponse,
+  calculateChecksum,
+} from '@semiont/sdk';
 import type { DocumentsRouterType } from '../shared';
 import { emitDocumentCreated } from '../../../events/emit';
+
 
 export const createDocumentRoute = createRoute({
   method: 'post',
@@ -16,7 +24,7 @@ export const createDocumentRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: CreateDocumentRequestSchema,
+          schema: CreateDocumentRequestSchema as any,
         },
       },
     },
@@ -25,7 +33,7 @@ export const createDocumentRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateDocumentResponseSchema,
+          schema: CreateDocumentResponseSchema as any,
         },
       },
       description: 'Document created successfully',

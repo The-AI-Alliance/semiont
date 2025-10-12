@@ -1,24 +1,10 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
+import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
+import {
+  StatusResponseSchema,
+  ErrorResponseSchema,
+} from '@semiont/sdk';
 import { authMiddleware } from '../middleware/auth';
 import { User } from '@prisma/client';
-
-// OpenAPI-wrapped schemas for this route
-export const StatusResponseSchema = z.object({
-  status: z.string().openapi({ example: 'operational' }),
-  version: z.string().openapi({ example: '0.1.0' }),
-  features: z.object({
-    semanticContent: z.string(),
-    collaboration: z.string(),
-    rbac: z.string(),
-  }).openapi({ example: { semanticContent: 'planned', collaboration: 'planned', rbac: 'planned' } }),
-  message: z.string().openapi({ example: 'Ready to build the future of knowledge management!' }),
-  authenticatedAs: z.string().optional().openapi({ example: 'user@example.com' }),
-}).openapi('StatusResponse');
-
-export const ErrorResponseSchema = z.object({
-  error: z.string().openapi({ example: 'An error occurred' }),
-  code: z.string().optional().openapi({ example: 'ERROR_CODE' }),
-}).openapi('ErrorResponse');
 
 // Define the status route
 export const statusRoute = createRoute({
@@ -32,7 +18,8 @@ export const statusRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: StatusResponseSchema,
+          // Plain SDK schemas work at runtime; cast for TypeScript compatibility
+          schema: StatusResponseSchema as any,
         },
       },
       description: 'Service status information',
@@ -40,7 +27,7 @@ export const statusRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',

@@ -1,10 +1,7 @@
-import { z } from '@hono/zod-openapi';
+import { ErrorResponseSchema } from '@semiont/sdk';
 
-// Shared error response schema used across all routes
-export const ErrorResponseSchema = z.object({
-  error: z.string().openapi({ example: 'An error occurred' }),
-  code: z.string().optional().openapi({ example: 'ERROR_CODE' }),
-}).openapi('ErrorResponse');
+// Shared error response schema used across all routes (imported from SDK)
+export { ErrorResponseSchema };
 
 // Create route definitions for OpenAPI documentation
 // Routes are now defined in separate files under src/routes/

@@ -10,7 +10,7 @@ import * as path from 'path';
 import { ConfigurationError } from './configuration-error.js';
 import { findProjectRoot } from './project-discovery.js';
 import { PlatformType } from './platform-types.js';
-import { isObject } from '@semiont/utils';
+import { isObject } from '@semiont/sdk';
 
 /**
  * Environment configuration structure

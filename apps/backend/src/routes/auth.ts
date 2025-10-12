@@ -1,13 +1,18 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import {
+  GoogleAuthRequestSchema,
+  AuthResponseSchema,
+  UserResponseSchema,
   AcceptTermsResponseSchema,
   TokenRefreshResponseSchema,
   MCPGenerateResponseSchema,
   LogoutResponseSchema,
+  type AuthResponse,
+  type UserResponse,
   type TokenRefreshResponse,
   type MCPGenerateResponse,
-  type LogoutResponse
-} from '@semiont/core-types';
+  type LogoutResponse,
+} from '@semiont/sdk';
 import { ErrorResponseSchema } from '../openapi';
 import { OAuthService } from '../auth/oauth';
 import { JWTService } from '../auth/jwt';
@@ -15,44 +20,6 @@ import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
 import { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
-
-// OpenAPI-wrapped schemas for this route
-export const GoogleAuthRequestSchema = z.object({
-  access_token: z.string().openapi({
-    example: 'ya29.a0AfH6SMBx...',
-    description: 'Google OAuth access token'
-  }),
-}).openapi('GoogleAuthRequest');
-
-export const AuthResponseSchema = z.object({
-  success: z.boolean().openapi({ example: true }),
-  user: z.object({
-    id: z.string().openapi({ example: 'user-123' }),
-    email: z.string().email().openapi({ example: 'user@example.com' }),
-    name: z.string().nullable().openapi({ example: 'John Doe' }),
-    image: z.string().nullable().openapi({ example: 'https://example.com/avatar.jpg' }),
-    domain: z.string().nullable().openapi({ example: 'example.com' }),
-    isAdmin: z.boolean().openapi({ example: false }),
-  }),
-  token: z.string().openapi({ example: 'eyJhbGciOiJIUzI1NiIs...' }),
-  isNewUser: z.boolean().openapi({ example: false }),
-}).openapi('AuthResponse');
-export type AuthResponse = z.infer<typeof AuthResponseSchema>;
-
-export const UserResponseSchema = z.object({
-  id: z.string().openapi({ example: 'user-123' }),
-  email: z.string().email().openapi({ example: 'user@example.com' }),
-  name: z.string().nullable().openapi({ example: 'John Doe' }),
-  image: z.string().nullable().openapi({ example: 'https://example.com/avatar.jpg' }),
-  domain: z.string().nullable().openapi({ example: 'example.com' }),
-  provider: z.string().openapi({ example: 'google' }),
-  isAdmin: z.boolean().openapi({ example: false }),
-  isActive: z.boolean().openapi({ example: true }),
-  termsAcceptedAt: z.string().nullable().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-  lastLogin: z.string().nullable().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-  created: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-}).openapi('UserResponse');
-export type UserResponse = z.infer<typeof UserResponseSchema>;
 
 // Token refresh request schema
 const TokenRefreshRequestSchema = z.object({
@@ -78,7 +45,7 @@ export const localAuthRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: LocalAuthRequestSchema,
+          schema: LocalAuthRequestSchema as any,
         },
       },
     },
@@ -87,7 +54,7 @@ export const localAuthRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AuthResponseSchema,
+          schema: AuthResponseSchema as any,
         },
       },
       description: 'Successful authentication',
@@ -95,7 +62,7 @@ export const localAuthRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Bad request',
@@ -103,7 +70,7 @@ export const localAuthRoute = createRoute({
     403: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Local auth not enabled',
@@ -122,7 +89,7 @@ export const googleAuthRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: GoogleAuthRequestSchema,
+          schema: GoogleAuthRequestSchema as any,
         },
       },
     },
@@ -131,7 +98,7 @@ export const googleAuthRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AuthResponseSchema,
+          schema: AuthResponseSchema as any,
         },
       },
       description: 'Successful authentication',
@@ -139,7 +106,7 @@ export const googleAuthRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Invalid request or authentication failed',
@@ -158,7 +125,7 @@ export const refreshTokenRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: TokenRefreshRequestSchema,
+          schema: TokenRefreshRequestSchema as any,
         },
       },
     },
@@ -167,7 +134,7 @@ export const refreshTokenRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: TokenRefreshResponseSchema,
+          schema: TokenRefreshResponseSchema as any,
         },
       },
       description: 'New access token generated',
@@ -175,7 +142,7 @@ export const refreshTokenRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Invalid or expired refresh token',
@@ -195,7 +162,7 @@ export const mcpGenerateRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: MCPGenerateResponseSchema,
+          schema: MCPGenerateResponseSchema as any,
         },
       },
       description: 'MCP token generated',
@@ -203,7 +170,7 @@ export const mcpGenerateRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -223,7 +190,7 @@ export const getCurrentUserRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: UserResponseSchema,
+          schema: UserResponseSchema as any,
         },
       },
       description: 'User information',
@@ -231,7 +198,7 @@ export const getCurrentUserRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -251,7 +218,7 @@ export const acceptTermsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AcceptTermsResponseSchema,
+          schema: AcceptTermsResponseSchema as any,
         },
       },
       description: 'Terms accepted successfully',
@@ -259,7 +226,7 @@ export const acceptTermsRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -279,7 +246,7 @@ export const logoutRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: LogoutResponseSchema,
+          schema: LogoutResponseSchema as any,
         },
       },
       description: 'Logged out successfully',

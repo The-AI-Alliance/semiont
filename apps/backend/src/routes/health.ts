@@ -1,15 +1,6 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
+import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
+import { HealthResponseSchema } from '@semiont/sdk';
 import { DatabaseConnection } from '../db';
-
-// OpenAPI-wrapped schema for this route
-export const HealthResponseSchema = z.object({
-  status: z.string().openapi({ example: 'operational' }),
-  message: z.string().openapi({ example: 'Semiont API is running' }),
-  version: z.string().openapi({ example: '0.1.0' }),
-  timestamp: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-  database: z.enum(['connected', 'disconnected', 'unknown']).openapi({ example: 'connected' }),
-  environment: z.string().openapi({ example: 'development' }),
-}).openapi('HealthResponse');
 
 // Define the health check route
 export const healthRoute = createRoute({
@@ -22,7 +13,8 @@ export const healthRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: HealthResponseSchema,
+          // Plain SDK schemas work at runtime; cast for TypeScript compatibility
+          schema: HealthResponseSchema as any,
         },
       },
       description: 'Health status of the API',

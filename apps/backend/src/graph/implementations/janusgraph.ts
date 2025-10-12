@@ -15,7 +15,7 @@ import {
   UpdateDocumentInput,
   CreateAnnotationInternal,
   getExactText,
-} from '@semiont/core-types';
+} from '@semiont/sdk';
 import { v4 as uuidv4 } from 'uuid';
 
 const traversal = gremlin.process.AnonymousTraversalSource.traversal;
