@@ -18,7 +18,7 @@ import type {
   Annotation,
   CreationMethod,
 } from '@semiont/core-types';
-import { getExactText } from '@semiont/core-types';
+import { getExactText, compareAnnotationIds } from '@semiont/core-types';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
@@ -129,14 +129,9 @@ export function getEventDisplayContent(
 
       // Handle both URI format (http://localhost:4000/annotations/ID) and simple ID format
       // The event payload may have just the ID, but annotations are stored with full URI
-      const reference = references.find(r => {
-        // Extract ID from URI if it's in URI format
-        const refId = r.id.includes('/') ? r.id.split('/').pop() : r.id;
-        const payloadId = payload.referenceId.includes('/')
-          ? payload.referenceId.split('/').pop()
-          : payload.referenceId;
-        return refId === payloadId;
-      });
+      const reference = references.find(r =>
+        compareAnnotationIds(r.id, payload.referenceId)
+      );
 
       if (reference?.target?.selector) {
         const exact = getExactText(reference.target.selector);

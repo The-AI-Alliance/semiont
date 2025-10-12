@@ -285,3 +285,44 @@ export function isStubReference(annotation: Annotation): boolean {
 export function isResolvedReference(annotation: Annotation): annotation is ReferenceAnnotation {
   return isReference(annotation) && !!annotation.body.source;
 }
+
+/**
+ * Annotation ID Utilities
+ *
+ * Phase 5 introduced W3C-compliant URI-based annotation IDs:
+ * - Frontend/Projections: Store full URIs like `http://localhost:4000/annotations/xyz123`
+ * - Events/Backend Logic: Often use internal IDs like `xyz123`
+ *
+ * These utilities handle both formats transparently by extracting the ID portion.
+ */
+
+/**
+ * Extracts the annotation ID from either a full URI or an internal ID
+ *
+ * Examples:
+ * - URI: `http://localhost:4000/annotations/xyz123` → `xyz123`
+ * - Internal ID: `xyz123` → `xyz123`
+ *
+ * @param fullUriOrId - Either a full annotation URI or an internal ID
+ * @returns The ID portion (the part after the last '/')
+ */
+export function extractAnnotationId(fullUriOrId: string): string {
+  return fullUriOrId.includes('/') ? fullUriOrId.split('/').pop()! : fullUriOrId;
+}
+
+/**
+ * Compares two annotation IDs, handling both URI and internal ID formats
+ *
+ * This function extracts the ID portion from both inputs before comparing,
+ * so it correctly handles comparisons between:
+ * - URI vs URI
+ * - Internal ID vs Internal ID
+ * - URI vs Internal ID (mixed formats)
+ *
+ * @param id1 - First annotation ID (URI or internal format)
+ * @param id2 - Second annotation ID (URI or internal format)
+ * @returns true if the IDs match, false otherwise
+ */
+export function compareAnnotationIds(id1: string, id2: string): boolean {
+  return extractAnnotationId(id1) === extractAnnotationId(id2);
+}

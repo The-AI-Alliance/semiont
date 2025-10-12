@@ -6,7 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartme
 import { markdown } from '@codemirror/lang-markdown';
 import { annotationStyles } from '@/lib/annotation-styles';
 import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
-import { isHighlight, isReference, isResolvedReference, type Annotation } from '@semiont/core-types';
+import { isHighlight, isReference, isResolvedReference, compareAnnotationIds, type Annotation } from '@semiont/core-types';
 import '@/styles/animations.css';
 
 // Export W3C Annotation type for use by other components
@@ -168,9 +168,9 @@ function buildWidgetDecorations(
         ? callbacks.getTargetDocumentName?.(annotation.body.source)
         : undefined;
       // Compare by ID portion (handle both URI and internal ID formats)
-      const annotationIdPortion = annotation.id.includes('/') ? annotation.id.split('/').pop() : annotation.id;
-      const generatingIdPortion = generatingReferenceId?.includes('/') ? generatingReferenceId.split('/').pop() : generatingReferenceId;
-      const isGenerating = generatingIdPortion === annotationIdPortion;
+      const isGenerating = generatingReferenceId
+        ? compareAnnotationIds(annotation.id, generatingReferenceId)
+        : false;
       const widget = new ReferenceResolutionWidget(
         annotation,
         targetName,

@@ -22,6 +22,7 @@ import type {
   Document,
   DocumentAnnotations,
 } from '@semiont/core-types';
+import { compareAnnotationIds } from '@semiont/core-types';
 import type { ProjectionStorage, DocumentState } from '../storage/projection-storage';
 import { jumpConsistentHash, sha256 } from '../storage/shard-utils';
 
@@ -447,22 +448,18 @@ export class EventStore {
 
       case 'reference.resolved':
         // Compare by ID portion (handle both URI and internal ID formats)
-        const ref = annotations.references.find(r => {
-          const rId = r.id.includes('/') ? r.id.split('/').pop() : r.id;
-          const eventId = event.payload.referenceId.includes('/') ? event.payload.referenceId.split('/').pop() : event.payload.referenceId;
-          return rId === eventId;
-        });
+        const ref = annotations.references.find(r =>
+          compareAnnotationIds(r.id, event.payload.referenceId)
+        );
         if (ref) {
           ref.body.source = event.payload.targetDocumentId;
         }
         break;
 
       case 'reference.deleted':
-        annotations.references = annotations.references.filter(r => {
-          const rId = r.id.includes('/') ? r.id.split('/').pop() : r.id;
-          const eventId = event.payload.referenceId.includes('/') ? event.payload.referenceId.split('/').pop() : event.payload.referenceId;
-          return rId !== eventId;
-        });
+        annotations.references = annotations.references.filter(r =>
+          !compareAnnotationIds(r.id, event.payload.referenceId)
+        );
         break;
 
       // Document metadata events don't affect annotations

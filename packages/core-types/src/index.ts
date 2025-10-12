@@ -110,6 +110,8 @@ export {
   isReference,
   isStubReference,
   isResolvedReference,
+  extractAnnotationId,
+  compareAnnotationIds,
 } from './annotation-schemas';
 
 // Selector utilities
