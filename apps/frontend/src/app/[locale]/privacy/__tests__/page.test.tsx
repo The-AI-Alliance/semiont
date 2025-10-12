@@ -262,12 +262,12 @@ describe('Privacy Policy Page', () => {
 
     it('should display last updated date', () => {
       render(<PrivacyPolicyPage />);
-      
+
       expect(screen.getByText(/Last updated:/i)).toBeInTheDocument();
-      
-      // Check that current date is displayed
+
+      // Check that current date is displayed (as part of the "Last updated: {date}" string)
       const currentDate = new Date().toLocaleDateString();
-      expect(screen.getByText(currentDate)).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(currentDate.replace(/\//g, '\\/')))).toBeInTheDocument();
     });
 
     it('should style the last updated text correctly', () => {
