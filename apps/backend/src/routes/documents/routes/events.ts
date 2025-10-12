@@ -1,7 +1,8 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DocumentsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
-import { GetEventsResponseSchema, type GetEventsResponse, type EventQuery, type StoredEvent } from '@semiont/sdk';
+import { GetEventsResponseSchema as GetEventsResponseSchema, type GetEventsResponse, type EventQuery, type StoredEvent } from '@semiont/sdk';
+
 
 const eventTypes = [
   'document.created',
@@ -38,7 +39,7 @@ export const getEventsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetEventsResponseSchema,
+          schema: GetEventsResponseSchema as any,
         },
       },
       description: 'Events retrieved successfully',

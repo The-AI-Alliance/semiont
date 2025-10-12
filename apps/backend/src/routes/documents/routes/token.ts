@@ -5,10 +5,10 @@ import { getStorageService } from '../../../storage/filesystem';
 import { calculateChecksum } from '@semiont/sdk';
 import {
   CREATION_METHODS,
-  GetDocumentByTokenResponseSchemaOpenAPI as GetDocumentByTokenResponseSchema,
-  CreateDocumentFromTokenRequestSchemaOpenAPI as CreateDocumentFromTokenRequestSchema,
-  CreateDocumentFromTokenResponseSchemaOpenAPI as CreateDocumentFromTokenResponseSchema,
-  CloneDocumentWithTokenResponseSchemaOpenAPI as CloneDocumentWithTokenResponseSchema,
+  GetDocumentByTokenResponseSchema as GetDocumentByTokenResponseSchema,
+  CreateDocumentFromTokenRequestSchema as CreateDocumentFromTokenRequestSchema,
+  CreateDocumentFromTokenResponseSchema as CreateDocumentFromTokenResponseSchema,
+  CloneDocumentWithTokenResponseSchema as CloneDocumentWithTokenResponseSchema,
   type GetDocumentByTokenResponse,
   type CreateDocumentFromTokenResponse,
   type CloneDocumentWithTokenResponse,
@@ -16,6 +16,7 @@ import {
   type CreateDocumentInput,
 } from '@semiont/sdk';
 import type { DocumentsRouterType } from '../shared';
+
 
 // Simple in-memory token store (replace with Redis/DB in production)
 const cloneTokens = new Map<string, { documentId: string; expiresAt: Date }>();
@@ -37,7 +38,7 @@ export const getDocumentByTokenRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetDocumentByTokenResponseSchema,
+          schema: GetDocumentByTokenResponseSchema as any,
         },
       },
       description: 'Document retrieved successfully',
@@ -57,7 +58,7 @@ export const createDocumentFromTokenRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: CreateDocumentFromTokenRequestSchema,
+          schema: CreateDocumentFromTokenRequestSchema as any,
         },
       },
     },
@@ -66,7 +67,7 @@ export const createDocumentFromTokenRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateDocumentFromTokenResponseSchema,
+          schema: CreateDocumentFromTokenResponseSchema as any,
         },
       },
       description: 'Document created successfully',
@@ -91,7 +92,7 @@ export const cloneDocumentWithTokenRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: CloneDocumentWithTokenResponseSchema,
+          schema: CloneDocumentWithTokenResponseSchema as any,
         },
       },
       description: 'Clone token generated successfully',

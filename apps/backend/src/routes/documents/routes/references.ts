@@ -2,9 +2,10 @@ import { createRoute, z } from '@hono/zod-openapi';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import {
-  GetReferencesResponseSchemaOpenAPI as GetReferencesResponseSchema,
+  GetReferencesResponseSchema as GetReferencesResponseSchema,
   type GetReferencesResponse,
 } from '@semiont/sdk';
+
 
 // GET /api/documents/{id}/references
 export const getDocumentReferencesRoute = createRoute({
@@ -23,7 +24,7 @@ export const getDocumentReferencesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetReferencesResponseSchema,
+          schema: GetReferencesResponseSchema as any,
         },
       },
       description: 'Document references',

@@ -3,13 +3,13 @@ import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
 import {
-  CreateAnnotationRequestSchemaOpenAPI as CreateAnnotationRequestSchema,
-  CreateAnnotationResponseSchemaOpenAPI as CreateAnnotationResponseSchema,
-  ResolveAnnotationRequestSchemaOpenAPI as ResolveAnnotationRequestSchema,
-  ResolveAnnotationResponseSchemaOpenAPI as ResolveAnnotationResponseSchema,
-  DeleteAnnotationRequestSchemaOpenAPI as DeleteAnnotationRequestSchema,
-  GetAnnotationResponseSchemaOpenAPI as GetAnnotationResponseSchema,
-  ListAnnotationsResponseSchemaOpenAPI as ListAnnotationsResponseSchema,
+  CreateAnnotationRequestSchema as CreateAnnotationRequestSchema,
+  CreateAnnotationResponseSchema as CreateAnnotationResponseSchema,
+  ResolveAnnotationRequestSchema as ResolveAnnotationRequestSchema,
+  ResolveAnnotationResponseSchema as ResolveAnnotationResponseSchema,
+  DeleteAnnotationRequestSchema as DeleteAnnotationRequestSchema,
+  GetAnnotationResponseSchema as GetAnnotationResponseSchema,
+  ListAnnotationsResponseSchema as ListAnnotationsResponseSchema,
   getExactText,
   getTextPositionSelector,
   type CreateAnnotationResponse,
@@ -20,6 +20,7 @@ import {
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
+
 
 // Create router with auth middleware
 export const crudRouter: AnnotationsRouterType = createAnnotationRouter();
@@ -36,7 +37,7 @@ const createAnnotationRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: CreateAnnotationRequestSchema,
+          schema: CreateAnnotationRequestSchema as any,
         },
       },
     },
@@ -45,7 +46,7 @@ const createAnnotationRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateAnnotationResponseSchema,
+          schema: CreateAnnotationResponseSchema as any,
         },
       },
       description: 'Annotation created successfully',
@@ -137,7 +138,7 @@ const resolveAnnotationRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: ResolveAnnotationRequestSchema,
+          schema: ResolveAnnotationRequestSchema as any,
         },
       },
     },
@@ -146,7 +147,7 @@ const resolveAnnotationRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: ResolveAnnotationResponseSchema,
+          schema: ResolveAnnotationResponseSchema as any,
         },
       },
       description: 'Annotation resolved successfully',
@@ -215,7 +216,7 @@ const getAnnotationRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetAnnotationResponseSchema,
+          schema: GetAnnotationResponseSchema as any,
         },
       },
       description: 'Annotation retrieved successfully',
@@ -270,7 +271,7 @@ const listAnnotationsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: ListAnnotationsResponseSchema,
+          schema: ListAnnotationsResponseSchema as any,
         },
       },
       description: 'Annotations listed successfully',
@@ -314,7 +315,7 @@ const deleteAnnotationRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: DeleteAnnotationRequestSchema,
+          schema: DeleteAnnotationRequestSchema as any,
         },
       },
     },

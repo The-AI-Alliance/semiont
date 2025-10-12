@@ -5,9 +5,10 @@ import { getStorageService } from '../../../storage/filesystem';
 import { generateDocumentSummary } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
 import {
-  ReferenceLLMContextResponseSchemaOpenAPI as ReferenceLLMContextResponseSchema,
+  ReferenceLLMContextResponseSchema as ReferenceLLMContextResponseSchema,
   type ReferenceLLMContextResponse,
 } from '@semiont/sdk';
+
 
 export const getReferenceLLMContextRoute = createRoute({
   method: 'get',
@@ -39,7 +40,7 @@ export const getReferenceLLMContextRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: ReferenceLLMContextResponseSchema,
+          schema: ReferenceLLMContextResponseSchema as any,
         },
       },
       description: 'Reference LLM context',

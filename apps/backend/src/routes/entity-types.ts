@@ -60,7 +60,8 @@ const addEntityTypeRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AddEntityTypeResponseSchema,
+          // Plain SDK schemas work at runtime; cast for TypeScript compatibility
+          schema: AddEntityTypeResponseSchema as any,
         },
       },
       description: 'Entity type added successfully',
@@ -117,7 +118,7 @@ const bulkAddEntityTypesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AddEntityTypeResponseSchema,
+          schema: AddEntityTypeResponseSchema as any,
         },
       },
       description: 'Entity types added successfully',

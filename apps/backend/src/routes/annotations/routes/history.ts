@@ -5,12 +5,13 @@ import { getEventStore } from '../../../events/event-store';
 import { getGraphDatabase } from '../../../graph/factory';
 import { StoredEventApiSchema } from '@semiont/sdk';
 
+// Cast SDK schema to any for Hono compatibility
 const GetAnnotationHistoryResponse = z.object({
-  events: z.array(StoredEventApiSchema),
+  events: z.array(StoredEventApiSchema as any),
   total: z.number(),
   annotationId: z.string(),
   documentId: z.string(),
-});
+}) as any;
 
 export const getAnnotationHistoryRoute = createRoute({
   method: 'get',

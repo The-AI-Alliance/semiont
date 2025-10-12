@@ -1,10 +1,11 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DocumentsRouterType } from '../shared';
 import {
-  ListDocumentsResponseSchemaOpenAPI as ListDocumentsResponseSchema,
+  ListDocumentsResponseSchema as ListDocumentsResponseSchema,
   type ListDocumentsResponse,
 } from '@semiont/sdk';
 import { DocumentQueryService } from '../../../services/document-queries';
+
 
 export const searchDocumentsRoute = createRoute({
   method: 'get',
@@ -23,7 +24,7 @@ export const searchDocumentsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: ListDocumentsResponseSchema,
+          schema: ListDocumentsResponseSchema as any,
         },
       },
       description: 'Search results',

@@ -18,7 +18,8 @@ export const statusRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: StatusResponseSchema,
+          // Plain SDK schemas work at runtime; cast for TypeScript compatibility
+          schema: StatusResponseSchema as any,
         },
       },
       description: 'Service status information',
@@ -26,7 +27,7 @@ export const statusRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',

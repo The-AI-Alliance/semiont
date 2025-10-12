@@ -38,7 +38,7 @@ export const listUsersRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: UserListResponseSchema,
+          schema: UserListResponseSchema as any,
         },
       },
       description: 'List of users',
@@ -46,7 +46,7 @@ export const listUsersRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -54,7 +54,7 @@ export const listUsersRoute = createRoute({
     403: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Forbidden - Admin access required',
@@ -74,7 +74,7 @@ export const userStatsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: UserStatsResponseSchema,
+          schema: UserStatsResponseSchema as any,
         },
       },
       description: 'User statistics',
@@ -82,7 +82,7 @@ export const userStatsRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -90,7 +90,7 @@ export const userStatsRoute = createRoute({
     403: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Forbidden - Admin access required',
@@ -119,7 +119,7 @@ export const updateUserRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: UpdateUserRequestSchema,
+          schema: UpdateUserRequestSchema as any,
         },
       },
     },
@@ -128,7 +128,7 @@ export const updateUserRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: UpdateUserResponseSchema,
+          schema: UpdateUserResponseSchema as any,
         },
       },
       description: 'User updated successfully',
@@ -136,7 +136,7 @@ export const updateUserRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Invalid request',
@@ -144,7 +144,7 @@ export const updateUserRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -152,7 +152,7 @@ export const updateUserRoute = createRoute({
     403: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Forbidden - Admin access required',
@@ -160,7 +160,7 @@ export const updateUserRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'User not found',
@@ -180,7 +180,7 @@ export const oauthConfigRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: OAuthConfigResponseSchemaActual,
+          schema: OAuthConfigResponseSchemaActual as any,
         },
       },
       description: 'OAuth configuration',
@@ -188,7 +188,7 @@ export const oauthConfigRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -196,7 +196,7 @@ export const oauthConfigRoute = createRoute({
     403: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Forbidden - Admin access required',
@@ -227,7 +227,7 @@ export const deleteUserRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: DeleteUserResponseSchema,
+          schema: DeleteUserResponseSchema as any,
         },
       },
       description: 'User deleted successfully',
@@ -235,7 +235,7 @@ export const deleteUserRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Cannot delete own account',
@@ -243,7 +243,7 @@ export const deleteUserRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -251,7 +251,7 @@ export const deleteUserRoute = createRoute({
     403: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Forbidden - Admin access required',
@@ -259,7 +259,7 @@ export const deleteUserRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'User not found',

@@ -64,11 +64,11 @@ export type {
 
 // API Error class (from SDK)
 export { APIError } from '@semiont/sdk';
+import { APIError } from '@semiont/sdk';
 
 // Query keys for React Query cache management
 export { QUERY_KEYS } from './query-keys';
 import { QUERY_KEYS } from './query-keys';
-import { APIError } from './api-error';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 

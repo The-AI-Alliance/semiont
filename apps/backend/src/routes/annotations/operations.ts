@@ -7,11 +7,11 @@ import { calculateChecksum } from '@semiont/sdk';
 import { userToAgent } from '../../utils/id-generator';
 import {
   CREATION_METHODS,
-  GenerateDocumentFromAnnotationRequestSchemaOpenAPI as GenerateDocumentFromAnnotationRequestSchema,
-  GenerateDocumentFromAnnotationResponseSchemaOpenAPI as GenerateDocumentFromAnnotationResponseSchema,
-  CreateDocumentFromSelectionResponseSchemaOpenAPI as CreateDocumentFromSelectionResponseSchema,
-  AnnotationContextResponseSchemaOpenAPI as AnnotationContextResponseSchema,
-  ContextualSummaryResponseSchema,
+  GenerateDocumentFromAnnotationRequestSchema as GenerateDocumentFromAnnotationRequestSchema,
+  GenerateDocumentFromAnnotationResponseSchema as GenerateDocumentFromAnnotationResponseSchema,
+  CreateDocumentFromSelectionResponseSchema as CreateDocumentFromSelectionResponseSchema,
+  AnnotationContextResponseSchema as AnnotationContextResponseSchema,
+  ContextualSummaryResponseSchema as ContextualSummaryResponseSchema,
   getAnnotationExactText,
   getTextPositionSelector,
   type Document,
@@ -25,6 +25,7 @@ import { registerGenerateDocumentStream } from './routes/generate-document-strea
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
+
 
 // Create router with auth middleware
 export const operationsRouter: AnnotationsRouterType = createAnnotationRouter();
@@ -62,7 +63,7 @@ const createDocumentFromAnnotationRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateDocumentFromSelectionResponseSchema,
+          schema: CreateDocumentFromSelectionResponseSchema as any,
         },
       },
       description: 'Document created and annotation resolved',
@@ -161,7 +162,7 @@ const generateDocumentFromAnnotationRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: GenerateDocumentFromAnnotationRequestSchema,
+          schema: GenerateDocumentFromAnnotationRequestSchema as any,
         },
       },
     },
@@ -170,7 +171,7 @@ const generateDocumentFromAnnotationRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: GenerateDocumentFromAnnotationResponseSchema,
+          schema: GenerateDocumentFromAnnotationResponseSchema as any,
         },
       },
       description: 'Document generated and annotation resolved',
@@ -297,7 +298,7 @@ const getSelectionContextRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AnnotationContextResponseSchema,
+          schema: AnnotationContextResponseSchema as any,
         },
       },
       description: 'Annotation context',
@@ -393,7 +394,7 @@ const getContextualSummaryRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: ContextualSummaryResponseSchema,
+          schema: ContextualSummaryResponseSchema as any,
         },
       },
       description: 'Contextual summary',

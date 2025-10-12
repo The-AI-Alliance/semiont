@@ -2,9 +2,10 @@ import { createRoute, z } from '@hono/zod-openapi';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import {
-  GetHighlightsResponseSchemaOpenAPI as GetHighlightsResponseSchema,
+  GetHighlightsResponseSchema as GetHighlightsResponseSchema,
   type GetHighlightsResponse,
 } from '@semiont/sdk';
+
 
 // GET /api/documents/{id}/highlights
 export const getDocumentHighlightsRoute = createRoute({
@@ -23,7 +24,7 @@ export const getDocumentHighlightsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetHighlightsResponseSchema,
+          schema: GetHighlightsResponseSchema as any,
         },
       },
       description: 'Document highlights',

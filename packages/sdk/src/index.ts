@@ -5,6 +5,9 @@
  * This package provides the single source of truth for all domain models.
  */
 
+// Re-export zod so consumers can extend it if needed (e.g., with Hono OpenAPI)
+export { z } from 'zod';
+
 // Document input/filter types
 export type {
   CreateDocumentInput,

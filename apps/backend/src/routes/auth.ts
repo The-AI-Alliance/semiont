@@ -45,7 +45,7 @@ export const localAuthRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: LocalAuthRequestSchema,
+          schema: LocalAuthRequestSchema as any,
         },
       },
     },
@@ -54,7 +54,7 @@ export const localAuthRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AuthResponseSchema,
+          schema: AuthResponseSchema as any,
         },
       },
       description: 'Successful authentication',
@@ -62,7 +62,7 @@ export const localAuthRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Bad request',
@@ -70,7 +70,7 @@ export const localAuthRoute = createRoute({
     403: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Local auth not enabled',
@@ -89,7 +89,7 @@ export const googleAuthRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: GoogleAuthRequestSchema,
+          schema: GoogleAuthRequestSchema as any,
         },
       },
     },
@@ -98,7 +98,7 @@ export const googleAuthRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AuthResponseSchema,
+          schema: AuthResponseSchema as any,
         },
       },
       description: 'Successful authentication',
@@ -106,7 +106,7 @@ export const googleAuthRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Invalid request or authentication failed',
@@ -125,7 +125,7 @@ export const refreshTokenRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: TokenRefreshRequestSchema,
+          schema: TokenRefreshRequestSchema as any,
         },
       },
     },
@@ -134,7 +134,7 @@ export const refreshTokenRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: TokenRefreshResponseSchema,
+          schema: TokenRefreshResponseSchema as any,
         },
       },
       description: 'New access token generated',
@@ -142,7 +142,7 @@ export const refreshTokenRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Invalid or expired refresh token',
@@ -162,7 +162,7 @@ export const mcpGenerateRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: MCPGenerateResponseSchema,
+          schema: MCPGenerateResponseSchema as any,
         },
       },
       description: 'MCP token generated',
@@ -170,7 +170,7 @@ export const mcpGenerateRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -190,7 +190,7 @@ export const getCurrentUserRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: UserResponseSchema,
+          schema: UserResponseSchema as any,
         },
       },
       description: 'User information',
@@ -198,7 +198,7 @@ export const getCurrentUserRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -218,7 +218,7 @@ export const acceptTermsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AcceptTermsResponseSchema,
+          schema: AcceptTermsResponseSchema as any,
         },
       },
       description: 'Terms accepted successfully',
@@ -226,7 +226,7 @@ export const acceptTermsRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: ErrorResponseSchema as any,
         },
       },
       description: 'Unauthorized',
@@ -246,7 +246,7 @@ export const logoutRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: LogoutResponseSchema,
+          schema: LogoutResponseSchema as any,
         },
       },
       description: 'Logged out successfully',

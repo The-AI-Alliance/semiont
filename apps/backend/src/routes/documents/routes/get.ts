@@ -3,9 +3,10 @@ import { HTTPException } from 'hono/http-exception';
 import { getEventStore } from '../../../events/event-store';
 import type { DocumentsRouterType } from '../shared';
 import {
-  GetDocumentResponseSchemaOpenAPI as GetDocumentResponseSchema,
+  GetDocumentResponseSchema as GetDocumentResponseSchema,
   type GetDocumentResponse,
 } from '@semiont/sdk';
+
 
 export const getDocumentRoute = createRoute({
   method: 'get',
@@ -23,7 +24,7 @@ export const getDocumentRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetDocumentResponseSchema,
+          schema: GetDocumentResponseSchema as any,
         },
       },
       description: 'Document retrieved successfully',

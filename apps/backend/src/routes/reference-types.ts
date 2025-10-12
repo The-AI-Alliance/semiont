@@ -60,7 +60,7 @@ const addReferenceTypeRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AddReferenceTypeResponseSchema,
+          schema: AddReferenceTypeResponseSchema as any,
         },
       },
       description: 'Reference type added successfully',
@@ -117,7 +117,7 @@ const bulkAddReferenceTypesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AddReferenceTypeResponseSchema,
+          schema: AddReferenceTypeResponseSchema as any,
         },
       },
       description: 'Reference types added successfully',

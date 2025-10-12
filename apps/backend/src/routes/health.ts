@@ -13,7 +13,8 @@ export const healthRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: HealthResponseSchema,
+          // Plain SDK schemas work at runtime; cast for TypeScript compatibility
+          schema: HealthResponseSchema as any,
         },
       },
       description: 'Health status of the API',
