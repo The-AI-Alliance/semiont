@@ -5,7 +5,8 @@
   "description": "Semiont - Semantic Knowledge Platform",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "demo"
   ],
   "scripts": {
     "install:cli": "npm run build -w @semiont/mcp-server && cd apps/cli && npm run build && npm link",
