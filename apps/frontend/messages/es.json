@@ -387,7 +387,7 @@
     "tooltip": "Clic para crear destacado • Clic derecho para más opciones"
   },
   "CreateAnnotationPopup": {
-    "title": "Crear Anotación",
+    "title": "Anotar",
     "createHighlight": "Crear Destacado",
     "createAssessment": "Crear Evaluación",
     "entityTypesOptional": "Tipos de Entidad (Opcional)",

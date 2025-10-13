@@ -387,7 +387,7 @@
     "tooltip": "Click to create highlight • Right-click for more options"
   },
   "CreateAnnotationPopup": {
-    "title": "Create Annotation",
+    "title": "Annotate",
     "createHighlight": "Create Highlight",
     "createAssessment": "Create Assessment",
     "entityTypesOptional": "Entity Types (Optional)",
