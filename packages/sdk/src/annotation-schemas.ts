@@ -24,6 +24,9 @@ export {
   isResolvedReference,
   extractAnnotationId,
   compareAnnotationIds,
+  isFullAnnotationUri,
+  getAnnotationApiId,
+  encodeAnnotationIdForUrl,
 } from './annotation-schema';
 export type {
   Annotation,

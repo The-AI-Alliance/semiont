@@ -567,7 +567,9 @@ const annotations = {
       return useMutation({
         mutationFn: ({ id, documentId }: { id: string } & DeleteAnnotationRequest) => {
           const body: DeleteAnnotationRequest = { documentId };
-          return fetchAPI<DeleteAnnotationResponse>(`/api/annotations/${id}`, {
+          // URL-encode the annotation ID since it's a full URI with slashes and colons
+          const encodedId = encodeURIComponent(id);
+          return fetchAPI<DeleteAnnotationResponse>(`/api/annotations/${encodedId}`, {
             method: 'DELETE',
             body: JSON.stringify(body),
           }, session?.backendToken);
@@ -587,11 +589,14 @@ const annotations = {
       const queryClient = useQueryClient();
 
       return useMutation({
-        mutationFn: ({ id, data }: { id: string; data: GenerateDocumentFromAnnotationRequest }) =>
-          fetchAPI<GenerateDocumentFromAnnotationResponse>(`/api/annotations/${id}/generate-document`, {
+        mutationFn: ({ id, data }: { id: string; data: GenerateDocumentFromAnnotationRequest }) => {
+          // URL-encode the annotation ID since it's a full URI with slashes and colons
+          const encodedId = encodeURIComponent(id);
+          return fetchAPI<GenerateDocumentFromAnnotationResponse>(`/api/annotations/${encodedId}/generate-document`, {
             method: 'POST',
             body: JSON.stringify(data),
-          }, session?.backendToken),
+          }, session?.backendToken);
+        },
         onSuccess: (response) => {
           if (response.document?.id) {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.all() });
@@ -611,11 +616,14 @@ const annotations = {
       const queryClient = useQueryClient();
 
       return useMutation({
-        mutationFn: ({ id, documentId }: { id: string; documentId: string }) =>
-          fetchAPI<ResolveAnnotationResponse>(`/api/annotations/${id}/resolve`, {
+        mutationFn: ({ id, documentId }: { id: string; documentId: string }) => {
+          // URL-encode the annotation ID since it's a full URI with slashes and colons
+          const encodedId = encodeURIComponent(id);
+          return fetchAPI<ResolveAnnotationResponse>(`/api/annotations/${encodedId}/resolve`, {
             method: 'PUT',
             body: JSON.stringify({ documentId }),
-          }, session?.backendToken),
+          }, session?.backendToken);
+        },
         onSuccess: (response) => {
           if (response.annotation?.target.source) {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(response.annotation.target.source) });
