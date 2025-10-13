@@ -1,14 +1,20 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { getInferenceConfig as getInferenceConfigFromEnv } from '../config/environment-loader';
+import { WatsonXAI } from '@ibm-cloud/watsonx-ai';
+import { IamAuthenticator } from 'ibm-cloud-sdk-core';
+import { getInferenceConfig as getInferenceConfigFromEnv} from '../config/environment-loader';
+
+// Unified inference client type - using the actual class type
+type WatsonXAIClient = InstanceType<typeof WatsonXAI>;
+type InferenceClient = Anthropic | WatsonXAIClient;
 
 // Singleton instance
-let inferenceClient: Anthropic | null = null;
+let inferenceClient: InferenceClient | null = null;
 
 /**
  * Get or create the inference client
  * Following the singleton pattern from graph factory
  */
-export async function getInferenceClient(): Promise<Anthropic> {
+export async function getInferenceClient(): Promise<InferenceClient> {
   if (inferenceClient) {
     return inferenceClient;
   }
@@ -22,10 +28,44 @@ export async function getInferenceClient(): Promise<Anthropic> {
     hasApiKey: !!config.apiKey
   });
 
-  inferenceClient = new Anthropic({
-    apiKey: config.apiKey,
-    baseURL: config.endpoint || 'https://api.anthropic.com',
-  });
+  const providerType = config.type || 'anthropic';
+
+  if (!config.apiKey) {
+    throw new Error(`API key is required for ${providerType} inference provider`);
+  }
+
+  switch (providerType) {
+    case 'anthropic':
+      inferenceClient = new Anthropic({
+        apiKey: config.apiKey,
+        baseURL: config.endpoint || 'https://api.anthropic.com',
+      });
+      break;
+
+    case 'watsonx':
+      if (!config.endpoint) {
+        throw new Error('WatsonX requires endpoint to be configured');
+      }
+      inferenceClient = WatsonXAI.newInstance({
+        version: config.version || '2024-05-31',
+        serviceUrl: config.endpoint,
+        authenticator: new IamAuthenticator({
+          apikey: config.apiKey,
+        }),
+      });
+      break;
+
+    case 'openai':
+      // OpenAI uses Anthropic SDK for now (as per current implementation)
+      inferenceClient = new Anthropic({
+        apiKey: config.apiKey,
+        baseURL: config.endpoint,
+      });
+      break;
+
+    default:
+      throw new Error(`Unsupported inference provider type: ${providerType}`);
+  }
 
   console.log(`Initialized ${config.type} inference client with model ${config.model}`);
   return inferenceClient;
@@ -52,32 +92,80 @@ export async function generateText(
 ): Promise<string> {
   console.log('generateText called with prompt length:', prompt.length, 'maxTokens:', maxTokens, 'temp:', temperature);
 
+  const config = getInferenceConfigFromEnv();
+  const providerType = config.type || 'anthropic';
   const client = await getInferenceClient();
+  const model = getInferenceModel();
 
-  const response = await client.messages.create({
-    model: getInferenceModel(),
-    max_tokens: maxTokens,
-    temperature,
-    messages: [
-      {
-        role: 'user',
-        content: prompt
+  switch (providerType) {
+    case 'anthropic':
+    case 'openai': {
+      // Anthropic SDK (also used for OpenAI compatibility)
+      const anthropicClient = client as Anthropic;
+      const response = await anthropicClient.messages.create({
+        model,
+        max_tokens: maxTokens,
+        temperature,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      });
+
+      console.log('Inference response received, content blocks:', response.content.length);
+
+      const textContent = response.content.find(c => c.type === 'text');
+
+      if (!textContent || textContent.type !== 'text') {
+        console.error('No text content in response:', response.content);
+        throw new Error('No text content in inference response');
       }
-    ]
-  });
 
-  console.log('Inference response received, content blocks:', response.content.length);
+      console.log('Returning text content of length:', textContent.text.length);
+      return textContent.text;
+    }
 
-  const textContent = response.content.find(c => c.type === 'text');
+    case 'watsonx': {
+      // WatsonX SDK
+      const watsonxClient = client as WatsonXAIClient;
+      const params: any = {
+        input: prompt,
+        modelId: model,
+        parameters: {
+          max_new_tokens: maxTokens,
+          temperature
+        }
+      };
 
-  if (!textContent || textContent.type !== 'text') {
-    console.error('No text content in response:', response.content);
-    throw new Error('No text content in inference response');
+      // Add projectId or spaceId from config
+      if (config.projectId) {
+        params.projectId = config.projectId;
+      } else if (config.spaceId) {
+        params.spaceId = config.spaceId;
+      } else {
+        throw new Error('WatsonX requires either projectId or spaceId in configuration');
+      }
+
+      const response = await watsonxClient.generateText(params);
+
+      console.log('Inference response received from WatsonX');
+
+      const generatedText = response.result?.results?.[0]?.generated_text;
+
+      if (!generatedText) {
+        console.error('No generated text in WatsonX response:', response.result);
+        throw new Error('No text content in inference response');
+      }
+
+      console.log('Returning text content of length:', generatedText.length);
+      return generatedText;
+    }
+
+    default:
+      throw new Error(`Unsupported provider type: ${providerType}`);
   }
-
-  console.log('Returning text content of length:', textContent.text.length);
-  return textContent.text;
-
 }
 
 /**
@@ -185,6 +273,51 @@ Return your response as valid JSON with this exact structure:
             title: titleMatch?.[1]?.trim() || topic,
             content: contentMatch?.[1]?.trim() || response
           };
+        }
+      };
+      break;
+
+    case 'watsonx':
+      // WatsonX requires explicit JSON formatting instructions
+      prompt = `${basePrompt}
+
+Return ONLY valid JSON with no markdown formatting, no code fences, no additional text.
+Output exactly this structure:
+{
+  "title": "Your descriptive title here",
+  "content": "Your markdown-formatted content here\\nWith multiple paragraphs"
+}
+
+IMPORTANT: Return raw JSON only. Do not wrap in \`\`\`json or any other markdown.`;
+
+      parseResponse = (response: string) => {
+        try {
+          // Strip markdown code fences if present
+          let jsonStr = response.trim();
+          if (jsonStr.startsWith('```json')) {
+            jsonStr = jsonStr.slice(7);
+            const endIndex = jsonStr.lastIndexOf('```');
+            if (endIndex !== -1) {
+              jsonStr = jsonStr.slice(0, endIndex);
+            }
+          } else if (jsonStr.startsWith('```')) {
+            jsonStr = jsonStr.slice(3);
+            const endIndex = jsonStr.lastIndexOf('```');
+            if (endIndex !== -1) {
+              jsonStr = jsonStr.slice(0, endIndex);
+            }
+          }
+
+          const parsed = JSON.parse(jsonStr.trim());
+          if (!parsed.title || !parsed.content) {
+            throw new Error('Missing title or content in JSON response');
+          }
+          return {
+            title: parsed.title.trim(),
+            content: parsed.content.trim()
+          };
+        } catch (e: any) {
+          throw new Error(`Failed to parse WatsonX JSON response: ${e.message}. Got: ${response.slice(0, 200)}...`);
         }
       };
       break;

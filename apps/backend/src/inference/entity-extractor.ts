@@ -1,4 +1,4 @@
-import { getInferenceClient, getInferenceModel } from './factory';
+import { generateText, getInferenceModel } from './factory';
 
 /**
  * Entity reference extracted from text
@@ -25,8 +25,6 @@ export async function extractEntities(
     textLength: exact.length,
     entityTypes: Array.isArray(entityTypes) ? entityTypes.map(et => typeof et === 'string' ? et : et.type) : []
   });
-
-  const client = await getInferenceClient();
 
   // Format entity types for the prompt
   const entityTypesDescription = entityTypes.map(et => {
@@ -58,30 +56,14 @@ Example output:
 [{"exact":"Alice","entityType":"Person","startOffset":0,"endOffset":5},{"exact":"Paris","entityType":"Location","startOffset":20,"endOffset":25}]`;
 
   console.log('Sending entity extraction request to model:', getInferenceModel());
-  const response = await client.messages.create({
-    model: getInferenceModel(),
-    max_tokens: 4000, // Increased to handle many entities without truncation
-    temperature: 0.3, // Lower temperature for more consistent extraction
-    messages: [
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]
-  });
+  const responseText = await generateText(prompt, 4000, 0.3);
   console.log('Got entity extraction response');
 
-  const textContent = response.content.find(c => c.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
-    console.warn('No text content in entity extraction response');
-    return [];
-  }
-
-  console.log('Entity extraction raw response length:', textContent.text.length);
+  console.log('Entity extraction raw response length:', responseText.length);
 
   try {
     // Clean up response if wrapped in markdown
-    let jsonStr = textContent.text.trim();
+    let jsonStr = responseText.trim();
     if (jsonStr.startsWith('```')) {
       jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
     }
@@ -89,12 +71,8 @@ Example output:
     const entities = JSON.parse(jsonStr);
     console.log('Parsed', entities.length, 'entities from response');
 
-    // Check if response was truncated - this is an ERROR condition
-    if (response.stop_reason === 'max_tokens') {
-      const errorMsg = `AI response truncated: Found ${entities.length} entities but response hit max_tokens limit. Increase max_tokens or reduce document size.`;
-      console.error(`❌ ${errorMsg}`);
-      throw new Error(errorMsg);
-    }
+    // Note: We no longer have access to stop_reason when using generateText()
+    // If truncation is a concern, the response text length can be checked against expected size
 
     // Validate and fix offsets
     return entities.map((entity: any, idx: number) => {

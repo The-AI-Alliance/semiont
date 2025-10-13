@@ -37,11 +37,15 @@ interface FilesystemServiceConfig {
 }
 
 interface InferenceServiceConfig {
-  type: 'anthropic' | 'openai';  // Required field
+  type: 'anthropic' | 'openai' | 'watsonx';  // Required field
   model?: string;
   endpoint?: string;
   apiKey?: string;
   maxTokens?: number;
+  // WatsonX-specific fields
+  projectId?: string;
+  spaceId?: string;
+  version?: string;
   [key: string]: any;
 }
 
@@ -170,7 +174,11 @@ export function getInferenceConfig(): InferenceServiceConfig {
       type: config.type,
       model: config.model,
       endpoint: config.endpoint || config.baseURL,
-      maxTokens: config.maxTokens
+      maxTokens: config.maxTokens,
+      // WatsonX-specific fields
+      projectId: config.projectId,
+      spaceId: config.spaceId,
+      version: config.version
     };
 
     // Handle apiKey with environment variable expansion
@@ -181,6 +189,18 @@ export function getInferenceConfig(): InferenceServiceConfig {
       } else {
         expandedConfig.apiKey = config.apiKey;
       }
+    }
+
+    // Expand environment variables for WatsonX projectId
+    if (config.projectId && config.projectId.startsWith('${') && config.projectId.endsWith('}')) {
+      const envVarName = config.projectId.slice(2, -1);
+      expandedConfig.projectId = process.env[envVarName];
+    }
+
+    // Expand environment variables for WatsonX spaceId
+    if (config.spaceId && config.spaceId.startsWith('${') && config.spaceId.endsWith('}')) {
+      const envVarName = config.spaceId.slice(2, -1);
+      expandedConfig.spaceId = process.env[envVarName];
     }
 
     return expandedConfig;
