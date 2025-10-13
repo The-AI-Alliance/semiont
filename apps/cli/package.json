@@ -36,6 +36,7 @@
     "@aws-sdk/client-secrets-manager": "^3.600.0",
     "@aws-sdk/client-sts": "^3.859.0",
     "@aws-sdk/client-wafv2": "^3.859.0",
+    "@ibm-cloud/watsonx-ai": "^1.6.13",
     "@prisma/client": "^6.13.0",
     "@semiont/sdk": "*",
     "@testcontainers/postgresql": "^11.5.1",

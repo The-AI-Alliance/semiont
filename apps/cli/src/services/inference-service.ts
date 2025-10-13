@@ -1,14 +1,14 @@
 /**
- * Inference Service - Handles both Claude and OpenAI inference providers
- * 
+ * Inference Service - Handles Claude, OpenAI, and WatsonX inference providers
+ *
  * This service represents external AI inference APIs that cannot be started/stopped.
- * The specific provider (Claude or OpenAI) is determined by the 'type' field in config.
- * 
+ * The specific provider (Claude, OpenAI, or WatsonX) is determined by the 'type' field in config.
+ *
  * Default Requirements:
  * - External API service (no local resources)
  * - API key authentication required
  * - Network access for API calls
- * 
+ *
  * Platform Adaptations:
  * - External: Direct API calls to inference providers
  * - Other platforms: Not supported (external only)
@@ -86,10 +86,10 @@ export class InferenceService extends BaseService {
    */
   validateConfig(): void {
     const inferenceType = this.config.type;
-    
-    if (!inferenceType || !['anthropic', 'openai'].includes(inferenceType)) {
+
+    if (!inferenceType || !['anthropic', 'openai', 'watsonx'].includes(inferenceType)) {
       throw new Error(
-        `Invalid or missing inference type. Must be "anthropic" or "openai", got: ${inferenceType}`
+        `Invalid or missing inference type. Must be "anthropic", "openai", or "watsonx", got: ${inferenceType}`
       );
     }
 
@@ -106,6 +106,15 @@ export class InferenceService extends BaseService {
     // Provider-specific validation
     if (inferenceType === 'openai' && !this.config.organization) {
       console.warn('OpenAI organization ID may be required for some API keys');
+    }
+
+    if (inferenceType === 'watsonx') {
+      if (!this.config.projectId && !this.config.spaceId) {
+        throw new Error('WatsonX requires either projectId or spaceId');
+      }
+      if (!this.config.model) {
+        throw new Error('WatsonX requires model to be specified');
+      }
     }
   }
 }
