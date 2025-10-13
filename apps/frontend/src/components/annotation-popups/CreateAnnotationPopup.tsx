@@ -76,7 +76,7 @@ export function CreateAnnotationPopup({
           onClick={handleCreateHighlight}
           className={`${buttonStyles.warning.base} w-full justify-center`}
         >
-          🖍 {t('createHighlight')}
+          🟡 {t('createHighlight')}
         </button>
       </div>
 
