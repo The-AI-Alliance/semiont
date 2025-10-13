@@ -13,17 +13,62 @@ An AI-powered semantic knowledge platform that automatically extracts knowledge 
 ```text
 semiont/
 ├── apps/                 # Application packages
-│   ├── frontend/         # Next.js 14 frontend
-│   ├── backend/          # Hono backend API
-│   └── cli/             # Semiont management CLI
+│   ├── frontend/         # Next.js 14 frontend application
+│   ├── backend/          # Hono backend API server
+│   └── cli/              # Semiont management CLI
 ├── packages/             # Shared workspace packages
-│   ├── api-types/       # Shared TypeScript types
-│   ├── cloud/           # AWS CDK infrastructure
-│   ├── mcp-server/      # Model Context Protocol server
-│   └── test-utils/      # Testing utilities
-├── docs/                 # Documentation
+│   ├── sdk/              # TypeScript SDK with types, schemas, and API client
+│   ├── cloud/            # AWS CDK infrastructure definitions
+│   ├── mcp-server/       # Model Context Protocol server for AI integration
+│   └── test-utils/       # Testing utilities and mock factories
+├── demo/                 # Example scripts and demonstrations
+├── docs/                 # System documentation
 └── scripts/              # Build and utility scripts
 ```
+
+## 📦 SDK & Demo
+
+### Semiont SDK
+
+The **[@semiont/sdk](packages/sdk/)** provides TypeScript types, schemas, utilities, and an API client for building applications on Semiont:
+
+```typescript
+import { SemiontClient } from '@semiont/sdk';
+
+const client = new SemiontClient({
+  backendUrl: 'http://localhost:4000',
+  authEmail: 'user@example.com',
+});
+
+await client.authenticate();
+const doc = await client.createDocument({ name, content, format, entityTypes });
+```
+
+**Features:**
+- 🎯 Complete TypeScript types for documents, annotations, and events
+- 🔌 High-level API client with authentication and error handling
+- 🛠️ Utility functions for W3C Web Annotations and selectors
+- ✅ Zod schemas for runtime validation
+
+[→ Read the SDK documentation](packages/sdk/README.md)
+
+### Demo Scripts
+
+The **[demo/](demo/)** directory contains example scripts showing how to use the SDK:
+
+- **Prometheus Bound Demo** - Complete workflow demonstrating:
+  - Document upload and chunking
+  - Table of contents generation
+  - Annotation creation and resolution
+  - Event history tracking
+
+```bash
+cd demo
+cp .env.example .env
+npm run pro-bo
+```
+
+[→ Read the demo documentation](demo/README.md)
 
 ## 🚀 Quickstart
 
@@ -78,12 +123,13 @@ For complete deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 | Document | Description |
 |----------|-------------|
 | [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) | Complete local development setup guide |
+| [SDK README](packages/sdk/README.md) | TypeScript SDK with types, schemas, API client, and utilities |
+| [Demo README](demo/README.md) | Example scripts demonstrating SDK usage |
 | [Frontend README](apps/frontend/README.md) | Next.js development guide, patterns, and API integration |
 | [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
 | [CLI README](apps/cli/README.md) | Semiont CLI command reference, architecture, and development guide |
 | [Cloud README](packages/cloud/README.md) | AWS CDK infrastructure stack definitions |
-| [API Types README](packages/api-types/README.md) | Shared TypeScript type definitions |
 | [Test Utils README](packages/test-utils/README.md) | Shared testing utilities and mock factories |
 | [MCP Server README](packages/mcp-server/README.md) | Model Context Protocol server for AI integration |
 
