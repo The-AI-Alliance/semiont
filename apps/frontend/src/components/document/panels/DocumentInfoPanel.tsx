@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import type { Annotation, ReferencedBy } from '@semiont/sdk';
+import { formatLocaleDisplay } from '@semiont/sdk';
 
 interface Props {
   highlights: Annotation[];
@@ -11,6 +12,7 @@ interface Props {
   referencedBy: ReferencedBy[];
   referencedByLoading: boolean;
   documentEntityTypes: string[];
+  documentLocale?: string | undefined;
 }
 
 export function DocumentInfoPanel({
@@ -18,7 +20,8 @@ export function DocumentInfoPanel({
   references,
   referencedBy,
   referencedByLoading,
-  documentEntityTypes
+  documentEntityTypes,
+  documentLocale
 }: Props) {
   const t = useTranslations('DocumentInfoPanel');
 
@@ -48,6 +51,20 @@ export function DocumentInfoPanel({
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 space-y-4">
+      {/* Locale Section */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('locale')}</h3>
+        {documentLocale ? (
+          <div className="text-xs text-gray-700 dark:text-gray-300">
+            {formatLocaleDisplay(documentLocale)}
+          </div>
+        ) : (
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            {t('notSpecified')}
+          </div>
+        )}
+      </div>
+
       {/* Entity Type Tags Section */}
       {documentEntityTypes.length > 0 && (
         <div>

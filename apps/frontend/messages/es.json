@@ -312,6 +312,8 @@
     "unarchiveDescription": "Restaurar este documento al estado activo"
   },
   "DocumentInfoPanel": {
+    "locale": "Idioma",
+    "notSpecified": "No especificado",
     "entityTypeTags": "Etiquetas de Tipo de Entidad",
     "statistics": "Estadísticas",
     "highlights": "Destacados",

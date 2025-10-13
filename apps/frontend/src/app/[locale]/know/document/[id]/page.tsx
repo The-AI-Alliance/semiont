@@ -615,6 +615,7 @@ function DocumentView({
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 documentEntityTypes={documentEntityTypes}
+                documentLocale={document.locale}
               />
             )}
 

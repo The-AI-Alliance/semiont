@@ -51,6 +51,7 @@ export interface DocumentFilter {
  * - contentChecksum: Required, used by backend for content-addressing and graph storage
  * - content: REMOVED - All content access must go through filesystem service via storage.getDocument(id)
  * - format: MIME type of the document content (e.g., 'text/plain', 'text/markdown') - aligned with W3C Web Annotation Data Model
+ * - locale: Optional language/locale code (e.g., 'en', 'es', 'fr') for i18n support
  */
 export const DocumentSchema = z.object({
   id: z.string(),
@@ -58,6 +59,7 @@ export const DocumentSchema = z.object({
   format: z.string(), // MIME type (e.g., 'text/plain', 'text/markdown', 'application/pdf')
   archived: z.boolean(),
   entityTypes: z.array(z.string()),
+  locale: z.string().optional(), // Language/locale code (e.g., 'en', 'es', 'fr')
   creationMethod: z.enum([
     CREATION_METHODS.API,
     CREATION_METHODS.UPLOAD,

@@ -331,6 +331,9 @@ export * from './annotation-history-utils';
 // DID and W3C Agent utilities
 export * from './did-utils';
 
+// Locale utilities
+export * from './locales';
+
 // API Client
 export {
   SemiontClient,

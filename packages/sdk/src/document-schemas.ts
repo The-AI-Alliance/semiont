@@ -21,6 +21,7 @@ export const CreateDocumentRequestSchema = z.object({
   content: z.string(),
   format: z.string(), // MIME type (required)
   entityTypes: z.array(z.string()), // Required - caller must explicitly pass [] for no types
+  locale: z.string().optional(), // Language/locale code (e.g., 'en', 'es', 'fr')
   creationMethod: z.string().optional(),
   sourceAnnotationId: z.string().optional(),
   sourceDocumentId: z.string().optional(),

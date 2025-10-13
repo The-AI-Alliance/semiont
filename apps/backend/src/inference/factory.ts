@@ -1,18 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getInferenceConfig as getInferenceConfigFromEnv } from '../config/environment-loader';
-
-// Language name mapping for prompts
-const LANGUAGE_NAMES: Record<string, string> = {
-  ar: 'Arabic', bn: 'Bengali', cs: 'Czech', da: 'Danish', de: 'German',
-  el: 'Greek', en: 'English', es: 'Spanish', fa: 'Persian', fi: 'Finnish',
-  fr: 'French', he: 'Hebrew', hi: 'Hindi', id: 'Indonesian', it: 'Italian',
-  ja: 'Japanese', ko: 'Korean', ms: 'Malay', nl: 'Dutch', no: 'Norwegian',
-  pl: 'Polish', pt: 'Portuguese', ro: 'Romanian', sv: 'Swedish', th: 'Thai',
-  tr: 'Turkish', uk: 'Ukrainian', vi: 'Vietnamese', zh: 'Chinese'
-};
+import { getLocaleEnglishName } from '@semiont/sdk';
 
 function getLanguageName(locale: string): string {
-  return LANGUAGE_NAMES[locale] || locale;
+  return getLocaleEnglishName(locale) || locale;
 }
 
 // Singleton instance

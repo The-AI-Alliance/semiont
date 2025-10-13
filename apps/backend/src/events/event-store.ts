@@ -345,6 +345,7 @@ export class EventStore {
         document.name = event.payload.name;
         document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
+        document.locale = event.payload.metadata?.locale;
         document.created = event.timestamp;
         document.creationMethod = 'api';
         document.creator = event.userId;
@@ -354,6 +355,7 @@ export class EventStore {
         document.name = event.payload.name;
         document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
+        document.locale = event.payload.metadata?.locale;
         document.created = event.timestamp;
         document.creationMethod = 'clone';
         document.sourceDocumentId = event.payload.parentDocumentId;

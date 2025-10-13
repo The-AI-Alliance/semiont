@@ -1,0 +1,94 @@
+/**
+ * Supported language/locale mappings
+ * This is the single source of truth for locale information across frontend and backend
+ */
+
+export interface LocaleInfo {
+  code: string;
+  nativeName: string;
+  englishName: string;
+}
+
+export const LOCALES: readonly LocaleInfo[] = [
+  { code: 'ar', nativeName: 'العربية', englishName: 'Arabic' },
+  { code: 'bn', nativeName: 'বাংলা', englishName: 'Bengali' },
+  { code: 'cs', nativeName: 'Čeština', englishName: 'Czech' },
+  { code: 'da', nativeName: 'Dansk', englishName: 'Danish' },
+  { code: 'de', nativeName: 'Deutsch', englishName: 'German' },
+  { code: 'el', nativeName: 'Ελληνικά', englishName: 'Greek' },
+  { code: 'en', nativeName: 'English', englishName: 'English' },
+  { code: 'es', nativeName: 'Español', englishName: 'Spanish' },
+  { code: 'fa', nativeName: 'فارسی', englishName: 'Persian' },
+  { code: 'fi', nativeName: 'Suomi', englishName: 'Finnish' },
+  { code: 'fr', nativeName: 'Français', englishName: 'French' },
+  { code: 'he', nativeName: 'עברית', englishName: 'Hebrew' },
+  { code: 'hi', nativeName: 'हिन्दी', englishName: 'Hindi' },
+  { code: 'id', nativeName: 'Bahasa Indonesia', englishName: 'Indonesian' },
+  { code: 'it', nativeName: 'Italiano', englishName: 'Italian' },
+  { code: 'ja', nativeName: '日本語', englishName: 'Japanese' },
+  { code: 'ko', nativeName: '한국어', englishName: 'Korean' },
+  { code: 'ms', nativeName: 'Bahasa Melayu', englishName: 'Malay' },
+  { code: 'nl', nativeName: 'Nederlands', englishName: 'Dutch' },
+  { code: 'no', nativeName: 'Norsk', englishName: 'Norwegian' },
+  { code: 'pl', nativeName: 'Polski', englishName: 'Polish' },
+  { code: 'pt', nativeName: 'Português', englishName: 'Portuguese' },
+  { code: 'ro', nativeName: 'Română', englishName: 'Romanian' },
+  { code: 'sv', nativeName: 'Svenska', englishName: 'Swedish' },
+  { code: 'th', nativeName: 'ไทย', englishName: 'Thai' },
+  { code: 'tr', nativeName: 'Türkçe', englishName: 'Turkish' },
+  { code: 'uk', nativeName: 'Українська', englishName: 'Ukrainian' },
+  { code: 'vi', nativeName: 'Tiếng Việt', englishName: 'Vietnamese' },
+  { code: 'zh', nativeName: '中文', englishName: 'Chinese' },
+] as const;
+
+// Create lookup maps for efficient access
+const localeByCode = new Map<string, LocaleInfo>(
+  LOCALES.map(locale => [locale.code.toLowerCase(), locale])
+);
+
+/**
+ * Get locale information by code
+ */
+export function getLocaleInfo(code: string | undefined): LocaleInfo | undefined {
+  if (!code) return undefined;
+  return localeByCode.get(code.toLowerCase());
+}
+
+/**
+ * Get the native name of a language by its locale code
+ * @param code - Locale code (e.g., "en", "es", "fr")
+ * @returns Native language name or undefined if not found
+ */
+export function getLocaleNativeName(code: string | undefined): string | undefined {
+  return getLocaleInfo(code)?.nativeName;
+}
+
+/**
+ * Get the English name of a language by its locale code
+ * @param code - Locale code (e.g., "en", "es", "fr")
+ * @returns English language name or undefined if not found
+ */
+export function getLocaleEnglishName(code: string | undefined): string | undefined {
+  return getLocaleInfo(code)?.englishName;
+}
+
+/**
+ * Format a locale code for display as "Native Name (code)"
+ * @param code - Locale code (e.g., "en", "es", "fr")
+ * @returns Formatted string like "Español (es)" or the original code if not found
+ */
+export function formatLocaleDisplay(code: string | undefined): string | undefined {
+  if (!code) return undefined;
+
+  const info = getLocaleInfo(code);
+  if (!info) return code;
+
+  return `${info.nativeName} (${code.toLowerCase()})`;
+}
+
+/**
+ * Get all supported locale codes
+ */
+export function getAllLocaleCodes(): readonly string[] {
+  return LOCALES.map(l => l.code);
+}
