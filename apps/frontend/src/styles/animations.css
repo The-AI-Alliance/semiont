@@ -114,3 +114,12 @@
   animation: sparkle-blue 1.2s ease-in-out infinite;
   display: inline-block;
 }
+
+/* Red squiggly underline for error/warning annotations */
+.red-underline {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 4'%3E%3Cpath fill='none' stroke='%23dc2626' stroke-width='1.5' d='M0 3 Q2.5 1, 5 3 T10 3 T15 3 T20 3'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: bottom;
+  background-size: 20px 4px;
+  padding-bottom: 2px;
+}

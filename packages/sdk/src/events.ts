@@ -125,6 +125,27 @@ export interface EntityTagRemovedEvent extends BaseEvent {
   };
 }
 
+// Assessment events (W3C motivation 'assessing' - for errors, warnings, issues)
+export interface AssessmentAddedEvent extends BaseEvent {
+  type: 'assessment.added';
+  payload: {
+    assessmentId: string;
+    exact: string;  // W3C Web Annotation standard
+    position: {
+      offset: number;
+      length: number;
+    };
+    value?: string;  // Optional assessment message/description
+  };
+}
+
+export interface AssessmentRemovedEvent extends BaseEvent {
+  type: 'assessment.removed';
+  payload: {
+    assessmentId: string;
+  };
+}
+
 // Union type of all events
 export type DocumentEvent =
   | DocumentCreatedEvent
@@ -137,7 +158,9 @@ export type DocumentEvent =
   | ReferenceResolvedEvent
   | ReferenceDeletedEvent
   | EntityTagAddedEvent
-  | EntityTagRemovedEvent;
+  | EntityTagRemovedEvent
+  | AssessmentAddedEvent
+  | AssessmentRemovedEvent;
 
 // Extract just the event type strings from the union
 export type DocumentEventType = DocumentEvent['type'];

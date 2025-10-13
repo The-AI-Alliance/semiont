@@ -17,6 +17,7 @@ interface CreateAnnotationPopupProps {
   };
   onCreateHighlight: () => void;
   onCreateReference: (targetDocId?: string, entityType?: string, referenceType?: string) => void;
+  onCreateAssessment: () => void;
 }
 
 export function CreateAnnotationPopup({
@@ -26,6 +27,7 @@ export function CreateAnnotationPopup({
   selection,
   onCreateHighlight,
   onCreateReference,
+  onCreateAssessment,
 }: CreateAnnotationPopupProps) {
   const t = useTranslations('CreateAnnotationPopup');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
@@ -40,6 +42,11 @@ export function CreateAnnotationPopup({
 
   const handleCreateHighlight = () => {
     onCreateHighlight();
+    onClose();
+  };
+
+  const handleCreateAssessment = () => {
+    onCreateAssessment();
     onClose();
   };
 
@@ -64,12 +71,22 @@ export function CreateAnnotationPopup({
       <SelectedTextDisplay exact={selection.exact} />
 
       {/* Create Highlight Button */}
-      <div className="mb-4">
+      <div className="mb-3">
         <button
           onClick={handleCreateHighlight}
           className={`${buttonStyles.warning.base} w-full justify-center`}
         >
           🖍 {t('createHighlight')}
+        </button>
+      </div>
+
+      {/* Create Assessment Button */}
+      <div className="mb-4">
+        <button
+          onClick={handleCreateAssessment}
+          className={`${buttonStyles.danger.base} w-full justify-center`}
+        >
+          🔴 {t('createAssessment')}
         </button>
       </div>
 

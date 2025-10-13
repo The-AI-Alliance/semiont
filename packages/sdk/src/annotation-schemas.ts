@@ -52,6 +52,11 @@ export type {
  * - Multiple selectors identify the same text using different methods
  */
 export const CreateAnnotationRequestSchema = z.object({
+  motivation: z.enum([
+    'assessing', 'bookmarking', 'classifying', 'commenting', 'describing',
+    'editing', 'highlighting', 'identifying', 'linking', 'moderating',
+    'questioning', 'replying', 'tagging'
+  ]).optional(),  // W3C motivation - defaults to 'highlighting' or 'linking' based on body type
   target: z.object({
     source: z.string(),
     selector: z.union([

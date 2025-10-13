@@ -7,7 +7,7 @@ interface Annotation {
   exact: string;
   offset: number;
   length: number;
-  type: 'highlight' | 'reference';
+  type: 'highlight' | 'reference' | 'assessment';
   source?: string;
 }
 

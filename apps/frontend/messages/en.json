@@ -373,6 +373,8 @@
     "referenceDeleted": "Reference Deleted",
     "entitytagAdded": "Tag Added",
     "entitytagRemoved": "Tag Removed",
+    "assessmentAdded": "Assessment Added",
+    "assessmentRemoved": "Assessment Removed",
     "justNow": "just now",
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
@@ -385,6 +387,7 @@
   "CreateAnnotationPopup": {
     "title": "Create Annotation",
     "createHighlight": "Create Highlight",
+    "createAssessment": "Create Assessment",
     "entityTypesOptional": "Entity Types (Optional)",
     "referenceTypeOptional": "Reference Type (Optional)",
     "none": "None",

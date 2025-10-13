@@ -24,8 +24,15 @@ function prepareAnnotations(annotations: Annotation[]) {
     .filter(ann => ann.target.selector)
     .map(ann => {
       const posSelector = getTextPositionSelector(ann.target.selector);
-      // Use W3C helper to determine type
-      const type = isReference(ann) ? 'reference' : 'highlight';
+      // Use W3C motivation to determine type
+      let type: 'highlight' | 'reference' | 'assessment';
+      if (ann.motivation === 'assessing') {
+        type = 'assessment';
+      } else if (isReference(ann)) {
+        type = 'reference';
+      } else {
+        type = 'highlight';
+      }
       return {
         id: ann.id,
         exact: getExactText(ann.target.selector),
