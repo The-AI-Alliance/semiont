@@ -6,7 +6,7 @@ interface Annotation {
   exact: string;
   offset: number;
   length: number;
-  type: 'highlight' | 'reference';
+  type: 'highlight' | 'reference' | 'assessment';
   source?: string;
 }
 
@@ -116,9 +116,17 @@ function wrapChildRange(element: Element, span: ChildSpan) {
 
   // Determine className based on annotation type and whether reference is resolved
   let className: string;
+  let annotationType: string;
+
   if (annotation.type === 'highlight') {
     className = 'bg-yellow-200 dark:bg-yellow-800';
+    annotationType = 'highlight';
+  } else if (annotation.type === 'assessment') {
+    // Red squiggly underline for assessments (errors, warnings)
+    className = 'red-underline cursor-pointer transition-all duration-200 hover:opacity-80';
+    annotationType = 'assessment';
   } else if (annotation.type === 'reference') {
+    annotationType = 'reference';
     // Stub reference (no target document) - red text with !important-like specificity
     if (!annotation.source) {
       className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-inherit';
@@ -128,6 +136,7 @@ function wrapChildRange(element: Element, span: ChildSpan) {
     }
   } else {
     className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
+    annotationType = annotation.type;
   }
 
   const wrapper: Element = {
@@ -136,7 +145,7 @@ function wrapChildRange(element: Element, span: ChildSpan) {
     properties: {
       className,
       'data-annotation-id': annotation.id,
-      'data-annotation-type': annotation.type
+      'data-annotation-type': annotationType
     },
     children: childrenToWrap
   };
@@ -211,9 +220,17 @@ function applyWithinTextNodeAnnotations(
 
       // Annotation span - determine className based on type and whether reference is resolved
       let className: string;
+      let annotationType: string;
+
       if (ann.type === 'highlight') {
         className = 'bg-yellow-200 dark:bg-yellow-800';
+        annotationType = 'highlight';
+      } else if (ann.type === 'assessment') {
+        // Red squiggly underline for assessments (errors, warnings)
+        className = 'red-underline cursor-pointer transition-all duration-200 hover:opacity-80';
+        annotationType = 'assessment';
       } else if (ann.type === 'reference') {
+        annotationType = 'reference';
         // Stub reference (no target document) - red text with !important-like specificity
         if (!ann.source) {
           className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-inherit';
@@ -223,6 +240,7 @@ function applyWithinTextNodeAnnotations(
         }
       } else {
         className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
+        annotationType = ann.type;
       }
 
       segments.push({
@@ -231,7 +249,7 @@ function applyWithinTextNodeAnnotations(
         properties: {
           className,
           'data-annotation-id': ann.id,
-          'data-annotation-type': ann.type
+          'data-annotation-type': annotationType
         },
         children: [{ type: 'text', value: textContent.substring(relStart, relEnd) }]
       });

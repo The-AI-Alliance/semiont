@@ -237,6 +237,54 @@ export async function emitReferenceDeleted(params: {
 }
 
 /**
+ * Emit an assessment.added event
+ */
+export async function emitAssessmentAdded(params: {
+  documentId: string;
+  userId: string;
+  assessmentId: string;
+  exact: string;
+  position: { offset: number; length: number };
+  value?: string;
+}): Promise<StoredEvent> {
+  const eventStore = await getEventStore();
+
+  return eventStore.appendEvent({
+    type: 'assessment.added',
+    documentId: params.documentId,
+    userId: params.userId,
+    version: 1,
+    payload: {
+      assessmentId: params.assessmentId,
+      exact: params.exact,
+      position: params.position,
+      value: params.value,
+    },
+  });
+}
+
+/**
+ * Emit an assessment.removed event
+ */
+export async function emitAssessmentRemoved(params: {
+  documentId: string;
+  userId: string;
+  assessmentId: string;
+}): Promise<StoredEvent> {
+  const eventStore = await getEventStore();
+
+  return eventStore.appendEvent({
+    type: 'assessment.removed',
+    documentId: params.documentId,
+    userId: params.userId,
+    version: 1,
+    payload: {
+      assessmentId: params.assessmentId,
+    },
+  });
+}
+
+/**
  * Emit an entitytag.added event
  */
 export async function emitEntityTagAdded(params: {

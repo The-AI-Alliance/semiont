@@ -15,6 +15,8 @@ import type {
   ReferenceDeletedEvent,
   EntityTagAddedEvent,
   EntityTagRemovedEvent,
+  AssessmentAddedEvent,
+  AssessmentRemovedEvent,
 } from './events';
 import type { Annotation } from './annotation-schema';
 import type { CreationMethod } from './creation-methods';
@@ -49,6 +51,10 @@ export function formatEventType(type: DocumentEventType, t: TranslateFn): string
       return t('entitytagAdded');
     case 'entitytag.removed':
       return t('entitytagRemoved');
+    case 'assessment.added':
+      return t('assessmentAdded');
+    case 'assessment.removed':
+      return t('assessmentRemoved');
     default:
       // Exhaustive check: if we get here, we missed a case
       const _exhaustiveCheck: never = type;
@@ -78,6 +84,10 @@ export function getEventEmoji(type: DocumentEventType): string {
     case 'entitytag.added':
     case 'entitytag.removed':
       return '🏷️';
+    case 'assessment.added':
+      return '🔴';
+    case 'assessment.removed':
+      return '🗑️';
     default:
       // Exhaustive check: if we get here, we missed a case
       const _exhaustiveCheck: never = type;
@@ -187,6 +197,25 @@ export function getEventDisplayContent(
       return { exact: payload.entityType, isQuoted: false, isTag: true };
     }
 
+    case 'assessment.added': {
+      const payload = eventData.payload as AssessmentAddedEvent['payload'];
+      return { exact: truncateText(payload.exact), isQuoted: true, isTag: false };
+    }
+
+    case 'assessment.removed': {
+      const payload = eventData.payload as AssessmentRemovedEvent['payload'];
+      // Find the original assessment.added event
+      const addedEvent = allEvents.find(e =>
+        e.event.type === 'assessment.added' &&
+        (e.event.payload as AssessmentAddedEvent['payload']).assessmentId === payload.assessmentId
+      );
+      if (addedEvent) {
+        const addedPayload = addedEvent.event.payload as AssessmentAddedEvent['payload'];
+        return { exact: truncateText(addedPayload.exact), isQuoted: true, isTag: false };
+      }
+      return null;
+    }
+
     default:
       return null;
   }
@@ -285,6 +314,12 @@ export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
     case 'reference.deleted': {
       const payload = eventData.payload as ReferenceCreatedEvent['payload'] | ReferenceResolvedEvent['payload'] | ReferenceDeletedEvent['payload'];
       return payload.referenceId;
+    }
+
+    case 'assessment.added':
+    case 'assessment.removed': {
+      const payload = eventData.payload as AssessmentAddedEvent['payload'] | AssessmentRemovedEvent['payload'];
+      return payload.assessmentId;
     }
 
     default:

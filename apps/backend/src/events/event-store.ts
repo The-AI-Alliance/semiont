@@ -345,6 +345,7 @@ export class EventStore {
         document.name = event.payload.name;
         document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
+        document.locale = event.payload.metadata?.locale;
         document.created = event.timestamp;
         document.creationMethod = 'api';
         document.creator = event.userId;
@@ -354,6 +355,7 @@ export class EventStore {
         document.name = event.payload.name;
         document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
+        document.locale = event.payload.metadata?.locale;
         document.created = event.timestamp;
         document.creationMethod = 'clone';
         document.sourceDocumentId = event.payload.parentDocumentId;
@@ -383,6 +385,8 @@ export class EventStore {
       // Annotation events don't affect document metadata
       case 'highlight.added':
       case 'highlight.removed':
+      case 'assessment.added':
+      case 'assessment.removed':
       case 'reference.created':
       case 'reference.resolved':
       case 'reference.deleted':
@@ -420,6 +424,35 @@ export class EventStore {
       case 'highlight.removed':
         annotations.highlights = annotations.highlights.filter(
           h => h.id !== event.payload.highlightId
+        );
+        break;
+
+      case 'assessment.added':
+        annotations.highlights.push({
+          id: event.payload.assessmentId,
+          motivation: 'assessing',
+          target: {
+            source: event.documentId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: event.payload.exact,
+              offset: event.payload.position.offset,
+              length: event.payload.position.length,
+            },
+          },
+          body: {
+            type: 'TextualBody',
+            value: event.payload.value,
+            entityTypes: [],
+          },
+          creator: didToAgent(event.userId),
+          created: new Date(event.timestamp).toISOString(),
+        });
+        break;
+
+      case 'assessment.removed':
+        annotations.highlights = annotations.highlights.filter(
+          h => h.id !== event.payload.assessmentId
         );
         break;
 

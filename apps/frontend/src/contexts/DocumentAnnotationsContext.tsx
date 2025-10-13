@@ -13,6 +13,7 @@ interface DocumentAnnotationsContextType {
   // Mutation actions (still in context for consistency)
   addHighlight: (documentId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
   addReference: (documentId: string, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
+  addAssessment: (documentId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
   deleteAnnotation: (annotationId: string, documentId: string) => Promise<void>;
   convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
@@ -125,6 +126,58 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [createAnnotationMutation]);
 
+  const addAssessment = useCallback(async (
+    documentId: string,
+    exact: string,
+    position: { start: number; end: number }
+  ): Promise<string | undefined> => {
+    try {
+      // Build CreateAnnotationRequest following W3C Web Annotation format
+      // Assessment uses motivation: 'assessing'
+      const createData: CreateAnnotationRequest = {
+        motivation: 'assessing',  // W3C motivation for assessments
+        target: {
+          source: documentId,
+          selector: {
+            type: 'TextPositionSelector',
+            exact: exact,
+            offset: position.start,
+            length: position.end - position.start,
+          },
+        },
+        body: {
+          type: 'TextualBody',  // Assessments use TextualBody like highlights
+          value: undefined,      // Optional assessment message (can be added later)
+        },
+      };
+
+      // Create the annotation
+      const result = await createAnnotationMutation.mutateAsync(createData);
+
+      // Track this as a new annotation for sparkle animation
+      let newId: string | undefined;
+      if (result.annotation?.id) {
+        newId = result.annotation.id;
+        setNewAnnotationIds(prev => new Set(prev).add(newId!));
+
+        // Clear the ID after animation completes (6 seconds for 3 iterations)
+        setTimeout(() => {
+          setNewAnnotationIds(prev => {
+            const next = new Set(prev);
+            next.delete(newId!);
+            return next;
+          });
+        }, 6000);
+      }
+
+      // Return the new ID so component can invalidate queries
+      return newId;
+    } catch (err) {
+      console.error('Failed to create assessment:', err);
+      throw err;
+    }
+  }, [createAnnotationMutation]);
+
   const deleteAnnotation = useCallback(async (annotationId: string, documentId: string) => {
     try {
       await deleteAnnotationMutation.mutateAsync({ id: annotationId, documentId });
@@ -230,6 +283,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         newAnnotationIds,
         addHighlight,
         addReference,
+        addAssessment,
         deleteAnnotation,
         convertHighlightToReference,
         convertReferenceToHighlight,

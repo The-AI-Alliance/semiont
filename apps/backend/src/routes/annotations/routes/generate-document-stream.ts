@@ -39,6 +39,7 @@ export const generateDocumentStreamRoute = createRoute({
             documentId: z.string().describe('Document ID containing the reference'),
             title: z.string().optional().describe('Custom title for generated document'),
             prompt: z.string().optional().describe('Custom prompt for content generation'),
+            locale: z.string().optional().describe('Language locale for generated content (e.g., "es", "fr", "ja")'),
           }),
         },
       },
@@ -71,6 +72,8 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
     const { id: referenceId } = c.req.valid('param');
     const body = c.req.valid('json');
 
+    console.log('[GenerateDocumentStream] Received request body:', body);
+
     // User will be available from auth middleware
     const user = c.get('user');
     if (!user) {
@@ -78,6 +81,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
     }
 
     console.log(`[GenerateDocument] Starting generation for reference ${referenceId} in document ${body.documentId}`);
+    console.log(`[GenerateDocument] Locale from request:`, body.locale);
 
     // Validate reference exists using Layer 3
     const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
@@ -108,6 +112,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
       sourceDocumentId: body.documentId,
       title: body.title,
       prompt: body.prompt,
+      locale: body.locale,
       entityTypes: reference.body.entityTypes,
       created: new Date().toISOString(),
       retryCount: 0,
@@ -116,6 +121,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
 
     await jobQueue.createJob(job);
     console.log(`[GenerateDocument] Created job ${job.id} for reference ${referenceId}`);
+    console.log(`[GenerateDocument] Job includes locale:`, job.locale);
 
     // Determine document name for progress messages
     const documentName = body.title || getExactText(reference.target.selector) || 'New Document';

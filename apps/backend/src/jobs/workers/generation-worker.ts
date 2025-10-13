@@ -83,7 +83,8 @@ export class GenerationWorker extends JobWorker {
     const generatedContent = await generateDocumentFromTopic(
       documentName,
       job.entityTypes || reference.body.entityTypes || [],
-      prompt
+      prompt,
+      job.locale
     );
 
     console.log(`[GenerationWorker] ✅ Generated ${generatedContent.content.length} bytes of content`);
@@ -125,6 +126,7 @@ export class GenerationWorker extends JobWorker {
       metadata: {
         isDraft: true,
         generatedFrom: job.referenceId,
+        locale: job.locale,
       },
     });
     console.log(`[GenerationWorker] Emitted document.created event for ${documentId}`);

@@ -55,6 +55,7 @@ export interface GenerationJob extends BaseJob {
   prompt?: string;
   title?: string;
   entityTypes?: string[];
+  locale?: string;
   progress?: {
     stage: 'fetching' | 'generating' | 'creating' | 'linking';
     percentage: number;

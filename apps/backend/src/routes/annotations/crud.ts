@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
+import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted, emitAssessmentAdded, emitAssessmentRemoved } from '../../events/emit';
 import {
   CreateAnnotationRequestSchema as CreateAnnotationRequestSchema,
   CreateAnnotationResponseSchema as CreateAnnotationResponseSchema,
@@ -66,6 +66,7 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
     throw new HTTPException(500, { message: 'Failed to create annotation' });
   }
   const isReference = body.body.type === 'SpecificResource';
+  const isAssessment = body.motivation === 'assessing';
 
   // Extract TextPositionSelector for event (events require offset/length)
   const posSelector = getTextPositionSelector(body.target.selector);
@@ -74,7 +75,19 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
   }
 
   // Emit event first (single source of truth)
-  if (isReference) {
+  if (isAssessment) {
+    await emitAssessmentAdded({
+      documentId: body.target.source,
+      userId: user.id,
+      assessmentId: annotationId,
+      exact: getExactText(body.target.selector),
+      position: {
+        offset: posSelector.offset,
+        length: posSelector.length,
+      },
+      value: body.body.value,
+    });
+  } else if (isReference) {
     await emitReferenceCreated({
       documentId: body.target.source,
       userId: user.id,
@@ -100,11 +113,14 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
     });
   }
 
+  // Determine motivation: use provided value or default based on body type
+  const motivation = body.motivation || (body.body.type === 'TextualBody' ? 'highlighting' : 'linking');
+
   // Return optimistic response (consumer will update GraphDB async)
   const response: CreateAnnotationResponse = {
     annotation: {
       id: annotationId,
-      motivation: body.body.type === 'TextualBody' ? 'highlighting' : 'linking',
+      motivation: motivation,
       target: {
         source: body.target.source,
         selector: body.target.selector,
@@ -347,12 +363,22 @@ crudRouter.openapi(deleteAnnotationRoute, async (c) => {
   }
 
   // Emit event first (consumer will delete from GraphDB and update Layer 3)
+  // Check motivation to determine event type
   if (reference) {
     console.log('[DeleteAnnotation] Emitting reference.deleted event for:', id);
     const storedEvent = await emitReferenceDeleted({
       documentId: body.documentId,
       userId: user.id,
       referenceId: id,
+    });
+    console.log('[DeleteAnnotation] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
+  } else if (annotation.motivation === 'assessing') {
+    // It's an assessment
+    console.log('[DeleteAnnotation] Emitting assessment.removed event for:', id);
+    const storedEvent = await emitAssessmentRemoved({
+      documentId: body.documentId,
+      userId: user.id,
+      assessmentId: id,
     });
     console.log('[DeleteAnnotation] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
   } else {

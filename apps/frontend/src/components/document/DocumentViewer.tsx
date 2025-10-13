@@ -49,6 +49,7 @@ export function DocumentViewer({
   const {
     addHighlight,
     addReference,
+    addAssessment,
     deleteAnnotation,
     convertHighlightToReference,
     convertReferenceToHighlight
@@ -210,7 +211,28 @@ export function DocumentViewer({
       console.error('Failed to create reference:', err);
     }
   }, [annotationPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
-  
+
+  // Handle creating assessments - memoized
+  const handleCreateAssessment = useCallback(async () => {
+    if (!annotationPosition || !selectedText) return;
+
+    try {
+      // Create new assessment
+      await addAssessment(document.id, selectedText, annotationPosition);
+
+      // Refetch annotations to update UI
+      onRefetchAnnotations?.();
+
+      // Close popup
+      setShowAnnotationPopup(false);
+      setSelectedText('');
+      setAnnotationPosition(null);
+      setEditingAnnotation(null);
+    } catch (err) {
+      console.error('Failed to create assessment:', err);
+    }
+  }, [annotationPosition, selectedText, document.id, addAssessment, onRefetchAnnotations]);
+
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
     console.log('[DocumentViewer] handleDeleteAnnotation called with id:', id);
@@ -471,6 +493,7 @@ export function DocumentViewer({
         })}
         onCreateHighlight={handleCreateHighlight}
         onCreateReference={handleCreateReference}
+        onCreateAssessment={handleCreateAssessment}
         onUpdateAnnotation={async (updates) => {
           if (editingAnnotation && updates.body) {
             // Handle updates to existing annotation

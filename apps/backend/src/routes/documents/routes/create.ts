@@ -79,6 +79,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       contentHash: checksum,
       creationMethod,
       entityTypes: body.entityTypes,
+      metadata: body.locale ? { locale: body.locale } : undefined,
     });
 
     // Return optimistic response
@@ -88,6 +89,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       archived: false,
       format: body.format,
       entityTypes: body.entityTypes,
+      locale: body.locale,
       creationMethod,
       contentChecksum: checksum,
       creator: user.id,

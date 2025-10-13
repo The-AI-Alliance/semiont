@@ -34,8 +34,15 @@ export function useGenerationProgress({
   const startGeneration = useCallback(async (
     referenceId: string,
     documentId: string,
-    options?: { prompt?: string; title?: string }
+    options?: { prompt?: string; title?: string; locale?: string }
   ) => {
+    console.log('[useGenerationProgress] startGeneration called with:', {
+      referenceId,
+      documentId,
+      options,
+      locale: options?.locale
+    });
+
     // Close any existing connection
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -60,6 +67,10 @@ export function useGenerationProgress({
     const id = extractAnnotationId(referenceId);
     const url = `${apiUrl}/api/annotations/${id}/generate-document-stream`;
 
+    const requestBody = { documentId, ...options };
+    console.log('[useGenerationProgress] Sending request to:', url);
+    console.log('[useGenerationProgress] Request body:', requestBody);
+
     try {
       await fetchEventSource(url, {
         method: 'POST',
@@ -67,7 +78,7 @@ export function useGenerationProgress({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.backendToken}`
         },
-        body: JSON.stringify({ documentId, ...options }),
+        body: JSON.stringify(requestBody),
         signal: abortController.signal,
 
         onmessage(ev) {

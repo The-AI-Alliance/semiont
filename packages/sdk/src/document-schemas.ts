@@ -21,6 +21,7 @@ export const CreateDocumentRequestSchema = z.object({
   content: z.string(),
   format: z.string(), // MIME type (required)
   entityTypes: z.array(z.string()), // Required - caller must explicitly pass [] for no types
+  locale: z.string().optional(), // Language/locale code (e.g., 'en', 'es', 'fr')
   creationMethod: z.string().optional(),
   sourceAnnotationId: z.string().optional(),
   sourceDocumentId: z.string().optional(),
@@ -82,6 +83,7 @@ export const GenerateDocumentFromAnnotationRequestSchema = z.object({
   name: z.string().min(1).max(255).optional().describe('Custom title for generated document'),
   entityTypes: z.array(z.string()).optional().describe('Entity types to apply to generated document'),
   prompt: z.string().optional().describe('Custom prompt for content generation'),
+  locale: z.string().optional().describe('Language locale for generated content (e.g., "es", "fr", "ja")'),
 });
 
 export type GenerateDocumentFromAnnotationRequest = z.infer<typeof GenerateDocumentFromAnnotationRequestSchema>;

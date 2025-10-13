@@ -204,7 +204,8 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
   const { title, content: generatedContent } = await generateDocumentFromTopic(
     selectedText,
     body.entityTypes || annotation.body.entityTypes || [],
-    body.prompt
+    body.prompt,
+    body.locale
   );
 
   if (!generatedContent) {
@@ -231,6 +232,7 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
     metadata: {
       generatedFrom: id,
       prompt: body.prompt,
+      locale: body.locale,
     },
   });
 
@@ -260,6 +262,7 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
     name: documentName,
     format: 'text/markdown',
     entityTypes: body.entityTypes || annotation.body.entityTypes || [],
+    locale: body.locale,
     sourceAnnotationId: id,
     creationMethod: CREATION_METHODS.GENERATED,
     contentChecksum: checksum,

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
+import { useLocale } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { api, QUERY_KEYS } from '@/lib/api-client';
@@ -119,6 +120,7 @@ function DocumentView({
 }) {
   const router = useRouter();
   const { data: session } = useSession();
+  const locale = useLocale();
   const { addDocument } = useOpenDocuments();
   const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
@@ -376,6 +378,13 @@ function DocumentView({
 
   // Handle document generation from stub reference
   const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
+    console.log('[DocumentPage] handleGenerateDocument called with:', {
+      referenceId,
+      options,
+      locale,
+      documentId
+    });
+
     // Clear CSS sparkle animation if reference was recently created
     // (it may still be in newAnnotationIds with a 6-second timer from creation)
     // We only want the widget sparkle (✨ emoji) during generation, not the CSS pulse
@@ -386,8 +395,11 @@ function DocumentView({
     clearNewAnnotationId(fullUri);
 
     // Widget sparkle (✨ emoji) will show automatically during generation via generatingReferenceId
-    startGeneration(referenceId, documentId, options);
-  }, [startGeneration, documentId, clearNewAnnotationId]);
+    // Pass locale to ensure generated content is in the user's preferred language
+    const optionsWithLocale = { ...options, locale };
+    console.log('[DocumentPage] Calling startGeneration with:', optionsWithLocale);
+    startGeneration(referenceId, documentId, optionsWithLocale);
+  }, [startGeneration, documentId, clearNewAnnotationId, locale]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useDocumentEvents({
@@ -603,6 +615,7 @@ function DocumentView({
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 documentEntityTypes={documentEntityTypes}
+                documentLocale={document.locale}
               />
             )}
 

@@ -312,6 +312,8 @@
     "unarchiveDescription": "Restaurar este documento al estado activo"
   },
   "DocumentInfoPanel": {
+    "locale": "Idioma",
+    "notSpecified": "No especificado",
     "entityTypeTags": "Etiquetas de Tipo de Entidad",
     "statistics": "Estadísticas",
     "highlights": "Destacados",
@@ -373,6 +375,8 @@
     "referenceDeleted": "Referencia Eliminada",
     "entitytagAdded": "Etiqueta Agregada",
     "entitytagRemoved": "Etiqueta Eliminada",
+    "assessmentAdded": "Evaluación Agregada",
+    "assessmentRemoved": "Evaluación Eliminada",
     "justNow": "justo ahora",
     "minutesAgo": "hace {count}m",
     "hoursAgo": "hace {count}h",
@@ -385,6 +389,7 @@
   "CreateAnnotationPopup": {
     "title": "Crear Anotación",
     "createHighlight": "Crear Destacado",
+    "createAssessment": "Crear Evaluación",
     "entityTypesOptional": "Tipos de Entidad (Opcional)",
     "referenceTypeOptional": "Tipo de Referencia (Opcional)",
     "none": "Ninguno",
