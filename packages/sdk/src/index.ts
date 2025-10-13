@@ -331,6 +331,17 @@ export * from './annotation-history-utils';
 // DID and W3C Agent utilities
 export * from './did-utils';
 
+// API Client
+export {
+  SemiontClient,
+  uploadDocumentBatch,
+  createAnnotationBatch,
+  resolveAnnotationBatch,
+} from './client';
+export type {
+  SemiontClientConfig,
+} from './client';
+
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';
 export const SDK_VERSION = '0.1.0';
