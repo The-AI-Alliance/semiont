@@ -82,6 +82,7 @@ export const GenerateDocumentFromAnnotationRequestSchema = z.object({
   name: z.string().min(1).max(255).optional().describe('Custom title for generated document'),
   entityTypes: z.array(z.string()).optional().describe('Entity types to apply to generated document'),
   prompt: z.string().optional().describe('Custom prompt for content generation'),
+  locale: z.string().optional().describe('Language locale for generated content (e.g., "es", "fr", "ja")'),
 });
 
 export type GenerateDocumentFromAnnotationRequest = z.infer<typeof GenerateDocumentFromAnnotationRequestSchema>;

@@ -204,7 +204,8 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
   const { title, content: generatedContent } = await generateDocumentFromTopic(
     selectedText,
     body.entityTypes || annotation.body.entityTypes || [],
-    body.prompt
+    body.prompt,
+    body.locale
   );
 
   if (!generatedContent) {

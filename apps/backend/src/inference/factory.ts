@@ -1,6 +1,20 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getInferenceConfig as getInferenceConfigFromEnv } from '../config/environment-loader';
 
+// Language name mapping for prompts
+const LANGUAGE_NAMES: Record<string, string> = {
+  ar: 'Arabic', bn: 'Bengali', cs: 'Czech', da: 'Danish', de: 'German',
+  el: 'Greek', en: 'English', es: 'Spanish', fa: 'Persian', fi: 'Finnish',
+  fr: 'French', he: 'Hebrew', hi: 'Hindi', id: 'Indonesian', it: 'Italian',
+  ja: 'Japanese', ko: 'Korean', ms: 'Malay', nl: 'Dutch', no: 'Norwegian',
+  pl: 'Polish', pt: 'Portuguese', ro: 'Romanian', sv: 'Swedish', th: 'Thai',
+  tr: 'Turkish', uk: 'Ukrainian', vi: 'Vietnamese', zh: 'Chinese'
+};
+
+function getLanguageName(locale: string): string {
+  return LANGUAGE_NAMES[locale] || locale;
+}
+
 // Singleton instance
 let inferenceClient: Anthropic | null = null;
 
@@ -86,22 +100,29 @@ export async function generateText(
 export async function generateDocumentFromTopic(
   topic: string,
   entityTypes: string[],
-  userPrompt?: string
+  userPrompt?: string,
+  locale?: string
 ): Promise<{ title: string; content: string }> {
   console.log('generateDocumentFromTopic called with:', {
     topic: topic.substring(0, 100),
     entityTypes,
-    hasUserPrompt: !!userPrompt
+    hasUserPrompt: !!userPrompt,
+    locale
   });
 
   const config = getInferenceConfigFromEnv();
   const provider = config?.type || 'anthropic';
   console.log('Using provider:', provider, 'with model:', config?.model);
 
+  // Determine language instruction
+  const languageInstruction = locale && locale !== 'en'
+    ? `\n\nIMPORTANT: Write the entire document in ${getLanguageName(locale)}. Both the title and all content must be in ${getLanguageName(locale)}.`
+    : '';
+
   // Provider-agnostic base requirements
   const basePrompt = `Generate a concise, informative document about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
-${userPrompt ? `Additional context: ${userPrompt}` : ''}
+${userPrompt ? `Additional context: ${userPrompt}` : ''}${languageInstruction}
 
 Requirements:
 - Create a clear, descriptive title
