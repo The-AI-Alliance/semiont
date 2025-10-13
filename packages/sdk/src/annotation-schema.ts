@@ -326,3 +326,70 @@ export function extractAnnotationId(fullUriOrId: string): string {
 export function compareAnnotationIds(id1: string, id2: string): boolean {
   return extractAnnotationId(id1) === extractAnnotationId(id2);
 }
+
+/**
+ * Checks if an annotation ID is in full URI format
+ *
+ * Examples:
+ * - URI: `http://localhost:4000/annotations/xyz123` → true
+ * - Internal ID: `xyz123` → false
+ *
+ * @param annotationId - Annotation ID to check
+ * @returns true if the ID is a full URI, false if it's just the internal ID
+ */
+export function isFullAnnotationUri(annotationId: string): boolean {
+  return annotationId.startsWith('http://') || annotationId.startsWith('https://');
+}
+
+/**
+ * Ensures annotation ID is in the format expected by API endpoints
+ *
+ * IMPORTANT: Most API endpoints (especially resolve, delete, get) expect the FULL URI
+ * because they match against Layer 3 projections which store full URIs.
+ *
+ * This function:
+ * - Returns the ID as-is if it's already a full URI
+ * - Returns the ID as-is if no baseUrl is provided
+ * - Constructs a full URI if given an internal ID and baseUrl
+ *
+ * Examples:
+ * - Full URI input: `http://localhost:4000/annotations/xyz` → `http://localhost:4000/annotations/xyz` (unchanged)
+ * - Internal ID + baseUrl: `xyz`, `http://localhost:4000` → `http://localhost:4000/annotations/xyz`
+ * - Internal ID, no baseUrl: `xyz` → `xyz` (unchanged - caller must handle)
+ *
+ * @param annotationId - Annotation ID (can be full URI or internal ID)
+ * @param baseUrl - Base URL for the API (e.g., 'http://localhost:4000'). Optional.
+ * @returns Annotation ID in the appropriate format for API calls
+ */
+export function getAnnotationApiId(annotationId: string, baseUrl?: string): string {
+  // If already a full URI, return as-is
+  if (isFullAnnotationUri(annotationId)) {
+    return annotationId;
+  }
+
+  // If no baseUrl provided, return as-is (caller must handle)
+  if (!baseUrl) {
+    return annotationId;
+  }
+
+  // Construct full URI from internal ID
+  const cleanBase = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+  return `${cleanBase}/annotations/${annotationId}`;
+}
+
+/**
+ * URL-encodes an annotation ID for safe use in API paths
+ *
+ * Since annotation IDs can contain special characters (colons, slashes for URIs),
+ * they must be URL-encoded when used in URL path segments.
+ *
+ * Examples:
+ * - URI: `http://localhost:4000/annotations/xyz` → `http%3A%2F%2Flocalhost%3A4000%2Fannotations%2Fxyz`
+ * - Internal ID: `xyz-123_abc` → `xyz-123_abc`
+ *
+ * @param annotationId - Annotation ID to encode
+ * @returns URL-encoded annotation ID safe for use in API paths
+ */
+export function encodeAnnotationIdForUrl(annotationId: string): string {
+  return encodeURIComponent(annotationId);
+}

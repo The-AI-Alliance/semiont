@@ -112,6 +112,9 @@ export {
   isResolvedReference,
   extractAnnotationId,
   compareAnnotationIds,
+  isFullAnnotationUri,
+  getAnnotationApiId,
+  encodeAnnotationIdForUrl,
 } from './annotation-schemas';
 
 // Selector utilities
