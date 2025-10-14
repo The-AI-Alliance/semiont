@@ -83,37 +83,39 @@ export function CreateAnnotationPopup({
 
       {/* Reference Section with Config */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-        {/* Entity Types */}
-        {entityTypes.length > 0 && (
-          <div className="mb-3">
-            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-              {t('entityTypesOptional')}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {entityTypes.map((type: string) => (
-                <button
-                  key={type}
-                  onClick={() => toggleEntityType(type)}
-                  className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
-                    selectedEntityTypes.includes(type)
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
+        <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-3 bg-blue-50 dark:bg-blue-950/30 shadow-sm">
+          {/* Entity Types */}
+          {entityTypes.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                {t('entityTypesOptional')}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {entityTypes.map((type: string) => (
+                  <button
+                    key={type}
+                    onClick={() => toggleEntityType(type)}
+                    className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
+                      selectedEntityTypes.includes(type)
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Create Reference Button */}
-        <button
-          onClick={handleCreateStubReference}
-          className={`${buttonStyles.primary.base} w-full justify-center`}
-        >
-          🔗 {t('createReference')}
-        </button>
+          {/* Create Reference Button */}
+          <button
+            onClick={handleCreateStubReference}
+            className={`${buttonStyles.primary.base} w-full justify-center`}
+          >
+            🔗 {t('createReference')}
+          </button>
+        </div>
       </div>
     </PopupContainer>
   );
