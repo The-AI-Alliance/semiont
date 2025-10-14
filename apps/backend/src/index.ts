@@ -37,7 +37,6 @@ import { adminRouter } from './routes/admin';
 import { documentsRouter } from './routes/documents/index';
 import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
-import { referenceTypesRouter } from './routes/reference-types';
 
 // Import OpenAPI config
 import { openApiConfig } from './openapi';
@@ -106,7 +105,6 @@ app.route('/', adminRouter);
 app.route('/', documentsRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
-app.route('/', referenceTypesRouter);
 
 // Test inference route
 app.get('/api/test-inference', async (c) => {
@@ -245,9 +243,8 @@ if (CONFIG.NODE_ENV !== 'test') {
       // Pre-populate tag collections by calling getters
       // This ensures defaults are loaded on startup
       const entityTypes = await graphDb.getEntityTypes();
-      const referenceTypes = await graphDb.getReferenceTypes();
 
-      console.log(`✅ Graph database initialized with ${entityTypes.length} entity types and ${referenceTypes.length} reference types`);
+      console.log(`✅ Graph database initialized with ${entityTypes.length} entity types`);
     } catch (error) {
       console.error('⚠️ Failed to initialize graph database:', error);
       // Continue running even if graph initialization fails

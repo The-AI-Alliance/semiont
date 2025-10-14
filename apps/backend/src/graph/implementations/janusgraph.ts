@@ -28,7 +28,6 @@ export class JanusGraphDatabase implements GraphDatabase {
 
   // Tag Collections - cached in memory for performance
   private entityTypesCollection: Set<string> | null = null;
-  private referenceTypesCollection: Set<string> | null = null;
 
 
   constructor(private config: {
@@ -631,13 +630,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     return Array.from(this.entityTypesCollection!).sort();
   }
   
-  async getReferenceTypes(): Promise<string[]> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.referenceTypesCollection!).sort();
-  }
-  
   async addEntityType(tag: string): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
@@ -668,38 +660,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       console.error('Failed to add entity type:', error);
     }
   }
-  
-  async addReferenceType(tag: string): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.referenceTypesCollection!.add(tag);
 
-    // Persist to JanusGraph
-    try {
-      // Find or create the TagCollection vertex
-      const existing = await this.g!.V()
-        .hasLabel('TagCollection')
-        .has('type', 'reference-types')
-        .toList();
-
-      if (existing.length > 0) {
-        // Update existing collection
-        await this.g!.V(existing[0])
-          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
-          .next();
-      } else {
-        // Create new collection
-        await this.g!.addV('TagCollection')
-          .property('type', 'reference-types')
-          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
-          .next();
-      }
-    } catch (error) {
-      console.error('Failed to add reference type:', error);
-    }
-  }
-  
   async addEntityTypes(tags: string[]): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
@@ -727,35 +688,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       console.error('Failed to add entity types:', error);
     }
   }
-  
-  async addReferenceTypes(tags: string[]): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.referenceTypesCollection!.add(tag));
 
-    // Persist all at once
-    try {
-      const existing = await this.g!.V()
-        .hasLabel('TagCollection')
-        .has('type', 'reference-types')
-        .toList();
-
-      if (existing.length > 0) {
-        await this.g!.V(existing[0])
-          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
-          .next();
-      } else {
-        await this.g!.addV('TagCollection')
-          .property('type', 'reference-types')
-          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
-          .next();
-      }
-    } catch (error) {
-      console.error('Failed to add reference types:', error);
-    }
-  }
-  
   private async initializeTagCollections(): Promise<void> {
     // Load existing collections from JanusGraph
     const collections = await this.g!.V()
@@ -763,7 +696,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       .toList();
 
     let entityTypesFromDb: string[] = [];
-    let referenceTypesFromDb: string[] = [];
 
     for (const vertex of collections) {
       const props = (vertex as any).properties || {};
@@ -773,24 +705,18 @@ export class JanusGraphDatabase implements GraphDatabase {
 
       if (type === 'entity-types') {
         entityTypesFromDb = tags;
-      } else if (type === 'reference-types') {
-        referenceTypesFromDb = tags;
       }
     }
 
     // Load defaults
-    const { DEFAULT_ENTITY_TYPES, DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
+    const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
 
     // Merge with defaults
     this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);
-    this.referenceTypesCollection = new Set([...DEFAULT_REFERENCE_TYPES, ...referenceTypesFromDb]);
 
-    // Persist merged collections back to JanusGraph if they don't exist
+    // Persist merged collection back to JanusGraph if it doesn't exist
     if (entityTypesFromDb.length === 0) {
       await this.addEntityTypes([]);
-    }
-    if (referenceTypesFromDb.length === 0) {
-      await this.addReferenceTypes([]);
     }
   }
 
@@ -803,7 +729,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     await this.g!.V().drop().next();
     // Reset cached collections
     this.entityTypesCollection = null;
-    this.referenceTypesCollection = null;
     console.log('Cleared JanusGraph database');
   }
 }

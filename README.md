@@ -18,7 +18,6 @@ semiont/
 │   └── cli/              # Semiont management CLI
 ├── packages/             # Shared workspace packages
 │   ├── sdk/              # TypeScript SDK with types, schemas, and API client
-│   ├── cloud/            # AWS CDK infrastructure definitions
 │   ├── mcp-server/       # Model Context Protocol server for AI integration
 │   └── test-utils/       # Testing utilities and mock factories
 ├── demo/                 # Example scripts and demonstrations
@@ -129,7 +128,6 @@ For complete deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 | [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
 | [CLI README](apps/cli/README.md) | Semiont CLI command reference, architecture, and development guide |
-| [Cloud README](packages/cloud/README.md) | AWS CDK infrastructure stack definitions |
 | [Test Utils README](packages/test-utils/README.md) | Shared testing utilities and mock factories |
 | [MCP Server README](packages/mcp-server/README.md) | Model Context Protocol server for AI integration |
 

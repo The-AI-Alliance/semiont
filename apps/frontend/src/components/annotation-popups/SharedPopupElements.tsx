@@ -41,14 +41,20 @@ export function EntityTypeBadges({ entityTypes }: EntityTypeBadgesProps) {
 
 interface PopupHeaderProps {
   title: string;
+  selectedText?: string;
   onClose: () => void;
 }
 
-export function PopupHeader({ title, onClose }: PopupHeaderProps) {
+export function PopupHeader({ title, selectedText, onClose }: PopupHeaderProps) {
   return (
     <div className="flex items-center justify-between mb-3">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
         {title}
+        {selectedText && (
+          <span className="font-normal text-base ml-1">
+            &ldquo;{selectedText}&rdquo;
+          </span>
+        )}
       </h3>
       <button
         onClick={onClose}

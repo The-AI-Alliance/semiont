@@ -72,11 +72,8 @@ export interface GraphDatabase {
   
   // Tag Collections
   getEntityTypes(): Promise<string[]>;
-  getReferenceTypes(): Promise<string[]>;
   addEntityType(tag: string): Promise<void>;
-  addReferenceType(tag: string): Promise<void>;
   addEntityTypes(tags: string[]): Promise<void>;
-  addReferenceTypes(tags: string[]): Promise<void>;
   
   // Utility
   generateId(): string;

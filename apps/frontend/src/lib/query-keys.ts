@@ -20,9 +20,6 @@ export const QUERY_KEYS = {
   entityTypes: {
     all: () => ['/api/entity-types'],
   },
-  referenceTypes: {
-    all: () => ['/api/reference-types'],
-  },
   documents: {
     all: (limit?: number, archived?: boolean) => ['/api/documents', limit, archived],
     detail: (id: string) => ['/api/documents', id],

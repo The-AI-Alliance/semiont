@@ -9,13 +9,3 @@ export const AddEntityTypeResponseSchema = z.object({
 });
 
 export type AddEntityTypeResponse = z.infer<typeof AddEntityTypeResponseSchema>;
-
-/**
- * Add Reference Type Response
- */
-export const AddReferenceTypeResponseSchema = z.object({
-  success: z.boolean(),
-  referenceTypes: z.array(z.string()),
-});
-
-export type AddReferenceTypeResponse = z.infer<typeof AddReferenceTypeResponseSchema>;

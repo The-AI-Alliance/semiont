@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { PopupContainer, PopupHeader, SelectedTextDisplay } from './SharedPopupElements';
+import { PopupContainer, PopupHeader } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
 import { api } from '@/lib/api-client';
 
@@ -31,14 +31,11 @@ export function CreateAnnotationPopup({
 }: CreateAnnotationPopupProps) {
   const t = useTranslations('CreateAnnotationPopup');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
-  const [selectedReferenceType, setSelectedReferenceType] = useState<string>('');
 
-  // Fetch entity types and reference types from backend
+  // Fetch entity types from backend
   const { data: entityTypesData } = api.entityTypes.all.useQuery();
-  const { data: referenceTypesData } = api.referenceTypes.all.useQuery();
 
   const entityTypes = entityTypesData?.entityTypes || [];
-  const referenceTypes = referenceTypesData?.referenceTypes || [];
 
   const handleCreateHighlight = () => {
     onCreateHighlight();
@@ -52,7 +49,7 @@ export function CreateAnnotationPopup({
 
   const handleCreateStubReference = () => {
     const entityType = selectedEntityTypes.join(',') || undefined;
-    onCreateReference(undefined, entityType, selectedReferenceType || undefined);
+    onCreateReference(undefined, entityType, undefined);
     onClose();
   };
 
@@ -66,84 +63,59 @@ export function CreateAnnotationPopup({
 
   return (
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-      <PopupHeader title={t('title')} onClose={onClose} />
+      <PopupHeader title={t('title')} selectedText={selection.exact} onClose={onClose} />
 
-      <SelectedTextDisplay exact={selection.exact} />
-
-      {/* Create Highlight Button */}
-      <div className="mb-3">
+      {/* Quick Actions - Highlight and Assessment side by side */}
+      <div className="flex gap-2 mb-3">
         <button
           onClick={handleCreateHighlight}
-          className={`${buttonStyles.warning.base} w-full justify-center`}
+          className={`${buttonStyles.warning.base} flex-1 justify-center`}
         >
-          🖍 {t('createHighlight')}
+          🟡 {t('createHighlight')}
         </button>
-      </div>
-
-      {/* Create Assessment Button */}
-      <div className="mb-4">
         <button
           onClick={handleCreateAssessment}
-          className={`${buttonStyles.danger.base} w-full justify-center`}
+          className={`${buttonStyles.danger.base} flex-1 justify-center`}
         >
           🔴 {t('createAssessment')}
         </button>
       </div>
 
-      {/* Entity Types */}
-      <div className="mb-4">
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          {t('entityTypesOptional')}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {entityTypes.map((type: string) => (
-            <button
-              key={type}
-              onClick={() => toggleEntityType(type)}
-              className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                selectedEntityTypes.includes(type)
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Reference Section with Config */}
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+        <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-3 bg-blue-50 dark:bg-blue-950/30 shadow-sm">
+          {/* Entity Types */}
+          {entityTypes.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                {t('entityTypesOptional')}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {entityTypes.map((type: string) => (
+                  <button
+                    key={type}
+                    onClick={() => toggleEntityType(type)}
+                    className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
+                      selectedEntityTypes.includes(type)
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* Reference Type */}
-      {referenceTypes.length > 0 && (
-        <div className="mb-4">
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            {t('referenceTypeOptional')}
-          </p>
-          <select
-            value={selectedReferenceType}
-            onChange={(e) => setSelectedReferenceType(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          {/* Create Reference Button */}
+          <button
+            onClick={handleCreateStubReference}
+            className={`${buttonStyles.primary.base} w-full justify-center`}
           >
-            <option value="">{t('none')}</option>
-            {referenceTypes.map((type: string) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
+            🔗 {t('createReference')}
+          </button>
         </div>
-      )}
-
-      {/* Divider */}
-      <div className="border-t border-gray-200 dark:border-gray-700 my-4"></div>
-
-      {/* Create Reference Button */}
-      <div>
-        <button
-          onClick={handleCreateStubReference}
-          className={`${buttonStyles.primary.base} w-full justify-center`}
-        >
-          🔗 {t('createReference')}
-        </button>
       </div>
     </PopupContainer>
   );

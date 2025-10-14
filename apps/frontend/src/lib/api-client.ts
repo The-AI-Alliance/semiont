@@ -47,7 +47,6 @@ import type {
 
   // Tag types
   AddEntityTypeResponse,
-  AddReferenceTypeResponse,
 } from '@semiont/sdk';
 
 // Re-export types for convenience
@@ -265,39 +264,6 @@ const entityTypes = {
           }, session?.backendToken),
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.entityTypes.all() });
-        },
-      });
-    },
-  },
-};
-
-/**
- * Reference Types API
- */
-const referenceTypes = {
-  all: {
-    useQuery: () => {
-      const { data: session } = useSession();
-      return useQuery({
-        queryKey: QUERY_KEYS.referenceTypes.all(),
-        queryFn: () => fetchAPI<{ referenceTypes: string[] }>('/api/reference-types', {}, session?.backendToken),
-        enabled: !!session?.backendToken && !!session?.user?.isAdmin,
-      });
-    },
-  },
-  create: {
-    useMutation: () => {
-      const { data: session } = useSession();
-      const queryClient = useQueryClient();
-
-      return useMutation({
-        mutationFn: (tag: string) =>
-          fetchAPI<AddReferenceTypeResponse>('/api/reference-types', {
-            method: 'POST',
-            body: JSON.stringify({ tag }),
-          }, session?.backendToken),
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.referenceTypes.all() });
         },
       });
     },
@@ -647,7 +613,6 @@ export const api = {
   auth,
   admin,
   entityTypes,
-  referenceTypes,
   documents,
   annotations,
 };

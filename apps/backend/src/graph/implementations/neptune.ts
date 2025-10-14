@@ -1028,7 +1028,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   // Tag Collections - stored as special vertices in the graph
   private entityTypesCollection: Set<string> | null = null;
-  private referenceTypesCollection: Set<string> | null = null;
   
   async getEntityTypes(): Promise<string[]> {
     // Initialize if not already loaded
@@ -1036,14 +1035,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       await this.initializeTagCollections();
     }
     return Array.from(this.entityTypesCollection!).sort();
-  }
-  
-  async getReferenceTypes(): Promise<string[]> {
-    // Initialize if not already loaded
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.referenceTypesCollection!).sort();
   }
   
   async addEntityType(tag: string): Promise<void> {
@@ -1064,27 +1055,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .iterate();
     } catch (error) {
       console.error('Failed to add entity type:', error);
-    }
-  }
-  
-  async addReferenceType(tag: string): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.referenceTypesCollection!.add(tag);
-    // Persist to Neptune
-    try {
-      await this.g.V()
-        .has('tagCollection', 'type', 'reference-types')
-        .fold()
-        .coalesce(
-          __.unfold(),
-          __.addV('TagCollection').property('type', 'reference-types')
-        )
-        .property(cardinality.set, 'tags', tag)
-        .iterate();
-    } catch (error) {
-      console.error('Failed to add reference type:', error);
     }
   }
   
@@ -1111,29 +1081,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async addReferenceTypes(tags: string[]): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.referenceTypesCollection!.add(tag));
-    // Persist to Neptune
-    try {
-      const vertex = await this.g.V()
-        .has('tagCollection', 'type', 'reference-types')
-        .fold()
-        .coalesce(
-          __.unfold(),
-          __.addV('TagCollection').property('type', 'reference-types')
-        );
-      
-      for (const tag of tags) {
-        await vertex.property(cardinality.set, 'tags', tag).iterate();
-      }
-    } catch (error) {
-      console.error('Failed to add reference types:', error);
-    }
-  }
-  
   private async initializeTagCollections(): Promise<void> {
     try {
       // Check Neptune for existing collections
@@ -1143,19 +1090,17 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .by('type')
         .by(__.values('tags').fold())
         .toList();
-      
+
       // Process existing collections
       for (const col of collections) {
         if (col.type === 'entity-types') {
           this.entityTypesCollection = new Set(col.tags as string[]);
-        } else if (col.type === 'reference-types') {
-          this.referenceTypesCollection = new Set(col.tags as string[]);
         }
       }
     } catch (error) {
       console.log('No existing tag collections found, will initialize with defaults');
     }
-    
+
     // Initialize with defaults if not present
     if (this.entityTypesCollection === null) {
       const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
@@ -1174,24 +1119,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         console.error('Failed to initialize entity types:', error);
       }
     }
-    
-    if (this.referenceTypesCollection === null) {
-      const { DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
-      this.referenceTypesCollection = new Set(DEFAULT_REFERENCE_TYPES);
-      // Persist defaults to Neptune
-      try {
-        const vertex = await this.g.addV('TagCollection')
-          .property('type', 'reference-types')
-          .next();
-        for (const tag of DEFAULT_REFERENCE_TYPES) {
-          await this.g.V(vertex.value.id)
-            .property(cardinality.set, 'tags', tag)
-            .iterate();
-        }
-      } catch (error) {
-        console.error('Failed to initialize reference types:', error);
-      }
-    }
   }
   
   generateId(): string {
@@ -1205,7 +1132,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       console.log('Cleared all data from Neptune');
       // Reset tag collections
       this.entityTypesCollection = null;
-      this.referenceTypesCollection = null;
     } catch (error) {
       console.error('Failed to clear Neptune database:', error);
       throw error;

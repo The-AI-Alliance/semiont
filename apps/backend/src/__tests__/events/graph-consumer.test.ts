@@ -103,11 +103,8 @@ const createMockGraphDB = (): GraphDatabase => ({
   detectAnnotations: vi.fn().mockResolvedValue([]),
 
   getEntityTypes: vi.fn().mockResolvedValue([]),
-  getReferenceTypes: vi.fn().mockResolvedValue([]),
   addEntityType: vi.fn().mockResolvedValue(undefined),
-  addReferenceType: vi.fn().mockResolvedValue(undefined),
   addEntityTypes: vi.fn().mockResolvedValue(undefined),
-  addReferenceTypes: vi.fn().mockResolvedValue(undefined),
 
   generateId: vi.fn().mockReturnValue('generated-id'),
   clearDatabase: vi.fn().mockResolvedValue(undefined),

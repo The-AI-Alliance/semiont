@@ -466,7 +466,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
   
   // Tag Collections - stored as special vertices in the graph
   private entityTypesCollection: Set<string> | null = null;
-  private referenceTypesCollection: Set<string> | null = null;
   
   async getEntityTypes(): Promise<string[]> {
     // Initialize if not already loaded
@@ -475,15 +474,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     }
     return Array.from(this.entityTypesCollection!).sort();
   }
-  
-  async getReferenceTypes(): Promise<string[]> {
-    // Initialize if not already loaded
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.referenceTypesCollection!).sort();
-  }
-  
+
   async addEntityType(tag: string): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
@@ -493,17 +484,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     // await this.client.submit(`g.V().has('tagCollection', 'type', 'entity-types')
     //   .property(set, 'tags', '${tag}')`, {});
   }
-  
-  async addReferenceType(tag: string): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.referenceTypesCollection!.add(tag);
-    // Simply add to set
-    // await this.client.submit(`g.V().has('tagCollection', 'type', 'reference-types')
-    //   .property(set, 'tags', '${tag}')`, {});
-  }
-  
+
   async addEntityTypes(tags: string[]): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
@@ -512,30 +493,17 @@ export class MemoryGraphDatabase implements GraphDatabase {
     // Simply add to set
   }
   
-  async addReferenceTypes(tags: string[]): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.referenceTypesCollection!.add(tag));
-    // Simply add to set
-  }
-  
   private async initializeTagCollections(): Promise<void> {
     // Initialize in-memory collections
     // const result = await this.client.submit(
-    //   `g.V().has('tagCollection', 'type', within('entity-types', 'reference-types'))
+    //   `g.V().has('tagCollection', 'type', 'entity-types')
     //    .project('type', 'tags').by('type').by('tags')`, {}
     // );
-    
+
     // For now, initialize with defaults if not present
     if (this.entityTypesCollection === null) {
       const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
       this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
-    }
-    
-    if (this.referenceTypesCollection === null) {
-      const { DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
-      this.referenceTypesCollection = new Set(DEFAULT_REFERENCE_TYPES);
     }
   }
   
@@ -549,6 +517,5 @@ export class MemoryGraphDatabase implements GraphDatabase {
     this.documents.clear();
     this.annotations.clear();
     this.entityTypesCollection = null;
-    this.referenceTypesCollection = null;
   }
 }
