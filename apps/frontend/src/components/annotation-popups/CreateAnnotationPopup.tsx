@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { PopupContainer, PopupHeader, SelectedTextDisplay } from './SharedPopupElements';
+import { PopupContainer, PopupHeader } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
 import { api } from '@/lib/api-client';
 
@@ -63,9 +63,7 @@ export function CreateAnnotationPopup({
 
   return (
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-      <PopupHeader title={t('title')} onClose={onClose} />
-
-      <SelectedTextDisplay exact={selection.exact} />
+      <PopupHeader title={t('title')} selectedText={selection.exact} onClose={onClose} />
 
       {/* Quick Actions - Highlight and Assessment side by side */}
       <div className="flex gap-2 mb-3">
