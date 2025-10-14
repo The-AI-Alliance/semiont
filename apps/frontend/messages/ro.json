@@ -384,9 +384,10 @@
   },
   "CreateAnnotationPopup": {
     "title": "Create Annotation",
-    "createHighlight": "Create Highlight",
+    "createHighlight": "Evidențiază",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Create Reference"
+    "createReference": "Referă",
+    "createAssessment": "Evaluează"
   },
   "HighlightPopup": {
     "title": "Highlight",

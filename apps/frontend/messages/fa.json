@@ -384,9 +384,10 @@
   },
   "CreateAnnotationPopup": {
     "title": "Create Annotation",
-    "createHighlight": "Create Highlight",
+    "createHighlight": "برجسته",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Create Reference"
+    "createReference": "ارجاع",
+    "createAssessment": "ارزیابی"
   },
   "HighlightPopup": {
     "title": "Highlight",

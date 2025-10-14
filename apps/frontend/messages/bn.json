@@ -384,9 +384,10 @@
   },
   "CreateAnnotationPopup": {
     "title": "Create Annotation",
-    "createHighlight": "Create Highlight",
+    "createHighlight": "হাইলাইট",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Create Reference"
+    "createReference": "রেফার",
+    "createAssessment": "মূল্যায়ন"
   },
   "HighlightPopup": {
     "title": "Highlight",

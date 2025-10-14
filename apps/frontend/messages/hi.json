@@ -384,9 +384,10 @@
   },
   "CreateAnnotationPopup": {
     "title": "Create Annotation",
-    "createHighlight": "Create Highlight",
+    "createHighlight": "हाइलाइट",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Create Reference"
+    "createReference": "संदर्भ",
+    "createAssessment": "मूल्यांकन"
   },
   "HighlightPopup": {
     "title": "Highlight",

@@ -384,9 +384,10 @@
   },
   "CreateAnnotationPopup": {
     "title": "Create Annotation",
-    "createHighlight": "Create Highlight",
+    "createHighlight": "Korosta",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Create Reference"
+    "createReference": "Viittaa",
+    "createAssessment": "Arvioi"
   },
   "HighlightPopup": {
     "title": "Highlight",

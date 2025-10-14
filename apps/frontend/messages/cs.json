@@ -384,9 +384,10 @@
   },
   "CreateAnnotationPopup": {
     "title": "Create Annotation",
-    "createHighlight": "Create Highlight",
+    "createHighlight": "Zvýraznit",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Create Reference"
+    "createReference": "Odkázat",
+    "createAssessment": "Posoudit"
   },
   "HighlightPopup": {
     "title": "Highlight",

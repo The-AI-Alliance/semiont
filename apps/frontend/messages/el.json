@@ -384,9 +384,10 @@
   },
   "CreateAnnotationPopup": {
     "title": "Create Annotation",
-    "createHighlight": "Create Highlight",
+    "createHighlight": "Επισήμανση",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Create Reference"
+    "createReference": "Αναφορά",
+    "createAssessment": "Αξιολόγηση"
   },
   "HighlightPopup": {
     "title": "Highlight",

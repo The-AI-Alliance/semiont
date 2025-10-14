@@ -388,10 +388,10 @@
   },
   "CreateAnnotationPopup": {
     "title": "Anotar",
-    "createHighlight": "Crear Destacado",
-    "createAssessment": "Crear Evaluación",
+    "createHighlight": "Destacar",
+    "createAssessment": "Evaluar",
     "entityTypesOptional": "Tipos de Entidad (Opcional)",
-    "createReference": "Crear Referencia"
+    "createReference": "Referir"
   },
   "HighlightPopup": {
     "title": "Destacado",
