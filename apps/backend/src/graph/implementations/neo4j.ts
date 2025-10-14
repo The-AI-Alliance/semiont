@@ -30,7 +30,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
   // Tag Collections - cached in memory for performance
   private entityTypesCollection: Set<string> | null = null;
-  private referenceTypesCollection: Set<string> | null = null;
 
   constructor(config: {
     uri?: string;
@@ -845,27 +844,12 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return Array.from(this.entityTypesCollection!).sort();
   }
 
-  async getReferenceTypes(): Promise<string[]> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.referenceTypesCollection!).sort();
-  }
-
   async addEntityType(tag: string): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
     }
     this.entityTypesCollection!.add(tag);
     await this.persistTagCollection('entity-types', this.entityTypesCollection!);
-  }
-
-  async addReferenceType(tag: string): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.referenceTypesCollection!.add(tag);
-    await this.persistTagCollection('reference-types', this.referenceTypesCollection!);
   }
 
   async addEntityTypes(tags: string[]): Promise<void> {
@@ -876,46 +860,32 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     await this.persistTagCollection('entity-types', this.entityTypesCollection!);
   }
 
-  async addReferenceTypes(tags: string[]): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.referenceTypesCollection!.add(tag));
-    await this.persistTagCollection('reference-types', this.referenceTypesCollection!);
-  }
-
   private async initializeTagCollections(): Promise<void> {
     const session = this.getSession();
     try {
       // Load existing collections from Neo4j
       const result = await session.run(
-        'MATCH (t:TagCollection) RETURN t.type as type, t.tags as tags'
+        'MATCH (t:TagCollection {type: "entity-types"}) RETURN t.tags as tags'
       );
 
       let entityTypesFromDb: string[] = [];
-      let referenceTypesFromDb: string[] = [];
 
-      result.records.forEach(record => {
-        const type = record.get('type');
-        const tags = record.get('tags') || [];
-
-        if (type === 'entity-types') {
-          entityTypesFromDb = tags;
-        } else if (type === 'reference-types') {
-          referenceTypesFromDb = tags;
+      if (result.records.length > 0) {
+        const record = result.records[0];
+        if (record) {
+          const tags = record.get('tags');
+          entityTypesFromDb = tags || [];
         }
-      });
+      }
 
       // Load defaults
-      const { DEFAULT_ENTITY_TYPES, DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
+      const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
 
       // Merge with defaults
       this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);
-      this.referenceTypesCollection = new Set([...DEFAULT_REFERENCE_TYPES, ...referenceTypesFromDb]);
 
-      // Persist merged collections back to Neo4j
+      // Persist merged collection back to Neo4j
       await this.persistTagCollection('entity-types', this.entityTypesCollection);
-      await this.persistTagCollection('reference-types', this.referenceTypesCollection);
     } finally {
       await session.close();
     }
@@ -943,7 +913,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // CAREFUL! This clears the entire database
       await session.run('MATCH (n) DETACH DELETE n');
       this.entityTypesCollection = null;
-      this.referenceTypesCollection = null;
     } finally {
       await session.close();
     }

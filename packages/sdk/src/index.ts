@@ -223,7 +223,6 @@ export {
 // Type schemas
 export {
   AddEntityTypeResponseSchema,
-  AddReferenceTypeResponseSchema,
 } from './type-schemas';
 
 // Discovery schemas
@@ -298,7 +297,6 @@ export type {
 // Type API types
 export type {
   AddEntityTypeResponse,
-  AddReferenceTypeResponse,
 } from './type-schemas';
 
 // Discovery API types

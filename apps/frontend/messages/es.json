@@ -391,8 +391,6 @@
     "createHighlight": "Crear Destacado",
     "createAssessment": "Crear Evaluación",
     "entityTypesOptional": "Tipos de Entidad (Opcional)",
-    "referenceTypeOptional": "Tipo de Referencia (Opcional)",
-    "none": "Ninguno",
     "createReference": "Crear Referencia"
   },
   "HighlightPopup": {
@@ -472,17 +470,6 @@
     "sectionTitle": "Etiquetas de Clasificación de Documentos",
     "sectionDescription": "Etiquetas que se pueden aplicar a documentos para su categorización",
     "inputPlaceholder": "Ingrese nueva etiqueta de entidad...",
-    "adding": "Agregando...",
-    "addTag": "Agregar Etiqueta",
-    "errorFailedToAdd": "No se pudo agregar la etiqueta"
-  },
-  "ModerateReferenceTags": {
-    "loading": "Cargando...",
-    "pageTitle": "Etiquetas de Referencia",
-    "pageDescription": "Gestiona tipos de relaciones semánticas entre documentos. Estas etiquetas definen cómo los documentos pueden referenciarse y relacionarse entre sí. Las etiquetas solo se pueden agregar y no se pueden eliminar una vez creadas.",
-    "sectionTitle": "Tipos de Relaciones de Documentos",
-    "sectionDescription": "Relaciones semánticas que pueden conectar documentos",
-    "inputPlaceholder": "Ingrese nueva etiqueta de referencia...",
     "adding": "Agregando...",
     "addTag": "Agregar Etiqueta",
     "errorFailedToAdd": "No se pudo agregar la etiqueta"
