@@ -5,7 +5,7 @@
  * between user representations and W3C Web Annotation Agent objects.
  */
 
-import type { Agent } from './annotation-schema';
+import type { Agent } from './annotation-schemas';
 
 /**
  * Convert a user object to a DID:WEB identifier

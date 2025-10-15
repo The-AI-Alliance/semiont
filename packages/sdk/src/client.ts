@@ -20,7 +20,7 @@ import type {
   CreateAnnotationResponse,
   ResolveAnnotationRequest as ApiResolveAnnotationRequest,
 } from './annotation-schemas';
-import { encodeAnnotationIdForUrl } from './annotation-schema';
+import { encodeAnnotationIdForUrl } from './annotation-schemas';
 import { fetchAPI } from './http-client';
 
 export interface SemiontClientConfig {

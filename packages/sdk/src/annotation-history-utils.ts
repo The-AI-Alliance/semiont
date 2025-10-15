@@ -18,10 +18,10 @@ import type {
   AssessmentAddedEvent,
   AssessmentRemovedEvent,
 } from './events';
-import type { Annotation } from './annotation-schema';
+import type { Annotation } from './annotation-schemas';
 import type { CreationMethod } from './creation-methods';
 import { getExactText } from './selector-utils';
-import { compareAnnotationIds } from './annotation-schema';
+import { compareAnnotationIds } from './annotation-schemas';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 

@@ -16,10 +16,6 @@ export type {
 export { CREATION_METHODS } from './creation-methods';
 export type { CreationMethod } from './creation-methods';
 
-// Reference tags
-export { REFERENCE_TAGS } from './reference-tags';
-export type { ReferenceTag } from './reference-tags';
-
 // Graph types
 export type {
   GraphConnection,
