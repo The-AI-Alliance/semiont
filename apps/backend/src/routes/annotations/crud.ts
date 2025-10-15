@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted, emitAssessmentAdded, emitAssessmentRemoved } from '../../events/emit';
+import { getEventStore } from '../../events/event-store';
 import {
   CreateAnnotationRequestSchema as CreateAnnotationRequestSchema,
   CreateAnnotationResponseSchema as CreateAnnotationResponseSchema,
@@ -75,40 +75,53 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
   }
 
   // Emit event first (single source of truth)
+  const eventStore = await getEventStore();
   if (isAssessment) {
-    await emitAssessmentAdded({
+    await eventStore.appendEvent({
+      type: 'assessment.added',
       documentId: body.target.source,
       userId: user.id,
-      assessmentId: annotationId,
-      exact: getExactText(body.target.selector),
-      position: {
-        offset: posSelector.offset,
-        length: posSelector.length,
+      version: 1,
+      payload: {
+        assessmentId: annotationId,
+        exact: getExactText(body.target.selector),
+        position: {
+          offset: posSelector.offset,
+          length: posSelector.length,
+        },
+        value: body.body.value,
       },
-      value: body.body.value,
     });
   } else if (isReference) {
-    await emitReferenceCreated({
+    await eventStore.appendEvent({
+      type: 'reference.created',
       documentId: body.target.source,
       userId: user.id,
-      referenceId: annotationId,
-      exact: getExactText(body.target.selector),
-      position: {
-        offset: posSelector.offset,
-        length: posSelector.length,
+      version: 1,
+      payload: {
+        referenceId: annotationId,
+        exact: getExactText(body.target.selector),
+        position: {
+          offset: posSelector.offset,
+          length: posSelector.length,
+        },
+        entityTypes: body.body.entityTypes || [],
+        targetDocumentId: body.body.source ?? undefined,
       },
-      entityTypes: body.body.entityTypes || [],
-      targetDocumentId: body.body.source ?? undefined,
     });
   } else {
-    await emitHighlightAdded({
+    await eventStore.appendEvent({
+      type: 'highlight.added',
       documentId: body.target.source,
       userId: user.id,
-      highlightId: annotationId,
-      exact: getExactText(body.target.selector),
-      position: {
-        offset: posSelector.offset,
-        length: posSelector.length,
+      version: 1,
+      payload: {
+        highlightId: annotationId,
+        exact: getExactText(body.target.selector),
+        position: {
+          offset: posSelector.offset,
+          length: posSelector.length,
+        },
       },
     });
   }
@@ -187,11 +200,16 @@ crudRouter.openapi(resolveAnnotationRoute, async (c) => {
   }
 
   // Emit reference.resolved event to Layer 2 (consumer will update Layer 3 projection)
-  await emitReferenceResolved({
+  const eventStore = await getEventStore();
+  await eventStore.appendEvent({
+    type: 'reference.resolved',
     documentId: annotation.target.source,
     userId: user.id,
-    referenceId: id,
-    targetDocumentId: body.documentId,
+    version: 1,
+    payload: {
+      referenceId: id,
+      targetDocumentId: body.documentId,
+    },
   });
 
   // Get target document from Layer 3
@@ -364,30 +382,43 @@ crudRouter.openapi(deleteAnnotationRoute, async (c) => {
 
   // Emit event first (consumer will delete from GraphDB and update Layer 3)
   // Check motivation to determine event type
+  const eventStore = await getEventStore();
   if (reference) {
     console.log('[DeleteAnnotation] Emitting reference.deleted event for:', id);
-    const storedEvent = await emitReferenceDeleted({
+    const storedEvent = await eventStore.appendEvent({
+      type: 'reference.deleted',
       documentId: body.documentId,
       userId: user.id,
-      referenceId: id,
+      version: 1,
+      payload: {
+        referenceId: id,
+      },
     });
     console.log('[DeleteAnnotation] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
   } else if (annotation.motivation === 'assessing') {
     // It's an assessment
     console.log('[DeleteAnnotation] Emitting assessment.removed event for:', id);
-    const storedEvent = await emitAssessmentRemoved({
+    const storedEvent = await eventStore.appendEvent({
+      type: 'assessment.removed',
       documentId: body.documentId,
       userId: user.id,
-      assessmentId: id,
+      version: 1,
+      payload: {
+        assessmentId: id,
+      },
     });
     console.log('[DeleteAnnotation] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
   } else {
     // It's a highlight
     console.log('[DeleteAnnotation] Emitting highlight.removed event for:', id);
-    const storedEvent = await emitHighlightRemoved({
+    const storedEvent = await eventStore.appendEvent({
+      type: 'highlight.removed',
       documentId: body.documentId,
       userId: user.id,
-      highlightId: id,
+      version: 1,
+      payload: {
+        highlightId: id,
+      },
     });
     console.log('[DeleteAnnotation] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
   }

@@ -11,7 +11,7 @@ import { JobWorker } from './job-worker';
 import type { Job, DetectionJob } from '../types';
 import { DocumentQueryService } from '../../services/document-queries';
 import { detectAnnotationsInDocument } from '../../routes/documents/helpers';
-import { emitReferenceCreated } from '../../events/emit';
+import { getEventStore } from '../../events/event-store';
 import { generateAnnotationId } from '../../utils/id-generator';
 
 export class DetectionWorker extends JobWorker {
@@ -96,18 +96,22 @@ export class DetectionWorker extends JobWorker {
         }
 
         try {
-          await emitReferenceCreated({
+          const eventStore = await getEventStore();
+          await eventStore.appendEvent({
+            type: 'reference.created',
             documentId: job.documentId,
             userId: job.userId,
-            referenceId,
-            exact: detected.annotation.selector.exact,
-            position: {
-              offset: detected.annotation.selector.offset,
-              length: detected.annotation.selector.length,
+            version: 1,
+            payload: {
+              referenceId,
+              exact: detected.annotation.selector.exact,
+              position: {
+                offset: detected.annotation.selector.offset,
+                length: detected.annotation.selector.length,
+              },
+              entityTypes: detected.annotation.entityTypes,
+              targetDocumentId: undefined, // Will be resolved later
             },
-
-            entityTypes: detected.annotation.entityTypes,
-            targetDocumentId: undefined, // Will be resolved later
           });
 
           totalEmitted++;

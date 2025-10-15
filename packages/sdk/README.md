@@ -287,6 +287,104 @@ const events = await client.getDocumentEvents(docId);
 console.log(`Total events: ${events.total}`);
 ```
 
+### Async Job Operations
+
+The SDK supports triggering async jobs for long-running AI operations like entity detection and document generation. These methods use a **job-based polling approach** where you create a job, then poll for its status until completion.
+
+#### `detectEntities(documentId: string, entityTypes: string[]): Promise<CreateJobResponse>`
+Trigger an async entity detection job to find and annotate entities in a document.
+
+```typescript
+// Create detection job
+const job = await client.detectEntities(docId, ['person', 'location', 'organization']);
+console.log(`Job created: ${job.jobId}`);
+
+// Poll for completion
+const result = await client.waitForJob(job.jobId, {
+  onProgress: (status) => console.log(`Status: ${status.status}`),
+});
+
+console.log(`Detected ${result.result.totalFound} entities`);
+```
+
+#### `generateDocument(annotationId: string, options): Promise<CreateJobResponse>`
+Trigger an async document generation job to create a new document using AI from an annotation.
+
+```typescript
+// Create generation job
+const job = await client.generateDocument(annotationId, {
+  documentId: sourceDocId,
+  title: 'Generated Explanation',
+  prompt: 'Write a detailed explanation of this concept',
+  locale: 'en',
+});
+
+// Wait for completion
+const result = await client.waitForJob(job.jobId);
+console.log(`Generated document: ${result.result.documentId}`);
+```
+
+#### `getJobStatus(jobId: string): Promise<JobStatusResponse>`
+Get the current status of an async job.
+
+```typescript
+const status = await client.getJobStatus(jobId);
+console.log(`Job ${jobId} is ${status.status}`);
+
+if (status.status === 'complete') {
+  console.log('Result:', status.result);
+}
+```
+
+#### `waitForJob(jobId: string, options?: WaitForJobOptions): Promise<JobStatusResponse>`
+Wait for a job to complete by polling its status. Throws if the job fails or times out.
+
+```typescript
+// Wait with custom options
+const result = await client.waitForJob(jobId, {
+  pollInterval: 1000,      // Poll every 1 second (default: 500ms)
+  timeout: 600000,         // 10 minute timeout (default: 5 minutes)
+  onProgress: (job) => {
+    // Called on each status update
+    console.log(`Progress: ${job.status}`, job.progress);
+  },
+});
+```
+
+**Job Types:**
+
+```typescript
+import type {
+  JobStatusResponse,
+  DetectionProgress,
+  DetectionResult,
+  GenerationProgress,
+  GenerationResult,
+} from '@semiont/sdk';
+
+// Detection job progress
+interface DetectionProgress {
+  totalEntityTypes: number;
+  processedEntityTypes: number;
+  currentEntityType?: string;
+  entitiesFound: number;
+  entitiesEmitted: number;
+}
+
+// Generation job progress
+interface GenerationProgress {
+  stage: 'fetching' | 'generating' | 'creating' | 'linking';
+  percentage: number;
+  message?: string;
+}
+```
+
+**SSE Alternative:** The backend also provides Server-Sent Events (SSE) endpoints for real-time progress streaming, which are used by the frontend UI:
+- `POST /api/documents/{id}/detect-annotations-stream` - Real-time entity detection
+- `POST /api/annotations/{id}/generate-document-stream` - Real-time document generation
+
+The job-based approach is simpler for CLI tools and scripts, while SSE provides better real-time feedback for interactive UIs. Both use the same underlying job queue and workers.
+
 ### Batch Operations
 
 The SDK provides batch helpers for bulk operations:

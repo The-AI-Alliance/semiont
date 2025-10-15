@@ -331,6 +331,23 @@ export * from './did-utils';
 // Locale utilities
 export * from './locales';
 
+// Job types and schemas
+export type {
+  JobStatus,
+  JobType,
+  DetectionProgress,
+  DetectionResult,
+  GenerationProgress,
+  GenerationResult,
+  JobStatusResponse,
+  CreateJobResponse,
+  WaitForJobOptions,
+} from './job-schemas';
+export {
+  JobStatusResponseSchema,
+  CreateJobResponseSchema,
+} from './job-schemas';
+
 // API Client
 export {
   SemiontClient,

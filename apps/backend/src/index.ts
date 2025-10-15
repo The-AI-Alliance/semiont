@@ -62,6 +62,7 @@ import { adminRouter } from './routes/admin';
 import { documentsRouter } from './routes/documents/index';
 import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
+import { jobsRouter } from './routes/jobs/index';
 
 // Import OpenAPI config
 import { openApiConfig } from './openapi';
@@ -130,6 +131,7 @@ app.route('/', adminRouter);
 app.route('/', documentsRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
+app.route('/', jobsRouter);
 
 // Test inference route
 app.get('/api/test-inference', async (c) => {
