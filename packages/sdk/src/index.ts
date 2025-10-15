@@ -320,6 +320,9 @@ export * from './crypto';
 // Error classes
 export * from './errors';
 
+// HTTP client utilities
+export * from './http-client';
+
 // Validation utilities
 export * from './validation';
 

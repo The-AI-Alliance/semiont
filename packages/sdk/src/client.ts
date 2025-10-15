@@ -21,6 +21,7 @@ import type {
   ResolveAnnotationRequest as ApiResolveAnnotationRequest,
 } from './annotation-schemas';
 import { encodeAnnotationIdForUrl } from './annotation-schema';
+import { fetchAPI } from './http-client';
 
 export interface SemiontClientConfig {
   backendUrl: string;
@@ -68,41 +69,30 @@ export class SemiontClient {
    * Create a new document
    */
   async createDocument(request: CreateDocumentRequest): Promise<CreateDocumentResponse> {
-    const response = await fetch(`${this.config.backendUrl}/api/documents`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.getToken()}`,
+    return fetchAPI<CreateDocumentResponse>(
+      '/api/documents',
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
       },
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to create document: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json() as Promise<CreateDocumentResponse>;
+      this.getToken(),
+      this.config.backendUrl
+    );
   }
 
   /**
    * Create a stub annotation (reference with source=null)
    */
   async createAnnotation(request: ApiCreateAnnotationRequest): Promise<CreateAnnotationResponse> {
-    const response = await fetch(`${this.config.backendUrl}/api/annotations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.getToken()}`,
+    return fetchAPI<CreateAnnotationResponse>(
+      '/api/annotations',
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
       },
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to create annotation: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json() as CreateAnnotationResponse;
-    return data;
+      this.getToken(),
+      this.config.backendUrl
+    );
   }
 
   /**
@@ -112,28 +102,23 @@ export class SemiontClient {
     annotationId: string,
     targetDocumentId: string
   ): Promise<{ success: boolean; error?: string }> {
-    // URL-encode the annotation ID since it contains slashes and colons
-    const encodedAnnotationId = encodeAnnotationIdForUrl(annotationId);
+    try {
+      const encodedAnnotationId = encodeAnnotationIdForUrl(annotationId);
+      const request: ApiResolveAnnotationRequest = { documentId: targetDocumentId };
 
-    const request: ApiResolveAnnotationRequest = { documentId: targetDocumentId };
-
-    const response = await fetch(
-      `${this.config.backendUrl}/api/annotations/${encodedAnnotationId}/resolve`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.getToken()}`,
+      await fetchAPI(
+        `/api/annotations/${encodedAnnotationId}/resolve`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(request),
         },
-        body: JSON.stringify(request),
-      }
-    );
+        this.getToken(),
+        this.config.backendUrl
+      );
 
-    if (response.ok) {
       return { success: true };
-    } else {
-      const errorText = await response.text();
-      return { success: false, error: `${response.status}: ${errorText}` };
+    } catch (error: any) {
+      return { success: false, error: error.message || String(error) };
     }
   }
 
@@ -141,20 +126,12 @@ export class SemiontClient {
    * Get event history for a document
    */
   async getDocumentEvents(documentId: string): Promise<GetEventsResponse> {
-    const response = await fetch(
-      `${this.config.backendUrl}/api/documents/${encodeURIComponent(documentId)}/events`,
-      {
-        headers: {
-          'Authorization': `Bearer ${this.getToken()}`,
-        },
-      }
+    return fetchAPI<GetEventsResponse>(
+      `/api/documents/${encodeURIComponent(documentId)}/events`,
+      {},
+      this.getToken(),
+      this.config.backendUrl
     );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch events: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json() as Promise<GetEventsResponse>;
   }
 }
 

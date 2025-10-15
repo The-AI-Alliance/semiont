@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { env } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { extractAnnotationId } from '@semiont/sdk';
@@ -62,7 +63,7 @@ export function useGenerationProgress({
     abortControllerRef.current = abortController;
 
     // Build SSE URL
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const apiUrl = env.NEXT_PUBLIC_API_URL;
     // Extract ID from URI if referenceId is a full URI (Phase 5: URI-based IDs)
     const id = extractAnnotationId(referenceId);
     const url = `${apiUrl}/api/annotations/${id}/generate-document-stream`;

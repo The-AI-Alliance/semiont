@@ -71,20 +71,22 @@ export function getProjectRoot(): string {
  */
 export function loadEnvironmentConfig(): EnvironmentConfig | null {
   try {
-    // Get environment name from SEMIONT_ENV or NODE_ENV
-    const envName = process.env.SEMIONT_ENV || process.env.NODE_ENV || 'local';
-    
+    // Get environment name from SEMIONT_ENV
+    // Note: SEMIONT_ENV is the deployment environment (production, staging, local, etc.)
+    // This is distinct from NODE_ENV (production, development, test)
+    const envName = process.env.SEMIONT_ENV || 'local';
+
     // Project root is either SEMIONT_ROOT or cwd
     const projectRoot = getProjectRoot();
-    
+
     // Environment file is deterministically at <project_root>/environments/<environment>.json
     const envPath = path.join(projectRoot, 'environments', `${envName}.json`);
-    
+
     if (fs.existsSync(envPath)) {
       const content = fs.readFileSync(envPath, 'utf-8');
       return JSON.parse(content);
     }
-    
+
     // No environment file found
     return null;
   } catch (error) {

@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
+import { env } from '@/lib/env';
 import { useSession } from 'next-auth/react';
-import { APIError } from '@/lib/api-client';
+import { APIError } from '@/lib/api';
 
 export interface FetchAPIOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>;
@@ -44,7 +45,7 @@ export function useAuthenticatedAPI(): UseAuthenticatedAPIResult {
       }
 
       // Build full URL
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = env.NEXT_PUBLIC_API_URL;
       const fullUrl = `${baseUrl}${url}`;
 
       // Merge headers with auth token

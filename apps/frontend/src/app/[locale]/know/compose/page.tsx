@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { api } from '@/lib/api-client';
+import { api } from '@/lib/api';
 import { buttonStyles } from '@/lib/button-styles';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useToast } from '@/components/Toast';

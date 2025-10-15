@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { api } from '@/lib/api-client';
+import { api } from '@/lib/api';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import type { Annotation, CreateAnnotationRequest } from '@semiont/sdk';
 import { getExactText, getTextPositionSelector } from '@semiont/sdk';

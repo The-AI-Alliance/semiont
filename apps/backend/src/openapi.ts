@@ -8,6 +8,11 @@ export { ErrorResponseSchema };
 // This keeps the route definitions close to their implementations
 
 // OpenAPI configuration
+const BACKEND_URL = process.env.BACKEND_URL;
+if (!BACKEND_URL) {
+  throw new Error('BACKEND_URL environment variable is required for OpenAPI configuration');
+}
+
 export const openApiConfig = {
   openapi: '3.0.0',
   info: {
@@ -17,7 +22,7 @@ export const openApiConfig = {
   },
   servers: [
     {
-      url: process.env.BACKEND_URL || 'http://localhost:4000',
+      url: BACKEND_URL,
       description: 'API Server'
     }
   ]

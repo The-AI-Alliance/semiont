@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { env } from '@/lib/env';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Call backend to generate refresh token
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const backendUrl = env.NEXT_PUBLIC_API_URL;
     const response = await fetch(`${backendUrl}/api/tokens/mcp-generate`, {
       method: 'POST',
       headers: {

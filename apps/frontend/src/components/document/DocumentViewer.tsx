@@ -9,8 +9,8 @@ import type { Annotation } from '@semiont/sdk';
 import { getExactText, getTextPositionSelector, isHighlight, isReference } from '@semiont/sdk';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import type { Document as SemiontDocument } from '@/lib/api-client';
-import { api } from '@/lib/api-client';
+import type { Document as SemiontDocument } from '@/lib/api';
+import { api } from '@/lib/api';
 
 interface Props {
   document: SemiontDocument & { content: string };

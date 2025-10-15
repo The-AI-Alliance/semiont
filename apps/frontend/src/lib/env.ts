@@ -4,20 +4,21 @@
 import { z } from 'zod';
 
 // Environment variable validation schema
+// Per CLAUDE.md: NO defaults, NO fallbacks - all required vars must be explicitly set
 const envSchema = z.object({
-  // API Configuration - Required in runtime, optional in build
-  NEXT_PUBLIC_API_URL: z.string().url('NEXT_PUBLIC_API_URL must be a valid URL').default('http://localhost:4000'),
-  
-  // Site Configuration
-  NEXT_PUBLIC_SITE_NAME: z.string().min(1, 'NEXT_PUBLIC_SITE_NAME cannot be empty').default('Semiont'),
-  NEXT_PUBLIC_DOMAIN: z.string().min(1, 'NEXT_PUBLIC_DOMAIN cannot be empty').default('localhost'),
-  
-  // OAuth Configuration - Required in runtime, optional in build
-  NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: z.string().min(1, 'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS must be specified').default('gmail.com'),
+  // API Configuration - Required
+  NEXT_PUBLIC_API_URL: z.string().url('NEXT_PUBLIC_API_URL must be a valid URL'),
+
+  // Site Configuration - Required
+  NEXT_PUBLIC_SITE_NAME: z.string().min(1, 'NEXT_PUBLIC_SITE_NAME cannot be empty'),
+  NEXT_PUBLIC_DOMAIN: z.string().min(1, 'NEXT_PUBLIC_DOMAIN cannot be empty'),
+
+  // OAuth Configuration - Required
+  NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: z.string().min(1, 'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS must be specified'),
   NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
-  
+
   // Build Configuration
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  NODE_ENV: z.enum(['development', 'production', 'test']),
 });
 
 // Validate environment variables

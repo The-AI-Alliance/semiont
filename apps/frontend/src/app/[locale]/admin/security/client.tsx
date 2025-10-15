@@ -9,8 +9,8 @@ import {
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 import { useSession } from 'next-auth/react';
-import { api } from '@/lib/api-client';
-import type { OAuthProvider, OAuthConfigResponse } from '@/lib/api-client';
+import { api } from '@/lib/api';
+import type { OAuthProvider, OAuthConfigResponse } from '@/lib/api';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme } from '@/hooks/useTheme';

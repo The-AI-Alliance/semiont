@@ -5,7 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '@testing-library/jest-dom'
 import AdminSecurity from '../client'
-import { api } from '@/lib/api-client'
+import { api } from '@/lib/api'
 
 // Mock the API client
 vi.mock('@/lib/api-client', () => ({
