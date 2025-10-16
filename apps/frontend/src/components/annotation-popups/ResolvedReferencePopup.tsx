@@ -5,7 +5,7 @@ import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader, SelectedTextDisplay, EntityTypeBadges } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
-import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@semiont/sdk';
+import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/lib/api';
 
 interface ResolvedReferencePopupProps {
   isOpen: boolean;
@@ -56,6 +56,7 @@ export function ResolvedReferencePopup({
   const handleUnlinkDocument = () => {
     onUpdateAnnotation({
       body: {
+        type: 'SpecificResource' as const,
         source: null,
       },
     });
@@ -65,7 +66,6 @@ export function ResolvedReferencePopup({
     onUpdateAnnotation({
       body: {
         type: 'TextualBody',
-        entityTypes: null,
         source: null,
       },
     });

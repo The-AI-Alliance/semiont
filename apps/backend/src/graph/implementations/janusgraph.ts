@@ -15,7 +15,7 @@ import {
   UpdateDocumentInput,
   CreateAnnotationInternal,
   getExactText,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 
 const traversal = gremlin.process.AnonymousTraversalSource.traversal;
@@ -38,8 +38,16 @@ export class JanusGraphDatabase implements GraphDatabase {
   } = {}) {}
   
   async connect(): Promise<void> {
-    const host = this.config.host || process.env.JANUSGRAPH_HOST || 'localhost';
-    const port = this.config.port || parseInt(process.env.JANUSGRAPH_PORT || '8182');
+    // Configuration must be provided via constructor
+    const host = this.config.host;
+    if (!host) {
+      throw new Error('JanusGraph host is required: provide in config');
+    }
+
+    const port = this.config.port;
+    if (!port) {
+      throw new Error('JanusGraph port is required: provide in config');
+    }
 
     console.log(`Attempting to connect to JanusGraph at ws://${host}:${port}/gremlin`);
 

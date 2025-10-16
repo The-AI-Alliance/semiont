@@ -1,5 +1,5 @@
 // Helper functions for document routes
-import type { Document } from '@semiont/sdk';
+import type { Document } from '@semiont/core';
 import { extractEntities } from '../../inference/entity-extractor';
 import { getStorageService } from '../../storage/filesystem';
 

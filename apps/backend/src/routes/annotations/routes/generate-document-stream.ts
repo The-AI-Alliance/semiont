@@ -6,7 +6,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
-import { getExactText, compareAnnotationIds } from '@semiont/sdk';
+import { getExactText, compareAnnotationIds } from '@semiont/core';
 
 interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';

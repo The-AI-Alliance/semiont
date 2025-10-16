@@ -1,14 +1,24 @@
 // Construct DATABASE_URL from components if not already set
 // MUST be done before any Prisma imports!
 if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
+  const dbPort = process.env.DB_PORT;
+  const dbName = process.env.DB_NAME;
+
+  if (!dbPort) {
+    throw new Error('DB_PORT is required when constructing DATABASE_URL from components');
+  }
+  if (!dbName) {
+    throw new Error('DB_NAME is required when constructing DATABASE_URL from components');
+  }
+
   const url = new URL('postgresql://localhost');
   url.username = process.env.DB_USER;
   url.password = process.env.DB_PASSWORD; // Automatically URL-encoded by URL class
   url.hostname = process.env.DB_HOST;
-  url.port = process.env.DB_PORT || '5432';
-  url.pathname = `/${process.env.DB_NAME || 'semiont'}`;
+  url.port = dbPort;
+  url.pathname = `/${dbName}`;
   url.searchParams.set('sslmode', 'require');
-  
+
   process.env.DATABASE_URL = url.toString();
   console.log('✅ DATABASE_URL constructed from components');
 }
@@ -22,11 +32,26 @@ import { User } from '@prisma/client';
 
 // Configuration is loaded in JWT service when needed
 // For the server itself, we use environment variables
+const CORS_ORIGIN = process.env.CORS_ORIGIN;
+const FRONTEND_URL = process.env.FRONTEND_URL;
+const NODE_ENV = process.env.NODE_ENV;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
+
+if (!CORS_ORIGIN) {
+  throw new Error('CORS_ORIGIN environment variable is required');
+}
+if (!FRONTEND_URL) {
+  throw new Error('FRONTEND_URL environment variable is required');
+}
+if (!NODE_ENV) {
+  throw new Error('NODE_ENV environment variable is required');
+}
+
 const CONFIG = {
-  CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
-  NODE_ENV: process.env.NODE_ENV || 'development',
-  PORT: process.env.PORT ? parseInt(process.env.PORT, 10) : 4000,
+  CORS_ORIGIN,
+  FRONTEND_URL,
+  NODE_ENV,
+  PORT,
 };
 
 // Import route definitions
@@ -37,6 +62,7 @@ import { adminRouter } from './routes/admin';
 import { documentsRouter } from './routes/documents/index';
 import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
+import { jobsRouter } from './routes/jobs/index';
 
 // Import OpenAPI config
 import { openApiConfig } from './openapi';
@@ -68,7 +94,7 @@ const app = new OpenAPIHono<{ Variables: Variables }>({
 
 // Add CORS middleware
 app.use('*', cors({
-  origin: CONFIG.CORS_ORIGIN || CONFIG.FRONTEND_URL || 'http://localhost:3000',
+  origin: CONFIG.CORS_ORIGIN,
   credentials: true,
 }));
 
@@ -105,6 +131,7 @@ app.route('/', adminRouter);
 app.route('/', documentsRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
+app.route('/', jobsRouter);
 
 // Test inference route
 app.get('/api/test-inference', async (c) => {
@@ -168,11 +195,16 @@ app.get('/api', (c) => {
 
 // Serve OpenAPI JSON specification - now automatically generated
 app.get('/api/openapi.json', (c) => {
+  const apiUrl = process.env.BACKEND_URL;
+  if (!apiUrl) {
+    throw new Error('BACKEND_URL environment variable is required for OpenAPI documentation');
+  }
+
   return c.json(app.getOpenAPI31Document({
     ...openApiConfig,
     servers: [
       {
-        url: process.env.API_URL || 'http://localhost:4000',
+        url: apiUrl,
         description: 'API Server',
       },
     ],
@@ -275,7 +307,10 @@ if (CONFIG.NODE_ENV !== 'test') {
     try {
       console.log('💼 Initializing job queue...');
       const { initializeJobQueue } = await import('./jobs/job-queue');
-      const dataDir = process.env.DATA_DIR || './data/uploads';
+      const dataDir = process.env.DATA_DIR;
+      if (!dataDir) {
+        throw new Error('DATA_DIR environment variable is required for job queue initialization');
+      }
       await initializeJobQueue({ dataDir });
       console.log('✅ Job queue initialized');
     } catch (error) {

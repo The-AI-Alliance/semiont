@@ -2,8 +2,8 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { api } from '@/lib/api-client';
-import { type StoredEvent, isEventRelatedToAnnotation } from '@semiont/sdk';
+import { api } from '@/lib/api';
+import { type StoredEvent, isEventRelatedToAnnotation } from '@/lib/api';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {

@@ -9,7 +9,7 @@ import {
   type UpdateUserResponse,
   type DeleteUserResponse,
   type OAuthConfigResponseActual,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import { ErrorResponseSchema } from '../openapi';
 import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
@@ -436,7 +436,11 @@ adminRouter.openapi(deleteUserRoute, async (c) => {
 // OAuth configuration
 adminRouter.openapi(oauthConfigRoute, async (c) => {
   // Get OAuth configuration from environment
-  const allowedDomainsEnv = process.env.OAUTH_ALLOWED_DOMAINS || '';
+  const allowedDomainsEnv = process.env.OAUTH_ALLOWED_DOMAINS;
+  if (!allowedDomainsEnv) {
+    throw new Error('OAUTH_ALLOWED_DOMAINS environment variable is not configured');
+  }
+
   const allowedDomains = allowedDomainsEnv
     .split(',')
     .map(d => d.trim())

@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import { calculateChecksum } from '@semiont/sdk';
+import { calculateChecksum } from '@semiont/core';
 import {
   CREATION_METHODS,
   GetDocumentByTokenResponseSchema as GetDocumentByTokenResponseSchema,
@@ -13,8 +13,9 @@ import {
   type CreateDocumentFromTokenResponse,
   type CloneDocumentWithTokenResponse,
   type Document,
+  type CreationMethod,
   type CreateDocumentInput,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 
 
@@ -165,7 +166,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       entityTypes: sourceDoc.entityTypes || [],
 
       // Clone context
-      creationMethod: CREATION_METHODS.CLONE,
+      creationMethod: CREATION_METHODS.CLONE as CreationMethod,
       sourceDocumentId: tokenData.documentId,
       contentChecksum: checksum,
 
@@ -183,7 +184,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       format: document.format,
       contentChecksum: document.contentChecksum!,
       creator: document.creator!,
-      creationMethod: document.creationMethod,
+      creationMethod: CREATION_METHODS.CLONE,
       sourceDocumentId: document.sourceDocumentId,
     };
 

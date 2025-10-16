@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
-import { HealthResponseSchema } from '@semiont/sdk';
+import { HealthResponseSchema } from '@semiont/core';
 import { DatabaseConnection } from '../db';
 
 // Define the health check route
@@ -26,6 +26,11 @@ export const healthRoute = createRoute({
 export const healthRouter = new OpenAPIHono();
 
 healthRouter.openapi(healthRoute, async (c) => {
+  const nodeEnv = process.env.NODE_ENV;
+  if (!nodeEnv) {
+    throw new Error('NODE_ENV environment variable is required');
+  }
+
   // Check if startup script had issues (for internal monitoring)
   let startupFailed = false;
   try {
@@ -44,24 +49,24 @@ healthRouter.openapi(healthRoute, async (c) => {
 
   if (startupFailed) {
     // Return unhealthy but don't expose internal details
-    return c.json({ 
+    return c.json({
       status: 'offline',
       message: 'Service is experiencing issues',
       version: '0.1.0',
       timestamp: new Date().toISOString(),
       database: 'unknown',
-      environment: process.env.NODE_ENV || 'development',
+      environment: nodeEnv,
     }, 200);  // Always return 200 for health checks (ALB requirement)
   }
 
   const dbStatus = await DatabaseConnection.checkHealth();
-  
+
   return c.json({
     status: 'operational',
     message: 'Semiont API is running',
     version: '0.1.0',
     timestamp: new Date().toISOString(),
     database: dbStatus ? 'connected' : 'disconnected',
-    environment: process.env.NODE_ENV || 'development',
+    environment: nodeEnv,
   }, 200);
 });

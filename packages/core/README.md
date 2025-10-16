@@ -1,11 +1,26 @@
-# @semiont/sdk
+# @semiont/core
 
-Core SDK for the Semiont semantic knowledge platform. Provides TypeScript types, schemas, utilities, and an API client for building applications on Semiont.
+Core SDK for the Semiont semantic knowledge platform. Provides TypeScript types, schemas, utilities, and an API client for **internal system components**.
+
+> ⚠️ **For External Consumers**: If you're building applications that consume the Semiont API (demos, MCP servers, external tools), use [`@semiont/api-client`](../api-client/README.md) instead. This package is designed for internal system components (backend, CLI) that need direct access to the database and business logic.
+
+## Who Should Use This
+
+- ✅ **Backend** (`apps/backend`) - Server implementation with direct database access
+- ✅ **CLI Tools** - Command-line utilities that need full system access
+- ✅ **Internal Services** - System components requiring direct database operations
+
+## Who Should NOT Use This
+
+- ❌ **External Applications** - Use [`@semiont/api-client`](../api-client/README.md) instead
+- ❌ **MCP Servers** - Use [`@semiont/api-client`](../api-client/README.md) instead
+- ❌ **Demo Scripts** - Use [`@semiont/api-client`](../api-client/README.md) instead
+- ❌ **Frontend** - Use [`@semiont/api-client`](../api-client/README.md) instead
 
 ## Installation
 
 ```bash
-npm install @semiont/sdk
+npm install @semiont/core
 ```
 
 ## Overview
@@ -19,13 +34,13 @@ The Semiont SDK provides:
 
 ## Quick Start
 
-### Using the API Client
+### Using the Core API Client
 
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontCoreClient } from '@semiont/sdk';
 
 // Initialize client
-const client = new SemiontClient({
+const client = new SemiontCoreClient({
   backendUrl: 'http://localhost:4000',
   authEmail: 'user@example.com',
 });
@@ -212,7 +227,7 @@ events.events.forEach((stored) => {
 
 ## API Client
 
-The `SemiontClient` provides a high-level interface to the Semiont backend:
+The `SemiontCoreClient` provides a high-level interface to the Semiont backend:
 
 ### Methods
 
@@ -286,6 +301,104 @@ Fetch the complete event history for a document.
 const events = await client.getDocumentEvents(docId);
 console.log(`Total events: ${events.total}`);
 ```
+
+### Async Job Operations
+
+The SDK supports triggering async jobs for long-running AI operations like entity detection and document generation. These methods use a **job-based polling approach** where you create a job, then poll for its status until completion.
+
+#### `detectEntities(documentId: string, entityTypes: string[]): Promise<CreateJobResponse>`
+Trigger an async entity detection job to find and annotate entities in a document.
+
+```typescript
+// Create detection job
+const job = await client.detectEntities(docId, ['person', 'location', 'organization']);
+console.log(`Job created: ${job.jobId}`);
+
+// Poll for completion
+const result = await client.waitForJob(job.jobId, {
+  onProgress: (status) => console.log(`Status: ${status.status}`),
+});
+
+console.log(`Detected ${result.result.totalFound} entities`);
+```
+
+#### `generateDocument(annotationId: string, options): Promise<CreateJobResponse>`
+Trigger an async document generation job to create a new document using AI from an annotation.
+
+```typescript
+// Create generation job
+const job = await client.generateDocument(annotationId, {
+  documentId: sourceDocId,
+  title: 'Generated Explanation',
+  prompt: 'Write a detailed explanation of this concept',
+  locale: 'en',
+});
+
+// Wait for completion
+const result = await client.waitForJob(job.jobId);
+console.log(`Generated document: ${result.result.documentId}`);
+```
+
+#### `getJobStatus(jobId: string): Promise<JobStatusResponse>`
+Get the current status of an async job.
+
+```typescript
+const status = await client.getJobStatus(jobId);
+console.log(`Job ${jobId} is ${status.status}`);
+
+if (status.status === 'complete') {
+  console.log('Result:', status.result);
+}
+```
+
+#### `waitForJob(jobId: string, options?: WaitForJobOptions): Promise<JobStatusResponse>`
+Wait for a job to complete by polling its status. Throws if the job fails or times out.
+
+```typescript
+// Wait with custom options
+const result = await client.waitForJob(jobId, {
+  pollInterval: 1000,      // Poll every 1 second (default: 500ms)
+  timeout: 600000,         // 10 minute timeout (default: 5 minutes)
+  onProgress: (job) => {
+    // Called on each status update
+    console.log(`Progress: ${job.status}`, job.progress);
+  },
+});
+```
+
+**Job Types:**
+
+```typescript
+import type {
+  JobStatusResponse,
+  DetectionProgress,
+  DetectionResult,
+  GenerationProgress,
+  GenerationResult,
+} from '@semiont/sdk';
+
+// Detection job progress
+interface DetectionProgress {
+  totalEntityTypes: number;
+  processedEntityTypes: number;
+  currentEntityType?: string;
+  entitiesFound: number;
+  entitiesEmitted: number;
+}
+
+// Generation job progress
+interface GenerationProgress {
+  stage: 'fetching' | 'generating' | 'creating' | 'linking';
+  percentage: number;
+  message?: string;
+}
+```
+
+**SSE Alternative:** The backend also provides Server-Sent Events (SSE) endpoints for real-time progress streaming, which are used by the frontend UI:
+- `POST /api/documents/{id}/detect-annotations-stream` - Real-time entity detection
+- `POST /api/annotations/{id}/generate-document-stream` - Real-time document generation
+
+The job-based approach is simpler for CLI tools and scripts, while SSE provides better real-time feedback for interactive UIs. Both use the same underlying job queue and workers.
 
 ### Batch Operations
 
@@ -496,9 +609,9 @@ REFERENCE_TAGS.HYPERLINK // 'hyperlink'
 ### Complete Document Upload & Annotation Workflow
 
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontCoreClient } from '@semiont/sdk';
 
-const client = new SemiontClient({
+const client = new SemiontCoreClient({
   backendUrl: 'http://localhost:4000',
   authEmail: 'user@example.com',
 });

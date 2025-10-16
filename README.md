@@ -17,7 +17,8 @@ semiont/
 │   ├── backend/          # Hono backend API server
 │   └── cli/              # Semiont management CLI
 ├── packages/             # Shared workspace packages
-│   ├── sdk/              # TypeScript SDK with types, schemas, and API client
+│   ├── core/             # Core TypeScript SDK with types, schemas, and utilities
+│   ├── api-client/       # Generated OpenAPI client for external applications
 │   ├── mcp-server/       # Model Context Protocol server for AI integration
 │   └── test-utils/       # Testing utilities and mock factories
 ├── demo/                 # Example scripts and demonstrations
@@ -25,31 +26,39 @@ semiont/
 └── scripts/              # Build and utility scripts
 ```
 
-## 📦 SDK & Demo
+## 📦 API Client & Demo
 
-### Semiont SDK
+### Semiont API Client
 
-The **[@semiont/sdk](packages/sdk/)** provides TypeScript types, schemas, utilities, and an API client for building applications on Semiont:
+The **[@semiont/api-client](packages/api-client/)** provides a generated OpenAPI client for external applications:
 
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontApiClient } from '@semiont/api-client';
 
-const client = new SemiontClient({
-  backendUrl: 'http://localhost:4000',
-  authEmail: 'user@example.com',
+const client = new SemiontApiClient({
+  baseUrl: 'http://localhost:4000'
 });
 
-await client.authenticate();
-const doc = await client.createDocument({ name, content, format, entityTypes });
+await client.authenticateLocal('user@example.com', '123456');
+const doc = await client.createDocument({
+  name: 'My Document',
+  content: 'Hello World',
+  format: 'text/plain',
+  entityTypes: ['example']
+});
 ```
 
 **Features:**
-- 🎯 Complete TypeScript types for documents, annotations, and events
-- 🔌 High-level API client with authentication and error handling
-- 🛠️ Utility functions for W3C Web Annotations and selectors
-- ✅ Zod schemas for runtime validation
 
-[→ Read the SDK documentation](packages/sdk/README.md)
+- 🎯 Complete TypeScript types generated from OpenAPI specification
+- 🔌 High-level API client with authentication and error handling
+- ✅ Type-safe request/response handling
+- 🔄 Automatic code generation from backend OpenAPI spec
+
+For internal use, **[@semiont/core](packages/core/)** provides shared types, schemas, and utilities used across the monorepo.
+
+[→ Read the API Client documentation](packages/api-client/README.md)
+[→ Read the Core SDK documentation](packages/core/README.md)
 
 ### Demo Scripts
 
@@ -122,8 +131,9 @@ For complete deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 | Document | Description |
 |----------|-------------|
 | [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) | Complete local development setup guide |
-| [SDK README](packages/sdk/README.md) | TypeScript SDK with types, schemas, API client, and utilities |
-| [Demo README](demo/README.md) | Example scripts demonstrating SDK usage |
+| [API Client README](packages/api-client/README.md) | Generated OpenAPI client for external applications |
+| [Core SDK README](packages/core/README.md) | Core TypeScript types, schemas, and utilities |
+| [Demo README](demo/README.md) | Example scripts demonstrating API client usage |
 | [Frontend README](apps/frontend/README.md) | Next.js development guide, patterns, and API integration |
 | [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |

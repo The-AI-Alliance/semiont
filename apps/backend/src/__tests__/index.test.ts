@@ -42,6 +42,12 @@ describe('Main Application (index.ts)', () => {
   let app: OpenAPIHono<{ Variables: Variables }>;
 
   beforeAll(async () => {
+    // Set required environment variables before importing app
+    process.env.BACKEND_URL = 'http://localhost:4000';
+    process.env.CORS_ORIGIN = 'http://localhost:3000';
+    process.env.FRONTEND_URL = 'http://localhost:3000';
+    process.env.NODE_ENV = 'test';
+
     // Import the app
     const { app: importedApp } = await import('../index');
     app = importedApp;

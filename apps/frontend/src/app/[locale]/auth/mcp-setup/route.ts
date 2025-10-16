@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
+
+// Mark this route as dynamic to prevent static optimization during build
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -39,7 +43,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Call backend to generate refresh token
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const backendUrl = NEXT_PUBLIC_API_URL;
     const response = await fetch(`${backendUrl}/api/tokens/mcp-generate`, {
       method: 'POST',
       headers: {

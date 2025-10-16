@@ -5,8 +5,8 @@ import {
   UpdateDocumentRequestSchema as UpdateDocumentRequestSchema,
   GetDocumentResponseSchema as GetDocumentResponseSchema,
   type GetDocumentResponse,
-} from '@semiont/sdk';
-import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';
+} from '@semiont/core';
+import { getEventStore } from '../../../events/event-store';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 
@@ -54,17 +54,27 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
 
+    const eventStore = await getEventStore();
+
     // Emit archived/unarchived events (event store updates Layer 3, graph consumer updates Layer 4)
     if (body.archived !== undefined && body.archived !== doc.archived) {
       if (body.archived) {
-        await emitDocumentArchived({
+        await eventStore.appendEvent({
+          type: 'document.archived',
           documentId: id,
           userId: user.id,
+          version: 1,
+          payload: {
+            reason: undefined,
+          },
         });
       } else {
-        await emitDocumentUnarchived({
+        await eventStore.appendEvent({
+          type: 'document.unarchived',
           documentId: id,
           userId: user.id,
+          version: 1,
+          payload: {},
         });
       }
     }
@@ -75,10 +85,26 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       const removed = doc.entityTypes.filter((et: string) => !body.entityTypes!.includes(et));
 
       for (const entityType of added) {
-        await emitEntityTagAdded({ documentId: id, userId: user.id, entityType });
+        await eventStore.appendEvent({
+          type: 'entitytag.added',
+          documentId: id,
+          userId: user.id,
+          version: 1,
+          payload: {
+            entityType,
+          },
+        });
       }
       for (const entityType of removed) {
-        await emitEntityTagRemoved({ documentId: id, userId: user.id, entityType });
+        await eventStore.appendEvent({
+          type: 'entitytag.removed',
+          documentId: id,
+          userId: user.id,
+          version: 1,
+          payload: {
+            entityType,
+          },
+        });
       }
     }
 

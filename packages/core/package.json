@@ -1,5 +1,5 @@
 {
-  "name": "@semiont/sdk",
+  "name": "@semiont/core",
   "version": "0.1.0",
   "description": "Core domain types for Semiont - Document, Annotation, and Graph models",
   "main": "dist/index.js",
@@ -9,8 +9,9 @@
   ],
   "scripts": {
     "build": "tsc",
+    "build:clean": "rm -rf dist *.tsbuildinfo && tsc",
     "watch": "tsc --watch",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist *.tsbuildinfo",
     "type-check": "tsc --noEmit"
   },
   "keywords": [
@@ -27,6 +28,6 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
-    "zod": "4.1.12"
+    "zod": "^4.0.0"
   }
 }

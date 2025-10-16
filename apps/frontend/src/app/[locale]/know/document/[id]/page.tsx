@@ -1,17 +1,18 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { api, QUERY_KEYS } from '@/lib/api-client';
+import { api, QUERY_KEYS } from '@/lib/api';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
-import type { Document as SemiontDocument } from '@/lib/api-client';
+import type { Document as SemiontDocument } from '@/lib/api';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -32,7 +33,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
 import { Toolbar } from '@/components/Toolbar';
-import { extractAnnotationId, compareAnnotationIds } from '@semiont/sdk';
+import { extractAnnotationId, compareAnnotationIds } from '@/lib/api';
 
 // Loading state component
 function DocumentLoadingState() {
@@ -134,7 +135,7 @@ function DocumentView({
   useEffect(() => {
     const loadContent = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${documentId}/content`, {
+        const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/documents/${documentId}/content`, {
           headers: {
             'Authorization': `Bearer ${session?.backendToken}`,
           },
@@ -388,7 +389,7 @@ function DocumentView({
     // Clear CSS sparkle animation if reference was recently created
     // (it may still be in newAnnotationIds with a 6-second timer from creation)
     // We only want the widget sparkle (✨ emoji) during generation, not the CSS pulse
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const apiUrl = NEXT_PUBLIC_API_URL;
     const fullUri = referenceId.includes('/')
       ? referenceId
       : `${apiUrl}/annotations/${referenceId}`;

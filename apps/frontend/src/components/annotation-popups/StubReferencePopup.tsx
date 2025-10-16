@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader, SelectedTextDisplay, EntityTypeBadges } from './SharedPopupElements';
 import { SearchDocumentsModal } from '../modals/SearchDocumentsModal';
 import { buttonStyles } from '@/lib/button-styles';
-import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@semiont/sdk';
+import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/lib/api';
 
 interface StubReferencePopupProps {
   isOpen: boolean;
@@ -52,6 +52,7 @@ export function StubReferencePopup({
   const handleSelectDocument = (documentId: string) => {
     onUpdateAnnotation({
       body: {
+        type: 'SpecificResource' as const,
         source: documentId,
       },
     });
@@ -69,7 +70,6 @@ export function StubReferencePopup({
     onUpdateAnnotation({
       body: {
         type: 'TextualBody',
-        entityTypes: null,
         source: null,
       },
     });

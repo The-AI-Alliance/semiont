@@ -3,7 +3,7 @@
 import React, { useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { usePathname, useRouter } from '@/i18n/routing';
-import { LOCALES } from '@semiont/sdk';
+import { LOCALES } from '@/lib/api';
 
 interface Props {
   showLineNumbers: boolean;

@@ -4,7 +4,7 @@ import {
   GetReferencedByResponseSchema as GetReferencedByResponseSchema,
   type GetReferencedByResponse,
   getExactText,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 
 

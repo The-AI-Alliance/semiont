@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { getStorageService } from '../../storage/filesystem';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
-import { calculateChecksum } from '@semiont/sdk';
+import { calculateChecksum } from '@semiont/core';
 import { userToAgent } from '../../utils/id-generator';
 import {
   CREATION_METHODS,
@@ -20,11 +20,12 @@ import {
   type CreateDocumentFromSelectionResponse,
   type AnnotationContextResponse,
   type ContextualSummaryResponse,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
+import { registerGenerateDocument } from './routes/generate-document';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
-import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
+import { getEventStore } from '../../events/event-store';
 
 
 // Create router with auth middleware
@@ -95,23 +96,32 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
   await storage.saveDocument(documentId, Buffer.from(body.content));
 
   // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
-  await emitDocumentCreated({
+  const eventStore = await getEventStore();
+  await eventStore.appendEvent({
+    type: 'document.created',
     documentId,
     userId: user.id,
-    name: body.name,
-    format: body.format,
-    contentHash: checksum,
-    creationMethod: CREATION_METHODS.API,
-    entityTypes: body.entityTypes || [],
-    metadata: body.metadata || {},
+    version: 1,
+    payload: {
+      name: body.name,
+      format: body.format,
+      contentHash: checksum,
+      creationMethod: CREATION_METHODS.API,
+      entityTypes: body.entityTypes || [],
+      metadata: body.metadata || {},
+    },
   });
 
   // Emit reference.resolved event to link the annotation to the new document
-  await emitReferenceResolved({
+  await eventStore.appendEvent({
+    type: 'reference.resolved',
     documentId: annotation.target.source,
-    referenceId: id,
     userId: user.id,
-    targetDocumentId: documentId,
+    version: 1,
+    payload: {
+      referenceId: id,
+      targetDocumentId: documentId,
+    },
   });
 
   // Return optimistic response - update annotation to link to new document
@@ -221,27 +231,36 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
   await storage.saveDocument(documentId, Buffer.from(generatedContent));
 
   // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
-  await emitDocumentCreated({
+  const eventStore = await getEventStore();
+  await eventStore.appendEvent({
+    type: 'document.created',
     documentId,
     userId: user.id,
-    name: documentName,
-    format: 'text/markdown',
-    contentHash: checksum,
-    creationMethod: CREATION_METHODS.GENERATED,
-    entityTypes: body.entityTypes || annotation.body.entityTypes || [],
-    metadata: {
-      generatedFrom: id,
-      prompt: body.prompt,
-      locale: body.locale,
+    version: 1,
+    payload: {
+      name: documentName,
+      format: 'text/markdown',
+      contentHash: checksum,
+      creationMethod: CREATION_METHODS.GENERATED,
+      entityTypes: body.entityTypes || annotation.body.entityTypes || [],
+      metadata: {
+        generatedFrom: id,
+        prompt: body.prompt,
+        locale: body.locale,
+      },
     },
   });
 
   // Emit reference.resolved event to link the annotation to the new document
-  await emitReferenceResolved({
+  await eventStore.appendEvent({
+    type: 'reference.resolved',
     documentId: annotation.target.source,
-    referenceId: id,
     userId: user.id,
-    targetDocumentId: documentId,
+    version: 1,
+    payload: {
+      referenceId: id,
+      targetDocumentId: documentId,
+    },
   });
 
   // Return optimistic response - update annotation to link to generated document
@@ -471,3 +490,5 @@ Entity types: ${(annotation.body.entityTypes || []).join(', ')}`;
 
 // Register SSE route for document generation progress
 registerGenerateDocumentStream(operationsRouter);
+// Register non-SSE route for job-based document generation
+registerGenerateDocument(operationsRouter);

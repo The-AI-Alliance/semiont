@@ -7,7 +7,7 @@ import { notFound } from 'next/navigation';
 import "../globals.css";
 import "@/styles/animations.css";
 import { Providers } from "../providers";
-import { env } from "@/lib/env";
+import { NEXT_PUBLIC_SITE_NAME } from "@/lib/env";
 import { CookieBanner } from "@/components/CookieBanner";
 import { SessionExpiryBanner } from "@/components/SessionExpiryBanner";
 import { SessionExpiredModal } from "@/components/modals/SessionExpiredModal";
@@ -22,7 +22,7 @@ const orbitron = Orbitron({
 });
 
 export const metadata: Metadata = {
-  title: `${env.NEXT_PUBLIC_SITE_NAME} - AI-Powered Research Environment`,
+  title: `${NEXT_PUBLIC_SITE_NAME} - AI-Powered Research Environment`,
   description: "A modern AI-powered research environment for collaborative knowledge work and analysis",
 };
 

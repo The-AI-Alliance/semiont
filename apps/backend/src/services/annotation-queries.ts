@@ -8,7 +8,7 @@
 
 import { getProjectionStorage } from '../storage/projection-storage';
 import { getGraphDatabase } from '../graph/factory';
-import type { Annotation, DocumentAnnotations } from '@semiont/sdk';
+import type { Annotation, DocumentAnnotations } from '@semiont/core';
 
 export class AnnotationQueryService {
   /**

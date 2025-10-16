@@ -7,7 +7,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FilesystemStorage } from '../../storage/filesystem';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import { EventStore } from '../../events/event-store';
-import { CREATION_METHODS } from '@semiont/sdk';
+import { CREATION_METHODS } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

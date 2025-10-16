@@ -13,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { api, type AdminUser, type AdminUsersResponse, type AdminUserStatsResponse } from '@/lib/api-client';
+import { api, type AdminUser, type AdminUsersResponse, type AdminUserStatsResponse } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { buttonStyles } from '@/lib/button-styles';
 import { Toolbar } from '@/components/Toolbar';

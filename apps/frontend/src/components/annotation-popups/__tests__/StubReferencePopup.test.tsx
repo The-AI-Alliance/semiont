@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StubReferencePopup } from '../StubReferencePopup';
 import { useRouter } from '@/i18n/routing';
-import type { ReferenceAnnotation, TextSelection } from '@semiont/sdk';
+import type { ReferenceAnnotation, TextSelection } from '@/lib/api';
 
 // Mock @/i18n/routing
 vi.mock('@/i18n/routing', () => ({
@@ -12,7 +13,7 @@ vi.mock('@/i18n/routing', () => ({
 }));
 
 // Mock API service
-vi.mock('@/lib/api-client', () => ({
+vi.mock('@/lib/api', () => ({
   apiService: {
     documents: {
       search: vi.fn(() => Promise.resolve({ documents: [] }))
@@ -30,6 +31,20 @@ vi.mock('@/lib/api-client', () => ({
     }
   }
 }));
+
+// Helper to wrap component with QueryClientProvider
+function renderWithQueryClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>
+  );
+}
 
 describe('StubReferencePopup', () => {
   const mockPush = vi.fn();
@@ -83,7 +98,7 @@ describe('StubReferencePopup', () => {
 
   describe('Nested Modal Behavior', () => {
     it('should open SearchDocumentsModal when "Link to Existing Document" is clicked', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       // Find and click the "Link to Existing Document" button
       const linkButton = screen.getByText('🔍 Search');
@@ -100,7 +115,7 @@ describe('StubReferencePopup', () => {
     });
 
     it('should handle Escape key in nested modal (closes only the nested modal)', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       // Open the SearchDocumentsModal
       const linkButton = screen.getByText('🔍 Search');
@@ -123,7 +138,7 @@ describe('StubReferencePopup', () => {
     });
 
     it('should render SearchDocumentsModal with interactive elements', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       // Open the SearchDocumentsModal
       const linkButton = screen.getByText('🔍 Search');
@@ -146,7 +161,7 @@ describe('StubReferencePopup', () => {
     });
 
     it('should restore focus to parent modal when nested modal closes', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       // Get reference to the link button
       const linkButton = screen.getByText('🔍 Search');
@@ -179,7 +194,7 @@ describe('StubReferencePopup', () => {
 
   describe('Keyboard Navigation in StubReferencePopup', () => {
     it('should close popup when Escape is pressed', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       expect(screen.getByText('Stub Reference')).toBeInTheDocument();
 
@@ -193,7 +208,7 @@ describe('StubReferencePopup', () => {
     });
 
     it('should close popup when pressing Escape', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       expect(screen.getByText('Stub Reference')).toBeInTheDocument();
 
@@ -207,7 +222,7 @@ describe('StubReferencePopup', () => {
     });
 
     it('should have focusable interactive elements', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       const linkButton = screen.getByText('🔍 Search');
       const generateButton = screen.getByText('✨ Generate');
@@ -227,7 +242,7 @@ describe('StubReferencePopup', () => {
     });
 
     it('should handle Shift+Tab for reverse navigation', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       const linkButton = screen.getByText('🔍 Search');
       const deleteButton = screen.getByText('🗑️ Delete Reference');
@@ -249,7 +264,7 @@ describe('StubReferencePopup', () => {
 
   describe('Modal Content Behavior', () => {
     it('should not close when clicking inside the modal content', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       // Click inside the modal content
       const modalContent = screen.getByText('Stub Reference');
@@ -261,7 +276,7 @@ describe('StubReferencePopup', () => {
     });
 
     it('should call onDeleteAnnotation when delete button is clicked', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       const deleteButton = screen.getByText('🗑️ Delete Reference');
       fireEvent.click(deleteButton);
@@ -270,7 +285,7 @@ describe('StubReferencePopup', () => {
     });
 
     it('should call onGenerateDocument when generate button is clicked', async () => {
-      render(<StubReferencePopup {...defaultProps} />);
+      renderWithQueryClient(<StubReferencePopup {...defaultProps} />);
 
       const generateButton = screen.getByText('✨ Generate');
       fireEvent.click(generateButton);

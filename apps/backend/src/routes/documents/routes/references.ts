@@ -4,7 +4,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import {
   GetReferencesResponseSchema as GetReferencesResponseSchema,
   type GetReferencesResponse,
-} from '@semiont/sdk';
+} from '@semiont/core';
 
 
 // GET /api/documents/{id}/references

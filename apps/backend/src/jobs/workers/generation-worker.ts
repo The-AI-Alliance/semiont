@@ -13,10 +13,10 @@ import { getStorageService } from '../../storage/filesystem';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
-import { CREATION_METHODS } from '@semiont/sdk';
-import { calculateChecksum } from '@semiont/sdk';
-import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
-import { getExactText, compareAnnotationIds } from '@semiont/sdk';
+import { CREATION_METHODS } from '@semiont/core';
+import { calculateChecksum } from '@semiont/core';
+import { getEventStore } from '../../events/event-store';
+import { getExactText, compareAnnotationIds } from '@semiont/core';
 
 export class GenerationWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -115,18 +115,23 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] ✅ Saved document to filesystem: ${documentId}`);
 
     // Emit document.created event
-    await emitDocumentCreated({
+    const eventStore = await getEventStore();
+    await eventStore.appendEvent({
+      type: 'document.created',
       documentId,
       userId: job.userId,
-      name: documentName,
-      format: 'text/markdown',
-      contentHash: checksum,
-      creationMethod: CREATION_METHODS.GENERATED,
-      entityTypes: job.entityTypes || reference.body.entityTypes || [],
-      metadata: {
-        isDraft: true,
-        generatedFrom: job.referenceId,
-        locale: job.locale,
+      version: 1,
+      payload: {
+        name: documentName,
+        format: 'text/markdown',
+        contentHash: checksum,
+        creationMethod: CREATION_METHODS.GENERATED,
+        entityTypes: job.entityTypes || reference.body.entityTypes || [],
+        metadata: {
+          isDraft: true,
+          generatedFrom: job.referenceId,
+          locale: job.locale,
+        },
       },
     });
     console.log(`[GenerationWorker] Emitted document.created event for ${documentId}`);
@@ -141,11 +146,15 @@ export class GenerationWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Emit reference.resolved event to link the reference to the new document
-    await emitReferenceResolved({
+    await eventStore.appendEvent({
+      type: 'reference.resolved',
       documentId: job.sourceDocumentId,
-      referenceId: job.referenceId,
       userId: job.userId,
-      targetDocumentId: documentId,
+      version: 1,
+      payload: {
+        referenceId: job.referenceId,
+        targetDocumentId: documentId,
+      },
     });
     console.log(`[GenerationWorker] ✅ Emitted reference.resolved event linking ${job.referenceId} → ${documentId}`);
 

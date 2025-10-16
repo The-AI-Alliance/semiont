@@ -13,7 +13,7 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 
 // Simple in-memory storage using Maps

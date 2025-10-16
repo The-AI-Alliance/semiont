@@ -5,7 +5,7 @@ import type { DocumentsRouterType } from '../shared';
 import {
   ListDocumentsResponseSchema as ListDocumentsResponseSchema,
   type ListDocumentsResponse,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import { DocumentQueryService } from '../../../services/document-queries';
 
 

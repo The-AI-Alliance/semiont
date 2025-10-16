@@ -3,8 +3,8 @@
 import React, { useMemo } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import type { Annotation, ReferencedBy } from '@semiont/sdk';
-import { formatLocaleDisplay } from '@semiont/sdk';
+import type { Annotation, ReferencedBy } from '@/lib/api';
+import { formatLocaleDisplay } from '@/lib/api';
 
 interface Props {
   highlights: Annotation[];

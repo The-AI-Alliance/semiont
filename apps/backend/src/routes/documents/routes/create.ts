@@ -8,9 +8,9 @@ import {
   type Document,
   type CreateDocumentResponse,
   calculateChecksum,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
-import { emitDocumentCreated } from '../../../events/emit';
+import { getEventStore } from '../../../events/event-store';
 
 
 export const createDocumentRoute = createRoute({
@@ -71,15 +71,20 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       : CREATION_METHODS.API;
 
     // Emit document.created event (consumer will update GraphDB)
-    await emitDocumentCreated({
+    const eventStore = await getEventStore();
+    await eventStore.appendEvent({
+      type: 'document.created',
       documentId,
       userId: user.id,
-      name: body.name,
-      format: body.format,
-      contentHash: checksum,
-      creationMethod,
-      entityTypes: body.entityTypes,
-      metadata: body.locale ? { locale: body.locale } : undefined,
+      version: 1,
+      payload: {
+        name: body.name,
+        format: body.format,
+        contentHash: checksum,
+        creationMethod,
+        entityTypes: body.entityTypes,
+        metadata: body.locale ? { locale: body.locale } : undefined,
+      },
     });
 
     // Return optimistic response

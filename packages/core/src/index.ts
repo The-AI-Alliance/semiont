@@ -1,5 +1,5 @@
 /**
- * @semiont/sdk
+ * @semiont/core
  *
  * Core domain types for the Semiont semantic knowledge platform.
  * This package provides the single source of truth for all domain models.
@@ -15,10 +15,6 @@ export type {
 // Creation methods
 export { CREATION_METHODS } from './creation-methods';
 export type { CreationMethod } from './creation-methods';
-
-// Reference tags
-export { REFERENCE_TAGS } from './reference-tags';
-export type { ReferenceTag } from './reference-tags';
 
 // Graph types
 export type {
@@ -320,6 +316,9 @@ export * from './crypto';
 // Error classes
 export * from './errors';
 
+// HTTP client utilities
+export * from './http-client';
+
 // Validation utilities
 export * from './validation';
 
@@ -332,15 +331,32 @@ export * from './did-utils';
 // Locale utilities
 export * from './locales';
 
-// API Client
+// Job types and schemas
+export type {
+  JobStatus,
+  JobType,
+  DetectionProgress,
+  DetectionResult,
+  GenerationProgress,
+  GenerationResult,
+  JobStatusResponse,
+  CreateJobResponse,
+  WaitForJobOptions,
+} from './job-schemas';
 export {
-  SemiontClient,
+  JobStatusResponseSchema,
+  CreateJobResponseSchema,
+} from './job-schemas';
+
+// API Client (Core - for internal use only)
+export {
+  SemiontCoreClient,
   uploadDocumentBatch,
   createAnnotationBatch,
   resolveAnnotationBatch,
 } from './client';
 export type {
-  SemiontClientConfig,
+  SemiontCoreClientConfig,
 } from './client';
 
 // Version information
