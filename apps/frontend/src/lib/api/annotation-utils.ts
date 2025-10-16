@@ -54,7 +54,8 @@ export function extractAnnotationId(fullUriOrId: string): string {
   // Handle HTTP/HTTPS URLs: http://host/annotations/abc-123
   if (fullUriOrId.startsWith('http://') || fullUriOrId.startsWith('https://')) {
     const parts = fullUriOrId.split('/');
-    return parts[parts.length - 1];
+    const lastPart = parts[parts.length - 1];
+    return lastPart || fullUriOrId; // Fallback to full URI if split fails
   }
 
   // Already just an ID

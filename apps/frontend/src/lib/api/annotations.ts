@@ -105,7 +105,6 @@ export const annotations = {
   generate: {
     useMutation: () => {
       const { data: session } = useSession();
-      const queryClient = useQueryClient();
 
       return useMutation({
         mutationFn: ({ id, data }: { id: string; data: GenerateDocumentFromAnnotationRequest }) => {
@@ -116,15 +115,8 @@ export const annotations = {
             body: JSON.stringify(data),
           }, session?.backendToken);
         },
-        onSuccess: (response) => {
-          if (response.document?.id) {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.all() });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(response.document.id) });
-          }
-          if (response.annotation?.target.source) {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(response.annotation.target.source) });
-          }
-        },
+        // Note: This endpoint returns async job response { jobId, status, type, created }
+        // Query invalidation handled by job completion polling, not here
       });
     },
   },
