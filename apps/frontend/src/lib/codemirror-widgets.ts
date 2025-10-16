@@ -9,7 +9,7 @@
 
 import { WidgetType, Decoration, EditorView } from '@codemirror/view';
 import type { Annotation } from '@/components/CodeMirrorRenderer';
-import { isResolvedReference } from '@semiont/sdk';
+import { isResolvedReference } from '@/lib/api';
 
 /**
  * Reference Resolution Widget

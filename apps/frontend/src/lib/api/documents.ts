@@ -20,7 +20,7 @@ import type {
   CloneDocumentWithTokenResponse,
   GetHighlightsResponse,
   GetReferencesResponse,
-} from '@semiont/sdk';
+} from './types';
 
 export const documents = {
   list: {

@@ -21,22 +21,29 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']),
 });
 
-// Validate environment variables
+// Validate environment variables (lazy - only when accessed)
+let _env: z.infer<typeof envSchema> | null = null;
+
 function validateEnv() {
+  // Skip validation during build time (Next.js static analysis)
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    console.warn('⚠️  Skipping env validation during build phase');
+    return process.env as any;
+  }
+
   try {
     return envSchema.parse(process.env);
   } catch (error) {
     if (error instanceof z.ZodError) {
       const missingVars = error.issues.map(err => `${err.path.join('.')}: ${err.message}`);
-      
-      // During build time, provide more helpful error messages
+
+      // During runtime, provide helpful error messages
       if (typeof window === 'undefined') {
         console.error('❌ Environment validation failed:');
-        missingVars.forEach(msg => console.error(`  - ${msg}`));        
-        // In production, fail hard
+        missingVars.forEach(msg => console.error(`  - ${msg}`));
         throw new Error(`Environment validation failed:\n${missingVars.join('\n')}`);
       }
-      
+
       // Client-side error
       throw new Error('Environment configuration error - check server logs');
     }
@@ -44,8 +51,16 @@ function validateEnv() {
   }
 }
 
-// Export validated environment variables
-export const env = validateEnv();
+// Export validated environment variables (lazy getter)
+export const env = new Proxy({} as z.infer<typeof envSchema>, {
+  get(target, prop) {
+    if (_env === null) {
+      _env = validateEnv();
+    }
+    // After validation, _env is guaranteed to be non-null
+    return _env![prop as keyof typeof _env];
+  }
+});
 
 // Type-safe environment variable access
 export type Env = typeof env;

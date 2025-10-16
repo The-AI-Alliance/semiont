@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import type { Document, CreateDocumentInput } from '@semiont/sdk';
+import type { Document, CreateDocumentInput, CreationMethod } from '@semiont/sdk';
 import { CREATION_METHODS } from '@semiont/sdk';
 import { calculateChecksum } from '@semiont/sdk';
 import type { DocumentsRouterType } from '../shared';
@@ -74,7 +74,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       archived: false,
       format: body.format,
       entityTypes: annotation.body.entityTypes,
-      creationMethod: CREATION_METHODS.REFERENCE,
+      creationMethod: CREATION_METHODS.REFERENCE as CreationMethod,
       sourceAnnotationId: annotationId,
       sourceDocumentId: annotation.target.source,
       contentChecksum: checksum,
@@ -92,7 +92,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       format: document.format,
       contentChecksum: document.contentChecksum!,
       creator: document.creator!,
-      creationMethod: document.creationMethod,
+      creationMethod: CREATION_METHODS.REFERENCE,
       sourceAnnotationId: document.sourceAnnotationId,
       sourceDocumentId: document.sourceDocumentId,
     };

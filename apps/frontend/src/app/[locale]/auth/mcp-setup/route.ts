@@ -3,6 +3,9 @@ import { env } from '@/lib/env';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 
+// Mark this route as dynamic to prevent static optimization during build
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const callback = searchParams.get('callback');

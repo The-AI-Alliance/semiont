@@ -103,18 +103,19 @@ demo/
 - **`src/filesystem-utils.ts`** - Storage layer path computation (for educational display only)
 - **`.env.example`** - Template for configuring backend/frontend URLs and auth
 
-**SDK Usage:**
-The demo uses `@semiont/sdk` for API interaction:
+**API Client Usage:**
+The demo uses `@semiont/api-client` for API interaction:
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontApiClient } from '@semiont/api-client';
 
-const client = new SemiontClient({
-  backendUrl: BACKEND_URL,
-  authEmail: AUTH_EMAIL,
+const client = new SemiontApiClient({
+  baseUrl: BACKEND_URL,
 });
 
-// Authenticate
-await client.authenticate();
+// Authenticate (multiple methods available)
+await client.authenticateLocal(AUTH_EMAIL, AUTH_CODE);
+// OR
+client.setAccessToken(ACCESS_TOKEN);
 
 // Create documents
 const doc = await client.createDocument({ name, content, format, entityTypes });
@@ -129,11 +130,11 @@ await client.resolveAnnotation(annotationId, targetDocumentId);
 const events = await client.getDocumentEvents(documentId);
 ```
 
-The `SemiontClient` provides a high-level API that:
-- Manages authentication tokens automatically
-- Handles URL encoding for annotation IDs (full URIs with special characters)
-- Uses proper HTTP methods and headers
-- Returns strongly-typed responses
+The `SemiontApiClient` from `@semiont/api-client` provides:
+- Type-safe API methods with full TypeScript support
+- Built-in authentication (local, Google OAuth, refresh tokens)
+- Automatic retry logic and error handling
+- Framework-agnostic (works in Node.js, browser, or any JS environment)
 
 ### Usage
 
@@ -404,15 +405,15 @@ The script can be easily modified to:
 - [../apps/backend/src/routes/documents/routes/events.ts](../apps/backend/src/routes/documents/routes/events.ts) - Events API endpoint
 - [../apps/backend/src/routes/auth.ts](../apps/backend/src/routes/auth.ts) - Backend authentication routes
 
-### SDK Utilities Used
+### API Client Features Used
 
-The demo showcases several SDK utilities from `@semiont/sdk`:
+The demo showcases the `SemiontApiClient` from `@semiont/api-client`:
 
-- `extractAnnotationId()` - Extract short ID from full URI for display
-- `encodeAnnotationIdForUrl()` - URL-encode annotation IDs for API paths
-- `CreateDocumentRequest` - Type-safe document creation requests
-- `CreateAnnotationRequest` - Type-safe annotation creation requests
-- `AuthResponse` - Authentication response types
+- **Type-Safe Methods** - All API calls are fully typed
+- **Built-in Authentication** - Multiple authentication methods (local, OAuth, tokens)
+- **Error Handling** - Structured `APIError` responses
+- **Automatic Retry** - Configurable retry logic with exponential backoff
+- **Framework-Agnostic** - Works in Node.js, browser, or any JavaScript environment
 
 ### License
 

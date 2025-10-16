@@ -17,8 +17,7 @@
  * 7. Print Results
  */
 
-import type { CreateDocumentRequest } from '@semiont/sdk';
-import { extractAnnotationId, SemiontClient } from '@semiont/sdk';
+import { SemiontApiClient } from '@semiont/api-client';
 
 // Local modules
 import { downloadAndChunkText, type ChunkInfo } from './src/chunking';
@@ -46,9 +45,15 @@ import { getLayer1Path, getLayer2Path, getLayer3Path } from './src/filesystem-ut
 const GUTENBERG_URL = 'https://www.gutenberg.org/cache/epub/8714/pg8714.txt';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const AUTH_EMAIL = process.env.AUTH_EMAIL || 'you@example.com';
+const AUTH_EMAIL = process.env.AUTH_EMAIL;
+const AUTH_CODE = process.env.AUTH_CODE;
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 const DATA_DIR = process.env.DATA_DIR || '/tmp/semiont/data/uploads';
 const CHUNK_SIZE = 4000;
+
+if (!AUTH_EMAIL && !ACCESS_TOKEN) {
+  throw new Error('Either AUTH_EMAIL and AUTH_CODE or ACCESS_TOKEN must be provided');
+}
 
 interface PartReference {
   text: string;
@@ -59,12 +64,20 @@ interface PartReference {
 }
 
 // === PASS 0: Authentication ===
-async function authenticateWithBackend(client: SemiontClient): Promise<void> {
+async function authenticateWithBackend(client: SemiontApiClient): Promise<void> {
   printSectionHeader('🔐', 0, 'Authentication');
-  printInfo(`Authenticating as ${AUTH_EMAIL}...`);
 
-  const authData = await client.authenticate();
-  printSuccess(`Authenticated as ${authData.user.name} (${authData.user.email})`);
+  if (ACCESS_TOKEN) {
+    printInfo('Using provided access token...');
+    client.setAccessToken(ACCESS_TOKEN);
+    printSuccess('Access token configured');
+  } else if (AUTH_EMAIL && AUTH_CODE) {
+    printInfo(`Authenticating as ${AUTH_EMAIL}...`);
+    await client.authenticateLocal(AUTH_EMAIL, AUTH_CODE);
+    printSuccess(`Authenticated successfully`);
+  } else {
+    throw new Error('Either ACCESS_TOKEN or both AUTH_EMAIL and AUTH_CODE must be provided');
+  }
 }
 
 // === PASS 1: Download and Chunk ===
@@ -90,7 +103,7 @@ async function downloadAndChunk(): Promise<ChunkInfo[]> {
 }
 
 // === PASS 2: Upload Chunks ===
-async function uploadChunks(chunks: ChunkInfo[], client: SemiontClient): Promise<string[]> {
+async function uploadChunks(chunks: ChunkInfo[], client: SemiontApiClient): Promise<string[]> {
   printSectionHeader('📤', 2, 'Upload Document Chunks');
 
   const documentIds: string[] = [];
@@ -99,12 +112,11 @@ async function uploadChunks(chunks: ChunkInfo[], client: SemiontClient): Promise
     const chunk = chunks[i];
     printBatchProgress(i + 1, chunks.length, `Uploading ${chunk.title}...`);
 
-    const request: CreateDocumentRequest = {
+    const request = {
       name: chunk.title,
       content: chunk.content,
-      format: 'text/plain',
+      format: 'text/plain' as const,
       entityTypes: ['literature', 'ancient-greek-drama'],
-      creationMethod: 'api',
     };
 
     const response = await client.createDocument(request);
@@ -120,7 +132,7 @@ async function uploadChunks(chunks: ChunkInfo[], client: SemiontClient): Promise
 // === PASS 3: Create Table of Contents ===
 async function createTableOfContents(
   chunks: ChunkInfo[],
-  client: SemiontClient
+  client: SemiontApiClient
 ): Promise<{ tocId: string; references: PartReference[] }> {
   printSectionHeader('📑', 3, 'Create Table of Contents');
 
@@ -149,12 +161,11 @@ async function createTableOfContents(
 
   printInfo(`Creating ToC document with ${chunks.length} entries (${timestamp})...`);
 
-  const request: CreateDocumentRequest = {
+  const request = {
     name: 'Prometheus Bound: Table of Contents',
     content,
-    format: 'text/markdown',
+    format: 'text/markdown' as const,
     entityTypes: ['literature', 'ancient-greek-drama', 'table-of-contents'],
-    creationMethod: 'api',
   };
 
   const response = await client.createDocument(request);
@@ -169,7 +180,7 @@ async function createStubReferences(
   tocId: string,
   references: PartReference[],
   chunkIds: string[],
-  client: SemiontClient
+  client: SemiontApiClient
 ): Promise<PartReference[]> {
   printSectionHeader('🔗', 4, 'Create Stub References');
 
@@ -209,7 +220,7 @@ async function createStubReferences(
 }
 
 // === PASS 5: Resolve References ===
-async function resolveReferences(references: PartReference[], client: SemiontClient): Promise<number> {
+async function resolveReferences(references: PartReference[], client: SemiontApiClient): Promise<number> {
   printSectionHeader('🎯', 5, 'Resolve References');
 
   let successCount = 0;
@@ -219,13 +230,12 @@ async function resolveReferences(references: PartReference[], client: SemiontCli
     const shortDocId = ref.documentId.substring(0, 20);
     printBatchProgress(i + 1, references.length, `Resolving "${ref.text}" → ${shortDocId}...`);
 
-    const result = await client.resolveAnnotation(ref.annotationId!, ref.documentId);
-
-    if (result.success) {
+    try {
+      await client.resolveAnnotation(ref.annotationId!, ref.documentId);
       printSuccess('Resolved', 7);
       successCount++;
-    } else {
-      printWarning(`Failed: ${result.error}`, 7);
+    } catch (error) {
+      printWarning(`Failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 7);
     }
   }
 
@@ -234,7 +244,7 @@ async function resolveReferences(references: PartReference[], client: SemiontCli
 }
 
 // === PASS 6: Show Document History ===
-async function showDocumentHistory(tocId: string, client: SemiontClient): Promise<void> {
+async function showDocumentHistory(tocId: string, client: SemiontApiClient): Promise<void> {
   printSectionHeader('📜', 6, 'Document History');
 
   try {
@@ -242,13 +252,11 @@ async function showDocumentHistory(tocId: string, client: SemiontClient): Promis
 
     if (!data.events || data.events.length === 0) {
       printWarning('No events found for document');
-      printInfo(`Total: ${data.total || 0}`);
-      printInfo(`Document ID: ${data.documentId || 'unknown'}`);
       return;
     }
 
     const storedEvents = data.events;
-    printInfo(`Total events: ${data.total || storedEvents.length}`);
+    printInfo(`Total events: ${storedEvents.length}`);
     console.log('');
 
     // Group events by type
@@ -300,9 +308,8 @@ async function main() {
   printMainHeader('🎭', 'Prometheus Bound Demo');
 
   try {
-    const client = new SemiontClient({
-      backendUrl: BACKEND_URL,
-      authEmail: AUTH_EMAIL,
+    const client = new SemiontApiClient({
+      baseUrl: BACKEND_URL,
     });
 
     await authenticateWithBackend(client);

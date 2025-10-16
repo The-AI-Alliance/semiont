@@ -6,7 +6,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
-import type { AcceptTermsResponse } from '@semiont/sdk';
+import type { AcceptTermsResponse } from './types';
 
 export const auth = {
   me: {

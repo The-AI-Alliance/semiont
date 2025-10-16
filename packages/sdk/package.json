@@ -9,8 +9,9 @@
   ],
   "scripts": {
     "build": "tsc",
+    "build:clean": "rm -rf dist *.tsbuildinfo && tsc",
     "watch": "tsc --watch",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist *.tsbuildinfo",
     "type-check": "tsc --noEmit"
   },
   "keywords": [
@@ -27,6 +28,6 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
-    "zod": "4.1.12"
+    "zod": "3.23.8"
   }
 }

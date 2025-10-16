@@ -73,7 +73,12 @@ export function useAuthenticatedAPI(): UseAuthenticatedAPIResult {
           errorData = { error: errorText };
         }
 
-        throw new APIError(response.status, errorData);
+        throw new APIError(
+          errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+          response.status,
+          response.statusText,
+          errorData
+        );
       }
 
       // Handle 204 No Content responses

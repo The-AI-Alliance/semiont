@@ -13,6 +13,7 @@ import {
   type CreateDocumentFromTokenResponse,
   type CloneDocumentWithTokenResponse,
   type Document,
+  type CreationMethod,
   type CreateDocumentInput,
 } from '@semiont/sdk';
 import type { DocumentsRouterType } from '../shared';
@@ -165,7 +166,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       entityTypes: sourceDoc.entityTypes || [],
 
       // Clone context
-      creationMethod: CREATION_METHODS.CLONE,
+      creationMethod: CREATION_METHODS.CLONE as CreationMethod,
       sourceDocumentId: tokenData.documentId,
       contentChecksum: checksum,
 
@@ -183,7 +184,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       format: document.format,
       contentChecksum: document.contentChecksum!,
       creator: document.creator!,
-      creationMethod: document.creationMethod,
+      creationMethod: CREATION_METHODS.CLONE,
       sourceDocumentId: document.sourceDocumentId,
     };
 

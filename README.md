@@ -29,12 +29,12 @@ semiont/
 
 ### Semiont SDK
 
-The **[@semiont/sdk](packages/sdk/)** provides TypeScript types, schemas, utilities, and an API client for building applications on Semiont:
+The **[@semiont/sdk](packages/sdk/)** provides TypeScript types, schemas, utilities, and a core API client for internal use:
 
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontCoreClient } from '@semiont/sdk';
 
-const client = new SemiontClient({
+const client = new SemiontCoreClient({
   backendUrl: 'http://localhost:4000',
   authEmail: 'user@example.com',
 });
@@ -42,6 +42,8 @@ const client = new SemiontClient({
 await client.authenticate();
 const doc = await client.createDocument({ name, content, format, entityTypes });
 ```
+
+**Note:** For external applications, use [@semiont/api-client](packages/api-client/) instead.
 
 **Features:**
 - 🎯 Complete TypeScript types for documents, annotations, and events

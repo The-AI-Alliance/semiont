@@ -348,15 +348,15 @@ export {
   CreateJobResponseSchema,
 } from './job-schemas';
 
-// API Client
+// API Client (Core - for internal use only)
 export {
-  SemiontClient,
+  SemiontCoreClient,
   uploadDocumentBatch,
   createAnnotationBatch,
   resolveAnnotationBatch,
 } from './client';
 export type {
-  SemiontClientConfig,
+  SemiontCoreClientConfig,
 } from './client';
 
 // Version information

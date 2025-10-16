@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
-import type { AddEntityTypeResponse } from '@semiont/sdk';
+import type { AddEntityTypeResponse } from './types';
 
 export const entityTypes = {
   all: {

@@ -14,7 +14,7 @@ import type {
   GenerateDocumentFromAnnotationRequest,
   GenerateDocumentFromAnnotationResponse,
   ResolveAnnotationResponse,
-} from '@semiont/sdk';
+} from './types';
 
 export const annotations = {
   create: {

@@ -1,6 +1,21 @@
 # @semiont/sdk
 
-Core SDK for the Semiont semantic knowledge platform. Provides TypeScript types, schemas, utilities, and an API client for building applications on Semiont.
+Core SDK for the Semiont semantic knowledge platform. Provides TypeScript types, schemas, utilities, and an API client for **internal system components**.
+
+> ⚠️ **For External Consumers**: If you're building applications that consume the Semiont API (demos, MCP servers, external tools), use [`@semiont/api-client`](../api-client/README.md) instead. This SDK is designed for internal system components (backend, CLI) that need direct access to the database and business logic.
+
+## Who Should Use This
+
+- ✅ **Backend** (`apps/backend`) - Server implementation with direct database access
+- ✅ **CLI Tools** - Command-line utilities that need full system access
+- ✅ **Internal Services** - System components requiring direct database operations
+
+## Who Should NOT Use This
+
+- ❌ **External Applications** - Use [`@semiont/api-client`](../api-client/README.md) instead
+- ❌ **MCP Servers** - Use [`@semiont/api-client`](../api-client/README.md) instead
+- ❌ **Demo Scripts** - Use [`@semiont/api-client`](../api-client/README.md) instead
+- ❌ **Frontend** - Use [`@semiont/api-client`](../api-client/README.md) instead
 
 ## Installation
 
@@ -19,13 +34,13 @@ The Semiont SDK provides:
 
 ## Quick Start
 
-### Using the API Client
+### Using the Core API Client
 
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontCoreClient } from '@semiont/sdk';
 
 // Initialize client
-const client = new SemiontClient({
+const client = new SemiontCoreClient({
   backendUrl: 'http://localhost:4000',
   authEmail: 'user@example.com',
 });
@@ -212,7 +227,7 @@ events.events.forEach((stored) => {
 
 ## API Client
 
-The `SemiontClient` provides a high-level interface to the Semiont backend:
+The `SemiontCoreClient` provides a high-level interface to the Semiont backend:
 
 ### Methods
 
@@ -594,9 +609,9 @@ REFERENCE_TAGS.HYPERLINK // 'hyperlink'
 ### Complete Document Upload & Annotation Workflow
 
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontCoreClient } from '@semiont/sdk';
 
-const client = new SemiontClient({
+const client = new SemiontCoreClient({
   backendUrl: 'http://localhost:4000',
   authEmail: 'user@example.com',
 });

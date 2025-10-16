@@ -28,18 +28,21 @@ import type {
 import { encodeAnnotationIdForUrl } from './annotation-schemas';
 import { fetchAPI } from './http-client';
 
-export interface SemiontClientConfig {
+export interface SemiontCoreClientConfig {
   backendUrl: string;
   authEmail: string;
 }
 
 /**
- * High-level client for Semiont API operations
+ * Core client for internal Semiont operations
+ *
+ * @deprecated For external consumers, use @semiont/api-client instead
+ * This client is for internal system components (backend, CLI) only.
  */
-export class SemiontClient {
+export class SemiontCoreClient {
   private token: string | null = null;
 
-  constructor(private config: SemiontClientConfig) {}
+  constructor(private config: SemiontCoreClientConfig) {}
 
   /**
    * Authenticate with the backend using local development auth
@@ -262,7 +265,7 @@ export class SemiontClient {
  * Batch operations helper for uploading multiple documents
  */
 export async function uploadDocumentBatch(
-  client: SemiontClient,
+  client: SemiontCoreClient,
   documents: CreateDocumentRequest[]
 ): Promise<CreateDocumentResponse[]> {
   const results: CreateDocumentResponse[] = [];
@@ -279,7 +282,7 @@ export async function uploadDocumentBatch(
  * Batch operations helper for creating multiple annotations
  */
 export async function createAnnotationBatch(
-  client: SemiontClient,
+  client: SemiontCoreClient,
   annotations: ApiCreateAnnotationRequest[]
 ): Promise<CreateAnnotationResponse[]> {
   const results: CreateAnnotationResponse[] = [];
@@ -296,7 +299,7 @@ export async function createAnnotationBatch(
  * Batch operations helper for resolving multiple annotations
  */
 export async function resolveAnnotationBatch(
-  client: SemiontClient,
+  client: SemiontCoreClient,
   resolutions: Array<{ annotationId: string; targetDocumentId: string }>
 ): Promise<Array<{ annotationId: string; success: boolean; error?: string }>> {
   const results: Array<{ annotationId: string; success: boolean; error?: string }> = [];

@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
-    "formdata-polyfill": "^4.0.10",
-    "node-fetch": "^3.3.2"
+    "@semiont/api-client": "*",
+    "formdata-polyfill": "^4.0.10"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

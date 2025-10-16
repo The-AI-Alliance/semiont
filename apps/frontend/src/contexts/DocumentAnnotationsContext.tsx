@@ -3,8 +3,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { Annotation, CreateAnnotationRequest } from '@semiont/sdk';
-import { getExactText, getTextPositionSelector } from '@semiont/sdk';
+import type { Annotation, CreateAnnotationRequest } from '@/lib/api';
+import { getExactText, getTextPositionSelector } from '@/lib/api';
 
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
@@ -147,7 +147,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         },
         body: {
           type: 'TextualBody',  // Assessments use TextualBody like highlights
-          value: undefined,      // Optional assessment message (can be added later)
+          // value can be added later
         },
       };
 

@@ -12,7 +12,7 @@ import type {
   AdminUserStatsResponse,
   UpdateUserRequest,
   OAuthConfigResponse,
-} from '@semiont/sdk';
+} from './types';
 
 export const admin = {
   users: {
