@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { env } from '@/lib/env';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 
 export interface DetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
@@ -56,7 +56,7 @@ export function useDetectionProgress({
     abortControllerRef.current = abortController;
 
     // Build SSE URL
-    const url = `${env.NEXT_PUBLIC_API_URL}/api/documents/${documentId}/detect-annotations-stream`;
+    const url = `${NEXT_PUBLIC_API_URL}/api/documents/${documentId}/detect-annotations-stream`;
 
     try {
       await fetchEventSource(url, {

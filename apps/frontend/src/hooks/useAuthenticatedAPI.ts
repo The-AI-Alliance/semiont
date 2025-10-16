@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { env } from '@/lib/env';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { APIError } from '@/lib/api';
 
@@ -45,7 +45,7 @@ export function useAuthenticatedAPI(): UseAuthenticatedAPIResult {
       }
 
       // Build full URL
-      const baseUrl = env.NEXT_PUBLIC_API_URL;
+      const baseUrl = NEXT_PUBLIC_API_URL;
       const fullUrl = `${baseUrl}${url}`;
 
       // Merge headers with auth token

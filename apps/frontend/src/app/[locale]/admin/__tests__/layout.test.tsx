@@ -2,7 +2,6 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import AdminLayout from '../layout';
-import { env } from '@/lib/env';
 
 // Mock the admin components
 // Note: AdminAuthWrapper was removed - auth is now handled by middleware
@@ -23,9 +22,7 @@ vi.mock('@/components/Footer', () => ({
 }));
 
 vi.mock('@/lib/env', () => ({
-  env: {
-    NEXT_PUBLIC_SITE_NAME: 'Test Site',
-  },
+  NEXT_PUBLIC_SITE_NAME: 'Test Site',
 }));
 
 describe('AdminLayout', () => {

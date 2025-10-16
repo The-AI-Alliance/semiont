@@ -195,9 +195,9 @@ app.get('/api', (c) => {
 
 // Serve OpenAPI JSON specification - now automatically generated
 app.get('/api/openapi.json', (c) => {
-  const apiUrl = process.env.API_URL;
+  const apiUrl = process.env.BACKEND_URL;
   if (!apiUrl) {
-    throw new Error('API_URL environment variable is required for OpenAPI documentation');
+    throw new Error('BACKEND_URL environment variable is required for OpenAPI documentation');
   }
 
   return c.json(app.getOpenAPI31Document({

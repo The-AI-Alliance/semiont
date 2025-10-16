@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { DocumentSchema } from './document-schemas';
+import { DocumentSchema } from './base-schemas';
 
 /**
  * W3C Web Annotation Selector Types

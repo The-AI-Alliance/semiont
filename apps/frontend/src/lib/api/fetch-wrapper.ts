@@ -3,7 +3,7 @@
  * Simple fetch wrapper with authentication and error handling
  */
 
-import { env } from '../env';
+import { NEXT_PUBLIC_API_URL } from '../env';
 import { APIError } from './types';
 
 /**
@@ -23,7 +23,7 @@ export async function fetchAPI<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const url = env.NEXT_PUBLIC_API_URL ? `${env.NEXT_PUBLIC_API_URL}${endpoint}` : endpoint;
+  const url = NEXT_PUBLIC_API_URL ? `${NEXT_PUBLIC_API_URL}${endpoint}` : endpoint;
 
   const response = await fetch(url, {
     ...options,

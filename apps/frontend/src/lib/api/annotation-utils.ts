@@ -42,13 +42,22 @@ export function isResolvedReference(annotation: Annotation): annotation is Refer
 
 /**
  * Extract annotation ID from a full URI or just the ID
- * @param fullUriOrId - Full URI like "urn:uuid:abc-123" or just "abc-123"
+ * @param fullUriOrId - Full URI like "urn:uuid:abc-123", "http://host/annotations/abc-123", or just "abc-123"
  * @returns The ID portion (e.g., "abc-123")
  */
 export function extractAnnotationId(fullUriOrId: string): string {
+  // Handle URN format: urn:uuid:abc-123
   if (fullUriOrId.startsWith('urn:uuid:')) {
     return fullUriOrId.replace('urn:uuid:', '');
   }
+
+  // Handle HTTP/HTTPS URLs: http://host/annotations/abc-123
+  if (fullUriOrId.startsWith('http://') || fullUriOrId.startsWith('https://')) {
+    const parts = fullUriOrId.split('/');
+    return parts[parts.length - 1];
+  }
+
+  // Already just an ID
   return fullUriOrId;
 }
 

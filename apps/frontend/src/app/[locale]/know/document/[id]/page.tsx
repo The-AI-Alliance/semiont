@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { env } from '@/lib/env';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
@@ -135,7 +135,7 @@ function DocumentView({
   useEffect(() => {
     const loadContent = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${documentId}/content`, {
+        const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/documents/${documentId}/content`, {
           headers: {
             'Authorization': `Bearer ${session?.backendToken}`,
           },
@@ -389,7 +389,7 @@ function DocumentView({
     // Clear CSS sparkle animation if reference was recently created
     // (it may still be in newAnnotationIds with a 6-second timer from creation)
     // We only want the widget sparkle (✨ emoji) during generation, not the CSS pulse
-    const apiUrl = env.NEXT_PUBLIC_API_URL;
+    const apiUrl = NEXT_PUBLIC_API_URL;
     const fullUri = referenceId.includes('/')
       ? referenceId
       : `${apiUrl}/annotations/${referenceId}`;

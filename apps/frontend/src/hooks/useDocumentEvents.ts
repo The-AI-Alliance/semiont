@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { env } from '@/lib/env';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
@@ -163,7 +163,7 @@ export function useDocumentEvents({
     abortControllerRef.current = abortController;
 
     // Build SSE URL
-    const apiUrl = env.NEXT_PUBLIC_API_URL;
+    const apiUrl = NEXT_PUBLIC_API_URL;
     const url = `${apiUrl}/api/documents/${documentId}/events/stream`;
 
     try {
