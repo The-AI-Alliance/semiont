@@ -171,6 +171,12 @@ vi.mock('../../config', () => ({
 
 describe('API Endpoints Integration Tests', () => {
   beforeAll(async () => {
+    // Set required environment variables before importing app
+    process.env.BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+    process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
+    process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+    process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+
     // Import app after test setup has set DATABASE_URL to avoid Prisma validation errors
     const serverModule = await import('../../index');
     app = serverModule.app;
