@@ -7,7 +7,7 @@ import AdminUsers from '../client';
 import { api } from '@/lib/api';
 
 // Mock the API client
-vi.mock('@/lib/api-client', () => ({
+vi.mock('@/lib/api', () => ({
   api: {
     admin: {
       users: {
