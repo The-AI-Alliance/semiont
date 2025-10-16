@@ -5,7 +5,7 @@ import {
   UpdateDocumentRequestSchema as UpdateDocumentRequestSchema,
   GetDocumentResponseSchema as GetDocumentResponseSchema,
   type GetDocumentResponse,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import { getEventStore } from '../../../events/event-store';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';

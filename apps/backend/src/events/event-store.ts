@@ -21,8 +21,8 @@ import type {
   EventMetadata,
   Document,
   DocumentAnnotations,
-} from '@semiont/sdk';
-import { compareAnnotationIds } from '@semiont/sdk';
+} from '@semiont/core';
+import { compareAnnotationIds } from '@semiont/core';
 import type { ProjectionStorage, DocumentState } from '../storage/projection-storage';
 import { jumpConsistentHash, sha256 } from '../storage/shard-utils';
 

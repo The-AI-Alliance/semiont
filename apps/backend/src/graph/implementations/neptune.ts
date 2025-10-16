@@ -14,7 +14,7 @@ import {
   UpdateDocumentInput,
   CreateAnnotationInternal,
   getExactText,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 
 // Dynamic imports for AWS SDK and Gremlin

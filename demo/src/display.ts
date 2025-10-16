@@ -4,7 +4,7 @@
  * Console output utilities for progress tracking and results display.
  */
 
-import { extractAnnotationId } from '@semiont/sdk';
+import { extractAnnotationId } from '@semiont/core';
 import type { ChunkInfo } from './chunking';
 
 /**

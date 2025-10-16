@@ -5,7 +5,7 @@ import type { DocumentsRouterType } from '../shared';
 import {
   GetDocumentResponseSchema as GetDocumentResponseSchema,
   type GetDocumentResponse,
-} from '@semiont/sdk';
+} from '@semiont/core';
 
 
 export const getDocumentRoute = createRoute({

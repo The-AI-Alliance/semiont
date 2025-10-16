@@ -8,7 +8,7 @@ import {
   type Document,
   type CreateDocumentResponse,
   calculateChecksum,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
 

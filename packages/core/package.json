@@ -1,5 +1,5 @@
 {
-  "name": "@semiont/sdk",
+  "name": "@semiont/core",
   "version": "0.1.0",
   "description": "Core domain types for Semiont - Document, Annotation, and Graph models",
   "main": "dist/index.js",

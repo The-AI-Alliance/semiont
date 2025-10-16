@@ -8,7 +8,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getFilesystemConfig } from '../config/environment-loader';
-import type { CreationMethod } from '@semiont/sdk';
+import type { CreationMethod } from '@semiont/core';
 import type { DocumentState } from '../storage/projection-storage';
 
 export interface DocumentMetadata {

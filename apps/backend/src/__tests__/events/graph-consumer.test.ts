@@ -4,8 +4,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GraphDBConsumer } from '../../events/consumers/graph-consumer';
-import type { StoredEvent, DocumentEvent, DocumentCreatedEvent, DocumentClonedEvent } from '@semiont/sdk';
-import { CREATION_METHODS } from '@semiont/sdk';
+import type { StoredEvent, DocumentEvent, DocumentCreatedEvent, DocumentClonedEvent } from '@semiont/core';
+import { CREATION_METHODS } from '@semiont/core';
 import type { GraphDatabase } from '../../graph/interface';
 
 // Mock GraphDB

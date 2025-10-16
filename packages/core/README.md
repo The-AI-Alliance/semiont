@@ -1,8 +1,8 @@
-# @semiont/sdk
+# @semiont/core
 
 Core SDK for the Semiont semantic knowledge platform. Provides TypeScript types, schemas, utilities, and an API client for **internal system components**.
 
-> ⚠️ **For External Consumers**: If you're building applications that consume the Semiont API (demos, MCP servers, external tools), use [`@semiont/api-client`](../api-client/README.md) instead. This SDK is designed for internal system components (backend, CLI) that need direct access to the database and business logic.
+> ⚠️ **For External Consumers**: If you're building applications that consume the Semiont API (demos, MCP servers, external tools), use [`@semiont/api-client`](../api-client/README.md) instead. This package is designed for internal system components (backend, CLI) that need direct access to the database and business logic.
 
 ## Who Should Use This
 
@@ -20,7 +20,7 @@ Core SDK for the Semiont semantic knowledge platform. Provides TypeScript types,
 ## Installation
 
 ```bash
-npm install @semiont/sdk
+npm install @semiont/core
 ```
 
 ## Overview

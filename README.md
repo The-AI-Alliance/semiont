@@ -29,10 +29,10 @@ semiont/
 
 ### Semiont SDK
 
-The **[@semiont/sdk](packages/sdk/)** provides TypeScript types, schemas, utilities, and a core API client for internal use:
+The **[@semiont/core](packages/core/)** provides TypeScript types, schemas, utilities, and a core API client for internal use:
 
 ```typescript
-import { SemiontCoreClient } from '@semiont/sdk';
+import { SemiontCoreClient } from '@semiont/core';
 
 const client = new SemiontCoreClient({
   backendUrl: 'http://localhost:4000',
@@ -51,7 +51,7 @@ const doc = await client.createDocument({ name, content, format, entityTypes });
 - 🛠️ Utility functions for W3C Web Annotations and selectors
 - ✅ Zod schemas for runtime validation
 
-[→ Read the SDK documentation](packages/sdk/README.md)
+[→ Read the SDK documentation](packages/core/README.md)
 
 ### Demo Scripts
 
@@ -124,7 +124,7 @@ For complete deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 | Document | Description |
 |----------|-------------|
 | [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) | Complete local development setup guide |
-| [SDK README](packages/sdk/README.md) | TypeScript SDK with types, schemas, API client, and utilities |
+| [SDK README](packages/core/README.md) | TypeScript SDK with types, schemas, API client, and utilities |
 | [Demo README](demo/README.md) | Example scripts demonstrating SDK usage |
 | [Frontend README](apps/frontend/README.md) | Next.js development guide, patterns, and API integration |
 | [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |

@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
 
 // Re-export DID/Agent utilities from SDK
-export { userToDid, userToAgent, didToAgent } from '@semiont/sdk';
+export { userToDid, userToAgent, didToAgent } from '@semiont/core';
 
 /**
  * Generate a unique URI for annotations (highlights/references)

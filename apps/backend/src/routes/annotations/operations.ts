@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { getStorageService } from '../../storage/filesystem';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
-import { calculateChecksum } from '@semiont/sdk';
+import { calculateChecksum } from '@semiont/core';
 import { userToAgent } from '../../utils/id-generator';
 import {
   CREATION_METHODS,
@@ -20,7 +20,7 @@ import {
   type CreateDocumentFromSelectionResponse,
   type AnnotationContextResponse,
   type ContextualSummaryResponse,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 import { registerGenerateDocument } from './routes/generate-document';
 import { AnnotationQueryService } from '../../services/annotation-queries';

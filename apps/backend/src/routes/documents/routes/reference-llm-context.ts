@@ -7,7 +7,7 @@ import type { DocumentsRouterType } from '../shared';
 import {
   ReferenceLLMContextResponseSchema as ReferenceLLMContextResponseSchema,
   type ReferenceLLMContextResponse,
-} from '@semiont/sdk';
+} from '@semiont/core';
 
 
 export const getReferenceLLMContextRoute = createRoute({

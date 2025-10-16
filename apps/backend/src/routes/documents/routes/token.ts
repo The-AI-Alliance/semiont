@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import { calculateChecksum } from '@semiont/sdk';
+import { calculateChecksum } from '@semiont/core';
 import {
   CREATION_METHODS,
   GetDocumentByTokenResponseSchema as GetDocumentByTokenResponseSchema,
@@ -15,7 +15,7 @@ import {
   type Document,
   type CreationMethod,
   type CreateDocumentInput,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 
 

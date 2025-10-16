@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 
 const packages = [
-  '@semiont/sdk',
+  '@semiont/core',
   '@semiont/test-utils',
   '@semiont/mcp-server'
 ];

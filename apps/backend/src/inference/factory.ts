@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getInferenceConfig as getInferenceConfigFromEnv } from '../config/environment-loader';
-import { getLocaleEnglishName } from '@semiont/sdk';
+import { getLocaleEnglishName } from '@semiont/core';
 
 function getLanguageName(locale: string): string {
   return getLocaleEnglishName(locale) || locale;

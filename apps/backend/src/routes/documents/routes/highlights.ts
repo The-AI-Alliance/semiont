@@ -4,7 +4,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import {
   GetHighlightsResponseSchema as GetHighlightsResponseSchema,
   type GetHighlightsResponse,
-} from '@semiont/sdk';
+} from '@semiont/core';
 
 
 // GET /api/documents/{id}/highlights

@@ -5,7 +5,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
-import { compareAnnotationIds } from '@semiont/sdk';
+import { compareAnnotationIds } from '@semiont/core';
 
 /**
  * Response schema for job creation

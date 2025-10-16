@@ -279,7 +279,7 @@ The script provides detailed progress output with unicode styling:
 ### Features Demonstrated
 
 #### Core SDK Features
-- **Type Safety**: Uses `@semiont/sdk` types throughout for compile-time error detection
+- **Type Safety**: Uses `@semiont/core` types throughout for compile-time error detection
 - **Annotation ID Utilities**: Uses `extractAnnotationId()` for display, `encodeAnnotationIdForUrl()` for API calls
 - **W3C Web Annotations**: Proper TextPositionSelector with exact text, offset, and length
 - **Content Addressing**: SHA-256-based document IDs ensure immutability
@@ -401,7 +401,7 @@ The script can be easily modified to:
 - [pro_bo.ts](./pro_bo.ts) - Original simpler version (preserved for reference)
 - [package.json](./package.json) - Demo workspace dependencies
 - [tsconfig.json](./tsconfig.json) - TypeScript configuration
-- [../packages/sdk](../packages/sdk) - Semiont SDK source code
+- [../packages/core](../packages/core) - Semiont SDK source code
 - [../apps/backend/src/routes/documents/routes/events.ts](../apps/backend/src/routes/documents/routes/events.ts) - Events API endpoint
 - [../apps/backend/src/routes/auth.ts](../apps/backend/src/routes/auth.ts) - Backend authentication routes
 
