@@ -87,14 +87,15 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
       }
     });
     
-    // Create symlink so Next.js can find .env.local in its working directory
+    // Copy .env.local to source directory so Next.js can find it
+    // Next.js's dotenv loader doesn't follow symlinks, so we must copy
     const sourceEnvFile = path.join(frontendSourceDir, '.env.local');
     if (fs.existsSync(sourceEnvFile)) {
       // Remove existing file/symlink
       fs.unlinkSync(sourceEnvFile);
     }
-    // Create symlink from source to runtime .env.local
-    fs.symlinkSync(envFile, sourceEnvFile);
+    // Copy from runtime to source .env.local
+    fs.copyFileSync(envFile, sourceEnvFile);
   } else {
     printWarning(`.env.local not found, using defaults`);
   }
@@ -108,6 +109,13 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     LOG_DIR: logsDir,
     TMP_DIR: path.join(frontendDir, 'tmp')
   };
+
+  // Debug: log NEXT_PUBLIC_* env vars
+  const nextPublicVars = Object.keys(env).filter(k => k.startsWith('NEXT_PUBLIC_'));
+  if (!service.quiet) {
+    printInfo(`Environment variables: ${nextPublicVars.length} NEXT_PUBLIC_* vars found`);
+    nextPublicVars.forEach(k => printInfo(`  ${k}=${(env as Record<string, string>)[k]}`));
+  }
   
   // Ensure logs directory exists
   fs.mkdirSync(logsDir, { recursive: true });
