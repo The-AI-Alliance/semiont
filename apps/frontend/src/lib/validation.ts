@@ -130,14 +130,8 @@ export const ImageURLSchema = z.string()
 export const OAuthUserSchema = z.object({
   id: z.string().min(1),
   email: z.string().email('Invalid email address'),
-  name: z.preprocess(
-    (val) => (val === null ? undefined : val),
-    z.string().optional()
-  ),
-  image: z.preprocess(
-    (val) => (val === null ? undefined : val),
-    ImageURLSchema.optional()
-  ),
+  name: z.string().nullable().optional(),
+  image: ImageURLSchema.nullable().optional(),
   domain: z.string().min(1),
   isAdmin: z.boolean(),
   isModerator: z.boolean(),

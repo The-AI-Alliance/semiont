@@ -183,7 +183,13 @@ export const authOptions: NextAuthOptions = {
           
           // Store our validated backend token and user in the user object
           user.backendToken = tokenValidation.data;
-          user.backendUser = userValidation.data;
+          // Convert null to undefined for name and image to match expected types
+          const validatedUser = userValidation.data;
+          user.backendUser = {
+            ...validatedUser,
+            name: validatedUser.name === null ? undefined : validatedUser.name,
+            image: validatedUser.image === null ? undefined : validatedUser.image,
+          };
           // Store isNewUser in a way TypeScript accepts
           if ('__isNewUser' in user) {
             user.__isNewUser = data.isNewUser;
