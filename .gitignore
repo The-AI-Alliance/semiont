@@ -66,3 +66,6 @@ temp/
 
 # TypeScript
 *.tsbuildinfo
+
+# Generated API specs (copied from backend)
+packages/api-client/openapi.json
