@@ -1,19 +1,14 @@
 /** @type {import('next').NextConfig} */
 
-const withNextIntl = require('next-intl/plugin')('./src/i18n.ts');
+import nextIntl from 'next-intl/plugin';
+import bundleAnalyzer from '@next/bundle-analyzer';
 
-// Only load bundle analyzer in development or when explicitly analyzing
-let withBundleAnalyzer = (config) => config;
-if (process.env.NODE_ENV !== 'production' || process.env.ANALYZE === 'true') {
-  try {
-    withBundleAnalyzer = require('@next/bundle-analyzer')({
-      enabled: process.env.ANALYZE === 'true',
-    });
-  } catch (e) {
-    // Bundle analyzer not available, continue without it
-    console.log('Note: @next/bundle-analyzer not available, skipping bundle analysis');
-  }
-}
+const withNextIntl = nextIntl('./src/i18n.ts');
+
+// Only load bundle analyzer when explicitly analyzing
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
 
 // Security headers configuration
 const securityHeaders = [
@@ -83,7 +78,7 @@ const securityHeaders = [
 const baseConfig = {
   // Enable standalone output for Docker optimization
   output: 'standalone',
-  
+
   // Security headers
   async headers() {
     return [
@@ -94,7 +89,7 @@ const baseConfig = {
       },
     ];
   },
-  
+
   // Image optimization domains
   images: {
     remotePatterns: [
@@ -118,26 +113,36 @@ const baseConfig = {
     dangerouslyAllowSVG: false,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;"
   },
-  
+
   // Strict mode for development
   reactStrictMode: true,
-  
+
   // Performance optimizations
   swcMinify: true,
   compress: true,
   poweredByHeader: false,
-  
+
   // Optimize fonts
   optimizeFonts: true,
-  
+
+  // Externalize packages to prevent webpack bundling issues
+  // This is critical for packages using Zod v4 which has known bundling issues
+  serverExternalPackages: ['zod', '@semiont/core'],
+
   experimental: {
     // Enable if needed for future features
     // optimizeCss: true, // Disabled due to critters dependency issue
     optimizePackageImports: ['@tanstack/react-query', 'next-auth'],
   },
-  
+
   // Bundle optimization
-  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
+  webpack: (config, { dev, isServer }) => {
+    // Prevent errors during build-time route analysis
+    if (isServer) {
+      config.optimization = config.optimization || {};
+      config.optimization.minimize = false;
+    }
+
     // Bundle size optimizations
     if (!dev && !isServer) {
       config.optimization.splitChunks = {
@@ -159,30 +164,16 @@ const baseConfig = {
         },
       };
     }
-    
-    // Add bundle analyzer plugin in analyze mode
-    if (process.env.ANALYZE === 'true') {
-      const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
-      config.plugins.push(
-        new BundleAnalyzerPlugin({
-          analyzerMode: 'static',
-          openAnalyzer: true,
-          generateStatsFile: true,
-          statsFilename: 'bundle-stats.json',
-          reportFilename: 'bundle-report.html',
-        })
-      );
-    }
-    
+
     return config;
   },
-  
+
   // TypeScript configuration
   typescript: {
     // Fail build on TypeScript errors
     ignoreBuildErrors: false,
   },
-  
+
   // ESLint configuration
   eslint: {
     // Fail build on ESLint errors
@@ -191,4 +182,4 @@ const baseConfig = {
 };
 
 // Export configuration with bundle analyzer and next-intl
-module.exports = withNextIntl(withBundleAnalyzer(baseConfig));
+export default withNextIntl(withBundleAnalyzer(baseConfig));
