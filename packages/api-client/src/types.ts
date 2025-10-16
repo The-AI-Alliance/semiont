@@ -2007,6 +2007,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/{id}/detect-entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Detect Entities (Job)
+         * @description Create an async entity detection job. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/documents/{id}/detect-annotations-stream instead.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        entityTypes: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Job created successfully */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            jobId: string;
+                            /** @enum {string} */
+                            status: "pending" | "running" | "complete" | "failed" | "cancelled";
+                            /** @enum {string} */
+                            type: "detection" | "generation";
+                            created: string;
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Document not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{id}/llm-context": {
         parameters: {
             query?: never;
@@ -3282,14 +3350,15 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Generate Document from Annotation
-         * @description Use AI to generate document content from an annotation
+         * Generate Document (Job)
+         * @description Create an async document generation job from an annotation. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/annotations/{id}/generate-document-stream instead.
          */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description Annotation ID */
                     id: string;
                 };
                 cookie?: never;
@@ -3297,108 +3366,47 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description Document ID containing the annotation */
+                        documentId: string;
                         /** @description Custom title for generated document */
-                        name?: string;
-                        /** @description Entity types to apply to generated document */
-                        entityTypes?: string[];
+                        title?: string;
                         /** @description Custom prompt for content generation */
                         prompt?: string;
-                        /** @description Language locale for generated content (e.g., "es", "fr", "ja") */
+                        /** @description Language locale (e.g., "es", "fr", "ja") */
                         locale?: string;
                     };
                 };
             };
             responses: {
-                /** @description Document generated and annotation resolved */
+                /** @description Job created successfully */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
-                            document: {
-                                id: string;
-                                name: string;
-                                format: string;
-                                archived: boolean;
-                                entityTypes: string[];
-                                locale?: string;
-                                /** @enum {string} */
-                                creationMethod: "api" | "upload" | "ui" | "reference" | "clone" | "generated";
-                                sourceAnnotationId?: string;
-                                sourceDocumentId?: string;
-                                creator: string;
-                                created: string;
-                                contentChecksum: string;
-                            };
-                            annotation: {
-                                id: string;
-                                /** @enum {string} */
-                                motivation: "assessing" | "bookmarking" | "classifying" | "commenting" | "describing" | "editing" | "highlighting" | "identifying" | "linking" | "moderating" | "questioning" | "replying" | "tagging";
-                                target: {
-                                    source: string;
-                                    selector: {
-                                        /** @enum {string} */
-                                        type: "TextPositionSelector";
-                                        exact: string;
-                                        offset: number;
-                                        length: number;
-                                    } | {
-                                        /** @enum {string} */
-                                        type: "TextQuoteSelector";
-                                        exact: string;
-                                        prefix?: string;
-                                        suffix?: string;
-                                    } | ({
-                                        /** @enum {string} */
-                                        type: "TextPositionSelector";
-                                        exact: string;
-                                        offset: number;
-                                        length: number;
-                                    } | {
-                                        /** @enum {string} */
-                                        type: "TextQuoteSelector";
-                                        exact: string;
-                                        prefix?: string;
-                                        suffix?: string;
-                                    })[];
-                                };
-                                body: {
-                                    /** @enum {string} */
-                                    type: "TextualBody" | "SpecificResource";
-                                    value?: string;
-                                    format?: string;
-                                    language?: string;
-                                    source?: string | null;
-                                    /** @default [] */
-                                    entityTypes: string[];
-                                };
-                                creator: {
-                                    id: string;
-                                    /** @enum {string} */
-                                    type: "Person" | "Organization" | "Software";
-                                    name: string;
-                                    nickname?: string;
-                                    email?: string;
-                                    email_sha1?: string;
-                                    homepage?: string;
-                                };
-                                created: string;
-                                modified?: string;
-                                generator?: {
-                                    id: string;
-                                    /** @enum {string} */
-                                    type: "Person" | "Organization" | "Software";
-                                    name: string;
-                                    nickname?: string;
-                                    email?: string;
-                                    email_sha1?: string;
-                                    homepage?: string;
-                                };
-                            };
-                            generated: boolean;
+                            jobId: string;
+                            /** @enum {string} */
+                            status: "pending" | "running" | "complete" | "failed" | "cancelled";
+                            /** @enum {string} */
+                            type: "detection" | "generation";
+                            created: string;
                         };
                     };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Annotation not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -4414,6 +4422,67 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job Status
+         * @description Get the current status and progress of an async job
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Job status retrieved successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            jobId: string;
+                            /** @enum {string} */
+                            type: "detection" | "generation";
+                            /** @enum {string} */
+                            status: "pending" | "running" | "complete" | "failed" | "cancelled";
+                            userId: string;
+                            created: string;
+                            startedAt?: string;
+                            completedAt?: string;
+                            error?: string;
+                            progress?: unknown;
+                            result?: unknown;
+                        };
+                    };
+                };
+                /** @description Job not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
