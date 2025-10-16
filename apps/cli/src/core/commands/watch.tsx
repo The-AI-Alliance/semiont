@@ -153,13 +153,14 @@ async function launchDashboard(
         else if (target === 'metrics') mode = 'metrics';
         
         // Launch the React/Ink dashboard directly
-        const element: React.ReactElement = React.createElement(DashboardComponent, {
-          mode,
-          dataSource,
-          refreshInterval: interval,
-          environment
-        });
-        const { waitUntilExit } = render(element);
+        const { waitUntilExit } = render(
+          <DashboardComponent
+            mode={mode}
+            dataSource={dataSource}
+            refreshInterval={interval}
+            environment={environment}
+          />
+        );
         
         await waitUntilExit();
         const duration = Date.now() - startTime;
