@@ -123,15 +123,16 @@ export async function handleCreateDocumentFromAnnotation(_client: SemiontApiClie
 
 export async function handleGenerateDocumentFromAnnotation(client: SemiontApiClient, args: any) {
   const data = await client.generateDocumentFromAnnotation(args?.selectionId, {
-    name: args?.name,
-    entityTypes: args?.entityTypes,
+    documentId: args?.documentId,
+    title: args?.title,
     prompt: args?.prompt,
+    locale: args?.locale,
   });
 
   return {
     content: [{
       type: 'text' as const,
-      text: `Document generated from annotation:\nDocument ID: ${data.document.id}\nDocument Name: ${data.document.name}\nFormat: ${data.document.format}`,
+      text: `Document generation job created:\nJob ID: ${data.jobId}\nStatus: ${data.status}\nType: ${data.type}\nCreated: ${data.created}`,
     }],
   };
 }
