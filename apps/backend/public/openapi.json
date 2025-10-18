@@ -6750,6 +6750,20 @@
           "userId",
           "created"
         ]
+      },
+      "UpdateDocumentRequest": {
+        "type": "object",
+        "properties": {
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        }
       }
     },
     "parameters": {}
@@ -7609,7 +7623,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JsonRequest"
+                "$ref": "#/components/schemas/UpdateDocumentRequest"
               }
             }
           }
