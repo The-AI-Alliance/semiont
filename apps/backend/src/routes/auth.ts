@@ -26,6 +26,7 @@ type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type UserResponse = components['schemas']['UserResponse'];
 type AcceptTermsResponse = components['schemas']['AcceptTermsResponse'];
+type MCPGenerateResponse = components['schemas']['MCPGenerateResponse'];
 
 // Create auth router with plain Hono
 export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown } }>();
@@ -268,6 +269,39 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
   };
 
   return c.json(response, 200);
+});
+
+/**
+ * POST /api/tokens/mcp-generate
+ *
+ * Generate MCP Token - Generate a short-lived token for MCP server
+ * Requires authentication
+ * Response type: MCPGenerateResponse from OpenAPI spec
+ */
+authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  try {
+    // Generate long-lived refresh token (30 days) for MCP
+    const tokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
+      userId: user.id,
+      email: user.email,
+      domain: user.domain,
+      provider: user.provider,
+      isAdmin: user.isAdmin,
+      ...(user.name && { name: user.name })
+    };
+    const refreshToken = JWTService.generateToken(tokenPayload, '30d'); // 30 day expiration
+
+    const response: MCPGenerateResponse = {
+      refresh_token: refreshToken
+    };
+
+    return c.json(response, 200);
+  } catch (error) {
+    console.error('MCP token generation error:', error);
+    return c.json({ error: 'Failed to generate refresh token' }, 401);
+  }
 });
 
 /**
