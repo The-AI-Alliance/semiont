@@ -10,6 +10,7 @@
 
 import { Hono } from 'hono';
 import { validateRequestBody } from '../middleware/validate-openapi';
+import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { JWTService } from '../auth/jwt';
 import { OAuthService } from '../auth/oauth';
@@ -23,6 +24,7 @@ type GoogleAuthRequest = components['schemas']['GoogleAuthRequest'];
 type TokenRefreshRequest = components['schemas']['TokenRefreshRequest'];
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
+type UserResponse = components['schemas']['UserResponse'];
 
 // Create auth router with plain Hono
 export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown } }>();
@@ -239,3 +241,30 @@ authRouter.post('/api/tokens/refresh',
     }
   }
 );
+
+/**
+ * GET /api/users/me
+ *
+ * Get Current User - Get information about the authenticated user
+ * Requires authentication
+ * Response type: UserResponse from OpenAPI spec
+ */
+authRouter.get('/api/users/me', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  const response: UserResponse = {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    image: user.image,
+    domain: user.domain,
+    provider: user.provider,
+    isAdmin: user.isAdmin,
+    isActive: user.isActive,
+    termsAcceptedAt: user.termsAcceptedAt?.toISOString() || null,
+    lastLogin: user.lastLogin?.toISOString() || null,
+    created: user.createdAt.toISOString(),
+  };
+
+  return c.json(response, 200);
+});
