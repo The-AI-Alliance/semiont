@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import type { OpenAPIHono } from '@hono/zod-openapi';
+import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import { JWTService } from '../../auth/jwt';
 
@@ -13,7 +13,7 @@ type Variables = {
 };
 
 // Delay app import until after test setup to avoid Prisma validation errors
-let app: OpenAPIHono<{ Variables: Variables }>;
+let app: Hono<{ Variables: Variables }>;
 // Local type definitions to replace api-contracts imports
 interface HealthResponse {
   status: string;

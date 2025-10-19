@@ -1,57 +1,55 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Document LLM Context Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - Manual query parameter parsing and validation
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
-import {
-  DocumentLLMContextResponseSchema as DocumentLLMContextResponseSchema,
-  type DocumentLLMContextResponse,
-} from '@semiont/core';
+import type { components } from '@semiont/api-client';
 
-
-export const getDocumentLLMContextRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{id}/llm-context',
-  summary: 'Get Document LLM Context',
-  description: 'Get document with full context for LLM processing',
-  tags: ['Documents', 'AI'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-    query: z.object({
-      depth: z.coerce.number().min(1).max(3).default(2),
-      maxDocuments: z.coerce.number().min(1).max(20).default(10),
-      includeContent: z.union([
-        z.literal('true').transform(() => true),
-        z.literal('false').transform(() => false),
-        z.boolean()
-      ]).default(true),
-      includeSummary: z.union([
-        z.literal('true').transform(() => true),
-        z.literal('false').transform(() => false),
-        z.boolean()
-      ]).default(false),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: DocumentLLMContextResponseSchema as any,
-        },
-      },
-      description: 'LLM context',
-    },
-  },
-});
+type DocumentLLMContextResponse = components['schemas']['DocumentLLMContextResponse'];
 
 export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
-  router.openapi(getDocumentLLMContextRoute, async (c) => {
-    const { id } = c.req.valid('param');
-    const { maxDocuments, includeContent, includeSummary } = c.req.valid('query');
+  /**
+   * GET /api/documents/:id/llm-context
+   *
+   * Get document with full context for LLM processing
+   * Includes related documents, annotations, graph representation, and optional summary
+   *
+   * Query parameters:
+   * - depth: 1-3 (default: 2)
+   * - maxDocuments: 1-20 (default: 10)
+   * - includeContent: true/false (default: true)
+   * - includeSummary: true/false (default: false)
+   */
+  router.get('/api/documents/:id/llm-context', async (c) => {
+    const { id } = c.req.param();
+    const query = c.req.query();
+
+    // Parse and validate query parameters
+    const depth = query.depth ? Number(query.depth) : 2;
+    const maxDocuments = query.maxDocuments ? Number(query.maxDocuments) : 10;
+    const includeContent = query.includeContent === 'false' ? false : true;
+    const includeSummary = query.includeSummary === 'true' ? true : false;
+
+    // Validate depth range
+    if (depth < 1 || depth > 3) {
+      throw new HTTPException(400, { message: 'Query parameter "depth" must be between 1 and 3' });
+    }
+
+    // Validate maxDocuments range
+    if (maxDocuments < 1 || maxDocuments > 20) {
+      throw new HTTPException(400, { message: 'Query parameter "maxDocuments" must be between 1 and 20' });
+    }
+
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 

@@ -1,49 +1,31 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Annotation History Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No request body validation needed (GET route with only path params)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
 import { getGraphDatabase } from '../../../graph/factory';
-import { StoredEventApiSchema } from '@semiont/core';
+import type { components } from '@semiont/api-client';
 
-// Cast SDK schema to any for Hono compatibility
-const GetAnnotationHistoryResponse = z.object({
-  events: z.array(StoredEventApiSchema as any),
-  total: z.number(),
-  annotationId: z.string(),
-  documentId: z.string(),
-}) as any;
-
-export const getAnnotationHistoryRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{documentId}/annotations/{annotationId}/history',
-  summary: 'Get Annotation History',
-  description: 'Get full event history for a specific annotation (highlight or reference)',
-  tags: ['Selections', 'Events'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      documentId: z.string(),
-      annotationId: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetAnnotationHistoryResponse,
-        },
-      },
-      description: 'Annotation history retrieved successfully',
-    },
-    404: {
-      description: 'Annotation not found',
-    },
-  },
-});
+type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
 
 export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
-  router.openapi(getAnnotationHistoryRoute, async (c) => {
-    const { documentId, annotationId } = c.req.valid('param');
+  /**
+   * GET /api/documents/:documentId/annotations/:annotationId/history
+   *
+   * Get full event history for a specific annotation (highlight or reference)
+   * Requires authentication
+   * Returns annotation events sorted by sequence number
+   */
+  router.get('/api/documents/:documentId/annotations/:annotationId/history', async (c) => {
+    const { documentId, annotationId } = c.req.param();
 
     // Verify annotation exists
     const graphDb = await getGraphDatabase();
@@ -76,7 +58,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
     });
 
     // Format events for API response
-    const events = annotationEvents.map(stored => ({
+    const events: GetAnnotationHistoryResponse['events'] = annotationEvents.map(stored => ({
       id: stored.event.id,
       type: stored.event.type,
       timestamp: stored.event.timestamp,
@@ -93,11 +75,13 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
     // Sort by sequence number
     events.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
-    return c.json({
+    const response: GetAnnotationHistoryResponse = {
       events,
       total: events.length,
       annotationId,
       documentId,
-    });
+    };
+
+    return c.json(response);
   });
 }

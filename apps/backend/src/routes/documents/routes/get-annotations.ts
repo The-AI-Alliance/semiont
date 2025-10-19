@@ -1,42 +1,31 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Get Document Annotations Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No request body validation needed (GET route with only path params)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-import {
-  GetAnnotationsResponseSchema as GetAnnotationsResponseSchema,
-  type GetAnnotationsResponse,
-} from '@semiont/core';
+import type { components } from '@semiont/api-client';
 
-
-// GET /api/documents/{id}/annotations
-export const getDocumentAnnotationsRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{id}/annotations',
-  summary: 'Get Document Annotations',
-  description: 'Get all annotations (both highlights and references) in a document',
-  tags: ['Documents', 'Annotations'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetAnnotationsResponseSchema as any,
-        },
-      },
-      description: 'Document annotations',
-    },
-  },
-});
+type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
 export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
-  router.openapi(getDocumentAnnotationsRoute, async (c) => {
-    const { id } = c.req.valid('param');
+  /**
+   * GET /api/documents/:id/annotations
+   *
+   * Get all annotations (both highlights and references) in a document
+   * Requires authentication
+   * Uses Layer 3 projections with GraphDB fallback
+   */
+  router.get('/api/documents/:id/annotations', async (c) => {
+    const { id } = c.req.param();
 
     try {
       // Try Layer 3 first (fast path - O(1) file read)

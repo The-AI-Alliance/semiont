@@ -1,57 +1,48 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Reference LLM Context Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - Manual query parameter parsing and validation
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { generateDocumentSummary } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
-import {
-  ReferenceLLMContextResponseSchema as ReferenceLLMContextResponseSchema,
-  type ReferenceLLMContextResponse,
-} from '@semiont/core';
+import type { components } from '@semiont/api-client';
 
-
-export const getReferenceLLMContextRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{documentId}/references/{referenceId}/llm-context',
-  summary: 'Get Reference LLM Context',
-  description: 'Get reference with full context for LLM processing',
-  tags: ['Documents', 'AI'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      documentId: z.string(),
-      referenceId: z.string(),
-    }),
-    query: z.object({
-      includeSourceContext: z.union([
-        z.literal('true').transform(() => true),
-        z.literal('false').transform(() => false),
-        z.boolean()
-      ]).default(true),
-      includeTargetContext: z.union([
-        z.literal('true').transform(() => true),
-        z.literal('false').transform(() => false),
-        z.boolean()
-      ]).default(true),
-      contextWindow: z.coerce.number().min(100).max(5000).default(1000),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: ReferenceLLMContextResponseSchema as any,
-        },
-      },
-      description: 'Reference LLM context',
-    },
-  },
-});
+type ReferenceLLMContextResponse = components['schemas']['ReferenceLLMContextResponse'];
 
 export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
-  router.openapi(getReferenceLLMContextRoute, async (c) => {
-    const { documentId, referenceId } = c.req.valid('param');
-    const { includeSourceContext, includeTargetContext, contextWindow } = c.req.valid('query');
+  /**
+   * GET /api/documents/:documentId/references/:referenceId/llm-context
+   *
+   * Get reference with full context for LLM processing
+   * Includes source context (text around reference), target context (referenced document), and metadata
+   *
+   * Query parameters:
+   * - includeSourceContext: true/false (default: true)
+   * - includeTargetContext: true/false (default: true)
+   * - contextWindow: 100-5000 (default: 1000) - characters before/after selection
+   */
+  router.get('/api/documents/:documentId/references/:referenceId/llm-context', async (c) => {
+    const { documentId, referenceId } = c.req.param();
+    const query = c.req.query();
+
+    // Parse and validate query parameters
+    const includeSourceContext = query.includeSourceContext === 'false' ? false : true;
+    const includeTargetContext = query.includeTargetContext === 'false' ? false : true;
+    const contextWindow = query.contextWindow ? Number(query.contextWindow) : 1000;
+
+    // Validate contextWindow range
+    if (contextWindow < 100 || contextWindow > 5000) {
+      throw new HTTPException(400, { message: 'Query parameter "contextWindow" must be between 100 and 5000' });
+    }
+
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 

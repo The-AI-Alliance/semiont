@@ -1,40 +1,30 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Get Document Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No validation needed (path param extracted directly)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import { HTTPException } from 'hono/http-exception';
 import { getEventStore } from '../../../events/event-store';
 import type { DocumentsRouterType } from '../shared';
-import {
-  GetDocumentResponseSchema as GetDocumentResponseSchema,
-  type GetDocumentResponse,
-} from '@semiont/core';
+import type { components } from '@semiont/api-client';
 
-
-export const getDocumentRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{id}',
-  summary: 'Get Document',
-  description: 'Get a document by ID',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetDocumentResponseSchema as any,
-        },
-      },
-      description: 'Document retrieved successfully',
-    },
-  },
-});
+type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
 
 export function registerGetDocument(router: DocumentsRouterType) {
-  router.openapi(getDocumentRoute, async (c) => {
-    const { id } = c.req.valid('param');
+  /**
+   * GET /api/documents/:id
+   *
+   * Get a document by ID
+   * Returns document metadata and annotations (NOT content)
+   * Requires authentication
+   */
+  router.get('/api/documents/:id', async (c) => {
+    const { id } = c.req.param();
 
     // Read from Layer 2/3: Event store builds/loads projection
     const eventStore = await getEventStore();
