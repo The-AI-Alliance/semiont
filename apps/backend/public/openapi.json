@@ -6605,6 +6605,48 @@
                       "required": [
                         "entityType"
                       ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "assessmentId": {
+                          "type": "string"
+                        },
+                        "exact": {
+                          "type": "string"
+                        },
+                        "position": {
+                          "type": "object",
+                          "properties": {
+                            "offset": {
+                              "type": "number"
+                            },
+                            "length": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["offset", "length"]
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assessmentId",
+                        "exact",
+                        "position"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "assessmentId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assessmentId"
+                      ]
                     }
                   ]
                 },
@@ -6709,22 +6751,29 @@
           "name": {
             "type": "string"
           },
-          "content": {
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prompt": {
             "type": "string"
           },
-          "format": {
+          "locale": {
             "type": "string"
-          },
-          "metadata": {
-            "type": "object",
-            "additionalProperties": {}
           }
         },
-        "required": [
-          "name",
-          "content",
-          "format"
-        ]
+        "required": []
+      },
+      "GenerateDocumentStreamRequest": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          }
+        },
+        "required": ["documentId"]
       },
       "ResolveAnnotationRequest": {
         "type": "object",
@@ -6749,6 +6798,407 @@
         "required": [
           "documentId"
         ]
+      },
+      "TextPositionSelector": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["TextPositionSelector"]
+          },
+          "exact": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "number"
+          },
+          "length": {
+            "type": "number"
+          }
+        },
+        "required": ["type", "exact", "offset", "length"]
+      },
+      "TextQuoteSelector": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["TextQuoteSelector"]
+          },
+          "exact": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "suffix": {
+            "type": "string"
+          }
+        },
+        "required": ["type", "exact"]
+      },
+      "Agent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["Person", "Organization", "Software"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "email_sha1": {
+            "type": "string"
+          },
+          "homepage": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "type", "name"]
+      },
+      "Document": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "locale": {
+            "type": "string"
+          },
+          "creationMethod": {
+            "type": "string",
+            "enum": ["api", "upload", "ui", "reference", "clone", "generated"]
+          },
+          "sourceAnnotationId": {
+            "type": "string"
+          },
+          "sourceDocumentId": {
+            "type": "string"
+          },
+          "creator": {
+            "type": "string"
+          },
+          "created": {
+            "type": "string"
+          },
+          "contentChecksum": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "format", "archived", "entityTypes", "creationMethod", "creator", "created", "contentChecksum"]
+      },
+      "Annotation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "motivation": {
+            "type": "string",
+            "enum": ["assessing", "bookmarking", "classifying", "commenting", "describing", "editing", "highlighting", "identifying", "linking", "moderating", "questioning", "replying", "tagging"]
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "selector": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TextPositionSelector"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TextQuoteSelector"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/TextPositionSelector"
+                        },
+                        {
+                          "$ref": "#/components/schemas/TextQuoteSelector"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "required": ["source", "selector"]
+          },
+          "body": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["TextualBody", "SpecificResource"]
+              },
+              "value": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              },
+              "source": {
+                "type": ["string", "null"]
+              },
+              "entityTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              }
+            },
+            "required": ["type", "entityTypes"]
+          },
+          "creator": {
+            "$ref": "#/components/schemas/Agent"
+          },
+          "created": {
+            "type": "string"
+          },
+          "modified": {
+            "type": "string"
+          },
+          "generator": {
+            "$ref": "#/components/schemas/Agent"
+          }
+        },
+        "required": ["id", "motivation", "target", "body", "creator", "created"]
+      },
+      "UpdateUserResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "email": {"type": "string"},
+              "name": {"type": ["string", "null"]},
+              "image": {"type": ["string", "null"]},
+              "domain": {"type": "string"},
+              "provider": {"type": "string"},
+              "isAdmin": {"type": "boolean"},
+              "isActive": {"type": "boolean"},
+              "lastLogin": {"type": ["string", "null"]},
+              "created": {"type": "string"},
+              "updatedAt": {"type": "string"}
+            },
+            "required": ["id", "email", "domain", "provider", "isAdmin", "isActive", "created", "updatedAt"]
+          }
+        },
+        "required": ["success", "user"]
+      },
+      "DeleteUserResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["success", "message"]
+      },
+      "TokenRefreshResponse": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          }
+        },
+        "required": ["access_token"]
+      },
+      "CreateDocumentFromSelectionRequest": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          }
+        },
+        "required": ["content", "name", "format"]
+      },
+      "CreateDocumentFromSelectionResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          }
+        },
+        "required": ["document", "annotation"]
+      },
+      "GenerateDocumentFromAnnotationResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          },
+          "generated": {
+            "type": "boolean"
+          }
+        },
+        "required": ["document", "annotation", "generated"]
+      },
+      "CreateFromAnnotationRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "content", "format"]
+      },
+      "CreateFromAnnotationResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          }
+        },
+        "required": ["document", "annotations"]
+      },
+      "DetectAnnotationsStreamRequest": {
+        "type": "object",
+        "properties": {
+          "entityTypes": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "required": ["entityTypes"]
+      },
+      "DetectEntitiesRequest": {
+        "type": "object",
+        "properties": {
+          "entityTypes": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "required": ["entityTypes"]
+      },
+      "CreateJobResponse": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["detection", "generation"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "complete", "failed", "cancelled"]
+          },
+          "created": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          }
+        },
+        "required": ["jobId", "type", "status", "created"]
+      },
+      "GetAnnotationsResponse": {
+        "type": "object",
+        "properties": {
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          }
+        },
+        "required": ["annotations"]
+      },
+      "CreateDocumentFromTokenResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          }
+        },
+        "required": ["document", "annotations"]
       }
     },
     "parameters": {}
