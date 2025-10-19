@@ -25,6 +25,7 @@ type TokenRefreshRequest = components['schemas']['TokenRefreshRequest'];
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type UserResponse = components['schemas']['UserResponse'];
+type AcceptTermsResponse = components['schemas']['AcceptTermsResponse'];
 
 // Create auth router with plain Hono
 export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown } }>();
@@ -267,4 +268,40 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
   };
 
   return c.json(response, 200);
+});
+
+/**
+ * POST /api/users/accept-terms
+ *
+ * Accept Terms - Mark terms as accepted for the current user
+ * Requires authentication
+ * Response type: AcceptTermsResponse from OpenAPI spec
+ */
+authRouter.post('/api/users/accept-terms', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  // Update the user's terms acceptance
+  await OAuthService.acceptTerms(user.id);
+
+  const response: AcceptTermsResponse = {
+    success: true,
+    message: 'Terms accepted',
+  };
+
+  return c.json(response, 200);
+});
+
+/**
+ * POST /api/users/logout
+ *
+ * Logout - Logout the current user
+ * Requires authentication
+ * In JWT-based auth, logout is handled client-side
+ * This endpoint exists for consistency and future session management
+ */
+authRouter.post('/api/users/logout', authMiddleware, async (c) => {
+  return c.json({
+    success: true,
+    message: 'Logged out successfully',
+  }, 200);
 });
