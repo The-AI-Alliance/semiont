@@ -311,20 +311,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   const after = contentStr.substring(selEnd, end);
 
   const response: AnnotationContextResponse = {
-    annotation: {
-      id: annotation.id,
-      documentId: annotation.target.source,
-      selector: {
-        exact: getAnnotationExactText(annotation),
-        offset: posSelector3.offset,
-        length: posSelector3.length,
-      },
-      referencedDocumentId: annotation.body.source ?? null,
-      entityTypes: annotation.body.entityTypes,
-      createdBy: 'user',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
+    annotation: annotation,  // Return full W3C annotation
     context: {
       before,
       selected,

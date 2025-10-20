@@ -275,341 +275,12 @@
         "type": "object",
         "properties": {
           "document": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
-            ]
+            "$ref": "#/components/schemas/Document"
           },
           "annotations": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "motivation": {
-                  "type": "string",
-                  "enum": [
-                    "assessing",
-                    "bookmarking",
-                    "classifying",
-                    "commenting",
-                    "describing",
-                    "editing",
-                    "highlighting",
-                    "identifying",
-                    "linking",
-                    "moderating",
-                    "questioning",
-                    "replying",
-                    "tagging"
-                  ]
-                },
-                "target": {
-                  "type": "object",
-                  "properties": {
-                    "source": {
-                      "type": "string"
-                    },
-                    "selector": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextPositionSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact",
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextQuoteSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "prefix": {
-                              "type": "string"
-                            },
-                            "suffix": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact"
-                          ]
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextPositionSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "offset": {
-                                    "type": "number"
-                                  },
-                                  "length": {
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact",
-                                  "offset",
-                                  "length"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextQuoteSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "prefix": {
-                                    "type": "string"
-                                  },
-                                  "suffix": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact"
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "source",
-                    "selector"
-                  ]
-                },
-                "body": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "TextualBody",
-                        "SpecificResource"
-                      ]
-                    },
-                    "value": {
-                      "type": "string"
-                    },
-                    "format": {
-                      "type": "string"
-                    },
-                    "language": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "entityTypes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "default": []
-                    }
-                  },
-                  "required": [
-                    "type"
-                  ]
-                },
-                "creator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                },
-                "created": {
-                  "type": "string"
-                },
-                "modified": {
-                  "type": "string"
-                },
-                "generator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "motivation",
-                "target",
-                "body",
-                "creator",
-                "created"
-              ]
+              "$ref": "#/components/schemas/Annotation"
             }
           }
         },
@@ -624,67 +295,7 @@
           "documents": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "format": {
-                  "type": "string"
-                },
-                "archived": {
-                  "type": "boolean"
-                },
-                "entityTypes": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "locale": {
-                  "type": "string"
-                },
-                "creationMethod": {
-                  "type": "string",
-                  "enum": [
-                    "api",
-                    "upload",
-                    "ui",
-                    "reference",
-                    "clone",
-                    "generated"
-                  ]
-                },
-                "sourceAnnotationId": {
-                  "type": "string"
-                },
-                "sourceDocumentId": {
-                  "type": "string"
-                },
-                "creator": {
-                  "type": "string"
-                },
-                "created": {
-                  "type": "string"
-                },
-                "contentChecksum": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "name",
-                "format",
-                "archived",
-                "entityTypes",
-                "creationMethod",
-                "creator",
-                "created",
-                "contentChecksum"
-              ]
+              "$ref": "#/components/schemas/Document"
             }
           },
           "total": {
@@ -708,1166 +319,30 @@
         "type": "object",
         "properties": {
           "document": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
-            ]
+            "$ref": "#/components/schemas/Document"
           },
           "annotations": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "motivation": {
-                  "type": "string",
-                  "enum": [
-                    "assessing",
-                    "bookmarking",
-                    "classifying",
-                    "commenting",
-                    "describing",
-                    "editing",
-                    "highlighting",
-                    "identifying",
-                    "linking",
-                    "moderating",
-                    "questioning",
-                    "replying",
-                    "tagging"
-                  ]
-                },
-                "target": {
-                  "type": "object",
-                  "properties": {
-                    "source": {
-                      "type": "string"
-                    },
-                    "selector": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextPositionSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact",
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextQuoteSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "prefix": {
-                              "type": "string"
-                            },
-                            "suffix": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact"
-                          ]
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextPositionSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "offset": {
-                                    "type": "number"
-                                  },
-                                  "length": {
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact",
-                                  "offset",
-                                  "length"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextQuoteSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "prefix": {
-                                    "type": "string"
-                                  },
-                                  "suffix": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact"
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "source",
-                    "selector"
-                  ]
-                },
-                "body": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "TextualBody",
-                        "SpecificResource"
-                      ]
-                    },
-                    "value": {
-                      "type": "string"
-                    },
-                    "format": {
-                      "type": "string"
-                    },
-                    "language": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "entityTypes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "default": []
-                    }
-                  },
-                  "required": [
-                    "type"
-                  ]
-                },
-                "creator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                },
-                "created": {
-                  "type": "string"
-                },
-                "modified": {
-                  "type": "string"
-                },
-                "generator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "motivation",
-                "target",
-                "body",
-                "creator",
-                "created"
-              ]
+              "$ref": "#/components/schemas/Annotation"
             }
           },
           "highlights": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "motivation": {
-                  "type": "string",
-                  "enum": [
-                    "assessing",
-                    "bookmarking",
-                    "classifying",
-                    "commenting",
-                    "describing",
-                    "editing",
-                    "highlighting",
-                    "identifying",
-                    "linking",
-                    "moderating",
-                    "questioning",
-                    "replying",
-                    "tagging"
-                  ]
-                },
-                "target": {
-                  "type": "object",
-                  "properties": {
-                    "source": {
-                      "type": "string"
-                    },
-                    "selector": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextPositionSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact",
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextQuoteSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "prefix": {
-                              "type": "string"
-                            },
-                            "suffix": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact"
-                          ]
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextPositionSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "offset": {
-                                    "type": "number"
-                                  },
-                                  "length": {
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact",
-                                  "offset",
-                                  "length"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextQuoteSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "prefix": {
-                                    "type": "string"
-                                  },
-                                  "suffix": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact"
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "source",
-                    "selector"
-                  ]
-                },
-                "body": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "TextualBody",
-                        "SpecificResource"
-                      ]
-                    },
-                    "value": {
-                      "type": "string"
-                    },
-                    "format": {
-                      "type": "string"
-                    },
-                    "language": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "entityTypes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "default": []
-                    }
-                  },
-                  "required": [
-                    "type"
-                  ]
-                },
-                "creator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                },
-                "created": {
-                  "type": "string"
-                },
-                "modified": {
-                  "type": "string"
-                },
-                "generator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "motivation",
-                "target",
-                "body",
-                "creator",
-                "created"
-              ]
+              "$ref": "#/components/schemas/Annotation"
             }
           },
           "references": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "motivation": {
-                  "type": "string",
-                  "enum": [
-                    "assessing",
-                    "bookmarking",
-                    "classifying",
-                    "commenting",
-                    "describing",
-                    "editing",
-                    "highlighting",
-                    "identifying",
-                    "linking",
-                    "moderating",
-                    "questioning",
-                    "replying",
-                    "tagging"
-                  ]
-                },
-                "target": {
-                  "type": "object",
-                  "properties": {
-                    "source": {
-                      "type": "string"
-                    },
-                    "selector": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextPositionSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact",
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextQuoteSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "prefix": {
-                              "type": "string"
-                            },
-                            "suffix": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact"
-                          ]
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextPositionSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "offset": {
-                                    "type": "number"
-                                  },
-                                  "length": {
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact",
-                                  "offset",
-                                  "length"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextQuoteSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "prefix": {
-                                    "type": "string"
-                                  },
-                                  "suffix": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact"
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "source",
-                    "selector"
-                  ]
-                },
-                "body": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "TextualBody",
-                        "SpecificResource"
-                      ]
-                    },
-                    "value": {
-                      "type": "string"
-                    },
-                    "format": {
-                      "type": "string"
-                    },
-                    "language": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "entityTypes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "default": []
-                    }
-                  },
-                  "required": [
-                    "type"
-                  ]
-                },
-                "creator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                },
-                "created": {
-                  "type": "string"
-                },
-                "modified": {
-                  "type": "string"
-                },
-                "generator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "motivation",
-                "target",
-                "body",
-                "creator",
-                "created"
-              ]
+              "$ref": "#/components/schemas/Annotation"
             }
           },
           "entityReferences": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "motivation": {
-                  "type": "string",
-                  "enum": [
-                    "assessing",
-                    "bookmarking",
-                    "classifying",
-                    "commenting",
-                    "describing",
-                    "editing",
-                    "highlighting",
-                    "identifying",
-                    "linking",
-                    "moderating",
-                    "questioning",
-                    "replying",
-                    "tagging"
-                  ]
-                },
-                "target": {
-                  "type": "object",
-                  "properties": {
-                    "source": {
-                      "type": "string"
-                    },
-                    "selector": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextPositionSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact",
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextQuoteSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "prefix": {
-                              "type": "string"
-                            },
-                            "suffix": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact"
-                          ]
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextPositionSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "offset": {
-                                    "type": "number"
-                                  },
-                                  "length": {
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact",
-                                  "offset",
-                                  "length"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextQuoteSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "prefix": {
-                                    "type": "string"
-                                  },
-                                  "suffix": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact"
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "source",
-                    "selector"
-                  ]
-                },
-                "body": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "TextualBody",
-                        "SpecificResource"
-                      ]
-                    },
-                    "value": {
-                      "type": "string"
-                    },
-                    "format": {
-                      "type": "string"
-                    },
-                    "language": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "entityTypes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "default": []
-                    }
-                  },
-                  "required": [
-                    "type"
-                  ]
-                },
-                "creator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                },
-                "created": {
-                  "type": "string"
-                },
-                "modified": {
-                  "type": "string"
-                },
-                "generator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "motivation",
-                "target",
-                "body",
-                "creator",
-                "created"
-              ]
+              "$ref": "#/components/schemas/Annotation"
             }
           }
         },
@@ -2033,410 +508,18 @@
         "type": "object",
         "properties": {
           "mainDocument": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
-              },
-              "content": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
-            ]
+            "$ref": "#/components/schemas/Document"
           },
           "relatedDocuments": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "format": {
-                  "type": "string"
-                },
-                "archived": {
-                  "type": "boolean"
-                },
-                "entityTypes": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "locale": {
-                  "type": "string"
-                },
-                "creationMethod": {
-                  "type": "string",
-                  "enum": [
-                    "api",
-                    "upload",
-                    "ui",
-                    "reference",
-                    "clone",
-                    "generated"
-                  ]
-                },
-                "sourceAnnotationId": {
-                  "type": "string"
-                },
-                "sourceDocumentId": {
-                  "type": "string"
-                },
-                "creator": {
-                  "type": "string"
-                },
-                "created": {
-                  "type": "string"
-                },
-                "contentChecksum": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "name",
-                "format",
-                "archived",
-                "entityTypes",
-                "creationMethod",
-                "creator",
-                "created",
-                "contentChecksum"
-              ]
+              "$ref": "#/components/schemas/Document"
             }
           },
           "annotations": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "motivation": {
-                  "type": "string",
-                  "enum": [
-                    "assessing",
-                    "bookmarking",
-                    "classifying",
-                    "commenting",
-                    "describing",
-                    "editing",
-                    "highlighting",
-                    "identifying",
-                    "linking",
-                    "moderating",
-                    "questioning",
-                    "replying",
-                    "tagging"
-                  ]
-                },
-                "target": {
-                  "type": "object",
-                  "properties": {
-                    "source": {
-                      "type": "string"
-                    },
-                    "selector": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextPositionSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact",
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextQuoteSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "prefix": {
-                              "type": "string"
-                            },
-                            "suffix": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact"
-                          ]
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextPositionSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "offset": {
-                                    "type": "number"
-                                  },
-                                  "length": {
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact",
-                                  "offset",
-                                  "length"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextQuoteSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "prefix": {
-                                    "type": "string"
-                                  },
-                                  "suffix": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact"
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "source",
-                    "selector"
-                  ]
-                },
-                "body": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "TextualBody",
-                        "SpecificResource"
-                      ]
-                    },
-                    "value": {
-                      "type": "string"
-                    },
-                    "format": {
-                      "type": "string"
-                    },
-                    "language": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "entityTypes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "default": []
-                    }
-                  },
-                  "required": [
-                    "type"
-                  ]
-                },
-                "creator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                },
-                "created": {
-                  "type": "string"
-                },
-                "modified": {
-                  "type": "string"
-                },
-                "generator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "motivation",
-                "target",
-                "body",
-                "creator",
-                "created"
-              ]
+              "$ref": "#/components/schemas/Annotation"
             }
           },
           "graph": {
@@ -2510,6 +593,17 @@
             "items": {
               "type": "string"
             }
+          },
+          "mainDocumentContent": {
+            "type": "string",
+            "description": "The content of the main document (included if includeContent=true)"
+          },
+          "relatedDocumentsContent": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Map of document IDs to their content (included if includeContent=true)"
           }
         },
         "required": [
@@ -2523,405 +617,13 @@
         "type": "object",
         "properties": {
           "reference": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "motivation": {
-                "type": "string",
-                "enum": [
-                  "assessing",
-                  "bookmarking",
-                  "classifying",
-                  "commenting",
-                  "describing",
-                  "editing",
-                  "highlighting",
-                  "identifying",
-                  "linking",
-                  "moderating",
-                  "questioning",
-                  "replying",
-                  "tagging"
-                ]
-              },
-              "target": {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "string"
-                  },
-                  "selector": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "TextPositionSelector"
-                            ]
-                          },
-                          "exact": {
-                            "type": "string"
-                          },
-                          "offset": {
-                            "type": "number"
-                          },
-                          "length": {
-                            "type": "number"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "exact",
-                          "offset",
-                          "length"
-                        ]
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "TextQuoteSelector"
-                            ]
-                          },
-                          "exact": {
-                            "type": "string"
-                          },
-                          "prefix": {
-                            "type": "string"
-                          },
-                          "suffix": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "exact"
-                        ]
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "anyOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "TextPositionSelector"
-                                  ]
-                                },
-                                "exact": {
-                                  "type": "string"
-                                },
-                                "offset": {
-                                  "type": "number"
-                                },
-                                "length": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "exact",
-                                "offset",
-                                "length"
-                              ]
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "TextQuoteSelector"
-                                  ]
-                                },
-                                "exact": {
-                                  "type": "string"
-                                },
-                                "prefix": {
-                                  "type": "string"
-                                },
-                                "suffix": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "exact"
-                              ]
-                            }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "source",
-                  "selector"
-                ]
-              },
-              "body": {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "TextualBody",
-                      "SpecificResource"
-                    ]
-                  },
-                  "value": {
-                    "type": "string"
-                  },
-                  "format": {
-                    "type": "string"
-                  },
-                  "language": {
-                    "type": "string"
-                  },
-                  "source": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "entityTypes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "default": []
-                  }
-                },
-                "required": [
-                  "type"
-                ]
-              },
-              "creator": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "Person",
-                      "Organization",
-                      "Software"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "email_sha1": {
-                    "type": "string"
-                  },
-                  "homepage": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "name"
-                ]
-              },
-              "created": {
-                "type": "string"
-              },
-              "modified": {
-                "type": "string"
-              },
-              "generator": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "Person",
-                      "Organization",
-                      "Software"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "email_sha1": {
-                    "type": "string"
-                  },
-                  "homepage": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "name"
-                ]
-              }
-            },
-            "required": [
-              "id",
-              "motivation",
-              "target",
-              "body",
-              "creator",
-              "created"
-            ]
+            "$ref": "#/components/schemas/Annotation"
           },
           "sourceDocument": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
-            ]
+            "$ref": "#/components/schemas/Document"
           },
           "targetDocument": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
-            ]
+            "$ref": "#/components/schemas/Document"
           },
           "sourceContext": {
             "type": "object",
@@ -3046,67 +748,7 @@
           "documents": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "format": {
-                  "type": "string"
-                },
-                "archived": {
-                  "type": "boolean"
-                },
-                "entityTypes": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "locale": {
-                  "type": "string"
-                },
-                "creationMethod": {
-                  "type": "string",
-                  "enum": [
-                    "api",
-                    "upload",
-                    "ui",
-                    "reference",
-                    "clone",
-                    "generated"
-                  ]
-                },
-                "sourceAnnotationId": {
-                  "type": "string"
-                },
-                "sourceDocumentId": {
-                  "type": "string"
-                },
-                "creator": {
-                  "type": "string"
-                },
-                "created": {
-                  "type": "string"
-                },
-                "contentChecksum": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "name",
-                "format",
-                "archived",
-                "entityTypes",
-                "creationMethod",
-                "creator",
-                "created",
-                "contentChecksum"
-              ]
+              "$ref": "#/components/schemas/Document"
             }
           },
           "connections": {
@@ -3146,67 +788,7 @@
         "type": "object",
         "properties": {
           "sourceDocument": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
-            ]
+            "$ref": "#/components/schemas/Document"
           },
           "expiresAt": {
             "type": "string",
@@ -3230,67 +812,7 @@
             "description": "ISO 8601 timestamp when token expires"
           },
           "document": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
-            ]
+            "$ref": "#/components/schemas/Document"
           }
         },
         "required": [
@@ -3305,276 +827,7 @@
           "highlights": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "motivation": {
-                  "type": "string",
-                  "enum": [
-                    "assessing",
-                    "bookmarking",
-                    "classifying",
-                    "commenting",
-                    "describing",
-                    "editing",
-                    "highlighting",
-                    "identifying",
-                    "linking",
-                    "moderating",
-                    "questioning",
-                    "replying",
-                    "tagging"
-                  ]
-                },
-                "target": {
-                  "type": "object",
-                  "properties": {
-                    "source": {
-                      "type": "string"
-                    },
-                    "selector": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextPositionSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact",
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextQuoteSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "prefix": {
-                              "type": "string"
-                            },
-                            "suffix": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact"
-                          ]
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextPositionSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "offset": {
-                                    "type": "number"
-                                  },
-                                  "length": {
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact",
-                                  "offset",
-                                  "length"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextQuoteSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "prefix": {
-                                    "type": "string"
-                                  },
-                                  "suffix": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact"
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "source",
-                    "selector"
-                  ]
-                },
-                "body": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "TextualBody",
-                        "SpecificResource"
-                      ]
-                    },
-                    "value": {
-                      "type": "string"
-                    },
-                    "format": {
-                      "type": "string"
-                    },
-                    "language": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "entityTypes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "default": []
-                    }
-                  },
-                  "required": [
-                    "type"
-                  ]
-                },
-                "creator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                },
-                "created": {
-                  "type": "string"
-                },
-                "modified": {
-                  "type": "string"
-                },
-                "generator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "motivation",
-                "target",
-                "body",
-                "creator",
-                "created"
-              ]
+              "$ref": "#/components/schemas/Annotation"
             }
           }
         },
@@ -3588,276 +841,7 @@
           "references": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "motivation": {
-                  "type": "string",
-                  "enum": [
-                    "assessing",
-                    "bookmarking",
-                    "classifying",
-                    "commenting",
-                    "describing",
-                    "editing",
-                    "highlighting",
-                    "identifying",
-                    "linking",
-                    "moderating",
-                    "questioning",
-                    "replying",
-                    "tagging"
-                  ]
-                },
-                "target": {
-                  "type": "object",
-                  "properties": {
-                    "source": {
-                      "type": "string"
-                    },
-                    "selector": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextPositionSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact",
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextQuoteSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "prefix": {
-                              "type": "string"
-                            },
-                            "suffix": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact"
-                          ]
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextPositionSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "offset": {
-                                    "type": "number"
-                                  },
-                                  "length": {
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact",
-                                  "offset",
-                                  "length"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextQuoteSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "prefix": {
-                                    "type": "string"
-                                  },
-                                  "suffix": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact"
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "source",
-                    "selector"
-                  ]
-                },
-                "body": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "TextualBody",
-                        "SpecificResource"
-                      ]
-                    },
-                    "value": {
-                      "type": "string"
-                    },
-                    "format": {
-                      "type": "string"
-                    },
-                    "language": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "entityTypes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "default": []
-                    }
-                  },
-                  "required": [
-                    "type"
-                  ]
-                },
-                "creator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                },
-                "created": {
-                  "type": "string"
-                },
-                "modified": {
-                  "type": "string"
-                },
-                "generator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "motivation",
-                "target",
-                "body",
-                "creator",
-                "created"
-              ]
+              "$ref": "#/components/schemas/Annotation"
             }
           }
         },
@@ -3942,65 +926,7 @@
         "type": "object",
         "properties": {
           "annotation": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "documentId": {
-                "type": "string"
-              },
-              "selector": {
-                "type": "object",
-                "properties": {
-                  "exact": {
-                    "type": "string"
-                  },
-                  "offset": {
-                    "type": "number"
-                  },
-                  "length": {
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "exact",
-                  "offset",
-                  "length"
-                ]
-              },
-              "referencedDocumentId": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "createdBy": {
-                "type": "string"
-              },
-              "createdAt": {
-                "type": "string"
-              },
-              "updatedAt": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "documentId",
-              "selector",
-              "referencedDocumentId",
-              "entityTypes",
-              "createdBy",
-              "createdAt",
-              "updatedAt"
-            ]
+            "$ref": "#/components/schemas/Annotation"
           },
           "context": {
             "type": "object",
@@ -4020,67 +946,7 @@
             ]
           },
           "document": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
-            ]
+            "$ref": "#/components/schemas/Document"
           }
         },
         "required": [
@@ -4127,276 +993,7 @@
         "type": "object",
         "properties": {
           "annotation": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "motivation": {
-                "type": "string",
-                "enum": [
-                  "assessing",
-                  "bookmarking",
-                  "classifying",
-                  "commenting",
-                  "describing",
-                  "editing",
-                  "highlighting",
-                  "identifying",
-                  "linking",
-                  "moderating",
-                  "questioning",
-                  "replying",
-                  "tagging"
-                ]
-              },
-              "target": {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "string"
-                  },
-                  "selector": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "TextPositionSelector"
-                            ]
-                          },
-                          "exact": {
-                            "type": "string"
-                          },
-                          "offset": {
-                            "type": "number"
-                          },
-                          "length": {
-                            "type": "number"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "exact",
-                          "offset",
-                          "length"
-                        ]
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "TextQuoteSelector"
-                            ]
-                          },
-                          "exact": {
-                            "type": "string"
-                          },
-                          "prefix": {
-                            "type": "string"
-                          },
-                          "suffix": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "exact"
-                        ]
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "anyOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "TextPositionSelector"
-                                  ]
-                                },
-                                "exact": {
-                                  "type": "string"
-                                },
-                                "offset": {
-                                  "type": "number"
-                                },
-                                "length": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "exact",
-                                "offset",
-                                "length"
-                              ]
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "TextQuoteSelector"
-                                  ]
-                                },
-                                "exact": {
-                                  "type": "string"
-                                },
-                                "prefix": {
-                                  "type": "string"
-                                },
-                                "suffix": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "exact"
-                              ]
-                            }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "source",
-                  "selector"
-                ]
-              },
-              "body": {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "TextualBody",
-                      "SpecificResource"
-                    ]
-                  },
-                  "value": {
-                    "type": "string"
-                  },
-                  "format": {
-                    "type": "string"
-                  },
-                  "language": {
-                    "type": "string"
-                  },
-                  "source": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "entityTypes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "default": []
-                  }
-                },
-                "required": [
-                  "type"
-                ]
-              },
-              "creator": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "Person",
-                      "Organization",
-                      "Software"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "email_sha1": {
-                    "type": "string"
-                  },
-                  "homepage": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "name"
-                ]
-              },
-              "created": {
-                "type": "string"
-              },
-              "modified": {
-                "type": "string"
-              },
-              "generator": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "Person",
-                      "Organization",
-                      "Software"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "email_sha1": {
-                    "type": "string"
-                  },
-                  "homepage": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "name"
-                ]
-              }
-            },
-            "required": [
-              "id",
-              "motivation",
-              "target",
-              "body",
-              "creator",
-              "created"
-            ]
+            "$ref": "#/components/schemas/Annotation"
           }
         },
         "required": [
@@ -4409,276 +1006,7 @@
           "annotations": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "motivation": {
-                  "type": "string",
-                  "enum": [
-                    "assessing",
-                    "bookmarking",
-                    "classifying",
-                    "commenting",
-                    "describing",
-                    "editing",
-                    "highlighting",
-                    "identifying",
-                    "linking",
-                    "moderating",
-                    "questioning",
-                    "replying",
-                    "tagging"
-                  ]
-                },
-                "target": {
-                  "type": "object",
-                  "properties": {
-                    "source": {
-                      "type": "string"
-                    },
-                    "selector": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextPositionSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact",
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextQuoteSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "prefix": {
-                              "type": "string"
-                            },
-                            "suffix": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact"
-                          ]
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextPositionSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "offset": {
-                                    "type": "number"
-                                  },
-                                  "length": {
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact",
-                                  "offset",
-                                  "length"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "TextQuoteSelector"
-                                    ]
-                                  },
-                                  "exact": {
-                                    "type": "string"
-                                  },
-                                  "prefix": {
-                                    "type": "string"
-                                  },
-                                  "suffix": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "exact"
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "source",
-                    "selector"
-                  ]
-                },
-                "body": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "TextualBody",
-                        "SpecificResource"
-                      ]
-                    },
-                    "value": {
-                      "type": "string"
-                    },
-                    "format": {
-                      "type": "string"
-                    },
-                    "language": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "entityTypes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "default": []
-                    }
-                  },
-                  "required": [
-                    "type"
-                  ]
-                },
-                "creator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                },
-                "created": {
-                  "type": "string"
-                },
-                "modified": {
-                  "type": "string"
-                },
-                "generator": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "Person",
-                        "Organization",
-                        "Software"
-                      ]
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "nickname": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "email_sha1": {
-                      "type": "string"
-                    },
-                    "homepage": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "name"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "motivation",
-                "target",
-                "body",
-                "creator",
-                "created"
-              ]
+              "$ref": "#/components/schemas/Annotation"
             }
           },
           "total": {
@@ -4702,342 +1030,10 @@
         "type": "object",
         "properties": {
           "annotation": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "motivation": {
-                "type": "string",
-                "enum": [
-                  "assessing",
-                  "bookmarking",
-                  "classifying",
-                  "commenting",
-                  "describing",
-                  "editing",
-                  "highlighting",
-                  "identifying",
-                  "linking",
-                  "moderating",
-                  "questioning",
-                  "replying",
-                  "tagging"
-                ]
-              },
-              "target": {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "string"
-                  },
-                  "selector": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "TextPositionSelector"
-                            ]
-                          },
-                          "exact": {
-                            "type": "string"
-                          },
-                          "offset": {
-                            "type": "number"
-                          },
-                          "length": {
-                            "type": "number"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "exact",
-                          "offset",
-                          "length"
-                        ]
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "TextQuoteSelector"
-                            ]
-                          },
-                          "exact": {
-                            "type": "string"
-                          },
-                          "prefix": {
-                            "type": "string"
-                          },
-                          "suffix": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "exact"
-                        ]
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "anyOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "TextPositionSelector"
-                                  ]
-                                },
-                                "exact": {
-                                  "type": "string"
-                                },
-                                "offset": {
-                                  "type": "number"
-                                },
-                                "length": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "exact",
-                                "offset",
-                                "length"
-                              ]
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "TextQuoteSelector"
-                                  ]
-                                },
-                                "exact": {
-                                  "type": "string"
-                                },
-                                "prefix": {
-                                  "type": "string"
-                                },
-                                "suffix": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "exact"
-                              ]
-                            }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "source",
-                  "selector"
-                ]
-              },
-              "body": {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "TextualBody",
-                      "SpecificResource"
-                    ]
-                  },
-                  "value": {
-                    "type": "string"
-                  },
-                  "format": {
-                    "type": "string"
-                  },
-                  "language": {
-                    "type": "string"
-                  },
-                  "source": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "entityTypes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "default": []
-                  }
-                },
-                "required": [
-                  "type"
-                ]
-              },
-              "creator": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "Person",
-                      "Organization",
-                      "Software"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "email_sha1": {
-                    "type": "string"
-                  },
-                  "homepage": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "name"
-                ]
-              },
-              "created": {
-                "type": "string"
-              },
-              "modified": {
-                "type": "string"
-              },
-              "generator": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "Person",
-                      "Organization",
-                      "Software"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "email_sha1": {
-                    "type": "string"
-                  },
-                  "homepage": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "name"
-                ]
-              }
-            },
-            "required": [
-              "id",
-              "motivation",
-              "target",
-              "body",
-              "creator",
-              "created"
-            ]
+            "$ref": "#/components/schemas/Annotation"
           },
           "targetDocument": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
-            ]
+            "$ref": "#/components/schemas/Document"
           }
         },
         "required": [
@@ -5049,407 +1045,26 @@
         "type": "object",
         "properties": {
           "annotation": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "motivation": {
-                "type": "string",
-                "enum": [
-                  "assessing",
-                  "bookmarking",
-                  "classifying",
-                  "commenting",
-                  "describing",
-                  "editing",
-                  "highlighting",
-                  "identifying",
-                  "linking",
-                  "moderating",
-                  "questioning",
-                  "replying",
-                  "tagging"
-                ]
-              },
-              "target": {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "string"
-                  },
-                  "selector": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "TextPositionSelector"
-                            ]
-                          },
-                          "exact": {
-                            "type": "string"
-                          },
-                          "offset": {
-                            "type": "number"
-                          },
-                          "length": {
-                            "type": "number"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "exact",
-                          "offset",
-                          "length"
-                        ]
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "TextQuoteSelector"
-                            ]
-                          },
-                          "exact": {
-                            "type": "string"
-                          },
-                          "prefix": {
-                            "type": "string"
-                          },
-                          "suffix": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "exact"
-                        ]
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "anyOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "TextPositionSelector"
-                                  ]
-                                },
-                                "exact": {
-                                  "type": "string"
-                                },
-                                "offset": {
-                                  "type": "number"
-                                },
-                                "length": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "exact",
-                                "offset",
-                                "length"
-                              ]
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "TextQuoteSelector"
-                                  ]
-                                },
-                                "exact": {
-                                  "type": "string"
-                                },
-                                "prefix": {
-                                  "type": "string"
-                                },
-                                "suffix": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "exact"
-                              ]
-                            }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "source",
-                  "selector"
-                ]
-              },
-              "body": {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "TextualBody",
-                      "SpecificResource"
-                    ]
-                  },
-                  "value": {
-                    "type": "string"
-                  },
-                  "format": {
-                    "type": "string"
-                  },
-                  "language": {
-                    "type": "string"
-                  },
-                  "source": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "entityTypes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "default": []
-                  }
-                },
-                "required": [
-                  "type"
-                ]
-              },
-              "creator": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "Person",
-                      "Organization",
-                      "Software"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "email_sha1": {
-                    "type": "string"
-                  },
-                  "homepage": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "name"
-                ]
-              },
-              "created": {
-                "type": "string"
-              },
-              "modified": {
-                "type": "string"
-              },
-              "generator": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "Person",
-                      "Organization",
-                      "Software"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "email_sha1": {
-                    "type": "string"
-                  },
-                  "homepage": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "name"
-                ]
-              }
-            },
-            "required": [
-              "id",
-              "motivation",
-              "target",
-              "body",
-              "creator",
-              "created"
-            ]
+            "$ref": "#/components/schemas/Annotation"
           },
           "document": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "id": {
-                "type": "string"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Document"
               },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
             ]
           },
           "resolvedDocument": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "id": {
-                "type": "string"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Document"
               },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
             ]
           }
         },
@@ -6013,339 +1628,10 @@
         "type": "object",
         "properties": {
           "document": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "format": {
-                "type": "string"
-              },
-              "archived": {
-                "type": "boolean"
-              },
-              "entityTypes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "locale": {
-                "type": "string"
-              },
-              "creationMethod": {
-                "type": "string",
-                "enum": [
-                  "api",
-                  "upload",
-                  "ui",
-                  "reference",
-                  "clone",
-                  "generated"
-                ]
-              },
-              "sourceAnnotationId": {
-                "type": "string"
-              },
-              "sourceDocumentId": {
-                "type": "string"
-              },
-              "creator": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "contentChecksum": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "format",
-              "archived",
-              "entityTypes",
-              "creationMethod",
-              "creator",
-              "created",
-              "contentChecksum"
-            ]
+            "$ref": "#/components/schemas/Document"
           },
           "annotation": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "motivation": {
-                "type": "string",
-                "enum": [
-                  "assessing",
-                  "bookmarking",
-                  "classifying",
-                  "commenting",
-                  "describing",
-                  "editing",
-                  "highlighting",
-                  "identifying",
-                  "linking",
-                  "moderating",
-                  "questioning",
-                  "replying",
-                  "tagging"
-                ]
-              },
-              "target": {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "string"
-                  },
-                  "selector": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "TextPositionSelector"
-                            ]
-                          },
-                          "exact": {
-                            "type": "string"
-                          },
-                          "offset": {
-                            "type": "number"
-                          },
-                          "length": {
-                            "type": "number"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "exact",
-                          "offset",
-                          "length"
-                        ]
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "TextQuoteSelector"
-                            ]
-                          },
-                          "exact": {
-                            "type": "string"
-                          },
-                          "prefix": {
-                            "type": "string"
-                          },
-                          "suffix": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "exact"
-                        ]
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "anyOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "TextPositionSelector"
-                                  ]
-                                },
-                                "exact": {
-                                  "type": "string"
-                                },
-                                "offset": {
-                                  "type": "number"
-                                },
-                                "length": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "exact",
-                                "offset",
-                                "length"
-                              ]
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "TextQuoteSelector"
-                                  ]
-                                },
-                                "exact": {
-                                  "type": "string"
-                                },
-                                "prefix": {
-                                  "type": "string"
-                                },
-                                "suffix": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "exact"
-                              ]
-                            }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "source",
-                  "selector"
-                ]
-              },
-              "body": {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "TextualBody",
-                      "SpecificResource"
-                    ]
-                  },
-                  "value": {
-                    "type": "string"
-                  },
-                  "format": {
-                    "type": "string"
-                  },
-                  "language": {
-                    "type": "string"
-                  },
-                  "source": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "entityTypes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "default": []
-                  }
-                },
-                "required": [
-                  "type"
-                ]
-              },
-              "creator": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "Person",
-                      "Organization",
-                      "Software"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "email_sha1": {
-                    "type": "string"
-                  },
-                  "homepage": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "name"
-                ]
-              },
-              "created": {
-                "type": "string"
-              },
-              "modified": {
-                "type": "string"
-              },
-              "generator": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "Person",
-                      "Organization",
-                      "Software"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "email_sha1": {
-                    "type": "string"
-                  },
-                  "homepage": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "name"
-                ]
-              }
-            },
-            "required": [
-              "id",
-              "motivation",
-              "target",
-              "body",
-              "creator",
-              "created"
-            ]
+            "$ref": "#/components/schemas/Annotation"
           }
         },
         "required": [
@@ -6625,7 +1911,10 @@
                               "type": "number"
                             }
                           },
-                          "required": ["offset", "length"]
+                          "required": [
+                            "offset",
+                            "length"
+                          ]
                         },
                         "value": {
                           "type": "string"
@@ -6773,7 +2062,9 @@
             "type": "string"
           }
         },
-        "required": ["documentId"]
+        "required": [
+          "documentId"
+        ]
       },
       "ResolveAnnotationRequest": {
         "type": "object",
@@ -6804,7 +2095,9 @@
         "properties": {
           "type": {
             "type": "string",
-            "enum": ["TextPositionSelector"]
+            "enum": [
+              "TextPositionSelector"
+            ]
           },
           "exact": {
             "type": "string"
@@ -6816,14 +2109,21 @@
             "type": "number"
           }
         },
-        "required": ["type", "exact", "offset", "length"]
+        "required": [
+          "type",
+          "exact",
+          "offset",
+          "length"
+        ]
       },
       "TextQuoteSelector": {
         "type": "object",
         "properties": {
           "type": {
             "type": "string",
-            "enum": ["TextQuoteSelector"]
+            "enum": [
+              "TextQuoteSelector"
+            ]
           },
           "exact": {
             "type": "string"
@@ -6835,7 +2135,10 @@
             "type": "string"
           }
         },
-        "required": ["type", "exact"]
+        "required": [
+          "type",
+          "exact"
+        ]
       },
       "Agent": {
         "type": "object",
@@ -6845,7 +2148,11 @@
           },
           "type": {
             "type": "string",
-            "enum": ["Person", "Organization", "Software"]
+            "enum": [
+              "Person",
+              "Organization",
+              "Software"
+            ]
           },
           "name": {
             "type": "string"
@@ -6863,7 +2170,11 @@
             "type": "string"
           }
         },
-        "required": ["id", "type", "name"]
+        "required": [
+          "id",
+          "type",
+          "name"
+        ]
       },
       "Document": {
         "type": "object",
@@ -6891,7 +2202,14 @@
           },
           "creationMethod": {
             "type": "string",
-            "enum": ["api", "upload", "ui", "reference", "clone", "generated"]
+            "enum": [
+              "api",
+              "upload",
+              "ui",
+              "reference",
+              "clone",
+              "generated"
+            ]
           },
           "sourceAnnotationId": {
             "type": "string"
@@ -6909,7 +2227,17 @@
             "type": "string"
           }
         },
-        "required": ["id", "name", "format", "archived", "entityTypes", "creationMethod", "creator", "created", "contentChecksum"]
+        "required": [
+          "id",
+          "name",
+          "format",
+          "archived",
+          "entityTypes",
+          "creationMethod",
+          "creator",
+          "created",
+          "contentChecksum"
+        ]
       },
       "Annotation": {
         "type": "object",
@@ -6919,7 +2247,21 @@
           },
           "motivation": {
             "type": "string",
-            "enum": ["assessing", "bookmarking", "classifying", "commenting", "describing", "editing", "highlighting", "identifying", "linking", "moderating", "questioning", "replying", "tagging"]
+            "enum": [
+              "assessing",
+              "bookmarking",
+              "classifying",
+              "commenting",
+              "describing",
+              "editing",
+              "highlighting",
+              "identifying",
+              "linking",
+              "moderating",
+              "questioning",
+              "replying",
+              "tagging"
+            ]
           },
           "target": {
             "type": "object",
@@ -6951,14 +2293,20 @@
                 ]
               }
             },
-            "required": ["source", "selector"]
+            "required": [
+              "source",
+              "selector"
+            ]
           },
           "body": {
             "type": "object",
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["TextualBody", "SpecificResource"]
+                "enum": [
+                  "TextualBody",
+                  "SpecificResource"
+                ]
               },
               "value": {
                 "type": "string"
@@ -6970,7 +2318,10 @@
                 "type": "string"
               },
               "source": {
-                "type": ["string", "null"]
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "entityTypes": {
                 "type": "array",
@@ -6980,7 +2331,10 @@
                 "default": []
               }
             },
-            "required": ["type", "entityTypes"]
+            "required": [
+              "type",
+              "entityTypes"
+            ]
           },
           "creator": {
             "$ref": "#/components/schemas/Agent"
@@ -6995,7 +2349,14 @@
             "$ref": "#/components/schemas/Agent"
           }
         },
-        "required": ["id", "motivation", "target", "body", "creator", "created"]
+        "required": [
+          "id",
+          "motivation",
+          "target",
+          "body",
+          "creator",
+          "created"
+        ]
       },
       "UpdateUserResponse": {
         "type": "object",
@@ -7006,22 +2367,65 @@
           "user": {
             "type": "object",
             "properties": {
-              "id": {"type": "string"},
-              "email": {"type": "string"},
-              "name": {"type": ["string", "null"]},
-              "image": {"type": ["string", "null"]},
-              "domain": {"type": "string"},
-              "provider": {"type": "string"},
-              "isAdmin": {"type": "boolean"},
-              "isActive": {"type": "boolean"},
-              "lastLogin": {"type": ["string", "null"]},
-              "created": {"type": "string"},
-              "updatedAt": {"type": "string"}
+              "id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "image": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "domain": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "isAdmin": {
+                "type": "boolean"
+              },
+              "isActive": {
+                "type": "boolean"
+              },
+              "lastLogin": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "created": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
             },
-            "required": ["id", "email", "domain", "provider", "isAdmin", "isActive", "created", "updatedAt"]
+            "required": [
+              "id",
+              "email",
+              "domain",
+              "provider",
+              "isAdmin",
+              "isActive",
+              "created",
+              "updatedAt"
+            ]
           }
         },
-        "required": ["success", "user"]
+        "required": [
+          "success",
+          "user"
+        ]
       },
       "DeleteUserResponse": {
         "type": "object",
@@ -7033,7 +2437,10 @@
             "type": "string"
           }
         },
-        "required": ["success", "message"]
+        "required": [
+          "success",
+          "message"
+        ]
       },
       "TokenRefreshResponse": {
         "type": "object",
@@ -7042,7 +2449,9 @@
             "type": "string"
           }
         },
-        "required": ["access_token"]
+        "required": [
+          "access_token"
+        ]
       },
       "CreateDocumentFromSelectionRequest": {
         "type": "object",
@@ -7058,7 +2467,9 @@
           },
           "entityTypes": {
             "type": "array",
-            "items": {"type": "string"}
+            "items": {
+              "type": "string"
+            }
           },
           "metadata": {
             "type": "object",
@@ -7071,7 +2482,11 @@
             "type": "string"
           }
         },
-        "required": ["content", "name", "format"]
+        "required": [
+          "content",
+          "name",
+          "format"
+        ]
       },
       "CreateDocumentFromSelectionResponse": {
         "type": "object",
@@ -7083,7 +2498,10 @@
             "$ref": "#/components/schemas/Annotation"
           }
         },
-        "required": ["document", "annotation"]
+        "required": [
+          "document",
+          "annotation"
+        ]
       },
       "GenerateDocumentFromAnnotationResponse": {
         "type": "object",
@@ -7098,7 +2516,11 @@
             "type": "boolean"
           }
         },
-        "required": ["document", "annotation", "generated"]
+        "required": [
+          "document",
+          "annotation",
+          "generated"
+        ]
       },
       "CreateFromAnnotationRequest": {
         "type": "object",
@@ -7113,7 +2535,11 @@
             "type": "string"
           }
         },
-        "required": ["name", "content", "format"]
+        "required": [
+          "name",
+          "content",
+          "format"
+        ]
       },
       "CreateFromAnnotationResponse": {
         "type": "object",
@@ -7128,27 +2554,38 @@
             }
           }
         },
-        "required": ["document", "annotations"]
+        "required": [
+          "document",
+          "annotations"
+        ]
       },
       "DetectAnnotationsStreamRequest": {
         "type": "object",
         "properties": {
           "entityTypes": {
             "type": "array",
-            "items": {"type": "string"}
+            "items": {
+              "type": "string"
+            }
           }
         },
-        "required": ["entityTypes"]
+        "required": [
+          "entityTypes"
+        ]
       },
       "DetectEntitiesRequest": {
         "type": "object",
         "properties": {
           "entityTypes": {
             "type": "array",
-            "items": {"type": "string"}
+            "items": {
+              "type": "string"
+            }
           }
         },
-        "required": ["entityTypes"]
+        "required": [
+          "entityTypes"
+        ]
       },
       "CreateJobResponse": {
         "type": "object",
@@ -7158,11 +2595,20 @@
           },
           "type": {
             "type": "string",
-            "enum": ["detection", "generation"]
+            "enum": [
+              "detection",
+              "generation"
+            ]
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "running", "complete", "failed", "cancelled"]
+            "enum": [
+              "pending",
+              "running",
+              "complete",
+              "failed",
+              "cancelled"
+            ]
           },
           "created": {
             "type": "string"
@@ -7171,7 +2617,12 @@
             "type": "string"
           }
         },
-        "required": ["jobId", "type", "status", "created"]
+        "required": [
+          "jobId",
+          "type",
+          "status",
+          "created"
+        ]
       },
       "GetAnnotationsResponse": {
         "type": "object",
@@ -7183,7 +2634,9 @@
             }
           }
         },
-        "required": ["annotations"]
+        "required": [
+          "annotations"
+        ]
       },
       "CreateDocumentFromTokenResponse": {
         "type": "object",
@@ -7198,7 +2651,10 @@
             }
           }
         },
-        "required": ["document", "annotations"]
+        "required": [
+          "document",
+          "annotations"
+        ]
       }
     },
     "parameters": {}

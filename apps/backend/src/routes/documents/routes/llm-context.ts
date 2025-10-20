@@ -68,15 +68,17 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     const limitedRelatedDocs = relatedDocs.slice(0, maxDocuments - 1);
 
     // Get content for related documents if requested
-    const relatedWithContent = includeContent ?
+    const relatedDocumentsContent: { [id: string]: string } = {};
+    if (includeContent) {
       await Promise.all(limitedRelatedDocs.map(async (doc) => {
         try {
           const content = await storage.getDocument(doc.id);
-          return { ...doc, content: content.toString('utf-8') };
+          relatedDocumentsContent[doc.id] = content.toString('utf-8');
         } catch {
-          return doc;
+          // Skip documents where content can't be loaded
         }
-      })) : limitedRelatedDocs;
+      }));
+    }
 
     // Get all annotations for the main document
     const highlights = await graphDb.getHighlights(id);
@@ -114,13 +116,12 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
       await generateReferenceSuggestions(mainContent) : undefined;
 
     const response: DocumentLLMContextResponse = {
-      mainDocument: {
-        ...mainDoc,
-        ...(mainContent ? { content: mainContent } : {}),
-      },
-      relatedDocuments: relatedWithContent,
+      mainDocument: mainDoc,
+      relatedDocuments: limitedRelatedDocs,
       annotations: [...highlights, ...references],
       graph: { nodes, edges },
+      ...(mainContent ? { mainDocumentContent: mainContent } : {}),
+      ...(Object.keys(relatedDocumentsContent).length > 0 ? { relatedDocumentsContent } : {}),
       ...(summary ? { summary } : {}),
       ...(suggestedReferences ? { suggestedReferences } : {}),
     };
