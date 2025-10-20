@@ -623,7 +623,14 @@
             "$ref": "#/components/schemas/Document"
           },
           "targetDocument": {
-            "$ref": "#/components/schemas/Document"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Document"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "sourceContext": {
             "type": "object",
@@ -684,8 +691,7 @@
         },
         "required": [
           "reference",
-          "sourceDocument",
-          "targetDocument"
+          "sourceDocument"
         ]
       },
       "GetReferencedByResponse": {
@@ -1033,12 +1039,18 @@
             "$ref": "#/components/schemas/Annotation"
           },
           "targetDocument": {
-            "$ref": "#/components/schemas/Document"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Document"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
-          "annotation",
-          "targetDocument"
+          "annotation"
         ]
       },
       "GetAnnotationResponse": {
