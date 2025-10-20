@@ -75,7 +75,7 @@ describe('Layered Storage', () => {
         document: {
           id: docId,
           name: 'Test Doc',
-          format: 'text/plain',
+          format: 'text/plain' as const,
           metadata: {},
           entityTypes: ['note'],
           archived: false,
@@ -106,7 +106,7 @@ describe('Layered Storage', () => {
         document: {
           id: docId,
           name: 'Projection Test',
-          format: 'text/markdown',
+          format: 'text/markdown' as const,
           metadata: {},
           entityTypes: ['article', 'research'],
           archived: false,
@@ -165,7 +165,7 @@ describe('Layered Storage', () => {
         document: {
           id: docId,
           name: 'To Delete',
-          format: 'text/plain',
+          format: 'text/plain' as const,
           metadata: {},
           entityTypes: [],
           archived: false,
@@ -203,7 +203,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           name: 'Integration Test',
-          format: 'text/plain',
+          format: 'text/plain' as const,
           contentHash: 'hash1',
           creationMethod: CREATION_METHODS.API,
         },
@@ -226,7 +226,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           name: 'Update Test',
-          format: 'text/plain',
+          format: 'text/plain' as const,
           contentHash: 'hash2',
           creationMethod: CREATION_METHODS.API,
         },
@@ -266,7 +266,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           name: 'Load Test',
-          format: 'text/plain',
+          format: 'text/plain' as const,
           contentHash: 'hash3',
           creationMethod: CREATION_METHODS.API,
         },

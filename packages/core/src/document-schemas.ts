@@ -5,12 +5,13 @@
  */
 
 import { z } from 'zod';
-import { AnnotationSchema, DocumentSchema } from './base-schemas';
+import { AnnotationSchema, DocumentSchema, ContentFormatSchema } from './base-schemas';
+import type { ContentFormat } from './base-schemas';
 import type { CreationMethod } from './creation-methods';
 
 // Re-export DocumentSchema and Document from base-schemas for backward compatibility
-export { DocumentSchema } from './base-schemas';
-export type { Document } from './base-schemas';
+export { DocumentSchema, ContentFormatSchema } from './base-schemas';
+export type { Document, ContentFormat } from './base-schemas';
 
 /**
  * Input for creating a new document
@@ -19,7 +20,7 @@ export interface CreateDocumentInput {
   name: string;
   entityTypes: string[];
   content: string;
-  format: string;  // MIME type (e.g., 'text/plain', 'text/markdown')
+  format: ContentFormat;  // MIME type (validated enum)
   contentChecksum: string;  // SHA-256 hash calculated by backend
   creator: string;  // Set by backend from auth context (REQUIRED)
 
@@ -57,7 +58,7 @@ export interface DocumentFilter {
 export const CreateDocumentRequestSchema = z.object({
   name: z.string().min(1).max(500),
   content: z.string(),
-  format: z.string(), // MIME type (required)
+  format: ContentFormatSchema, // MIME type (required, validated enum)
   entityTypes: z.array(z.string()), // Required - caller must explicitly pass [] for no types
   locale: z.string().optional(), // Language/locale code (e.g., 'en', 'es', 'fr')
   creationMethod: z.string().optional(),

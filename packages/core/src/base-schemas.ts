@@ -76,6 +76,18 @@ export const AgentSchema = z.object({
 export type Agent = z.infer<typeof AgentSchema>;
 
 /**
+ * Content Format Schema
+ *
+ * Supported MIME types for document and annotation content.
+ */
+export const ContentFormatSchema = z.enum([
+  'text/plain',
+  'text/markdown',
+]);
+
+export type ContentFormat = z.infer<typeof ContentFormatSchema>;
+
+/**
  * Document Schema
  *
  * Core document model used across the application.
@@ -83,7 +95,7 @@ export type Agent = z.infer<typeof AgentSchema>;
 export const DocumentSchema = z.object({
   id: z.string(),
   name: z.string(),
-  format: z.string(), // MIME type (e.g., 'text/plain', 'text/markdown', 'application/pdf')
+  format: ContentFormatSchema, // MIME type
   archived: z.boolean(),
   entityTypes: z.array(z.string()),
   locale: z.string().optional(), // Language/locale code (e.g., 'en', 'es', 'fr')
@@ -122,7 +134,7 @@ export const AnnotationSchema = z.object({
   body: z.object({
     type: z.enum(['TextualBody', 'SpecificResource']),
     value: z.string().optional(),
-    format: z.string().optional(),      // MIME type (e.g., 'text/plain', 'text/html', 'text/markdown')
+    format: ContentFormatSchema.optional(),      // MIME type
     language: z.string().optional(),    // ISO language code (e.g., 'en', 'fr', 'es')
     source: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).default([]),
