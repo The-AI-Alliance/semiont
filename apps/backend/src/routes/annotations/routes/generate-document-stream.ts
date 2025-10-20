@@ -103,6 +103,10 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
 
       // Stream the job's progress to the client
       return streamSSE(c, async (stream) => {
+        // Set proper SSE headers with charset
+        c.header('Content-Type', 'text/event-stream; charset=utf-8');
+        c.header('Cache-Control', 'no-cache');
+        c.header('Connection', 'keep-alive');
         try {
           // Send initial started event
           await stream.writeSSE({
