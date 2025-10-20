@@ -2346,7 +2346,7 @@
               "format": {
                 "$ref": "#/components/schemas/ContentFormat"
               },
-              "language": {
+              "locale": {
                 "type": "string"
               },
               "source": {

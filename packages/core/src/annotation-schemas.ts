@@ -114,7 +114,7 @@ export type Agent = z.infer<typeof AgentSchema>;
  * - Supports W3C Agent objects for creator/generator (Person, Organization, Software) ✓
  * - Uses 'body.value' for textual content (W3C TextualBody pattern) ✓
  * - Uses 'body.format' for MIME type metadata ✓
- * - Uses 'body.language' for language metadata ✓
+ * - Uses 'body.locale' for language metadata ✓
  * - Uses W3C body types: 'TextualBody' | 'SpecificResource' ✓
  * - Uses 'body.source' for linked resources (W3C SpecificResource pattern) ✓
  *

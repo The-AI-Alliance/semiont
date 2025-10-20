@@ -137,7 +137,7 @@ export const AnnotationSchema = z.object({
     type: z.enum(['TextualBody', 'SpecificResource']),
     value: z.string().optional(),
     format: ContentFormatSchema.optional(),      // MIME type
-    language: z.string().optional(),    // ISO language code (e.g., 'en', 'fr', 'es')
+    locale: z.string().optional(),    // ISO language code (e.g., 'en', 'fr', 'es')
     source: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).default([]),
   }),
