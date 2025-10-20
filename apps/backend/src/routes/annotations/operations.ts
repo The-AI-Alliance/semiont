@@ -83,7 +83,10 @@ operationsRouter.post('/api/annotations/:id/create-document',
         contentHash: checksum,
         creationMethod: CREATION_METHODS.API,
         entityTypes: body.entityTypes || [],
-        metadata: body.metadata || {},
+        locale: undefined,  // Not provided in this flow
+        isDraft: false,     // Created from selection, not a draft
+        generatedFrom: undefined,
+        generationPrompt: undefined,
       },
     });
 
@@ -195,11 +198,10 @@ operationsRouter.post('/api/annotations/:id/generate-document',
         contentHash: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
         entityTypes: body.entityTypes || annotation.body.entityTypes || [],
-        metadata: {
-          generatedFrom: id,
-          prompt: body.prompt,
-          locale: body.locale,
-        },
+        locale: body.locale,
+        isDraft: false,
+        generatedFrom: id,
+        generationPrompt: body.prompt,
       },
     });
 

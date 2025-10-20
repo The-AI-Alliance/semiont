@@ -35,7 +35,12 @@ export interface DocumentCreatedEvent extends BaseEvent {
     contentHash: string;        // SHA-256 of content (should match documentId)
     creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];
-    metadata?: Record<string, any>;
+
+    // First-class fields (promoted from metadata)
+    locale?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
+    isDraft?: boolean;           // Draft status for generated documents
+    generatedFrom?: string;      // Annotation/Reference ID that triggered generation
+    generationPrompt?: string;   // Prompt used for AI generation (events-only, not on Document)
   };
 }
 
@@ -48,7 +53,9 @@ export interface DocumentClonedEvent extends BaseEvent {
     parentDocumentId: string;   // Content hash of parent document
     creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];
-    metadata?: Record<string, any>;
+
+    // First-class fields (promoted from metadata)
+    locale?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
   };
 }
 

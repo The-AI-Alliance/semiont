@@ -23,7 +23,12 @@ export const DocumentCreatedPayloadSchema = z.object({
     CREATION_METHODS.GENERATED,
   ] as const),
   entityTypes: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+
+  // New first-class fields (promoted from metadata)
+  locale: z.string().optional(),
+  isDraft: z.boolean().optional(),
+  generatedFrom: z.string().optional(),
+  generationPrompt: z.string().optional(),
 });
 
 export const DocumentClonedPayloadSchema = z.object({
@@ -40,7 +45,9 @@ export const DocumentClonedPayloadSchema = z.object({
     CREATION_METHODS.GENERATED,
   ] as const),
   entityTypes: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+
+  // New first-class fields (promoted from metadata)
+  locale: z.string().optional(),
 });
 
 export const DocumentArchivedPayloadSchema = z.object({

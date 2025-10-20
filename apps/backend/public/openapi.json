@@ -2230,7 +2230,16 @@
             }
           },
           "locale": {
-            "type": "string"
+            "type": "string",
+            "description": "Language/locale code (e.g., 'en', 'es', 'fr')"
+          },
+          "isDraft": {
+            "type": "boolean",
+            "description": "Whether this document is a draft (for AI-generated content)"
+          },
+          "generatedFrom": {
+            "type": "string",
+            "description": "ID of annotation/reference that triggered generation (for provenance)"
           },
           "creationMethod": {
             "type": "string",

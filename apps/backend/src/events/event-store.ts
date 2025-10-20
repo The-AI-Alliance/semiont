@@ -349,21 +349,45 @@ export class EventStore {
         document.name = event.payload.name;
         document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
-        document.locale = event.payload.metadata?.locale;
         document.created = event.timestamp;
-        document.creationMethod = 'api';
+        document.creationMethod = event.payload.creationMethod || 'api';
         document.creator = didToAgent(event.userId);
+        document.contentChecksum = event.payload.contentHash;
+
+        // New first-class fields
+        document.locale = event.payload.locale;
+        document.isDraft = event.payload.isDraft;
+        document.generatedFrom = event.payload.generatedFrom;
+
+        // TEMPORARY: Handle old events with metadata (will be removed after migration)
+        if (!document.locale && (event.payload as any).metadata?.locale) {
+          document.locale = (event.payload as any).metadata.locale;
+        }
+        if (document.isDraft === undefined && (event.payload as any).metadata?.isDraft !== undefined) {
+          document.isDraft = (event.payload as any).metadata.isDraft;
+        }
+        if (!document.generatedFrom && (event.payload as any).metadata?.generatedFrom) {
+          document.generatedFrom = (event.payload as any).metadata.generatedFrom;
+        }
         break;
 
       case 'document.cloned':
         document.name = event.payload.name;
         document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
-        document.locale = event.payload.metadata?.locale;
         document.created = event.timestamp;
         document.creationMethod = 'clone';
         document.sourceDocumentId = event.payload.parentDocumentId;
         document.creator = didToAgent(event.userId);
+        document.contentChecksum = event.payload.contentHash;
+
+        // New first-class fields
+        document.locale = event.payload.locale;
+
+        // TEMPORARY: Handle old events with metadata (will be removed after migration)
+        if (!document.locale && (event.payload as any).metadata?.locale) {
+          document.locale = (event.payload as any).metadata.locale;
+        }
         break;
 
       case 'document.archived':

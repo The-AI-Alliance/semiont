@@ -127,11 +127,10 @@ export class GenerationWorker extends JobWorker {
         contentHash: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
         entityTypes: job.entityTypes || reference.body.entityTypes || [],
-        metadata: {
-          isDraft: true,
-          generatedFrom: job.referenceId,
-          locale: job.locale,
-        },
+        locale: job.locale,
+        isDraft: true,
+        generatedFrom: job.referenceId,
+        generationPrompt: undefined,  // Could be added if we track the prompt
       },
     });
     console.log(`[GenerationWorker] Emitted document.created event for ${documentId}`);

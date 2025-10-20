@@ -153,7 +153,8 @@ describe('GraphDBConsumer', () => {
           contentHash: 'hash123',
           creationMethod: CREATION_METHODS.API,
           entityTypes: ['entity1', 'entity2'],
-          metadata: { foo: 'bar' },
+          locale: 'en',
+          isDraft: false,
         },
       };
 
@@ -244,7 +245,7 @@ describe('GraphDBConsumer', () => {
           parentDocumentId: 'doc-123',
           creationMethod: CREATION_METHODS.CLONE,
           entityTypes: ['entity1'],
-          metadata: { clonedFrom: 'doc-123' },
+          locale: 'en',
         },
       };
 
