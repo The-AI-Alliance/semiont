@@ -98,12 +98,13 @@ export class DetectionWorker extends JobWorker {
         try {
           const eventStore = await getEventStore();
           await eventStore.appendEvent({
-            type: 'reference.created',
+            type: 'annotation.added',
             documentId: job.documentId,
             userId: job.userId,
             version: 1,
             payload: {
-              referenceId,
+              annotationId: referenceId,
+              motivation: 'linking',
               exact: detected.annotation.selector.exact,
               position: {
                 offset: detected.annotation.selector.offset,

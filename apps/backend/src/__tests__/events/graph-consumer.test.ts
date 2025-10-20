@@ -335,17 +335,18 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('highlight.added event', () => {
-    it('should create highlight in GraphDB', async () => {
+  describe('annotation.added event (highlighting)', () => {
+    it('should create highlighting annotation in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-5',
-        type: 'highlight.added',
+        type: 'annotation.added',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          highlightId: 'hl-123',
+          annotationId: 'hl-123',
+          motivation: 'highlighting',
           exact: 'important text',
           position: { offset: 10, length: 14 },
         },
@@ -364,6 +365,7 @@ describe('GraphDBConsumer', () => {
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         id: 'hl-123',
+        motivation: 'highlighting',
         target: {
           source: 'doc-123',
           selector: {
@@ -386,17 +388,17 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('highlight.removed event', () => {
-    it('should delete highlight from GraphDB', async () => {
+  describe('annotation.removed event', () => {
+    it('should delete annotation from GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-6',
-        type: 'highlight.removed',
+        type: 'annotation.removed',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          highlightId: 'hl-123',
+          annotationId: 'hl-123',
         },
       };
 
@@ -415,17 +417,18 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('reference.created event', () => {
-    it('should create reference in GraphDB', async () => {
+  describe('annotation.added event (linking)', () => {
+    it('should create linking annotation in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-7',
-        type: 'reference.created',
+        type: 'annotation.added',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          referenceId: 'ref-123',
+          annotationId: 'ref-123',
+          motivation: 'linking',
           exact: 'reference text',
           position: { offset: 20, length: 14 },
           entityTypes: ['Person', 'Organization'],
@@ -446,6 +449,7 @@ describe('GraphDBConsumer', () => {
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         id: 'ref-123',
+        motivation: 'linking',
         target: {
           source: 'doc-123',
           selector: {
@@ -468,16 +472,17 @@ describe('GraphDBConsumer', () => {
       });
     });
 
-    it('should create stub reference without targetDocumentId', async () => {
+    it('should create stub linking annotation without targetDocumentId', async () => {
       const event: DocumentEvent = {
         id: 'evt-8',
-        type: 'reference.created',
+        type: 'annotation.added',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          referenceId: 'ref-456',
+          annotationId: 'ref-456',
+          motivation: 'linking',
           exact: 'stub reference',
           position: { offset: 30, length: 14 },
         },
@@ -496,6 +501,7 @@ describe('GraphDBConsumer', () => {
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         id: 'ref-456',
+        motivation: 'linking',
         target: {
           source: 'doc-123',
           selector: {
@@ -519,17 +525,17 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('reference.resolved event', () => {
-    it('should resolve reference in GraphDB', async () => {
+  describe('annotation.resolved event', () => {
+    it('should resolve annotation in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-9',
-        type: 'reference.resolved',
+        type: 'annotation.resolved',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          referenceId: 'ref-456',
+          annotationId: 'ref-456',
           targetDocumentId: 'doc-789',
         },
       };
@@ -555,17 +561,17 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('reference.deleted event', () => {
-    it('should delete reference from GraphDB', async () => {
+  describe('annotation.removed event (linking)', () => {
+    it('should delete linking annotation from GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-10',
-        type: 'reference.deleted',
+        type: 'annotation.removed',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          referenceId: 'ref-123',
+          annotationId: 'ref-123',
         },
       };
 

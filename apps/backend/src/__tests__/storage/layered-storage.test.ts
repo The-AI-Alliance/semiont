@@ -90,8 +90,7 @@ describe('Layered Storage', () => {
         },
         annotations: {
           documentId: docId,
-          highlights: [],
-          references: [],
+          annotations: [],
           version: 1,
           updatedAt: new Date().toISOString(),
         },
@@ -125,7 +124,7 @@ describe('Layered Storage', () => {
         },
         annotations: {
           documentId: docId,
-          highlights: [
+          annotations: [
             {
               id: 'hl1',
               motivation: 'highlighting' as const,
@@ -150,7 +149,6 @@ describe('Layered Storage', () => {
               created: '2025-01-01T00:00:00.000Z',
             },
           ],
-          references: [],
           version: 2,
           updatedAt: '2025-01-01T00:00:00Z',
         },
@@ -188,8 +186,7 @@ describe('Layered Storage', () => {
         },
         annotations: {
           documentId: docId,
-          highlights: [],
-          references: [],
+          annotations: [],
           version: 1,
           updatedAt: new Date().toISOString(),
         },
@@ -245,16 +242,17 @@ describe('Layered Storage', () => {
       });
 
       const before = await projectionStorage.getProjection(docId);
-      expect(before!.annotations.highlights).toHaveLength(0);
+      expect(before!.annotations.annotations).toHaveLength(0);
 
-      // Add highlight
+      // Add highlighting annotation
       await eventStore.appendEvent({
-        type: 'highlight.added',
+        type: 'annotation.added',
         documentId: docId,
         userId: 'user1',
         version: 1,
         payload: {
-          highlightId: 'hl1',
+          annotationId: 'hl1',
+          motivation: 'highlighting',
           exact: 'Test highlight',
           position: { offset: 0, length: 14 },
         },
@@ -262,8 +260,8 @@ describe('Layered Storage', () => {
 
       // Projection should be updated
       const after = await projectionStorage.getProjection(docId);
-      expect(after!.annotations.highlights).toHaveLength(1);
-      expect(after!.annotations.highlights[0]?.id).toBe('hl1');
+      expect(after!.annotations.annotations).toHaveLength(1);
+      expect(after!.annotations.annotations[0]?.id).toBe('hl1');
       expect(after!.annotations.version).toBe(2);
     });
 

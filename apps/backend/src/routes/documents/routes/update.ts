@@ -95,8 +95,10 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       }
 
       // Read annotations from Layer 3
-      const highlights = await AnnotationQueryService.getHighlights(id);
-      const references = await AnnotationQueryService.getReferences(id);
+      const annotations = await AnnotationQueryService.getAllAnnotations(id);
+      const entityReferences = annotations.filter(a =>
+        a.motivation === 'linking' && a.body.entityTypes && a.body.entityTypes.length > 0
+      );
 
       // Return optimistic response (content NOT included - must be fetched separately)
       const response: GetDocumentResponse = {
@@ -105,10 +107,8 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
           archived: body.archived !== undefined ? body.archived : doc.archived,
           entityTypes: body.entityTypes !== undefined ? body.entityTypes : doc.entityTypes,
         },
-        annotations: [...highlights, ...references],
-        highlights: highlights,
-        references: references,
-        entityReferences: references.filter(annotation => annotation.body.entityTypes.length > 0),
+        annotations,
+        entityReferences,
       };
 
       return c.json(response);

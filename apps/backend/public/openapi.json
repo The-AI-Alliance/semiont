@@ -352,32 +352,20 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Annotation"
-            }
-          },
-          "highlights": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Annotation"
-            }
-          },
-          "references": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Annotation"
-            }
+            },
+            "description": "All annotations for the document (highlights, references, assessments, etc.)"
           },
           "entityReferences": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Annotation"
-            }
+            },
+            "description": "Annotations that reference this document from other documents"
           }
         },
         "required": [
           "document",
           "annotations",
-          "highlights",
-          "references",
           "entityReferences"
         ]
       },
@@ -852,34 +840,6 @@
           "token",
           "expiresAt",
           "document"
-        ]
-      },
-      "GetHighlightsResponse": {
-        "type": "object",
-        "properties": {
-          "highlights": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Annotation"
-            }
-          }
-        },
-        "required": [
-          "highlights"
-        ]
-      },
-      "GetReferencesResponse": {
-        "type": "object",
-        "properties": {
-          "references": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Annotation"
-            }
-          }
-        },
-        "required": [
-          "references"
         ]
       },
       "GetEventsResponse": {
@@ -1789,50 +1749,13 @@
                     {
                       "type": "object",
                       "properties": {
-                        "highlightId": {
-                          "type": "string"
+                        "annotationId": {
+                          "type": "string",
+                          "description": "Unified annotation ID"
                         },
-                        "exact": {
-                          "type": "string"
-                        },
-                        "position": {
-                          "type": "object",
-                          "properties": {
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "offset",
-                            "length"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "highlightId",
-                        "exact",
-                        "position"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "highlightId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "highlightId"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "referenceId": {
-                          "type": "string"
+                        "motivation": {
+                          "$ref": "#/components/schemas/Motivation",
+                          "description": "W3C motivation (highlighting, linking, assessing, etc.)"
                         },
                         "exact": {
                           "type": "string"
@@ -1856,14 +1779,21 @@
                           "type": "array",
                           "items": {
                             "type": "string"
-                          }
+                          },
+                          "description": "For linking motivation"
                         },
                         "targetDocumentId": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "For linking motivation"
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": "For assessing motivation"
                         }
                       },
                       "required": [
-                        "referenceId",
+                        "annotationId",
+                        "motivation",
                         "exact",
                         "position"
                       ]
@@ -1871,32 +1801,35 @@
                     {
                       "type": "object",
                       "properties": {
-                        "referenceId": {
-                          "type": "string"
-                        },
-                        "targetDocumentId": {
-                          "type": "string"
+                        "annotationId": {
+                          "type": "string",
+                          "description": "Unified annotation ID"
                         }
                       },
                       "required": [
-                        "referenceId",
+                        "annotationId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "annotationId": {
+                          "type": "string",
+                          "description": "Unified annotation ID"
+                        },
+                        "targetDocumentId": {
+                          "type": "string",
+                          "description": "For linking motivation"
+                        }
+                      },
+                      "required": [
+                        "annotationId",
                         "targetDocumentId"
                       ]
                     },
                     {
                       "type": "object",
                       "properties": {
-                        "referenceId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "referenceId"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
                         "entityType": {
                           "type": "string"
                         }
@@ -1914,51 +1847,6 @@
                       },
                       "required": [
                         "entityType"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "assessmentId": {
-                          "type": "string"
-                        },
-                        "exact": {
-                          "type": "string"
-                        },
-                        "position": {
-                          "type": "object",
-                          "properties": {
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        "value": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "assessmentId",
-                        "exact",
-                        "position"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "assessmentId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "assessmentId"
                       ]
                     }
                   ]
@@ -2662,10 +2550,26 @@
             "items": {
               "$ref": "#/components/schemas/Annotation"
             }
+          },
+          "total": {
+            "type": "number",
+            "description": "Total number of annotations"
+          },
+          "motivation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Motivation"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Motivation filter applied (if any)"
           }
         },
         "required": [
-          "annotations"
+          "annotations",
+          "total"
         ]
       },
       "CreateDocumentFromTokenResponse": {
@@ -4165,80 +4069,6 @@
         }
       }
     },
-    "/api/documents/{id}/highlights": {
-      "get": {
-        "summary": "Get Document Highlights",
-        "description": "Get only highlights (annotations without body of type SpecifiedResource with a source) in a document",
-        "tags": [
-          "Documents",
-          "Selections"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Document highlights",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetHighlightsResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/documents/{id}/references": {
-      "get": {
-        "summary": "Get Document References",
-        "description": "Get only references (annotations with body of type SpecifiedResource with a source) in a document",
-        "tags": [
-          "Documents",
-          "Selections"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Document references",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetReferencesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/documents/{id}/annotations": {
       "get": {
         "summary": "Get Document Annotations",
@@ -4306,11 +4136,9 @@
                 "document.cloned",
                 "document.archived",
                 "document.unarchived",
-                "highlight.added",
-                "highlight.removed",
-                "reference.created",
-                "reference.resolved",
-                "reference.deleted",
+                "annotation.added",
+                "annotation.removed",
+                "annotation.resolved",
                 "entitytag.added",
                 "entitytag.removed"
               ]

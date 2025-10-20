@@ -90,14 +90,14 @@ operationsRouter.post('/api/annotations/:id/create-document',
       },
     });
 
-    // Emit reference.resolved event to link the annotation to the new document
+    // Emit annotation.resolved event to link the annotation to the new document
     await eventStore.appendEvent({
-      type: 'reference.resolved',
+      type: 'annotation.resolved',
       documentId: annotation.target.source,
       userId: user.id,
       version: 1,
       payload: {
-        referenceId: id,
+        annotationId: id,
         targetDocumentId: documentId,
       },
     });
@@ -205,14 +205,14 @@ operationsRouter.post('/api/annotations/:id/generate-document',
       },
     });
 
-    // Emit reference.resolved event to link the annotation to the new document
+    // Emit annotation.resolved event to link the annotation to the new document
     await eventStore.appendEvent({
-      type: 'reference.resolved',
+      type: 'annotation.resolved',
       documentId: annotation.target.source,
       userId: user.id,
       version: 1,
       payload: {
-        referenceId: id,
+        annotationId: id,
         targetDocumentId: documentId,
       },
     });

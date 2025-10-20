@@ -27,32 +27,30 @@ export class AnnotationQueryService {
   }
 
   /**
-   * Get highlights only (subset of projection)
-   * @returns Array of highlight objects from projection
+   * Get highlights only (filtered by motivation)
+   * @returns Array of highlighting annotations
    */
-  static async getHighlights(documentId: string): Promise<DocumentAnnotations['highlights']> {
+  static async getHighlights(documentId: string): Promise<Annotation[]> {
     const annotations = await this.getDocumentAnnotations(documentId);
-    return annotations.highlights;
+    return annotations.annotations.filter(a => a.motivation === 'highlighting');
   }
 
   /**
-   * Get references only (subset of projection)
-   * @returns Array of reference objects from projection
+   * Get references only (filtered by motivation)
+   * @returns Array of linking annotations
    */
-  static async getReferences(documentId: string): Promise<DocumentAnnotations['references']> {
+  static async getReferences(documentId: string): Promise<Annotation[]> {
     const annotations = await this.getDocumentAnnotations(documentId);
-    return annotations.references;
+    return annotations.annotations.filter(a => a.motivation === 'linking');
   }
 
   /**
-   * Get all annotations (highlights + references)
+   * Get all annotations
    * @returns Array of all annotation objects
    */
-  static async getAllAnnotations(documentId: string): Promise<Array<
-    DocumentAnnotations['highlights'][0] | DocumentAnnotations['references'][0]
-  >> {
+  static async getAllAnnotations(documentId: string): Promise<Annotation[]> {
     const annotations = await this.getDocumentAnnotations(documentId);
-    return [...annotations.highlights, ...annotations.references];
+    return annotations.annotations;
   }
 
   /**
@@ -81,7 +79,7 @@ export class AnnotationQueryService {
   }
 
   /**
-   * Get a single annotation (highlight or reference) by ID
+   * Get a single annotation by ID
    * Scans Layer 3 projections to find the annotation
    * O(n) complexity - needs annotation ID → document ID index for O(1)
    */
@@ -90,9 +88,8 @@ export class AnnotationQueryService {
     const allProjections = await projectionStorage.getAllProjections();
 
     for (const stored of allProjections) {
-      // Check highlights
-      const annotation = stored.annotations.highlights.find((h) => h.id === annotationId) ||
-                        stored.annotations.references.find((r) => r.id === annotationId);
+      // Check all annotations
+      const annotation = stored.annotations.annotations.find((a: Annotation) => a.id === annotationId);
       if (annotation) {
         return annotation;
       }
@@ -108,9 +105,7 @@ export class AnnotationQueryService {
   static async listAnnotations(filters?: { documentId?: string }): Promise<any> {
     if (filters?.documentId) {
       // If filtering by document ID, use Layer 3 directly
-      const highlights = await this.getHighlights(filters.documentId);
-      const references = await this.getReferences(filters.documentId);
-      return [...highlights, ...references];
+      return await this.getAllAnnotations(filters.documentId);
     }
 
     // For now, fall back to graph for cross-document listing

@@ -129,9 +129,10 @@ export class GraphDBConsumer {
         });
         break;
 
-      case 'highlight.added':
+      case 'annotation.added':
         await graphDb.createAnnotation({
-          id: event.payload.highlightId,
+          id: event.payload.annotationId,
+          motivation: event.payload.motivation,
           target: {
             source: event.documentId,
             selector: {
@@ -142,42 +143,23 @@ export class GraphDBConsumer {
             },
           },
           body: {
-            type: 'TextualBody',
-            entityTypes: [],
-          },
-          creator: didToAgent(event.userId),
-        });
-        break;
-
-      case 'highlight.removed':
-        await graphDb.deleteAnnotation(event.payload.highlightId);
-        break;
-
-      case 'reference.created':
-        await graphDb.createAnnotation({
-          id: event.payload.referenceId,  // Use ID from event, not generated
-          target: {
-            source: event.documentId,
-            selector: {
-              type: 'TextPositionSelector',
-              exact: event.payload.exact,
-              offset: event.payload.position.offset,
-              length: event.payload.position.length,
-            },
-          },
-          body: {
-            type: 'SpecificResource',
+            type: event.payload.motivation === 'linking' ? 'SpecificResource' : 'TextualBody',
             entityTypes: event.payload.entityTypes || [],
             source: event.payload.targetDocumentId,
+            value: event.payload.value,
           },
           creator: didToAgent(event.userId),
         });
         break;
 
-      case 'reference.resolved':
+      case 'annotation.removed':
+        await graphDb.deleteAnnotation(event.payload.annotationId);
+        break;
+
+      case 'annotation.resolved':
         // TODO: Graph implementation should handle partial body updates properly
         try {
-          await graphDb.updateAnnotation(event.payload.referenceId, {
+          await graphDb.updateAnnotation(event.payload.annotationId, {
             body: {
               type: 'SpecificResource',
               entityTypes: [],  // Graph impl should merge, not replace
@@ -187,12 +169,8 @@ export class GraphDBConsumer {
         } catch (error) {
           // If annotation doesn't exist in graph (e.g., created before consumer started),
           // log warning but don't fail - event store is source of truth
-          console.warn(`[GraphDBConsumer] Could not update annotation ${event.payload.referenceId} in graph: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          console.warn(`[GraphDBConsumer] Could not update annotation ${event.payload.annotationId} in graph: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-        break;
-
-      case 'reference.deleted':
-        await graphDb.deleteAnnotation(event.payload.referenceId);
         break;
 
       case 'entitytag.added':

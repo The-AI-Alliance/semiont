@@ -68,11 +68,16 @@ describe('Event Store', () => {
     });
 
     const e2 = await eventStore.appendEvent({
-      type: 'highlight.added',
+      type: 'annotation.added',
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { highlightId: 'hl1', exact: 'Test', position: { offset: 0, length: 4 } },
+      payload: {
+        annotationId: 'hl1',
+        motivation: 'highlighting',
+        exact: 'Test',
+        position: { offset: 0, length: 4 }
+      },
     });
 
     expect(e1.metadata.prevEventHash).toBeUndefined();

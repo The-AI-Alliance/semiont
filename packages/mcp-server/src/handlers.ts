@@ -193,24 +193,34 @@ export async function handleGetDocumentAnnotations(_client: SemiontApiClient, _a
   };
 }
 
-export async function handleGetDocumentHighlights(client: SemiontApiClient, args: any) {
-  const data = await client.getDocumentHighlights(args?.documentId);
+export async function handleGetDocumentHighlights(client: SemiontApiClient, args: Record<string, unknown>) {
+  const data = await client.getDocumentAnnotations(args?.documentId as string);
+  const highlights = data.annotations.filter(a => a.motivation === 'highlighting');
 
   return {
     content: [{
       type: 'text' as const,
-      text: `Found ${data.highlights.length} highlights in document:\n${data.highlights.map((h: any) => `- ${h.selectionData?.text || h.id} (saved by ${h.savedBy})`).join('\n')}`,
+      text: `Found ${highlights.length} highlights in document:\n${highlights.map(h => {
+        const selector = Array.isArray(h.target.selector) ? h.target.selector[0] : h.target.selector;
+        const text = selector?.exact || h.id;
+        return `- ${text} (creator: ${h.creator.name})`;
+      }).join('\n')}`,
     }],
   };
 }
 
-export async function handleGetDocumentReferences(client: SemiontApiClient, args: any) {
-  const data = await client.getDocumentReferences(args?.documentId);
+export async function handleGetDocumentReferences(client: SemiontApiClient, args: Record<string, unknown>) {
+  const data = await client.getDocumentAnnotations(args?.documentId as string);
+  const references = data.annotations.filter(a => a.motivation === 'linking');
 
   return {
     content: [{
       type: 'text' as const,
-      text: `Found ${data.references.length} references in document:\n${data.references.map((r: any) => `- ${r.selectionData?.text || r.id} → ${r.resolvedDocumentId}`).join('\n')}`,
+      text: `Found ${references.length} references in document:\n${references.map(r => {
+        const selector = Array.isArray(r.target.selector) ? r.target.selector[0] : r.target.selector;
+        const text = selector?.exact || r.id;
+        return `- ${text} → ${r.body.source || 'unresolved'}`;
+      }).join('\n')}`,
     }],
   };
 }

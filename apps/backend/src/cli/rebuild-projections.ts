@@ -51,8 +51,7 @@ async function rebuildProjections(documentId?: string) {
 
     console.log(`   ✅ Projection rebuilt:`);
     console.log(`      - Name: ${stored.document.name}`);
-    console.log(`      - Highlights: ${stored.annotations.highlights.length}`);
-    console.log(`      - References: ${stored.annotations.references.length}`);
+    console.log(`      - Annotations: ${stored.annotations.annotations.length}`);
     console.log(`      - Entity Types: ${stored.document.entityTypes.join(', ') || 'none'}`);
     console.log(`      - Version: ${stored.annotations.version}`);
     console.log(`      - Archived: ${stored.document.archived}`);

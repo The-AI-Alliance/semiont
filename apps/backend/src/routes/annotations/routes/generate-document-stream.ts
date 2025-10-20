@@ -58,18 +58,19 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
       console.log(`[GenerateDocument] Starting generation for reference ${referenceId} in document ${body.documentId}`);
       console.log(`[GenerateDocument] Locale from request:`, body.locale);
 
-      // Validate reference exists using Layer 3
+      // Validate annotation exists using Layer 3
       const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
 
-      // Debug: log what references exist
-      console.log(`[GenerateDocument] Found ${projection.references.length} references in document`);
-      projection.references.forEach((r: any, i: number) => {
-        console.log(`  [${i}] id: ${r.id}`);
+      // Debug: log what annotations exist
+      const linkingAnnotations = projection.annotations.filter((a: any) => a.motivation === 'linking');
+      console.log(`[GenerateDocument] Found ${linkingAnnotations.length} linking annotations in document`);
+      linkingAnnotations.forEach((a: any, i: number) => {
+        console.log(`  [${i}] id: ${a.id}`);
       });
 
       // Compare by ID portion (handle both URI and simple ID formats)
-      const reference = projection.references.find((r: any) =>
-        compareAnnotationIds(r.id, referenceId)
+      const reference = projection.annotations.find((a: any) =>
+        compareAnnotationIds(a.id, referenceId) && a.motivation === 'linking'
       );
 
       if (!reference) {

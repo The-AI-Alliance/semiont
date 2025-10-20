@@ -145,12 +145,11 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       cloneTokens.delete(body.token);
 
       // Get annotations
-      const highlights = await graphDb.getHighlights(savedDoc.id);
-      const references = await graphDb.getReferences(savedDoc.id);
+      const result = await graphDb.listAnnotations({ documentId: savedDoc.id });
 
       const response: CreateDocumentFromTokenResponse = {
         document: savedDoc,
-        annotations: [...highlights, ...references],
+        annotations: result.annotations,
       };
 
       return c.json(response, 201);
