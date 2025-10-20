@@ -47,7 +47,7 @@ export const crudRouter: AnnotationsRouterType = createAnnotationRouter();
 crudRouter.post('/api/annotations',
   validateRequestBody('CreateAnnotationRequest'),
   async (c) => {
-    const body = c.get('validatedBody') as CreateAnnotationRequest;
+    const request = c.get('validatedBody') as CreateAnnotationRequest;
     const user = c.get('user');
 
     // Generate ID - backend-internal, not graph-dependent
@@ -59,36 +59,36 @@ crudRouter.post('/api/annotations',
       throw new HTTPException(500, { message: 'Failed to create annotation' });
     }
     // Extract TextPositionSelector for event (events require offset/length)
-    const posSelector = getTextPositionSelector(body.target.selector);
+    const posSelector = getTextPositionSelector(request.target.selector);
     if (!posSelector) {
       throw new HTTPException(400, { message: 'TextPositionSelector required for creating annotations' });
     }
 
     // Determine motivation: use provided value or default based on body type
-    const motivation = body.motivation || (body.body.type === 'TextualBody' ? 'highlighting' : 'linking');
+    const motivation = request.motivation || (request.body.type === 'TextualBody' ? 'highlighting' : 'linking');
 
     // Emit unified annotation.added event (single source of truth)
     const eventStore = await getEventStore();
     await eventStore.appendEvent({
       type: 'annotation.added',
-      documentId: body.target.source,
+      documentId: request.target.source,
       userId: user.id,
       version: 1,
       payload: {
         annotationId: annotationId,
         motivation: motivation,
-        exact: getExactText(body.target.selector),
+        exact: getExactText(request.target.selector),
         position: {
           offset: posSelector.offset,
           length: posSelector.length,
         },
         // Optional fields based on motivation
         ...(motivation === 'linking' && {
-          entityTypes: body.body.entityTypes || [],
-          targetDocumentId: body.body.source ?? undefined,
+          entityTypes: request.body.entityTypes || [],
+          targetDocumentId: request.body.source ?? undefined,
         }),
         ...(motivation === 'assessing' && {
-          value: body.body.value,
+          value: request.body.value,
         }),
       },
     });
@@ -99,14 +99,14 @@ crudRouter.post('/api/annotations',
         id: annotationId,
         motivation: motivation,
         target: {
-          source: body.target.source,
-          selector: body.target.selector,
+          source: request.target.source,
+          selector: request.target.selector,
         },
         body: {
-          type: body.body.type,
-          value: body.body.value,
-          entityTypes: body.body.entityTypes || [],
-          source: body.body.source,
+          type: request.body.type,
+          value: request.body.value,
+          entityTypes: request.body.entityTypes || [],
+          source: request.body.source,
         },
         creator: userToAgent(user),
         created: new Date().toISOString(),
@@ -126,10 +126,10 @@ crudRouter.put('/api/annotations/:id/resolve',
   validateRequestBody('ResolveAnnotationRequest'),
   async (c) => {
     const { id } = c.req.param();
-    const body = c.get('validatedBody') as ResolveAnnotationRequest;
+    const request = c.get('validatedBody') as ResolveAnnotationRequest;
     const user = c.get('user');
 
-    console.log(`[RESOLVE HANDLER] Called for annotation ${id}, body:`, body);
+    console.log(`[RESOLVE HANDLER] Called for annotation ${id}, request:`, request);
 
     // Get annotation from Layer 3 (event store projection)
     const annotation = await AnnotationQueryService.getAnnotation(id);
@@ -149,12 +149,12 @@ crudRouter.put('/api/annotations/:id/resolve',
       version: 1,
       payload: {
         annotationId: id,
-        targetDocumentId: body.documentId,
+        targetDocumentId: request.documentId,
       },
     });
 
     // Get target document from Layer 3
-    const targetDocument = await DocumentQueryService.getDocumentMetadata(body.documentId);
+    const targetDocument = await DocumentQueryService.getDocumentMetadata(request.documentId);
 
     // Return optimistic response
     const response: ResolveAnnotationResponse = {
@@ -162,7 +162,7 @@ crudRouter.put('/api/annotations/:id/resolve',
         ...annotation,
         body: {
           ...annotation.body,
-          source: body.documentId,
+          source: request.documentId,
         },
       },
       targetDocument,
@@ -251,11 +251,11 @@ crudRouter.delete('/api/annotations/:id',
   validateRequestBody('DeleteAnnotationRequest'),
   async (c) => {
     const { id } = c.req.param();
-    const body = c.get('validatedBody') as DeleteAnnotationRequest;
+    const request = c.get('validatedBody') as DeleteAnnotationRequest;
     const user = c.get('user');
 
     // O(1) lookup in Layer 3 using document ID
-    const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
+    const projection = await AnnotationQueryService.getDocumentAnnotations(request.documentId);
 
     // Find the annotation in this document's annotations
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
@@ -269,7 +269,7 @@ crudRouter.delete('/api/annotations/:id',
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',
-      documentId: body.documentId,
+      documentId: request.documentId,
       userId: user.id,
       version: 1,
       payload: {
