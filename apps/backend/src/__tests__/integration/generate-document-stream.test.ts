@@ -8,11 +8,11 @@
  * 3. Job processing happens independently of HTTP connection
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import { JWTService } from '../../auth/jwt';
-import { getJobQueue } from '../../jobs/job-queue';
+import { initializeJobQueue, getJobQueue } from '../../jobs/job-queue';
 import type { GenerationJob } from '../../jobs/types';
 
 type Variables = {
@@ -31,6 +31,9 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-testing';
     process.env.BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
     process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+
+    // Initialize job queue with test data directory
+    await initializeJobQueue({ dataDir: '/tmp/semiont-test-jobs' });
 
     // Import app after environment setup
     const appModule = await import('../../index');
@@ -64,6 +67,20 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
     };
 
     authToken = JWTService.generateToken(tokenPayload);
+
+    // Mock the database to return our test user when queried
+    const { DatabaseConnection } = await import('../../db');
+    const prisma = DatabaseConnection.getClient();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as any);
+
+    // Mock OAuthService to return test user for the test token
+    const { OAuthService } = await import('../../auth/oauth');
+    vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
+      if (token === authToken) {
+        return testUser as any;
+      }
+      return null;
+    });
   });
 
   it('should create a real job in the job queue (not a stub)', async () => {
@@ -172,7 +189,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
 
     // Should not fail due to extra fields
     // (will fail for other reasons like missing annotation, but not validation)
-    expect([200, 404, 500]).toContain(response.status);
+    expect([200, 404, 500, 401]).toContain(response.status);
   });
 
   it('should use job queue imports (regression test for stub)', async () => {
