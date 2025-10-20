@@ -21,7 +21,11 @@ const createMockGraphDB = (): GraphDatabase => ({
     format: 'text/plain',
     contentChecksum: 'hash123',
     metadata: {},
-    creator: 'user1',
+    creator: {
+      id: 'user1',
+      type: 'Person',
+      name: 'user1',
+    },
     created: new Date(),
   }),
   getDocument: vi.fn().mockResolvedValue({
@@ -171,7 +175,11 @@ describe('GraphDBConsumer', () => {
         content: 'test content',
         format: 'text/plain',
         contentChecksum: 'hash123',
-        creator: 'user1',
+        creator: {
+          id: 'user1',
+          type: 'Person',
+          name: 'user1',
+        },
         creationMethod: 'api',
       });
     });
@@ -210,7 +218,11 @@ describe('GraphDBConsumer', () => {
         content: 'test content',
         format: 'text/plain',
         contentChecksum: 'hash123',
-        creator: 'user1',
+        creator: {
+          id: 'user1',
+          type: 'Person',
+          name: 'user1',
+        },
         creationMethod: 'api',
       });
     });
@@ -254,7 +266,11 @@ describe('GraphDBConsumer', () => {
         content: 'test content',
         format: 'text/plain',
         contentChecksum: 'hash456',
-        creator: 'user1',
+        creator: {
+          id: 'user1',
+          type: 'Person',
+          name: 'user1',
+        },
         creationMethod: 'clone',
       });
     });
