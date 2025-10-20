@@ -10,7 +10,7 @@
     "build:fast": "prisma generate && tsc --noEmit false",
     "generate:openapi": "node scripts/generate-openapi.js",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist *.tsbuildinfo public",
+    "clean": "rm -rf dist *.tsbuildinfo",
     "start": "node dist/index.js",
     "test": "SEMIONT_ENV=unit vitest run",
     "test:watch": "SEMIONT_ENV=unit vitest",
