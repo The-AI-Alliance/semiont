@@ -29,11 +29,16 @@ entityTypesRouter.use('/api/entity-types/*', authMiddleware);
  * Get list of available entity types for references
  */
 entityTypesRouter.get('/api/entity-types', async (c) => {
-  const graphDb = await getGraphDatabase();
-  const entityTypes = await graphDb.getEntityTypes();
+  try {
+    const graphDb = await getGraphDatabase();
+    const entityTypes = await graphDb.getEntityTypes();
 
-  const response: GetEntityTypesResponse = { entityTypes };
-  return c.json(response, 200);
+    const response: GetEntityTypesResponse = { entityTypes };
+    return c.json(response, 200);
+  } catch (error) {
+    console.error('[EntityTypes] Error fetching entity types:', error);
+    return c.json({ error: 'Failed to fetch entity types', details: error instanceof Error ? error.message : String(error) }, 500);
+  }
 });
 
 /**
