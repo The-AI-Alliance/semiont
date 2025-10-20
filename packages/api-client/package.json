@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "generate": "openapi-typescript ../../apps/backend/public/openapi.json -o src/types.ts",
+    "generate": "openapi-typescript openapi.json -o src/types.ts",
     "build": "tsc",
     "prebuild": "npm run generate",
     "watch": "tsc --watch",

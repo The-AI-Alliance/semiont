@@ -1,8 +1,20 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Document Events Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - Manual query parameter parsing and validation
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import type { DocumentsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
-import { GetEventsResponseSchema as GetEventsResponseSchema, type GetEventsResponse, type EventQuery, type StoredEvent } from '@semiont/core';
+import type { EventQuery, StoredEvent } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+import { HTTPException } from 'hono/http-exception';
 
+type GetEventsResponse = components['schemas']['GetEventsResponse'];
 
 const eventTypes = [
   'document.created',
@@ -18,57 +30,57 @@ const eventTypes = [
   'entitytag.removed',
 ] as const;
 
-export const getEventsRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{id}/events',
-  summary: 'Get Document Event History',
-  description: 'Get full event history for a document with optional filtering',
-  tags: ['Documents', 'Events'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-    query: z.object({
-      type: z.enum(eventTypes).optional(),
-      userId: z.string().optional(),
-      limit: z.coerce.number().min(1).max(1000).default(100).optional(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetEventsResponseSchema as any,
-        },
-      },
-      description: 'Events retrieved successfully',
-    },
-  },
-});
+// Type guard function for event type validation
+function isValidEventType(type: string): type is typeof eventTypes[number] {
+  return eventTypes.includes(type as any);
+}
 
 export function registerGetEvents(router: DocumentsRouterType) {
-  router.openapi(getEventsRoute, async (c) => {
-    const { id } = c.req.valid('param');
-    const query = c.req.valid('query');
+  /**
+   * GET /api/documents/:id/events
+   *
+   * Get full event history for a document with optional filtering
+   * Requires authentication
+   *
+   * Query parameters:
+   * - type: Event type filter (optional)
+   * - userId: User ID filter (optional)
+   * - limit: Maximum number of events (1-1000, default: 100)
+   */
+  router.get('/api/documents/:id/events', async (c) => {
+    const { id } = c.req.param();
+    const query = c.req.query();
+
+    // Parse and validate query parameters
+    const type = query.type;
+    const userId = query.userId;
+    const limit = query.limit ? Number(query.limit) : 100;
+
+    // Validate type if provided
+    if (type && !isValidEventType(type)) {
+      throw new HTTPException(400, { message: `Invalid event type. Must be one of: ${eventTypes.join(', ')}` });
+    }
+
+    // Validate limit range
+    if (limit < 1 || limit > 1000) {
+      throw new HTTPException(400, { message: 'Query parameter "limit" must be between 1 and 1000' });
+    }
 
     const eventStore = await getEventStore();
 
-    // Build query filters
+    // Build query filters - type is validated by this point
+    const validatedType = type && isValidEventType(type) ? type : undefined;
     const filters: EventQuery = {
       documentId: id,
+      ...(validatedType && { eventTypes: [validatedType] }),
     };
 
-    if (query.type) {
-      filters.eventTypes = [query.type];
+    if (userId) {
+      filters.userId = userId;
     }
 
-    if (query.userId) {
-      filters.userId = query.userId;
-    }
-
-    if (query.limit) {
-      filters.limit = query.limit;
+    if (limit) {
+      filters.limit = limit;
     }
 
     // Query events

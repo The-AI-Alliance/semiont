@@ -25,7 +25,7 @@ if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && p
 
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
-import { OpenAPIHono } from '@hono/zod-openapi';
+import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 
 import { User } from '@prisma/client';
@@ -64,8 +64,9 @@ import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
 import { jobsRouter } from './routes/jobs/index';
 
-// Import OpenAPI config
-import { openApiConfig } from './openapi';
+// Import static OpenAPI spec
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Import graph database for initialization
 import { getGraphDatabase } from './graph/factory';
@@ -76,21 +77,8 @@ type Variables = {
   user: User;
 };
 
-// Create OpenAPIHono app with proper typing
-const app = new OpenAPIHono<{ Variables: Variables }>({
-  defaultHook: (result, c) => {
-    if (!result.success) {
-      return c.json(
-        {
-          error: 'Validation error',
-          details: result.error.issues,
-        },
-        400
-      );
-    }
-    return undefined;
-  },
-});
+// Create Hono app with proper typing
+const app = new Hono<{ Variables: Variables }>();
 
 // Add CORS middleware
 app.use('*', cors({
@@ -195,20 +183,23 @@ app.get('/api', (c) => {
 
 // Serve OpenAPI JSON specification - now automatically generated
 app.get('/api/openapi.json', (c) => {
-  const apiUrl = process.env.BACKEND_URL;
-  if (!apiUrl) {
-    throw new Error('BACKEND_URL environment variable is required for OpenAPI documentation');
-  }
+  // Serve the static OpenAPI spec from the public directory
+  const openApiPath = path.join(__dirname, '../public/openapi.json');
+  const openApiContent = fs.readFileSync(openApiPath, 'utf-8');
+  const openApiSpec = JSON.parse(openApiContent);
 
-  return c.json(app.getOpenAPI31Document({
-    ...openApiConfig,
-    servers: [
+  // Update server URL dynamically
+  const apiUrl = process.env.BACKEND_URL;
+  if (apiUrl) {
+    openApiSpec.servers = [
       {
         url: apiUrl,
         description: 'API Server',
       },
-    ],
-  }));
+    ];
+  }
+
+  return c.json(openApiSpec);
 });
 
 // Serve Swagger UI documentation - now public

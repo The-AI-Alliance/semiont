@@ -10,21 +10,9 @@ import * as path from 'path';
 import { getFilesystemConfig } from '../config/environment-loader';
 import type { CreationMethod } from '@semiont/core';
 import type { DocumentState } from '../storage/projection-storage';
+import type { components } from '@semiont/api-client';
 
-export interface DocumentMetadata {
-  id: string;
-  name: string;
-  format: string;
-  contentChecksum: string;
-  entityTypes: string[];
-  archived: boolean;
-  created: string;
-  updatedAt: string;
-  creationMethod: CreationMethod;
-  sourceAnnotationId?: string;
-  sourceDocumentId?: string;
-  creator: string;
-}
+type Document = components['schemas']['Document'];
 
 export interface ListDocumentsFilters {
   search?: string;
@@ -35,7 +23,7 @@ export class DocumentQueryService {
   /**
    * Get document metadata from Layer 3 projection
    */
-  static async getDocumentMetadata(documentId: string): Promise<DocumentMetadata | null> {
+  static async getDocumentMetadata(documentId: string): Promise<Document | null> {
     const config = getFilesystemConfig();
     const basePath = config.path;
 
@@ -56,11 +44,11 @@ export class DocumentQueryService {
         entityTypes: doc.entityTypes,
         archived: doc.archived,
         created: doc.created,
-        updatedAt: state.annotations.updatedAt,
         creationMethod: doc.creationMethod as CreationMethod,
         sourceAnnotationId: doc.sourceAnnotationId,
         sourceDocumentId: doc.sourceDocumentId,
         creator: doc.creator,
+        locale: doc.locale,
       };
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -73,12 +61,12 @@ export class DocumentQueryService {
   /**
    * List all documents by scanning Layer 3 projection files
    */
-  static async listDocuments(filters?: ListDocumentsFilters): Promise<DocumentMetadata[]> {
+  static async listDocuments(filters?: ListDocumentsFilters): Promise<Document[]> {
     const config = getFilesystemConfig();
     const basePath = config.path;
     const annotationsPath = path.join(basePath, 'annotations');
 
-    const documents: DocumentMetadata[] = [];
+    const documents: Document[] = [];
 
     try {
       // Scan all shards (00-ff / 00-ff)
@@ -126,11 +114,11 @@ export class DocumentQueryService {
               entityTypes: doc.entityTypes,
               archived: doc.archived,
               created: doc.created,
-              updatedAt: state.annotations.updatedAt,
               creationMethod: doc.creationMethod as CreationMethod,
               sourceAnnotationId: doc.sourceAnnotationId,
               sourceDocumentId: doc.sourceDocumentId,
               creator: doc.creator,
+              locale: doc.locale,
             });
           }
         }

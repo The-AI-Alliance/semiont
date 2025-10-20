@@ -3,10 +3,10 @@
 /**
  * Build all packages in dependency order with proper error handling
  *
- * Build order:
+ * Build order (SPEC-FIRST ARCHITECTURE):
  * 1. @semiont/core - Base package with no dependencies
- * 2. Backend - Generates openapi.json (depends on @semiont/core)
- * 3. @semiont/api-client - Needs openapi.json from backend
+ * 2. @semiont/api-client - Generates types from openapi.json (spec-first)
+ * 3. Backend - Consumes types from @semiont/api-client
  * 4. @semiont/test-utils - Testing utilities
  * 5. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
  */
@@ -15,6 +15,25 @@ const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// CRITICAL: Copy OpenAPI spec from backend to api-client BEFORE building
+// In spec-first architecture, backend/public/openapi.json is the source of truth (committed to git)
+console.log('📋 Copying OpenAPI spec from backend to api-client...');
+const backendSpecPath = path.join(__dirname, '..', 'apps', 'backend', 'public', 'openapi.json');
+const apiClientSpecPath = path.join(__dirname, '..', 'packages', 'api-client', 'openapi.json');
+
+if (!fs.existsSync(backendSpecPath)) {
+  console.error('❌ Backend OpenAPI spec not found:', backendSpecPath);
+  process.exit(1);
+}
+
+const apiClientDir = path.dirname(apiClientSpecPath);
+if (!fs.existsSync(apiClientDir)) {
+  fs.mkdirSync(apiClientDir, { recursive: true });
+}
+
+fs.copyFileSync(backendSpecPath, apiClientSpecPath);
+console.log('✅ OpenAPI spec copied successfully\n');
+
 const buildSteps = [
   {
     name: '@semiont/core',
@@ -22,15 +41,14 @@ const buildSteps = [
     description: 'Core SDK package'
   },
   {
-    name: 'semiont-backend',
-    type: 'app',
-    description: 'Backend (generates OpenAPI spec)',
-    // Backend build includes OpenAPI generation
-  },
-  {
     name: '@semiont/api-client',
     type: 'package',
-    description: 'API client (requires OpenAPI spec from backend)'
+    description: 'API client (generates types from openapi.json - SPEC-FIRST)'
+  },
+  {
+    name: 'semiont-backend',
+    type: 'app',
+    description: 'Backend (consumes types from @semiont/api-client)',
   },
   {
     name: '@semiont/test-utils',
@@ -71,6 +89,17 @@ for (const step of buildSteps) {
     if (!pkgJson.scripts?.build) {
       console.error(`❌ No build script found in ${step.name}`);
       process.exit(1);
+    }
+
+    // For api-client, verify the openapi.json file exists before building
+    if (step.name === '@semiont/api-client') {
+      if (!fs.existsSync(apiClientSpecPath)) {
+        console.error(`❌ OpenAPI spec not found at ${apiClientSpecPath} before building api-client`);
+        console.error('Current directory:', process.cwd());
+        console.error('Files in packages/api-client:', fs.readdirSync(path.join(__dirname, '..', 'packages', 'api-client')));
+        process.exit(1);
+      }
+      console.log(`✓ Verified openapi.json exists at ${apiClientSpecPath}`);
     }
 
     // Build the package/app

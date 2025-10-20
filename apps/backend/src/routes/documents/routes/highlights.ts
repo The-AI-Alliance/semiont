@@ -1,40 +1,28 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Get Document Highlights Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No validation needed (path param extracted directly)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-import {
-  GetHighlightsResponseSchema as GetHighlightsResponseSchema,
-  type GetHighlightsResponse,
-} from '@semiont/core';
+import type { components } from '@semiont/api-client';
 
-
-// GET /api/documents/{id}/highlights
-export const getDocumentHighlightsRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{id}/highlights',
-  summary: 'Get Document Highlights',
-  description: 'Get only highlights (annotations without body of type SpecifiedResource with a source) in a document',
-  tags: ['Documents', 'Selections'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetHighlightsResponseSchema as any,
-        },
-      },
-      description: 'Document highlights',
-    },
-  },
-});
+type GetHighlightsResponse = components['schemas']['GetHighlightsResponse'];
 
 export function registerDocumentHighlights(router: DocumentsRouterType) {
-  router.openapi(getDocumentHighlightsRoute, async (c) => {
-    const { id } = c.req.valid('param');
+  /**
+   * GET /api/documents/:id/highlights
+   *
+   * Get only highlights (annotations without body of type SpecifiedResource with a source) in a document
+   * Requires authentication
+   */
+  router.get('/api/documents/:id/highlights', async (c) => {
+    const { id } = c.req.param();
 
     // Layer 3 only - projection storage is source of truth
     // Projections now store full Annotation objects - no transformation needed

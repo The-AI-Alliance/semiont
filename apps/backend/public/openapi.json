@@ -1,0 +1,5073 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Semiont API",
+    "version": "0.1.0",
+    "description": "Semantic Knowledge Platform API"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "API Server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "database": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "disconnected",
+              "unknown"
+            ]
+          },
+          "environment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "version",
+          "timestamp",
+          "database",
+          "environment"
+        ]
+      },
+      "LocalAuthRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "image": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "domain": {
+                "type": "string"
+              },
+              "isAdmin": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "name",
+              "image",
+              "domain",
+              "isAdmin"
+            ]
+          },
+          "token": {
+            "type": "string"
+          },
+          "isNewUser": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "user",
+          "token",
+          "isNewUser"
+        ]
+      },
+      "GoogleAuthRequest": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token"
+        ]
+      },
+      "TokenRefreshRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "example": "eyJhbGciOiJIUzI1NiIs...",
+            "description": "Refresh token obtained during login"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "MCPGenerateResponse": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ]
+      },
+      "UserResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "domain": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "termsAcceptedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastLogin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "image",
+          "domain",
+          "provider",
+          "isAdmin",
+          "isActive",
+          "termsAcceptedAt",
+          "lastLogin",
+          "created"
+        ]
+      },
+      "AcceptTermsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "CreateDocumentRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "content": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "locale": {
+            "type": "string"
+          },
+          "creationMethod": {
+            "type": "string"
+          },
+          "sourceAnnotationId": {
+            "type": "string"
+          },
+          "sourceDocumentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "content",
+          "format",
+          "entityTypes"
+        ]
+      },
+      "CreateDocumentResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          }
+        },
+        "required": [
+          "document",
+          "annotations"
+        ]
+      },
+      "ListDocumentsResponse": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "offset": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "documents",
+          "total",
+          "offset",
+          "limit"
+        ]
+      },
+      "GetDocumentResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          },
+          "entityReferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          }
+        },
+        "required": [
+          "document",
+          "annotations",
+          "highlights",
+          "references",
+          "entityReferences"
+        ]
+      },
+      "GetEntityTypesResponse": {
+        "type": "object",
+        "properties": {
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "entityTypes"
+        ]
+      },
+      "EventStreamResponse": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string"
+          },
+          "data": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ]
+      },
+      "AddEntityTypeRequest": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "tag"
+        ]
+      },
+      "AddEntityTypeResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "success",
+          "entityTypes"
+        ]
+      },
+      "BulkAddEntityTypesRequest": {
+        "type": "object",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        },
+        "required": [
+          "tags"
+        ]
+      },
+      "UpdateDocumentRequest": {
+        "type": "object",
+        "properties": {
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DiscoverContextRequest": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "GenerateDocumentRequest": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "Document ID containing the annotation"
+          },
+          "title": {
+            "type": "string",
+            "description": "Custom title for generated document"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Custom prompt for content generation"
+          },
+          "locale": {
+            "type": "string",
+            "description": "Language locale (e.g., \"es\", \"fr\", \"ja\")"
+          }
+        },
+        "required": [
+          "documentId"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "details": {}
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "DocumentLLMContextResponse": {
+        "type": "object",
+        "properties": {
+          "mainDocument": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "relatedDocuments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            }
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          },
+          "graph": {
+            "type": "object",
+            "properties": {
+              "nodes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "label",
+                    "metadata"
+                  ]
+                }
+              },
+              "edges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "target",
+                    "type",
+                    "metadata"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "nodes",
+              "edges"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "suggestedReferences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mainDocumentContent": {
+            "type": "string",
+            "description": "The content of the main document (included if includeContent=true)"
+          },
+          "relatedDocumentsContent": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Map of document IDs to their content (included if includeContent=true)"
+          }
+        },
+        "required": [
+          "mainDocument",
+          "relatedDocuments",
+          "annotations",
+          "graph"
+        ]
+      },
+      "ReferenceLLMContextResponse": {
+        "type": "object",
+        "properties": {
+          "reference": {
+            "$ref": "#/components/schemas/Annotation"
+          },
+          "sourceDocument": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "targetDocument": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Document"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceContext": {
+            "type": "object",
+            "properties": {
+              "before": {
+                "type": "string"
+              },
+              "selected": {
+                "type": "string"
+              },
+              "after": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "before",
+              "selected",
+              "after"
+            ]
+          },
+          "targetContext": {
+            "type": "object",
+            "properties": {
+              "content": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "content"
+            ]
+          },
+          "suggestedResolution": {
+            "type": "object",
+            "properties": {
+              "documentId": {
+                "type": "string"
+              },
+              "documentName": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "reasoning": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "documentId",
+              "documentName",
+              "confidence",
+              "reasoning"
+            ]
+          }
+        },
+        "required": [
+          "reference",
+          "sourceDocument"
+        ]
+      },
+      "GetReferencedByResponse": {
+        "type": "object",
+        "properties": {
+          "referencedBy": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Reference annotation ID"
+                },
+                "documentName": {
+                  "type": "string",
+                  "description": "Name of document containing the reference"
+                },
+                "target": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "description": "ID of document containing the reference"
+                    },
+                    "selector": {
+                      "type": "object",
+                      "properties": {
+                        "exact": {
+                          "type": "string",
+                          "description": "The selected text that references this document"
+                        }
+                      },
+                      "required": [
+                        "exact"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "selector"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "documentName",
+                "target"
+              ]
+            }
+          }
+        },
+        "required": [
+          "referencedBy"
+        ]
+      },
+      "DiscoverContextResponse": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            }
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fromId": {
+                  "type": "string"
+                },
+                "toId": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "metadata": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "fromId",
+                "toId",
+                "type",
+                "metadata"
+              ]
+            }
+          }
+        },
+        "required": [
+          "documents",
+          "connections"
+        ]
+      },
+      "GetDocumentByTokenResponse": {
+        "type": "object",
+        "properties": {
+          "sourceDocument": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when token expires"
+          }
+        },
+        "required": [
+          "sourceDocument",
+          "expiresAt"
+        ]
+      },
+      "CloneDocumentWithTokenResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Generated clone token"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when token expires"
+          },
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          }
+        },
+        "required": [
+          "token",
+          "expiresAt",
+          "document"
+        ]
+      },
+      "GetHighlightsResponse": {
+        "type": "object",
+        "properties": {
+          "highlights": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          }
+        },
+        "required": [
+          "highlights"
+        ]
+      },
+      "GetReferencesResponse": {
+        "type": "object",
+        "properties": {
+          "references": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          }
+        },
+        "required": [
+          "references"
+        ]
+      },
+      "GetEventsResponse": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "documentId": {
+                      "type": "string"
+                    },
+                    "payload": {}
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "timestamp",
+                    "userId",
+                    "documentId"
+                  ]
+                },
+                "metadata": {
+                  "type": "object",
+                  "properties": {
+                    "sequenceNumber": {
+                      "type": "number"
+                    },
+                    "prevEventHash": {
+                      "type": "string"
+                    },
+                    "checksum": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sequenceNumber"
+                  ]
+                }
+              },
+              "required": [
+                "event",
+                "metadata"
+              ]
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "documentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "events",
+          "total",
+          "documentId"
+        ]
+      },
+      "AnnotationContextResponse": {
+        "type": "object",
+        "properties": {
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          },
+          "context": {
+            "type": "object",
+            "properties": {
+              "before": {
+                "type": "string"
+              },
+              "selected": {
+                "type": "string"
+              },
+              "after": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "selected"
+            ]
+          },
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          }
+        },
+        "required": [
+          "annotation",
+          "context",
+          "document"
+        ]
+      },
+      "ContextualSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "relevantFields": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "context": {
+            "type": "object",
+            "properties": {
+              "before": {
+                "type": "string"
+              },
+              "selected": {
+                "type": "string"
+              },
+              "after": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "selected"
+            ]
+          }
+        },
+        "required": [
+          "summary",
+          "relevantFields",
+          "context"
+        ]
+      },
+      "CreateAnnotationResponse": {
+        "type": "object",
+        "properties": {
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          }
+        },
+        "required": [
+          "annotation"
+        ]
+      },
+      "ListAnnotationsResponse": {
+        "type": "object",
+        "properties": {
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "offset": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "annotations",
+          "total",
+          "offset",
+          "limit"
+        ]
+      },
+      "ResolveAnnotationResponse": {
+        "type": "object",
+        "properties": {
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          },
+          "targetDocument": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Document"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "annotation"
+        ]
+      },
+      "GetAnnotationResponse": {
+        "type": "object",
+        "properties": {
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          },
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Document"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolvedDocument": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Document"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "annotation",
+          "document",
+          "resolvedDocument"
+        ]
+      },
+      "CreateDocumentFromTokenRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Clone token"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name for the new document"
+          },
+          "content": {
+            "type": "string",
+            "description": "Content for the new document"
+          },
+          "archiveOriginal": {
+            "type": "boolean",
+            "description": "Whether to archive the original document"
+          }
+        },
+        "required": [
+          "token",
+          "name",
+          "content"
+        ]
+      },
+      "CreateAnnotationRequest": {
+        "type": "object",
+        "properties": {
+          "motivation": {
+            "type": "string",
+            "enum": [
+              "assessing",
+              "bookmarking",
+              "classifying",
+              "commenting",
+              "describing",
+              "editing",
+              "highlighting",
+              "identifying",
+              "linking",
+              "moderating",
+              "questioning",
+              "replying",
+              "tagging"
+            ]
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "selector": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "TextPositionSelector"
+                        ]
+                      },
+                      "exact": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "number"
+                      },
+                      "length": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "exact",
+                      "offset",
+                      "length"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "TextQuoteSelector"
+                        ]
+                      },
+                      "exact": {
+                        "type": "string"
+                      },
+                      "prefix": {
+                        "type": "string"
+                      },
+                      "suffix": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "exact"
+                    ]
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "TextPositionSelector"
+                              ]
+                            },
+                            "exact": {
+                              "type": "string"
+                            },
+                            "offset": {
+                              "type": "number"
+                            },
+                            "length": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "exact",
+                            "offset",
+                            "length"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "TextQuoteSelector"
+                              ]
+                            },
+                            "exact": {
+                              "type": "string"
+                            },
+                            "prefix": {
+                              "type": "string"
+                            },
+                            "suffix": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "exact"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "selector"
+            ]
+          },
+          "body": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "TextualBody",
+                  "SpecificResource"
+                ]
+              },
+              "value": {
+                "type": "string"
+              },
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "entityTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "target",
+          "body"
+        ]
+      },
+      "StatusResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "features": {
+            "type": "object",
+            "properties": {
+              "semanticContent": {
+                "type": "string"
+              },
+              "collaboration": {
+                "type": "string"
+              },
+              "rbac": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "semanticContent",
+              "collaboration",
+              "rbac"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "authenticatedAs": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "features",
+          "message"
+        ]
+      },
+      "AdminUsersListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "image": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "domain": {
+                  "type": "string"
+                },
+                "provider": {
+                  "type": "string"
+                },
+                "isAdmin": {
+                  "type": "boolean"
+                },
+                "isActive": {
+                  "type": "boolean"
+                },
+                "lastLogin": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "email",
+                "name",
+                "image",
+                "domain",
+                "provider",
+                "isAdmin",
+                "isActive",
+                "lastLogin",
+                "created",
+                "updatedAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "users"
+        ]
+      },
+      "AdminUserStatsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "totalUsers": {
+                "type": "number"
+              },
+              "activeUsers": {
+                "type": "number"
+              },
+              "adminUsers": {
+                "type": "number"
+              },
+              "regularUsers": {
+                "type": "number"
+              },
+              "domainBreakdown": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "domain",
+                    "count"
+                  ]
+                }
+              },
+              "recentSignups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "created": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "email",
+                    "name",
+                    "created"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "totalUsers",
+              "activeUsers",
+              "adminUsers",
+              "regularUsers",
+              "domainBreakdown",
+              "recentSignups"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "stats"
+        ]
+      },
+      "AdminUpdateUserResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "image": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "domain": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "isAdmin": {
+                "type": "boolean"
+              },
+              "isActive": {
+                "type": "boolean"
+              },
+              "lastLogin": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "created": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "name",
+              "image",
+              "domain",
+              "provider",
+              "isAdmin",
+              "isActive",
+              "lastLogin",
+              "created",
+              "updatedAt"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "user"
+        ]
+      },
+      "OAuthConfigResponse": {
+        "type": "object",
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "isConfigured": {
+                  "type": "boolean"
+                },
+                "clientId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "isConfigured",
+                "clientId"
+              ]
+            }
+          },
+          "allowedDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "providers",
+          "allowedDomains"
+        ]
+      },
+      "AsyncJobResponse": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "complete",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "detection",
+              "generation"
+            ]
+          },
+          "created": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "status",
+          "type",
+          "created"
+        ]
+      },
+      "CreateDocumentFromAnnotationResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          }
+        },
+        "required": [
+          "document",
+          "annotation"
+        ]
+      },
+      "GetAnnotationHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "string"
+                },
+                "userId": {
+                  "type": "string"
+                },
+                "documentId": {
+                  "type": "string"
+                },
+                "payload": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string"
+                        },
+                        "contentHash": {
+                          "type": "string"
+                        },
+                        "creationMethod": {
+                          "type": "string",
+                          "enum": [
+                            "api",
+                            "upload",
+                            "ui",
+                            "reference",
+                            "clone",
+                            "generated"
+                          ]
+                        },
+                        "entityTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "format",
+                        "contentHash",
+                        "creationMethod"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string"
+                        },
+                        "contentHash": {
+                          "type": "string"
+                        },
+                        "parentDocumentId": {
+                          "type": "string"
+                        },
+                        "creationMethod": {
+                          "type": "string",
+                          "enum": [
+                            "api",
+                            "upload",
+                            "ui",
+                            "reference",
+                            "clone",
+                            "generated"
+                          ]
+                        },
+                        "entityTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "format",
+                        "contentHash",
+                        "parentDocumentId",
+                        "creationMethod"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {}
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "highlightId": {
+                          "type": "string"
+                        },
+                        "exact": {
+                          "type": "string"
+                        },
+                        "position": {
+                          "type": "object",
+                          "properties": {
+                            "offset": {
+                              "type": "number"
+                            },
+                            "length": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "offset",
+                            "length"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "highlightId",
+                        "exact",
+                        "position"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "highlightId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "highlightId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "referenceId": {
+                          "type": "string"
+                        },
+                        "exact": {
+                          "type": "string"
+                        },
+                        "position": {
+                          "type": "object",
+                          "properties": {
+                            "offset": {
+                              "type": "number"
+                            },
+                            "length": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "offset",
+                            "length"
+                          ]
+                        },
+                        "entityTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "targetDocumentId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "referenceId",
+                        "exact",
+                        "position"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "referenceId": {
+                          "type": "string"
+                        },
+                        "targetDocumentId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "referenceId",
+                        "targetDocumentId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "referenceId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "referenceId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "entityType": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entityType"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "entityType": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entityType"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "assessmentId": {
+                          "type": "string"
+                        },
+                        "exact": {
+                          "type": "string"
+                        },
+                        "position": {
+                          "type": "object",
+                          "properties": {
+                            "offset": {
+                              "type": "number"
+                            },
+                            "length": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "offset",
+                            "length"
+                          ]
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assessmentId",
+                        "exact",
+                        "position"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "assessmentId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assessmentId"
+                      ]
+                    }
+                  ]
+                },
+                "metadata": {
+                  "type": "object",
+                  "properties": {
+                    "sequenceNumber": {
+                      "type": "number"
+                    },
+                    "prevEventHash": {
+                      "type": "string"
+                    },
+                    "checksum": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sequenceNumber"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "timestamp",
+                "userId",
+                "documentId",
+                "payload",
+                "metadata"
+              ]
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "annotationId": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "events",
+          "total",
+          "annotationId",
+          "documentId"
+        ]
+      },
+      "JobStatusResponse": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "detection",
+              "generation"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "complete",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "userId": {
+            "type": "string"
+          },
+          "created": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "completedAt": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "progress": {},
+          "result": {}
+        },
+        "required": [
+          "jobId",
+          "type",
+          "status",
+          "userId",
+          "created"
+        ]
+      },
+      "GenerateDocumentFromAnnotationRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },
+      "GenerateDocumentStreamRequest": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "description": "Custom title for generated document"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Custom prompt for content generation"
+          },
+          "locale": {
+            "type": "string",
+            "description": "Language locale for generated content (e.g., \"es\", \"fr\", \"ja\")"
+          }
+        },
+        "required": [
+          "documentId"
+        ]
+      },
+      "ResolveAnnotationRequest": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "Target document ID to resolve reference to"
+          }
+        },
+        "required": [
+          "documentId"
+        ]
+      },
+      "DeleteAnnotationRequest": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "Document ID containing the annotation (required for O(1) Layer 3 lookup)"
+          }
+        },
+        "required": [
+          "documentId"
+        ]
+      },
+      "TextPositionSelector": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TextPositionSelector"
+            ]
+          },
+          "exact": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "number"
+          },
+          "length": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "exact",
+          "offset",
+          "length"
+        ]
+      },
+      "TextQuoteSelector": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TextQuoteSelector"
+            ]
+          },
+          "exact": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "suffix": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "exact"
+        ]
+      },
+      "Agent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Person",
+              "Organization",
+              "Software"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "email_sha1": {
+            "type": "string"
+          },
+          "homepage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "name"
+        ]
+      },
+      "Document": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "locale": {
+            "type": "string"
+          },
+          "creationMethod": {
+            "type": "string",
+            "enum": [
+              "api",
+              "upload",
+              "ui",
+              "reference",
+              "clone",
+              "generated"
+            ]
+          },
+          "sourceAnnotationId": {
+            "type": "string"
+          },
+          "sourceDocumentId": {
+            "type": "string"
+          },
+          "creator": {
+            "type": "string"
+          },
+          "created": {
+            "type": "string"
+          },
+          "contentChecksum": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "format",
+          "archived",
+          "entityTypes",
+          "creationMethod",
+          "creator",
+          "created",
+          "contentChecksum"
+        ]
+      },
+      "Annotation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "motivation": {
+            "type": "string",
+            "enum": [
+              "assessing",
+              "bookmarking",
+              "classifying",
+              "commenting",
+              "describing",
+              "editing",
+              "highlighting",
+              "identifying",
+              "linking",
+              "moderating",
+              "questioning",
+              "replying",
+              "tagging"
+            ]
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "selector": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TextPositionSelector"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TextQuoteSelector"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/TextPositionSelector"
+                        },
+                        {
+                          "$ref": "#/components/schemas/TextQuoteSelector"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "selector"
+            ]
+          },
+          "body": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "TextualBody",
+                  "SpecificResource"
+                ]
+              },
+              "value": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              },
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "entityTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "type",
+              "entityTypes"
+            ]
+          },
+          "creator": {
+            "$ref": "#/components/schemas/Agent"
+          },
+          "created": {
+            "type": "string"
+          },
+          "modified": {
+            "type": "string"
+          },
+          "generator": {
+            "$ref": "#/components/schemas/Agent"
+          }
+        },
+        "required": [
+          "id",
+          "motivation",
+          "target",
+          "body",
+          "creator",
+          "created"
+        ]
+      },
+      "UpdateUserResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "image": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "domain": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "isAdmin": {
+                "type": "boolean"
+              },
+              "isActive": {
+                "type": "boolean"
+              },
+              "lastLogin": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "created": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "domain",
+              "provider",
+              "isAdmin",
+              "isActive",
+              "created",
+              "updatedAt"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "user"
+        ]
+      },
+      "DeleteUserResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "TokenRefreshResponse": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token"
+        ]
+      },
+      "CreateDocumentFromSelectionRequest": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "name",
+          "format"
+        ]
+      },
+      "CreateDocumentFromSelectionResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          }
+        },
+        "required": [
+          "document",
+          "annotation"
+        ]
+      },
+      "GenerateDocumentFromAnnotationResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          },
+          "generated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "document",
+          "annotation",
+          "generated"
+        ]
+      },
+      "CreateFromAnnotationRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "content",
+          "format"
+        ]
+      },
+      "CreateFromAnnotationResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          }
+        },
+        "required": [
+          "document",
+          "annotations"
+        ]
+      },
+      "DetectAnnotationsStreamRequest": {
+        "type": "object",
+        "properties": {
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "entityTypes"
+        ]
+      },
+      "DetectEntitiesRequest": {
+        "type": "object",
+        "properties": {
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "entityTypes"
+        ]
+      },
+      "CreateJobResponse": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "detection",
+              "generation"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "complete",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "created": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "type",
+          "status",
+          "created"
+        ]
+      },
+      "GetAnnotationsResponse": {
+        "type": "object",
+        "properties": {
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          }
+        },
+        "required": [
+          "annotations"
+        ]
+      },
+      "CreateDocumentFromTokenResponse": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            }
+          }
+        },
+        "required": [
+          "document",
+          "annotations"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Check if the API is operational and database is connected",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Health status of the API",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tokens/local": {
+      "post": {
+        "summary": "Local Development Authentication",
+        "description": "Authenticate with email only (development mode only)",
+        "tags": [
+          "Authentication"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalAuthRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local auth not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tokens/google": {
+      "post": {
+        "summary": "Google OAuth Authentication",
+        "description": "Authenticate with Google OAuth access token",
+        "tags": [
+          "Authentication"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleAuthRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tokens/refresh": {
+      "post": {
+        "summary": "Refresh Access Token",
+        "description": "Exchange a refresh token for a new access token",
+        "tags": [
+          "Authentication"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRefreshRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New access token generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleAuthRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired refresh token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tokens/mcp-generate": {
+      "post": {
+        "summary": "Generate MCP Token",
+        "description": "Generate a short-lived token for MCP server",
+        "tags": [
+          "Authentication"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MCP token generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MCPGenerateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/me": {
+      "get": {
+        "summary": "Get Current User",
+        "description": "Get information about the authenticated user",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/accept-terms": {
+      "post": {
+        "summary": "Accept Terms",
+        "description": "Mark terms as accepted for the current user",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Terms accepted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptTermsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/logout": {
+      "post": {
+        "summary": "Logout",
+        "description": "Logout the current user",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logged out successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptTermsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/status": {
+      "get": {
+        "summary": "Get Service Status",
+        "description": "Get service status and feature availability",
+        "tags": [
+          "General"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service status information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "summary": "List All Users",
+        "description": "Get a list of all users (admin only)",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUsersListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Admin access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/stats": {
+      "get": {
+        "summary": "User Statistics",
+        "description": "Get user statistics (admin only)",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserStatsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Admin access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}": {
+      "patch": {
+        "summary": "Update User",
+        "description": "Update user properties (admin only)",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "user-123"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUpdateUserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Admin access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete User",
+        "description": "Delete a user account (admin only, cannot delete own account)",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "user-123"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptTermsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot delete own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Admin access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/oauth/config": {
+      "get": {
+        "summary": "Get OAuth Configuration",
+        "description": "Get OAuth provider configuration (admin only, read-only)",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthConfigResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Admin access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents": {
+      "post": {
+        "summary": "Create Document",
+        "description": "Create a new document",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List Documents",
+        "description": "List all documents with optional filters",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "entityType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "false"
+                  ]
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "required": false,
+            "name": "archived",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "search",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documents listed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListDocumentsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/search": {
+      "get": {
+        "summary": "Search Documents",
+        "description": "Search documents by name",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "default": 10
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListDocumentsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}": {
+      "get": {
+        "summary": "Get Document",
+        "description": "Get a document by ID",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Document",
+        "description": "Update document metadata (append-only operations - name and content are immutable)",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Document updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/content": {
+      "get": {
+        "summary": "Get Document Content",
+        "description": "Get raw content of a document with correct MIME type from document metadata",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document content with MIME type from document.format",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/from-annotation/{annotationId}": {
+      "post": {
+        "summary": "Create Document from Annotation",
+        "description": "Create a new document from an annotation/reference",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "annotationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateDocumentFromAnnotationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document created from annotation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/detect-annotations-stream": {
+      "post": {
+        "summary": "Detect Annotations with Progress (SSE)",
+        "description": "Stream real-time entity detection progress via Server-Sent Events",
+        "tags": [
+          "Documents",
+          "Annotations",
+          "Real-time"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetEntityTypesResponse"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream opened successfully",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventStreamResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Document not found"
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/detect-entities": {
+      "post": {
+        "summary": "Detect Entities (Job)",
+        "description": "Create an async entity detection job. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/documents/{id}/detect-annotations-stream instead.",
+        "tags": [
+          "Documents",
+          "Annotations",
+          "Jobs"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetEntityTypesResponse"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Job created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsyncJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Document not found"
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/llm-context": {
+      "get": {
+        "summary": "Get Document LLM Context",
+        "description": "Get document with full context for LLM processing",
+        "tags": [
+          "Documents",
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 3,
+              "default": 2
+            },
+            "required": false,
+            "name": "depth",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 10
+            },
+            "required": false,
+            "name": "maxDocuments",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "false"
+                  ]
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "default": true
+            },
+            "required": false,
+            "name": "includeContent",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "false"
+                  ]
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "default": false
+            },
+            "required": false,
+            "name": "includeSummary",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentLLMContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{documentId}/references/{referenceId}/llm-context": {
+      "get": {
+        "summary": "Get Reference LLM Context",
+        "description": "Get reference with full context for LLM processing",
+        "tags": [
+          "Documents",
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "documentId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "referenceId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "false"
+                  ]
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "default": true
+            },
+            "required": false,
+            "name": "includeSourceContext",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "false"
+                  ]
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "default": true
+            },
+            "required": false,
+            "name": "includeTargetContext",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 5000,
+              "default": 1000
+            },
+            "required": false,
+            "name": "contextWindow",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reference LLM context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceLLMContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/referenced-by": {
+      "get": {
+        "summary": "Get Referenced By",
+        "description": "Get documents that reference this document",
+        "tags": [
+          "Documents",
+          "Graph"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documents that reference this document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetReferencedByResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/discover-context": {
+      "post": {
+        "summary": "Discover Context",
+        "description": "Discover related documents and concepts",
+        "tags": [
+          "Documents",
+          "Graph"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoverContextRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Context discovery results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/token/{token}": {
+      "get": {
+        "summary": "Get Document by Clone Token",
+        "description": "Retrieve a document using a clone token",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "token",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDocumentByTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/create-from-token": {
+      "post": {
+        "summary": "Create Document from Clone Token",
+        "description": "Create a new document using a clone token",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentFromTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/clone-with-token": {
+      "post": {
+        "summary": "Clone Document with Token",
+        "description": "Generate a temporary token for cloning a document",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Clone token generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloneDocumentWithTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/highlights": {
+      "get": {
+        "summary": "Get Document Highlights",
+        "description": "Get only highlights (annotations without body of type SpecifiedResource with a source) in a document",
+        "tags": [
+          "Documents",
+          "Selections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document highlights",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetHighlightsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/references": {
+      "get": {
+        "summary": "Get Document References",
+        "description": "Get only references (annotations with body of type SpecifiedResource with a source) in a document",
+        "tags": [
+          "Documents",
+          "Selections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document references",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetReferencesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/annotations": {
+      "get": {
+        "summary": "Get Document Annotations",
+        "description": "Get all annotations (both highlights and references) in a document",
+        "tags": [
+          "Documents",
+          "Annotations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document annotations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/events": {
+      "get": {
+        "summary": "Get Document Event History",
+        "description": "Get full event history for a document with optional filtering",
+        "tags": [
+          "Documents",
+          "Events"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "document.created",
+                "document.cloned",
+                "document.archived",
+                "document.unarchived",
+                "highlight.added",
+                "highlight.removed",
+                "reference.created",
+                "reference.resolved",
+                "reference.deleted",
+                "entitytag.added",
+                "entitytag.removed"
+              ]
+            },
+            "required": false,
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "userId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEventsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/events/stream": {
+      "get": {
+        "summary": "Subscribe to Document Events (SSE)",
+        "description": "Open a Server-Sent Events stream to receive real-time document events",
+        "tags": [
+          "Documents",
+          "Events",
+          "Real-time"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream opened successfully",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventStreamResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}/create-document": {
+      "post": {
+        "summary": "Create Document from Annotation",
+        "description": "Create a new document from an annotation and resolve the annotation to it",
+        "tags": [
+          "Selections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document created and annotation resolved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDocumentFromAnnotationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}/generate-document": {
+      "post": {
+        "summary": "Generate Document (Job)",
+        "description": "Create an async document generation job from an annotation. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/annotations/{id}/generate-document-stream instead.",
+        "tags": [
+          "Selections",
+          "Documents",
+          "Jobs",
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Annotation ID"
+            },
+            "required": true,
+            "description": "Annotation ID",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Job created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsyncJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}/context": {
+      "get": {
+        "summary": "Get Annotation Context",
+        "description": "Get the context around an annotation",
+        "tags": [
+          "Selections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 5000,
+              "default": 100
+            },
+            "required": false,
+            "name": "contextBefore",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 5000,
+              "default": 100
+            },
+            "required": false,
+            "name": "contextAfter",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annotation context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}/summary": {
+      "get": {
+        "summary": "Get Contextual Summary",
+        "description": "Get an AI-generated summary of the annotation in context",
+        "tags": [
+          "Selections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contextual summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextualSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}/generate-document-stream": {
+      "post": {
+        "summary": "Generate Document from Reference (SSE)",
+        "description": "Stream real-time document generation progress via Server-Sent Events",
+        "tags": [
+          "Selections",
+          "Documents",
+          "Real-time",
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Reference/annotation ID"
+            },
+            "required": true,
+            "description": "Reference/annotation ID",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream opened successfully",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventStreamResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Reference not found"
+          }
+        }
+      }
+    },
+    "/api/annotations": {
+      "post": {
+        "summary": "Create Annotation",
+        "description": "Create a new annotation/reference in a document",
+        "tags": [
+          "Annotations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAnnotationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Annotation created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAnnotationResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List Annotations",
+        "description": "List all annotations for a document (requires documentId for O(1) Layer 3 lookup)",
+        "tags": [
+          "Annotations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Document ID to list annotations for"
+            },
+            "required": true,
+            "description": "Document ID to list annotations for",
+            "name": "documentId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annotations listed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListAnnotationsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}/resolve": {
+      "put": {
+        "summary": "Resolve Annotation",
+        "description": "Resolve a reference annotation to a target document",
+        "tags": [
+          "Annotations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveAnnotationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Annotation resolved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveAnnotationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}": {
+      "get": {
+        "summary": "Get Annotation",
+        "description": "Get an annotation by ID (requires documentId query param for O(1) Layer 3 lookup)",
+        "tags": [
+          "Annotations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Document ID containing the annotation"
+            },
+            "required": true,
+            "description": "Document ID containing the annotation",
+            "name": "documentId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annotation retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetAnnotationResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Annotation",
+        "description": "Delete an annotation (requires documentId in body for O(1) Layer 3 lookup)",
+        "tags": [
+          "Annotations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAnnotationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Annotation deleted successfully"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
+    "/api/documents/{documentId}/annotations/{annotationId}/history": {
+      "get": {
+        "summary": "Get Annotation History",
+        "description": "Get full event history for a specific annotation (highlight or reference)",
+        "tags": [
+          "Selections",
+          "Events"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "documentId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "annotationId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annotation history retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetAnnotationHistoryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
+    "/api/entity-types": {
+      "get": {
+        "summary": "Get Entity Types",
+        "description": "Get list of available entity types for references",
+        "tags": [
+          "Selections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entity types retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEntityTypesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add Entity Type",
+        "description": "Add a new entity type to the collection (append-only, requires moderator/admin)",
+        "tags": [
+          "Selections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddEntityTypeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entity type added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddEntityTypeResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Moderator or Admin access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entity-types/bulk": {
+      "post": {
+        "summary": "Bulk Add Entity Types",
+        "description": "Add multiple entity types to the collection (append-only, requires moderator/admin)",
+        "tags": [
+          "Selections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkAddEntityTypesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entity types added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddEntityTypeResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Moderator or Admin access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{id}": {
+      "get": {
+        "summary": "Get Job Status",
+        "description": "Get the current status and progress of an async job",
+        "tags": [
+          "Jobs"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

@@ -15,7 +15,8 @@ export const entityTypes = {
       return useQuery({
         queryKey: QUERY_KEYS.entityTypes.all(),
         queryFn: () => fetchAPI<{ entityTypes: string[] }>('/api/entity-types', {}, session?.backendToken),
-        enabled: !!session?.backendToken && !!session?.user?.isAdmin,
+        // All authenticated users can read entity types for creating annotations
+        enabled: !!session?.backendToken,
       });
     },
   },
