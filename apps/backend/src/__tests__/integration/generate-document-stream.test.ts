@@ -19,6 +19,36 @@ type Variables = {
   user: User;
 };
 
+// Create shared mock Prisma client
+const sharedMockClient = {
+  user: {
+    findUnique: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  },
+  $queryRaw: vi.fn(),
+} as any;
+
+// Mock the entire auth/oauth module to avoid external API calls
+vi.mock('../../auth/oauth', () => ({
+  OAuthService: {
+    verifyGoogleToken: vi.fn(),
+    createOrUpdateUser: vi.fn(),
+    getUserFromToken: vi.fn(),
+    acceptTerms: vi.fn(),
+  },
+}));
+
+// Mock database
+vi.mock('../../db', () => ({
+  DatabaseConnection: {
+    getClient: vi.fn(() => sharedMockClient),
+    checkHealth: vi.fn().mockResolvedValue(true),
+  },
+  prisma: sharedMockClient,
+}));
+
 let app: Hono<{ Variables: Variables }>;
 
 describe('POST /api/annotations/:id/generate-document-stream', () => {
