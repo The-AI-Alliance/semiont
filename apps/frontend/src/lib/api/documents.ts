@@ -18,8 +18,7 @@ import type {
   CreateDocumentFromTokenRequest,
   CreateDocumentFromTokenResponse,
   CloneDocumentWithTokenResponse,
-  GetHighlightsResponse,
-  GetReferencesResponse,
+  GetAnnotationsResponse,
 } from './types';
 
 export const documents = {
@@ -183,11 +182,18 @@ export const documents = {
       const { data: session } = useSession();
       return useQuery({
         queryKey: QUERY_KEYS.documents.highlights(documentId),
-        queryFn: () => fetchAPI<GetHighlightsResponse>(
-          `/api/documents/${documentId}/highlights`,
-          {},
-          session?.backendToken
-        ),
+        queryFn: async () => {
+          const data = await fetchAPI<GetAnnotationsResponse>(
+            `/api/documents/${documentId}/annotations`,
+            {},
+            session?.backendToken
+          );
+          // Filter to highlighting annotations only
+          return {
+            ...data,
+            annotations: data.annotations.filter(a => a.motivation === 'highlighting')
+          };
+        },
         enabled: !!session?.backendToken && !!documentId,
       });
     },
@@ -198,11 +204,18 @@ export const documents = {
       const { data: session } = useSession();
       return useQuery({
         queryKey: QUERY_KEYS.documents.references(documentId),
-        queryFn: () => fetchAPI<GetReferencesResponse>(
-          `/api/documents/${documentId}/references`,
-          {},
-          session?.backendToken
-        ),
+        queryFn: async () => {
+          const data = await fetchAPI<GetAnnotationsResponse>(
+            `/api/documents/${documentId}/annotations`,
+            {},
+            session?.backendToken
+          );
+          // Filter to linking annotations only
+          return {
+            ...data,
+            annotations: data.annotations.filter(a => a.motivation === 'linking')
+          };
+        },
         enabled: !!session?.backendToken && !!documentId,
       });
     },
