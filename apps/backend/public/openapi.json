@@ -2072,6 +2072,18 @@
         "properties": {
           "documentId": {
             "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "description": "Custom title for generated document"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Custom prompt for content generation"
+          },
+          "locale": {
+            "type": "string",
+            "description": "Language locale for generated content (e.g., \"es\", \"fr\", \"ja\")"
           }
         },
         "required": [

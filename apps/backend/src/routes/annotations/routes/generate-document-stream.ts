@@ -14,23 +14,29 @@ import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
-import { getGraphDatabase } from '../../../graph/factory';
+import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { getJobQueue } from '../../../jobs/job-queue';
+import type { GenerationJob } from '../../../jobs/types';
+import { nanoid } from 'nanoid';
+import { getExactText, compareAnnotationIds } from '@semiont/core';
 
 type GenerateDocumentStreamRequest = components['schemas']['GenerateDocumentStreamRequest'];
 
-// Job state storage (in-memory for now)
-const jobs = new Map<string, {
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  progress: number;
+interface GenerationProgress {
+  status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
+  referenceId: string;
+  documentName?: string;
   documentId?: string;
-  error?: string;
-}>();
+  sourceDocumentId?: string;
+  percentage: number;
+  message?: string;
+}
 
 export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
   /**
    * POST /api/annotations/:id/generate-document-stream
    *
-   * Generate a document from an annotation with streaming progress updates
+   * Generate a document from an annotation with streaming progress updates via SSE
    * Requires authentication
    * Validates request body against GenerateDocumentStreamRequest schema
    * Returns SSE stream with progress updates
@@ -38,157 +44,187 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
   router.post('/api/annotations/:id/generate-document-stream',
     validateRequestBody('GenerateDocumentStreamRequest'),
     async (c) => {
-      const { id } = c.req.param();
+      const { id: referenceId } = c.req.param();
       const body = c.get('validatedBody') as GenerateDocumentStreamRequest;
-      const user = c.get('user');
 
-      // Verify annotation exists
-      const graphDb = await getGraphDatabase();
-      const annotation = await graphDb.getAnnotation(id);
-      if (!annotation) {
-        throw new HTTPException(404, { message: 'Annotation not found' });
+      console.log('[GenerateDocumentStream] Received request body:', body);
+
+      // User will be available from auth middleware
+      const user = c.get('user');
+      if (!user) {
+        throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      // Create job
-      const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      jobs.set(jobId, {
+      console.log(`[GenerateDocument] Starting generation for reference ${referenceId} in document ${body.documentId}`);
+      console.log(`[GenerateDocument] Locale from request:`, body.locale);
+
+      // Validate reference exists using Layer 3
+      const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
+
+      // Debug: log what references exist
+      console.log(`[GenerateDocument] Found ${projection.references.length} references in document`);
+      projection.references.forEach((r: any, i: number) => {
+        console.log(`  [${i}] id: ${r.id}`);
+      });
+
+      // Compare by ID portion (handle both URI and simple ID formats)
+      const reference = projection.references.find((r: any) =>
+        compareAnnotationIds(r.id, referenceId)
+      );
+
+      if (!reference) {
+        throw new HTTPException(404, { message: `Reference ${referenceId} not found in document ${body.documentId}` });
+      }
+
+      // Create a generation job (this decouples event emission from HTTP client)
+      const jobQueue = getJobQueue();
+      const job: GenerationJob = {
+        id: `job-${nanoid()}`,
+        type: 'generation',
         status: 'pending',
-        progress: 0,
-      });
+        userId: user.id,
+        referenceId,
+        sourceDocumentId: body.documentId,
+        title: body.title,
+        prompt: body.prompt,
+        locale: body.locale,
+        entityTypes: reference.body.entityTypes,
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      };
 
-      // Start async generation (don't await - let it run in background)
-      generateDocumentAsync(jobId, id, body, user.id).catch(error => {
-        console.error('[GenerateDocumentStream] Job failed:', error);
-        const job = jobs.get(jobId);
-        if (job) {
-          job.status = 'failed';
-          job.error = error.message || 'Unknown error';
-        }
-      });
+      await jobQueue.createJob(job);
+      console.log(`[GenerateDocument] Created job ${job.id} for reference ${referenceId}`);
+      console.log(`[GenerateDocument] Job includes locale:`, job.locale);
 
-      // Stream progress updates
+      // Determine document name for progress messages
+      const documentName = body.title || getExactText(reference.target.selector) || 'New Document';
+
+      // Stream the job's progress to the client
       return streamSSE(c, async (stream) => {
-        let lastProgress = 0;
-        const pollInterval = setInterval(async () => {
-          const job = jobs.get(jobId);
-          if (!job) {
-            clearInterval(pollInterval);
-            await stream.writeSSE({
-              data: JSON.stringify({ error: 'Job not found' }),
-              event: 'error',
-            });
-            await stream.close();
-            return;
+        try {
+          // Send initial started event
+          await stream.writeSSE({
+            data: JSON.stringify({
+              status: 'started',
+              referenceId,
+              documentName,
+              percentage: 0,
+              message: 'Starting...'
+            } as GenerationProgress),
+            event: 'generation-started',
+            id: String(Date.now())
+          });
+
+          let lastStatus = job.status;
+          let lastProgress = JSON.stringify(job.progress);
+
+          // Poll job status and stream updates to client
+          // The job worker processes independently - if client disconnects, job continues
+          while (true) {
+            const currentJob = await jobQueue.getJob(job.id);
+
+            if (!currentJob) {
+              throw new Error('Job was deleted');
+            }
+
+            const currentProgress = JSON.stringify(currentJob.progress);
+
+            // Send progress updates when job state changes
+            if (currentJob.status !== lastStatus || currentProgress !== lastProgress) {
+              if (currentJob.status === 'running' && currentJob.type === 'generation') {
+                const generationJob = currentJob as GenerationJob;
+                const progress = generationJob.progress;
+
+                if (progress) {
+                  // Map job progress stages to SSE status
+                  const statusMap: Record<typeof progress.stage, GenerationProgress['status']> = {
+                    'fetching': 'fetching',
+                    'generating': 'generating',
+                    'creating': 'creating',
+                    'linking': 'creating'
+                  };
+
+                  try {
+                    await stream.writeSSE({
+                      data: JSON.stringify({
+                        status: statusMap[progress.stage],
+                        referenceId,
+                        documentName,
+                        percentage: progress.percentage,
+                        message: progress.message || `${progress.stage}...`
+                      } as GenerationProgress),
+                      event: 'generation-progress',
+                      id: String(Date.now())
+                    });
+                  } catch (sseError) {
+                    console.warn(`[GenerateDocument] Client disconnected, but job ${job.id} will continue processing`);
+                    break; // Client disconnected, stop streaming (job continues)
+                  }
+                }
+              }
+
+              lastStatus = currentJob.status;
+              lastProgress = currentProgress;
+            }
+
+            // Check if job completed
+            if (currentJob.status === 'complete') {
+              const result = (currentJob as GenerationJob).result;
+              await stream.writeSSE({
+                data: JSON.stringify({
+                  status: 'complete',
+                  referenceId,
+                  documentName: result?.documentName || documentName,
+                  documentId: result?.documentId,
+                  sourceDocumentId: body.documentId,
+                  percentage: 100,
+                  message: 'Draft document created! Ready for review.'
+                } as GenerationProgress),
+                event: 'generation-complete',
+                id: String(Date.now())
+              });
+              break;
+            }
+
+            if (currentJob.status === 'failed') {
+              await stream.writeSSE({
+                data: JSON.stringify({
+                  status: 'error',
+                  referenceId,
+                  percentage: 0,
+                  message: currentJob.error || 'Generation failed'
+                } as GenerationProgress),
+                event: 'generation-error',
+                id: String(Date.now())
+              });
+              break;
+            }
+
+            // Poll every 500ms
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
 
-          // Send progress update if changed
-          if (job.progress !== lastProgress) {
-            await stream.writeSSE({
-              data: JSON.stringify({
-                jobId,
-                status: job.status,
-                progress: job.progress,
-              }),
-              event: 'progress',
-            });
-            lastProgress = job.progress;
-          }
-
-          // Send completion event
-          if (job.status === 'completed') {
-            clearInterval(pollInterval);
-            await stream.writeSSE({
-              data: JSON.stringify({
-                jobId,
-                documentId: job.documentId,
-              }),
-              event: 'completed',
-            });
-            await stream.close();
-            jobs.delete(jobId);
-            return;
-          }
-
+        } catch (error) {
           // Send error event
-          if (job.status === 'failed') {
-            clearInterval(pollInterval);
+          try {
             await stream.writeSSE({
               data: JSON.stringify({
-                jobId,
-                error: job.error || 'Unknown error',
-              }),
-              event: 'error',
+                status: 'error',
+                referenceId,
+                percentage: 0,
+                message: error instanceof Error ? error.message : 'Generation failed'
+              } as GenerationProgress),
+              event: 'generation-error',
+              id: String(Date.now())
             });
-            await stream.close();
-            jobs.delete(jobId);
-            return;
+          } catch (sseError) {
+            // Client already disconnected
+            console.warn(`[GenerateDocument] Could not send error to client (disconnected), but job ${job.id} status is preserved`);
           }
-        }, 500); // Poll every 500ms
-
-        // Cleanup on connection close
-        stream.onAbort(() => {
-          clearInterval(pollInterval);
-        });
+        }
       });
     }
   );
-}
-
-/**
- * Background job to generate document from annotation
- */
-async function generateDocumentAsync(
-  jobId: string,
-  annotationId: string,
-  request: GenerateDocumentStreamRequest,
-  _userId: string
-): Promise<void> {
-  const job = jobs.get(jobId);
-  if (!job) return;
-
-  try {
-    job.status = 'running';
-    job.progress = 10;
-
-    const graphDb = await getGraphDatabase();
-
-    // Get annotation
-    const annotation = await graphDb.getAnnotation(annotationId);
-    if (!annotation) {
-      throw new Error('Annotation not found');
-    }
-    job.progress = 20;
-
-    // Get source document for context
-    const sourceDoc = await graphDb.getDocument(request.documentId);
-    if (!sourceDoc) {
-      throw new Error('Source document not found');
-    }
-    job.progress = 30;
-
-    // Here would be LLM generation logic
-    // For now, simulate with delays
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    job.progress = 50;
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    job.progress = 70;
-
-    // Create generated document
-    const generatedDocId = `doc-generated-${Date.now()}`;
-
-    job.progress = 90;
-
-    // Save document (simplified - real implementation would use document creation flow)
-    // This would normally go through the create document route
-    // In production, would use _content to create the document
-    job.progress = 100;
-    job.status = 'completed';
-    job.documentId = generatedDocId;
-
-  } catch (error) {
-    console.error('[generateDocumentAsync] Error:', error);
-    job.status = 'failed';
-    job.error = error instanceof Error ? error.message : 'Unknown error';
-  }
 }
