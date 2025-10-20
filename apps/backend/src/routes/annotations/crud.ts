@@ -21,6 +21,7 @@ import { getEventStore } from '../../events/event-store';
 import {
   getExactText,
   getTextPositionSelector,
+  type Annotation,
 } from '@semiont/core';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
@@ -217,8 +218,8 @@ crudRouter.get('/api/annotations/:id', async (c) => {
   const projection = await AnnotationQueryService.getDocumentAnnotations(documentId);
 
   // Find the annotation
-  const highlight = projection.highlights.find((h: any) => h.id === id);
-  const reference = projection.references.find((r: any) => r.id === id);
+  const highlight = projection.highlights.find((h: Annotation) => h.id === id);
+  const reference = projection.references.find((r: Annotation) => r.id === id);
   const annotation = highlight || reference;
 
   if (!annotation) {
@@ -291,8 +292,8 @@ crudRouter.delete('/api/annotations/:id',
     const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
 
     // Find the annotation in this document's annotations
-    const highlight = projection.highlights.find((h: any) => h.id === id);
-    const reference = projection.references.find((r: any) => r.id === id);
+    const highlight = projection.highlights.find((h: Annotation) => h.id === id);
+    const reference = projection.references.find((r: Annotation) => r.id === id);
     const annotation = highlight || reference;
 
     if (!annotation) {
