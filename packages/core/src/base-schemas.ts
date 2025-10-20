@@ -85,7 +85,8 @@ export const ContentFormatSchema = z.enum([
   'text/markdown',
 ]);
 
-export type ContentFormat = z.infer<typeof ContentFormatSchema>;
+// Note: ContentFormat type is exported from @semiont/api-client via index.ts
+// export type ContentFormat = z.infer<typeof ContentFormatSchema>;
 
 /**
  * Document Schema
@@ -114,7 +115,8 @@ export const DocumentSchema = z.object({
   contentChecksum: z.string(),
 });
 
-export type Document = z.infer<typeof DocumentSchema>;
+// Note: Document type is exported from @semiont/api-client via index.ts
+// export type Document = z.infer<typeof DocumentSchema>;
 
 /**
  * Annotation Schema
@@ -145,14 +147,17 @@ export const AnnotationSchema = z.object({
   generator: AgentSchema.optional(),             // W3C: Agent who last modified
 });
 
-export type Annotation = z.infer<typeof AnnotationSchema>;
+// Note: Annotation type is exported from @semiont/api-client via index.ts
+// export type Annotation = z.infer<typeof AnnotationSchema>;
 
 /**
  * Highlight-specific annotation type
+ * Note: These derived types are defined in annotation-schemas.ts using OpenAPI Annotation type
  */
-export type HighlightAnnotation = Annotation & { body: { type: 'TextualBody' } };
+// export type HighlightAnnotation = Annotation & { body: { type: 'TextualBody' } };
 
 /**
  * Reference-specific annotation type
+ * Note: These derived types are defined in annotation-schemas.ts using OpenAPI Annotation type
  */
-export type ReferenceAnnotation = Annotation & { body: { type: 'SpecificResource' } };
+// export type ReferenceAnnotation = Annotation & { body: { type: 'SpecificResource' } };

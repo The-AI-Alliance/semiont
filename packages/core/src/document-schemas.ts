@@ -6,12 +6,14 @@
 
 import { z } from 'zod';
 import { AnnotationSchema, DocumentSchema, ContentFormatSchema } from './base-schemas';
-import type { ContentFormat } from './base-schemas';
 import type { CreationMethod } from './creation-methods';
+import type { components } from '@semiont/api-client';
 
-// Re-export DocumentSchema and Document from base-schemas for backward compatibility
+// Import OpenAPI types
+type ContentFormat = components['schemas']['ContentFormat'];
+
+// Re-export DocumentSchema for validation (types come from OpenAPI)
 export { DocumentSchema, ContentFormatSchema } from './base-schemas';
-export type { Document, ContentFormat } from './base-schemas';
 
 /**
  * Input for creating a new document

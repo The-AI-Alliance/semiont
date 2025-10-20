@@ -4,7 +4,11 @@
  * Helper functions for working with W3C Web Annotation selectors
  */
 
-import type { Annotation, Selector, TextPositionSelector, TextQuoteSelector } from './annotation-schemas';
+import type { Selector, TextPositionSelector, TextQuoteSelector } from './annotation-schemas';
+import type { components } from '@semiont/api-client';
+
+// Import OpenAPI types
+type Annotation = components['schemas']['Annotation'];
 
 /**
  * Get the exact text from a selector (single or array)

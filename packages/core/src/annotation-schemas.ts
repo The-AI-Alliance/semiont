@@ -7,6 +7,10 @@
 
 import { z } from 'zod';
 import { DocumentSchema } from './base-schemas';
+import type { components } from '@semiont/api-client';
+
+// Import OpenAPI types
+type Annotation = components['schemas']['Annotation'];
 
 /**
  * W3C Web Annotation Selector Types
@@ -145,7 +149,8 @@ export const AnnotationSchema = z.object({
   generator: AgentSchema.optional(),             // W3C: Agent who last modified
 });
 
-export type Annotation = z.infer<typeof AnnotationSchema>;
+// Note: Annotation type is imported from @semiont/api-client above
+// export type Annotation = z.infer<typeof AnnotationSchema>;
 
 /**
  * Highlight-specific annotation type

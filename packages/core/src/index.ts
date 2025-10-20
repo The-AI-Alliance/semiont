@@ -2,8 +2,18 @@
  * @semiont/core
  *
  * Core domain types for the Semiont semantic knowledge platform.
- * This package provides the single source of truth for all domain models.
+ * Types are re-exported from @semiont/api-client (generated from OpenAPI spec).
+ * This package adds Zod schemas for runtime validation and utility functions.
  */
+
+// Re-export OpenAPI-generated types as the single source of truth
+export type { components, paths, operations } from '@semiont/api-client';
+
+// Re-export common schema types for convenience
+import type { components } from '@semiont/api-client';
+export type Document = components['schemas']['Document'];
+export type Annotation = components['schemas']['Annotation'];
+export type ContentFormat = components['schemas']['ContentFormat'];
 
 // Document input/filter types
 export type {
@@ -71,15 +81,14 @@ export {
   EventQuerySchema,
 } from './event-schemas';
 
-// Document schema (SINGLE SOURCE OF TRUTH)
+// Document schema (Zod schemas for validation - types come from OpenAPI)
 export {
   DocumentSchema,
+  ContentFormatSchema,
 } from './document-schemas';
-export type {
-  Document,
-} from './document-schemas';
+// Note: Document and ContentFormat types are re-exported from @semiont/api-client above
 
-// Annotation schema (SINGLE SOURCE OF TRUTH)
+// Annotation schema (Zod schemas for validation - types come from OpenAPI)
 export {
   AnnotationSchema,
   MotivationSchema,
@@ -89,7 +98,7 @@ export {
   SelectorSchema,
 } from './annotation-schemas';
 export type {
-  Annotation,
+  // Note: Annotation type is re-exported from @semiont/api-client above
   HighlightAnnotation,
   ReferenceAnnotation,
   AnnotationUpdate,
