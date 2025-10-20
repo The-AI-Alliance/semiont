@@ -80,7 +80,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
       payload: {
         name: body.name,
         format: body.format,
-        contentHash: checksum,
+        contentChecksum: checksum,
         creationMethod: CREATION_METHODS.API,
         entityTypes: body.entityTypes || [],
         locale: undefined,  // Not provided in this flow
@@ -195,7 +195,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
       payload: {
         name: documentName,
         format: 'text/markdown',
-        contentHash: checksum,
+        contentChecksum: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
         entityTypes: body.entityTypes || annotation.body.entityTypes || [],
         locale: body.locale,

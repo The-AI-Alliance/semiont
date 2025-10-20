@@ -150,7 +150,7 @@ describe('GraphDBConsumer', () => {
         payload: {
           name: 'Test Document',
           format: 'text/plain',
-          contentHash: 'hash123',
+          contentChecksum: 'hash123',
           creationMethod: CREATION_METHODS.API,
           entityTypes: ['entity1', 'entity2'],
           locale: 'en',
@@ -196,7 +196,7 @@ describe('GraphDBConsumer', () => {
         payload: {
           name: 'Test Document',
           format: 'text/plain',
-          contentHash: 'hash123',
+          contentChecksum: 'hash123',
           creationMethod: CREATION_METHODS.API,
         },
       };
@@ -241,7 +241,7 @@ describe('GraphDBConsumer', () => {
         payload: {
           name: 'Cloned Document',
           format: 'text/plain',
-          contentHash: 'hash456',
+          contentChecksum: 'hash456',
           parentDocumentId: 'doc-123',
           creationMethod: CREATION_METHODS.CLONE,
           entityTypes: ['entity1'],

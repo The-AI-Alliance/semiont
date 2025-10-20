@@ -13,7 +13,7 @@ import { ContentFormatSchema } from './base-schemas';
 export const DocumentCreatedPayloadSchema = z.object({
   name: z.string(),
   format: ContentFormatSchema, // MIME type (validated enum)
-  contentHash: z.string(),
+  contentChecksum: z.string(),
   creationMethod: z.enum([
     CREATION_METHODS.API,
     CREATION_METHODS.UPLOAD,
@@ -34,7 +34,7 @@ export const DocumentCreatedPayloadSchema = z.object({
 export const DocumentClonedPayloadSchema = z.object({
   name: z.string(),
   format: ContentFormatSchema, // MIME type (validated enum)
-  contentHash: z.string(),
+  contentChecksum: z.string(),
   parentDocumentId: z.string(),
   creationMethod: z.enum([
     CREATION_METHODS.API,

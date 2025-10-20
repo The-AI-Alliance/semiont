@@ -352,7 +352,7 @@ export class EventStore {
         document.created = event.timestamp;
         document.creationMethod = event.payload.creationMethod || 'api';
         document.creator = didToAgent(event.userId);
-        document.contentChecksum = event.payload.contentHash;
+        document.contentChecksum = event.payload.contentChecksum;
 
         // First-class fields
         document.locale = event.payload.locale;
@@ -368,7 +368,7 @@ export class EventStore {
         document.creationMethod = 'clone';
         document.sourceDocumentId = event.payload.parentDocumentId;
         document.creator = didToAgent(event.userId);
-        document.contentChecksum = event.payload.contentHash;
+        document.contentChecksum = event.payload.contentChecksum;
 
         // First-class fields
         document.locale = event.payload.locale;

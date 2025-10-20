@@ -72,7 +72,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         payload: {
           name: body.name,
           format: body.format,
-          contentHash: checksum,
+          contentChecksum: checksum,
           creationMethod,
           entityTypes: body.entityTypes,
           locale: body.locale,

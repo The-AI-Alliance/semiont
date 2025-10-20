@@ -32,7 +32,7 @@ export interface DocumentCreatedEvent extends BaseEvent {
   payload: {
     name: string;
     format: ContentFormat;       // MIME type (validated enum)
-    contentHash: string;        // SHA-256 of content (should match documentId)
+    contentChecksum: string;     // SHA-256 of content (should match documentId)
     creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];
 
@@ -49,7 +49,7 @@ export interface DocumentClonedEvent extends BaseEvent {
   payload: {
     name: string;
     format: ContentFormat;       // MIME type (validated enum)
-    contentHash: string;        // SHA-256 of new content
+    contentChecksum: string;     // SHA-256 of new content
     parentDocumentId: string;   // Content hash of parent document
     creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];

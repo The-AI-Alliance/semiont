@@ -216,7 +216,7 @@ describe('Layered Storage', () => {
         payload: {
           name: 'Integration Test',
           format: 'text/plain' as const,
-          contentHash: 'hash1',
+          contentChecksum: 'hash1',
           creationMethod: CREATION_METHODS.API,
         },
       });
@@ -239,7 +239,7 @@ describe('Layered Storage', () => {
         payload: {
           name: 'Update Test',
           format: 'text/plain' as const,
-          contentHash: 'hash2',
+          contentChecksum: 'hash2',
           creationMethod: CREATION_METHODS.API,
         },
       });
@@ -279,7 +279,7 @@ describe('Layered Storage', () => {
         payload: {
           name: 'Load Test',
           format: 'text/plain' as const,
-          contentHash: 'hash3',
+          contentChecksum: 'hash3',
           creationMethod: CREATION_METHODS.API,
         },
       });

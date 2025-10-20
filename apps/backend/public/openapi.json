@@ -1693,7 +1693,7 @@
                         "format": {
                           "$ref": "#/components/schemas/ContentFormat"
                         },
-                        "contentHash": {
+                        "contentChecksum": {
                           "type": "string"
                         },
                         "creationMethod": {
@@ -1721,7 +1721,7 @@
                       "required": [
                         "name",
                         "format",
-                        "contentHash",
+                        "contentChecksum",
                         "creationMethod"
                       ]
                     },
@@ -1734,7 +1734,7 @@
                         "format": {
                           "$ref": "#/components/schemas/ContentFormat"
                         },
-                        "contentHash": {
+                        "contentChecksum": {
                           "type": "string"
                         },
                         "parentDocumentId": {
@@ -1765,7 +1765,7 @@
                       "required": [
                         "name",
                         "format",
-                        "contentHash",
+                        "contentChecksum",
                         "parentDocumentId",
                         "creationMethod"
                       ]

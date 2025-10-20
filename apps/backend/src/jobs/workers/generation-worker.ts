@@ -124,7 +124,7 @@ export class GenerationWorker extends JobWorker {
       payload: {
         name: documentName,
         format: 'text/markdown',
-        contentHash: checksum,
+        contentChecksum: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
         entityTypes: job.entityTypes || reference.body.entityTypes || [],
         locale: job.locale,

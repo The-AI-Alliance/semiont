@@ -94,7 +94,7 @@ export class GraphDBConsumer {
           entityTypes: event.payload.entityTypes || [],
           content: content.toString('utf-8'),
           format: event.payload.format,
-          contentChecksum: event.payload.contentHash,
+          contentChecksum: event.payload.contentChecksum,
           creator: didToAgent(event.userId),
           creationMethod: 'api',
         });
@@ -110,7 +110,7 @@ export class GraphDBConsumer {
           entityTypes: event.payload.entityTypes || [],
           content: content.toString('utf-8'),
           format: event.payload.format,
-          contentChecksum: event.payload.contentHash,
+          contentChecksum: event.payload.contentChecksum,
           creator: didToAgent(event.userId),
           creationMethod: 'clone',
         });
