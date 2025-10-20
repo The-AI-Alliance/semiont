@@ -11,8 +11,12 @@
  * - Optional signatures for cross-org verification
  */
 
-import type { Annotation } from './annotation-schemas';
 import type { CreationMethod } from './creation-methods';
+import type { components } from '@semiont/api-client';
+
+// Import OpenAPI types
+type Annotation = components['schemas']['Annotation'];
+type ContentFormat = components['schemas']['ContentFormat'];
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
@@ -27,7 +31,7 @@ export interface DocumentCreatedEvent extends BaseEvent {
   type: 'document.created';
   payload: {
     name: string;
-    format: string;              // MIME type
+    format: ContentFormat;       // MIME type (validated enum)
     contentHash: string;        // SHA-256 of content (should match documentId)
     creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];
@@ -39,7 +43,7 @@ export interface DocumentClonedEvent extends BaseEvent {
   type: 'document.cloned';
   payload: {
     name: string;
-    format: string;              // MIME type
+    format: ContentFormat;       // MIME type (validated enum)
     contentHash: string;        // SHA-256 of new content
     parentDocumentId: string;   // Content hash of parent document
     creationMethod: CreationMethod;  // How the document was created

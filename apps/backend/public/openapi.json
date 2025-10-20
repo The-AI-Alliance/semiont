@@ -13,6 +13,14 @@
   ],
   "components": {
     "schemas": {
+      "ContentFormat": {
+        "type": "string",
+        "enum": [
+          "text/plain",
+          "text/markdown"
+        ],
+        "description": "Content format as MIME type"
+      },
       "HealthResponse": {
         "type": "object",
         "properties": {
@@ -243,7 +251,7 @@
             "type": "string"
           },
           "format": {
-            "type": "string"
+            "$ref": "#/components/schemas/ContentFormat"
           },
           "entityTypes": {
             "type": "array",
@@ -1683,7 +1691,7 @@
                           "type": "string"
                         },
                         "format": {
-                          "type": "string"
+                          "$ref": "#/components/schemas/ContentFormat"
                         },
                         "contentHash": {
                           "type": "string"
@@ -1724,7 +1732,7 @@
                           "type": "string"
                         },
                         "format": {
-                          "type": "string"
+                          "$ref": "#/components/schemas/ContentFormat"
                         },
                         "contentHash": {
                           "type": "string"
@@ -2210,7 +2218,7 @@
             "type": "string"
           },
           "format": {
-            "type": "string"
+            "$ref": "#/components/schemas/ContentFormat"
           },
           "archived": {
             "type": "boolean"
@@ -2242,7 +2250,7 @@
             "type": "string"
           },
           "creator": {
-            "type": "string"
+            "$ref": "#/components/schemas/Agent"
           },
           "created": {
             "type": "string"
@@ -2336,9 +2344,9 @@
                 "type": "string"
               },
               "format": {
-                "type": "string"
+                "$ref": "#/components/schemas/ContentFormat"
               },
-              "language": {
+              "locale": {
                 "type": "string"
               },
               "source": {
@@ -2487,7 +2495,7 @@
             "type": "string"
           },
           "format": {
-            "type": "string"
+            "$ref": "#/components/schemas/ContentFormat"
           },
           "entityTypes": {
             "type": "array",
@@ -2556,7 +2564,7 @@
             "type": "string"
           },
           "format": {
-            "type": "string"
+            "$ref": "#/components/schemas/ContentFormat"
           }
         },
         "required": [

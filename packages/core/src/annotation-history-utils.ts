@@ -18,8 +18,11 @@ import type {
   AssessmentAddedEvent,
   AssessmentRemovedEvent,
 } from './events';
-import type { Annotation } from './annotation-schemas';
 import type { CreationMethod } from './creation-methods';
+import type { components } from '@semiont/api-client';
+
+// Import OpenAPI types
+type Annotation = components['schemas']['Annotation'];
 import { getExactText } from './selector-utils';
 import { compareAnnotationIds } from './annotation-schemas';
 

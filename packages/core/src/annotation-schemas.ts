@@ -7,6 +7,10 @@
 
 import { z } from 'zod';
 import { DocumentSchema } from './base-schemas';
+import type { components } from '@semiont/api-client';
+
+// Import OpenAPI types
+type Annotation = components['schemas']['Annotation'];
 
 /**
  * W3C Web Annotation Selector Types
@@ -110,7 +114,7 @@ export type Agent = z.infer<typeof AgentSchema>;
  * - Supports W3C Agent objects for creator/generator (Person, Organization, Software) ✓
  * - Uses 'body.value' for textual content (W3C TextualBody pattern) ✓
  * - Uses 'body.format' for MIME type metadata ✓
- * - Uses 'body.language' for language metadata ✓
+ * - Uses 'body.locale' for language metadata ✓
  * - Uses W3C body types: 'TextualBody' | 'SpecificResource' ✓
  * - Uses 'body.source' for linked resources (W3C SpecificResource pattern) ✓
  *
@@ -145,7 +149,8 @@ export const AnnotationSchema = z.object({
   generator: AgentSchema.optional(),             // W3C: Agent who last modified
 });
 
-export type Annotation = z.infer<typeof AnnotationSchema>;
+// Note: Annotation type is imported from @semiont/api-client above
+// export type Annotation = z.infer<typeof AnnotationSchema>;
 
 /**
  * Highlight-specific annotation type

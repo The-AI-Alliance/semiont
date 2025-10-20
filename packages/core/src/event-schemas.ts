@@ -7,11 +7,12 @@
 
 import { z } from 'zod';
 import { CREATION_METHODS } from './creation-methods';
+import { ContentFormatSchema } from './base-schemas';
 
 // Document lifecycle event payloads
 export const DocumentCreatedPayloadSchema = z.object({
   name: z.string(),
-  format: z.string(), // MIME type
+  format: ContentFormatSchema, // MIME type (validated enum)
   contentHash: z.string(),
   creationMethod: z.enum([
     CREATION_METHODS.API,
@@ -27,7 +28,7 @@ export const DocumentCreatedPayloadSchema = z.object({
 
 export const DocumentClonedPayloadSchema = z.object({
   name: z.string(),
-  format: z.string(), // MIME type
+  format: ContentFormatSchema, // MIME type (validated enum)
   contentHash: z.string(),
   parentDocumentId: z.string(),
   creationMethod: z.enum([

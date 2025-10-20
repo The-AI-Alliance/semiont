@@ -4,9 +4,9 @@
  * Build all packages in dependency order with proper error handling
  *
  * Build order (SPEC-FIRST ARCHITECTURE):
- * 1. @semiont/core - Base package with no dependencies
- * 2. @semiont/api-client - Generates types from openapi.json (spec-first)
- * 3. Backend - Consumes types from @semiont/api-client
+ * 1. @semiont/api-client - Generates types from openapi.json (spec-first) - NO DEPENDENCIES
+ * 2. @semiont/core - Depends on @semiont/api-client for types
+ * 3. Backend - Consumes types from @semiont/api-client and @semiont/core
  * 4. @semiont/test-utils - Testing utilities
  * 5. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
  */
@@ -36,14 +36,14 @@ console.log('✅ OpenAPI spec copied successfully\n');
 
 const buildSteps = [
   {
-    name: '@semiont/core',
-    type: 'package',
-    description: 'Core SDK package'
-  },
-  {
     name: '@semiont/api-client',
     type: 'package',
     description: 'API client (generates types from openapi.json - SPEC-FIRST)'
+  },
+  {
+    name: '@semiont/core',
+    type: 'package',
+    description: 'Core SDK package (depends on @semiont/api-client for types)'
   },
   {
     name: 'semiont-backend',

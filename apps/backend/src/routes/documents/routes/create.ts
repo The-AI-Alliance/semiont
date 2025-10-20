@@ -18,6 +18,7 @@ import type { DocumentsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { userToAgent } from '../../../utils/id-generator';
 
 type CreateDocumentRequest = components['schemas']['CreateDocumentRequest'];
 type CreateDocumentResponse = components['schemas']['CreateDocumentResponse'];
@@ -88,7 +89,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         locale: body.locale,
         creationMethod,
         contentChecksum: checksum,
-        creator: user.id,
+        creator: userToAgent(user),
         created: new Date().toISOString(),
       };
 

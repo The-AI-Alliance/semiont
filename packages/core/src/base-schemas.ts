@@ -76,6 +76,19 @@ export const AgentSchema = z.object({
 export type Agent = z.infer<typeof AgentSchema>;
 
 /**
+ * Content Format Schema
+ *
+ * Supported MIME types for document and annotation content.
+ */
+export const ContentFormatSchema = z.enum([
+  'text/plain',
+  'text/markdown',
+]);
+
+// Note: ContentFormat type is exported from @semiont/api-client via index.ts
+// export type ContentFormat = z.infer<typeof ContentFormatSchema>;
+
+/**
  * Document Schema
  *
  * Core document model used across the application.
@@ -83,7 +96,7 @@ export type Agent = z.infer<typeof AgentSchema>;
 export const DocumentSchema = z.object({
   id: z.string(),
   name: z.string(),
-  format: z.string(), // MIME type (e.g., 'text/plain', 'text/markdown', 'application/pdf')
+  format: ContentFormatSchema, // MIME type
   archived: z.boolean(),
   entityTypes: z.array(z.string()),
   locale: z.string().optional(), // Language/locale code (e.g., 'en', 'es', 'fr')
@@ -97,12 +110,13 @@ export const DocumentSchema = z.object({
   ] as const),
   sourceAnnotationId: z.string().optional(),
   sourceDocumentId: z.string().optional(),
-  creator: z.string(),
+  creator: AgentSchema,                          // W3C: Agent who created (Person, Organization, or Software)
   created: z.string(),
   contentChecksum: z.string(),
 });
 
-export type Document = z.infer<typeof DocumentSchema>;
+// Note: Document type is exported from @semiont/api-client via index.ts
+// export type Document = z.infer<typeof DocumentSchema>;
 
 /**
  * Annotation Schema
@@ -122,8 +136,8 @@ export const AnnotationSchema = z.object({
   body: z.object({
     type: z.enum(['TextualBody', 'SpecificResource']),
     value: z.string().optional(),
-    format: z.string().optional(),      // MIME type (e.g., 'text/plain', 'text/html', 'text/markdown')
-    language: z.string().optional(),    // ISO language code (e.g., 'en', 'fr', 'es')
+    format: ContentFormatSchema.optional(),      // MIME type
+    locale: z.string().optional(),    // ISO language code (e.g., 'en', 'fr', 'es')
     source: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).default([]),
   }),
@@ -133,14 +147,17 @@ export const AnnotationSchema = z.object({
   generator: AgentSchema.optional(),             // W3C: Agent who last modified
 });
 
-export type Annotation = z.infer<typeof AnnotationSchema>;
+// Note: Annotation type is exported from @semiont/api-client via index.ts
+// export type Annotation = z.infer<typeof AnnotationSchema>;
 
 /**
  * Highlight-specific annotation type
+ * Note: These derived types are defined in annotation-schemas.ts using OpenAPI Annotation type
  */
-export type HighlightAnnotation = Annotation & { body: { type: 'TextualBody' } };
+// export type HighlightAnnotation = Annotation & { body: { type: 'TextualBody' } };
 
 /**
  * Reference-specific annotation type
+ * Note: These derived types are defined in annotation-schemas.ts using OpenAPI Annotation type
  */
-export type ReferenceAnnotation = Annotation & { body: { type: 'SpecificResource' } };
+// export type ReferenceAnnotation = Annotation & { body: { type: 'SpecificResource' } };

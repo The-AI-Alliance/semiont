@@ -5,7 +5,9 @@
  * between user representations and W3C Web Annotation Agent objects.
  */
 
-import type { Agent } from './annotation-schemas';
+import type { components } from '@semiont/api-client';
+
+type Agent = components['schemas']['Agent'];
 
 /**
  * Convert a user object to a DID:WEB identifier

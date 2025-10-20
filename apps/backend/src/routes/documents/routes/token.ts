@@ -20,6 +20,7 @@ import {
 import type { DocumentsRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { userToAgent } from '../../../utils/id-generator';
 
 type GetDocumentByTokenResponse = components['schemas']['GetDocumentByTokenResponse'];
 type CreateDocumentFromTokenRequest = components['schemas']['CreateDocumentFromTokenRequest'];
@@ -112,7 +113,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
         sourceDocumentId: tokenData.documentId,
         contentChecksum: checksum,
 
-        creator: user.id,
+        creator: userToAgent(user),
         created: new Date().toISOString(),
       };
 
