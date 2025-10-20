@@ -49,6 +49,13 @@ vi.mock('../../db', () => ({
   prisma: sharedMockClient,
 }));
 
+// Mock AnnotationQueryService
+vi.mock('../../services/annotation-queries', () => ({
+  AnnotationQueryService: {
+    getDocumentAnnotations: vi.fn(),
+  },
+}));
+
 let app: Hono<{ Variables: Variables }>;
 
 describe('POST /api/annotations/:id/generate-document-stream', () => {
@@ -111,6 +118,34 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
       }
       return null;
     });
+
+    // Mock AnnotationQueryService to return a projection with test reference
+    const { AnnotationQueryService } = await import('../../services/annotation-queries');
+    vi.mocked(AnnotationQueryService.getDocumentAnnotations).mockResolvedValue({
+      references: [
+        {
+          id: 'test-ref-id',
+          type: 'Annotation',
+          motivation: 'linking',
+          body: {
+            type: 'TextualBody',
+            purpose: 'linking',
+            value: 'test-reference',
+            entityTypes: ['Person', 'Organization'],
+          },
+          target: {
+            source: 'test-doc-id',
+            selector: {
+              type: 'TextQuoteSelector',
+              exact: 'test text',
+            },
+          },
+        },
+      ],
+      annotations: [],
+      tags: [],
+      links: [],
+    } as any);
   });
 
   it('should create a real job in the job queue (not a stub)', async () => {
@@ -120,7 +155,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
     const jobsBefore = await jobQueue.listJobs();
     const countBefore = jobsBefore.length;
 
-    // Make request (will fail because annotation doesn't exist, but that's ok)
+    // Make request
     await app.request('/api/annotations/test-ref-id/generate-document-stream', {
       method: 'POST',
       headers: {
@@ -134,8 +169,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
       }),
     });
 
-    // Even if request fails, check if a job was created
-    // (it should fail during validation but after job creation)
+    // Check if a job was created
     const jobsAfter = await jobQueue.listJobs();
 
     // If a job was created, verify it's a real GenerationJob
@@ -164,15 +198,11 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
       }),
     });
 
-    // Even if it errors, check that it attempted to set up SSE
+    // Check that SSE stream was set up
     const contentType = response.headers.get('content-type');
 
-    // SSE streams should have text/event-stream content type if they get that far
-    // OR they should error before setting headers
-    expect([
-      'text/event-stream',
-      'application/json', // error response
-    ]).toContain(contentType);
+    // SSE streams should have text/event-stream content type
+    expect(contentType).toBe('text/event-stream; charset=utf-8');
   });
 
   it('should require authentication', async () => {
