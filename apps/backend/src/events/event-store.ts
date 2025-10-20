@@ -311,7 +311,11 @@ export class EventStore {
       archived: false,
       created: '',
       creationMethod: 'api',
-      creator: '',
+      creator: {
+        id: '',
+        type: 'Person',
+        name: '',
+      },
     };
 
     // Start with empty annotations
@@ -348,7 +352,7 @@ export class EventStore {
         document.locale = event.payload.metadata?.locale;
         document.created = event.timestamp;
         document.creationMethod = 'api';
-        document.creator = event.userId;
+        document.creator = didToAgent(event.userId);
         break;
 
       case 'document.cloned':
@@ -359,7 +363,7 @@ export class EventStore {
         document.created = event.timestamp;
         document.creationMethod = 'clone';
         document.sourceDocumentId = event.payload.parentDocumentId;
-        document.creator = event.userId;
+        document.creator = didToAgent(event.userId);
         break;
 
       case 'document.archived':

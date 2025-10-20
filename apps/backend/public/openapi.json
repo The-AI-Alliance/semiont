@@ -2250,7 +2250,7 @@
             "type": "string"
           },
           "creator": {
-            "type": "string"
+            "$ref": "#/components/schemas/Agent"
           },
           "created": {
             "type": "string"

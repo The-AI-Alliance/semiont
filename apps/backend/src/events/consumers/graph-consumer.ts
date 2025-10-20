@@ -95,7 +95,7 @@ export class GraphDBConsumer {
           content: content.toString('utf-8'),
           format: event.payload.format,
           contentChecksum: event.payload.contentHash,
-          creator: event.userId,
+          creator: didToAgent(event.userId),
           creationMethod: 'api',
         });
         break;
@@ -111,7 +111,7 @@ export class GraphDBConsumer {
           content: content.toString('utf-8'),
           format: event.payload.format,
           contentChecksum: event.payload.contentHash,
-          creator: event.userId,
+          creator: didToAgent(event.userId),
           creationMethod: 'clone',
         });
         break;

@@ -82,7 +82,11 @@ describe('Layered Storage', () => {
           created: new Date().toISOString(),
           contentChecksum: "test-checksum",
           creationMethod: 'api' as const,
-          creator: 'did:web:test.com:users:test',
+          creator: {
+            id: 'did:web:test.com:users:test',
+            type: 'Person' as const,
+            name: 'Test User',
+          },
         },
         annotations: {
           documentId: docId,
@@ -113,7 +117,11 @@ describe('Layered Storage', () => {
           created: '2025-01-01T00:00:00Z',
           contentChecksum: "test-checksum",
           creationMethod: 'api' as const,
-          creator: 'did:web:test.com:users:test',
+          creator: {
+            id: 'did:web:test.com:users:test',
+            type: 'Person' as const,
+            name: 'Test User',
+          },
         },
         annotations: {
           documentId: docId,
@@ -172,7 +180,11 @@ describe('Layered Storage', () => {
           created: new Date().toISOString(),
           contentChecksum: "test-checksum",
           creationMethod: 'api' as const,
-          creator: 'did:web:test.com:users:test',
+          creator: {
+            id: 'did:web:test.com:users:test',
+            type: 'Person' as const,
+            name: 'Test User',
+          },
         },
         annotations: {
           documentId: docId,

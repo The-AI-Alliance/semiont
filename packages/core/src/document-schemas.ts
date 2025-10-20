@@ -24,7 +24,7 @@ export interface CreateDocumentInput {
   content: string;
   format: ContentFormat;  // MIME type (validated enum)
   contentChecksum: string;  // SHA-256 hash calculated by backend
-  creator: string;  // Set by backend from auth context (REQUIRED)
+  creator: components['schemas']['Agent'];  // Set by backend from auth context (REQUIRED) - W3C Agent
 
   // Provenance tracking (only context fields, not derived fields)
   creationMethod: CreationMethod;  // How document was created

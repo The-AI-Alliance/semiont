@@ -110,7 +110,7 @@ export const DocumentSchema = z.object({
   ] as const),
   sourceAnnotationId: z.string().optional(),
   sourceDocumentId: z.string().optional(),
-  creator: z.string(),
+  creator: AgentSchema,                          // W3C: Agent who created (Person, Organization, or Software)
   created: z.string(),
   contentChecksum: z.string(),
 });
