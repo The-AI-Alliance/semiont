@@ -2202,6 +2202,10 @@
                   "SpecificResource"
                 ]
               },
+              "purpose": {
+                "$ref": "#/components/schemas/Motivation",
+                "description": "W3C purpose - why this resource is included in the annotation body"
+              },
               "value": {
                 "type": "string"
               },
