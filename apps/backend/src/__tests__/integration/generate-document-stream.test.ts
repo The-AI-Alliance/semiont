@@ -122,29 +122,35 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
     // Mock AnnotationQueryService to return a projection with test reference
     const { AnnotationQueryService } = await import('../../services/annotation-queries');
     vi.mocked(AnnotationQueryService.getDocumentAnnotations).mockResolvedValue({
-      references: [
+      documentId: 'test-doc-id',
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      annotations: [
         {
           id: 'test-ref-id',
-          type: 'Annotation',
           motivation: 'linking',
           body: {
-            type: 'TextualBody',
-            purpose: 'linking',
-            value: 'test-reference',
+            type: 'SpecificResource',
             entityTypes: ['Person', 'Organization'],
+            source: null,
           },
           target: {
             source: 'test-doc-id',
             selector: {
-              type: 'TextQuoteSelector',
+              type: 'TextPositionSelector',
               exact: 'test text',
+              offset: 0,
+              length: 9,
             },
           },
+          creator: {
+            type: 'Person',
+            id: 'test-user-id',
+            name: 'Test User',
+          },
+          created: new Date().toISOString(),
         },
       ],
-      annotations: [],
-      tags: [],
-      links: [],
     } as any);
   });
 
