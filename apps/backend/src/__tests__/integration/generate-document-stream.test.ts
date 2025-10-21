@@ -250,7 +250,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
         documentId: 'test-doc-id',
         title: 'Custom Title',
         prompt: 'Custom prompt for generation',
-        locale: 'es',
+        language: 'es',
       }),
     });
 
