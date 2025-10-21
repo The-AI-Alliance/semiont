@@ -172,7 +172,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
       body: JSON.stringify({
         documentId: 'test-doc-id',
         title: 'Test Document',
-        locale: 'en'
+        language: 'en'
       }),
     });
 
