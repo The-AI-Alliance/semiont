@@ -104,8 +104,10 @@ export class DetectionWorker extends JobWorker {
             version: 1,
             payload: {
               annotation: {
+                '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+                'type': 'Annotation' as const,
                 id: referenceId,
-                motivation: 'linking',
+                motivation: 'linking' as const,
                 target: {
                   source: job.documentId,
                   selector: {
@@ -116,7 +118,7 @@ export class DetectionWorker extends JobWorker {
                   },
                 },
                 body: {
-                  type: 'SpecificResource',
+                  type: 'SpecificResource' as const,
                   entityTypes: detected.annotation.entityTypes,
                   source: null, // Will be resolved later
                 },

@@ -2139,6 +2139,18 @@
       "Annotation": {
         "type": "object",
         "properties": {
+          "@context": {
+            "type": "string",
+            "const": "http://www.w3.org/ns/anno.jsonld",
+            "default": "http://www.w3.org/ns/anno.jsonld",
+            "description": "W3C Web Annotation JSON-LD context"
+          },
+          "type": {
+            "type": "string",
+            "const": "Annotation",
+            "default": "Annotation",
+            "description": "W3C Annotation type"
+          },
           "id": {
             "type": "string"
           },
@@ -2232,6 +2244,8 @@
           }
         },
         "required": [
+          "@context",
+          "type",
           "id",
           "motivation",
           "target",
