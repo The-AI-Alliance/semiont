@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader, EntityTypeBadges } from './SharedPopupElements';
@@ -36,6 +36,19 @@ export function StubReferencePopup({
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showJsonLd, setShowJsonLd] = useState(false);
+
+  // Calculate centered position when showing JSON-LD
+  const displayPosition = useMemo(() => {
+    if (!showJsonLd || typeof window === 'undefined') return position;
+
+    const popupWidth = 800;
+    const popupHeight = 700;
+
+    return {
+      x: Math.max(0, (window.innerWidth - popupWidth) / 2),
+      y: Math.max(0, (window.innerHeight - popupHeight) / 2),
+    };
+  }, [showJsonLd, position]);
 
   const handleGenerateDocument = async () => {
     if (!onGenerateDocument || !selection) return;
@@ -85,7 +98,7 @@ export function StubReferencePopup({
 
   return (
     <>
-      <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
+      <PopupContainer position={displayPosition} onClose={onClose} isOpen={isOpen} wide={showJsonLd}>
         {showJsonLd ? (
           <JsonLdView annotation={annotation} onBack={() => setShowJsonLd(false)} />
         ) : (

@@ -120,7 +120,7 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[600px]">
+    <div className="flex flex-col h-full">
       {/* Header with back and copy buttons */}
       <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <button
