@@ -20,12 +20,9 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   // React Query will automatically refetch when the query is invalidated by the parent
   const { data: eventsData, isLoading: loading, isError: error } = api.documents.events.useQuery(documentId);
 
-  // Load annotations to look up text for removed/resolved events
-  const { data: referencesData } = api.documents.references.useQuery(documentId);
-  const { data: highlightsData } = api.documents.highlights.useQuery(documentId);
-  // Both endpoints now return unified annotations
-  const references = referencesData?.annotations || [];
-  const highlights = highlightsData?.annotations || [];
+  // Load annotations to look up text for removed/resolved events (single request)
+  const { data: annotationsData } = api.documents.annotations.useQuery(documentId);
+  const annotations = annotationsData?.annotations || [];
 
   // Refs to track event elements for scrolling
   const eventRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -101,8 +98,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
             <HistoryEvent
               key={stored.event.id}
               event={stored}
-              references={references}
-              highlights={highlights}
+              annotations={annotations}
               allEvents={events}
               isRelated={isRelated}
               t={t}

@@ -18,8 +18,7 @@ type TranslateFn = (key: string, params?: Record<string, string | number>) => st
 
 interface Props {
   event: StoredEvent;
-  references: any[];
-  highlights: any[];
+  annotations: any[]; // Unified annotations array (all types)
   allEvents: StoredEvent[];
   isRelated: boolean;
   t: TranslateFn;
@@ -30,8 +29,7 @@ interface Props {
 
 export function HistoryEvent({
   event,
-  references,
-  highlights,
+  annotations,
   allEvents,
   isRelated,
   t,
@@ -39,7 +37,7 @@ export function HistoryEvent({
   onEventClick,
   onEventHover
 }: Props) {
-  const displayContent = getEventDisplayContent(event, references, highlights, allEvents);
+  const displayContent = getEventDisplayContent(event, annotations, allEvents);
   const annotationId = getAnnotationIdFromEvent(event);
   const creationDetails = getDocumentCreationDetails(event);
   const entityTypes = getEventEntityTypes(event);

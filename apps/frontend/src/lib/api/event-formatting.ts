@@ -118,8 +118,7 @@ function truncateText(text: string, maxLength = 50): string {
  */
 export function getEventDisplayContent(
   event: StoredEvent,
-  references: Annotation[],
-  _highlights: Annotation[], // underscore prefix to indicate intentionally unused
+  annotations: Annotation[], // Unified annotations array (all types)
   allEvents: StoredEvent[]
 ): { exact: string; isQuoted: boolean; isTag: boolean } | null {
   const eventData = event.event;
@@ -132,15 +131,16 @@ export function getEventDisplayContent(
       return { exact: payload.name, isQuoted: false, isTag: false };
     }
 
-    case 'reference.resolved': {
-      // Handle both URI format and simple ID format
-      const reference = references.find(r =>
-        compareAnnotationIds(r.id, payload.referenceId)
+    // Unified annotation events
+    case 'annotation.resolved': {
+      // Find current annotation to get its text
+      const annotation = annotations.find(a =>
+        compareAnnotationIds(a.id, payload.annotationId)
       );
 
-      if (reference?.target?.selector) {
+      if (annotation?.target?.selector) {
         try {
-          const exact = getExactText(reference.target.selector as any);
+          const exact = getExactText(annotation.target.selector as any);
           if (exact) {
             return { exact: truncateText(exact), isQuoted: true, isTag: false };
           }
@@ -151,38 +151,37 @@ export function getEventDisplayContent(
       return null;
     }
 
-    case 'highlight.removed': {
-      // Find the original highlight.added event
+    case 'annotation.removed': {
+      // Find the original annotation.added event to get the text
       const addedEvent = allEvents.find(e =>
-        e.event.type === 'highlight.added' &&
-        (e.event.payload as any).highlightId === payload.highlightId
+        e.event.type === 'annotation.added' &&
+        (e.event.payload as any).annotation?.id === payload.annotationId
       );
       if (addedEvent) {
         const addedPayload = addedEvent.event.payload as any;
-        return { exact: truncateText(addedPayload.exact), isQuoted: true, isTag: false };
+        try {
+          const exact = getExactText(addedPayload.annotation.target.selector);
+          if (exact) {
+            return { exact: truncateText(exact), isQuoted: true, isTag: false };
+          }
+        } catch {
+          // If selector parsing fails, return null
+        }
       }
       return null;
     }
 
-    case 'reference.deleted': {
-      // Find the original reference.created event
-      const createdEvent = allEvents.find(e =>
-        e.event.type === 'reference.created' &&
-        (e.event.payload as any).referenceId === payload.referenceId
-      );
-      if (createdEvent) {
-        const createdPayload = createdEvent.event.payload as any;
-        return { exact: truncateText(createdPayload.exact), isQuoted: true, isTag: false };
+    case 'annotation.added': {
+      // New unified event structure - annotation is in payload
+      try {
+        const exact = getExactText(payload.annotation.target.selector);
+        if (exact) {
+          return { exact: truncateText(exact), isQuoted: true, isTag: false };
+        }
+      } catch {
+        // If selector parsing fails, return null
       }
       return null;
-    }
-
-    case 'highlight.added': {
-      return { exact: truncateText(payload.exact), isQuoted: true, isTag: false };
-    }
-
-    case 'reference.created': {
-      return { exact: truncateText(payload.exact), isQuoted: true, isTag: false };
     }
 
     case 'entitytag.added':
@@ -190,19 +189,43 @@ export function getEventDisplayContent(
       return { exact: payload.entityType, isQuoted: false, isTag: true };
     }
 
-    case 'assessment.added': {
-      return { exact: truncateText(payload.exact), isQuoted: true, isTag: false };
-    }
-
+    // Legacy event types (should not appear in new data, but kept for old events)
+    case 'highlight.removed':
+    case 'reference.deleted':
     case 'assessment.removed': {
-      // Find the original assessment.added event
+      // Find the original added event
       const addedEvent = allEvents.find(e =>
-        e.event.type === 'assessment.added' &&
-        (e.event.payload as any).assessmentId === payload.assessmentId
+        (e.event.type === 'highlight.added' && (e.event.payload as any).highlightId === payload.highlightId) ||
+        (e.event.type === 'reference.created' && (e.event.payload as any).referenceId === payload.referenceId) ||
+        (e.event.type === 'assessment.added' && (e.event.payload as any).assessmentId === payload.assessmentId)
       );
       if (addedEvent) {
         const addedPayload = addedEvent.event.payload as any;
         return { exact: truncateText(addedPayload.exact), isQuoted: true, isTag: false };
+      }
+      return null;
+    }
+
+    case 'highlight.added':
+    case 'reference.created':
+    case 'assessment.added': {
+      return { exact: truncateText(payload.exact), isQuoted: true, isTag: false };
+    }
+
+    case 'reference.resolved': {
+      // Legacy - find annotation to get text
+      const annotation = annotations.find(a =>
+        compareAnnotationIds(a.id, payload.referenceId)
+      );
+      if (annotation?.target?.selector) {
+        try {
+          const exact = getExactText(annotation.target.selector as any);
+          if (exact) {
+            return { exact: truncateText(exact), isQuoted: true, isTag: false };
+          }
+        } catch {
+          // If selector parsing fails, continue to return null
+        }
       }
       return null;
     }

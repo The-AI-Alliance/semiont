@@ -177,45 +177,16 @@ export const documents = {
     },
   },
 
-  highlights: {
+  annotations: {
     useQuery: (documentId: string) => {
       const { data: session } = useSession();
       return useQuery({
-        queryKey: QUERY_KEYS.documents.highlights(documentId),
-        queryFn: async () => {
-          const data = await fetchAPI<GetAnnotationsResponse>(
-            `/api/documents/${documentId}/annotations`,
-            {},
-            session?.backendToken
-          );
-          // Filter to highlighting annotations only
-          return {
-            ...data,
-            annotations: data.annotations.filter(a => a.motivation === 'highlighting')
-          };
-        },
-        enabled: !!session?.backendToken && !!documentId,
-      });
-    },
-  },
-
-  references: {
-    useQuery: (documentId: string) => {
-      const { data: session } = useSession();
-      return useQuery({
-        queryKey: QUERY_KEYS.documents.references(documentId),
-        queryFn: async () => {
-          const data = await fetchAPI<GetAnnotationsResponse>(
-            `/api/documents/${documentId}/annotations`,
-            {},
-            session?.backendToken
-          );
-          // Filter to linking annotations only
-          return {
-            ...data,
-            annotations: data.annotations.filter(a => a.motivation === 'linking')
-          };
-        },
+        queryKey: QUERY_KEYS.documents.annotations(documentId),
+        queryFn: () => fetchAPI<GetAnnotationsResponse>(
+          `/api/documents/${documentId}/annotations`,
+          {},
+          session?.backendToken
+        ),
         enabled: !!session?.backendToken && !!documentId,
       });
     },

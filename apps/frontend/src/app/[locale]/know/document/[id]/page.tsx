@@ -156,28 +156,21 @@ function DocumentView({
     loadContent();
   }, [documentId, session?.backendToken, showError]);
 
-  // Now that document exists, we can safely fetch dependent data
-  // Using unified annotations endpoint (Phase 3 complete)
-  const { data: highlightsData, refetch: refetchHighlights } = api.documents.highlights.useQuery(documentId);
-  const { data: referencesData, refetch: refetchReferences } = api.documents.references.useQuery(documentId);
+  // Fetch all annotations with a single request
+  const { data: annotationsData, refetch: refetchAnnotations } = api.documents.annotations.useQuery(documentId);
+  const annotations = annotationsData?.annotations || [];
 
-  // Both endpoints now return unified annotations - filter by motivation
-  const highlights = highlightsData?.annotations?.filter(a => a.motivation === 'highlighting') || [];
-  const references = referencesData?.annotations?.filter(a => a.motivation === 'linking') || [];
-
-  const refetchAnnotations = () => {
-    refetchHighlights();
-    refetchReferences();
-  };
+  // Filter by motivation client-side
+  const highlights = annotations.filter(a => a.motivation === 'highlighting');
+  const references = annotations.filter(a => a.motivation === 'linking');
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   // Using React Query's invalidateQueries is the best practice - it invalidates cache
   // and triggers automatic refetch for all components using those queries
   const debouncedInvalidateAnnotations = useDebouncedCallback(
     () => {
-      // Invalidate highlights, references, and events queries using type-safe query keys
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(documentId) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(documentId) });
+      // Invalidate annotations and events queries using type-safe query keys
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(documentId) });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     500 // Wait 500ms after last event before invalidating (batches rapid updates)
@@ -424,27 +417,25 @@ function DocumentView({
     }, [debouncedInvalidateAnnotations]),
 
     onAnnotationResolved: useCallback((event) => {
-      // Optimistically update both highlights and references caches (they both contain annotations)
-      [QUERY_KEYS.documents.highlights(documentId), QUERY_KEYS.documents.references(documentId)].forEach(queryKey => {
-        queryClient.setQueryData(queryKey, (old: any) => {
-          if (!old) return old;
-          return {
-            ...old,
-            annotations: old.annotations.map((annotation: any) => {
-              // Match by ID portion (handle both URI and internal ID formats)
-              if (compareAnnotationIds(annotation.id, event.payload.annotationId)) {
-                return {
-                  ...annotation,
-                  body: {
-                    ...annotation.body,
-                    source: event.payload.targetDocumentId,
-                  },
-                };
-              }
-              return annotation;
-            }),
-          };
-        });
+      // Optimistically update annotations cache
+      queryClient.setQueryData(QUERY_KEYS.documents.annotations(documentId), (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          annotations: old.annotations.map((annotation: any) => {
+            // Match by ID portion (handle both URI and internal ID formats)
+            if (compareAnnotationIds(annotation.id, event.payload.annotationId)) {
+              return {
+                ...annotation,
+                body: {
+                  ...annotation.body,
+                  source: event.payload.targetDocumentId,
+                },
+              };
+            }
+            return annotation;
+          }),
+        };
       });
 
       // Widget sparkle (✨ emoji) will clear automatically when generatingReferenceId changes
