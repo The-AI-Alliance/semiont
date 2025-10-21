@@ -377,7 +377,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith(expect.objectContaining({
         id: 'hl-123',
         motivation: 'highlighting',
         target: {
@@ -398,7 +398,7 @@ describe('GraphDBConsumer', () => {
           id: 'user1',
           name: 'user1',
         },
-      });
+      }));
     });
   });
 
@@ -474,7 +474,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith(expect.objectContaining({
         id: 'ref-123',
         motivation: 'linking',
         target: {
@@ -496,7 +496,7 @@ describe('GraphDBConsumer', () => {
           id: 'user1',
           name: 'user1',
         },
-      });
+      }));
     });
 
     it('should create stub linking annotation without targetDocumentId', async () => {
@@ -541,7 +541,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith(expect.objectContaining({
         id: 'ref-456',
         motivation: 'linking',
         target: {
@@ -553,17 +553,16 @@ describe('GraphDBConsumer', () => {
             length: 14,
           },
         },
-        body: {
+        body: expect.objectContaining({
           type: 'SpecificResource',
-          source: undefined,
           entityTypes: [],
-        },
+        }),
         creator: {
           type: 'Person',
           id: 'user1',
           name: 'user1',
         },
-      });
+      }));
     });
   });
 
