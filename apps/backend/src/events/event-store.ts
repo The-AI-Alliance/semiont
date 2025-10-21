@@ -354,7 +354,7 @@ export class EventStore {
         document.contentChecksum = event.payload.contentChecksum;
 
         // First-class fields
-        document.locale = event.payload.locale;
+        document.language = event.payload.language;
         document.isDraft = event.payload.isDraft;
         document.generatedFrom = event.payload.generatedFrom;
         break;
@@ -370,7 +370,7 @@ export class EventStore {
         document.contentChecksum = event.payload.contentChecksum;
 
         // First-class fields
-        document.locale = event.payload.locale;
+        document.language = event.payload.language;
         break;
 
       case 'document.archived':

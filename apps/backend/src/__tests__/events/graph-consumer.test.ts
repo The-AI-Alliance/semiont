@@ -153,7 +153,7 @@ describe('GraphDBConsumer', () => {
           contentChecksum: 'hash123',
           creationMethod: CREATION_METHODS.API,
           entityTypes: ['entity1', 'entity2'],
-          locale: 'en',
+          language: 'en',
           isDraft: false,
         },
       };
@@ -245,7 +245,7 @@ describe('GraphDBConsumer', () => {
           parentDocumentId: 'doc-123',
           creationMethod: CREATION_METHODS.CLONE,
           entityTypes: ['entity1'],
-          locale: 'en',
+          language: 'en',
         },
       };
 

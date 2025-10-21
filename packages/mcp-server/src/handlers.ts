@@ -126,7 +126,7 @@ export async function handleGenerateDocumentFromAnnotation(client: SemiontApiCli
     documentId: args?.documentId,
     title: args?.title,
     prompt: args?.prompt,
-    locale: args?.locale,
+    language: args?.language,
   });
 
   return {

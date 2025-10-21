@@ -71,7 +71,7 @@ export function registerGenerateDocument(router: AnnotationsRouterType) {
         sourceDocumentId: body.documentId,
         title: body.title,
         prompt: body.prompt,
-        locale: body.locale,
+        language: body.language,
         entityTypes: annotation.body.entityTypes,
         created: new Date().toISOString(),
         retryCount: 0,

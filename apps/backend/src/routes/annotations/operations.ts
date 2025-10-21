@@ -87,7 +87,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
         contentChecksum: checksum,
         creationMethod: CREATION_METHODS.API,
         entityTypes: body.entityTypes || [],
-        locale: undefined,  // Not provided in this flow
+        language: undefined,  // Not provided in this flow
         isDraft: false,     // Created from selection, not a draft
         generatedFrom: undefined,
         generationPrompt: undefined,
@@ -178,7 +178,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
       selectedText,
       body.entityTypes || annotation.body.entityTypes || [],
       body.prompt,
-      body.locale
+      body.language
     );
 
     if (!generatedContent) {
@@ -206,7 +206,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
         contentChecksum: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
         entityTypes: body.entityTypes || annotation.body.entityTypes || [],
-        locale: body.locale,
+        language: body.language,
         isDraft: false,
         generatedFrom: id,
         generationPrompt: body.prompt,
@@ -243,7 +243,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
       name: documentName,
       format: 'text/markdown',
       entityTypes: body.entityTypes || annotation.body.entityTypes || [],
-      locale: body.locale,
+      language: body.language,
       sourceAnnotationId: id,
       creationMethod: CREATION_METHODS.GENERATED,
       contentChecksum: checksum,

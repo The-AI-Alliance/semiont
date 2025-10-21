@@ -37,7 +37,7 @@ export interface DocumentCreatedEvent extends BaseEvent {
     entityTypes?: string[];
 
     // First-class fields (promoted from metadata)
-    locale?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
+    language?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
     isDraft?: boolean;           // Draft status for generated documents
     generatedFrom?: string;      // Annotation/Reference ID that triggered generation
     generationPrompt?: string;   // Prompt used for AI generation (events-only, not on Document)
@@ -55,7 +55,7 @@ export interface DocumentClonedEvent extends BaseEvent {
     entityTypes?: string[];
 
     // First-class fields (promoted from metadata)
-    locale?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
+    language?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
   };
 }
 

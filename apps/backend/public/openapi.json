@@ -286,7 +286,7 @@
               "type": "string"
             }
           },
-          "locale": {
+          "language": {
             "type": "string"
           },
           "creationMethod": {
@@ -503,7 +503,7 @@
             "type": "string",
             "description": "Custom prompt for content generation"
           },
-          "locale": {
+          "language": {
             "type": "string",
             "description": "Language locale (e.g., \"es\", \"fr\", \"ja\")"
           }
@@ -1933,7 +1933,7 @@
           "prompt": {
             "type": "string"
           },
-          "locale": {
+          "language": {
             "type": "string"
           }
         },
@@ -1953,7 +1953,7 @@
             "type": "string",
             "description": "Custom prompt for content generation"
           },
-          "locale": {
+          "language": {
             "type": "string",
             "description": "Language locale for generated content (e.g., \"es\", \"fr\", \"ja\")"
           }
@@ -2093,7 +2093,7 @@
               "type": "string"
             }
           },
-          "locale": {
+          "language": {
             "type": "string",
             "description": "Language/locale code (e.g., 'en', 'es', 'fr')"
           },
@@ -2216,8 +2216,9 @@
               "format": {
                 "$ref": "#/components/schemas/ContentFormat"
               },
-              "locale": {
-                "type": "string"
+              "language": {
+                "type": "string",
+                "description": "W3C language - BCP47 language tag (e.g., 'en', 'es', 'fr')"
               },
               "source": {
                 "type": [
@@ -2384,7 +2385,7 @@
           "prompt": {
             "type": "string"
           },
-          "locale": {
+          "language": {
             "type": "string"
           }
         },

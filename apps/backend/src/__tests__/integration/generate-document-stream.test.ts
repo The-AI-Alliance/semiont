@@ -189,7 +189,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
       expect(genJob.userId).toBe(testUser.id);
       expect(genJob.sourceDocumentId).toBe('test-doc-id');
       expect(genJob.title).toBe('Test Document');
-      expect(genJob.locale).toBe('en');
+      expect(genJob.language).toBe('en');
     }
   });
 

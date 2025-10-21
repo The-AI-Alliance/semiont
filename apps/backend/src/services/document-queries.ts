@@ -48,7 +48,7 @@ export class DocumentQueryService {
         sourceAnnotationId: doc.sourceAnnotationId,
         sourceDocumentId: doc.sourceDocumentId,
         creator: doc.creator,
-        locale: doc.locale,
+        language: doc.language,
       };
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -118,7 +118,7 @@ export class DocumentQueryService {
               sourceAnnotationId: doc.sourceAnnotationId,
               sourceDocumentId: doc.sourceDocumentId,
               creator: doc.creator,
-              locale: doc.locale,
+              language: doc.language,
             });
           }
         }
