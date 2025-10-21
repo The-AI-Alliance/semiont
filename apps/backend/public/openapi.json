@@ -40,6 +40,14 @@
         ],
         "description": "W3C Web Annotation motivation vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation"
       },
+      "BodyType": {
+        "type": "string",
+        "enum": [
+          "TextualBody",
+          "SpecificResource"
+        ],
+        "description": "Annotation body type - TextualBody for textual content, SpecificResource for resource links"
+      },
       "HealthResponse": {
         "type": "object",
         "properties": {
@@ -2196,11 +2204,7 @@
             "type": "object",
             "properties": {
               "type": {
-                "type": "string",
-                "enum": [
-                  "TextualBody",
-                  "SpecificResource"
-                ]
+                "$ref": "#/components/schemas/BodyType"
               },
               "purpose": {
                 "$ref": "#/components/schemas/Motivation",
