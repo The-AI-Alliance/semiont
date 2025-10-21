@@ -65,6 +65,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
   beforeAll(async () => {
     // Set required environment variables
     process.env.SITE_DOMAIN = process.env.SITE_DOMAIN || 'test.example.com';
+    process.env.OAUTH_ALLOWED_DOMAINS = process.env.OAUTH_ALLOWED_DOMAINS || 'test.example.com,example.com';
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-testing';
     process.env.BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
     process.env.NODE_ENV = process.env.NODE_ENV || 'test';
