@@ -2166,39 +2166,16 @@
             "$ref": "#/components/schemas/Motivation"
           },
           "target": {
-            "type": "object",
-            "properties": {
-              "source": {
-                "type": "string"
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "IRI of the entire resource being annotated"
               },
-              "selector": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/TextPositionSelector"
-                  },
-                  {
-                    "$ref": "#/components/schemas/TextQuoteSelector"
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "anyOf": [
-                        {
-                          "$ref": "#/components/schemas/TextPositionSelector"
-                        },
-                        {
-                          "$ref": "#/components/schemas/TextQuoteSelector"
-                        }
-                      ]
-                    }
-                  }
-                ]
+              {
+                "$ref": "#/components/schemas/AnnotationTarget"
               }
-            },
-            "required": [
-              "source",
-              "selector"
-            ]
+            ],
+            "description": "W3C Web Annotation target - can be a simple IRI string (entire resource) or an object with source and optional selector (fragment)"
           },
           "body": {
             "oneOf": [
@@ -2274,6 +2251,43 @@
           "type",
           "entityTypes"
         ]
+      },
+      "AnnotationTarget": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "IRI of the resource being annotated"
+          },
+          "selector": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TextPositionSelector"
+              },
+              {
+                "$ref": "#/components/schemas/TextQuoteSelector"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TextPositionSelector"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TextQuoteSelector"
+                    }
+                  ]
+                }
+              }
+            ],
+            "description": "Optional selector to identify a specific segment of the source resource"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "description": "W3C Web Annotation target object - source is required, selector is optional"
       },
       "UpdateUserResponse": {
         "type": "object",
