@@ -136,7 +136,7 @@ crudRouter.put('/api/annotations/:id/resolve',
     console.log(`[RESOLVE HANDLER] Called for annotation ${id}, request:`, request);
 
     // Get annotation from Layer 3 (event store projection)
-    const annotation = await AnnotationQueryService.getAnnotation(id);
+    const annotation = await AnnotationQueryService.getAnnotation(id, request.documentId);
     console.log(`[RESOLVE HANDLER] Layer 3 lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
 
     if (!annotation) {

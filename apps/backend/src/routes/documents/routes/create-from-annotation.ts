@@ -41,7 +41,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       const graphDb = await getGraphDatabase();
       const storage = getStorageService();
 
-      const annotation = await AnnotationQueryService.getAnnotation(annotationId);
+      const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.documentId);
       if (!annotation) {
         throw new HTTPException(404, { message: 'Annotation not found' });
       }

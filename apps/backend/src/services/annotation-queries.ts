@@ -27,24 +27,6 @@ export class AnnotationQueryService {
   }
 
   /**
-   * Get highlights only (filtered by motivation)
-   * @returns Array of highlighting annotations
-   */
-  static async getHighlights(documentId: string): Promise<Annotation[]> {
-    const annotations = await this.getDocumentAnnotations(documentId);
-    return annotations.annotations.filter(a => a.motivation === 'highlighting');
-  }
-
-  /**
-   * Get references only (filtered by motivation)
-   * @returns Array of linking annotations
-   */
-  static async getReferences(documentId: string): Promise<Annotation[]> {
-    const annotations = await this.getDocumentAnnotations(documentId);
-    return annotations.annotations.filter(a => a.motivation === 'linking');
-  }
-
-  /**
    * Get all annotations
    * @returns Array of all annotation objects
    */
@@ -80,22 +62,11 @@ export class AnnotationQueryService {
 
   /**
    * Get a single annotation by ID
-   * Scans Layer 3 projections to find the annotation
-   * O(n) complexity - needs annotation ID → document ID index for O(1)
+   * O(1) lookup using document ID to access Layer 3 projection
    */
-  static async getAnnotation(annotationId: string): Promise<Annotation | null> {
-    const projectionStorage = getProjectionStorage();
-    const allProjections = await projectionStorage.getAllProjections();
-
-    for (const stored of allProjections) {
-      // Check all annotations
-      const annotation = stored.annotations.annotations.find((a: Annotation) => a.id === annotationId);
-      if (annotation) {
-        return annotation;
-      }
-    }
-
-    return null;
+  static async getAnnotation(annotationId: string, documentId: string): Promise<Annotation | null> {
+    const annotations = await this.getDocumentAnnotations(documentId);
+    return annotations.annotations.find(a => a.id === annotationId) || null;
   }
 
   /**

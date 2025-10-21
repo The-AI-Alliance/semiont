@@ -11,7 +11,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
-import { getGraphDatabase } from '../../../graph/factory';
+import { AnnotationQueryService } from '../../../services/annotation-queries';
 import type { components } from '@semiont/api-client';
 
 type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
@@ -27,9 +27,8 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
   router.get('/api/documents/:documentId/annotations/:annotationId/history', async (c) => {
     const { documentId, annotationId } = c.req.param();
 
-    // Verify annotation exists
-    const graphDb = await getGraphDatabase();
-    const annotation = await graphDb.getAnnotation(annotationId);
+    // Verify annotation exists using Layer 3 (not GraphDB)
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId, documentId);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
