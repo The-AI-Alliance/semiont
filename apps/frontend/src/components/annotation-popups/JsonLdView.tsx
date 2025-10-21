@@ -5,43 +5,10 @@ import { EditorView, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
-import { tags as t } from '@lezer/highlight';
+import { syntaxHighlighting } from '@codemirror/language';
+import { jsonLightTheme, jsonLightHighlightStyle } from '@/lib/codemirror-json-theme';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 import type { Annotation } from '@/lib/api';
-
-// Colorful light theme for JSON with vibrant syntax highlighting
-const jsonLightTheme = EditorView.theme({
-  '&': {
-    backgroundColor: '#ffffff',
-    color: '#24292e',
-  },
-  '.cm-content': {
-    caretColor: '#0550ae',
-  },
-  '.cm-cursor, .cm-dropCursor': {
-    borderLeftColor: '#0550ae',
-  },
-  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-    backgroundColor: '#b3d7ff',
-  },
-  '.cm-gutters': {
-    backgroundColor: '#f6f8fa',
-    color: '#57606a',
-    border: 'none',
-  },
-}, { dark: false });
-
-const jsonLightHighlightStyle = HighlightStyle.define([
-  { tag: t.string, color: '#0a3069' },        // Deep blue for strings
-  { tag: t.number, color: '#0550ae' },        // Bright blue for numbers
-  { tag: t.bool, color: '#8250df' },          // Purple for booleans
-  { tag: t.null, color: '#cf222e' },          // Red for null
-  { tag: t.keyword, color: '#cf222e' },       // Red for keywords
-  { tag: t.propertyName, color: '#116329' },  // Green for property names
-  { tag: t.punctuation, color: '#57606a' },   // Gray for punctuation
-  { tag: t.bracket, color: '#6e7781' },       // Darker gray for brackets
-]);
 
 interface JsonLdViewProps {
   annotation: Annotation;
