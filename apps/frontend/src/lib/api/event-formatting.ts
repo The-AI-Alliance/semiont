@@ -15,8 +15,7 @@ type TranslateFn = (key: string, params?: Record<string, string | number>) => st
 /**
  * Format event type for display with i18n support
  */
-export function formatEventType(type: DocumentEventType, t: TranslateFn): string {
-  // Using a switch for exhaustive checking - TypeScript will error if we miss a case
+export function formatEventType(type: DocumentEventType, t: TranslateFn, payload?: any): string {
   switch (type) {
     case 'document.created':
       return t('documentCreated');
@@ -26,26 +25,27 @@ export function formatEventType(type: DocumentEventType, t: TranslateFn): string
       return t('documentArchived');
     case 'document.unarchived':
       return t('documentUnarchived');
-    case 'highlight.added':
-      return t('highlightAdded');
-    case 'highlight.removed':
-      return t('highlightRemoved');
-    case 'reference.created':
-      return t('referenceCreated');
-    case 'reference.resolved':
+
+    case 'annotation.added': {
+      const motivation = payload?.annotation?.motivation;
+      if (motivation === 'highlighting') return t('highlightAdded');
+      if (motivation === 'linking') return t('referenceCreated');
+      if (motivation === 'assessing') return t('assessmentAdded');
+      return t('annotationAdded');
+    }
+    case 'annotation.removed': {
+      return t('annotationRemoved');
+    }
+    case 'annotation.resolved': {
       return t('referenceResolved');
-    case 'reference.deleted':
-      return t('referenceDeleted');
+    }
+
     case 'entitytag.added':
       return t('entitytagAdded');
     case 'entitytag.removed':
       return t('entitytagRemoved');
-    case 'assessment.added':
-      return t('assessmentAdded');
-    case 'assessment.removed':
-      return t('assessmentRemoved');
+
     default:
-      // Exhaustive check: if we get here, we missed a case
       const _exhaustiveCheck: never = type;
       return _exhaustiveCheck;
   }
@@ -53,34 +53,35 @@ export function formatEventType(type: DocumentEventType, t: TranslateFn): string
 
 /**
  * Get emoji for event type
+ * For unified annotation events, pass the payload to determine motivation
  */
-export function getEventEmoji(type: DocumentEventType): string {
-  // Using a switch for exhaustive checking - TypeScript will error if we miss a case
+export function getEventEmoji(type: DocumentEventType, payload?: any): string {
   switch (type) {
     case 'document.created':
     case 'document.cloned':
     case 'document.archived':
     case 'document.unarchived':
       return '📄';
-    case 'highlight.added':
-      return '🟡';
-    case 'highlight.removed':
+
+    case 'annotation.added': {
+      const motivation = payload?.annotation?.motivation;
+      if (motivation === 'highlighting') return '🟡';
+      if (motivation === 'linking') return '🔵';
+      if (motivation === 'assessing') return '🔴';
+      return '📝';
+    }
+    case 'annotation.removed': {
       return '🗑️';
-    case 'reference.created':
-      return '🔵';
-    case 'reference.resolved':
+    }
+    case 'annotation.resolved': {
       return '🔗';
-    case 'reference.deleted':
-      return '🗑️';
+    }
+
     case 'entitytag.added':
     case 'entitytag.removed':
       return '🏷️';
-    case 'assessment.added':
-      return '🔴';
-    case 'assessment.removed':
-      return '🗑️';
+
     default:
-      // Exhaustive check: if we get here, we missed a case
       const _exhaustiveCheck: never = type;
       return _exhaustiveCheck;
   }
@@ -189,47 +190,6 @@ export function getEventDisplayContent(
       return { exact: payload.entityType, isQuoted: false, isTag: true };
     }
 
-    // Legacy event types (should not appear in new data, but kept for old events)
-    case 'highlight.removed':
-    case 'reference.deleted':
-    case 'assessment.removed': {
-      // Find the original added event
-      const addedEvent = allEvents.find(e =>
-        (e.event.type === 'highlight.added' && (e.event.payload as any).highlightId === payload.highlightId) ||
-        (e.event.type === 'reference.created' && (e.event.payload as any).referenceId === payload.referenceId) ||
-        (e.event.type === 'assessment.added' && (e.event.payload as any).assessmentId === payload.assessmentId)
-      );
-      if (addedEvent) {
-        const addedPayload = addedEvent.event.payload as any;
-        return { exact: truncateText(addedPayload.exact), isQuoted: true, isTag: false };
-      }
-      return null;
-    }
-
-    case 'highlight.added':
-    case 'reference.created':
-    case 'assessment.added': {
-      return { exact: truncateText(payload.exact), isQuoted: true, isTag: false };
-    }
-
-    case 'reference.resolved': {
-      // Legacy - find annotation to get text
-      const annotation = annotations.find(a =>
-        compareAnnotationIds(a.id, payload.referenceId)
-      );
-      if (annotation?.target?.selector) {
-        try {
-          const exact = getExactText(annotation.target.selector as any);
-          if (exact) {
-            return { exact: truncateText(exact), isQuoted: true, isTag: false };
-          }
-        } catch {
-          // If selector parsing fails, continue to return null
-        }
-      }
-      return null;
-    }
-
     default:
       return null;
   }
@@ -241,9 +201,12 @@ export function getEventDisplayContent(
 export function getEventEntityTypes(event: StoredEvent): string[] {
   const eventData = event.event;
 
-  if (eventData.type === 'reference.created') {
+  if (eventData.type === 'annotation.added') {
     const payload = eventData.payload as any;
-    return payload.entityTypes ?? [];
+    const motivation = payload?.annotation?.motivation;
+    if (motivation === 'linking') {
+      return payload.annotation?.body?.entityTypes ?? [];
+    }
   }
 
   return [];

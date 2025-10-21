@@ -19,15 +19,11 @@ export type DocumentEventType =
   | 'document.cloned'
   | 'document.archived'
   | 'document.unarchived'
-  | 'highlight.added'
-  | 'highlight.removed'
-  | 'reference.created'
-  | 'reference.resolved'
-  | 'reference.deleted'
+  | 'annotation.added'
+  | 'annotation.removed'
+  | 'annotation.resolved'
   | 'entitytag.added'
-  | 'entitytag.removed'
-  | 'assessment.added'
-  | 'assessment.removed';
+  | 'entitytag.removed';
 
 /**
  * Extract annotation ID from event payload
@@ -42,18 +38,10 @@ export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
   }
 
   switch (eventData.type) {
-    case 'highlight.added':
-    case 'highlight.removed':
-      return payload.highlightId || null;
-
-    case 'reference.created':
-    case 'reference.resolved':
-    case 'reference.deleted':
-      return payload.referenceId || null;
-
-    case 'assessment.added':
-    case 'assessment.removed':
-      return payload.assessmentId || null;
+    case 'annotation.added':
+    case 'annotation.removed':
+    case 'annotation.resolved':
+      return payload.annotationId || null;
 
     default:
       return null;
