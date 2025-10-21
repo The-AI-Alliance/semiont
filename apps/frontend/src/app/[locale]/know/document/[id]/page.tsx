@@ -32,6 +32,7 @@ import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPane
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
+import { JsonLdPanel } from '@/components/document/panels/JsonLdPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { extractAnnotationId, compareAnnotationIds } from '@/lib/api';
 
@@ -553,7 +554,7 @@ function DocumentView({
             onThemeChange={setTheme}
             showLineNumbers={showLineNumbers}
             onLineNumbersToggle={toggleLineNumbers}
-            width="w-64"
+            width={activePanel === 'jsonld' ? 'w-[600px]' : 'w-64'}
           >
             {/* Archived Status */}
             {annotateMode && document.archived && (
@@ -614,6 +615,11 @@ function DocumentView({
                 eventCount={eventCount}
                 {...(lastEvent?.timestamp && { lastEventTimestamp: lastEvent.timestamp })}
               />
+            )}
+
+            {/* JSON-LD Panel */}
+            {activePanel === 'jsonld' && (
+              <JsonLdPanel document={document} />
             )}
           </ToolbarPanels>
 
