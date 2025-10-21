@@ -101,7 +101,7 @@ export function HistoryEvent({
           onMouseEnter={handleEmojiMouseEnter}
           onMouseLeave={handleEmojiMouseLeave}
         >
-          {getEventEmoji(event.event.type as DocumentEventType)}
+          {getEventEmoji(event.event.type as DocumentEventType, event.event.payload)}
         </span>
         {displayContent ? (
           displayContent.isTag ? (
@@ -119,7 +119,7 @@ export function HistoryEvent({
           )
         ) : (
           <span className="font-medium text-gray-900 dark:text-gray-100">
-            {formatEventType(event.event.type as DocumentEventType, t)}
+            {formatEventType(event.event.type as DocumentEventType, t, event.event.payload)}
           </span>
         )}
         <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-auto">

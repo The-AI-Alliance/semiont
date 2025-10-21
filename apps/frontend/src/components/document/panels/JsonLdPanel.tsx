@@ -8,38 +8,26 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting } from '@codemirror/language';
 import { jsonLightTheme, jsonLightHighlightStyle } from '@/lib/codemirror-json-theme';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import type { Annotation } from '@/lib/api';
+import type { Document as SemiontDocument } from '@/lib/api';
 
-interface JsonLdViewProps {
-  annotation: Annotation;
-  onBack: () => void;
+interface Props {
+  document: SemiontDocument;
 }
 
-export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
+export function JsonLdPanel({ document: semiontDocument }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const { showLineNumbers } = useLineNumbers();
-
-  // Handle escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onBack();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onBack]);
 
   // Initialize CodeMirror
   useEffect(() => {
     if (!editorRef.current) return;
 
     // Check if dark mode is active
-    const isDarkMode = document.documentElement.classList.contains('dark');
+    const isDarkMode = document.documentElement?.classList.contains('dark') ?? false;
 
-    const jsonContent = JSON.stringify(annotation, null, 2);
+    // Convert document to JSON-LD format
+    const jsonLdContent = JSON.stringify(semiontDocument, null, 2);
 
     const extensions = [
       json(),
@@ -61,7 +49,7 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
     }
 
     const state = EditorState.create({
-      doc: jsonContent,
+      doc: jsonLdContent,
       extensions,
     });
 
@@ -76,28 +64,21 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [annotation, showLineNumbers]);
+  }, [semiontDocument, showLineNumbers]);
 
   const handleCopyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(annotation, null, 2));
+      await navigator.clipboard.writeText(JSON.stringify(semiontDocument, null, 2));
     } catch (err) {
       console.error('Failed to copy JSON-LD:', err);
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header with back and copy buttons */}
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 h-full flex flex-col">
+      {/* Header with copy button */}
       <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <button
-          onClick={onBack}
-          className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 text-lg font-bold"
-          title="Go back (Escape)"
-        >
-          &lt;
-        </button>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
           JSON-LD
         </h3>
         <button
