@@ -2201,43 +2201,18 @@
             ]
           },
           "body": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "$ref": "#/components/schemas/BodyType"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AnnotationBody"
               },
-              "purpose": {
-                "$ref": "#/components/schemas/Motivation",
-                "description": "W3C purpose - why this resource is included in the annotation body"
-              },
-              "value": {
-                "type": "string"
-              },
-              "format": {
-                "$ref": "#/components/schemas/ContentFormat"
-              },
-              "language": {
-                "type": "string",
-                "description": "W3C language - BCP47 language tag (e.g., 'en', 'es', 'fr')"
-              },
-              "source": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "entityTypes": {
+              {
                 "type": "array",
                 "items": {
-                  "type": "string"
-                },
-                "default": []
+                  "$ref": "#/components/schemas/AnnotationBody"
+                }
               }
-            },
-            "required": [
-              "type",
-              "entityTypes"
-            ]
+            ],
+            "description": "W3C Web Annotation body - can be a single body object or an array of body objects"
           },
           "creator": {
             "$ref": "#/components/schemas/Agent"
@@ -2259,6 +2234,45 @@
           "motivation",
           "target",
           "body"
+        ]
+      },
+      "AnnotationBody": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/BodyType"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/Motivation",
+            "description": "W3C purpose - why this resource is included in the annotation body"
+          },
+          "value": {
+            "type": "string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ContentFormat"
+          },
+          "language": {
+            "type": "string",
+            "description": "W3C language - BCP47 language tag (e.g., 'en', 'es', 'fr')"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "type",
+          "entityTypes"
         ]
       },
       "UpdateUserResponse": {
