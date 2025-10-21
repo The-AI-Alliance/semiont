@@ -19,9 +19,9 @@ import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { getEventStore } from '../../events/event-store';
 import {
-  getExactText,
   getTextPositionSelector,
   type Annotation,
+  type AnnotationAddedEvent,
 } from '@semiont/core';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
@@ -67,31 +67,35 @@ crudRouter.post('/api/annotations',
     // Determine motivation: use provided value or default based on body type
     const motivation = request.motivation || (request.body.type === 'TextualBody' ? 'highlighting' : 'linking');
 
+    // Build annotation object (Omit<Annotation, 'creator' | 'created'>)
+    const annotation: Omit<Annotation, 'creator' | 'created'> = {
+      id: annotationId,
+      motivation: motivation,
+      target: {
+        source: request.target.source,
+        selector: request.target.selector,
+      },
+      body: {
+        type: request.body.type,
+        value: request.body.value,
+        entityTypes: request.body.entityTypes || [],
+        source: request.body.source,
+      },
+      modified: new Date().toISOString(),
+    };
+
     // Emit unified annotation.added event (single source of truth)
     const eventStore = await getEventStore();
-    await eventStore.appendEvent({
+    const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
       type: 'annotation.added',
       documentId: request.target.source,
       userId: user.id,
       version: 1,
       payload: {
-        annotationId: annotationId,
-        motivation: motivation,
-        exact: getExactText(request.target.selector),
-        position: {
-          offset: posSelector.offset,
-          length: posSelector.length,
-        },
-        // Optional fields based on motivation
-        ...(motivation === 'linking' && {
-          entityTypes: request.body.entityTypes || [],
-          targetDocumentId: request.body.source ?? undefined,
-        }),
-        ...(motivation === 'assessing' && {
-          value: request.body.value,
-        }),
+        annotation,
       },
-    });
+    };
+    await eventStore.appendEvent(eventPayload);
 
     // Return optimistic response (consumer will update GraphDB async)
     const response: CreateAnnotationResponse = {

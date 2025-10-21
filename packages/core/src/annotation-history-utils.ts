@@ -20,6 +20,7 @@ import type {
 } from './events';
 import type { CreationMethod } from './creation-methods';
 import type { components } from '@semiont/api-client';
+import { getAnnotationExactText } from './selector-utils';
 
 // Import OpenAPI types
 type Annotation = components['schemas']['Annotation'];
@@ -88,7 +89,7 @@ export function getEventEmoji(type: DocumentEventType, event?: StoredEvent): str
     case 'annotation.added':
       if (event) {
         const payload = event.event.payload as AnnotationAddedEvent['payload'];
-        return getMotivationEmoji(payload.motivation);
+        return getMotivationEmoji(payload.annotation.motivation);
       }
       return '📝';
     case 'annotation.removed':
@@ -151,12 +152,12 @@ export function getEventDisplayContent(
       // Find the original annotation.added event to get the text
       const addedEvent = allEvents.find(e =>
         e.event.type === 'annotation.added' &&
-        (e.event.payload as AnnotationAddedEvent['payload']).annotationId === payload.annotationId
+        (e.event.payload as AnnotationAddedEvent['payload']).annotation.id === payload.annotationId
       );
 
       if (addedEvent) {
         const addedPayload = addedEvent.event.payload as AnnotationAddedEvent['payload'];
-        return { exact: truncateText(addedPayload.exact), isQuoted: true, isTag: false };
+        return { exact: truncateText(getAnnotationExactText(addedPayload.annotation)), isQuoted: true, isTag: false };
       }
       return null;
     }
@@ -167,19 +168,19 @@ export function getEventDisplayContent(
       // Find the original annotation.added event
       const addedEvent = allEvents.find(e =>
         e.event.type === 'annotation.added' &&
-        (e.event.payload as AnnotationAddedEvent['payload']).annotationId === payload.annotationId
+        (e.event.payload as AnnotationAddedEvent['payload']).annotation.id === payload.annotationId
       );
 
       if (addedEvent) {
         const addedPayload = addedEvent.event.payload as AnnotationAddedEvent['payload'];
-        return { exact: truncateText(addedPayload.exact), isQuoted: true, isTag: false };
+        return { exact: truncateText(getAnnotationExactText(addedPayload.annotation)), isQuoted: true, isTag: false };
       }
       return null;
     }
 
     case 'annotation.added': {
       const payload = eventData.payload as AnnotationAddedEvent['payload'];
-      return { exact: truncateText(payload.exact), isQuoted: true, isTag: false };
+      return { exact: truncateText(getAnnotationExactText(payload.annotation)), isQuoted: true, isTag: false };
     }
 
     case 'entitytag.added':
@@ -199,8 +200,8 @@ export function getEventEntityTypes(event: StoredEvent): string[] {
 
   if (eventData.type === 'annotation.added') {
     const payload = eventData.payload as AnnotationAddedEvent['payload'];
-    // Entity types are only present for linking motivation
-    return payload.entityTypes ?? [];
+    // Entity types are in the annotation body (for linking motivation)
+    return payload.annotation.body.entityTypes ?? [];
   }
 
   return [];
@@ -276,10 +277,13 @@ export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
   const eventData = event.event;
 
   switch (eventData.type) {
-    case 'annotation.added':
+    case 'annotation.added': {
+      const payload = eventData.payload as AnnotationAddedEvent['payload'];
+      return payload.annotation.id;
+    }
     case 'annotation.removed':
     case 'annotation.resolved': {
-      const payload = eventData.payload as AnnotationAddedEvent['payload'] | AnnotationRemovedEvent['payload'] | AnnotationResolvedEvent['payload'];
+      const payload = eventData.payload as AnnotationRemovedEvent['payload'] | AnnotationResolvedEvent['payload'];
       return payload.annotationId;
     }
 

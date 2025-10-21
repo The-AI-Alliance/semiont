@@ -157,10 +157,18 @@ function DocumentView({
   }, [documentId, session?.backendToken, showError]);
 
   // Now that document exists, we can safely fetch dependent data
+  // Using unified annotations endpoint (Phase 3 complete)
   const { data: highlightsData, refetch: refetchHighlights } = api.documents.highlights.useQuery(documentId);
   const { data: referencesData, refetch: refetchReferences } = api.documents.references.useQuery(documentId);
-  const highlights = highlightsData?.highlights || [];
-  const references = referencesData?.references || [];
+
+  // Both endpoints now return unified annotations - filter by motivation
+  const highlights = highlightsData?.annotations?.filter(a => a.motivation === 'highlighting') || [];
+  const references = referencesData?.annotations?.filter(a => a.motivation === 'linking') || [];
+
+  const refetchAnnotations = () => {
+    refetchHighlights();
+    refetchReferences();
+  };
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   // Using React Query's invalidateQueries is the best practice - it invalidates cache
@@ -336,16 +344,15 @@ function DocumentView({
   } = useDetectionProgress({
     documentId,
     onProgress: (progress) => {
-      // When an entity type completes, refetch to show new references immediately
+      // When an entity type completes, refetch to show new annotations immediately
       // Use both refetch (for immediate document view update) AND invalidate (for Annotation History)
-      refetchReferences();
+      refetchAnnotations();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     onComplete: (progress) => {
       // Don't show toast - the widget already shows completion status
       // Final refetch + invalidation when ALL entity types complete
-      refetchHighlights();
-      refetchReferences();
+      refetchAnnotations();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     onError: (error) => {
@@ -407,54 +414,43 @@ function DocumentView({
     documentId,
     autoConnect: true,  // Document exists, safe to connect
 
-    // Highlight events - use debounced invalidation to batch rapid updates
-    onHighlightAdded: useCallback((event) => {
+    // Annotation events - use debounced invalidation to batch rapid updates
+    onAnnotationAdded: useCallback((event) => {
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
-    onHighlightRemoved: useCallback((event) => {
+    onAnnotationRemoved: useCallback((event) => {
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
-    // Reference events - use debounced invalidation to batch rapid updates
-    onReferenceCreated: useCallback((event) => {
-      debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
-
-    onReferenceResolved: useCallback((event) => {
-      // Optimistically update the reference in cache
-      queryClient.setQueryData(
-        QUERY_KEYS.documents.references(documentId),
-        (old: any) => {
+    onAnnotationResolved: useCallback((event) => {
+      // Optimistically update both highlights and references caches (they both contain annotations)
+      [QUERY_KEYS.documents.highlights(documentId), QUERY_KEYS.documents.references(documentId)].forEach(queryKey => {
+        queryClient.setQueryData(queryKey, (old: any) => {
           if (!old) return old;
           return {
             ...old,
-            references: old.references.map((ref: any) => {
+            annotations: old.annotations.map((annotation: any) => {
               // Match by ID portion (handle both URI and internal ID formats)
-              if (compareAnnotationIds(ref.id, event.payload.referenceId)) {
+              if (compareAnnotationIds(annotation.id, event.payload.annotationId)) {
                 return {
-                  ...ref,
+                  ...annotation,
                   body: {
-                    ...ref.body,
+                    ...annotation.body,
                     source: event.payload.targetDocumentId,
                   },
                 };
               }
-              return ref;
+              return annotation;
             }),
           };
-        }
-      );
+        });
+      });
 
       // Widget sparkle (✨ emoji) will clear automatically when generatingReferenceId changes
       // Immediately invalidate events to update History Panel
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     }, [queryClient, documentId]),
-
-    onReferenceDeleted: useCallback((event) => {
-      console.log('[RealTime] Reference deleted:', event.payload);
-      debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
 
     // Document status events
     onDocumentArchived: useCallback((event) => {

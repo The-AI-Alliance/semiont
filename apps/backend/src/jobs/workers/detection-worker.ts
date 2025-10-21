@@ -103,15 +103,25 @@ export class DetectionWorker extends JobWorker {
             userId: job.userId,
             version: 1,
             payload: {
-              annotationId: referenceId,
-              motivation: 'linking',
-              exact: detected.annotation.selector.exact,
-              position: {
-                offset: detected.annotation.selector.offset,
-                length: detected.annotation.selector.length,
+              annotation: {
+                id: referenceId,
+                motivation: 'linking',
+                target: {
+                  source: job.documentId,
+                  selector: {
+                    type: 'TextPositionSelector',
+                    exact: detected.annotation.selector.exact,
+                    offset: detected.annotation.selector.offset,
+                    length: detected.annotation.selector.length,
+                  },
+                },
+                body: {
+                  type: 'SpecificResource',
+                  entityTypes: detected.annotation.entityTypes,
+                  source: null, // Will be resolved later
+                },
+                modified: new Date().toISOString(),
               },
-              entityTypes: detected.annotation.entityTypes,
-              targetDocumentId: undefined, // Will be resolved later
             },
           });
 

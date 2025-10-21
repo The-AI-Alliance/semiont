@@ -1749,53 +1749,13 @@
                     {
                       "type": "object",
                       "properties": {
-                        "annotationId": {
-                          "type": "string",
-                          "description": "Unified annotation ID"
-                        },
-                        "motivation": {
-                          "$ref": "#/components/schemas/Motivation",
-                          "description": "W3C motivation (highlighting, linking, assessing, etc.)"
-                        },
-                        "exact": {
-                          "type": "string"
-                        },
-                        "position": {
-                          "type": "object",
-                          "properties": {
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        "entityTypes": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "description": "For linking motivation"
-                        },
-                        "targetDocumentId": {
-                          "type": "string",
-                          "description": "For linking motivation"
-                        },
-                        "value": {
-                          "type": "string",
-                          "description": "For assessing motivation"
+                        "annotation": {
+                          "$ref": "#/components/schemas/Annotation",
+                          "description": "W3C Annotation (creator/created fields are optional in events - they're derived from event userId/timestamp)"
                         }
                       },
                       "required": [
-                        "annotationId",
-                        "motivation",
-                        "exact",
-                        "position"
+                        "annotation"
                       ]
                     },
                     {
@@ -2271,9 +2231,7 @@
           "id",
           "motivation",
           "target",
-          "body",
-          "creator",
-          "created"
+          "body"
         ]
       },
       "UpdateUserResponse": {

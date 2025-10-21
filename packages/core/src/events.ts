@@ -17,7 +17,6 @@ import type { components } from '@semiont/api-client';
 // Import OpenAPI types
 type Annotation = components['schemas']['Annotation'];
 type ContentFormat = components['schemas']['ContentFormat'];
-type Motivation = components['schemas']['Motivation'];
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
@@ -77,18 +76,7 @@ export interface DocumentUnarchivedEvent extends BaseEvent {
 export interface AnnotationAddedEvent extends BaseEvent {
   type: 'annotation.added';
   payload: {
-    annotationId: string;           // Unified ID field
-    motivation: Motivation;         // W3C motivation (highlighting, linking, assessing, etc.)
-    exact: string;                  // W3C Web Annotation standard
-    position: {
-      offset: number;
-      length: number;
-    };
-
-    // Optional fields (presence depends on motivation)
-    entityTypes?: string[];         // For linking
-    targetDocumentId?: string;      // For linking (if null, it's a stub reference)
-    value?: string;                 // For assessing
+    annotation: Omit<Annotation, 'creator' | 'created'>;  // W3C Annotation (creator/created come from event metadata)
   };
 }
 

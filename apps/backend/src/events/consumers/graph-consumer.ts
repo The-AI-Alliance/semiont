@@ -130,24 +130,10 @@ export class GraphDBConsumer {
         break;
 
       case 'annotation.added':
+        // Event payload contains Omit<Annotation, 'creator' | 'created'>
+        // Add creator from event metadata (created not needed for graph)
         await graphDb.createAnnotation({
-          id: event.payload.annotationId,
-          motivation: event.payload.motivation,
-          target: {
-            source: event.documentId,
-            selector: {
-              type: 'TextPositionSelector',
-              exact: event.payload.exact,
-              offset: event.payload.position.offset,
-              length: event.payload.position.length,
-            },
-          },
-          body: {
-            type: event.payload.motivation === 'linking' ? 'SpecificResource' : 'TextualBody',
-            entityTypes: event.payload.entityTypes || [],
-            source: event.payload.targetDocumentId,
-            value: event.payload.value,
-          },
+          ...event.payload.annotation,
           creator: didToAgent(event.userId),
         });
         break;

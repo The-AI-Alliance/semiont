@@ -23,8 +23,9 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   // Load annotations to look up text for removed/resolved events
   const { data: referencesData } = api.documents.references.useQuery(documentId);
   const { data: highlightsData } = api.documents.highlights.useQuery(documentId);
-  const references = referencesData?.references || [];
-  const highlights = highlightsData?.highlights || [];
+  // Both endpoints now return unified annotations
+  const references = referencesData?.annotations || [];
+  const highlights = highlightsData?.annotations || [];
 
   // Refs to track event elements for scrolling
   const eventRefs = useRef<Map<string, HTMLElement>>(new Map());

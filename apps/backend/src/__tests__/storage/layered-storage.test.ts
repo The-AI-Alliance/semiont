@@ -251,10 +251,24 @@ describe('Layered Storage', () => {
         userId: 'user1',
         version: 1,
         payload: {
-          annotationId: 'hl1',
-          motivation: 'highlighting',
-          exact: 'Test highlight',
-          position: { offset: 0, length: 14 },
+          annotation: {
+            id: 'hl1',
+            motivation: 'highlighting',
+            target: {
+              source: docId,
+              selector: {
+                type: 'TextPositionSelector',
+                exact: 'Test highlight',
+                offset: 0,
+                length: 14,
+              },
+            },
+            body: {
+              type: 'TextualBody',
+              entityTypes: [],
+            },
+            modified: new Date().toISOString(),
+          },
         },
       });
 

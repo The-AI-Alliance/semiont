@@ -73,10 +73,24 @@ describe('Event Store', () => {
       userId: 'user1',
       version: 1,
       payload: {
-        annotationId: 'hl1',
-        motivation: 'highlighting',
-        exact: 'Test',
-        position: { offset: 0, length: 4 }
+        annotation: {
+          id: 'hl1',
+          motivation: 'highlighting',
+          target: {
+            source: docId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: 'Test',
+              offset: 0,
+              length: 4,
+            },
+          },
+          body: {
+            type: 'TextualBody',
+            entityTypes: [],
+          },
+          modified: new Date().toISOString(),
+        },
       },
     });
 

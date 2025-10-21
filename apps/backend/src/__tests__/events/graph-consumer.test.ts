@@ -345,10 +345,24 @@ describe('GraphDBConsumer', () => {
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          annotationId: 'hl-123',
-          motivation: 'highlighting',
-          exact: 'important text',
-          position: { offset: 10, length: 14 },
+          annotation: {
+            id: 'hl-123',
+            motivation: 'highlighting',
+            target: {
+              source: 'doc-123',
+              selector: {
+                type: 'TextPositionSelector',
+                exact: 'important text',
+                offset: 10,
+                length: 14,
+              },
+            },
+            body: {
+              type: 'TextualBody',
+              entityTypes: [],
+            },
+            modified: new Date().toISOString(),
+          },
         },
       };
 
@@ -427,12 +441,25 @@ describe('GraphDBConsumer', () => {
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          annotationId: 'ref-123',
-          motivation: 'linking',
-          exact: 'reference text',
-          position: { offset: 20, length: 14 },
-          entityTypes: ['Person', 'Organization'],
-          targetDocumentId: 'doc-456',
+          annotation: {
+            id: 'ref-123',
+            motivation: 'linking',
+            target: {
+              source: 'doc-123',
+              selector: {
+                type: 'TextPositionSelector',
+                exact: 'reference text',
+                offset: 20,
+                length: 14,
+              },
+            },
+            body: {
+              type: 'SpecificResource',
+              entityTypes: ['Person', 'Organization'],
+              source: 'doc-456',
+            },
+            modified: new Date().toISOString(),
+          },
         },
       };
 
@@ -481,10 +508,25 @@ describe('GraphDBConsumer', () => {
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          annotationId: 'ref-456',
-          motivation: 'linking',
-          exact: 'stub reference',
-          position: { offset: 30, length: 14 },
+          annotation: {
+            id: 'ref-456',
+            motivation: 'linking',
+            target: {
+              source: 'doc-123',
+              selector: {
+                type: 'TextPositionSelector',
+                exact: 'stub reference',
+                offset: 30,
+                length: 14,
+              },
+            },
+            body: {
+              type: 'SpecificResource',
+              entityTypes: [],
+              source: null, // Stub reference
+            },
+            modified: new Date().toISOString(),
+          },
         },
       };
 

@@ -203,7 +203,7 @@ export async function handleGetDocumentHighlights(client: SemiontApiClient, args
       text: `Found ${highlights.length} highlights in document:\n${highlights.map(h => {
         const selector = Array.isArray(h.target.selector) ? h.target.selector[0] : h.target.selector;
         const text = selector?.exact || h.id;
-        return `- ${text} (creator: ${h.creator.name})`;
+        return `- ${text}${h.creator ? ` (creator: ${h.creator.name})` : ''}`;
       }).join('\n')}`,
     }],
   };
