@@ -56,7 +56,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
       }
 
       console.log(`[GenerateDocument] Starting generation for reference ${referenceId} in document ${body.documentId}`);
-      console.log(`[GenerateDocument] Locale from request:`, body.locale);
+      console.log(`[GenerateDocument] Locale from request:`, body.language);
 
       // Validate annotation exists using Layer 3
       const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
@@ -88,7 +88,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
         sourceDocumentId: body.documentId,
         title: body.title,
         prompt: body.prompt,
-        locale: body.locale,
+        language: body.language,
         entityTypes: reference.body.entityTypes,
         created: new Date().toISOString(),
         retryCount: 0,
@@ -97,7 +97,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
 
       await jobQueue.createJob(job);
       console.log(`[GenerateDocument] Created job ${job.id} for reference ${referenceId}`);
-      console.log(`[GenerateDocument] Job includes locale:`, job.locale);
+      console.log(`[GenerateDocument] Job includes locale:`, job.language);
 
       // Determine document name for progress messages
       const documentName = body.title || getExactText(reference.target.selector) || 'New Document';

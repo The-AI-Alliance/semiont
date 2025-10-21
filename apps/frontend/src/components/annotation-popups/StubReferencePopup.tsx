@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import { PopupContainer, PopupHeader, SelectedTextDisplay, EntityTypeBadges } from './SharedPopupElements';
+import { PopupContainer, PopupHeader, EntityTypeBadges } from './SharedPopupElements';
 import { SearchDocumentsModal } from '../modals/SearchDocumentsModal';
+import { JsonLdButton } from './JsonLdButton';
+import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
 import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/lib/api';
 
@@ -33,6 +35,20 @@ export function StubReferencePopup({
   const router = useRouter();
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showJsonLd, setShowJsonLd] = useState(false);
+
+  // Calculate centered position when showing JSON-LD
+  const displayPosition = useMemo(() => {
+    if (!showJsonLd || typeof window === 'undefined') return position;
+
+    const popupWidth = 800;
+    const popupHeight = 700;
+
+    return {
+      x: Math.max(0, (window.innerWidth - popupWidth) / 2),
+      y: Math.max(0, (window.innerHeight - popupHeight) / 2),
+    };
+  }, [showJsonLd, position]);
 
   const handleGenerateDocument = async () => {
     if (!onGenerateDocument || !selection) return;
@@ -82,65 +98,70 @@ export function StubReferencePopup({
 
   return (
     <>
-      <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-        <PopupHeader title={t('title')} onClose={onClose} />
+      <PopupContainer position={displayPosition} onClose={onClose} isOpen={isOpen} wide={showJsonLd}>
+        {showJsonLd ? (
+          <JsonLdView annotation={annotation} onBack={() => setShowJsonLd(false)} />
+        ) : (
+          <>
+            <PopupHeader title={t('title')} selectedText={selection.exact} onClose={onClose} />
 
-        <SelectedTextDisplay exact={selection.exact} />
+            {annotation.body.entityTypes && annotation.body.entityTypes.length > 0 && (
+              <EntityTypeBadges entityTypes={annotation.body.entityTypes.join(', ')} />
+            )}
 
-        {annotation.body.entityTypes && annotation.body.entityTypes.length > 0 && (
-          <EntityTypeBadges entityTypes={annotation.body.entityTypes.join(', ')} />
+            {/* Link Options */}
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t('linkToDocument')}
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={handleGenerateDocument}
+                  disabled={isGenerating}
+                  className={`${buttonStyles.primary.base} w-full justify-center`}
+                >
+                  {isGenerating ? (
+                    <span className="flex items-center justify-center">
+                      <span className="animate-spin mr-2">⏳</span>
+                      {t('generating')}
+                    </span>
+                  ) : (
+                    `✨ ${t('generate')}`
+                  )}
+                </button>
+                <button
+                  onClick={handleSearchDocuments}
+                  className={`${buttonStyles.secondary.base} w-full justify-center`}
+                >
+                  🔍 {t('search')}
+                </button>
+                <button
+                  onClick={handleComposeDocument}
+                  className={`${buttonStyles.secondary.base} w-full justify-center`}
+                >
+                  ✏️ {t('composeNew')}
+                </button>
+              </div>
+            </div>
+
+            {/* Other Actions */}
+            <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={handleConvertToHighlight}
+                className={`${buttonStyles.secondary.base} w-full justify-center`}
+              >
+                🟡 {t('convertToHighlight')}
+              </button>
+              <button
+                onClick={handleDelete}
+                className={`${buttonStyles.danger.base} w-full justify-center`}
+              >
+                🗑️ {t('deleteReference')}
+              </button>
+              <JsonLdButton onClick={() => setShowJsonLd(true)} />
+            </div>
+          </>
         )}
-
-        {/* Link Options */}
-        <div className="mb-4">
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            {t('linkToDocument')}
-          </p>
-          <div className="space-y-2">
-            <button
-              onClick={handleGenerateDocument}
-              disabled={isGenerating}
-              className={`${buttonStyles.primary.base} w-full justify-center`}
-            >
-              {isGenerating ? (
-                <span className="flex items-center justify-center">
-                  <span className="animate-spin mr-2">⏳</span>
-                  {t('generating')}
-                </span>
-              ) : (
-                `✨ ${t('generate')}`
-              )}
-            </button>
-            <button
-              onClick={handleSearchDocuments}
-              className={`${buttonStyles.secondary.base} w-full justify-center`}
-            >
-              🔍 {t('search')}
-            </button>
-            <button
-              onClick={handleComposeDocument}
-              className={`${buttonStyles.secondary.base} w-full justify-center`}
-            >
-              ✏️ {t('composeNew')}
-            </button>
-          </div>
-        </div>
-
-        {/* Other Actions */}
-        <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
-          <button
-            onClick={handleConvertToHighlight}
-            className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-          >
-            🖍 {t('convertToHighlight')}
-          </button>
-          <button
-            onClick={handleDelete}
-            className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-          >
-            🗑️ {t('deleteReference')}
-          </button>
-        </div>
       </PopupContainer>
 
       {/* Search Modal */}

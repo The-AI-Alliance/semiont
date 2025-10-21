@@ -74,8 +74,10 @@ describe('Event Store', () => {
       version: 1,
       payload: {
         annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+          'type': 'Annotation' as const,
           id: 'hl1',
-          motivation: 'highlighting',
+          motivation: 'highlighting' as const,
           target: {
             source: docId,
             selector: {
@@ -86,7 +88,7 @@ describe('Event Store', () => {
             },
           },
           body: {
-            type: 'TextualBody',
+            type: 'TextualBody' as const,
             entityTypes: [],
           },
           modified: new Date().toISOString(),

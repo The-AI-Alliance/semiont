@@ -153,7 +153,7 @@ describe('GraphDBConsumer', () => {
           contentChecksum: 'hash123',
           creationMethod: CREATION_METHODS.API,
           entityTypes: ['entity1', 'entity2'],
-          locale: 'en',
+          language: 'en',
           isDraft: false,
         },
       };
@@ -245,7 +245,7 @@ describe('GraphDBConsumer', () => {
           parentDocumentId: 'doc-123',
           creationMethod: CREATION_METHODS.CLONE,
           entityTypes: ['entity1'],
-          locale: 'en',
+          language: 'en',
         },
       };
 
@@ -346,8 +346,10 @@ describe('GraphDBConsumer', () => {
         version: 1,
         payload: {
           annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+            'type': 'Annotation' as const,
             id: 'hl-123',
-            motivation: 'highlighting',
+            motivation: 'highlighting' as const,
             target: {
               source: 'doc-123',
               selector: {
@@ -358,7 +360,7 @@ describe('GraphDBConsumer', () => {
               },
             },
             body: {
-              type: 'TextualBody',
+              type: 'TextualBody' as const,
               entityTypes: [],
             },
             modified: new Date().toISOString(),
@@ -442,8 +444,10 @@ describe('GraphDBConsumer', () => {
         version: 1,
         payload: {
           annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+            'type': 'Annotation' as const,
             id: 'ref-123',
-            motivation: 'linking',
+            motivation: 'linking' as const,
             target: {
               source: 'doc-123',
               selector: {
@@ -454,7 +458,7 @@ describe('GraphDBConsumer', () => {
               },
             },
             body: {
-              type: 'SpecificResource',
+              type: 'SpecificResource' as const,
               entityTypes: ['Person', 'Organization'],
               source: 'doc-456',
             },
@@ -509,8 +513,10 @@ describe('GraphDBConsumer', () => {
         version: 1,
         payload: {
           annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+            'type': 'Annotation' as const,
             id: 'ref-456',
-            motivation: 'linking',
+            motivation: 'linking' as const,
             target: {
               source: 'doc-123',
               selector: {
@@ -521,7 +527,7 @@ describe('GraphDBConsumer', () => {
               },
             },
             body: {
-              type: 'SpecificResource',
+              type: 'SpecificResource' as const,
               entityTypes: [],
               source: null, // Stub reference
             },

@@ -67,8 +67,10 @@ crudRouter.post('/api/annotations',
     // Determine motivation: use provided value or default based on body type
     const motivation = request.motivation || (request.body.type === 'TextualBody' ? 'highlighting' : 'linking');
 
-    // Build annotation object (Omit<Annotation, 'creator' | 'created'>)
+    // Build annotation object (includes W3C required @context and type)
     const annotation: Omit<Annotation, 'creator' | 'created'> = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id: annotationId,
       motivation: motivation,
       target: {
@@ -100,6 +102,8 @@ crudRouter.post('/api/annotations',
     // Return optimistic response (consumer will update GraphDB async)
     const response: CreateAnnotationResponse = {
       annotation: {
+        '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+        'type': 'Annotation' as const,
         id: annotationId,
         motivation: motivation,
         target: {

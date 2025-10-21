@@ -84,7 +84,7 @@ export class GenerationWorker extends JobWorker {
       documentName,
       job.entityTypes || annotation.body.entityTypes || [],
       prompt,
-      job.locale
+      job.language
     );
 
     console.log(`[GenerationWorker] ✅ Generated ${generatedContent.content.length} bytes of content`);
@@ -127,7 +127,7 @@ export class GenerationWorker extends JobWorker {
         contentChecksum: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
         entityTypes: job.entityTypes || annotation.body.entityTypes || [],
-        locale: job.locale,
+        language: job.language,
         isDraft: true,
         generatedFrom: job.referenceId,
         generationPrompt: undefined,  // Could be added if we track the prompt

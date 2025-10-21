@@ -135,6 +135,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     const creator = JSON.parse(creatorJson);
 
     const annotation: Annotation = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id: this.getPropertyValue(props, 'id'),
       motivation,
       target: {
@@ -299,6 +301,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     const motivation = input.body.type === 'TextualBody' ? 'highlighting' : 'linking';
 
     const annotation: Annotation = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id,
       motivation,
       target: {

@@ -168,6 +168,8 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const motivation = input.body.type === 'TextualBody' ? 'highlighting' : 'linking';
 
     const annotation: Annotation = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id,
       motivation,
       target: {

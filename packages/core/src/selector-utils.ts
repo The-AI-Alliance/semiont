@@ -4,11 +4,13 @@
  * Helper functions for working with W3C Web Annotation selectors
  */
 
-import type { Selector, TextPositionSelector, TextQuoteSelector } from './annotation-schemas';
 import type { components } from '@semiont/api-client';
 
 // Import OpenAPI types
 type Annotation = components['schemas']['Annotation'];
+type Selector = components['schemas']['TextPositionSelector'] | components['schemas']['TextQuoteSelector'];
+type TextPositionSelector = components['schemas']['TextPositionSelector'];
+type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
 
 /**
  * Get the exact text from a selector (single or array)
@@ -51,8 +53,8 @@ export function getPrimarySelector(selector: Selector | Selector[]): Selector {
  */
 export function getTextPositionSelector(selector: Selector | Selector[]): TextPositionSelector | null {
   const selectors = Array.isArray(selector) ? selector : [selector];
-  const found = selectors.find(s => s.type === 'TextPositionSelector');
-  return found?.type === 'TextPositionSelector' ? found : null;
+  const tps = selectors.find(s => s.type === 'TextPositionSelector');
+  return tps as TextPositionSelector | null;
 }
 
 /**
@@ -62,6 +64,6 @@ export function getTextPositionSelector(selector: Selector | Selector[]): TextPo
  */
 export function getTextQuoteSelector(selector: Selector | Selector[]): TextQuoteSelector | null {
   const selectors = Array.isArray(selector) ? selector : [selector];
-  const found = selectors.find(s => s.type === 'TextQuoteSelector');
-  return found?.type === 'TextQuoteSelector' ? found : null;
+  const tqs = selectors.find(s => s.type === 'TextQuoteSelector');
+  return tqs as TextQuoteSelector | null;
 }

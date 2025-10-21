@@ -354,7 +354,7 @@ export class EventStore {
         document.contentChecksum = event.payload.contentChecksum;
 
         // First-class fields
-        document.locale = event.payload.locale;
+        document.language = event.payload.language;
         document.isDraft = event.payload.isDraft;
         document.generatedFrom = event.payload.generatedFrom;
         break;
@@ -370,7 +370,7 @@ export class EventStore {
         document.contentChecksum = event.payload.contentChecksum;
 
         // First-class fields
-        document.locale = event.payload.locale;
+        document.language = event.payload.language;
         break;
 
       case 'document.archived':
@@ -407,8 +407,8 @@ export class EventStore {
   private applyEventToAnnotations(annotations: DocumentAnnotations, event: DocumentEvent): void {
     switch (event.type) {
       case 'annotation.added':
-        // Event payload contains Omit<Annotation, 'creator' | 'created'>
-        // Add creator and created from event metadata
+        // Event payload contains Omit<Annotation, 'creator' | 'created'> (includes @context and type)
+        // Add creator/created from event metadata
         annotations.annotations.push({
           ...event.payload.annotation,
           creator: didToAgent(event.userId),

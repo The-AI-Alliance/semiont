@@ -126,6 +126,8 @@ describe('Layered Storage', () => {
           documentId: docId,
           annotations: [
             {
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+              'type': 'Annotation' as const,
               id: 'hl1',
               motivation: 'highlighting' as const,
               target: {
@@ -252,8 +254,10 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+            'type': 'Annotation' as const,
             id: 'hl1',
-            motivation: 'highlighting',
+            motivation: 'highlighting' as const,
             target: {
               source: docId,
               selector: {
@@ -264,7 +268,7 @@ describe('Layered Storage', () => {
               },
             },
             body: {
-              type: 'TextualBody',
+              type: 'TextualBody' as const,
               entityTypes: [],
             },
             modified: new Date().toISOString(),

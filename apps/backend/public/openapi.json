@@ -40,6 +40,14 @@
         ],
         "description": "W3C Web Annotation motivation vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation"
       },
+      "BodyType": {
+        "type": "string",
+        "enum": [
+          "TextualBody",
+          "SpecificResource"
+        ],
+        "description": "Annotation body type - TextualBody for textual content, SpecificResource for resource links"
+      },
       "HealthResponse": {
         "type": "object",
         "properties": {
@@ -278,7 +286,7 @@
               "type": "string"
             }
           },
-          "locale": {
+          "language": {
             "type": "string"
           },
           "creationMethod": {
@@ -495,7 +503,7 @@
             "type": "string",
             "description": "Custom prompt for content generation"
           },
-          "locale": {
+          "language": {
             "type": "string",
             "description": "Language locale (e.g., \"es\", \"fr\", \"ja\")"
           }
@@ -1925,7 +1933,7 @@
           "prompt": {
             "type": "string"
           },
-          "locale": {
+          "language": {
             "type": "string"
           }
         },
@@ -1945,7 +1953,7 @@
             "type": "string",
             "description": "Custom prompt for content generation"
           },
-          "locale": {
+          "language": {
             "type": "string",
             "description": "Language locale for generated content (e.g., \"es\", \"fr\", \"ja\")"
           }
@@ -2085,7 +2093,7 @@
               "type": "string"
             }
           },
-          "locale": {
+          "language": {
             "type": "string",
             "description": "Language/locale code (e.g., 'en', 'es', 'fr')"
           },
@@ -2139,6 +2147,18 @@
       "Annotation": {
         "type": "object",
         "properties": {
+          "@context": {
+            "type": "string",
+            "const": "http://www.w3.org/ns/anno.jsonld",
+            "default": "http://www.w3.org/ns/anno.jsonld",
+            "description": "W3C Web Annotation JSON-LD context"
+          },
+          "type": {
+            "type": "string",
+            "const": "Annotation",
+            "default": "Annotation",
+            "description": "W3C Annotation type"
+          },
           "id": {
             "type": "string"
           },
@@ -2184,11 +2204,11 @@
             "type": "object",
             "properties": {
               "type": {
-                "type": "string",
-                "enum": [
-                  "TextualBody",
-                  "SpecificResource"
-                ]
+                "$ref": "#/components/schemas/BodyType"
+              },
+              "purpose": {
+                "$ref": "#/components/schemas/Motivation",
+                "description": "W3C purpose - why this resource is included in the annotation body"
               },
               "value": {
                 "type": "string"
@@ -2196,8 +2216,9 @@
               "format": {
                 "$ref": "#/components/schemas/ContentFormat"
               },
-              "locale": {
-                "type": "string"
+              "language": {
+                "type": "string",
+                "description": "W3C language - BCP47 language tag (e.g., 'en', 'es', 'fr')"
               },
               "source": {
                 "type": [
@@ -2232,6 +2253,8 @@
           }
         },
         "required": [
+          "@context",
+          "type",
           "id",
           "motivation",
           "target",
@@ -2362,7 +2385,7 @@
           "prompt": {
             "type": "string"
           },
-          "locale": {
+          "language": {
             "type": "string"
           }
         },
