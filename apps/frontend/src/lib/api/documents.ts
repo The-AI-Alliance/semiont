@@ -18,8 +18,7 @@ import type {
   CreateDocumentFromTokenRequest,
   CreateDocumentFromTokenResponse,
   CloneDocumentWithTokenResponse,
-  GetHighlightsResponse,
-  GetReferencesResponse,
+  GetAnnotationsResponse,
 } from './types';
 
 export const documents = {
@@ -178,28 +177,13 @@ export const documents = {
     },
   },
 
-  highlights: {
+  annotations: {
     useQuery: (documentId: string) => {
       const { data: session } = useSession();
       return useQuery({
-        queryKey: QUERY_KEYS.documents.highlights(documentId),
-        queryFn: () => fetchAPI<GetHighlightsResponse>(
-          `/api/documents/${documentId}/highlights`,
-          {},
-          session?.backendToken
-        ),
-        enabled: !!session?.backendToken && !!documentId,
-      });
-    },
-  },
-
-  references: {
-    useQuery: (documentId: string) => {
-      const { data: session } = useSession();
-      return useQuery({
-        queryKey: QUERY_KEYS.documents.references(documentId),
-        queryFn: () => fetchAPI<GetReferencesResponse>(
-          `/api/documents/${documentId}/references`,
+        queryKey: QUERY_KEYS.documents.annotations(documentId),
+        queryFn: () => fetchAPI<GetAnnotationsResponse>(
+          `/api/documents/${documentId}/annotations`,
           {},
           session?.backendToken
         ),

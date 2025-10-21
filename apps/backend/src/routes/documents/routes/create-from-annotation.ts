@@ -41,7 +41,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       const graphDb = await getGraphDatabase();
       const storage = getStorageService();
 
-      const annotation = await AnnotationQueryService.getAnnotation(annotationId);
+      const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.documentId);
       if (!annotation) {
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
@@ -82,12 +82,11 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       // Update the annotation to resolve to the new document
       await graphDb.resolveReference(annotationId, savedDoc.id);
 
-      const highlights = await graphDb.getHighlights(savedDoc.id);
-      const references = await graphDb.getReferences(savedDoc.id);
+      const result = await graphDb.listAnnotations({ documentId: savedDoc.id });
 
       const response: CreateFromAnnotationResponse = {
         document: savedDoc,
-        annotations: [...highlights, ...references],
+        annotations: result.annotations,
       };
 
       return c.json(response, 201);

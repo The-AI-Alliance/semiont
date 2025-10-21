@@ -156,20 +156,21 @@ function DocumentView({
     loadContent();
   }, [documentId, session?.backendToken, showError]);
 
-  // Now that document exists, we can safely fetch dependent data
-  const { data: highlightsData, refetch: refetchHighlights } = api.documents.highlights.useQuery(documentId);
-  const { data: referencesData, refetch: refetchReferences } = api.documents.references.useQuery(documentId);
-  const highlights = highlightsData?.highlights || [];
-  const references = referencesData?.references || [];
+  // Fetch all annotations with a single request
+  const { data: annotationsData, refetch: refetchAnnotations } = api.documents.annotations.useQuery(documentId);
+  const annotations = annotationsData?.annotations || [];
+
+  // Filter by motivation client-side
+  const highlights = annotations.filter(a => a.motivation === 'highlighting');
+  const references = annotations.filter(a => a.motivation === 'linking');
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   // Using React Query's invalidateQueries is the best practice - it invalidates cache
   // and triggers automatic refetch for all components using those queries
   const debouncedInvalidateAnnotations = useDebouncedCallback(
     () => {
-      // Invalidate highlights, references, and events queries using type-safe query keys
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(documentId) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(documentId) });
+      // Invalidate annotations and events queries using type-safe query keys
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(documentId) });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     500 // Wait 500ms after last event before invalidating (batches rapid updates)
@@ -336,16 +337,15 @@ function DocumentView({
   } = useDetectionProgress({
     documentId,
     onProgress: (progress) => {
-      // When an entity type completes, refetch to show new references immediately
+      // When an entity type completes, refetch to show new annotations immediately
       // Use both refetch (for immediate document view update) AND invalidate (for Annotation History)
-      refetchReferences();
+      refetchAnnotations();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     onComplete: (progress) => {
       // Don't show toast - the widget already shows completion status
       // Final refetch + invalidation when ALL entity types complete
-      refetchHighlights();
-      refetchReferences();
+      refetchAnnotations();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     onError: (error) => {
@@ -407,54 +407,41 @@ function DocumentView({
     documentId,
     autoConnect: true,  // Document exists, safe to connect
 
-    // Highlight events - use debounced invalidation to batch rapid updates
-    onHighlightAdded: useCallback((event) => {
+    // Annotation events - use debounced invalidation to batch rapid updates
+    onAnnotationAdded: useCallback((event) => {
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
-    onHighlightRemoved: useCallback((event) => {
+    onAnnotationRemoved: useCallback((event) => {
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
-    // Reference events - use debounced invalidation to batch rapid updates
-    onReferenceCreated: useCallback((event) => {
-      debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
-
-    onReferenceResolved: useCallback((event) => {
-      // Optimistically update the reference in cache
-      queryClient.setQueryData(
-        QUERY_KEYS.documents.references(documentId),
-        (old: any) => {
-          if (!old) return old;
-          return {
-            ...old,
-            references: old.references.map((ref: any) => {
-              // Match by ID portion (handle both URI and internal ID formats)
-              if (compareAnnotationIds(ref.id, event.payload.referenceId)) {
-                return {
-                  ...ref,
-                  body: {
-                    ...ref.body,
-                    source: event.payload.targetDocumentId,
-                  },
-                };
-              }
-              return ref;
-            }),
-          };
-        }
-      );
+    onAnnotationResolved: useCallback((event) => {
+      // Optimistically update annotations cache
+      queryClient.setQueryData(QUERY_KEYS.documents.annotations(documentId), (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          annotations: old.annotations.map((annotation: any) => {
+            // Match by ID portion (handle both URI and internal ID formats)
+            if (compareAnnotationIds(annotation.id, event.payload.annotationId)) {
+              return {
+                ...annotation,
+                body: {
+                  ...annotation.body,
+                  source: event.payload.targetDocumentId,
+                },
+              };
+            }
+            return annotation;
+          }),
+        };
+      });
 
       // Widget sparkle (✨ emoji) will clear automatically when generatingReferenceId changes
       // Immediately invalidate events to update History Panel
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     }, [queryClient, documentId]),
-
-    onReferenceDeleted: useCallback((event) => {
-      console.log('[RealTime] Reference deleted:', event.payload);
-      debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
 
     // Document status events
     onDocumentArchived: useCallback((event) => {

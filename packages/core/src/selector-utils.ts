@@ -25,8 +25,9 @@ export function getExactText(selector: Selector | Selector[]): string {
 
 /**
  * Get the exact text from an annotation's target selector
+ * Accepts full Annotation or Omit<Annotation, 'creator' | 'created'>
  */
-export function getAnnotationExactText(annotation: Annotation): string {
+export function getAnnotationExactText(annotation: Annotation | Omit<Annotation, 'creator' | 'created'>): string {
   return getExactText(annotation.target.selector);
 }
 

@@ -21,7 +21,6 @@ export interface DetectedAnnotation {
       exact: string;
     };
     entityTypes: string[];
-    metadata: Record<string, any>;
   };
 }
 
@@ -55,10 +54,6 @@ export async function detectAnnotationsInDocument(
             exact: entity.exact,
           },
           entityTypes: [entity.entityType],
-          metadata: {
-            detectionType: 'ai_extraction',
-            extractedBy: 'inference/entity-extractor',
-          },
         },
       };
       detectedAnnotations.push(annotation);

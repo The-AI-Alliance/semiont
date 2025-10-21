@@ -150,10 +150,11 @@ describe('GraphDBConsumer', () => {
         payload: {
           name: 'Test Document',
           format: 'text/plain',
-          contentHash: 'hash123',
+          contentChecksum: 'hash123',
           creationMethod: CREATION_METHODS.API,
           entityTypes: ['entity1', 'entity2'],
-          metadata: { foo: 'bar' },
+          locale: 'en',
+          isDraft: false,
         },
       };
 
@@ -195,7 +196,7 @@ describe('GraphDBConsumer', () => {
         payload: {
           name: 'Test Document',
           format: 'text/plain',
-          contentHash: 'hash123',
+          contentChecksum: 'hash123',
           creationMethod: CREATION_METHODS.API,
         },
       };
@@ -240,11 +241,11 @@ describe('GraphDBConsumer', () => {
         payload: {
           name: 'Cloned Document',
           format: 'text/plain',
-          contentHash: 'hash456',
+          contentChecksum: 'hash456',
           parentDocumentId: 'doc-123',
           creationMethod: CREATION_METHODS.CLONE,
           entityTypes: ['entity1'],
-          metadata: { clonedFrom: 'doc-123' },
+          locale: 'en',
         },
       };
 
@@ -334,19 +335,34 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('highlight.added event', () => {
-    it('should create highlight in GraphDB', async () => {
+  describe('annotation.added event (highlighting)', () => {
+    it('should create highlighting annotation in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-5',
-        type: 'highlight.added',
+        type: 'annotation.added',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          highlightId: 'hl-123',
-          exact: 'important text',
-          position: { offset: 10, length: 14 },
+          annotation: {
+            id: 'hl-123',
+            motivation: 'highlighting',
+            target: {
+              source: 'doc-123',
+              selector: {
+                type: 'TextPositionSelector',
+                exact: 'important text',
+                offset: 10,
+                length: 14,
+              },
+            },
+            body: {
+              type: 'TextualBody',
+              entityTypes: [],
+            },
+            modified: new Date().toISOString(),
+          },
         },
       };
 
@@ -361,8 +377,9 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith(expect.objectContaining({
         id: 'hl-123',
+        motivation: 'highlighting',
         target: {
           source: 'doc-123',
           selector: {
@@ -381,21 +398,21 @@ describe('GraphDBConsumer', () => {
           id: 'user1',
           name: 'user1',
         },
-      });
+      }));
     });
   });
 
-  describe('highlight.removed event', () => {
-    it('should delete highlight from GraphDB', async () => {
+  describe('annotation.removed event', () => {
+    it('should delete annotation from GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-6',
-        type: 'highlight.removed',
+        type: 'annotation.removed',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          highlightId: 'hl-123',
+          annotationId: 'hl-123',
         },
       };
 
@@ -414,21 +431,35 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('reference.created event', () => {
-    it('should create reference in GraphDB', async () => {
+  describe('annotation.added event (linking)', () => {
+    it('should create linking annotation in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-7',
-        type: 'reference.created',
+        type: 'annotation.added',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          referenceId: 'ref-123',
-          exact: 'reference text',
-          position: { offset: 20, length: 14 },
-          entityTypes: ['Person', 'Organization'],
-          targetDocumentId: 'doc-456',
+          annotation: {
+            id: 'ref-123',
+            motivation: 'linking',
+            target: {
+              source: 'doc-123',
+              selector: {
+                type: 'TextPositionSelector',
+                exact: 'reference text',
+                offset: 20,
+                length: 14,
+              },
+            },
+            body: {
+              type: 'SpecificResource',
+              entityTypes: ['Person', 'Organization'],
+              source: 'doc-456',
+            },
+            modified: new Date().toISOString(),
+          },
         },
       };
 
@@ -443,8 +474,9 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith(expect.objectContaining({
         id: 'ref-123',
+        motivation: 'linking',
         target: {
           source: 'doc-123',
           selector: {
@@ -464,21 +496,37 @@ describe('GraphDBConsumer', () => {
           id: 'user1',
           name: 'user1',
         },
-      });
+      }));
     });
 
-    it('should create stub reference without targetDocumentId', async () => {
+    it('should create stub linking annotation without targetDocumentId', async () => {
       const event: DocumentEvent = {
         id: 'evt-8',
-        type: 'reference.created',
+        type: 'annotation.added',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          referenceId: 'ref-456',
-          exact: 'stub reference',
-          position: { offset: 30, length: 14 },
+          annotation: {
+            id: 'ref-456',
+            motivation: 'linking',
+            target: {
+              source: 'doc-123',
+              selector: {
+                type: 'TextPositionSelector',
+                exact: 'stub reference',
+                offset: 30,
+                length: 14,
+              },
+            },
+            body: {
+              type: 'SpecificResource',
+              entityTypes: [],
+              source: null, // Stub reference
+            },
+            modified: new Date().toISOString(),
+          },
         },
       };
 
@@ -493,8 +541,9 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
+      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith(expect.objectContaining({
         id: 'ref-456',
+        motivation: 'linking',
         target: {
           source: 'doc-123',
           selector: {
@@ -504,31 +553,30 @@ describe('GraphDBConsumer', () => {
             length: 14,
           },
         },
-        body: {
+        body: expect.objectContaining({
           type: 'SpecificResource',
-          source: undefined,
           entityTypes: [],
-        },
+        }),
         creator: {
           type: 'Person',
           id: 'user1',
           name: 'user1',
         },
-      });
+      }));
     });
   });
 
-  describe('reference.resolved event', () => {
-    it('should resolve reference in GraphDB', async () => {
+  describe('annotation.resolved event', () => {
+    it('should resolve annotation in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-9',
-        type: 'reference.resolved',
+        type: 'annotation.resolved',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          referenceId: 'ref-456',
+          annotationId: 'ref-456',
           targetDocumentId: 'doc-789',
         },
       };
@@ -554,17 +602,17 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('reference.deleted event', () => {
-    it('should delete reference from GraphDB', async () => {
+  describe('annotation.removed event (linking)', () => {
+    it('should delete linking annotation from GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-10',
-        type: 'reference.deleted',
+        type: 'annotation.removed',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          referenceId: 'ref-123',
+          annotationId: 'ref-123',
         },
       };
 

@@ -7,13 +7,13 @@
 
 import { z } from 'zod';
 import { CREATION_METHODS } from './creation-methods';
-import { ContentFormatSchema } from './base-schemas';
+import { ContentFormatSchema, MotivationSchema } from './base-schemas';
 
 // Document lifecycle event payloads
 export const DocumentCreatedPayloadSchema = z.object({
   name: z.string(),
   format: ContentFormatSchema, // MIME type (validated enum)
-  contentHash: z.string(),
+  contentChecksum: z.string(),
   creationMethod: z.enum([
     CREATION_METHODS.API,
     CREATION_METHODS.UPLOAD,
@@ -23,13 +23,18 @@ export const DocumentCreatedPayloadSchema = z.object({
     CREATION_METHODS.GENERATED,
   ] as const),
   entityTypes: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+
+  // New first-class fields (promoted from metadata)
+  locale: z.string().optional(),
+  isDraft: z.boolean().optional(),
+  generatedFrom: z.string().optional(),
+  generationPrompt: z.string().optional(),
 });
 
 export const DocumentClonedPayloadSchema = z.object({
   name: z.string(),
   format: ContentFormatSchema, // MIME type (validated enum)
-  contentHash: z.string(),
+  contentChecksum: z.string(),
   parentDocumentId: z.string(),
   creationMethod: z.enum([
     CREATION_METHODS.API,
@@ -40,7 +45,9 @@ export const DocumentClonedPayloadSchema = z.object({
     CREATION_METHODS.GENERATED,
   ] as const),
   entityTypes: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+
+  // New first-class fields (promoted from metadata)
+  locale: z.string().optional(),
 });
 
 export const DocumentArchivedPayloadSchema = z.object({
@@ -49,39 +56,28 @@ export const DocumentArchivedPayloadSchema = z.object({
 
 export const DocumentUnarchivedPayloadSchema = z.object({});
 
-// Highlight event payloads
-export const HighlightAddedPayloadSchema = z.object({
-  highlightId: z.string(),
+// Unified annotation event payloads
+export const AnnotationAddedPayloadSchema = z.object({
+  annotationId: z.string(),
+  motivation: MotivationSchema,  // W3C motivation vocabulary
   exact: z.string(),  // W3C Web Annotation standard
   position: z.object({
     offset: z.number(),
     length: z.number(),
   }),
+  // Optional fields (presence depends on motivation)
+  entityTypes: z.array(z.string()).optional(),  // For linking
+  targetDocumentId: z.string().optional(),      // For linking
+  value: z.string().optional(),                 // For assessing
 });
 
-export const HighlightRemovedPayloadSchema = z.object({
-  highlightId: z.string(),
+export const AnnotationRemovedPayloadSchema = z.object({
+  annotationId: z.string(),
 });
 
-// Reference event payloads
-export const ReferenceCreatedPayloadSchema = z.object({
-  referenceId: z.string(),
-  exact: z.string(),  // W3C Web Annotation standard
-  position: z.object({
-    offset: z.number(),
-    length: z.number(),
-  }),
-  entityTypes: z.array(z.string()).optional(),
-  targetDocumentId: z.string().optional(),
-});
-
-export const ReferenceResolvedPayloadSchema = z.object({
-  referenceId: z.string(),
+export const AnnotationResolvedPayloadSchema = z.object({
+  annotationId: z.string(),
   targetDocumentId: z.string(),
-});
-
-export const ReferenceDeletedPayloadSchema = z.object({
-  referenceId: z.string(),
 });
 
 // Entity tag event payloads
@@ -99,11 +95,9 @@ export const EventPayloadSchema = z.union([
   DocumentClonedPayloadSchema,
   DocumentArchivedPayloadSchema,
   DocumentUnarchivedPayloadSchema,
-  HighlightAddedPayloadSchema,
-  HighlightRemovedPayloadSchema,
-  ReferenceCreatedPayloadSchema,
-  ReferenceResolvedPayloadSchema,
-  ReferenceDeletedPayloadSchema,
+  AnnotationAddedPayloadSchema,
+  AnnotationRemovedPayloadSchema,
+  AnnotationResolvedPayloadSchema,
   EntityTagAddedPayloadSchema,
   EntityTagRemovedPayloadSchema,
 ]);

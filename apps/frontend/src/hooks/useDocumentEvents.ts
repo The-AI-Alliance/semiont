@@ -30,11 +30,9 @@ export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 interface UseDocumentEventsOptions {
   documentId: string;
   onEvent?: (event: DocumentEvent) => void;
-  onHighlightAdded?: (event: DocumentEvent) => void;
-  onHighlightRemoved?: (event: DocumentEvent) => void;
-  onReferenceCreated?: (event: DocumentEvent) => void;
-  onReferenceResolved?: (event: DocumentEvent) => void;
-  onReferenceDeleted?: (event: DocumentEvent) => void;
+  onAnnotationAdded?: (event: DocumentEvent) => void;
+  onAnnotationRemoved?: (event: DocumentEvent) => void;
+  onAnnotationResolved?: (event: DocumentEvent) => void;
   onEntityTagAdded?: (event: DocumentEvent) => void;
   onEntityTagRemoved?: (event: DocumentEvent) => void;
   onDocumentArchived?: (event: DocumentEvent) => void;
@@ -53,13 +51,13 @@ interface UseDocumentEventsOptions {
  * ```tsx
  * const { status, connect, disconnect } = useDocumentEvents({
  *   documentId: 'doc-123',
- *   onHighlightAdded: (event) => {
- *     console.log('New highlight:', event.payload);
- *     // Update UI to show new highlight
+ *   onAnnotationAdded: (event) => {
+ *     console.log('New annotation:', event.payload);
+ *     // Update UI to show new annotation (highlight, reference, or assessment)
  *   },
- *   onReferenceCreated: (event) => {
- *     console.log('New reference:', event.payload);
- *     // Refresh references list
+ *   onAnnotationResolved: (event) => {
+ *     console.log('Reference resolved:', event.payload);
+ *     // Update reference to show target document
  *   }
  * });
  * ```
@@ -67,11 +65,9 @@ interface UseDocumentEventsOptions {
 export function useDocumentEvents({
   documentId,
   onEvent,
-  onHighlightAdded,
-  onHighlightRemoved,
-  onReferenceCreated,
-  onReferenceResolved,
-  onReferenceDeleted,
+  onAnnotationAdded,
+  onAnnotationRemoved,
+  onAnnotationResolved,
   onEntityTagAdded,
   onEntityTagRemoved,
   onDocumentArchived,
@@ -96,20 +92,14 @@ export function useDocumentEvents({
 
     // Call specific handlers
     switch (event.type) {
-      case 'highlight.added':
-        onHighlightAdded?.(event);
+      case 'annotation.added':
+        onAnnotationAdded?.(event);
         break;
-      case 'highlight.removed':
-        onHighlightRemoved?.(event);
+      case 'annotation.removed':
+        onAnnotationRemoved?.(event);
         break;
-      case 'reference.created':
-        onReferenceCreated?.(event);
-        break;
-      case 'reference.resolved':
-        onReferenceResolved?.(event);
-        break;
-      case 'reference.deleted':
-        onReferenceDeleted?.(event);
+      case 'annotation.resolved':
+        onAnnotationResolved?.(event);
         break;
       case 'entitytag.added':
         onEntityTagAdded?.(event);
@@ -126,11 +116,9 @@ export function useDocumentEvents({
     }
   }, [
     onEvent,
-    onHighlightAdded,
-    onHighlightRemoved,
-    onReferenceCreated,
-    onReferenceResolved,
-    onReferenceDeleted,
+    onAnnotationAdded,
+    onAnnotationRemoved,
+    onAnnotationResolved,
     onEntityTagAdded,
     onEntityTagRemoved,
     onDocumentArchived,

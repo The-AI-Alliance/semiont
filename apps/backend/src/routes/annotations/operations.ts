@@ -57,8 +57,12 @@ operationsRouter.post('/api/annotations/:id/create-document',
       throw new HTTPException(400, { message: 'Content is required when creating a document' });
     }
 
+    if (!body.documentId) {
+      throw new HTTPException(400, { message: 'documentId is required' });
+    }
+
     // Get annotation from Layer 3
-    const annotation = await AnnotationQueryService.getAnnotation(id);
+    const annotation = await AnnotationQueryService.getAnnotation(id, body.documentId);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
@@ -80,21 +84,24 @@ operationsRouter.post('/api/annotations/:id/create-document',
       payload: {
         name: body.name,
         format: body.format,
-        contentHash: checksum,
+        contentChecksum: checksum,
         creationMethod: CREATION_METHODS.API,
         entityTypes: body.entityTypes || [],
-        metadata: body.metadata || {},
+        locale: undefined,  // Not provided in this flow
+        isDraft: false,     // Created from selection, not a draft
+        generatedFrom: undefined,
+        generationPrompt: undefined,
       },
     });
 
-    // Emit reference.resolved event to link the annotation to the new document
+    // Emit annotation.resolved event to link the annotation to the new document
     await eventStore.appendEvent({
-      type: 'reference.resolved',
+      type: 'annotation.resolved',
       documentId: annotation.target.source,
       userId: user.id,
       version: 1,
       payload: {
-        referenceId: id,
+        annotationId: id,
         targetDocumentId: documentId,
       },
     });
@@ -147,8 +154,12 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     const user = c.get('user');
     const storage = getStorageService();
 
+    if (!body.documentId) {
+      throw new HTTPException(400, { message: 'documentId is required' });
+    }
+
     // Get annotation from Layer 3
-    const annotation = await AnnotationQueryService.getAnnotation(id);
+    const annotation = await AnnotationQueryService.getAnnotation(id, body.documentId);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
@@ -192,25 +203,24 @@ operationsRouter.post('/api/annotations/:id/generate-document',
       payload: {
         name: documentName,
         format: 'text/markdown',
-        contentHash: checksum,
+        contentChecksum: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
         entityTypes: body.entityTypes || annotation.body.entityTypes || [],
-        metadata: {
-          generatedFrom: id,
-          prompt: body.prompt,
-          locale: body.locale,
-        },
+        locale: body.locale,
+        isDraft: false,
+        generatedFrom: id,
+        generationPrompt: body.prompt,
       },
     });
 
-    // Emit reference.resolved event to link the annotation to the new document
+    // Emit annotation.resolved event to link the annotation to the new document
     await eventStore.appendEvent({
-      type: 'reference.resolved',
+      type: 'annotation.resolved',
       documentId: annotation.target.source,
       userId: user.id,
       version: 1,
       payload: {
-        referenceId: id,
+        annotationId: id,
         targetDocumentId: documentId,
       },
     });
@@ -266,6 +276,12 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
 
+  // Require documentId query parameter
+  const documentId = query.documentId;
+  if (!documentId) {
+    throw new HTTPException(400, { message: 'documentId query parameter is required' });
+  }
+
   // Parse and validate query parameters
   const contextBefore = query.contextBefore ? Number(query.contextBefore) : 100;
   const contextAfter = query.contextAfter ? Number(query.contextAfter) : 100;
@@ -281,7 +297,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   const storage = getStorageService();
 
   // Get annotation from Layer 3
-  const annotation = await AnnotationQueryService.getAnnotation(id);
+  const annotation = await AnnotationQueryService.getAnnotation(id, documentId);
   if (!annotation) {
     throw new HTTPException(404, { message: 'Annotation not found' });
   }
@@ -341,10 +357,17 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
  */
 operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
+  const query = c.req.query();
   const storage = getStorageService();
 
+  // Require documentId query parameter
+  const documentId = query.documentId;
+  if (!documentId) {
+    throw new HTTPException(400, { message: 'documentId query parameter is required' });
+  }
+
   // Get annotation from Layer 3
-  const annotation = await AnnotationQueryService.getAnnotation(id);
+  const annotation = await AnnotationQueryService.getAnnotation(id, documentId);
   if (!annotation) {
     throw new HTTPException(404, { message: 'Annotation not found' });
   }

@@ -81,8 +81,8 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     }
 
     // Get all annotations for the main document
-    const highlights = await graphDb.getHighlights(id);
-    const references = await graphDb.getReferences(id);
+    const result = await graphDb.listAnnotations({ documentId: id });
+    const annotations = result.annotations;
 
     // Build graph representation
     const nodes = [
@@ -118,7 +118,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     const response: DocumentLLMContextResponse = {
       mainDocument: mainDoc,
       relatedDocuments: limitedRelatedDocs,
-      annotations: [...highlights, ...references],
+      annotations,
       graph: { nodes, edges },
       ...(mainContent ? { mainDocumentContent: mainContent } : {}),
       ...(Object.keys(relatedDocumentsContent).length > 0 ? { relatedDocumentsContent } : {}),

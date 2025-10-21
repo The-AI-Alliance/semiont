@@ -72,10 +72,13 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         payload: {
           name: body.name,
           format: body.format,
-          contentHash: checksum,
+          contentChecksum: checksum,
           creationMethod,
           entityTypes: body.entityTypes,
-          metadata: body.locale ? { locale: body.locale } : undefined,
+          locale: body.locale,
+          isDraft: false,
+          generatedFrom: undefined,
+          generationPrompt: undefined,
         },
       });
 

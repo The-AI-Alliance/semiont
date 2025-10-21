@@ -113,6 +113,10 @@ export const DocumentSchema = z.object({
   creator: AgentSchema,                          // W3C: Agent who created (Person, Organization, or Software)
   created: z.string(),
   contentChecksum: z.string(),
+
+  // New fields (promoted from event metadata)
+  isDraft: z.boolean().optional(),               // Draft status for generated documents
+  generatedFrom: z.string().optional(),          // Annotation/Reference ID that triggered generation
 });
 
 // Note: Document type is exported from @semiont/api-client via index.ts

@@ -180,16 +180,10 @@ export class SemiontApiClient {
     return this.http.get(`api/documents/${id}/events`).json();
   }
 
-  async getDocumentHighlights(
+  async getDocumentAnnotations(
     id: string
-  ): Promise<ResponseContent<paths['/api/documents/{id}/highlights']['get']>> {
-    return this.http.get(`api/documents/${id}/highlights`).json();
-  }
-
-  async getDocumentReferences(
-    id: string
-  ): Promise<ResponseContent<paths['/api/documents/{id}/references']['get']>> {
-    return this.http.get(`api/documents/${id}/references`).json();
+  ): Promise<ResponseContent<paths['/api/documents/{id}/annotations']['get']>> {
+    return this.http.get(`api/documents/${id}/annotations`).json();
   }
 
   async getDocumentReferencedBy(id: string): Promise<{ referencedBy: any[] }> {

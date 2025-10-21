@@ -94,7 +94,7 @@ export class GraphDBConsumer {
           entityTypes: event.payload.entityTypes || [],
           content: content.toString('utf-8'),
           format: event.payload.format,
-          contentChecksum: event.payload.contentHash,
+          contentChecksum: event.payload.contentChecksum,
           creator: didToAgent(event.userId),
           creationMethod: 'api',
         });
@@ -110,7 +110,7 @@ export class GraphDBConsumer {
           entityTypes: event.payload.entityTypes || [],
           content: content.toString('utf-8'),
           format: event.payload.format,
-          contentChecksum: event.payload.contentHash,
+          contentChecksum: event.payload.contentChecksum,
           creator: didToAgent(event.userId),
           creationMethod: 'clone',
         });
@@ -129,55 +129,23 @@ export class GraphDBConsumer {
         });
         break;
 
-      case 'highlight.added':
+      case 'annotation.added':
+        // Event payload contains Omit<Annotation, 'creator' | 'created'>
+        // Add creator from event metadata (created not needed for graph)
         await graphDb.createAnnotation({
-          id: event.payload.highlightId,
-          target: {
-            source: event.documentId,
-            selector: {
-              type: 'TextPositionSelector',
-              exact: event.payload.exact,
-              offset: event.payload.position.offset,
-              length: event.payload.position.length,
-            },
-          },
-          body: {
-            type: 'TextualBody',
-            entityTypes: [],
-          },
+          ...event.payload.annotation,
           creator: didToAgent(event.userId),
         });
         break;
 
-      case 'highlight.removed':
-        await graphDb.deleteAnnotation(event.payload.highlightId);
+      case 'annotation.removed':
+        await graphDb.deleteAnnotation(event.payload.annotationId);
         break;
 
-      case 'reference.created':
-        await graphDb.createAnnotation({
-          id: event.payload.referenceId,  // Use ID from event, not generated
-          target: {
-            source: event.documentId,
-            selector: {
-              type: 'TextPositionSelector',
-              exact: event.payload.exact,
-              offset: event.payload.position.offset,
-              length: event.payload.position.length,
-            },
-          },
-          body: {
-            type: 'SpecificResource',
-            entityTypes: event.payload.entityTypes || [],
-            source: event.payload.targetDocumentId,
-          },
-          creator: didToAgent(event.userId),
-        });
-        break;
-
-      case 'reference.resolved':
+      case 'annotation.resolved':
         // TODO: Graph implementation should handle partial body updates properly
         try {
-          await graphDb.updateAnnotation(event.payload.referenceId, {
+          await graphDb.updateAnnotation(event.payload.annotationId, {
             body: {
               type: 'SpecificResource',
               entityTypes: [],  // Graph impl should merge, not replace
@@ -187,12 +155,8 @@ export class GraphDBConsumer {
         } catch (error) {
           // If annotation doesn't exist in graph (e.g., created before consumer started),
           // log warning but don't fail - event store is source of truth
-          console.warn(`[GraphDBConsumer] Could not update annotation ${event.payload.referenceId} in graph: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          console.warn(`[GraphDBConsumer] Could not update annotation ${event.payload.annotationId} in graph: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-        break;
-
-      case 'reference.deleted':
-        await graphDb.deleteAnnotation(event.payload.referenceId);
         break;
 
       case 'entitytag.added':

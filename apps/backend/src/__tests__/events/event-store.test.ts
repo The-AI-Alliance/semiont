@@ -44,7 +44,7 @@ describe('Event Store', () => {
       payload: {
         name: 'Test',
         format: 'text/plain',
-        contentHash: 'hash1',
+        contentChecksum: 'hash1',
         creationMethod: CREATION_METHODS.API,
       },
     });
@@ -64,15 +64,34 @@ describe('Event Store', () => {
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { name: 'Test', format: 'text/plain', contentHash: 'h1', creationMethod: CREATION_METHODS.API },
+      payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
     });
 
     const e2 = await eventStore.appendEvent({
-      type: 'highlight.added',
+      type: 'annotation.added',
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { highlightId: 'hl1', exact: 'Test', position: { offset: 0, length: 4 } },
+      payload: {
+        annotation: {
+          id: 'hl1',
+          motivation: 'highlighting',
+          target: {
+            source: docId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: 'Test',
+              offset: 0,
+              length: 4,
+            },
+          },
+          body: {
+            type: 'TextualBody',
+            entityTypes: [],
+          },
+          modified: new Date().toISOString(),
+        },
+      },
     });
 
     expect(e1.metadata.prevEventHash).toBeUndefined();
@@ -90,7 +109,7 @@ describe('Event Store', () => {
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { name: 'Doc', format: 'text/plain', contentHash: 'h1', creationMethod: CREATION_METHODS.API },
+      payload: { name: 'Doc', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
     });
 
     await eventStore.appendEvent({

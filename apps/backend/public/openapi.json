@@ -21,6 +21,25 @@
         ],
         "description": "Content format as MIME type"
       },
+      "Motivation": {
+        "type": "string",
+        "enum": [
+          "assessing",
+          "bookmarking",
+          "classifying",
+          "commenting",
+          "describing",
+          "editing",
+          "highlighting",
+          "identifying",
+          "linking",
+          "moderating",
+          "questioning",
+          "replying",
+          "tagging"
+        ],
+        "description": "W3C Web Annotation motivation vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation"
+      },
       "HealthResponse": {
         "type": "object",
         "properties": {
@@ -333,32 +352,20 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Annotation"
-            }
-          },
-          "highlights": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Annotation"
-            }
-          },
-          "references": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Annotation"
-            }
+            },
+            "description": "All annotations for the document (highlights, references, assessments, etc.)"
           },
           "entityReferences": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Annotation"
-            }
+            },
+            "description": "Annotations that reference this document from other documents"
           }
         },
         "required": [
           "document",
           "annotations",
-          "highlights",
-          "references",
           "entityReferences"
         ]
       },
@@ -835,34 +842,6 @@
           "document"
         ]
       },
-      "GetHighlightsResponse": {
-        "type": "object",
-        "properties": {
-          "highlights": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Annotation"
-            }
-          }
-        },
-        "required": [
-          "highlights"
-        ]
-      },
-      "GetReferencesResponse": {
-        "type": "object",
-        "properties": {
-          "references": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Annotation"
-            }
-          }
-        },
-        "required": [
-          "references"
-        ]
-      },
       "GetEventsResponse": {
         "type": "object",
         "properties": {
@@ -1124,22 +1103,7 @@
         "type": "object",
         "properties": {
           "motivation": {
-            "type": "string",
-            "enum": [
-              "assessing",
-              "bookmarking",
-              "classifying",
-              "commenting",
-              "describing",
-              "editing",
-              "highlighting",
-              "identifying",
-              "linking",
-              "moderating",
-              "questioning",
-              "replying",
-              "tagging"
-            ]
+            "$ref": "#/components/schemas/Motivation"
           },
           "target": {
             "type": "object",
@@ -1693,7 +1657,7 @@
                         "format": {
                           "$ref": "#/components/schemas/ContentFormat"
                         },
-                        "contentHash": {
+                        "contentChecksum": {
                           "type": "string"
                         },
                         "creationMethod": {
@@ -1721,7 +1685,7 @@
                       "required": [
                         "name",
                         "format",
-                        "contentHash",
+                        "contentChecksum",
                         "creationMethod"
                       ]
                     },
@@ -1734,7 +1698,7 @@
                         "format": {
                           "$ref": "#/components/schemas/ContentFormat"
                         },
-                        "contentHash": {
+                        "contentChecksum": {
                           "type": "string"
                         },
                         "parentDocumentId": {
@@ -1765,7 +1729,7 @@
                       "required": [
                         "name",
                         "format",
-                        "contentHash",
+                        "contentChecksum",
                         "parentDocumentId",
                         "creationMethod"
                       ]
@@ -1785,114 +1749,47 @@
                     {
                       "type": "object",
                       "properties": {
-                        "highlightId": {
-                          "type": "string"
-                        },
-                        "exact": {
-                          "type": "string"
-                        },
-                        "position": {
-                          "type": "object",
-                          "properties": {
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "offset",
-                            "length"
-                          ]
+                        "annotation": {
+                          "$ref": "#/components/schemas/Annotation",
+                          "description": "W3C Annotation (creator/created fields are optional in events - they're derived from event userId/timestamp)"
                         }
                       },
                       "required": [
-                        "highlightId",
-                        "exact",
-                        "position"
+                        "annotation"
                       ]
                     },
                     {
                       "type": "object",
                       "properties": {
-                        "highlightId": {
-                          "type": "string"
+                        "annotationId": {
+                          "type": "string",
+                          "description": "Unified annotation ID"
                         }
                       },
                       "required": [
-                        "highlightId"
+                        "annotationId"
                       ]
                     },
                     {
                       "type": "object",
                       "properties": {
-                        "referenceId": {
-                          "type": "string"
-                        },
-                        "exact": {
-                          "type": "string"
-                        },
-                        "position": {
-                          "type": "object",
-                          "properties": {
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        "entityTypes": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
+                        "annotationId": {
+                          "type": "string",
+                          "description": "Unified annotation ID"
                         },
                         "targetDocumentId": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "For linking motivation"
                         }
                       },
                       "required": [
-                        "referenceId",
-                        "exact",
-                        "position"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "referenceId": {
-                          "type": "string"
-                        },
-                        "targetDocumentId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "referenceId",
+                        "annotationId",
                         "targetDocumentId"
                       ]
                     },
                     {
                       "type": "object",
                       "properties": {
-                        "referenceId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "referenceId"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
                         "entityType": {
                           "type": "string"
                         }
@@ -1910,51 +1807,6 @@
                       },
                       "required": [
                         "entityType"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "assessmentId": {
-                          "type": "string"
-                        },
-                        "exact": {
-                          "type": "string"
-                        },
-                        "position": {
-                          "type": "object",
-                          "properties": {
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "offset",
-                            "length"
-                          ]
-                        },
-                        "value": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "assessmentId",
-                        "exact",
-                        "position"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "assessmentId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "assessmentId"
                       ]
                     }
                   ]
@@ -2057,6 +1909,10 @@
       "GenerateDocumentFromAnnotationRequest": {
         "type": "object",
         "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "ID of the document containing the annotation"
+          },
           "name": {
             "type": "string"
           },
@@ -2073,7 +1929,7 @@
             "type": "string"
           }
         },
-        "required": []
+        "required": ["documentId"]
       },
       "GenerateDocumentStreamRequest": {
         "type": "object",
@@ -2230,7 +2086,16 @@
             }
           },
           "locale": {
-            "type": "string"
+            "type": "string",
+            "description": "Language/locale code (e.g., 'en', 'es', 'fr')"
+          },
+          "isDraft": {
+            "type": "boolean",
+            "description": "Whether this document is a draft (for AI-generated content)"
+          },
+          "generatedFrom": {
+            "type": "string",
+            "description": "ID of annotation/reference that triggered generation (for provenance)"
           },
           "creationMethod": {
             "type": "string",
@@ -2278,22 +2143,7 @@
             "type": "string"
           },
           "motivation": {
-            "type": "string",
-            "enum": [
-              "assessing",
-              "bookmarking",
-              "classifying",
-              "commenting",
-              "describing",
-              "editing",
-              "highlighting",
-              "identifying",
-              "linking",
-              "moderating",
-              "questioning",
-              "replying",
-              "tagging"
-            ]
+            "$ref": "#/components/schemas/Motivation"
           },
           "target": {
             "type": "object",
@@ -2385,9 +2235,7 @@
           "id",
           "motivation",
           "target",
-          "body",
-          "creator",
-          "created"
+          "body"
         ]
       },
       "UpdateUserResponse": {
@@ -2488,6 +2336,10 @@
       "CreateDocumentFromSelectionRequest": {
         "type": "object",
         "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "ID of the document containing the annotation"
+          },
           "content": {
             "type": "string"
           },
@@ -2515,6 +2367,7 @@
           }
         },
         "required": [
+          "documentId",
           "content",
           "name",
           "format"
@@ -2557,6 +2410,10 @@
       "CreateFromAnnotationRequest": {
         "type": "object",
         "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "ID of the document containing the annotation"
+          },
           "name": {
             "type": "string"
           },
@@ -2568,6 +2425,7 @@
           }
         },
         "required": [
+          "documentId",
           "name",
           "content",
           "format"
@@ -2664,10 +2522,26 @@
             "items": {
               "$ref": "#/components/schemas/Annotation"
             }
+          },
+          "total": {
+            "type": "number",
+            "description": "Total number of annotations"
+          },
+          "motivation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Motivation"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Motivation filter applied (if any)"
           }
         },
         "required": [
-          "annotations"
+          "annotations",
+          "total"
         ]
       },
       "CreateDocumentFromTokenResponse": {
@@ -4167,80 +4041,6 @@
         }
       }
     },
-    "/api/documents/{id}/highlights": {
-      "get": {
-        "summary": "Get Document Highlights",
-        "description": "Get only highlights (annotations without body of type SpecifiedResource with a source) in a document",
-        "tags": [
-          "Documents",
-          "Selections"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Document highlights",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetHighlightsResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/documents/{id}/references": {
-      "get": {
-        "summary": "Get Document References",
-        "description": "Get only references (annotations with body of type SpecifiedResource with a source) in a document",
-        "tags": [
-          "Documents",
-          "Selections"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Document references",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetReferencesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/documents/{id}/annotations": {
       "get": {
         "summary": "Get Document Annotations",
@@ -4308,11 +4108,9 @@
                 "document.cloned",
                 "document.archived",
                 "document.unarchived",
-                "highlight.added",
-                "highlight.removed",
-                "reference.created",
-                "reference.resolved",
-                "reference.deleted",
+                "annotation.added",
+                "annotation.removed",
+                "annotation.resolved",
                 "entitytag.added",
                 "entitytag.removed"
               ]

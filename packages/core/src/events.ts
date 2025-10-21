@@ -32,10 +32,15 @@ export interface DocumentCreatedEvent extends BaseEvent {
   payload: {
     name: string;
     format: ContentFormat;       // MIME type (validated enum)
-    contentHash: string;        // SHA-256 of content (should match documentId)
+    contentChecksum: string;     // SHA-256 of content (should match documentId)
     creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];
-    metadata?: Record<string, any>;
+
+    // First-class fields (promoted from metadata)
+    locale?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
+    isDraft?: boolean;           // Draft status for generated documents
+    generatedFrom?: string;      // Annotation/Reference ID that triggered generation
+    generationPrompt?: string;   // Prompt used for AI generation (events-only, not on Document)
   };
 }
 
@@ -44,11 +49,13 @@ export interface DocumentClonedEvent extends BaseEvent {
   payload: {
     name: string;
     format: ContentFormat;       // MIME type (validated enum)
-    contentHash: string;        // SHA-256 of new content
+    contentChecksum: string;     // SHA-256 of new content
     parentDocumentId: string;   // Content hash of parent document
     creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];
-    metadata?: Record<string, any>;
+
+    // First-class fields (promoted from metadata)
+    locale?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
   };
 }
 
@@ -64,53 +71,27 @@ export interface DocumentUnarchivedEvent extends BaseEvent {
   payload: Record<string, never>;  // Empty payload
 }
 
-// Highlight events
-export interface HighlightAddedEvent extends BaseEvent {
-  type: 'highlight.added';
+// Unified annotation events
+// Single principle: An annotation is an annotation. The motivation field tells you what kind it is.
+export interface AnnotationAddedEvent extends BaseEvent {
+  type: 'annotation.added';
   payload: {
-    highlightId: string;
-    exact: string;  // W3C Web Annotation standard
-    position: {
-      offset: number;
-      length: number;
-    };
+    annotation: Omit<Annotation, 'creator' | 'created'>;  // W3C Annotation (creator/created come from event metadata)
   };
 }
 
-export interface HighlightRemovedEvent extends BaseEvent {
-  type: 'highlight.removed';
+export interface AnnotationRemovedEvent extends BaseEvent {
+  type: 'annotation.removed';
   payload: {
-    highlightId: string;
+    annotationId: string;           // Unified ID field
   };
 }
 
-// Reference events
-export interface ReferenceCreatedEvent extends BaseEvent {
-  type: 'reference.created';
+export interface AnnotationResolvedEvent extends BaseEvent {
+  type: 'annotation.resolved';      // Only for motivation: 'linking'
   payload: {
-    referenceId: string;
-    exact: string;  // W3C Web Annotation standard
-    position: {
-      offset: number;
-      length: number;
-    };
-    entityTypes?: string[];
-    targetDocumentId?: string;  // Content hash of target doc (if null, it's a stub reference)
-  };
-}
-
-export interface ReferenceResolvedEvent extends BaseEvent {
-  type: 'reference.resolved';
-  payload: {
-    referenceId: string;
-    targetDocumentId: string;   // Content hash of target document
-  };
-}
-
-export interface ReferenceDeletedEvent extends BaseEvent {
-  type: 'reference.deleted';
-  payload: {
-    referenceId: string;
+    annotationId: string;
+    targetDocumentId: string;
   };
 }
 
@@ -129,42 +110,17 @@ export interface EntityTagRemovedEvent extends BaseEvent {
   };
 }
 
-// Assessment events (W3C motivation 'assessing' - for errors, warnings, issues)
-export interface AssessmentAddedEvent extends BaseEvent {
-  type: 'assessment.added';
-  payload: {
-    assessmentId: string;
-    exact: string;  // W3C Web Annotation standard
-    position: {
-      offset: number;
-      length: number;
-    };
-    value?: string;  // Optional assessment message/description
-  };
-}
-
-export interface AssessmentRemovedEvent extends BaseEvent {
-  type: 'assessment.removed';
-  payload: {
-    assessmentId: string;
-  };
-}
-
 // Union type of all events
 export type DocumentEvent =
   | DocumentCreatedEvent
   | DocumentClonedEvent
   | DocumentArchivedEvent
   | DocumentUnarchivedEvent
-  | HighlightAddedEvent
-  | HighlightRemovedEvent
-  | ReferenceCreatedEvent
-  | ReferenceResolvedEvent
-  | ReferenceDeletedEvent
+  | AnnotationAddedEvent
+  | AnnotationRemovedEvent
+  | AnnotationResolvedEvent
   | EntityTagAddedEvent
-  | EntityTagRemovedEvent
-  | AssessmentAddedEvent
-  | AssessmentRemovedEvent;
+  | EntityTagRemovedEvent;
 
 // Extract just the event type strings from the union
 export type DocumentEventType = DocumentEvent['type'];
@@ -224,8 +180,7 @@ export interface EventQuery {
 // Annotations are NOT part of the document - they reference the document
 export interface DocumentAnnotations {
   documentId: string;           // Which document these annotations belong to
-  highlights: Annotation[];     // Full Annotation objects
-  references: Annotation[];     // Full Annotation objects
+  annotations: Annotation[];    // All annotations (highlights, references, assessments, etc.)
   version: number;              // Event count for this document's annotation stream
   updatedAt: string;           // Last annotation event timestamp
 }

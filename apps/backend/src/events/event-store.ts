@@ -294,7 +294,7 @@ export class EventStore {
 
     // Save updated projection
     await this.projectionStorage.saveProjection(documentId, projection);
-    console.log(`[EventStore] Projection saved (version ${projection.annotations.version}, ${projection.annotations.highlights.length} highlights, ${projection.annotations.references.length} references)`);
+    console.log(`[EventStore] Projection saved (version ${projection.annotations.version}, ${projection.annotations.annotations.length} annotations)`);
   }
 
   /**
@@ -321,8 +321,7 @@ export class EventStore {
     // Start with empty annotations
     const annotations: DocumentAnnotations = {
       documentId,
-      highlights: [],
-      references: [],
+      annotations: [],
       version: 0,
       updatedAt: '',
     };
@@ -349,21 +348,29 @@ export class EventStore {
         document.name = event.payload.name;
         document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
-        document.locale = event.payload.metadata?.locale;
         document.created = event.timestamp;
-        document.creationMethod = 'api';
+        document.creationMethod = event.payload.creationMethod || 'api';
         document.creator = didToAgent(event.userId);
+        document.contentChecksum = event.payload.contentChecksum;
+
+        // First-class fields
+        document.locale = event.payload.locale;
+        document.isDraft = event.payload.isDraft;
+        document.generatedFrom = event.payload.generatedFrom;
         break;
 
       case 'document.cloned':
         document.name = event.payload.name;
         document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
-        document.locale = event.payload.metadata?.locale;
         document.created = event.timestamp;
         document.creationMethod = 'clone';
         document.sourceDocumentId = event.payload.parentDocumentId;
         document.creator = didToAgent(event.userId);
+        document.contentChecksum = event.payload.contentChecksum;
+
+        // First-class fields
+        document.locale = event.payload.locale;
         break;
 
       case 'document.archived':
@@ -387,13 +394,9 @@ export class EventStore {
         break;
 
       // Annotation events don't affect document metadata
-      case 'highlight.added':
-      case 'highlight.removed':
-      case 'assessment.added':
-      case 'assessment.removed':
-      case 'reference.created':
-      case 'reference.resolved':
-      case 'reference.deleted':
+      case 'annotation.added':
+      case 'annotation.removed':
+      case 'annotation.resolved':
         break;
     }
   }
@@ -403,100 +406,30 @@ export class EventStore {
    */
   private applyEventToAnnotations(annotations: DocumentAnnotations, event: DocumentEvent): void {
     switch (event.type) {
-      case 'highlight.added':
-        annotations.highlights.push({
-          id: event.payload.highlightId,
-          motivation: 'highlighting',
-          target: {
-            source: event.documentId,
-            selector: {
-              type: 'TextPositionSelector',
-              exact: event.payload.exact,
-              offset: event.payload.position.offset,
-              length: event.payload.position.length,
-            },
-          },
-          body: {
-            type: 'TextualBody',
-            entityTypes: [],
-          },
+      case 'annotation.added':
+        // Event payload contains Omit<Annotation, 'creator' | 'created'>
+        // Add creator and created from event metadata
+        annotations.annotations.push({
+          ...event.payload.annotation,
           creator: didToAgent(event.userId),
           created: new Date(event.timestamp).toISOString(),
         });
         break;
 
-      case 'highlight.removed':
-        annotations.highlights = annotations.highlights.filter(
-          h => h.id !== event.payload.highlightId
+      case 'annotation.removed':
+        annotations.annotations = annotations.annotations.filter(
+          a => !compareAnnotationIds(a.id, event.payload.annotationId)
         );
         break;
 
-      case 'assessment.added':
-        annotations.highlights.push({
-          id: event.payload.assessmentId,
-          motivation: 'assessing',
-          target: {
-            source: event.documentId,
-            selector: {
-              type: 'TextPositionSelector',
-              exact: event.payload.exact,
-              offset: event.payload.position.offset,
-              length: event.payload.position.length,
-            },
-          },
-          body: {
-            type: 'TextualBody',
-            value: event.payload.value,
-            entityTypes: [],
-          },
-          creator: didToAgent(event.userId),
-          created: new Date(event.timestamp).toISOString(),
-        });
-        break;
-
-      case 'assessment.removed':
-        annotations.highlights = annotations.highlights.filter(
-          h => h.id !== event.payload.assessmentId
-        );
-        break;
-
-      case 'reference.created':
-        annotations.references.push({
-          id: event.payload.referenceId,
-          motivation: 'linking',
-          target: {
-            source: event.documentId,
-            selector: {
-              type: 'TextPositionSelector',
-              exact: event.payload.exact,
-              offset: event.payload.position.offset,
-              length: event.payload.position.length,
-            },
-          },
-          body: {
-            type: 'SpecificResource',
-            entityTypes: event.payload.entityTypes || [],
-            source: event.payload.targetDocumentId,
-          },
-          creator: didToAgent(event.userId),
-          created: new Date(event.timestamp).toISOString(),
-        });
-        break;
-
-      case 'reference.resolved':
+      case 'annotation.resolved':
         // Compare by ID portion (handle both URI and internal ID formats)
-        const ref = annotations.references.find(r =>
-          compareAnnotationIds(r.id, event.payload.referenceId)
+        const annotation = annotations.annotations.find(a =>
+          compareAnnotationIds(a.id, event.payload.annotationId)
         );
-        if (ref) {
-          ref.body.source = event.payload.targetDocumentId;
+        if (annotation) {
+          annotation.body.source = event.payload.targetDocumentId;
         }
-        break;
-
-      case 'reference.deleted':
-        annotations.references = annotations.references.filter(r =>
-          !compareAnnotationIds(r.id, event.payload.referenceId)
-        );
         break;
 
       // Document metadata events don't affect annotations
@@ -859,15 +792,9 @@ export class EventStore {
       );
     }
 
-    if (projection.annotations.highlights.length !== rebuilt.annotations.highlights.length) {
+    if (projection.annotations.annotations.length !== rebuilt.annotations.annotations.length) {
       errors.push(
-        `Highlight count mismatch: projection=${projection.annotations.highlights.length} rebuilt=${rebuilt.annotations.highlights.length}`
-      );
-    }
-
-    if (projection.annotations.references.length !== rebuilt.annotations.references.length) {
-      errors.push(
-        `Reference count mismatch: projection=${projection.annotations.references.length} rebuilt=${rebuilt.annotations.references.length}`
+        `Annotation count mismatch: projection=${projection.annotations.annotations.length} rebuilt=${rebuilt.annotations.annotations.length}`
       );
     }
 

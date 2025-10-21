@@ -37,19 +37,14 @@ export function registerGetDocument(router: DocumentsRouterType) {
     // NOTE: Content is NOT included in this response
     // Clients must call GET /documents/:id/content separately to get content
 
-    const annotations = [
-      ...stored.annotations.highlights,
-      ...stored.annotations.references
-    ];
-    const highlights = stored.annotations.highlights;
-    const references = stored.annotations.references;
-    const entityReferences = references.filter(ref => ref.body.entityTypes && ref.body.entityTypes.length > 0);
+    const annotations = stored.annotations.annotations;
+    const entityReferences = annotations.filter(a =>
+      a.motivation === 'linking' && a.body.entityTypes && a.body.entityTypes.length > 0
+    );
 
     const response: GetDocumentResponse = {
       document: stored.document,
       annotations,
-      highlights,
-      references,
       entityReferences,
     };
 

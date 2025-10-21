@@ -371,10 +371,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return await handlers.handleGetDocumentAnnotations(apiClient, args);
 
       case 'semiont_get_document_highlights':
-        return await handlers.handleGetDocumentHighlights(apiClient, args);
+        return await handlers.handleGetDocumentHighlights(apiClient, args || {});
 
       case 'semiont_get_document_references':
-        return await handlers.handleGetDocumentReferences(apiClient, args);
+        return await handlers.handleGetDocumentReferences(apiClient, args || {});
 
       default:
         throw new Error(`Unknown tool: ${name}`);
