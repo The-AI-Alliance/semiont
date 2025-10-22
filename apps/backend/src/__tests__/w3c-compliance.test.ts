@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { Annotation } from '@semiont/api-client';
+import type { Annotation } from '@semiont/core';
 
 describe('W3C Web Annotation Compliance - Phase 1', () => {
   describe('Stub Reference Validation', () => {
@@ -44,7 +44,9 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
       expect(stubAnnotation.type).toBe('Annotation');
       expect(stubAnnotation.body).toEqual([]);
       expect(Array.isArray(stubAnnotation.body)).toBe(true);
-      expect(stubAnnotation.body.length).toBe(0);
+      if (Array.isArray(stubAnnotation.body)) {
+        expect(stubAnnotation.body.length).toBe(0);
+      }
     });
 
     it('should validate stub reference has no body properties', () => {
@@ -72,13 +74,15 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
 
       // Verify no body means no source, no value, no type
       expect(Array.isArray(stubAnnotation.body)).toBe(true);
-      expect(stubAnnotation.body.length).toBe(0);
+      if (Array.isArray(stubAnnotation.body)) {
+        expect(stubAnnotation.body.length).toBe(0);
 
-      // TypeScript enforces this at compile time, but verify at runtime
-      const body = stubAnnotation.body as any;
-      expect(body.source).toBeUndefined();
-      expect(body.value).toBeUndefined();
-      expect(body.type).toBeUndefined();
+        // TypeScript enforces this at compile time, but verify at runtime
+        const body = stubAnnotation.body as any;
+        expect(body.source).toBeUndefined();
+        expect(body.value).toBeUndefined();
+        expect(body.type).toBeUndefined();
+      }
     });
   });
 
@@ -261,10 +265,12 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
       };
 
       expect(typeof annotation.target).toBe('object');
-      if (typeof annotation.target === 'object') {
+      if (typeof annotation.target === 'object' && 'source' in annotation.target) {
         expect(annotation.target.source).toBe('doc-789');
         expect(annotation.target.selector).toBeDefined();
-        expect(annotation.target.selector?.type).toBe('TextQuoteSelector');
+        if (annotation.target.selector && !Array.isArray(annotation.target.selector)) {
+          expect(annotation.target.selector.type).toBe('TextQuoteSelector');
+        }
       }
     });
   });
@@ -410,7 +416,9 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
 
       // Verify stub state
       expect(Array.isArray(annotation.body)).toBe(true);
-      expect(annotation.body.length).toBe(0);
+      if (Array.isArray(annotation.body)) {
+        expect(annotation.body.length).toBe(0);
+      }
 
       // Resolve the stub
       annotation = {
@@ -468,7 +476,9 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
 
       // Verify stub state
       expect(Array.isArray(annotation.body)).toBe(true);
-      expect(annotation.body.length).toBe(0);
+      if (Array.isArray(annotation.body)) {
+        expect(annotation.body.length).toBe(0);
+      }
     });
   });
 });
