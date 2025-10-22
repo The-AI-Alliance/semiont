@@ -39,7 +39,7 @@ export function registerGetDocument(router: DocumentsRouterType) {
 
     const annotations = stored.annotations.annotations;
     const entityReferences = annotations.filter(a =>
-      a.motivation === 'linking' && a.body.entityTypes && a.body.entityTypes.length > 0
+      a.motivation === 'linking' && a.entityTypes && a.entityTypes.length > 0
     );
 
     const response: GetDocumentResponse = {

@@ -23,6 +23,7 @@ import {
   type Annotation,
   type AnnotationAddedEvent,
 } from '@semiont/core';
+import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
@@ -64,8 +65,8 @@ crudRouter.post('/api/annotations',
       throw new HTTPException(400, { message: 'TextPositionSelector required for creating annotations' });
     }
 
-    // Determine motivation: use provided value or default based on body type
-    const motivation = request.motivation || (request.body.type === 'TextualBody' ? 'highlighting' : 'linking');
+    // Phase 1: Use provided motivation or default to linking
+    const motivation = request.motivation || 'linking';
 
     // Build annotation object (includes W3C required @context and type)
     const annotation: Omit<Annotation, 'creator' | 'created'> = {
@@ -73,16 +74,9 @@ crudRouter.post('/api/annotations',
       'type': 'Annotation' as const,
       id: annotationId,
       motivation: motivation,
-      target: {
-        source: request.target.source,
-        selector: request.target.selector,
-      },
-      body: {
-        type: request.body.type,
-        value: request.body.value,
-        entityTypes: request.body.entityTypes || [],
-        source: request.body.source,
-      },
+      target: request.target,
+      body: request.body as Annotation['body'], // Phase 1: empty array or SpecificResource
+      entityTypes: request.entityTypes || [], // Phase 1: at annotation level
       modified: new Date().toISOString(),
     };
 
@@ -102,20 +96,7 @@ crudRouter.post('/api/annotations',
     // Return optimistic response (consumer will update GraphDB async)
     const response: CreateAnnotationResponse = {
       annotation: {
-        '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-        'type': 'Annotation' as const,
-        id: annotationId,
-        motivation: motivation,
-        target: {
-          source: request.target.source,
-          selector: request.target.selector,
-        },
-        body: {
-          type: request.body.type,
-          value: request.body.value,
-          entityTypes: request.body.entityTypes || [],
-          source: request.body.source,
-        },
+        ...annotation,
         creator: userToAgent(user),
         created: new Date().toISOString(),
       },
@@ -152,7 +133,7 @@ crudRouter.put('/api/annotations/:id/resolve',
     const eventStore = await getEventStore();
     await eventStore.appendEvent({
       type: 'annotation.resolved',
-      documentId: annotation.target.source,
+      documentId: getTargetSource(annotation.target),
       userId: user.id,
       version: 1,
       payload: {
@@ -206,10 +187,11 @@ crudRouter.get('/api/annotations/:id', async (c) => {
   // Get document metadata
   const document = await DocumentQueryService.getDocumentMetadata(documentId);
 
-  // If it's a linking annotation with a source, get resolved document
+  // If it's a linking annotation with a resolved source, get resolved document
   let resolvedDocument = null;
-  if (annotation.motivation === 'linking' && annotation.body.source) {
-    resolvedDocument = await DocumentQueryService.getDocumentMetadata(annotation.body.source);
+  const bodySource = getBodySource(annotation.body);
+  if (annotation.motivation === 'linking' && bodySource) {
+    resolvedDocument = await DocumentQueryService.getDocumentMetadata(bodySource);
   }
 
   const response: GetAnnotationResponse = {

@@ -97,7 +97,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       // Read annotations from Layer 3
       const annotations = await AnnotationQueryService.getAllAnnotations(id);
       const entityReferences = annotations.filter(a =>
-        a.motivation === 'linking' && a.body.entityTypes && a.body.entityTypes.length > 0
+        a.motivation === 'linking' && a.entityTypes && a.entityTypes.length > 0
       );
 
       // Return optimistic response (content NOT included - must be fetched separately)

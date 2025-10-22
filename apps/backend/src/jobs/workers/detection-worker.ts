@@ -117,11 +117,8 @@ export class DetectionWorker extends JobWorker {
                     length: detected.annotation.selector.length,
                   },
                 },
-                body: {
-                  type: 'SpecificResource' as const,
-                  entityTypes: detected.annotation.entityTypes,
-                  source: null, // Will be resolved later
-                },
+                body: [], // Phase 1: Stub reference (unresolved)
+                entityTypes: detected.annotation.entityTypes || [], // Phase 1: at annotation level
                 modified: new Date().toISOString(),
               },
             },

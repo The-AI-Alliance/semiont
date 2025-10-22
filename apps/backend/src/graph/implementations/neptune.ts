@@ -16,6 +16,7 @@ import {
   getExactText,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
+import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 
 // Dynamic imports for AWS SDK and Gremlin
 let NeptuneClient: any;
@@ -115,16 +116,25 @@ function vertexToAnnotation(vertex: any): Annotation {
   // Get required fields
   const id = getValue('id', true);
   const documentId = getValue('documentId', true);
-  const type = getValue('type', true) as 'TextualBody' | 'SpecificResource';
   const selectorRaw = getValue('selector', true);
   const creatorRaw = getValue('creator', true);
   const createdRaw = getValue('created', true);
 
   // Derive motivation from type if not present (backward compatibility)
-  const motivation = getValue('motivation') || (type === 'TextualBody' ? 'highlighting' : 'linking');
+  const motivation = getValue('motivation') || 'linking';
 
   // Parse creator - always stored as JSON string in DB
   const creator = JSON.parse(creatorRaw);
+
+  // Phase 1: Body is either empty array (stub) or single SpecificResource (resolved)
+  const bodySource = getValue('source');
+  const body = bodySource
+    ? {
+        type: 'SpecificResource' as const,
+        source: bodySource,
+        purpose: 'linking' as const,
+      }
+    : [];
 
   const annotation: Annotation = {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -135,19 +145,14 @@ function vertexToAnnotation(vertex: any): Annotation {
       source: documentId,
       selector: JSON.parse(selectorRaw),
     },
-    body: {
-      type,
-      value: getValue('value'),
-      entityTypes: [],
-      source: getValue('source'),
-    },
+    body,
     creator,
     created: createdRaw, // ISO string from DB
   };
 
-  // Optional top-level fields
+  // Phase 1: entityTypes at annotation level
   const entityTypes = getValue('entityTypes');
-  if (entityTypes) annotation.body.entityTypes = JSON.parse(entityTypes);
+  if (entityTypes) annotation.entityTypes = JSON.parse(entityTypes);
 
   // W3C Web Annotation modification tracking
   const modified = getValue('modified');
@@ -474,47 +479,39 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const id = this.generateId();
 
-    // Derive motivation from body type
-    const motivation = input.body.type === 'TextualBody' ? 'highlighting' : 'linking';
-
+    // Phase 1: Only linking motivation with SpecificResource or empty array (stub)
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
       id,
-      motivation,
-      target: {
-        source: input.target.source,
-        selector: input.target.selector,
-      },
-      body: {
-        type: input.body.type,
-        value: input.body.value,
-        entityTypes: input.body.entityTypes || [],
-        source: input.body.source,
-      },
+      motivation: input.motivation,
+      target: input.target,
+      body: input.body,
       creator: input.creator,
       created: new Date().toISOString(),
     };
+
+    // Extract values for Gremlin query
+    const targetSource = getTargetSource(input.target);
+    const targetSelector = getTargetSelector(input.target);
+    const bodySource = getBodySource(input.body);
 
     try {
       // Create Annotation vertex
       const vertex = this.g.addV('Annotation')
         .property('id', annotation.id)
-        .property('documentId', annotation.target.source)
-        .property('text', getExactText(annotation.target.selector))
-        .property('selector', JSON.stringify(annotation.target.selector))
-        .property('type', annotation.body.type)
-        .property('motivation', motivation)
+        .property('documentId', targetSource)
+        .property('text', targetSelector ? getExactText(targetSelector) : '')
+        .property('selector', JSON.stringify(targetSelector || {}))
+        .property('type', 'SpecificResource') // Phase 1: Only SpecificResource
+        .property('motivation', annotation.motivation)
         .property('creator', JSON.stringify(annotation.creator))
         .property('created', annotation.created)
-        .property('entityTypes', JSON.stringify(annotation.body.entityTypes));
+        .property('entityTypes', JSON.stringify([])); // Phase 1: entityTypes at annotation level
 
-      // Add optional properties
-      if (annotation.body.value) {
-        vertex.property('value', annotation.body.value);
-      }
-      if (annotation.body.source) {
-        vertex.property('source', annotation.body.source);
+      // Add optional source property for resolved references
+      if (bodySource) {
+        vertex.property('source', bodySource);
       }
 
       const newVertex = await vertex.next();
@@ -522,14 +519,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Create edge from Annotation to Document (BELONGS_TO)
       await this.g.V(newVertex.value)
         .addE('BELONGS_TO')
-        .to(this.g.V().hasLabel('Document').has('id', input.target.source))
+        .to(this.g.V().hasLabel('Document').has('id', targetSource))
         .next();
 
-      // If it's a reference, create edge to target document (REFERENCES)
-      if (input.body.source) {
+      // If it's a resolved reference, create edge to target document (REFERENCES)
+      if (bodySource) {
         await this.g.V(newVertex.value)
           .addE('REFERENCES')
-          .to(this.g.V().hasLabel('Document').has('id', input.body.source))
+          .to(this.g.V().hasLabel('Document').has('id', bodySource))
           .next();
       }
 
@@ -566,19 +563,28 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .hasLabel('Annotation')
         .has('id', id);
 
-      // Update properties
-      if (updates.target?.selector !== undefined) {
-        traversal = traversal.property('text', getExactText(updates.target.selector));
+      // Update target properties
+      if (updates.target !== undefined && typeof updates.target !== 'string') {
+        if (updates.target.selector !== undefined) {
+          traversal = traversal.property('text', getExactText(updates.target.selector));
+        }
       }
-      if (updates.body?.type !== undefined) {
-        traversal = traversal.property('type', updates.body.type);
+
+      // Update body properties - Phase 1: body is SpecificResource or array
+      if (updates.body !== undefined && !Array.isArray(updates.body)) {
+        if (updates.body.type !== undefined) {
+          traversal = traversal.property('type', updates.body.type);
+        }
+        if (updates.body.source !== undefined) {
+          traversal = traversal.property('source', updates.body.source);
+        }
       }
-      if (updates.body?.source !== undefined) {
-        traversal = traversal.property('source', updates.body.source);
+
+      // Phase 1: entityTypes at annotation level
+      if (updates.entityTypes !== undefined) {
+        traversal = traversal.property('entityTypes', JSON.stringify(updates.entityTypes));
       }
-      if (updates.body?.entityTypes !== undefined) {
-        traversal = traversal.property('entityTypes', JSON.stringify(updates.body.entityTypes));
-      }
+
       if (updates.modified !== undefined) {
         traversal = traversal.property('modified', updates.modified);
       }
@@ -793,7 +799,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Process outgoing references
       for (const annVertex of outgoingAnnotations) {
         const annotation = vertexToAnnotation(annVertex);
-        const targetDocId = annotation.body.source!;
+        const targetDocId = getBodySource(annotation.body);
+        if (!targetDocId) continue; // Skip stubs
 
         // Get the target document
         const targetDocResult = await this.g.V()
@@ -820,7 +827,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Check for bidirectional connections
       for (const annVertex of incomingAnnotations) {
         const annotation = vertexToAnnotation(annVertex);
-        const sourceDocId = annotation.target.source;
+        const sourceDocId = getTargetSource(annotation.target);
         const existing = connectionsMap.get(sourceDocId);
         if (existing) {
           existing.bidirectional = true;

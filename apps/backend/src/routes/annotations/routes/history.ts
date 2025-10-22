@@ -12,6 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { getTargetSource } from '../../../lib/annotation-utils';
 import type { components } from '@semiont/api-client';
 
 type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
@@ -33,7 +34,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
-    if (annotation.target.source !== documentId) {
+    if (getTargetSource(annotation.target) !== documentId) {
       throw new HTTPException(404, { message: 'Annotation does not belong to this document' });
     }
 

@@ -1,9 +1,67 @@
 /**
  * Annotation utility functions
  * Copied from SDK for frontend use
+ *
+ * Phase 1: Body is either empty array (stub) or single SpecificResource (resolved)
+ * Phase 1: Target can be simple string IRI or object with source and optional selector
+ * Phase 1: entityTypes temporarily at annotation level (will move to TextualBody in Phase 2)
  */
 
 import type { Annotation, HighlightAnnotation, ReferenceAnnotation } from './types';
+
+/**
+ * Get the source from an annotation body (null if stub)
+ */
+export function getBodySource(body: Annotation['body']): string | null {
+  if (Array.isArray(body)) {
+    return null; // Stub reference (unresolved)
+  }
+  return body.source;
+}
+
+/**
+ * Get the type from an annotation body
+ */
+export function getBodyType(body: Annotation['body']): 'SpecificResource' | null {
+  if (Array.isArray(body)) {
+    return null; // Stub has no type yet
+  }
+  return body.type;
+}
+
+/**
+ * Check if body is resolved (has a source)
+ */
+export function isBodyResolved(body: Annotation['body']): body is { type: 'SpecificResource'; source: string; purpose?: 'linking' } {
+  return !Array.isArray(body) && Boolean(body.source);
+}
+
+/**
+ * Get the source IRI from target (handles both string and object forms)
+ */
+export function getTargetSource(target: Annotation['target']): string {
+  if (typeof target === 'string') {
+    return target;
+  }
+  return target.source;
+}
+
+/**
+ * Get the selector from target (undefined if string or no selector)
+ */
+export function getTargetSelector(target: Annotation['target']) {
+  if (typeof target === 'string') {
+    return undefined;
+  }
+  return target.selector;
+}
+
+/**
+ * Check if target has a selector
+ */
+export function hasTargetSelector(target: Annotation['target']): boolean {
+  return typeof target !== 'string' && target.selector !== undefined;
+}
 
 /**
  * Type guard to check if an annotation is a highlight
@@ -21,23 +79,18 @@ export function isReference(annotation: Annotation): annotation is ReferenceAnno
 
 /**
  * Type guard to check if a reference annotation is a stub (unresolved)
- * Stub references don't have a target document yet
+ * Phase 1: Stub references have empty body array
  */
 export function isStubReference(annotation: Annotation): boolean {
-  return isReference(annotation) && !annotation.body.source;
+  return isReference(annotation) && Array.isArray(annotation.body);
 }
 
 /**
  * Type guard to check if a reference annotation is resolved
- * Resolved references have body.source pointing to a document ID
+ * Phase 1: Resolved references have body with source
  */
 export function isResolvedReference(annotation: Annotation): annotation is ReferenceAnnotation {
-  return (
-    annotation.motivation === 'linking' &&
-    annotation.body.type === 'SpecificResource' &&
-    annotation.body.source !== null &&
-    annotation.body.source !== undefined
-  );
+  return isReference(annotation) && isBodyResolved(annotation.body);
 }
 
 /**

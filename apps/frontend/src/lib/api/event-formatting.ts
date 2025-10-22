@@ -8,7 +8,7 @@
 import type { StoredEvent, DocumentEventType } from './event-utils';
 import type { Annotation } from './types';
 import { getExactText } from './selector-utils';
-import { compareAnnotationIds } from './annotation-utils';
+import { compareAnnotationIds, getTargetSelector } from './annotation-utils';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
@@ -139,9 +139,10 @@ export function getEventDisplayContent(
         compareAnnotationIds(a.id, payload.annotationId)
       );
 
-      if (annotation?.target?.selector) {
+      if (annotation?.target) {
         try {
-          const exact = getExactText(annotation.target.selector as any);
+          const targetSelector = getTargetSelector(annotation.target);
+          const exact = getExactText(targetSelector);
           if (exact) {
             return { exact: truncateText(exact), isQuoted: true, isTag: false };
           }

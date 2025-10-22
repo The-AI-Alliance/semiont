@@ -17,6 +17,7 @@ import {
   getExactText,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
+import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 
 export class Neo4jGraphDatabase implements GraphDatabase {
   private driver: Driver | null = null;
@@ -339,32 +340,27 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       const id = input.id;
 
-      // Derive motivation from body type
-      const motivation = input.body.type === 'TextualBody' ? 'highlighting' : 'linking';
-
+      // Phase 1: Only linking motivation with SpecificResource or empty array (stub)
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
         id,
-        motivation,
-        target: {
-          source: input.target.source,
-          selector: input.target.selector,
-        },
-        body: {
-          type: input.body.type,
-          value: input.body.value,
-          entityTypes: input.body.entityTypes || [],
-          source: input.body.source,
-        },
+        motivation: input.motivation,
+        target: input.target,
+        body: input.body,
         creator: input.creator,
         created: new Date().toISOString(),
       };
 
+      // Extract values for Cypher query
+      const targetSource = getTargetSource(input.target);
+      const targetSelector = getTargetSelector(input.target);
+      const bodySource = getBodySource(input.body);
+
       // Create the annotation node and relationships
       let cypher: string;
-      if (input.body.source) {
-        // Reference with target document
+      if (bodySource) {
+        // Resolved reference with target document
         cypher = `MATCH (from:Document {id: $fromId})
            MATCH (to:Document {id: $toId})
            CREATE (a:Annotation {
@@ -374,7 +370,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              selector: $selector,
              type: $type,
              motivation: $motivation,
-             value: $value,
              creator: $creator,
              created: datetime($created),
              entityTypes: $entityTypes,
@@ -384,7 +379,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            CREATE (a)-[:REFERENCES]->(to)
            RETURN a`;
       } else {
-        // Highlight or unresolved reference
+        // Stub reference (unresolved)
         cypher = `MATCH (d:Document {id: $documentId})
            CREATE (a:Annotation {
              id: $id,
@@ -393,7 +388,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              selector: $selector,
              type: $type,
              motivation: $motivation,
-             value: $value,
              creator: $creator,
              created: datetime($created),
              entityTypes: $entityTypes
@@ -404,24 +398,23 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       const params: any = {
         id,
-        documentId: annotation.target.source,
-        fromId: annotation.target.source,
-        toId: annotation.body.source || null,
-        exact: getExactText(annotation.target.selector),
-        selector: JSON.stringify(annotation.target.selector),
-        type: annotation.body.type,
+        documentId: targetSource,
+        fromId: targetSource,
+        toId: bodySource || null,
+        exact: targetSelector ? getExactText(targetSelector) : '',
+        selector: JSON.stringify(targetSelector || {}),
+        type: 'SpecificResource', // Phase 1: Only SpecificResource
         motivation: annotation.motivation,
-        value: annotation.body.value || null,
         creator: JSON.stringify(annotation.creator),
         created: annotation.created,
-        entityTypes: annotation.body.entityTypes,
-        source: annotation.body.source || null,
+        entityTypes: [], // Phase 1: entityTypes at annotation level, not in body
+        source: bodySource || null,
       };
 
       const result = await session.run(cypher, params);
 
       if (result.records.length === 0) {
-        throw new Error(`Failed to create annotation: Document ${annotation.target.source} not found in graph database`);
+        throw new Error(`Failed to create annotation: Document ${targetSource} not found in graph database`);
       }
 
       return this.parseAnnotationNode(result.records[0]!.get('a'));
@@ -962,10 +955,19 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!props.creator) throw new Error(`Annotation ${props.id} missing required field: creator`);
 
     // Derive motivation from type if not present (backward compatibility)
-    const motivation = props.motivation || (props.type === 'TextualBody' ? 'highlighting' : 'linking');
+    const motivation = props.motivation || 'linking';
 
     // Parse creator - always stored as JSON string in DB
     const creator = JSON.parse(props.creator);
+
+    // Phase 1: Body is either empty array (stub) or single SpecificResource (resolved)
+    const body = props.source
+      ? {
+          type: 'SpecificResource' as const,
+          source: props.source,
+          purpose: 'linking' as const,
+        }
+      : [];
 
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -976,14 +978,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         source: props.documentId,
         selector: JSON.parse(props.selector),
       },
-      body: {
-        type: props.type as 'TextualBody' | 'SpecificResource',
-        value: props.value,
-        entityTypes: props.entityTypes || [],
-        source: props.source,
-      },
+      body,
       creator,
       created: props.created, // ISO string from DB
+      entityTypes: props.entityTypes || [], // Phase 1: at annotation level
     };
 
     // W3C Web Annotation modification tracking

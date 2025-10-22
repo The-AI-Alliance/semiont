@@ -87,10 +87,8 @@ describe('Event Store', () => {
               length: 4,
             },
           },
-          body: {
-            type: 'TextualBody' as const,
-            entityTypes: [],
-          },
+          body: [], // Phase 1: Stub reference
+          entityTypes: [], // Phase 1: at annotation level
           modified: new Date().toISOString(),
         },
       },

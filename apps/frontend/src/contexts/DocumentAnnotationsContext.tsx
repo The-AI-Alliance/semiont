@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import type { Annotation, CreateAnnotationRequest } from '@/lib/api';
-import { getExactText, getTextPositionSelector } from '@/lib/api';
+import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector } from '@/lib/api';
 
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
@@ -90,13 +90,18 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
             length: position.end - position.start,
           },
         },
-        body: {
-          type: 'SpecificResource',
-          source: targetDocId !== undefined ? (targetDocId || null) : null,
-          entityTypes: entityType
-            ? entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t)
-            : [],
-        },
+        // Phase 1: Use empty array for stub, or SpecificResource for resolved
+        body: targetDocId
+          ? {
+              type: 'SpecificResource' as const,
+              source: targetDocId,
+              purpose: 'linking' as const,
+            }
+          : [],
+        // Phase 1: entityTypes at annotation level
+        entityTypes: entityType
+          ? entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t)
+          : [],
       };
 
       // Create the annotation
@@ -145,10 +150,8 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
             length: position.end - position.start,
           },
         },
-        body: {
-          type: 'TextualBody',  // Assessments use TextualBody like highlights
-          // value can be added later
-        },
+        // Phase 1: Empty body array (assessments don't have bodies yet)
+        body: [],
       };
 
       // Create the annotation
@@ -202,19 +205,21 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       }
 
       // Delete old highlight (documentId required for Layer 3 lookup)
+      const targetSource = getTargetSource(highlight.target);
       await deleteAnnotationMutation.mutateAsync({
         id: highlightId,
-        documentId: highlight.target.source
+        documentId: targetSource
       });
 
       // Create new reference with same position
-      const posSelector = getTextPositionSelector(highlight.target.selector);
+      const targetSelector = getTargetSelector(highlight.target);
+      const posSelector = getTextPositionSelector(targetSelector);
       if (!posSelector) {
         throw new Error('Cannot convert highlight to reference: TextPositionSelector required');
       }
       await addReference(
-        highlight.target.source,
-        getExactText(highlight.target.selector),
+        targetSource,
+        getExactText(targetSelector),
         { start: posSelector.offset, end: posSelector.offset + posSelector.length },
         targetDocId,
         entityType,
@@ -235,19 +240,21 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       }
 
       // Delete old reference (documentId required for Layer 3 lookup)
+      const targetSource = getTargetSource(reference.target);
       await deleteAnnotationMutation.mutateAsync({
         id: referenceId,
-        documentId: reference.target.source
+        documentId: targetSource
       });
 
       // Create new highlight with same position
-      const posSelector = getTextPositionSelector(reference.target.selector);
+      const targetSelector = getTargetSelector(reference.target);
+      const posSelector = getTextPositionSelector(targetSelector);
       if (!posSelector) {
         throw new Error('Cannot convert reference to highlight: TextPositionSelector required');
       }
       await addHighlight(
-        reference.target.source,
-        getExactText(reference.target.selector),
+        targetSource,
+        getExactText(targetSelector),
         { start: posSelector.offset, end: posSelector.offset + posSelector.length }
       );
     } catch (err) {

@@ -359,10 +359,8 @@ describe('GraphDBConsumer', () => {
                 length: 14,
               },
             },
-            body: {
-              type: 'TextualBody' as const,
-              entityTypes: [],
-            },
+            body: [], // Phase 1: Stub reference
+            entityTypes: [], // Phase 1: at annotation level
             modified: new Date().toISOString(),
           },
         },
@@ -391,10 +389,10 @@ describe('GraphDBConsumer', () => {
             length: 14,
           },
         },
-        body: {
-          type: 'TextualBody',
-          entityTypes: [],
-        },
+        // Phase 1: highlights have empty body array
+        body: [],
+        // Phase 1: entityTypes at annotation level
+        entityTypes: [],
         creator: {
           type: 'Person',
           id: 'user1',
@@ -526,11 +524,8 @@ describe('GraphDBConsumer', () => {
                 length: 14,
               },
             },
-            body: {
-              type: 'SpecificResource' as const,
-              entityTypes: [],
-              source: null, // Stub reference
-            },
+            body: [], // Phase 1: Stub reference
+            entityTypes: [], // Phase 1: at annotation level
             modified: new Date().toISOString(),
           },
         },
@@ -559,10 +554,10 @@ describe('GraphDBConsumer', () => {
             length: 14,
           },
         },
-        body: expect.objectContaining({
-          type: 'SpecificResource',
-          entityTypes: [],
-        }),
+        // Phase 1: stub references have empty body array
+        body: [],
+        // Phase 1: entityTypes at annotation level
+        entityTypes: [],
         creator: {
           type: 'Person',
           id: 'user1',

@@ -72,7 +72,7 @@ export function registerGenerateDocument(router: AnnotationsRouterType) {
         title: body.title,
         prompt: body.prompt,
         language: body.language,
-        entityTypes: annotation.body.entityTypes,
+        entityTypes: annotation.entityTypes,
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3

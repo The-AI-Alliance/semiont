@@ -10,6 +10,7 @@
 
 import { getGraphDatabase } from '../../../graph/factory';
 import { getExactText } from '@semiont/core';
+import { getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 
@@ -31,7 +32,7 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
     const references = await graphDb.getDocumentReferencedBy(id);
 
     // Get unique documents from the selections
-    const docIds = [...new Set(references.map(ref => ref.target.source))];
+    const docIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
     const documents = await Promise.all(docIds.map(docId => graphDb.getDocument(docId)));
 
     // Build document map for lookup
@@ -39,14 +40,16 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
 
     // Transform into ReferencedBy structure
     const referencedBy = references.map(ref => {
-      const doc = docMap.get(ref.target.source);
+      const targetSource = getTargetSource(ref.target);
+      const targetSelector = getTargetSelector(ref.target);
+      const doc = docMap.get(targetSource);
       return {
         id: ref.id,
         documentName: doc?.name || 'Untitled Document',
         target: {
-          source: ref.target.source,
+          source: targetSource,
           selector: {
-            exact: getExactText(ref.target.selector),
+            exact: targetSelector ? getExactText(targetSelector) : '',
           },
         },
       };

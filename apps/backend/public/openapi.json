@@ -48,6 +48,32 @@
         ],
         "description": "Annotation body type - TextualBody for textual content, SpecificResource for resource links"
       },
+      "SpecificResource": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "SpecificResource"
+          },
+          "source": {
+            "type": "string",
+            "description": "IRI of the target resource"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": ["linking"],
+            "description": "Why this body is included"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Temporary field for Phase 1 - Phase 2 will migrate to TextualBody tags"
+          }
+        },
+        "required": ["type", "source"]
+      },
       "HealthResponse": {
         "type": "object",
         "properties": {
@@ -1237,34 +1263,24 @@
             ]
           },
           "body": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "TextualBody",
-                  "SpecificResource"
-                ]
-              },
-              "value": {
-                "type": "string"
-              },
-              "source": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "entityTypes": {
+            "oneOf": [
+              {
                 "type": "array",
-                "items": {
-                  "type": "string"
-                }
+                "maxItems": 0,
+                "description": "Empty array for stub references (unresolved)"
+              },
+              {
+                "$ref": "#/components/schemas/SpecificResource",
+                "description": "Single SpecificResource for resolved references"
               }
-            },
-            "required": [
-              "type"
             ]
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Temporary field for Phase 1 - stored at annotation level until Phase 2 migration"
           }
         },
         "required": [
@@ -2202,6 +2218,13 @@
           },
           "generator": {
             "$ref": "#/components/schemas/Agent"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Temporary field for Phase 1 - Phase 2 will migrate to TextualBody tags"
           }
         },
         "required": [
@@ -2214,43 +2237,12 @@
         ]
       },
       "AnnotationBody": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "$ref": "#/components/schemas/BodyType"
-          },
-          "purpose": {
-            "$ref": "#/components/schemas/Motivation",
-            "description": "W3C purpose - why this resource is included in the annotation body"
-          },
-          "value": {
-            "type": "string"
-          },
-          "format": {
-            "$ref": "#/components/schemas/ContentFormat"
-          },
-          "language": {
-            "type": "string",
-            "description": "W3C language - BCP47 language tag (e.g., 'en', 'es', 'fr')"
-          },
-          "source": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "entityTypes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "default": []
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SpecificResource"
           }
-        },
-        "required": [
-          "type",
-          "entityTypes"
-        ]
+        ],
+        "description": "Phase 1: Only SpecificResource supported. Phase 2 will add TextualBody for entity tags."
       },
       "AnnotationTarget": {
         "type": "object",

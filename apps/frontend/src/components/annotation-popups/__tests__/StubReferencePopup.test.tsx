@@ -63,6 +63,8 @@ describe('StubReferencePopup', () => {
       end: 13
     } as TextSelection,
     annotation: {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id: 'test-annotation',
       target: {
         source: 'test-doc',
@@ -73,11 +75,10 @@ describe('StubReferencePopup', () => {
           length: 13,
         },
       },
-      body: {
-        type: 'SpecificResource',
-        entityTypes: ['Person'],
-        source: null,
-      },
+      // Phase 1: Stub reference has empty body array
+      body: [],
+      // Phase 1: entityTypes at annotation level
+      entityTypes: ['Person'],
       motivation: 'linking',
       creator: {
         type: 'Person',

@@ -13,6 +13,7 @@ import { getStorageService } from '../../storage/filesystem';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
+import { getTargetSelector } from '../../lib/annotation-utils';
 import { CREATION_METHODS } from '@semiont/core';
 import { calculateChecksum } from '@semiont/core';
 import { getEventStore } from '../../events/event-store';
@@ -66,7 +67,8 @@ export class GenerationWorker extends JobWorker {
     }
 
     // Determine document name
-    const documentName = job.title || getExactText(annotation.target.selector) || 'New Document';
+    const targetSelector = getTargetSelector(annotation.target);
+    const documentName = job.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Document';
     console.log(`[GenerationWorker] Generating document: "${documentName}"`);
 
     // Update progress: generating
@@ -82,7 +84,7 @@ export class GenerationWorker extends JobWorker {
     const prompt = job.prompt || `Create a comprehensive document about "${documentName}"`;
     const generatedContent = await generateDocumentFromTopic(
       documentName,
-      job.entityTypes || annotation.body.entityTypes || [],
+      job.entityTypes || annotation.entityTypes || [],
       prompt,
       job.language
     );
@@ -126,7 +128,7 @@ export class GenerationWorker extends JobWorker {
         format: 'text/markdown',
         contentChecksum: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
-        entityTypes: job.entityTypes || annotation.body.entityTypes || [],
+        entityTypes: job.entityTypes || annotation.entityTypes || [],
         language: job.language,
         isDraft: true,
         generatedFrom: job.referenceId,

@@ -428,7 +428,19 @@ export class EventStore {
           compareAnnotationIds(a.id, event.payload.annotationId)
         );
         if (annotation) {
-          annotation.body.source = event.payload.targetDocumentId;
+          // Phase 1: body is either empty array (stub) or single SpecificResource (resolved)
+          // When resolving, we convert empty array to SpecificResource with source
+          if (Array.isArray(annotation.body)) {
+            // Convert stub to resolved reference
+            annotation.body = {
+              type: 'SpecificResource',
+              source: event.payload.targetDocumentId,
+              purpose: 'linking'
+            };
+          } else {
+            // Update existing SpecificResource
+            annotation.body.source = event.payload.targetDocumentId;
+          }
         }
         break;
 
