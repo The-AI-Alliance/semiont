@@ -69,15 +69,18 @@ export async function handleCreateAnnotation(client: SemiontApiClient, args: any
         length: selectionData.length || 0,
       },
     },
-    body: {
-      type: 'TextualBody',
-      entityTypes: args?.entityTypes || [],
-    },
+    // Phase 1: Empty body array for highlights
+    body: [],
+    entityTypes: args?.entityTypes || [],
   });
 
-  const selector = Array.isArray(data.annotation.target.selector)
-    ? data.annotation.target.selector[0]
+  // Phase 1: Safely get selector (target can be string or object)
+  const targetSelector = typeof data.annotation.target === 'string'
+    ? undefined
     : data.annotation.target.selector;
+  const selector = targetSelector && Array.isArray(targetSelector)
+    ? targetSelector[0]
+    : targetSelector;
 
   return {
     content: [{
@@ -201,7 +204,9 @@ export async function handleGetDocumentHighlights(client: SemiontApiClient, args
     content: [{
       type: 'text' as const,
       text: `Found ${highlights.length} highlights in document:\n${highlights.map(h => {
-        const selector = Array.isArray(h.target.selector) ? h.target.selector[0] : h.target.selector;
+        // Phase 1: Safely get selector (target can be string or object)
+        const targetSelector = typeof h.target === 'string' ? undefined : h.target.selector;
+        const selector = targetSelector && Array.isArray(targetSelector) ? targetSelector[0] : targetSelector;
         const text = selector?.exact || h.id;
         return `- ${text}${h.creator ? ` (creator: ${h.creator.name})` : ''}`;
       }).join('\n')}`,
@@ -217,9 +222,13 @@ export async function handleGetDocumentReferences(client: SemiontApiClient, args
     content: [{
       type: 'text' as const,
       text: `Found ${references.length} references in document:\n${references.map(r => {
-        const selector = Array.isArray(r.target.selector) ? r.target.selector[0] : r.target.selector;
+        // Phase 1: Safely get selector (target can be string or object)
+        const targetSelector = typeof r.target === 'string' ? undefined : r.target.selector;
+        const selector = targetSelector && Array.isArray(targetSelector) ? targetSelector[0] : targetSelector;
         const text = selector?.exact || r.id;
-        return `- ${text} → ${r.body.source || 'unresolved'}`;
+        // Phase 1: Get source from body (empty array for stub, object with source for resolved)
+        const source = Array.isArray(r.body) ? null : r.body.source;
+        return `- ${text} → ${source || 'unresolved'}`;
       }).join('\n')}`,
     }],
   };
