@@ -9,7 +9,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import { formatSearchResult } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
@@ -44,7 +44,7 @@ export function registerListDocuments(router: DocumentsRouterType) {
 
     const search = query.search;
 
-    const storage = getStorageService();
+    const contentManager = createContentManager();
 
     // Read from Layer 3 projection storage
     let filteredDocs = await DocumentQueryService.listDocuments({
@@ -67,7 +67,7 @@ export function registerListDocuments(router: DocumentsRouterType) {
       formattedDocs = await Promise.all(
         paginatedDocs.map(async (doc) => {
           try {
-            const contentBuffer = await storage.getDocument(doc.id);
+            const contentBuffer = await contentManager.get(doc.id);
             const contentPreview = contentBuffer.toString('utf-8').slice(0, 200);
             return formatSearchResult(doc, contentPreview);
           } catch {

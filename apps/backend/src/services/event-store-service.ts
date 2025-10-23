@@ -9,7 +9,7 @@ import * as path from 'path';
 import { EventStore, type EventStoreConfig } from '../events/event-store';
 import { EventQuery } from '../events/query/event-query';
 import { EventValidator } from '../events/validation/event-validator';
-import { getProjectionStorage } from '../storage/projection-storage';
+import { createProjectionManager } from './storage-service';
 import { getFilesystemConfig } from '../config/environment-loader';
 
 /**
@@ -17,14 +17,19 @@ import { getFilesystemConfig } from '../config/environment-loader';
  * This is the ONE place where EventStore is instantiated
  */
 export async function createEventStore(config?: EventStoreConfig): Promise<EventStore> {
-  const projectionStorage = getProjectionStorage();
+  const filesystemConfig = getFilesystemConfig();
 
-  // Determine data directory
+  // Create ProjectionManager (Layer 3) - NO singleton
+  const projectionManager = createProjectionManager({
+    basePath: config?.dataDir || filesystemConfig.path,
+    subNamespace: 'documents',
+  });
+
+  // Determine data directory for events (Layer 2)
   let dataDir: string;
   if (config?.dataDir) {
     dataDir = config.dataDir;
   } else {
-    const filesystemConfig = getFilesystemConfig();
     dataDir = path.join(filesystemConfig.path, 'events');
   }
 
@@ -33,8 +38,7 @@ export async function createEventStore(config?: EventStoreConfig): Promise<Event
     enableSharding: true,
     numShards: 65536,  // 4 hex digits
     ...config
-  }, projectionStorage);
-
+  }, projectionManager);  // ProjectionManager implements old ProjectionStorage interface
 
   return eventStore;
 }

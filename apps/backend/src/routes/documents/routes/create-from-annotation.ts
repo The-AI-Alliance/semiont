@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import type { Document, CreateDocumentInput, CreationMethod } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 import { calculateChecksum } from '@semiont/core';
@@ -41,7 +41,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       const body = c.get('validatedBody') as CreateFromAnnotationRequest;
       const user = c.get('user');
       const graphDb = await getGraphDatabase();
-      const storage = getStorageService();
+      const contentManager = createContentManager();
 
       const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.documentId);
       if (!annotation) {
@@ -79,7 +79,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       };
 
       const savedDoc = await graphDb.createDocument(createInput);
-      await storage.saveDocument(documentId, Buffer.from(body.content));
+      await contentManager.save(documentId, Buffer.from(body.content));
 
       // Update the annotation to resolve to the new document
       await graphDb.resolveReference(annotationId, savedDoc.id);

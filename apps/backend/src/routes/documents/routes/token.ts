@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import { calculateChecksum } from '@semiont/core';
 import {
   CREATION_METHODS,
@@ -91,7 +91,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       }
 
       const graphDb = await getGraphDatabase();
-      const storage = getStorageService();
+      const contentManager = createContentManager();
 
       // Get source document
       const sourceDoc = await graphDb.getDocument(tokenData.documentId);
@@ -132,7 +132,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       };
 
       const savedDoc = await graphDb.createDocument(createInput);
-      await storage.saveDocument(documentId, Buffer.from(body.content));
+      await contentManager.save(documentId, Buffer.from(body.content));
 
       // Archive original if requested
       if (body.archiveOriginal) {
@@ -165,7 +165,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
   router.post('/api/documents/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
     const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
+    const contentManager = createContentManager();
 
     const sourceDoc = await graphDb.getDocument(id);
     if (!sourceDoc) {
@@ -174,7 +174,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
 
     // Check if content exists
     try {
-      await storage.getDocument(id);
+      await contentManager.get(id);
     } catch {
       throw new HTTPException(404, { message: 'Document content not found' });
     }

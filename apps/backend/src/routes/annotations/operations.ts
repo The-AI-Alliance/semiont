@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { getStorageService } from '../../storage/filesystem';
+import { createContentManager } from '../../services/storage-service';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
 import { calculateChecksum } from '@semiont/core';
 import { userToAgent } from '../../utils/id-generator';
@@ -104,7 +104,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
     const { id } = c.req.param();
     const body = c.get('validatedBody') as CreateDocumentFromSelectionRequest;
     const user = c.get('user');
-    const storage = getStorageService();
+    const contentManager = createContentManager();
 
     if (!body.content) {
       throw new HTTPException(400, { message: 'Content is required when creating a document' });
@@ -125,7 +125,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
     const documentId = `doc-sha256:${checksum}`;
 
     // Save content to Layer 1 (filesystem)
-    await storage.saveDocument(documentId, Buffer.from(body.content));
+    await contentManager.save(documentId, Buffer.from(body.content));
 
     // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
     const eventStore = await createEventStore();
@@ -204,7 +204,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     const { id } = c.req.param();
     const body = c.get('validatedBody') as GenerateDocumentFromAnnotationRequest;
     const user = c.get('user');
-    const storage = getStorageService();
+    const contentManager = createContentManager();
 
     if (!body.documentId) {
       throw new HTTPException(400, { message: 'documentId is required' });
@@ -246,7 +246,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     const documentId = `doc-sha256:${checksum}`;
 
     // Store generated content to Layer 1
-    await storage.saveDocument(documentId, Buffer.from(generatedContent));
+    await contentManager.save(documentId, Buffer.from(generatedContent));
 
     // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
     const eventStore = await createEventStore();
@@ -348,7 +348,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
     throw new HTTPException(400, { message: 'Query parameter "contextAfter" must be between 0 and 5000' });
   }
 
-  const storage = getStorageService();
+  const contentManager = createContentManager();
 
   // Get annotation from Layer 3
   const annotation = await AnnotationQueryService.getAnnotation(id, documentId);
@@ -363,7 +363,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   }
 
   // Get content from Layer 1
-  const content = await storage.getDocument(getTargetSource(annotation.target));
+  const content = await contentManager.get(getTargetSource(annotation.target));
   const contentStr = content.toString('utf-8');
 
   // Extract context based on annotation position
@@ -401,7 +401,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
 operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
-  const storage = getStorageService();
+  const contentManager = createContentManager();
 
   // Require documentId query parameter
   const documentId = query.documentId;
@@ -422,7 +422,7 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   }
 
   // Get content from Layer 1
-  const content = await storage.getDocument(getTargetSource(annotation.target));
+  const content = await contentManager.get(getTargetSource(annotation.target));
   const contentStr = content.toString('utf-8');
 
   // Extract annotation text with context

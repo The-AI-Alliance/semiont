@@ -7,7 +7,7 @@
 
 import { createEventStore, createEventQuery } from '../../services/event-store-service';
 import { getGraphDatabase } from '../../graph/factory';
-import { getStorageService } from '../../storage/filesystem';
+import { createContentManager } from '../../services/storage-service';
 import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { DocumentEvent, StoredEvent, Annotation } from '@semiont/core';
@@ -114,8 +114,8 @@ export class GraphDBConsumer {
     switch (event.type) {
       case 'document.created': {
         if (!event.documentId) throw new Error('document.created requires documentId');
-        const storage = getStorageService();
-        const content = await storage.getDocument(event.documentId);
+        const contentManager = createContentManager();
+        const content = await contentManager.get(event.documentId);
         await graphDb.createDocument({
           id: event.documentId,
           name: event.payload.name,
@@ -131,8 +131,8 @@ export class GraphDBConsumer {
 
       case 'document.cloned': {
         if (!event.documentId) throw new Error('document.cloned requires documentId');
-        const storage = getStorageService();
-        const content = await storage.getDocument(event.documentId);
+        const contentManager = createContentManager();
+        const content = await contentManager.get(event.documentId);
         await graphDb.createDocument({
           id: event.documentId,
           name: event.payload.name,

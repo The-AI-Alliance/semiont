@@ -8,7 +8,7 @@
  * - OpenAPI spec is the source of truth
  */
 
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import {
   CREATION_METHODS,
   type CreationMethod,
@@ -37,13 +37,13 @@ export function registerCreateDocument(router: DocumentsRouterType) {
     async (c) => {
       const body = c.get('validatedBody') as CreateDocumentRequest;
       const user = c.get('user');
-      const storage = getStorageService();
+      const contentManager = createContentManager();
 
       const checksum = calculateChecksum(body.content);
       const documentId = `doc-sha256:${checksum}`;
 
       // Save to filesystem (Layer 1)
-      await storage.saveDocument(documentId, Buffer.from(body.content));
+      await contentManager.save(documentId, Buffer.from(body.content));
 
       // Subscribe GraphDB consumer to new document BEFORE emitting event
       // This ensures the consumer receives the document.created event

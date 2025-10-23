@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import { generateDocumentSummary } from '../../../inference/factory';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
 import type { DocumentsRouterType } from '../shared';
@@ -45,7 +45,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
+    const contentManager = createContentManager();
 
     // Get the reference
     const reference = await graphDb.getAnnotation(referenceId);
@@ -66,7 +66,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     // Build source context if requested
     let sourceContext;
     if (includeSourceContext) {
-      const sourceContent = await storage.getDocument(documentId);
+      const sourceContent = await contentManager.get(documentId);
       const contentStr = sourceContent.toString('utf-8');
 
       const targetSelector = getTargetSelector(reference.target);
@@ -85,7 +85,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     // Build target context if requested and available
     let targetContext;
     if (includeTargetContext && targetDoc) {
-      const targetContent = await storage.getDocument(targetDoc.id);
+      const targetContent = await contentManager.get(targetDoc.id);
       const contentStr = targetContent.toString('utf-8');
 
       targetContext = {

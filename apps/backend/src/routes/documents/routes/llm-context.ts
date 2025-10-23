@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
@@ -51,7 +51,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
+    const contentManager = createContentManager();
 
     const mainDoc = await graphDb.getDocument(id);
     if (!mainDoc) {
@@ -60,7 +60,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
 
     // Get content for main document
     const mainContent = includeContent ?
-      (await storage.getDocument(id)).toString('utf-8') : undefined;
+      (await contentManager.get(id)).toString('utf-8') : undefined;
 
     // Get related documents through graph connections
     const connections = await graphDb.getDocumentConnections(id);
@@ -72,7 +72,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     if (includeContent) {
       await Promise.all(limitedRelatedDocs.map(async (doc) => {
         try {
-          const content = await storage.getDocument(doc.id);
+          const content = await contentManager.get(doc.id);
           relatedDocumentsContent[doc.id] = content.toString('utf-8');
         } catch {
           // Skip documents where content can't be loaded

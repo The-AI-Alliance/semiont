@@ -133,13 +133,3 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     return projections;
   }
 }
-
-// Singleton instance
-let projectionStorageInstance: ProjectionStorage | null = null;
-
-export function getProjectionStorage(): ProjectionStorage {
-  if (!projectionStorageInstance) {
-    projectionStorageInstance = new FilesystemProjectionStorage();
-  }
-  return projectionStorageInstance;
-}

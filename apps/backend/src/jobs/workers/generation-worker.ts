@@ -9,7 +9,7 @@
 
 import { JobWorker } from './job-worker';
 import type { Job, GenerationJob } from '../types';
-import { getStorageService } from '../../storage/filesystem';
+import { createContentManager } from '../../services/storage-service';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
@@ -40,7 +40,7 @@ export class GenerationWorker extends JobWorker {
   private async processGenerationJob(job: GenerationJob): Promise<void> {
     console.log(`[GenerationWorker] Processing generation for reference ${job.referenceId} (job: ${job.id})`);
 
-    const storage = getStorageService();
+    const contentManager = createContentManager();
 
     // Update progress: fetching
     job.progress = {
@@ -117,7 +117,7 @@ export class GenerationWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Save content to Layer 1 (filesystem)
-    await storage.saveDocument(documentId, Buffer.from(generatedContent.content));
+    await contentManager.save(documentId, Buffer.from(generatedContent.content));
     console.log(`[GenerationWorker] ✅ Saved document to filesystem: ${documentId}`);
 
     // Emit document.created event
