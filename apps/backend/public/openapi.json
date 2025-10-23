@@ -4292,7 +4292,8 @@
                 "annotation.removed",
                 "annotation.body.updated",
                 "entitytag.added",
-                "entitytag.removed"
+                "entitytag.removed",
+                "entitytype.added"
               ]
             },
             "required": false,
