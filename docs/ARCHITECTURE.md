@@ -12,7 +12,8 @@ Semiont is a cloud-native semantic knowledge platform built on AWS using Infrast
 - [Authentication](#authentication-architecture) - OAuth and JWT implementation
 - [Security](#security-architecture) - Network and application security
 - [Database Management](./DATABASE.md) - PostgreSQL and migrations
-- [Graph Implementation](./GRAPH.md) - Graph database patterns
+- [Graph Implementation](./GRAPH.md) - Graph database storage patterns
+- [W3C Web Annotation](./W3C-WEB-ANNOTATION.md) - Complete annotation implementation across all layers
 
 ## High-Level Architecture
 
@@ -158,15 +159,18 @@ The application layer consists of two separate ECS services running on Fargate:
 - OAuth authentication with domain restrictions
 - Responsive design with dark mode support
 - Type-safe API client for backend communication
+- W3C Web Annotation UI components with JSON-LD export
 
 #### Backend Service (BFF)
 - **Architecture Pattern**: Backend for Frontend (BFF) - optimized API layer for the Next.js frontend
 - **Framework**: OpenAPIHono (Hono with OpenAPI integration)
 - **Language**: TypeScript
 - **Database ORM**: Prisma with PostgreSQL (see [DATABASE.md](./DATABASE.md) for details)
+- **Graph Database**: Multiple implementations for annotation relationship traversal (see [GRAPH.md](./GRAPH.md) for details)
 - **Authentication**: JWT tokens for API access (see [Authentication Architecture](#authentication-architecture))
 - **API**: RESTful endpoints with automatic OpenAPI documentation (accessible at `/api`)
 - **Validation**: Zod schemas for request/response validation
+- **Annotation Model**: W3C Web Annotation Data Model (see [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) for details)
 - **Container**: Alpine Linux with Node.js 18
 
 **Key Features**:

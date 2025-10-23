@@ -2,7 +2,11 @@
 
 ## Overview
 
-Semiont uses a graph database to model relationships between documents and selections (highlights, references, entity references). The system supports four different graph database implementations that share a common pattern while accommodating technology-specific differences.
+Semiont uses a graph database (Layer 4) to model relationships between documents and annotations. The graph stores W3C-compliant Web Annotations with entity type tags and document links, enabling rich knowledge graph traversal and discovery.
+
+The system supports four different graph database implementations that share a common pattern while accommodating technology-specific differences. All implementations reconstruct W3C-compliant multi-body annotations from graph relationships.
+
+For complete details on W3C Web Annotation structure and how annotations flow through all layers (UI, API, Event Store, Projection, Graph), see [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md).
 
 ## Graph Architecture
 
@@ -56,10 +60,11 @@ All implementations use three primary vertex types:
    - Contains metadata, content type, entity types, and provenance information
    - No ID prefixes - vertex label identifies type
 
-2. **Selection** - Represents a highlight or reference within a document
+2. **Annotation** - Represents a W3C Web Annotation (highlight or reference within a document)
    - Can be updated (unlike documents)
-   - Three types: highlight (unresolved), reference (resolved), entity reference
-   - Links source document to optional target document
+   - W3C-compliant with multi-body arrays combining entity type tags and document links
+   - Links source document to optional target document via body SpecificResource
+   - Entity types stored as [:TAGGED_AS] relationships to EntityType vertices (see [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md))
 
 3. **TagCollection** - Stores collections of entity types and reference types
    - Two collections: 'entity-types' and 'reference-types'
@@ -82,7 +87,8 @@ All implementations use consistent edge labels:
 1. **Document Immutability**: Documents are never updated, only cloned with proper provenance tracking
 2. **Type Safety**: All required fields must be present; no defensive defaults for mandatory data
 3. **Vertex Labels for Type Identification**: Use graph-native vertex labels instead of ID prefixes
-4. **Consistent Edge Directions**: Selections point TO documents, not vice versa
+4. **Consistent Edge Directions**: Annotations point TO documents, not vice versa
+5. **W3C Compliance**: All annotations follow W3C Web Annotation Data Model. Multi-body arrays are reconstructed from entity type relationships ([:TAGGED_AS] edges to EntityType vertices) and document link properties (source in body). See [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) for full specification details.
 
 ## Implementation-Specific Details
 

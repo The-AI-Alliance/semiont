@@ -490,7 +490,7 @@ The document and history panels synchronize via hover interactions:
 - [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering with ReactMarkdown
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering with CodeMirror
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
-- [SELECTIONS.md](./SELECTIONS.md) - Annotation data model and API (backend)
+- [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [KEYBOARD-NAV.md](./KEYBOARD-NAV.md) - Keyboard shortcuts
 - [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization
 

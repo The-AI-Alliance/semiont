@@ -61,6 +61,23 @@ npm start
 
 **Note on Building**: For local development, use `npm run dev` for auto-restart. For production deployment, `semiont publish` handles building TypeScript locally before creating Docker images. See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for details.
 
+## 🎯 Annotation Architecture
+
+Semiont implements the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) for full interoperability and standards compliance. The backend API provides:
+
+- **W3C-compliant annotation CRUD** with multi-body arrays
+- **Event-sourced architecture** with immutable audit trail (Layer 2: Event Store)
+- **Fast query projections** for current state (Layer 3: Projection Store)
+- **Graph database integration** for relationship traversal (Layer 4: Graph Database)
+
+**Key Features**:
+- Multi-body annotations combining entity type tags (`TextualBody` with `purpose: "tagging"`) and document links (`SpecificResource` with `purpose: "linking"`)
+- Stub and resolved references for progressive knowledge graph building
+- JSON-LD export for semantic web integration
+- Full audit trail via event sourcing
+
+For complete details on how annotations flow through all layers, see [W3C-WEB-ANNOTATION.md](../../docs/W3C-WEB-ANNOTATION.md).
+
 ## 💻 Local Development with Semiont CLI
 
 ### Essential Commands
@@ -1077,6 +1094,8 @@ semiont configure production get oauth/google
 ## Testing
 
 The backend uses **Jest** with TypeScript for unit testing, following a simple and focused testing approach.
+
+For comprehensive testing documentation covering all services, see [Testing Guide](../../docs/TESTING.md).
 
 ### Running Tests
 
