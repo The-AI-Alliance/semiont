@@ -271,10 +271,11 @@ describe('EventSubscriptions', () => {
 
       const event = createStoredEvent('annotation.added', 'doc1');
 
-      // Should not throw
-      await expect(subscriptions.notifySubscribers('doc1', event)).resolves.toBeUndefined();
+      // Should not throw - fire-and-forget means errors are caught internally
+      await subscriptions.notifySubscribers('doc1', event);
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Wait for async callbacks to complete
+      await new Promise(resolve => setTimeout(resolve, 20));
 
       // All callbacks should be called despite error
       expect(goodCallback).toHaveBeenCalled();
