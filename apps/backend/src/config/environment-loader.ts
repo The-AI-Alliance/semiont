@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 type GraphServiceConfig =
   | {
@@ -127,29 +128,36 @@ export function getGraphConfig(): GraphServiceConfig {
 export function getFilesystemConfig(): {
   path: string;
 } {
+  // For unit test environment (SEMIONT_ENV=unit), use a temporary directory
+  // This avoids requiring an environments/unit.json file for tests
+  if (process.env.SEMIONT_ENV === 'unit') {
+    const tmpDir = path.join(os.tmpdir(), 'semiont-test-fs', Date.now().toString());
+    return { path: tmpDir };
+  }
+
   // Load from environment JSON
   const envConfig = loadEnvironmentConfig();
-  
+
   if (envConfig?.services?.filesystem) {
     const filesystemService = envConfig.services.filesystem;
-    
+
     if (!filesystemService.path) {
       throw new Error('Filesystem service configuration must specify a "path" field');
     }
-    
+
     let resolvedPath = filesystemService.path;
-    
+
     // If path is relative, prepend project root
     if (!path.isAbsolute(resolvedPath)) {
       const projectRoot = getProjectRoot();
       resolvedPath = path.join(projectRoot, resolvedPath);
     }
-    
+
     return {
       path: resolvedPath
     };
   }
-  
+
   // If no configuration found, error
   throw new Error('Filesystem service configuration not found. Please specify services.filesystem.path in your environment configuration.');
 }
