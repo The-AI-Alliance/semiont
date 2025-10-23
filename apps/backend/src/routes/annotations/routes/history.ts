@@ -63,7 +63,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       type: stored.event.type,
       timestamp: stored.event.timestamp,
       userId: stored.event.userId,
-      documentId: stored.event.documentId,
+      documentId: stored.event.documentId!, // Annotation events always have documentId
       payload: stored.event.payload,
       metadata: {
         sequenceNumber: stored.metadata.sequenceNumber,

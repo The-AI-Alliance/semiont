@@ -23,7 +23,8 @@ export type DocumentEventType =
   | 'annotation.removed'
   | 'annotation.body.updated'
   | 'entitytag.added'
-  | 'entitytag.removed';
+  | 'entitytag.removed'
+  | 'entitytype.added';  // Global entity type collection
 
 /**
  * Extract annotation ID from event payload

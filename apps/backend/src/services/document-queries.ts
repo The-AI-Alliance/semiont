@@ -27,9 +27,9 @@ export class DocumentQueryService {
     const config = getFilesystemConfig();
     const basePath = config.path;
 
-    // Projection is sharded at data/annotations/{ab}/{cd}/{documentId}.json
+    // Projection is sharded at data/projections/annotations/{ab}/{cd}/{documentId}.json
     const [ab, cd] = getShardPath(documentId);
-    const projPath = path.join(basePath, 'annotations', ab, cd, `${documentId}.json`);
+    const projPath = path.join(basePath, 'projections', 'annotations', ab, cd, `${documentId}.json`);
 
     try {
       const content = await fs.readFile(projPath, 'utf-8');
@@ -64,7 +64,7 @@ export class DocumentQueryService {
   static async listDocuments(filters?: ListDocumentsFilters): Promise<Document[]> {
     const config = getFilesystemConfig();
     const basePath = config.path;
-    const annotationsPath = path.join(basePath, 'annotations');
+    const annotationsPath = path.join(basePath, 'projections', 'annotations');
 
     const documents: Document[] = [];
 

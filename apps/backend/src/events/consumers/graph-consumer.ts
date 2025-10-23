@@ -16,6 +16,7 @@ import { findBodyItem } from '@semiont/core';
 export class GraphDBConsumer {
   private graphDb: GraphDatabase | null = null;
   private subscriptions: Map<string, any> = new Map();
+  private _globalSubscription: any = null;  // Subscription to system-level events (kept for cleanup)
   private processing: Map<string, Promise<void>> = new Map();
   private lastProcessed: Map<string, number> = new Map();
 
@@ -23,7 +24,25 @@ export class GraphDBConsumer {
     if (!this.graphDb) {
       this.graphDb = await getGraphDatabase();
       console.log('[GraphDBConsumer] Initialized');
+
+      // Subscribe to global system-level events
+      await this.subscribeToGlobalEvents();
     }
+  }
+
+  /**
+   * Subscribe to global system-level events (no documentId)
+   * This allows the consumer to react to events like entitytype.added
+   */
+  private async subscribeToGlobalEvents() {
+    const eventStore = await getEventStore();
+
+    this._globalSubscription = eventStore.subscribeGlobal(async (storedEvent) => {
+      console.log(`[GraphDBConsumer] Received global event: ${storedEvent.event.type}`);
+      await this.processEvent(storedEvent);
+    });
+
+    console.log('[GraphDBConsumer] Subscribed to global system events');
   }
 
   private ensureInitialized(): GraphDatabase {
@@ -54,6 +73,13 @@ export class GraphDBConsumer {
    */
   protected async processEvent(storedEvent: StoredEvent): Promise<void> {
     const { documentId } = storedEvent.event;
+
+    // ⚠️ BRITTLE: System-level events (entitytype.added) have no documentId
+    // Process these immediately without ordering guarantees
+    if (!documentId) {
+      await this.applyEventToGraph(storedEvent);
+      return;
+    }
 
     // Wait for previous event on this document to complete
     const previousProcessing = this.processing.get(documentId);
@@ -87,6 +113,7 @@ export class GraphDBConsumer {
 
     switch (event.type) {
       case 'document.created': {
+        if (!event.documentId) throw new Error('document.created requires documentId');
         const storage = getStorageService();
         const content = await storage.getDocument(event.documentId);
         await graphDb.createDocument({
@@ -103,6 +130,7 @@ export class GraphDBConsumer {
       }
 
       case 'document.cloned': {
+        if (!event.documentId) throw new Error('document.cloned requires documentId');
         const storage = getStorageService();
         const content = await storage.getDocument(event.documentId);
         await graphDb.createDocument({
@@ -119,12 +147,14 @@ export class GraphDBConsumer {
       }
 
       case 'document.archived':
+        if (!event.documentId) throw new Error('document.archived requires documentId');
         await graphDb.updateDocument(event.documentId, {
           archived: true,
         });
         break;
 
       case 'document.unarchived':
+        if (!event.documentId) throw new Error('document.unarchived requires documentId');
         await graphDb.updateDocument(event.documentId, {
           archived: false,
         });
@@ -192,6 +222,7 @@ export class GraphDBConsumer {
         break;
 
       case 'entitytag.added':
+        if (!event.documentId) throw new Error('entitytag.added requires documentId');
         const doc = await graphDb.getDocument(event.documentId);
         if (doc) {
           await graphDb.updateDocument(event.documentId, {
@@ -201,12 +232,20 @@ export class GraphDBConsumer {
         break;
 
       case 'entitytag.removed':
+        if (!event.documentId) throw new Error('entitytag.removed requires documentId');
         const doc2 = await graphDb.getDocument(event.documentId);
         if (doc2) {
           await graphDb.updateDocument(event.documentId, {
             entityTypes: doc2.entityTypes.filter(t => t !== event.payload.entityType),
           });
         }
+        break;
+
+      case 'entitytype.added':
+        // ⚠️ BRITTLE: Event routing depends on absence of documentId
+        // This handler is called for system-level events (global entity type collection)
+        // TODO: Design cleaner event routing with explicit projection targets
+        await graphDb.addEntityType(event.payload.entityType);
         break;
 
       default:
@@ -308,6 +347,14 @@ export class GraphDBConsumer {
    */
   async shutdown(): Promise<void> {
     await this.unsubscribeAll();
+
+    // Unsubscribe from global events
+    if (this._globalSubscription) {
+      this._globalSubscription.unsubscribe();
+      this._globalSubscription = null;
+      console.log('[GraphDBConsumer] Unsubscribed from global events');
+    }
+
     if (this.graphDb) {
       await this.graphDb.disconnect();
       this.graphDb = null;

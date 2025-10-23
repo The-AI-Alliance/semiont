@@ -51,6 +51,8 @@ export class EventStore {
   private documentLastHash: Map<string, string> = new Map();
   // Per-document subscriptions: documentId -> Set of callbacks
   private subscriptions: Map<string, Set<EventCallback>> = new Map();
+  // Global subscriptions for system-level events (no documentId)
+  private globalSubscriptions: Set<EventCallback> = new Set();
 
   constructor(config: EventStoreConfig, projectionStorage: ProjectionStorage) {
     this.config = {
@@ -131,8 +133,11 @@ export class EventStore {
   async appendEvent(event: Omit<DocumentEvent, 'id' | 'timestamp'>): Promise<StoredEvent> {
     const documentId = event.documentId;
 
+    // ⚠️ BRITTLE: System-level events (entitytype.added) have no documentId
+    // TODO: Design cleaner event routing with explicit projection targets
     if (!documentId) {
-      throw new Error('Event must have a documentId');
+      // System-level event - handle differently
+      return this.appendSystemEvent(event);
     }
 
     // Ensure document stream is initialized
@@ -176,6 +181,71 @@ export class EventStore {
     await this.notifySubscribers(documentId, storedEvent);
 
     return storedEvent;
+  }
+
+  /**
+   * Append system-level event (no documentId)
+   * ⚠️ BRITTLE: Routing based on absence of documentId
+   */
+  private async appendSystemEvent(event: Omit<DocumentEvent, 'id' | 'timestamp'>): Promise<StoredEvent> {
+    const completeEvent: DocumentEvent = {
+      ...event,
+      id: uuidv4(),
+      timestamp: new Date().toISOString(),
+    } as DocumentEvent;
+
+    const metadata: EventMetadata = {
+      sequenceNumber: 1,  // System events don't have sequence tracking yet
+      streamPosition: 0,
+      timestamp: new Date().toISOString(),
+      checksum: sha256(completeEvent),
+    };
+
+    const storedEvent: StoredEvent = {
+      event: completeEvent,
+      metadata,
+    };
+
+    // Update system-level projection (Layer 3)
+    if (event.type === 'entitytype.added') {
+      await this.updateEntityTypesProjection((event as any).payload.entityType);
+    }
+
+    // Notify global subscribers (Graph Consumer, etc.) to update Layer 4
+    await this.notifyGlobalSubscribers(storedEvent);
+
+    return storedEvent;
+  }
+
+  /**
+   * Update entity types projection (Layer 3)
+   */
+  private async updateEntityTypesProjection(entityType: string): Promise<void> {
+    const entityTypesPath = path.join(
+      this.config.dataDir,
+      'projections',
+      'entity-types',
+      'entity-types.json'
+    );
+
+    // Read current projection
+    let projection = { entityTypes: [] as string[] };
+    try {
+      const content = await fs.readFile(entityTypesPath, 'utf-8');
+      projection = JSON.parse(content);
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') throw error;
+      // File doesn't exist - will create it
+    }
+
+    // Add entity type (idempotent - Set ensures uniqueness)
+    const entityTypeSet = new Set(projection.entityTypes);
+    entityTypeSet.add(entityType);
+    projection.entityTypes = Array.from(entityTypeSet).sort();
+
+    // Write projection
+    await fs.mkdir(path.dirname(entityTypesPath), { recursive: true });
+    await fs.writeFile(entityTypesPath, JSON.stringify(projection, null, 2));
   }
 
   /**
@@ -681,6 +751,29 @@ export class EventStore {
   }
 
   /**
+   * Subscribe to all system-level events (no documentId)
+   * Returns an EventSubscription with unsubscribe function
+   *
+   * Use this for consumers that need to react to global events like:
+   * - entitytype.added (global entity type collection changes)
+   * - Future system-level events (user.created, workspace.created, etc.)
+   */
+  subscribeGlobal(callback: EventCallback): EventSubscription {
+    this.globalSubscriptions.add(callback);
+
+    console.log(`[EventStore] Global subscription added (total: ${this.globalSubscriptions.size} subscribers)`);
+
+    return {
+      documentId: '__global__',  // Special marker for global subscriptions
+      callback,
+      unsubscribe: () => {
+        this.globalSubscriptions.delete(callback);
+        console.log(`[EventStore] Global subscription removed (remaining: ${this.globalSubscriptions.size} subscribers)`);
+      }
+    };
+  }
+
+  /**
    * Notify all subscribers for a document when a new event is appended
    */
   private async notifySubscribers(documentId: string, event: StoredEvent): Promise<void> {
@@ -702,6 +795,31 @@ export class EventStore {
         })
         .catch((error: unknown) => {
           console.error(`[EventStore] Error in subscriber #${index + 1} for document ${documentId}, event ${event.event.type}:`, error);
+        });
+    });
+  }
+
+  /**
+   * Notify all global subscribers when a system-level event is appended
+   */
+  private async notifyGlobalSubscribers(event: StoredEvent): Promise<void> {
+    if (this.globalSubscriptions.size === 0) {
+      console.log(`[EventStore] System event ${event.event.type} - no global subscribers to notify`);
+      return;
+    }
+
+    console.log(`[EventStore] Notifying ${this.globalSubscriptions.size} global subscriber(s) of system event ${event.event.type}`);
+
+    // Call all global callbacks without waiting - fire and forget
+    // Each callback handles its own errors and cleanup
+    // This prevents slow/hanging callbacks from blocking event emission
+    Array.from(this.globalSubscriptions).forEach((callback, index) => {
+      Promise.resolve(callback(event))
+        .then(() => {
+          console.log(`[EventStore] Global subscriber #${index + 1} successfully notified of ${event.event.type}`);
+        })
+        .catch((error: unknown) => {
+          console.error(`[EventStore] Error in global subscriber #${index + 1} for system event ${event.event.type}:`, error);
         });
     });
   }

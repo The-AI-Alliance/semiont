@@ -51,6 +51,8 @@ export function formatEventType(type: DocumentEventType, t: TranslateFn): string
       return t('entitytagAdded');
     case 'entitytag.removed':
       return t('entitytagRemoved');
+    case 'entitytype.added':
+      return t('entitytypeAdded');
     default:
       // Exhaustive check: if we get here, we missed a case
       const _exhaustiveCheck: never = type;
@@ -100,6 +102,8 @@ export function getEventEmoji(type: DocumentEventType, event?: StoredEvent): str
     case 'entitytag.added':
     case 'entitytag.removed':
       return '🏷️';
+    case 'entitytype.added':
+      return '🏷️';  // Same emoji as entitytag (global entity type collection)
     default:
       // Exhaustive check: if we get here, we missed a case
       const _exhaustiveCheck: never = type;
