@@ -2014,6 +2014,113 @@
           "documentId"
         ]
       },
+      "BodyOperationAdd": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "add"
+          },
+          "item": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextualBody"
+              },
+              {
+                "$ref": "#/components/schemas/SpecificResource"
+              }
+            ]
+          }
+        },
+        "required": ["op", "item"]
+      },
+      "BodyOperationRemove": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "remove"
+          },
+          "item": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextualBody"
+              },
+              {
+                "$ref": "#/components/schemas/SpecificResource"
+              }
+            ]
+          }
+        },
+        "required": ["op", "item"]
+      },
+      "BodyOperationReplace": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "replace"
+          },
+          "oldItem": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextualBody"
+              },
+              {
+                "$ref": "#/components/schemas/SpecificResource"
+              }
+            ]
+          },
+          "newItem": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextualBody"
+              },
+              {
+                "$ref": "#/components/schemas/SpecificResource"
+              }
+            ]
+          }
+        },
+        "required": ["op", "oldItem", "newItem"]
+      },
+      "UpdateAnnotationBodyRequest": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "Document ID containing the annotation (required for O(1) Layer 3 lookup)"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/BodyOperationAdd"
+                },
+                {
+                  "$ref": "#/components/schemas/BodyOperationRemove"
+                },
+                {
+                  "$ref": "#/components/schemas/BodyOperationReplace"
+                }
+              ]
+            },
+            "minItems": 1,
+            "description": "Array of body modification operations to apply"
+          }
+        },
+        "required": ["documentId", "operations"]
+      },
+      "UpdateAnnotationBodyResponse": {
+        "type": "object",
+        "properties": {
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          }
+        },
+        "required": ["annotation"]
+      },
       "DeleteAnnotationRequest": {
         "type": "object",
         "properties": {
@@ -4183,7 +4290,7 @@
                 "document.unarchived",
                 "annotation.added",
                 "annotation.removed",
-                "annotation.resolved",
+                "annotation.body.updated",
                 "entitytag.added",
                 "entitytag.removed"
               ]
@@ -4616,10 +4723,10 @@
         }
       }
     },
-    "/api/annotations/{id}/resolve": {
+    "/api/annotations/{id}/body": {
       "put": {
-        "summary": "Resolve Annotation",
-        "description": "Resolve a reference annotation to a target document",
+        "summary": "Update Annotation Body",
+        "description": "Apply fine-grained operations to modify annotation body items (add, remove, or replace TextualBody and SpecificResource items)",
         "tags": [
           "Annotations"
         ],
@@ -4642,18 +4749,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ResolveAnnotationRequest"
+                "$ref": "#/components/schemas/UpdateAnnotationBodyRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Annotation resolved successfully",
+            "description": "Annotation body updated successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ResolveAnnotationResponse"
+                  "$ref": "#/components/schemas/UpdateAnnotationBodyResponse"
                 }
               }
             }

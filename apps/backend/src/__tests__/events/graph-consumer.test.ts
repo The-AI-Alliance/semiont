@@ -571,18 +571,39 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('annotation.resolved event', () => {
+  describe('annotation.body.updated event', () => {
     it('should add SpecificResource to annotation body in GraphDB', async () => {
+      // Mock getAnnotation to return an annotation with existing body
+      (mockGraphDB.getAnnotation as any).mockResolvedValueOnce({
+        id: 'ref-456',
+        type: 'Annotation',
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        motivation: 'linking',
+        target: { source: 'doc-123' },
+        body: [
+          { type: 'TextualBody', value: 'Entity1', purpose: 'tagging' }
+        ],
+        creator: { id: 'user1', type: 'Person' },
+        created: new Date().toISOString(),
+      });
+
       const event: DocumentEvent = {
         id: 'evt-9',
-        type: 'annotation.resolved',
+        type: 'annotation.body.updated',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
           annotationId: 'ref-456',
-          targetDocumentId: 'doc-789',
+          operations: [{
+            op: 'add',
+            item: {
+              type: 'SpecificResource',
+              source: 'doc-789',
+              purpose: 'linking',
+            },
+          }],
         },
       };
 
@@ -597,11 +618,12 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      // Resolution adds SpecificResource to body, preserving entity tags
+      // Should update annotation with both TextualBody and SpecificResource
       expect(mockGraphDB.updateAnnotation).toHaveBeenCalledWith('ref-456', {
-        body: expect.arrayContaining([
+        body: [
+          { type: 'TextualBody', value: 'Entity1', purpose: 'tagging' },
           { type: 'SpecificResource', source: 'doc-789', purpose: 'linking' },
-        ]),
+        ],
       });
     });
   });

@@ -22,7 +22,7 @@ import type {
   Document,
   DocumentAnnotations,
 } from '@semiont/core';
-import { compareAnnotationIds } from '@semiont/core';
+import { compareAnnotationIds, findBodyItem } from '@semiont/core';
 import type { ProjectionStorage, DocumentState } from '../storage/projection-storage';
 import { jumpConsistentHash, sha256 } from '../storage/shard-utils';
 
@@ -396,7 +396,7 @@ export class EventStore {
       // Annotation events don't affect document metadata
       case 'annotation.added':
       case 'annotation.removed':
-      case 'annotation.resolved':
+      case 'annotation.body.updated':
         break;
     }
   }
@@ -422,37 +422,42 @@ export class EventStore {
         );
         break;
 
-      case 'annotation.resolved':
-        // Compare by ID portion (handle both URI and internal ID formats)
+      case 'annotation.body.updated':
+        // Find annotation by ID
         const annotation = annotations.annotations.find(a =>
           compareAnnotationIds(a.id, event.payload.annotationId)
         );
         if (annotation) {
-          // Add SpecificResource to body array
-          if (Array.isArray(annotation.body)) {
-            // Check if there's already a SpecificResource in the body
-            const existingLinkIndex = annotation.body.findIndex(
-              b => typeof b === 'object' && b !== null && 'type' in b && b.type === 'SpecificResource'
-            );
-
-            if (existingLinkIndex >= 0) {
-              // Update existing SpecificResource
-              const existing = annotation.body[existingLinkIndex];
-              if (typeof existing === 'object' && existing !== null && 'source' in existing) {
-                (existing as { source: string }).source = event.payload.targetDocumentId;
-              }
-            } else {
-              // Add new SpecificResource to body array
-              annotation.body.push({
-                type: 'SpecificResource',
-                source: event.payload.targetDocumentId,
-                purpose: 'linking'
-              });
-            }
-          } else if (typeof annotation.body === 'object' && annotation.body !== null && 'type' in annotation.body && annotation.body.type === 'SpecificResource') {
-            // Single SpecificResource body (shouldn't happen in newer code, but handle for safety)
-            annotation.body.source = event.payload.targetDocumentId;
+          // Ensure body is an array
+          if (!Array.isArray(annotation.body)) {
+            annotation.body = annotation.body ? [annotation.body] : [];
           }
+
+          // Apply each operation
+          for (const op of event.payload.operations) {
+            if (op.op === 'add') {
+              // Add item (idempotent - don't add if already exists)
+              const exists = findBodyItem(annotation.body, op.item) !== -1;
+              if (!exists) {
+                annotation.body.push(op.item);
+              }
+            } else if (op.op === 'remove') {
+              // Remove item
+              const index = findBodyItem(annotation.body, op.item);
+              if (index !== -1) {
+                annotation.body.splice(index, 1);
+              }
+            } else if (op.op === 'replace') {
+              // Replace item
+              const index = findBodyItem(annotation.body, op.oldItem);
+              if (index !== -1) {
+                annotation.body[index] = op.newItem;
+              }
+            }
+          }
+
+          // Update modified timestamp
+          annotation.modified = new Date(event.timestamp).toISOString();
         }
         break;
 

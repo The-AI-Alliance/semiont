@@ -23,7 +23,7 @@ const eventTypes = [
   'document.unarchived',
   'annotation.added',
   'annotation.removed',
-  'annotation.resolved',
+  'annotation.body.updated',
   'entitytag.added',
   'entitytag.removed',
 ] as const;

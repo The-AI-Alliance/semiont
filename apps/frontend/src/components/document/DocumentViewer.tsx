@@ -56,7 +56,7 @@ export function DocumentViewer({
   } = useDocumentAnnotations();
 
   // API mutations
-  const resolveReferenceMutation = api.annotations.resolve.useMutation();
+  const updateAnnotationBodyMutation = api.annotations.updateBody.useMutation();
 
   // Annotation popup state
   const [selectedText, setSelectedText] = useState<string>('');
@@ -516,9 +516,19 @@ export function DocumentViewer({
               } else if (updates.body.type === 'SpecificResource') {
                 if (updates.body.source) {
                   // Resolve reference to a document
-                  await resolveReferenceMutation.mutateAsync({
+                  await updateAnnotationBodyMutation.mutateAsync({
                     id: editingAnnotation.id,
-                    documentId: updates.body.source
+                    data: {
+                      documentId: document.id,
+                      operations: [{
+                        op: 'add',
+                        item: {
+                          type: 'SpecificResource',
+                          source: updates.body.source,
+                          purpose: 'linking'
+                        }
+                      }]
+                    }
                   });
                 }
               }

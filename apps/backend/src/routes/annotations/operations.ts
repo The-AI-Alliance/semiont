@@ -21,6 +21,7 @@ import {
   getTextPositionSelector,
   type Document,
   type Annotation,
+  type BodyOperation,
 } from '@semiont/core';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 import { registerGenerateDocument } from './routes/generate-document';
@@ -146,15 +147,24 @@ operationsRouter.post('/api/annotations/:id/create-document',
       },
     });
 
-    // Emit annotation.resolved event to link the annotation to the new document
+    // Emit annotation.body.updated event to link the annotation to the new document
+    const operations: BodyOperation[] = [{
+      op: 'add',
+      item: {
+        type: 'SpecificResource',
+        source: documentId,
+        purpose: 'linking',
+      },
+    }];
+
     await eventStore.appendEvent({
-      type: 'annotation.resolved',
+      type: 'annotation.body.updated',
       documentId: getTargetSource(annotation.target),
       userId: user.id,
       version: 1,
       payload: {
         annotationId: id,
-        targetDocumentId: documentId,
+        operations,
       },
     });
 
@@ -258,15 +268,24 @@ operationsRouter.post('/api/annotations/:id/generate-document',
       },
     });
 
-    // Emit annotation.resolved event to link the annotation to the new document
+    // Emit annotation.body.updated event to link the annotation to the new document
+    const operations: BodyOperation[] = [{
+      op: 'add',
+      item: {
+        type: 'SpecificResource',
+        source: documentId,
+        purpose: 'linking',
+      },
+    }];
+
     await eventStore.appendEvent({
-      type: 'annotation.resolved',
+      type: 'annotation.body.updated',
       documentId: getTargetSource(annotation.target),
       userId: user.id,
       version: 1,
       payload: {
         annotationId: id,
-        targetDocumentId: documentId,
+        operations,
       },
     });
 

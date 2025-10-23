@@ -14,7 +14,8 @@ import type {
   DeleteAnnotationResponse,
   GenerateDocumentFromAnnotationRequest,
   GenerateDocumentFromAnnotationResponse,
-  ResolveAnnotationResponse,
+  UpdateAnnotationBodyRequest,
+  UpdateAnnotationBodyResponse,
 } from './types';
 
 export const annotations = {
@@ -120,28 +121,30 @@ export const annotations = {
     },
   },
 
-  resolve: {
+  updateBody: {
     useMutation: () => {
       const { data: session } = useSession();
       const queryClient = useQueryClient();
 
       return useMutation({
-        mutationFn: ({ id, documentId }: { id: string; documentId: string }) => {
+        mutationFn: ({ id, data }: { id: string; data: UpdateAnnotationBodyRequest }) => {
           // URL-encode the annotation ID since it's a full URI with slashes and colons
           const encodedId = encodeURIComponent(id);
-          return fetchAPI<ResolveAnnotationResponse>(`/api/annotations/${encodedId}/resolve`, {
+          return fetchAPI<UpdateAnnotationBodyResponse>(`/api/annotations/${encodedId}/body`, {
             method: 'PUT',
-            body: JSON.stringify({ documentId }),
+            body: JSON.stringify(data),
           }, session?.backendToken);
         },
-        onSuccess: (response) => {
+        onSuccess: (response, variables) => {
           if (response.annotation?.target) {
             const targetSource = getTargetSource(response.annotation.target);
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(targetSource) });
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(targetSource) });
           }
-          if (response.targetDocument?.id) {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.referencedBy(response.targetDocument.id) });
+          // Also invalidate the document specified in the request
+          if (variables.data.documentId) {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.data.documentId) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.referencedBy(variables.data.documentId) });
           }
         },
       });

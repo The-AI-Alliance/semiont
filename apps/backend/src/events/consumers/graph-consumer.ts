@@ -11,6 +11,7 @@ import { getStorageService } from '../../storage/filesystem';
 import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { DocumentEvent, StoredEvent, Annotation } from '@semiont/core';
+import { findBodyItem } from '@semiont/core';
 
 export class GraphDBConsumer {
   private graphDb: GraphDatabase | null = null;
@@ -142,18 +143,47 @@ export class GraphDBConsumer {
         await graphDb.deleteAnnotation(event.payload.annotationId);
         break;
 
-      case 'annotation.resolved':
-        // Add SpecificResource to body array (graph impl will merge with existing entity tags)
+      case 'annotation.body.updated':
+        // Apply fine-grained body operations
         try {
-          await graphDb.updateAnnotation(event.payload.annotationId, {
-            body: [
-              {
-                type: 'SpecificResource',
-                source: event.payload.targetDocumentId,
-                purpose: 'linking',
-              },
-            ],
-          } as Partial<Annotation>);
+          // Get current annotation from graph
+          const currentAnnotation = await graphDb.getAnnotation(event.payload.annotationId);
+          if (currentAnnotation) {
+            // Ensure body is an array
+            let bodyArray = Array.isArray(currentAnnotation.body)
+              ? [...currentAnnotation.body]
+              : currentAnnotation.body
+              ? [currentAnnotation.body]
+              : [];
+
+            // Apply each operation
+            for (const op of event.payload.operations) {
+              if (op.op === 'add') {
+                // Add item (idempotent - don't add if already exists)
+                const exists = findBodyItem(bodyArray, op.item) !== -1;
+                if (!exists) {
+                  bodyArray.push(op.item);
+                }
+              } else if (op.op === 'remove') {
+                // Remove item
+                const index = findBodyItem(bodyArray, op.item);
+                if (index !== -1) {
+                  bodyArray.splice(index, 1);
+                }
+              } else if (op.op === 'replace') {
+                // Replace item
+                const index = findBodyItem(bodyArray, op.oldItem);
+                if (index !== -1) {
+                  bodyArray[index] = op.newItem;
+                }
+              }
+            }
+
+            // Update annotation with new body
+            await graphDb.updateAnnotation(event.payload.annotationId, {
+              body: bodyArray,
+            } as Partial<Annotation>);
+          }
         } catch (error) {
           // If annotation doesn't exist in graph (e.g., created before consumer started),
           // log warning but don't fail - event store is source of truth

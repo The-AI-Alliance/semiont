@@ -36,8 +36,8 @@ export function formatEventType(type: DocumentEventType, t: TranslateFn, payload
     case 'annotation.removed': {
       return t('annotationRemoved');
     }
-    case 'annotation.resolved': {
-      return t('referenceResolved');
+    case 'annotation.body.updated': {
+      return t('annotationBodyUpdated');
     }
 
     case 'entitytag.added':
@@ -73,8 +73,8 @@ export function getEventEmoji(type: DocumentEventType, payload?: any): string {
     case 'annotation.removed': {
       return '🗑️';
     }
-    case 'annotation.resolved': {
-      return '🔗';
+    case 'annotation.body.updated': {
+      return '✏️';
     }
 
     case 'entitytag.added':
@@ -133,7 +133,7 @@ export function getEventDisplayContent(
     }
 
     // Unified annotation events
-    case 'annotation.resolved': {
+    case 'annotation.body.updated': {
       // Find current annotation to get its text
       const annotation = annotations.find(a =>
         compareAnnotationIds(a.id, payload.annotationId)

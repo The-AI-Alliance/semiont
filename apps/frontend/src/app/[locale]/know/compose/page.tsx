@@ -51,7 +51,7 @@ function ComposeDocumentContent() {
 
   // Set up mutation hooks
   const createDocMutation = api.documents.create.useMutation();
-  const resolveToDocMutation = api.annotations.resolve.useMutation();
+  const updateAnnotationBodyMutation = api.annotations.updateBody.useMutation();
 
   // Fetch cloned document data if in clone mode
   const { data: cloneData } = api.documents.getByToken.useQuery(tokenFromUrl || '');
@@ -155,11 +155,21 @@ function ComposeDocumentContent() {
         documentName = response.document.name || newDocName;
 
         // If this is a reference completion, update the reference to point to the new document
-        if (isReferenceCompletion && referenceId && documentId) {
+        if (isReferenceCompletion && referenceId && documentId && sourceDocumentId) {
           try {
-            await resolveToDocMutation.mutateAsync({
+            await updateAnnotationBodyMutation.mutateAsync({
               id: referenceId,
-              documentId: documentId
+              data: {
+                documentId: sourceDocumentId,
+                operations: [{
+                  op: 'add',
+                  item: {
+                    type: 'SpecificResource',
+                    source: documentId,
+                    purpose: 'linking'
+                  }
+                }]
+              }
             });
             showSuccess('Reference successfully linked to the new document');
           } catch (error) {

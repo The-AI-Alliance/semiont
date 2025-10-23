@@ -17,7 +17,7 @@ import { getTargetSelector } from '../../lib/annotation-utils';
 import { CREATION_METHODS } from '@semiont/core';
 import { calculateChecksum } from '@semiont/core';
 import { getEventStore } from '../../events/event-store';
-import { getExactText, compareAnnotationIds } from '@semiont/core';
+import { getExactText, compareAnnotationIds, type BodyOperation } from '@semiont/core';
 import { extractEntityTypes } from '../../graph/annotation-body-utils';
 
 export class GenerationWorker extends JobWorker {
@@ -150,18 +150,27 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] 🔗 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
-    // Emit annotation.resolved event to link the annotation to the new document
+    // Emit annotation.body.updated event to link the annotation to the new document
+    const operations: BodyOperation[] = [{
+      op: 'add',
+      item: {
+        type: 'SpecificResource',
+        source: documentId,
+        purpose: 'linking',
+      },
+    }];
+
     await eventStore.appendEvent({
-      type: 'annotation.resolved',
+      type: 'annotation.body.updated',
       documentId: job.sourceDocumentId,
       userId: job.userId,
       version: 1,
       payload: {
         annotationId: job.referenceId,
-        targetDocumentId: documentId,
+        operations,
       },
     });
-    console.log(`[GenerationWorker] ✅ Emitted annotation.resolved event linking ${job.referenceId} → ${documentId}`);
+    console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${job.referenceId} → ${documentId}`);
 
     // Set final result
     job.result = {

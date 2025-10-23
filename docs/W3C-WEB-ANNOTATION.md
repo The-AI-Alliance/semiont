@@ -121,9 +121,9 @@ An unresolved link that doesn't yet point to a target document. Uses **empty bod
 }
 ```
 
-#### Resolved Reference
+#### Linked Reference
 
-A link that points to a specific target document. Adds a `SpecificResource` body:
+A reference with a linked target document. The body includes a `SpecificResource` item:
 
 ```json
 {
@@ -171,11 +171,12 @@ A link that points to a specific target document. Adds a `SpecificResource` body
 - User wants to mark something for later research/documentation
 - Importing content with unresolved citations
 
-**Use Cases for Resolving References**:
-- User generates a new document via AI for the stub
-- User manually creates a new document for the stub
-- User searches and selects an existing document
-- Automated entity resolution links to knowledge base entries
+**Use Cases for Updating Reference Body**:
+
+- User generates a new document via AI and adds SpecificResource to body
+- User manually creates a new document and links it to the reference
+- User searches and selects an existing document to link
+- Automated entity resolution adds links to knowledge base entries
 
 ### 2. Highlight Annotations (`motivation: "highlighting"`)
 
@@ -309,7 +310,7 @@ export function isStubReference(annotation: Annotation): boolean {
 }
 
 /**
- * Type guard to check if a reference is resolved
+ * Type guard to check if a reference has a linked document
  */
 export function isResolvedReference(annotation: Annotation): boolean {
   return isReference(annotation) && getBodySource(annotation.body) !== null;
@@ -351,7 +352,7 @@ Different UI components render based on annotation state:
 
 **StubReferencePopup** ([StubReferencePopup.tsx](../apps/frontend/src/components/annotation-popups/StubReferencePopup.tsx))
 - Shows entity type tags
-- "Generate New Document" button - creates document via AI and resolves reference
+- "Generate New Document" button - creates document via AI and adds SpecificResource to body
 - "Search Existing Documents" button - opens search modal to select target
 - "Edit" button - modify entity types
 - "Delete" button - remove annotation
@@ -373,14 +374,14 @@ Different UI components render based on annotation state:
 - "Convert to Reference" button - change motivation to `linking`
 - "JSON-LD" button - view W3C-compliant JSON
 
-### Workflow Example: Creating and Resolving a Reference
+### Workflow Example: Creating and Linking a Reference
 
 1. **User selects text** → CreateAnnotationPopup appears
 2. **User clicks "Create Reference"** → Enters entity types
 3. **System creates stub** with `body: [TextualBody tags]`
 4. **StubReferencePopup appears** showing entity tags
 5. **User clicks "Generate Document"** → AI creates target document
-6. **System emits `annotation.resolved` event** with target document ID
+6. **System emits `annotation.body.updated` event** with `add` operation for SpecificResource
 7. **ResolvedReferencePopup appears** with link to new document
 
 ---
@@ -431,32 +432,42 @@ Different UI components render based on annotation state:
 4. Emit to event store (Layer 2)
 5. Return optimistic response
 
-### Resolving References
+### Updating Annotation Body
 
-**Endpoint**: `PUT /api/annotations/:id/resolve`
+**Endpoint**: `PUT /api/annotations/:id/body`
 
 **Request**:
 ```json
 {
-  "targetDocumentId": "doc-456"
+  "documentId": "doc-123",
+  "operations": [
+    {
+      "op": "add",
+      "item": {
+        "type": "SpecificResource",
+        "source": "doc-456",
+        "purpose": "linking"
+      }
+    }
+  ]
 }
 ```
 
 **Process**:
+
 1. Fetch current annotation from projection (Layer 3)
-2. Validate annotation is a stub reference
-3. Create `annotation.resolved` event
+2. Validate operations
+3. Create `annotation.body.updated` event
 4. Emit to event store (Layer 2)
 5. Return optimistic response with updated body
 
-**Result**: The `SpecificResource` body is added to the body array:
-```json
-{
-  "type": "SpecificResource",
-  "source": "doc-456",
-  "purpose": "linking"
-}
-```
+**Supported Operations**:
+
+- **Add**: `{ op: 'add', item: {...} }` - Append body item (idempotent)
+- **Remove**: `{ op: 'remove', item: {...} }` - Remove matching body item
+- **Replace**: `{ op: 'replace', oldItem: {...}, newItem: {...} }` - Replace body item
+
+Multiple operations can be sent in a single request.
 
 ### Updating Annotations
 
@@ -523,36 +534,37 @@ The event store is the **single source of truth** for all state changes. All mut
 }
 ```
 
-#### annotation.resolved
+#### annotation.body.updated
+
 ```typescript
 {
-  type: 'annotation.resolved',
+  type: 'annotation.body.updated',
   annotationId: 'anno-123',
   userId: 'user-789',
   timestamp: '2025-01-15T11:00:00Z',
   payload: {
     annotationId: 'anno-123',
-    targetDocumentId: 'doc-456'
-  }
-}
-```
-
-#### annotation.updated
-```typescript
-{
-  type: 'annotation.updated',
-  annotationId: 'anno-123',
-  userId: 'user-789',
-  timestamp: '2025-01-15T12:00:00Z',
-  payload: {
-    body: [
-      { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
-      { type: 'TextualBody', value: 'Physicist', purpose: 'tagging' },
-      { type: 'SpecificResource', source: 'doc-456', purpose: 'linking' }
+    operations: [
+      {
+        op: 'add',
+        item: {
+          type: 'SpecificResource',
+          source: 'doc-456',
+          purpose: 'linking'
+        }
+      }
     ]
   }
 }
 ```
+
+This event supports fine-grained operations on the annotation body:
+
+- **`add`**: Append a body item (idempotent - won't duplicate)
+- **`remove`**: Remove a body item
+- **`replace`**: Replace one body item with another
+
+Multiple operations can be batched in a single event.
 
 #### annotation.deleted
 ```typescript
@@ -624,16 +636,25 @@ await db.annotations.create({
   modified: event.timestamp
 });
 
-// annotation.resolved
+// annotation.body.updated
+const currentAnnotation = await db.annotations.get(event.annotationId);
+let bodyArray = Array.isArray(currentAnnotation.body) ? [...currentAnnotation.body] : [];
+
+for (const op of event.payload.operations) {
+  if (op.op === 'add') {
+    // Idempotent add
+    const exists = bodyArray.some(item => JSON.stringify(item) === JSON.stringify(op.item));
+    if (!exists) bodyArray.push(op.item);
+  } else if (op.op === 'remove') {
+    bodyArray = bodyArray.filter(item => JSON.stringify(item) !== JSON.stringify(op.item));
+  } else if (op.op === 'replace') {
+    const index = bodyArray.findIndex(item => JSON.stringify(item) === JSON.stringify(op.oldItem));
+    if (index !== -1) bodyArray[index] = op.newItem;
+  }
+}
+
 await db.annotations.update(event.annotationId, {
-  body: [
-    ...existingTagBodies,
-    {
-      type: 'SpecificResource',
-      source: event.payload.targetDocumentId,
-      purpose: 'linking'
-    }
-  ],
+  body: bodyArray,
   modified: event.timestamp
 });
 
@@ -686,7 +707,7 @@ WHERE motivation = 'linking'
     WHERE elem->>'type' = 'SpecificResource'
   );
 
--- Get all resolved references
+-- Get all references with linked documents
 SELECT * FROM annotations
 WHERE motivation = 'linking'
   AND EXISTS (
@@ -731,18 +752,29 @@ case 'annotation.added':
   });
   break;
 
-// annotation.resolved
-case 'annotation.resolved':
-  // Add SpecificResource to body array
-  await graphDb.updateAnnotation(event.payload.annotationId, {
-    body: [
-      {
-        type: 'SpecificResource',
-        source: event.payload.targetDocumentId,
-        purpose: 'linking'
+// annotation.body.updated
+case 'annotation.body.updated':
+  // Apply fine-grained operations to body array
+  const currentAnnotation = await graphDb.getAnnotation(event.payload.annotationId);
+  if (currentAnnotation) {
+    let bodyArray = Array.isArray(currentAnnotation.body) ? [...currentAnnotation.body] : [];
+
+    for (const op of event.payload.operations) {
+      if (op.op === 'add') {
+        const exists = bodyArray.some(item => JSON.stringify(item) === JSON.stringify(op.item));
+        if (!exists) bodyArray.push(op.item);
+      } else if (op.op === 'remove') {
+        bodyArray = bodyArray.filter(item => JSON.stringify(item) !== JSON.stringify(op.item));
+      } else if (op.op === 'replace') {
+        const index = bodyArray.findIndex(item => JSON.stringify(item) === JSON.stringify(op.oldItem));
+        if (index !== -1) bodyArray[index] = op.newItem;
       }
-    ]
-  });
+    }
+
+    await graphDb.updateAnnotation(event.payload.annotationId, {
+      body: bodyArray
+    });
+  }
   break;
 ```
 
@@ -759,7 +791,7 @@ case 'annotation.resolved':
     |
 (Annotation)
     |
-    | [:REFERENCES] (only for resolved)
+    | [:REFERENCES] (only when body includes SpecificResource)
     ↓
 (Document)
 
@@ -788,7 +820,7 @@ FOREACH (entityType IN $entityTypes |
 )
 RETURN a
 
-// Resolved Reference (with linking body)
+// Reference with linked document (body includes SpecificResource)
 MATCH (from:Document {id: $fromId})
 MATCH (to:Document {id: $toId})
 CREATE (a:Annotation {
@@ -811,14 +843,23 @@ FOREACH (entityType IN $entityTypes |
 RETURN a
 ```
 
-#### Resolving References
+#### Updating Annotation Body
 
 ```cypher
+// Add SpecificResource body item (linking to another document)
 MATCH (a:Annotation {id: $annotationId})
 MATCH (to:Document {id: $source})
 SET a.source = $source,
-    a.resolvedAt = datetime()
+    a.modified = datetime()
 MERGE (a)-[:REFERENCES]->(to)
+RETURN a
+
+// Remove body item
+MATCH (a:Annotation {id: $annotationId})
+// Body modifications are handled in application code,
+// then the updated body array is set on the annotation node
+SET a.body = $updatedBodyArray,
+    a.modified = datetime()
 RETURN a
 ```
 
@@ -840,7 +881,7 @@ private parseAnnotationNode(node: any, entityTypes: string[] = []): Annotation {
     });
   }
 
-  // Add linking body (SpecificResource) if annotation is resolved
+  // Add linking body (SpecificResource) if annotation has linked document
   if (node.properties.source) {
     bodyArray.push({
       type: 'SpecificResource' as const,
@@ -1037,7 +1078,7 @@ Semiont implements the W3C Web Annotation Data Model with full compliance:
 **15 W3C Compliance Tests** covering:
 
 1. Stub reference validation (empty/tagging-only body arrays)
-2. Resolved reference validation (SpecificResource has source, no value)
+2. Linked reference validation (SpecificResource has source, no value)
 3. Multi-body array structure
 4. Target validation (all 3 forms)
 5. Motivation validation
@@ -1047,8 +1088,8 @@ Semiont implements the W3C Web Annotation Data Model with full compliance:
 9. Purpose field usage
 10. Creator format
 11. Timestamp format
-12. Stub → Resolved transitions
-13. Resolved → Stub transitions (unlinking)
+12. Stub → Linked transitions (adding SpecificResource to body)
+13. Linked → Stub transitions (removing SpecificResource from body)
 14. Entity type tag extraction
 15. Body source extraction
 
@@ -1189,12 +1230,22 @@ PUT /api/annotations/anno-123
 }
 ```
 
-### 3. Resolve Reference
+### 3. Update Annotation Body (Add Link)
 
 ```json
-PUT /api/annotations/anno-123/resolve
+PUT /api/annotations/anno-123/body
 {
-  "targetDocumentId": "doc-456"
+  "documentId": "doc-123",
+  "operations": [
+    {
+      "op": "add",
+      "item": {
+        "type": "SpecificResource",
+        "source": "doc-456",
+        "purpose": "linking"
+      }
+    }
+  ]
 }
 ```
 

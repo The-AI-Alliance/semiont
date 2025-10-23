@@ -3,7 +3,7 @@
  * Extracted to reduce component complexity and improve testability
  *
  * NOTE: This file contains UI-specific logic and should eventually move to the frontend package.
- * It has been updated to work with unified annotation events (annotation.added/removed/resolved)
+ * It has been updated to work with unified annotation events (annotation.added/removed/body.updated)
  * instead of separate highlight/reference/assessment events.
  */
 
@@ -14,7 +14,7 @@ import type {
   DocumentClonedEvent,
   AnnotationAddedEvent,
   AnnotationRemovedEvent,
-  AnnotationResolvedEvent,
+  AnnotationBodyUpdatedEvent,
   EntityTagAddedEvent,
   EntityTagRemovedEvent,
 } from './events';
@@ -45,8 +45,8 @@ export function formatEventType(type: DocumentEventType, t: TranslateFn): string
       return t('annotationAdded');
     case 'annotation.removed':
       return t('annotationRemoved');
-    case 'annotation.resolved':
-      return t('annotationResolved');
+    case 'annotation.body.updated':
+      return t('annotationBodyUpdated');
     case 'entitytag.added':
       return t('entitytagAdded');
     case 'entitytag.removed':
@@ -95,8 +95,8 @@ export function getEventEmoji(type: DocumentEventType, event?: StoredEvent): str
       return '📝';
     case 'annotation.removed':
       return '🗑️';
-    case 'annotation.resolved':
-      return '🔗';
+    case 'annotation.body.updated':
+      return '✏️';
     case 'entitytag.added':
     case 'entitytag.removed':
       return '🏷️';
@@ -147,8 +147,8 @@ export function getEventDisplayContent(
       return { exact: payload.name, isQuoted: false, isTag: false };
     }
 
-    case 'annotation.resolved': {
-      const payload = eventData.payload as AnnotationResolvedEvent['payload'];
+    case 'annotation.body.updated': {
+      const payload = eventData.payload as AnnotationBodyUpdatedEvent['payload'];
 
       // Find the original annotation.added event to get the text
       const addedEvent = allEvents.find(e =>
@@ -283,8 +283,8 @@ export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
       return payload.annotation.id;
     }
     case 'annotation.removed':
-    case 'annotation.resolved': {
-      const payload = eventData.payload as AnnotationRemovedEvent['payload'] | AnnotationResolvedEvent['payload'];
+    case 'annotation.body.updated': {
+      const payload = eventData.payload as AnnotationRemovedEvent['payload'] | AnnotationBodyUpdatedEvent['payload'];
       return payload.annotationId;
     }
 

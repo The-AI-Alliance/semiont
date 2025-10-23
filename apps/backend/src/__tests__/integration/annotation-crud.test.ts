@@ -204,13 +204,20 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       // Resolve annotation (add SpecificResource)
       await eventStore.appendEvent({
-        type: 'annotation.resolved',
+        type: 'annotation.body.updated',
         documentId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: {
           annotationId: stubId,
-          targetDocumentId: testDocId2,
+          operations: [{
+            op: 'add',
+            item: {
+              type: 'SpecificResource',
+              source: testDocId2,
+              purpose: 'linking',
+            },
+          }],
         },
       });
 
@@ -284,13 +291,20 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       // Resolve
       await eventStore.appendEvent({
-        type: 'annotation.resolved',
+        type: 'annotation.body.updated',
         documentId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: {
           annotationId: stubId,
-          targetDocumentId: testDocId2,
+          operations: [{
+            op: 'add',
+            item: {
+              type: 'SpecificResource',
+              source: testDocId2,
+              purpose: 'linking',
+            },
+          }],
         },
       });
 

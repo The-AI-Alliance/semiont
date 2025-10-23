@@ -111,12 +111,22 @@ export async function handleSaveAnnotation(_client: SemiontApiClient, _args: any
 }
 
 export async function handleResolveAnnotation(client: SemiontApiClient, args: any) {
-  const data = await client.resolveAnnotation(args?.selectionId, args?.documentId);
+  const data = await client.updateAnnotationBody(args?.selectionId, {
+    documentId: args?.sourceDocumentId,
+    operations: [{
+      op: 'add',
+      item: {
+        type: 'SpecificResource',
+        source: args?.documentId,
+        purpose: 'linking',
+      },
+    }],
+  });
 
   return {
     content: [{
       type: 'text' as const,
-      text: `Annotation resolved to document:\nAnnotation ID: ${data.annotation.id}\nResolved to: ${data.targetDocument?.id || 'null'}\nTarget: ${data.targetDocument?.name || 'None'}`,
+      text: `Annotation linked to document:\nAnnotation ID: ${data.annotation.id}\nLinked to: ${args?.documentId || 'null'}`,
     }],
   };
 }
@@ -236,7 +246,7 @@ export async function handleGetDocumentReferences(client: SemiontApiClient, args
         const text = selector?.exact || r.id;
         // Extract source from W3C body array
         const source = extractBodySource(r.body);
-        return `- ${text} → ${source || 'unresolved'}`;
+        return `- ${text} → ${source || 'stub (no link)'}`;
       }).join('\n')}`,
     }],
   };

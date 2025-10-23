@@ -417,8 +417,8 @@ function DocumentView({
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
-    onAnnotationResolved: useCallback((event) => {
-      // Optimistically update annotations cache
+    onAnnotationBodyUpdated: useCallback((event) => {
+      // Optimistically update annotations cache with body operations
       queryClient.setQueryData(QUERY_KEYS.documents.annotations(documentId), (old: any) => {
         if (!old) return old;
         return {
@@ -426,12 +426,29 @@ function DocumentView({
           annotations: old.annotations.map((annotation: any) => {
             // Match by ID portion (handle both URI and internal ID formats)
             if (compareAnnotationIds(annotation.id, event.payload.annotationId)) {
+              // Apply body operations
+              let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
+
+              for (const op of event.payload.operations || []) {
+                if (op.op === 'add') {
+                  bodyArray.push(op.item);
+                } else if (op.op === 'remove') {
+                  bodyArray = bodyArray.filter((item: any) =>
+                    JSON.stringify(item) !== JSON.stringify(op.item)
+                  );
+                } else if (op.op === 'replace') {
+                  const index = bodyArray.findIndex((item: any) =>
+                    JSON.stringify(item) === JSON.stringify(op.oldItem)
+                  );
+                  if (index !== -1) {
+                    bodyArray[index] = op.newItem;
+                  }
+                }
+              }
+
               return {
                 ...annotation,
-                body: {
-                  ...annotation.body,
-                  source: event.payload.targetDocumentId,
-                },
+                body: bodyArray,
               };
             }
             return annotation;
@@ -439,7 +456,6 @@ function DocumentView({
         };
       });
 
-      // Widget sparkle (✨ emoji) will clear automatically when generatingReferenceId changes
       // Immediately invalidate events to update History Panel
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     }, [queryClient, documentId]),

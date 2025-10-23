@@ -87,11 +87,21 @@ export interface AnnotationRemovedEvent extends BaseEvent {
   };
 }
 
-export interface AnnotationResolvedEvent extends BaseEvent {
-  type: 'annotation.resolved';      // Only for motivation: 'linking'
+// Body operation types for fine-grained annotation body modifications
+export type BodyItem =
+  | { type: 'TextualBody'; value: string; purpose: 'tagging' | 'commenting' | 'describing'; format?: string; language?: string }
+  | { type: 'SpecificResource'; source: string; purpose: 'linking' };
+
+export type BodyOperation =
+  | { op: 'add'; item: BodyItem }
+  | { op: 'remove'; item: BodyItem }
+  | { op: 'replace'; oldItem: BodyItem; newItem: BodyItem };
+
+export interface AnnotationBodyUpdatedEvent extends BaseEvent {
+  type: 'annotation.body.updated';
   payload: {
     annotationId: string;
-    targetDocumentId: string;
+    operations: BodyOperation[];
   };
 }
 
@@ -118,7 +128,7 @@ export type DocumentEvent =
   | DocumentUnarchivedEvent
   | AnnotationAddedEvent
   | AnnotationRemovedEvent
-  | AnnotationResolvedEvent
+  | AnnotationBodyUpdatedEvent
   | EntityTagAddedEvent
   | EntityTagRemovedEvent;
 
