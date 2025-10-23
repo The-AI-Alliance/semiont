@@ -258,9 +258,10 @@ describe('EventSubscriptions', () => {
       expect(slowCallback).toHaveBeenCalled();
     });
 
-    it('should handle errors in callbacks without affecting others', async () => {
+    it('should handle errors in async callbacks without affecting others', async () => {
       const goodCallback = vi.fn();
-      const badCallback = vi.fn(() => {
+      // Return a promise that rejects (async error handling)
+      const badCallback = vi.fn(async () => {
         throw new Error('Callback error');
       });
       const anotherGoodCallback = vi.fn();
