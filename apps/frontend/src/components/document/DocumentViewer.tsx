@@ -504,11 +504,11 @@ export function DocumentViewer({
           if (editingAnnotation) {
             // Handle body updates
             if (updates.body !== undefined) {
-              // Handle converting between annotation types or resolving references
+              // Handle converting between annotation types or linking references
               if (Array.isArray(updates.body)) {
                 // Converting to stub reference (empty body array)
                 if (isBodyResolved(editingAnnotation.body)) {
-                  // Unlink document - convert resolved reference to stub
+                  // Unlink document - convert linked reference to stub
                   await deleteAnnotation(editingAnnotation.id, document.id);
                   const entityTypes = getEntityTypes(editingAnnotation);
                   await addReference(document.id, selectedText, annotationPosition!, undefined, entityTypes[0]);

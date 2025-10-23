@@ -362,7 +362,7 @@ function DocumentView({
   } = useGenerationProgress({
     onComplete: (progress) => {
       // Sparkle animation was already triggered when generation started (in handleGenerateDocument)
-      // It will continue pulsing until reference.resolved event updates the cache
+      // It will continue pulsing until annotation.body.updated event updates the cache
 
       // Clear progress widget
       setTimeout(() => clearProgress(), 1000);

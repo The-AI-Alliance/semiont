@@ -2,7 +2,7 @@
  * Generation Worker
  *
  * Processes generation jobs: runs AI inference to generate new documents
- * and emits document.created and reference.resolved events.
+ * and emits document.created and annotation.body.updated events.
  *
  * This worker is INDEPENDENT of HTTP clients - it just processes jobs and emits events.
  */
