@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { DocumentsRouterType } from '../shared';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore } from '../../../services/event-store-service';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -41,7 +41,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         throw new HTTPException(404, { message: 'Document not found' });
       }
 
-      const eventStore = await getEventStore();
+      const eventStore = await createEventStore();
 
       // Emit archived/unarchived events (event store updates Layer 3, graph consumer updates Layer 4)
       if (body.archived !== undefined && body.archived !== doc.archived) {

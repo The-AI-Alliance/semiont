@@ -15,7 +15,7 @@ import {
   calculateChecksum,
 } from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore } from '../../../services/event-store-service';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
@@ -63,7 +63,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         : CREATION_METHODS.API;
 
       // Emit document.created event (consumer will update GraphDB)
-      const eventStore = await getEventStore();
+      const eventStore = await createEventStore();
       await eventStore.appendEvent({
         type: 'document.created',
         documentId,

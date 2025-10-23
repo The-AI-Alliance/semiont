@@ -17,7 +17,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { getEventStore } from '../../events/event-store';
+import { createEventStore } from '../../services/event-store-service';
 import {
   getTextPositionSelector,
   type Annotation,
@@ -83,7 +83,7 @@ crudRouter.post('/api/annotations',
     };
 
     // Emit unified annotation.added event (single source of truth)
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
     const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
       type: 'annotation.added',
       documentId: request.target.source,
@@ -132,7 +132,7 @@ crudRouter.put('/api/annotations/:id/body',
     }
 
     // Emit annotation.body.updated event to Layer 2 (consumer will update Layer 3 projection)
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
     await eventStore.appendEvent({
       type: 'annotation.body.updated',
       documentId: getTargetSource(annotation.target),
@@ -280,7 +280,7 @@ crudRouter.delete('/api/annotations/:id',
     }
 
     // Emit unified annotation.removed event (consumer will delete from GraphDB and update Layer 3)
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',

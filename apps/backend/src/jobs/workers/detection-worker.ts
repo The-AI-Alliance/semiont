@@ -11,7 +11,7 @@ import { JobWorker } from './job-worker';
 import type { Job, DetectionJob } from '../types';
 import { DocumentQueryService } from '../../services/document-queries';
 import { detectAnnotationsInDocument } from '../../routes/documents/helpers';
-import { getEventStore } from '../../events/event-store';
+import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
 
 export class DetectionWorker extends JobWorker {
@@ -96,7 +96,7 @@ export class DetectionWorker extends JobWorker {
         }
 
         try {
-          const eventStore = await getEventStore();
+          const eventStore = await createEventStore();
           await eventStore.appendEvent({
             type: 'annotation.added',
             documentId: job.documentId,

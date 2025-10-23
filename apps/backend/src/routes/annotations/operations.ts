@@ -27,7 +27,7 @@ import { registerGenerateDocumentStream } from './routes/generate-document-strea
 import { registerGenerateDocument } from './routes/generate-document';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
-import { getEventStore } from '../../events/event-store';
+import { createEventStore } from '../../services/event-store-service';
 import { validateRequestBody } from '../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { extractEntityTypes } from '../../graph/annotation-body-utils';
@@ -128,7 +128,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
     await storage.saveDocument(documentId, Buffer.from(body.content));
 
     // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
     await eventStore.appendEvent({
       type: 'document.created',
       documentId,
@@ -249,7 +249,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     await storage.saveDocument(documentId, Buffer.from(generatedContent));
 
     // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
     await eventStore.appendEvent({
       type: 'document.created',
       documentId,

@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore } from '../../../services/event-store-service';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import type { components } from '@semiont/api-client';
@@ -38,7 +38,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       throw new HTTPException(404, { message: 'Annotation does not belong to this document' });
     }
 
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
 
     // Get all events for this document
     const allEvents = await eventStore.queryEvents({

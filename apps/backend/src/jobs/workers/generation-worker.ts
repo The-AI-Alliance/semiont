@@ -16,7 +16,7 @@ import { generateDocumentFromTopic } from '../../inference/factory';
 import { getTargetSelector } from '../../lib/annotation-utils';
 import { CREATION_METHODS } from '@semiont/core';
 import { calculateChecksum } from '@semiont/core';
-import { getEventStore } from '../../events/event-store';
+import { createEventStore } from '../../services/event-store-service';
 import { getExactText, compareAnnotationIds, type BodyOperation } from '@semiont/core';
 import { extractEntityTypes } from '../../graph/annotation-body-utils';
 
@@ -121,7 +121,7 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] ✅ Saved document to filesystem: ${documentId}`);
 
     // Emit document.created event
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
     await eventStore.appendEvent({
       type: 'document.created',
       documentId,

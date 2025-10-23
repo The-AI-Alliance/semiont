@@ -9,7 +9,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore } from '../../../services/event-store-service';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { extractEntityTypes } from '../../../graph/annotation-body-utils';
@@ -28,7 +28,7 @@ export function registerGetDocument(router: DocumentsRouterType) {
     const { id } = c.req.param();
 
     // Read from Layer 2/3: Event store builds/loads projection
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
     const stored = await eventStore.projectDocument(id);
 
     if (!stored) {

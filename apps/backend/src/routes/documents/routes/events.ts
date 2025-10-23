@@ -9,7 +9,7 @@
  */
 
 import type { DocumentsRouterType } from '../shared';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore } from '../../../services/event-store-service';
 import type { EventQuery, StoredEvent } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 import { HTTPException } from 'hono/http-exception';
@@ -64,7 +64,7 @@ export function registerGetEvents(router: DocumentsRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "limit" must be between 1 and 1000' });
     }
 
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
 
     // Build query filters - type is validated by this point
     const validatedType = type && isValidEventType(type) ? type : undefined;

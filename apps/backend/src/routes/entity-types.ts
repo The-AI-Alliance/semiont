@@ -14,7 +14,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { authMiddleware } from '../middleware/auth';
 import { validateRequestBody } from '../middleware/validate-openapi';
-import { getEventStore } from '../events/event-store';
+import { createEventStore } from '../services/event-store-service';
 import { getFilesystemConfig } from '../config/environment-loader';
 import type { components } from '@semiont/api-client';
 
@@ -86,7 +86,7 @@ entityTypesRouter.post('/api/entity-types',
     const body = c.get('validatedBody') as AddEntityTypeRequest;
 
     // Emit event (no documentId for system-level events)
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
     await eventStore.appendEvent({
       type: 'entitytype.added',
       // documentId: undefined - system-level event
@@ -120,7 +120,7 @@ entityTypesRouter.post('/api/entity-types/bulk',
     }
 
     const body = c.get('validatedBody') as BulkAddEntityTypesRequest;
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
 
     // Emit one event per entity type (no documentId)
     for (const tag of body.tags) {

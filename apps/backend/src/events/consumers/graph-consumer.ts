@@ -5,7 +5,7 @@
  * Makes GraphDB a projection of Layer 2 events (single source of truth)
  */
 
-import { getEventStore } from '../event-store';
+import { createEventStore } from '../../services/event-store-service';
 import { getGraphDatabase } from '../../graph/factory';
 import { getStorageService } from '../../storage/filesystem';
 import { didToAgent } from '../../utils/id-generator';
@@ -35,7 +35,7 @@ export class GraphDBConsumer {
    * This allows the consumer to react to events like entitytype.added
    */
   private async subscribeToGlobalEvents() {
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
 
     this._globalSubscription = eventStore.subscribeGlobal(async (storedEvent) => {
       console.log(`[GraphDBConsumer] Received global event: ${storedEvent.event.type}`);
@@ -58,7 +58,7 @@ export class GraphDBConsumer {
    */
   async subscribeToDocument(documentId: string) {
     this.ensureInitialized();
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
 
     const subscription = eventStore.subscribe(documentId, async (storedEvent) => {
       await this.processEvent(storedEvent);
@@ -270,7 +270,7 @@ export class GraphDBConsumer {
     }
 
     // Replay all events
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
     const events = await eventStore.getDocumentEvents(documentId);
 
     for (const storedEvent of events) {
@@ -292,7 +292,7 @@ export class GraphDBConsumer {
     await graphDb.clearDatabase();
 
     // Get all document IDs by scanning event shards
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
     const allDocumentIds = await eventStore.getAllDocumentIds();
 
     console.log(`[GraphDBConsumer] Found ${allDocumentIds.length} documents to rebuild`);
@@ -380,7 +380,7 @@ export async function getGraphConsumer(): Promise<GraphDBConsumer> {
  */
 export async function startGraphConsumer(): Promise<void> {
   const consumer = await getGraphConsumer();
-  const eventStore = await getEventStore();
+  const eventStore = await createEventStore();
 
   // Get all existing document IDs
   const allDocumentIds = await eventStore.getAllDocumentIds();

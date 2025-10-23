@@ -10,14 +10,14 @@
  *   npm run rebuild-projections <documentId> # Rebuild specific document
  */
 
-import { getEventStore } from '../events/event-store';
+import { createEventStore } from '../services/event-store-service';
 import { getFilesystemConfig } from '../config/environment-loader';
 
 async function rebuildProjections(documentId?: string) {
   console.log('🔄 Rebuilding annotation projections from events...\n');
 
   const config = getFilesystemConfig();
-  const eventStore = await getEventStore({
+  const eventStore = await createEventStore({
     dataDir: config.path,
   });
 

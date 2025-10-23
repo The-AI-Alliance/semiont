@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import type { Annotation, DocumentCreatedEvent } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
-import { getEventStore } from '../../events/event-store';
+import { createEventStore } from '../../services/event-store-service';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 
 describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => {
@@ -15,7 +15,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   beforeAll(async () => {
     // Create test documents in event store
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore();
 
     const docEvent1: Omit<DocumentCreatedEvent, 'id' | 'timestamp'> = {
       type: 'document.created',
@@ -52,7 +52,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   describe('Create Annotation with Entity Tags (stub reference)', () => {
     it('should create annotation with empty body array', async () => {
-      const eventStore = await getEventStore();
+      const eventStore = await createEventStore();
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -92,7 +92,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     });
 
     it('should create annotation with TextualBody entity tags', async () => {
-      const eventStore = await getEventStore();
+      const eventStore = await createEventStore();
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -163,7 +163,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   describe('Resolve Annotation (add SpecificResource)', () => {
     it('should add SpecificResource to existing entity tags', async () => {
-      const eventStore = await getEventStore();
+      const eventStore = await createEventStore();
 
       // Create stub annotation with entity tags
       const stubId = 'test-resolve-stub-' + Date.now();
@@ -257,7 +257,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     });
 
     it('should resolve annotation with empty body to have only SpecificResource', async () => {
-      const eventStore = await getEventStore();
+      const eventStore = await createEventStore();
 
       // Create stub with empty body
       const stubId = 'test-resolve-empty-' + Date.now();
@@ -362,7 +362,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   describe('Delete Annotation', () => {
     it('should delete annotation with multi-body', async () => {
-      const eventStore = await getEventStore();
+      const eventStore = await createEventStore();
 
       // Create annotation
       const deleteId = 'test-delete-' + Date.now();
@@ -430,7 +430,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   describe('W3C Compliance in Integration', () => {
     it('should maintain W3C structure through event sourcing', async () => {
-      const eventStore = await getEventStore();
+      const eventStore = await createEventStore();
 
       const w3cId = 'test-w3c-' + Date.now();
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
