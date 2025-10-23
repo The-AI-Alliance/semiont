@@ -29,7 +29,16 @@ vi.mock('@/lib/api', () => ({
         }))
       }
     }
-  }
+  },
+  getEntityTypes: vi.fn((annotation: any) => {
+    // Extract entity types from W3C body array
+    if (Array.isArray(annotation.body)) {
+      return annotation.body
+        .filter((item: any) => item.type === 'TextualBody' && item.purpose === 'tagging')
+        .map((item: any) => item.value);
+    }
+    return [];
+  })
 }));
 
 // Helper to wrap component with QueryClientProvider
