@@ -128,9 +128,10 @@ export function getGraphConfig(): GraphServiceConfig {
 export function getFilesystemConfig(): {
   path: string;
 } {
-  // For unit test environment (SEMIONT_ENV=unit), use a temporary directory
-  // This avoids requiring an environments/unit.json file for tests
-  if (process.env.SEMIONT_ENV === 'unit') {
+  // For test environments (SEMIONT_ENV=unit or integration), use a temporary directory
+  // This avoids requiring environment config files for tests
+  const semontEnv = process.env.SEMIONT_ENV;
+  if (semontEnv === 'unit' || semontEnv === 'integration') {
     const tmpDir = path.join(os.tmpdir(), 'semiont-test-fs', Date.now().toString());
     return { path: tmpDir };
   }
