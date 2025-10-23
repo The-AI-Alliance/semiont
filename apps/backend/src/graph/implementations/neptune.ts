@@ -2,6 +2,7 @@
 // Uses Gremlin for graph traversal
 
 import { GraphDatabase } from '../interface';
+import { extractEntityTypes, extractBodySource } from '../annotation-body-utils';
 import {
   Document,
   Annotation,
@@ -94,7 +95,7 @@ function vertexToDocument(vertex: any): Document {
 }
 
 // Helper function to convert Neptune vertex to Annotation
-function vertexToAnnotation(vertex: any): Annotation {
+function vertexToAnnotation(vertex: any, entityTypes: string[] = []): Annotation {
   const props = vertex.properties || vertex;
 
   // Handle different property formats from Neptune
@@ -126,15 +127,29 @@ function vertexToAnnotation(vertex: any): Annotation {
   // Parse creator - always stored as JSON string in DB
   const creator = JSON.parse(creatorRaw);
 
-  // Phase 1: Body is either empty array (stub) or single SpecificResource (resolved)
+  // Reconstruct body array from entity tags and linking body
+  const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
+
+  // Add entity tag bodies (TextualBody with purpose: "tagging")
+  for (const entityType of entityTypes) {
+    if (entityType) {
+      bodyArray.push({
+        type: 'TextualBody' as const,
+        value: entityType,
+        purpose: 'tagging' as const,
+      });
+    }
+  }
+
+  // Add linking body (SpecificResource) if annotation is resolved
   const bodySource = getValue('source');
-  const body = bodySource
-    ? {
-        type: 'SpecificResource' as const,
-        source: bodySource,
-        purpose: 'linking' as const,
-      }
-    : [];
+  if (bodySource) {
+    bodyArray.push({
+      type: 'SpecificResource' as const,
+      source: bodySource,
+      purpose: 'linking' as const,
+    });
+  }
 
   const annotation: Annotation = {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -145,14 +160,10 @@ function vertexToAnnotation(vertex: any): Annotation {
       source: documentId,
       selector: JSON.parse(selectorRaw),
     },
-    body,
+    body: bodyArray,
     creator,
     created: createdRaw, // ISO string from DB
   };
-
-  // Phase 1: entityTypes at annotation level
-  const entityTypes = getValue('entityTypes');
-  if (entityTypes) annotation.entityTypes = JSON.parse(entityTypes);
 
   // W3C Web Annotation modification tracking
   const modified = getValue('modified');
@@ -178,6 +189,29 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   private region?: string;
   private g: any; // Gremlin graph traversal source
   private connection: any; // Gremlin connection
+
+  // Helper method to fetch annotations with their entity types
+  private async fetchAnnotationsWithEntityTypes(annotationVertices: any[]): Promise<Annotation[]> {
+    const annotations: Annotation[] = [];
+
+    for (const vertex of annotationVertices) {
+      const id = vertex.properties?.id?.[0]?.value || vertex.id;
+
+      // Fetch entity types for this annotation
+      const entityTypesResult = await this.g.V()
+        .hasLabel('Annotation')
+        .has('id', id)
+        .out('TAGGED_AS')
+        .hasLabel('EntityType')
+        .values('name')
+        .toList();
+
+      const entityTypes = entityTypesResult || [];
+      annotations.push(vertexToAnnotation(vertex, entityTypes));
+    }
+
+    return annotations;
+  }
   
   constructor(config: {
     endpoint?: string;
@@ -479,7 +513,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const id = this.generateId();
 
-    // Phase 1: Only linking motivation with SpecificResource or empty array (stub)
+    // Only linking motivation with SpecificResource or empty array (stub)
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
@@ -495,6 +529,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     const targetSource = getTargetSource(input.target);
     const targetSelector = getTargetSelector(input.target);
     const bodySource = getBodySource(input.body);
+    const entityTypes = extractEntityTypes(input.body);
 
     try {
       // Create Annotation vertex
@@ -503,11 +538,10 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('documentId', targetSource)
         .property('text', targetSelector ? getExactText(targetSelector) : '')
         .property('selector', JSON.stringify(targetSelector || {}))
-        .property('type', 'SpecificResource') // Phase 1: Only SpecificResource
+        .property('type', 'SpecificResource')
         .property('motivation', annotation.motivation)
         .property('creator', JSON.stringify(annotation.creator))
-        .property('created', annotation.created)
-        .property('entityTypes', JSON.stringify([])); // Phase 1: entityTypes at annotation level
+        .property('created', annotation.created);
 
       // Add optional source property for resolved references
       if (bodySource) {
@@ -530,6 +564,26 @@ export class NeptuneGraphDatabase implements GraphDatabase {
           .next();
       }
 
+      // Create TAGGED_AS relationships for entity types
+      for (const entityType of entityTypes) {
+        // Get or create EntityType vertex
+        const etVertex = await this.g.V()
+          .hasLabel('EntityType')
+          .has('name', entityType)
+          .fold()
+          .coalesce(
+            __.unfold(),
+            this.g.addV('EntityType').property('name', entityType)
+          )
+          .next();
+
+        // Create TAGGED_AS edge from Annotation to EntityType
+        await this.g.V(newVertex.value)
+          .addE('TAGGED_AS')
+          .to(this.g.V(etVertex.value))
+          .next();
+      }
+
       console.log(`Created annotation vertex in Neptune: ${annotation.id}`);
       return annotation;
     } catch (error) {
@@ -545,12 +599,23 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .has('id', id)
         .elementMap()
         .next();
-      
+
       if (!result.value) {
         return null;
       }
-      
-      return vertexToAnnotation(result.value);
+
+      // Fetch entity types from TAGGED_AS relationships
+      const entityTypesResult = await this.g.V()
+        .hasLabel('Annotation')
+        .has('id', id)
+        .out('TAGGED_AS')
+        .hasLabel('EntityType')
+        .values('name')
+        .toList();
+
+      const entityTypes = entityTypesResult || [];
+
+      return vertexToAnnotation(result.value, entityTypes);
     } catch (error) {
       console.error('Failed to get annotation from Neptune:', error);
       throw error;
@@ -570,19 +635,45 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         }
       }
 
-      // Update body properties - Phase 1: body is SpecificResource or array
-      if (updates.body !== undefined && !Array.isArray(updates.body)) {
-        if (updates.body.type !== undefined) {
-          traversal = traversal.property('type', updates.body.type);
-        }
-        if (updates.body.source !== undefined) {
-          traversal = traversal.property('source', updates.body.source);
-        }
-      }
+      // Update body properties and entity types
+      if (updates.body !== undefined) {
+        const bodySource = extractBodySource(updates.body);
+        const entityTypes = extractEntityTypes(updates.body);
 
-      // Phase 1: entityTypes at annotation level
-      if (updates.entityTypes !== undefined) {
-        traversal = traversal.property('entityTypes', JSON.stringify(updates.entityTypes));
+        if (bodySource) {
+          traversal = traversal.property('source', bodySource);
+        }
+
+        // Update entity type relationships - remove old ones and create new ones
+        if (entityTypes.length >= 0) {
+          // Remove existing TAGGED_AS edges
+          await this.g.V()
+            .hasLabel('Annotation')
+            .has('id', id)
+            .outE('TAGGED_AS')
+            .drop()
+            .iterate();
+
+          // Create new TAGGED_AS edges
+          for (const entityType of entityTypes) {
+            const etVertex = await this.g.V()
+              .hasLabel('EntityType')
+              .has('name', entityType)
+              .fold()
+              .coalesce(
+                __.unfold(),
+                this.g.addV('EntityType').property('name', entityType)
+              )
+              .next();
+
+            await this.g.V()
+              .hasLabel('Annotation')
+              .has('id', id)
+              .addE('TAGGED_AS')
+              .to(this.g.V(etVertex.value))
+              .next();
+          }
+        }
       }
 
       if (updates.modified !== undefined) {
@@ -598,7 +689,18 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         throw new Error('Annotation not found');
       }
 
-      return vertexToAnnotation(result.value);
+      // Fetch entity types from TAGGED_AS relationships
+      const entityTypesResult = await this.g.V()
+        .hasLabel('Annotation')
+        .has('id', id)
+        .out('TAGGED_AS')
+        .hasLabel('EntityType')
+        .values('name')
+        .toList();
+
+      const entityTypes = entityTypesResult || [];
+
+      return vertexToAnnotation(result.value, entityTypes);
     } catch (error) {
       console.error('Failed to update annotation in Neptune:', error);
       throw error;
@@ -635,7 +737,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
 
       const results = await traversal.elementMap().toList();
-      const annotations = results.map(vertexToAnnotation);
+      const annotations = await this.fetchAnnotationsWithEntityTypes(results);
 
       return { annotations, total: annotations.length };
     } catch (error) {
@@ -654,7 +756,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .elementMap()
         .toList();
 
-      return results.map(vertexToAnnotation);
+      return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
       console.error('Failed to get highlights from Neptune:', error);
       throw error;
@@ -696,7 +798,18 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .to(this.g.V().hasLabel('Document').has('id', source))
         .next();
 
-      return vertexToAnnotation(result.value);
+      // Fetch entity types from TAGGED_AS relationships
+      const entityTypesResult = await this.g.V()
+        .hasLabel('Annotation')
+        .has('id', annotationId)
+        .out('TAGGED_AS')
+        .hasLabel('EntityType')
+        .values('name')
+        .toList();
+
+      const entityTypes = entityTypesResult || [];
+
+      return vertexToAnnotation(result.value, entityTypes);
     } catch (error) {
       console.error('Failed to resolve reference in Neptune:', error);
       throw error;
@@ -712,7 +825,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .elementMap()
         .toList();
 
-      return results.map(vertexToAnnotation);
+      return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
       console.error('Failed to get references from Neptune:', error);
       throw error;
@@ -739,7 +852,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       
       const results = await traversal.elementMap().toList();
 
-      return results.map(vertexToAnnotation);
+      return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
       console.error('Failed to get entity references from Neptune:', error);
       throw error;
@@ -754,7 +867,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .elementMap()
         .toList();
 
-      return results.map(vertexToAnnotation);
+      return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
       console.error('Failed to get document annotations from Neptune:', error);
       throw error;
@@ -769,7 +882,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .elementMap()
         .toList();
 
-      return results.map(vertexToAnnotation);
+      return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
       console.error('Failed to get document referenced by from Neptune:', error);
       throw error;
@@ -798,7 +911,19 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       // Process outgoing references
       for (const annVertex of outgoingAnnotations) {
-        const annotation = vertexToAnnotation(annVertex);
+        const id = annVertex.properties?.id?.[0]?.value || annVertex.id;
+
+        // Fetch entity types for this annotation
+        const entityTypesResult = await this.g.V()
+          .hasLabel('Annotation')
+          .has('id', id)
+          .out('TAGGED_AS')
+          .hasLabel('EntityType')
+          .values('name')
+          .toList();
+
+        const entityTypes = entityTypesResult || [];
+        const annotation = vertexToAnnotation(annVertex, entityTypes);
         const targetDocId = getBodySource(annotation.body);
         if (!targetDocId) continue; // Skip stubs
 
@@ -826,7 +951,19 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       // Check for bidirectional connections
       for (const annVertex of incomingAnnotations) {
-        const annotation = vertexToAnnotation(annVertex);
+        const id = annVertex.properties?.id?.[0]?.value || annVertex.id;
+
+        // Fetch entity types for this annotation
+        const entityTypesResult = await this.g.V()
+          .hasLabel('Annotation')
+          .has('id', id)
+          .out('TAGGED_AS')
+          .hasLabel('EntityType')
+          .values('name')
+          .toList();
+
+        const entityTypes = entityTypesResult || [];
+        const annotation = vertexToAnnotation(annVertex, entityTypes);
         const sourceDocId = getTargetSource(annotation.target);
         const existing = connectionsMap.get(sourceDocId);
         if (existing) {

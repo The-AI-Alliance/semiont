@@ -2,6 +2,7 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
+import { extractEntityTypes } from '../annotation-body-utils';
 import {
   Document,
   Annotation,
@@ -165,7 +166,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const id = this.generateId();
 
-    // Phase 1: Only linking motivation with SpecificResource or empty array (stub)
+    // Only linking motivation with SpecificResource or empty array (stub)
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
@@ -200,7 +201,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
       ...updates,
     };
 
-    // Phase 1: Motivation should come from updates if provided
+    // Motivation should come from updates if provided
     // No need to derive from body type
 
     this.annotations.set(id, updated);
@@ -218,7 +219,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
       results = results.filter(a => getTargetSource(a.target) === filter.documentId);
     }
 
-    // Phase 1: Only SpecificResource supported, use motivation to distinguish
+    // Only SpecificResource supported, use motivation to distinguish
     if (filter.type) {
       const motivation = filter.type === 'highlight' ? 'highlighting' : 'linking';
       results = results.filter(a => a.motivation === motivation);
@@ -239,7 +240,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const annotation = this.annotations.get(annotationId);
     if (!annotation) throw new Error('Annotation not found');
 
-    // Phase 1: Convert stub (empty array) to resolved SpecificResource
+    // Convert stub (empty array) to resolved SpecificResource
     const updated: Annotation = {
       ...annotation,
       body: {
@@ -261,21 +262,25 @@ export class MemoryGraphDatabase implements GraphDatabase {
       console.log('  Reference:', {
         id: ref.id,
         source: getBodySource(ref.body),
-        entityTypes: ref.entityTypes // Phase 1: at annotation level
+        entityTypes: extractEntityTypes(ref.body) // from body
       });
     });
     return references;
   }
 
   async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]> {
-    // Phase 1: entityTypes at annotation level
+    // TODO Extract entity types from body
     let refs = Array.from(this.annotations.values())
-      .filter(sel => getTargetSource(sel.target) === documentId && sel.entityTypes && sel.entityTypes.length > 0);
+      .filter(sel => {
+        const selEntityTypes = extractEntityTypes(sel.body);
+        return getTargetSource(sel.target) === documentId && selEntityTypes.length > 0;
+      });
 
     if (entityTypes && entityTypes.length > 0) {
-      refs = refs.filter(sel =>
-        sel.entityTypes && sel.entityTypes.some(type => entityTypes.includes(type))
-      );
+      refs = refs.filter(sel => {
+        const selEntityTypes = extractEntityTypes(sel.body);
+        return selEntityTypes.some((type: string) => entityTypes.includes(type));
+      });
     }
 
     return refs;
@@ -415,11 +420,11 @@ export class MemoryGraphDatabase implements GraphDatabase {
     }
     
     const annotations = Array.from(this.annotations.values());
-    // Phase 1: Use motivation to distinguish types
+    // Use motivation to distinguish types
     const highlightCount = annotations.filter(a => a.motivation === 'highlighting').length;
     const referenceCount = annotations.filter(a => a.motivation === 'linking').length;
-    // Phase 1: entityTypes at annotation level
-    const entityReferenceCount = annotations.filter(a => a.motivation === 'linking' && a.entityTypes && a.entityTypes.length > 0).length;
+    // TODO Extract entity types from body
+    const entityReferenceCount = annotations.filter(a => a.motivation === 'linking' && extractEntityTypes(a.body).length > 0).length;
     
     return {
       documentCount: this.documents.size,

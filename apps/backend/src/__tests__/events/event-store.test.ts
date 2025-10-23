@@ -87,8 +87,7 @@ describe('Event Store', () => {
               length: 4,
             },
           },
-          body: [], // Phase 1: Stub reference
-          entityTypes: [], // Phase 1: at annotation level
+          body: [], // Empty body array (no entity tags)
           modified: new Date().toISOString(),
         },
       },

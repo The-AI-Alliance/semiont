@@ -1,9 +1,9 @@
 /**
- * Annotation utility functions for Phase 1 schema changes
+ * Annotation utility functions 
  *
- * Phase 1: Body is either empty array (stub) or single SpecificResource (resolved)
- * Phase 1: Target can be simple string IRI or object with source and optional selector
- * Phase 1: entityTypes temporarily at annotation level (will move to TextualBody in Phase 2)
+ * Body is either empty array (stub) or single SpecificResource (resolved)
+ * Target can be simple string IRI or object with source and optional selector
+ * entityTypes temporarily at annotation level (now use TextualBody with purpose: "tagging")
  */
 
 import type { components } from '@semiont/api-client';
@@ -12,30 +12,83 @@ type Annotation = components['schemas']['Annotation'];
 type AnnotationTarget = components['schemas']['AnnotationTarget'];
 
 /**
- * Get the source from an annotation body (empty string if stub)
+ * Get the source from an annotation body (null if stub)
+ * Search for SpecificResource in body array
  */
 export function getBodySource(body: Annotation['body']): string | null {
   if (Array.isArray(body)) {
-    return null; // Stub reference (unresolved)
+    // Search for SpecificResource with source
+    for (const item of body) {
+      if (
+        typeof item === 'object' &&
+        item !== null &&
+        'type' in item &&
+        'source' in item
+      ) {
+        const itemType = (item as { type: unknown }).type;
+        const itemSource = (item as { source: unknown }).source;
+
+        if (itemType === 'SpecificResource' && typeof itemSource === 'string') {
+          return itemSource;
+        }
+      }
+    }
+    return null; // No SpecificResource found = stub
   }
-  return body.source;
+
+  // Single body object (SpecificResource)
+  if (
+    typeof body === 'object' &&
+    body !== null &&
+    'type' in body &&
+    'source' in body
+  ) {
+    const bodyType = (body as { type: unknown }).type;
+    const bodySource = (body as { source: unknown }).source;
+
+    if (bodyType === 'SpecificResource' && typeof bodySource === 'string') {
+      return bodySource;
+    }
+  }
+
+  return null;
 }
 
 /**
- * Get the type from an annotation body
+ * Get the type from an annotation body (returns first body type in array)
  */
-export function getBodyType(body: Annotation['body']): 'SpecificResource' | null {
+export function getBodyType(body: Annotation['body']): 'TextualBody' | 'SpecificResource' | null {
   if (Array.isArray(body)) {
-    return null; // Stub has no type yet
+    if (body.length === 0) {
+      return null;
+    }
+    // Return type of first body item
+    if (typeof body[0] === 'object' && body[0] !== null && 'type' in body[0]) {
+      const firstType = (body[0] as { type: unknown }).type;
+      if (firstType === 'TextualBody' || firstType === 'SpecificResource') {
+        return firstType;
+      }
+    }
+    return null;
   }
-  return body.type;
+
+  // Single body object
+  if (typeof body === 'object' && body !== null && 'type' in body) {
+    const bodyType = (body as { type: unknown }).type;
+    if (bodyType === 'TextualBody' || bodyType === 'SpecificResource') {
+      return bodyType;
+    }
+  }
+
+  return null;
 }
 
 /**
  * Check if body is resolved (has a source)
+ * Check for SpecificResource in body array
  */
-export function isBodyResolved(body: Annotation['body']): body is { type: 'SpecificResource'; source: string; purpose?: 'linking' } {
-  return !Array.isArray(body) && Boolean(body.source);
+export function isBodyResolved(body: Annotation['body']): boolean {
+  return getBodySource(body) !== null;
 }
 
 /**

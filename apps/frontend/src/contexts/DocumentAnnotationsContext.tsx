@@ -81,6 +81,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     try {
       // Build CreateAnnotationRequest following W3C Web Annotation format
       const createData: CreateAnnotationRequest = {
+        motivation: 'linking',
         target: {
           source: documentId,
           selector: {
@@ -90,18 +91,33 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
             length: position.end - position.start,
           },
         },
-        // Phase 1: Use empty array for stub, or SpecificResource for resolved
-        body: targetDocId
-          ? {
+        // Build body array with entity tag bodies + linking body (if resolved)
+        body: (() => {
+          const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
+
+          // Add entity tag bodies (TextualBody with purpose: "tagging")
+          if (entityType) {
+            const entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
+            for (const et of entityTypes) {
+              bodyArray.push({
+                type: 'TextualBody' as const,
+                value: et,
+                purpose: 'tagging' as const,
+              });
+            }
+          }
+
+          // Add linking body (SpecificResource) if resolved
+          if (targetDocId) {
+            bodyArray.push({
               type: 'SpecificResource' as const,
               source: targetDocId,
               purpose: 'linking' as const,
-            }
-          : [],
-        // Phase 1: entityTypes at annotation level
-        entityTypes: entityType
-          ? entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t)
-          : [],
+            });
+          }
+
+          return bodyArray;
+        })(),
       };
 
       // Create the annotation
@@ -150,7 +166,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
             length: position.end - position.start,
           },
         },
-        // Phase 1: Empty body array (assessments don't have bodies yet)
+        // Empty body array (assessments don't have bodies yet)
         body: [],
       };
 

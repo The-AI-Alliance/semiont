@@ -139,8 +139,7 @@ describe('Layered Storage', () => {
                   length: 9,
                 },
               },
-              body: [], // Phase 1: Stub reference
-              entityTypes: [], // Phase 1: at annotation level
+              body: [], // Empty body array (no entity tags)
               creator: {
                 type: 'Person' as const,
                 id: 'did:web:test.com:users:test',
@@ -265,8 +264,7 @@ describe('Layered Storage', () => {
                 length: 14,
               },
             },
-            body: [], // Phase 1: Stub reference
-            entityTypes: [], // Phase 1: at annotation level
+            body: [], // Empty body array (no entity tags)
             modified: new Date().toISOString(),
           },
         },

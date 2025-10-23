@@ -29,11 +29,11 @@ export type Selector = TextPositionSelector | TextQuoteSelector;
  *
  * When selector is an array, returns the exact text from the first selector.
  * All selectors in an array should point to the same text, so first is preferred.
- * Phase 1: Handles undefined selector (when target is a string IRI with no selector)
+ * Handles undefined selector (when target is a string IRI with no selector)
  */
 export function getExactText(selector: Selector | Selector[] | undefined): string {
   if (!selector) {
-    return ''; // Phase 1: No selector means entire resource
+    return ''; // No selector means entire resource
   }
   if (Array.isArray(selector)) {
     if (selector.length === 0) {
@@ -50,7 +50,7 @@ export function getExactText(selector: Selector | Selector[] | undefined): strin
 
 /**
  * Get the exact text from an annotation's target selector
- * Phase 1: Uses getTargetSelector helper to safely get selector
+ * Uses getTargetSelector helper to safely get selector
  */
 export function getAnnotationExactText(annotation: Annotation): string {
   // Import the helper at runtime to avoid circular dependencies
@@ -83,10 +83,10 @@ export function getPrimarySelector(selector: Selector | Selector[]): Selector {
  * Get TextPositionSelector from a selector (single or array)
  *
  * Returns the first TextPositionSelector found, or null if none exists.
- * Phase 1: Handles undefined selector (when target is a string IRI with no selector)
+ * Handles undefined selector (when target is a string IRI with no selector)
  */
 export function getTextPositionSelector(selector: Selector | Selector[] | undefined): TextPositionSelector | null {
-  if (!selector) return null; // Phase 1: No selector means entire resource
+  if (!selector) return null; // No selector means entire resource
   const selectors = Array.isArray(selector) ? selector : [selector];
   const found = selectors.find(s => s.type === 'TextPositionSelector');
   if (!found) return null;

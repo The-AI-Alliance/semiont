@@ -12,6 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getEventStore } from '../../../events/event-store';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
+import { extractEntityTypes } from '../../../graph/annotation-body-utils';
 
 type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
 
@@ -38,9 +39,11 @@ export function registerGetDocument(router: DocumentsRouterType) {
     // Clients must call GET /documents/:id/content separately to get content
 
     const annotations = stored.annotations.annotations;
-    const entityReferences = annotations.filter(a =>
-      a.motivation === 'linking' && a.entityTypes && a.entityTypes.length > 0
-    );
+    const entityReferences = annotations.filter(a => {
+      if (a.motivation !== 'linking') return false;
+      const entityTypes = extractEntityTypes(a.body);
+      return entityTypes.length > 0;
+    });
 
     const response: GetDocumentResponse = {
       document: stored.document,

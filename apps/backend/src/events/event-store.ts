@@ -428,17 +428,29 @@ export class EventStore {
           compareAnnotationIds(a.id, event.payload.annotationId)
         );
         if (annotation) {
-          // Phase 1: body is either empty array (stub) or single SpecificResource (resolved)
-          // When resolving, we convert empty array to SpecificResource with source
+          // Add SpecificResource to body array
           if (Array.isArray(annotation.body)) {
-            // Convert stub to resolved reference
-            annotation.body = {
-              type: 'SpecificResource',
-              source: event.payload.targetDocumentId,
-              purpose: 'linking'
-            };
-          } else {
-            // Update existing SpecificResource
+            // Check if there's already a SpecificResource in the body
+            const existingLinkIndex = annotation.body.findIndex(
+              b => typeof b === 'object' && b !== null && 'type' in b && b.type === 'SpecificResource'
+            );
+
+            if (existingLinkIndex >= 0) {
+              // Update existing SpecificResource
+              const existing = annotation.body[existingLinkIndex];
+              if (typeof existing === 'object' && existing !== null && 'source' in existing) {
+                (existing as { source: string }).source = event.payload.targetDocumentId;
+              }
+            } else {
+              // Add new SpecificResource to body array
+              annotation.body.push({
+                type: 'SpecificResource',
+                source: event.payload.targetDocumentId,
+                purpose: 'linking'
+              });
+            }
+          } else if (typeof annotation.body === 'object' && annotation.body !== null && 'type' in annotation.body && annotation.body.type === 'SpecificResource') {
+            // Single SpecificResource body (shouldn't happen in newer code, but handle for safety)
             annotation.body.source = event.payload.targetDocumentId;
           }
         }

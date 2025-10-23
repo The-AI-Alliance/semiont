@@ -336,7 +336,7 @@ describe('GraphDBConsumer', () => {
   });
 
   describe('annotation.added event (highlighting)', () => {
-    it('should create highlighting annotation in GraphDB', async () => {
+    it('should create highlighting annotation with entity tags in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-5',
         type: 'annotation.added',
@@ -359,8 +359,10 @@ describe('GraphDBConsumer', () => {
                 length: 14,
               },
             },
-            body: [], // Phase 1: Stub reference
-            entityTypes: [], // Phase 1: at annotation level
+            body: [
+              { type: 'TextualBody' as const, value: 'TechnicalTerm', purpose: 'tagging' as const },
+              { type: 'TextualBody' as const, value: 'ImportantConcept', purpose: 'tagging' as const },
+            ],
             modified: new Date().toISOString(),
           },
         },
@@ -389,10 +391,10 @@ describe('GraphDBConsumer', () => {
             length: 14,
           },
         },
-        // Phase 1: highlights have empty body array
-        body: [],
-        // Phase 1: entityTypes at annotation level
-        entityTypes: [],
+        body: [
+          { type: 'TextualBody', value: 'TechnicalTerm', purpose: 'tagging' },
+          { type: 'TextualBody', value: 'ImportantConcept', purpose: 'tagging' },
+        ],
         creator: {
           type: 'Person',
           id: 'user1',
@@ -432,7 +434,7 @@ describe('GraphDBConsumer', () => {
   });
 
   describe('annotation.added event (linking)', () => {
-    it('should create linking annotation in GraphDB', async () => {
+    it('should create resolved linking annotation with entity tags in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-7',
         type: 'annotation.added',
@@ -455,11 +457,11 @@ describe('GraphDBConsumer', () => {
                 length: 14,
               },
             },
-            body: {
-              type: 'SpecificResource' as const,
-              entityTypes: ['Person', 'Organization'],
-              source: 'doc-456',
-            },
+            body: [
+              { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
+              { type: 'TextualBody' as const, value: 'Organization', purpose: 'tagging' as const },
+              { type: 'SpecificResource' as const, source: 'doc-456', purpose: 'linking' as const },
+            ],
             modified: new Date().toISOString(),
           },
         },
@@ -488,11 +490,11 @@ describe('GraphDBConsumer', () => {
             length: 14,
           },
         },
-        body: {
-          type: 'SpecificResource',
-          source: 'doc-456',
-          entityTypes: ['Person', 'Organization'],
-        },
+        body: [
+          { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+          { type: 'TextualBody', value: 'Organization', purpose: 'tagging' },
+          { type: 'SpecificResource', source: 'doc-456', purpose: 'linking' },
+        ],
         creator: {
           type: 'Person',
           id: 'user1',
@@ -501,7 +503,7 @@ describe('GraphDBConsumer', () => {
       }));
     });
 
-    it('should create stub linking annotation without targetDocumentId', async () => {
+    it('should create stub linking annotation with entity tags', async () => {
       const event: DocumentEvent = {
         id: 'evt-8',
         type: 'annotation.added',
@@ -524,8 +526,10 @@ describe('GraphDBConsumer', () => {
                 length: 14,
               },
             },
-            body: [], // Phase 1: Stub reference
-            entityTypes: [], // Phase 1: at annotation level
+            body: [
+              { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
+              { type: 'TextualBody' as const, value: 'Scientist', purpose: 'tagging' as const },
+            ],
             modified: new Date().toISOString(),
           },
         },
@@ -554,10 +558,10 @@ describe('GraphDBConsumer', () => {
             length: 14,
           },
         },
-        // Phase 1: stub references have empty body array
-        body: [],
-        // Phase 1: entityTypes at annotation level
-        entityTypes: [],
+        body: [
+          { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+          { type: 'TextualBody', value: 'Scientist', purpose: 'tagging' },
+        ],
         creator: {
           type: 'Person',
           id: 'user1',
@@ -568,7 +572,7 @@ describe('GraphDBConsumer', () => {
   });
 
   describe('annotation.resolved event', () => {
-    it('should resolve annotation in GraphDB', async () => {
+    it('should add SpecificResource to annotation body in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-9',
         type: 'annotation.resolved',
@@ -593,12 +597,11 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
+      // Resolution adds SpecificResource to body, preserving entity tags
       expect(mockGraphDB.updateAnnotation).toHaveBeenCalledWith('ref-456', {
-        body: {
-          type: 'SpecificResource',
-          entityTypes: [],
-          source: 'doc-789',
-        },
+        body: expect.arrayContaining([
+          { type: 'SpecificResource', source: 'doc-789', purpose: 'linking' },
+        ]),
       });
     });
   });

@@ -7,7 +7,7 @@ import { PopupContainer, PopupHeader, EntityTypeBadges } from './SharedPopupElem
 import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
-import { getBodySource } from '@/lib/api/annotation-utils';
+import { getBodySource, getEntityTypes } from '@/lib/api/annotation-utils';
 import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/lib/api';
 
 interface ResolvedReferencePopupProps {
@@ -71,14 +71,14 @@ export function ResolvedReferencePopup({
   };
 
   const handleUnlinkDocument = () => {
-    // Phase 1: Unlink converts to stub reference (empty body array)
+    // Unlink converts to stub reference (empty body array)
     onUpdateAnnotation({
       body: [],
     });
   };
 
   const handleConvertToHighlight = () => {
-    // Phase 1: Highlights not yet implemented - this is Phase 2 work
+    // Convert reference to highlight
     onUpdateAnnotation({
       motivation: 'highlighting',
       body: [],
@@ -98,9 +98,12 @@ export function ResolvedReferencePopup({
         <>
           <PopupHeader title={t('title')} selectedText={selection.exact} onClose={onClose} />
 
-          {annotation.entityTypes && annotation.entityTypes.length > 0 && (
-            <EntityTypeBadges entityTypes={annotation.entityTypes.join(', ')} />
-          )}
+          {(() => {
+            const entityTypes = getEntityTypes(annotation);
+            return entityTypes.length > 0 && (
+              <EntityTypeBadges entityTypes={entityTypes.join(', ')} />
+            );
+          })()}
 
           {/* Primary Actions */}
           <div className="mb-4">

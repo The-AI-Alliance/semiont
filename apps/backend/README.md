@@ -717,7 +717,82 @@ Discover graph context from arbitrary text
 - **Body**: `{ text: string }`
 - **Response**: `{ success: true, context: object }`
 
-### Selection Management
+### Annotation Management (W3C Web Annotation Model)
+
+The API follows the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) for annotations, supporting:
+- **TextualBody** with `purpose: "tagging"` for entity types
+- **SpecificResource** with `purpose: "linking"` for document references
+- **Multi-body arrays** mixing entity tags and document links
+- **Three target forms**: simple IRI, source-only, or source + selector
+
+#### Annotation Body Structure (Phase 2)
+
+Annotations use multi-body arrays to combine entity tags and document links:
+
+```typescript
+// Stub reference (entity tags only)
+{
+  "@context": "http://www.w3.org/ns/anno.jsonld",
+  "type": "Annotation",
+  "id": "anno-123",
+  "motivation": "linking",
+  "target": {
+    "source": "doc-456",
+    "selector": {
+      "type": "TextPositionSelector",
+      "exact": "Albert Einstein",
+      "offset": 100,
+      "length": 15
+    }
+  },
+  "body": [
+    { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+    { "type": "TextualBody", "value": "Scientist", "purpose": "tagging" },
+    { "type": "TextualBody", "value": "Physicist", "purpose": "tagging" }
+  ]
+}
+
+// Resolved reference (entity tags + document link)
+{
+  "@context": "http://www.w3.org/ns/anno.jsonld",
+  "type": "Annotation",
+  "id": "anno-456",
+  "motivation": "linking",
+  "target": {
+    "source": "doc-789",
+    "selector": {
+      "type": "TextQuoteSelector",
+      "exact": "quantum mechanics"
+    }
+  },
+  "body": [
+    { "type": "TextualBody", "value": "Concept", "purpose": "tagging" },
+    { "type": "SpecificResource", "source": "doc-resolved", "purpose": "linking" }
+  ]
+}
+
+// Highlight with entity tags
+{
+  "@context": "http://www.w3.org/ns/anno.jsonld",
+  "type": "Annotation",
+  "id": "hl-789",
+  "motivation": "highlighting",
+  "target": {
+    "source": "doc-abc",
+    "selector": {
+      "type": "TextPositionSelector",
+      "exact": "important passage",
+      "offset": 200,
+      "length": 17
+    }
+  },
+  "body": [
+    { "type": "TextualBody", "value": "KeyConcept", "purpose": "tagging" }
+  ]
+}
+```
+
+### Selection Management (Legacy - Migrating to Annotations)
 
 Selections represent highlighted text, references to other documents, or entity references.
 

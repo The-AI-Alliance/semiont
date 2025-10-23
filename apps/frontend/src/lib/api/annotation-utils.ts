@@ -2,38 +2,91 @@
  * Annotation utility functions
  * Copied from SDK for frontend use
  *
- * Phase 1: Body is either empty array (stub) or single SpecificResource (resolved)
- * Phase 1: Target can be simple string IRI or object with source and optional selector
- * Phase 1: entityTypes temporarily at annotation level (will move to TextualBody in Phase 2)
+ * Body is either empty array (stub) or single SpecificResource (resolved)
+ * Body can be array of TextualBody (tagging) + SpecificResource (linking)
+ * Target can be simple string IRI or object with source and optional selector
  */
 
 import type { Annotation, HighlightAnnotation, ReferenceAnnotation } from './types';
 
 /**
  * Get the source from an annotation body (null if stub)
+ * Search for SpecificResource in body array
  */
 export function getBodySource(body: Annotation['body']): string | null {
   if (Array.isArray(body)) {
-    return null; // Stub reference (unresolved)
+    // Search for SpecificResource with source
+    for (const item of body) {
+      if (
+        typeof item === 'object' &&
+        item !== null &&
+        'type' in item &&
+        'source' in item
+      ) {
+        const itemType = (item as { type: unknown }).type;
+        const itemSource = (item as { source: unknown }).source;
+
+        if (itemType === 'SpecificResource' && typeof itemSource === 'string') {
+          return itemSource;
+        }
+      }
+    }
+    return null; // No SpecificResource found = stub
   }
-  return body.source;
+
+  // Single body object (SpecificResource)
+  if (
+    typeof body === 'object' &&
+    body !== null &&
+    'type' in body &&
+    'source' in body
+  ) {
+    const bodyType = (body as { type: unknown }).type;
+    const bodySource = (body as { source: unknown }).source;
+
+    if (bodyType === 'SpecificResource' && typeof bodySource === 'string') {
+      return bodySource;
+    }
+  }
+
+  return null;
 }
 
 /**
- * Get the type from an annotation body
+ * Get the type from an annotation body (returns first body type in array)
  */
-export function getBodyType(body: Annotation['body']): 'SpecificResource' | null {
+export function getBodyType(body: Annotation['body']): 'TextualBody' | 'SpecificResource' | null {
   if (Array.isArray(body)) {
-    return null; // Stub has no type yet
+    if (body.length === 0) {
+      return null;
+    }
+    // Return type of first body item
+    if (typeof body[0] === 'object' && body[0] !== null && 'type' in body[0]) {
+      const firstType = (body[0] as { type: unknown }).type;
+      if (firstType === 'TextualBody' || firstType === 'SpecificResource') {
+        return firstType;
+      }
+    }
+    return null;
   }
-  return body.type;
+
+  // Single body object
+  if (typeof body === 'object' && body !== null && 'type' in body) {
+    const bodyType = (body as { type: unknown }).type;
+    if (bodyType === 'TextualBody' || bodyType === 'SpecificResource') {
+      return bodyType;
+    }
+  }
+
+  return null;
 }
 
 /**
  * Check if body is resolved (has a source)
+ * Check for SpecificResource in body array
  */
-export function isBodyResolved(body: Annotation['body']): body is { type: 'SpecificResource'; source: string; purpose?: 'linking' } {
-  return !Array.isArray(body) && Boolean(body.source);
+export function isBodyResolved(body: Annotation['body']): boolean {
+  return getBodySource(body) !== null;
 }
 
 /**
@@ -64,6 +117,42 @@ export function hasTargetSelector(target: Annotation['target']): boolean {
 }
 
 /**
+ * Extract entity types from annotation bodies
+ * Entity types are stored as TextualBody with purpose: "tagging"
+ */
+export function getEntityTypes(annotation: Annotation): string[] {
+  // Extract from TextualBody bodies with purpose: "tagging"
+  if (Array.isArray(annotation.body)) {
+    const entityTags: string[] = [];
+
+    for (const item of annotation.body) {
+      // Runtime check for TextualBody with tagging purpose
+      // TypeScript incorrectly narrows the union type here, so we use runtime checks only
+      if (
+        typeof item === 'object' &&
+        item !== null &&
+        'type' in item &&
+        'value' in item &&
+        'purpose' in item
+      ) {
+        // Access properties as unknown first to avoid TypeScript narrowing issues
+        const itemType = (item as { type: unknown }).type;
+        const itemValue = (item as { value: unknown }).value;
+        const itemPurpose = (item as { purpose: unknown }).purpose;
+
+        if (itemType === 'TextualBody' && itemPurpose === 'tagging' && typeof itemValue === 'string' && itemValue.length > 0) {
+          entityTags.push(itemValue);
+        }
+      }
+    }
+
+    return entityTags;
+  }
+
+  return [];
+}
+
+/**
  * Type guard to check if an annotation is a highlight
  */
 export function isHighlight(annotation: Annotation): annotation is HighlightAnnotation {
@@ -79,15 +168,15 @@ export function isReference(annotation: Annotation): annotation is ReferenceAnno
 
 /**
  * Type guard to check if a reference annotation is a stub (unresolved)
- * Phase 1: Stub references have empty body array
+ * Stub if no SpecificResource in body array
  */
 export function isStubReference(annotation: Annotation): boolean {
-  return isReference(annotation) && Array.isArray(annotation.body);
+  return isReference(annotation) && !isBodyResolved(annotation.body);
 }
 
 /**
  * Type guard to check if a reference annotation is resolved
- * Phase 1: Resolved references have body with source
+ * Resolved if SpecificResource exists in body array
  */
 export function isResolvedReference(annotation: Annotation): annotation is ReferenceAnnotation {
   return isReference(annotation) && isBodyResolved(annotation.body);

@@ -15,6 +15,7 @@ import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { extractEntityTypes } from '../../../graph/annotation-body-utils';
 
 type UpdateDocumentRequest = components['schemas']['UpdateDocumentRequest'];
 type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
@@ -96,9 +97,11 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
 
       // Read annotations from Layer 3
       const annotations = await AnnotationQueryService.getAllAnnotations(id);
-      const entityReferences = annotations.filter(a =>
-        a.motivation === 'linking' && a.entityTypes && a.entityTypes.length > 0
-      );
+      const entityReferences = annotations.filter(a => {
+        if (a.motivation !== 'linking') return false;
+        const entityTypes = extractEntityTypes(a.body);
+        return entityTypes.length > 0;
+      });
 
       // Return optimistic response (content NOT included - must be fetched separately)
       const response: GetDocumentResponse = {

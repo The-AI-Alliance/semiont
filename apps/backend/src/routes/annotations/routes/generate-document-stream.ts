@@ -20,6 +20,7 @@ import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { getExactText, compareAnnotationIds } from '@semiont/core';
 import { getTargetSelector } from '../../../lib/annotation-utils';
+import { extractEntityTypes } from '../../../graph/annotation-body-utils';
 
 type GenerateDocumentStreamRequest = components['schemas']['GenerateDocumentStreamRequest'];
 
@@ -90,7 +91,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
         title: body.title,
         prompt: body.prompt,
         language: body.language,
-        entityTypes: reference.entityTypes,
+        entityTypes: extractEntityTypes(reference.body),
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3

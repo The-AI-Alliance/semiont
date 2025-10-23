@@ -18,6 +18,7 @@ import { CREATION_METHODS } from '@semiont/core';
 import { calculateChecksum } from '@semiont/core';
 import { getEventStore } from '../../events/event-store';
 import { getExactText, compareAnnotationIds } from '@semiont/core';
+import { extractEntityTypes } from '../../graph/annotation-body-utils';
 
 export class GenerationWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -82,9 +83,12 @@ export class GenerationWorker extends JobWorker {
 
     // Generate content using AI
     const prompt = job.prompt || `Create a comprehensive document about "${documentName}"`;
+    // Extract entity types from annotation body
+    const annotationEntityTypes = extractEntityTypes(annotation.body);
+
     const generatedContent = await generateDocumentFromTopic(
       documentName,
-      job.entityTypes || annotation.entityTypes || [],
+      job.entityTypes || annotationEntityTypes,
       prompt,
       job.language
     );
@@ -128,7 +132,7 @@ export class GenerationWorker extends JobWorker {
         format: 'text/markdown',
         contentChecksum: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
-        entityTypes: job.entityTypes || annotation.entityTypes || [],
+        entityTypes: job.entityTypes || annotationEntityTypes,
         language: job.language,
         isDraft: true,
         generatedFrom: job.referenceId,

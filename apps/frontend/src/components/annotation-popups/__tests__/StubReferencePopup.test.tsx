@@ -75,9 +75,9 @@ describe('StubReferencePopup', () => {
           length: 13,
         },
       },
-      // Phase 1: Stub reference has empty body array
+      // Stub reference has empty body array
       body: [],
-      // Phase 1: entityTypes at annotation level
+      // entityTypes at annotation level
       entityTypes: ['Person'],
       motivation: 'linking',
       creator: {

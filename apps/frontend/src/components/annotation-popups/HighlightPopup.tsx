@@ -44,7 +44,7 @@ export function HighlightPopup({
   }, [showJsonLd, position]);
 
   const handleConvertToReference = () => {
-    // Phase 1: Convert to linking motivation with stub body (empty array)
+    // Convert to linking motivation with stub body (empty array)
     onUpdateAnnotation({
       motivation: 'linking',
       body: [],

@@ -200,7 +200,7 @@ export function getEventEntityTypes(event: StoredEvent): string[] {
 
   if (eventData.type === 'annotation.added') {
     const payload = eventData.payload as AnnotationAddedEvent['payload'];
-    // Phase 1: Entity types are temporarily at annotation level
+    // Entity types are temporarily at annotation level
     return payload.annotation.entityTypes ?? [];
   }
 

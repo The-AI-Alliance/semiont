@@ -20,6 +20,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
 import { getTargetSource } from '../../../lib/annotation-utils';
+import { extractEntityTypes } from '../../../graph/annotation-body-utils';
 
 type CreateFromAnnotationRequest = components['schemas']['CreateFromAnnotationRequest'];
 type CreateFromAnnotationResponse = components['schemas']['CreateFromAnnotationResponse'];
@@ -53,7 +54,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
         name: body.name,
         archived: false,
         format: body.format,
-        entityTypes: annotation.entityTypes || [],
+        entityTypes: extractEntityTypes(annotation.body),
         creationMethod: CREATION_METHODS.REFERENCE as CreationMethod,
         sourceAnnotationId: annotationId,
         sourceDocumentId: getTargetSource(annotation.target),

@@ -6,7 +6,7 @@ import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
 import type { Annotation } from '@/lib/api';
-import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved } from '@/lib/api';
+import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes } from '@/lib/api';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api';
@@ -502,7 +502,7 @@ export function DocumentViewer({
         onCreateAssessment={handleCreateAssessment}
         onUpdateAnnotation={async (updates) => {
           if (editingAnnotation) {
-            // Phase 1: Handle body updates
+            // Handle body updates
             if (updates.body !== undefined) {
               // Handle converting between annotation types or resolving references
               if (Array.isArray(updates.body)) {
@@ -510,7 +510,8 @@ export function DocumentViewer({
                 if (isBodyResolved(editingAnnotation.body)) {
                   // Unlink document - convert resolved reference to stub
                   await deleteAnnotation(editingAnnotation.id, document.id);
-                  await addReference(document.id, selectedText, annotationPosition!, undefined, editingAnnotation.entityTypes?.[0]);
+                  const entityTypes = getEntityTypes(editingAnnotation);
+                  await addReference(document.id, selectedText, annotationPosition!, undefined, entityTypes[0]);
                 }
               } else if (updates.body.type === 'SpecificResource') {
                 if (updates.body.source) {

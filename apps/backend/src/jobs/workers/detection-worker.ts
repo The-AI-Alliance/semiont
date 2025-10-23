@@ -117,8 +117,11 @@ export class DetectionWorker extends JobWorker {
                     length: detected.annotation.selector.length,
                   },
                 },
-                body: [], // Phase 1: Stub reference (unresolved)
-                entityTypes: detected.annotation.entityTypes || [], // Phase 1: at annotation level
+                body: (detected.annotation.entityTypes || []).map(et => ({
+                  type: 'TextualBody' as const,
+                  value: et,
+                  purpose: 'tagging' as const,
+                })),
                 modified: new Date().toISOString(),
               },
             },

@@ -69,12 +69,12 @@ export async function handleCreateAnnotation(client: SemiontApiClient, args: any
         length: selectionData.length || 0,
       },
     },
-    // Phase 1: Empty body array for highlights
+    // Empty body array for highlights
     body: [],
     entityTypes: args?.entityTypes || [],
   });
 
-  // Phase 1: Safely get selector (target can be string or object)
+  // Safely get selector (target can be string or object)
   const targetSelector = typeof data.annotation.target === 'string'
     ? undefined
     : data.annotation.target.selector;
@@ -204,7 +204,7 @@ export async function handleGetDocumentHighlights(client: SemiontApiClient, args
     content: [{
       type: 'text' as const,
       text: `Found ${highlights.length} highlights in document:\n${highlights.map(h => {
-        // Phase 1: Safely get selector (target can be string or object)
+        // Safely get selector (target can be string or object)
         const targetSelector = typeof h.target === 'string' ? undefined : h.target.selector;
         const selector = targetSelector && Array.isArray(targetSelector) ? targetSelector[0] : targetSelector;
         const text = selector?.exact || h.id;
@@ -222,11 +222,11 @@ export async function handleGetDocumentReferences(client: SemiontApiClient, args
     content: [{
       type: 'text' as const,
       text: `Found ${references.length} references in document:\n${references.map(r => {
-        // Phase 1: Safely get selector (target can be string or object)
+        // Safely get selector (target can be string or object)
         const targetSelector = typeof r.target === 'string' ? undefined : r.target.selector;
         const selector = targetSelector && Array.isArray(targetSelector) ? targetSelector[0] : targetSelector;
         const text = selector?.exact || r.id;
-        // Phase 1: Get source from body (empty array for stub, object with source for resolved)
+        // Get source from body (empty array for stub, object with source for resolved)
         const source = Array.isArray(r.body) ? null : r.body.source;
         return `- ${text} → ${source || 'unresolved'}`;
       }).join('\n')}`,

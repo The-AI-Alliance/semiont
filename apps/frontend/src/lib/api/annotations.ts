@@ -59,7 +59,7 @@ export const annotations = {
                 length: position.end - position.start,
               },
             },
-            // Phase 1: Empty body array for highlights
+            // Empty body array for highlights
             body: [],
             motivation: 'highlighting',
           };

@@ -65,18 +65,19 @@ crudRouter.post('/api/annotations',
       throw new HTTPException(400, { message: 'TextPositionSelector required for creating annotations' });
     }
 
-    // Phase 1: Use provided motivation or default to linking
-    const motivation = request.motivation || 'linking';
+    // Validation ensures motivation is present (it's required in schema)
+    if (!request.motivation) {
+      throw new HTTPException(400, { message: 'motivation is required' });
+    }
 
     // Build annotation object (includes W3C required @context and type)
     const annotation: Omit<Annotation, 'creator' | 'created'> = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
       id: annotationId,
-      motivation: motivation,
+      motivation: request.motivation,
       target: request.target,
-      body: request.body as Annotation['body'], // Phase 1: empty array or SpecificResource
-      entityTypes: request.entityTypes || [], // Phase 1: at annotation level
+      body: request.body as Annotation['body'],
       modified: new Date().toISOString(),
     };
 
@@ -145,14 +146,19 @@ crudRouter.put('/api/annotations/:id/resolve',
     // Get target document from Layer 3
     const targetDocument = await DocumentQueryService.getDocumentMetadata(request.documentId);
 
-    // Return optimistic response
+    // Return optimistic response - Add SpecificResource to body array
+    const bodyArray = Array.isArray(annotation.body) ? annotation.body : [];
     const response: ResolveAnnotationResponse = {
       annotation: {
         ...annotation,
-        body: {
-          ...annotation.body,
-          source: request.documentId,
-        },
+        body: [
+          ...bodyArray.filter(b => b.type !== 'SpecificResource'), // Remove existing SpecificResource if any
+          {
+            type: 'SpecificResource' as const,
+            source: request.documentId,
+            purpose: 'linking' as const,
+          },
+        ],
       },
       targetDocument,
     };

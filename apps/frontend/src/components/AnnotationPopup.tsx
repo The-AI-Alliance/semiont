@@ -42,7 +42,7 @@ export function AnnotationPopup({
     if (!annotation) return 'initial';
     if (isHighlight(annotation)) return 'highlight';
     if (isReference(annotation)) {
-      // Phase 1: Body is either empty array (stub) or SpecificResource with source (resolved)
+      // Body is either empty array (stub) or SpecificResource with source (resolved)
       return isBodyResolved(annotation.body) ? 'resolved_reference' : 'stub_reference';
     }
     return 'initial';

@@ -1,20 +1,23 @@
 /**
- * W3C Web Annotation Compliance Tests for Phase 1
+ * W3C Web Annotation Compliance Tests for W3C compliance
  *
- * Tests that our Phase 1 implementation follows the W3C Web Annotation Data Model:
- * - Stub references can have zero bodies (W3C allows 0 or more bodies)
+ * Tests that our W3C Web Annotation implementation follows the W3C Web Annotation Data Model:
+ * - Stub references can have TextualBody bodies with purpose: "tagging" for entity types
+ * - Resolved references have mixed array: TextualBody (tagging) + SpecificResource (linking)
  * - SpecificResource must NOT have a `value` property (only TextualBody has value)
  * - SpecificResource must have `source` property
- * - Annotations with `body: []` are valid W3C annotations
+ * - TextualBody must have `value` property
+ * - Annotations can have zero or more bodies
  */
 
 import { describe, it, expect } from 'vitest';
 import type { Annotation } from '@semiont/core';
+import { getEntityTypes, getBodySource, isResolved } from './helpers/annotation-helpers';
 
-describe('W3C Web Annotation Compliance - Phase 1', () => {
+describe('W3C Web Annotation Compliance', () => {
   describe('Stub Reference Validation', () => {
     it('should allow annotations with empty body array', () => {
-      // Phase 1: Stub references have body: []
+      // Stub references can have empty body array (no entity tags)
       const stubAnnotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -30,7 +33,6 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
           },
         },
         body: [], // W3C allows zero bodies
-        entityTypes: [], // Phase 1: temporary location
         creator: {
           type: 'Person',
           id: 'user-123',
@@ -47,9 +49,14 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
       if (Array.isArray(stubAnnotation.body)) {
         expect(stubAnnotation.body.length).toBe(0);
       }
+
+      // Check entity types via helper
+      expect(getEntityTypes(stubAnnotation)).toEqual([]);
+      expect(isResolved(stubAnnotation)).toBe(false);
     });
 
-    it('should validate stub reference has no body properties', () => {
+    it('should allow stub reference with entity tag bodies', () => {
+      // Stub with TextualBody entity tags
       const stubAnnotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -62,8 +69,13 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
             exact: 'quantum mechanics',
           },
         },
-        body: [],
-        entityTypes: ['Concept'],
+        body: [
+          {
+            type: 'TextualBody',
+            value: 'Concept',
+            purpose: 'tagging',
+          },
+        ],
         creator: {
           type: 'Person',
           id: 'user-456',
@@ -72,22 +84,32 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         created: new Date().toISOString(),
       };
 
-      // Verify no body means no source, no value, no type
+      // Verify body structure
       expect(Array.isArray(stubAnnotation.body)).toBe(true);
       if (Array.isArray(stubAnnotation.body)) {
-        expect(stubAnnotation.body.length).toBe(0);
-
-        // TypeScript enforces this at compile time, but verify at runtime
-        const body = stubAnnotation.body as any;
-        expect(body.source).toBeUndefined();
-        expect(body.value).toBeUndefined();
-        expect(body.type).toBeUndefined();
+        expect(stubAnnotation.body.length).toBe(1);
+        const firstBody = stubAnnotation.body[0];
+        expect(firstBody).toBeDefined();
+        if (firstBody) {
+          expect(firstBody.type).toBe('TextualBody');
+          if ('value' in firstBody) {
+            expect(firstBody.value).toBe('Concept');
+          }
+          if ('purpose' in firstBody) {
+            expect(firstBody.purpose).toBe('tagging');
+          }
+        }
       }
+
+      // Extract entity types
+      expect(getEntityTypes(stubAnnotation)).toEqual(['Concept']);
+      expect(isResolved(stubAnnotation)).toBe(false);
     });
   });
 
   describe('Resolved Reference Validation', () => {
-    it('should validate SpecificResource has source property', () => {
+    it('should validate resolved reference with entity tags and SpecificResource', () => {
+      // Resolved reference has mixed body array
       const resolvedAnnotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -102,12 +124,18 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
             length: 17,
           },
         },
-        body: {
-          type: 'SpecificResource',
-          source: 'doc-target-456', // Required for SpecificResource
-          purpose: 'linking',
-        },
-        entityTypes: ['Theory'],
+        body: [
+          {
+            type: 'TextualBody',
+            value: 'Theory',
+            purpose: 'tagging',
+          },
+          {
+            type: 'SpecificResource',
+            source: 'doc-target-456',
+            purpose: 'linking',
+          },
+        ],
         creator: {
           type: 'Person',
           id: 'user-789',
@@ -116,14 +144,36 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         created: new Date().toISOString(),
       };
 
-      // Verify SpecificResource structure
-      expect(Array.isArray(resolvedAnnotation.body)).toBe(false);
+      // Verify body structure
+      expect(Array.isArray(resolvedAnnotation.body)).toBe(true);
+      if (Array.isArray(resolvedAnnotation.body)) {
+        expect(resolvedAnnotation.body.length).toBe(2);
 
-      if (!Array.isArray(resolvedAnnotation.body)) {
-        expect(resolvedAnnotation.body.type).toBe('SpecificResource');
-        expect(resolvedAnnotation.body.source).toBe('doc-target-456');
-        expect(resolvedAnnotation.body.purpose).toBe('linking');
+        // First body: TextualBody with entity tag
+        const firstBody = resolvedAnnotation.body[0];
+        expect(firstBody).toBeDefined();
+        if (firstBody) {
+          expect(firstBody.type).toBe('TextualBody');
+          if ('value' in firstBody) {
+            expect(firstBody.value).toBe('Theory');
+          }
+        }
+
+        // Second body: SpecificResource with source
+        const secondBody = resolvedAnnotation.body[1];
+        expect(secondBody).toBeDefined();
+        if (secondBody) {
+          expect(secondBody.type).toBe('SpecificResource');
+          if ('source' in secondBody) {
+            expect(secondBody.source).toBe('doc-target-456');
+          }
+        }
       }
+
+      // Extract entity types and source
+      expect(getEntityTypes(resolvedAnnotation)).toEqual(['Theory']);
+      expect(getBodySource(resolvedAnnotation.body)).toBe('doc-target-456');
+      expect(isResolved(resolvedAnnotation)).toBe(true);
     });
 
     it('should NOT have value property on SpecificResource (W3C compliance)', () => {
@@ -135,12 +185,13 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         target: {
           source: 'doc-abc',
         },
-        body: {
-          type: 'SpecificResource',
-          source: 'doc-xyz',
-          purpose: 'linking',
-        },
-        entityTypes: [],
+        body: [
+          {
+            type: 'SpecificResource',
+            source: 'doc-xyz',
+            purpose: 'linking',
+          },
+        ],
         creator: {
           type: 'Person',
           id: 'user-xyz',
@@ -149,11 +200,15 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         created: new Date().toISOString(),
       };
 
-      // Phase 1: SpecificResource must NOT have value property
-      if (!Array.isArray(resolvedAnnotation.body)) {
-        const body = resolvedAnnotation.body as any;
-        expect(body.value).toBeUndefined();
-        expect('value' in body).toBe(false);
+      // SpecificResource must NOT have value property
+      if (Array.isArray(resolvedAnnotation.body)) {
+        const specificResource = resolvedAnnotation.body.find(b => b.type === 'SpecificResource');
+        expect(specificResource).toBeDefined();
+        if (specificResource) {
+          const body = specificResource as any;
+          expect(body.value).toBeUndefined();
+          expect('value' in body).toBe(false);
+        }
       }
     });
 
@@ -166,12 +221,13 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         target: {
           source: 'doc-123',
         },
-        body: {
-          type: 'SpecificResource',
-          source: 'doc-456',
-          purpose: 'linking', // W3C purpose field
-        },
-        entityTypes: [],
+        body: [
+          {
+            type: 'SpecificResource',
+            source: 'doc-456',
+            purpose: 'linking',
+          },
+        ],
         creator: {
           type: 'Person',
           id: 'user-123',
@@ -180,8 +236,11 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         created: new Date().toISOString(),
       };
 
-      if (!Array.isArray(resolvedAnnotation.body)) {
-        expect(resolvedAnnotation.body.purpose).toBe('linking');
+      if (Array.isArray(resolvedAnnotation.body)) {
+        const specificResource = resolvedAnnotation.body.find(b => b.type === 'SpecificResource');
+        if (specificResource && 'purpose' in specificResource) {
+          expect(specificResource.purpose).toBe('linking');
+        }
       }
     });
   });
@@ -196,7 +255,6 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         motivation: 'linking',
         target: 'http://example.org/document-123', // Simple string IRI
         body: [],
-        entityTypes: [],
         creator: {
           type: 'Person',
           id: 'user-123',
@@ -220,7 +278,6 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
           source: 'doc-456', // Source without selector
         },
         body: [],
-        entityTypes: [],
         creator: {
           type: 'Person',
           id: 'user-456',
@@ -250,12 +307,13 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
             exact: 'selected text',
           },
         },
-        body: {
-          type: 'SpecificResource',
-          source: 'doc-ref-789',
-          purpose: 'linking',
-        },
-        entityTypes: [],
+        body: [
+          {
+            type: 'SpecificResource',
+            source: 'doc-ref-789',
+            purpose: 'linking',
+          },
+        ],
         creator: {
           type: 'Person',
           id: 'user-789',
@@ -286,7 +344,6 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
           source: 'doc-123',
         },
         body: [],
-        entityTypes: [],
         creator: {
           type: 'Person',
           id: 'user-123',
@@ -313,8 +370,13 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
             length: 14,
           },
         },
-        body: [], // Phase 1: empty for highlights too
-        entityTypes: [],
+        body: [
+          {
+            type: 'TextualBody',
+            value: 'ImportantConcept',
+            purpose: 'tagging',
+          },
+        ],
         creator: {
           type: 'Person',
           id: 'user-456',
@@ -324,6 +386,7 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
       };
 
       expect(annotation.motivation).toBe('highlighting');
+      expect(getEntityTypes(annotation)).toEqual(['ImportantConcept']);
     });
   });
 
@@ -336,7 +399,6 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         motivation: 'linking',
         target: 'doc-123',
         body: [],
-        entityTypes: [],
         creator: {
           type: 'Person',
           id: 'user-123',
@@ -356,7 +418,6 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         motivation: 'linking',
         target: 'doc-456',
         body: [],
-        entityTypes: [],
         creator: {
           type: 'Person',
           id: 'user-456',
@@ -376,7 +437,6 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         motivation: 'linking',
         target: 'doc-789', // Target is required
         body: [],
-        entityTypes: [],
         creator: {
           type: 'Person',
           id: 'user-789',
@@ -389,9 +449,9 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
     });
   });
 
-  describe('Phase 1 Schema Transitions', () => {
+  describe('Schema Transitions', () => {
     it('should transition from stub to resolved correctly', () => {
-      // Start with stub
+      // Start with stub (entity tags but no SpecificResource)
       let annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -404,8 +464,13 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
             exact: 'Einstein',
           },
         },
-        body: [], // Stub: empty array
-        entityTypes: ['Person'],
+        body: [
+          {
+            type: 'TextualBody',
+            value: 'Person',
+            purpose: 'tagging',
+          },
+        ],
         creator: {
           type: 'Person',
           id: 'user-123',
@@ -416,32 +481,36 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
 
       // Verify stub state
       expect(Array.isArray(annotation.body)).toBe(true);
-      if (Array.isArray(annotation.body)) {
-        expect(annotation.body.length).toBe(0);
-      }
+      expect(getEntityTypes(annotation)).toEqual(['Person']);
+      expect(isResolved(annotation)).toBe(false);
 
-      // Resolve the stub
+      // Resolve the stub (add SpecificResource to body array)
       annotation = {
         ...annotation,
-        body: {
-          type: 'SpecificResource',
-          source: 'doc-target',
-          purpose: 'linking',
-        },
+        body: [
+          {
+            type: 'TextualBody',
+            value: 'Person',
+            purpose: 'tagging',
+          },
+          {
+            type: 'SpecificResource',
+            source: 'doc-target',
+            purpose: 'linking',
+          },
+        ],
         modified: new Date().toISOString(),
       };
 
       // Verify resolved state
-      expect(Array.isArray(annotation.body)).toBe(false);
-      if (!Array.isArray(annotation.body)) {
-        expect(annotation.body.type).toBe('SpecificResource');
-        expect(annotation.body.source).toBe('doc-target');
-        expect(annotation.body.purpose).toBe('linking');
-      }
+      expect(Array.isArray(annotation.body)).toBe(true);
+      expect(getEntityTypes(annotation)).toEqual(['Person']);
+      expect(getBodySource(annotation.body)).toBe('doc-target');
+      expect(isResolved(annotation)).toBe(true);
     });
 
     it('should transition from resolved to stub correctly (unlinking)', () => {
-      // Start with resolved
+      // Start with resolved (entity tags + SpecificResource)
       let annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -450,12 +519,18 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
         target: {
           source: 'doc-source',
         },
-        body: {
-          type: 'SpecificResource',
-          source: 'doc-target',
-          purpose: 'linking',
-        },
-        entityTypes: ['Concept'],
+        body: [
+          {
+            type: 'TextualBody',
+            value: 'Concept',
+            purpose: 'tagging',
+          },
+          {
+            type: 'SpecificResource',
+            source: 'doc-target',
+            purpose: 'linking',
+          },
+        ],
         creator: {
           type: 'Person',
           id: 'user-456',
@@ -465,20 +540,101 @@ describe('W3C Web Annotation Compliance - Phase 1', () => {
       };
 
       // Verify resolved state
-      expect(Array.isArray(annotation.body)).toBe(false);
+      expect(isResolved(annotation)).toBe(true);
+      expect(getEntityTypes(annotation)).toEqual(['Concept']);
 
-      // Unlink (convert to stub)
+      // Unlink (remove SpecificResource, keep entity tags)
       annotation = {
         ...annotation,
-        body: [],
+        body: [
+          {
+            type: 'TextualBody',
+            value: 'Concept',
+            purpose: 'tagging',
+          },
+        ],
         modified: new Date().toISOString(),
       };
 
-      // Verify stub state
-      expect(Array.isArray(annotation.body)).toBe(true);
+      // Verify stub state (entity tags preserved)
+      expect(isResolved(annotation)).toBe(false);
+      expect(getEntityTypes(annotation)).toEqual(['Concept']);
+    });
+  });
+
+  describe('TextualBody with Purpose Tagging', () => {
+    it('should validate TextualBody has value property', () => {
+      const annotation: Annotation = {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        'type': 'Annotation',
+        id: 'test-textual-body',
+        motivation: 'linking',
+        target: 'doc-123',
+        body: [
+          {
+            type: 'TextualBody',
+            value: 'Organization',
+            purpose: 'tagging',
+          },
+        ],
+        creator: {
+          type: 'Person',
+          id: 'user-123',
+          name: 'test-user',
+        },
+        created: new Date().toISOString(),
+      };
+
       if (Array.isArray(annotation.body)) {
-        expect(annotation.body.length).toBe(0);
+        const textualBody = annotation.body[0];
+        expect(textualBody).toBeDefined();
+        if (textualBody) {
+          expect(textualBody.type).toBe('TextualBody');
+          if ('value' in textualBody) {
+            expect(textualBody.value).toBe('Organization');
+            expect(typeof textualBody.value).toBe('string');
+          }
+          if ('purpose' in textualBody) {
+            expect(textualBody.purpose).toBe('tagging');
+          }
+        }
       }
+    });
+
+    it('should support multiple entity tag bodies', () => {
+      const annotation: Annotation = {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        'type': 'Annotation',
+        id: 'test-multi-tags',
+        motivation: 'linking',
+        target: 'doc-456',
+        body: [
+          {
+            type: 'TextualBody',
+            value: 'Person',
+            purpose: 'tagging',
+          },
+          {
+            type: 'TextualBody',
+            value: 'Scientist',
+            purpose: 'tagging',
+          },
+          {
+            type: 'TextualBody',
+            value: 'Physicist',
+            purpose: 'tagging',
+          },
+        ],
+        creator: {
+          type: 'Person',
+          id: 'user-456',
+          name: 'test-user',
+        },
+        created: new Date().toISOString(),
+      };
+
+      expect(getEntityTypes(annotation)).toEqual(['Person', 'Scientist', 'Physicist']);
+      expect(isResolved(annotation)).toBe(false);
     });
   });
 });

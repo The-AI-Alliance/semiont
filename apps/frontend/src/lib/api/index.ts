@@ -41,6 +41,7 @@ export {
   getTargetSource,
   getTargetSelector,
   hasTargetSelector,
+  getEntityTypes,
 } from './annotation-utils';
 
 export {

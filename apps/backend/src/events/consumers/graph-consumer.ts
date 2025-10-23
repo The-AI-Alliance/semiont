@@ -143,14 +143,16 @@ export class GraphDBConsumer {
         break;
 
       case 'annotation.resolved':
-        // TODO: Graph implementation should handle partial body updates properly
+        // Add SpecificResource to body array (graph impl will merge with existing entity tags)
         try {
           await graphDb.updateAnnotation(event.payload.annotationId, {
-            body: {
-              type: 'SpecificResource',
-              entityTypes: [],  // Graph impl should merge, not replace
-              source: event.payload.targetDocumentId,
-            },
+            body: [
+              {
+                type: 'SpecificResource',
+                source: event.payload.targetDocumentId,
+                purpose: 'linking',
+              },
+            ],
           } as Partial<Annotation>);
         } catch (error) {
           // If annotation doesn't exist in graph (e.g., created before consumer started),
