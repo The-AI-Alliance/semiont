@@ -8,6 +8,7 @@ The system supports four different graph database implementations that share a c
 
 For complete details on how data flows through all layers:
 - [EVENT-STORE.md](./EVENT-STORE.md) - Layer 2 event sourcing architecture
+- [PROJECTION.md](./PROJECTION.md) - Layer 3 projection storage and queries
 - [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) - Complete annotation flow (UI, API, Event Store, Projection, Graph)
 
 ## Graph Architecture
