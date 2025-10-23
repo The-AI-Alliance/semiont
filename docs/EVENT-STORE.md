@@ -49,7 +49,8 @@ The Event Store implements true event sourcing:
 - Current state built from events
 - Optimized for fast queries
 - Can be rebuilt at any time from Layer 2
-- Stored in PostgreSQL and filesystem
+- Stored in filesystem using sharded JSON files
+- See [PROJECTION.md](./PROJECTION.md) for complete Layer 3 architecture
 
 **Graph Database (Layer 4)**:
 - Relationship traversal and discovery
@@ -232,7 +233,7 @@ async updateEntityTypesProjection(entityType: string): Promise<void>
 }
 ```
 
-**Integration**: Works with [ProjectionStorage](../apps/backend/src/storage/projection-storage.ts) to persist projections to filesystem and database. See [DATABASE.md](./DATABASE.md) for schema details.
+**Integration**: Works with ProjectionManager (Layer 3) to persist projections to filesystem. See [PROJECTION.md](./PROJECTION.md) for complete Layer 3 architecture and [DATABASE.md](./DATABASE.md) for schema details.
 
 ### EventSubscriptions
 
