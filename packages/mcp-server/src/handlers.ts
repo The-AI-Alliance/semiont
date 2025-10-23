@@ -3,6 +3,7 @@
  */
 
 import { SemiontApiClient } from '@semiont/api-client';
+import { extractBodySource } from '@semiont/core';
 
 export async function handleCreateDocument(client: SemiontApiClient, args: any) {
   const data = await client.createDocument({
@@ -58,6 +59,15 @@ export async function handleDetectAnnotations(_client: SemiontApiClient, _args: 
 
 export async function handleCreateAnnotation(client: SemiontApiClient, args: any) {
   const selectionData = args?.selectionData || {};
+  const entityTypes = args?.entityTypes || [];
+
+  // Convert entityTypes to W3C TextualBody items
+  const body = entityTypes.map((value: string) => ({
+    type: 'TextualBody' as const,
+    value,
+    purpose: 'tagging' as const,
+  }));
+
   const data = await client.createAnnotation({
     motivation: 'highlighting',
     target: {
@@ -69,9 +79,7 @@ export async function handleCreateAnnotation(client: SemiontApiClient, args: any
         length: selectionData.length || 0,
       },
     },
-    // Empty body array for highlights
-    body: [],
-    entityTypes: args?.entityTypes || [],
+    body,
   });
 
   // Safely get selector (target can be string or object)
@@ -226,8 +234,8 @@ export async function handleGetDocumentReferences(client: SemiontApiClient, args
         const targetSelector = typeof r.target === 'string' ? undefined : r.target.selector;
         const selector = targetSelector && Array.isArray(targetSelector) ? targetSelector[0] : targetSelector;
         const text = selector?.exact || r.id;
-        // Get source from body (empty array for stub, object with source for resolved)
-        const source = Array.isArray(r.body) ? null : r.body.source;
+        // Extract source from W3C body array
+        const source = extractBodySource(r.body);
         return `- ${text} → ${source || 'unresolved'}`;
       }).join('\n')}`,
     }],

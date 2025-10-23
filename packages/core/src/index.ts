@@ -60,7 +60,7 @@ export {
 } from './selector-utils';
 
 // Annotation utilities
-export { compareAnnotationIds } from './annotation-utils';
+export { compareAnnotationIds, extractEntityTypes, extractBodySource } from './annotation-utils';
 
 // Document types
 export type { CreateDocumentInput, UpdateDocumentInput, DocumentFilter } from './document-types';
