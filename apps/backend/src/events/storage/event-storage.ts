@@ -6,14 +6,17 @@
  * - 4-hex sharding (65,536 shards)
  * - File rotation
  * - Event stream initialization
+ *
+ * @see docs/EVENT-STORE.md#eventstorage for architecture details
  */
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { createReadStream } from 'fs';
 import * as readline from 'readline';
-import type { StoredEvent } from '@semiont/core';
-import { jumpConsistentHash } from '../../storage/shard-utils';
+import { v4 as uuidv4 } from 'uuid';
+import type { StoredEvent, DocumentEvent, EventMetadata } from '@semiont/core';
+import { jumpConsistentHash, sha256 } from '../../storage/shard-utils';
 
 export interface EventStorageConfig {
   dataDir: string;
@@ -48,9 +51,11 @@ export class EventStorage {
   /**
    * Calculate shard path for a document ID
    * Uses jump consistent hash for uniform distribution
+   * Special case: __system__ events bypass sharding
    */
   getShardPath(documentId: string): string {
-    if (!this.config.enableSharding) {
+    // System events don't get sharded
+    if (documentId === '__system__' || !this.config.enableSharding) {
       return '';
     }
 
@@ -122,9 +127,53 @@ export class EventStorage {
   }
 
   /**
-   * Write an event to storage (append to JSONL)
+   * Append an event - handles EVERYTHING for event creation
+   * Creates ID, timestamp, metadata, checksum, sequence tracking, and writes to disk
    */
-  async writeEvent(event: StoredEvent, documentId: string): Promise<void> {
+  async appendEvent(event: Omit<DocumentEvent, 'id' | 'timestamp'>, documentId: string): Promise<StoredEvent> {
+    // Ensure document stream is initialized
+    if (this.getSequenceNumber(documentId) === 0) {
+      await this.initializeDocumentStream(documentId);
+    }
+
+    // Create complete event with ID and timestamp
+    const completeEvent: DocumentEvent = {
+      ...event,
+      id: uuidv4(),
+      timestamp: new Date().toISOString(),
+    } as DocumentEvent;
+
+    // Calculate metadata
+    const sequenceNumber = this.getNextSequenceNumber(documentId);
+    const prevEventHash = this.getLastEventHash(documentId);
+
+    const metadata: EventMetadata = {
+      sequenceNumber,
+      streamPosition: 0,  // Will be set during write
+      timestamp: new Date().toISOString(),
+      prevEventHash: prevEventHash || undefined,
+      checksum: sha256(completeEvent),
+    };
+
+    const storedEvent: StoredEvent = {
+      event: completeEvent,
+      metadata,
+    };
+
+    // Write to disk
+    await this.writeEvent(storedEvent, documentId);
+
+    // Update last hash
+    this.setLastEventHash(documentId, metadata.checksum!);
+
+    return storedEvent;
+  }
+
+  /**
+   * Write an event to storage (append to JSONL)
+   * Internal method - use appendEvent() instead
+   */
+  private async writeEvent(event: StoredEvent, documentId: string): Promise<void> {
     const docPath = this.getDocumentPath(documentId);
 
     // Get current event files

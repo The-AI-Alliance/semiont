@@ -10,6 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createEventStore } from '../../../services/event-store-service';
+import { EventQuery } from '../../../events/query/event-query';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { extractEntityTypes } from '../../../graph/annotation-body-utils';
@@ -29,7 +30,9 @@ export function registerGetDocument(router: DocumentsRouterType) {
 
     // Read from Layer 2/3: Event store builds/loads projection
     const eventStore = await createEventStore();
-    const stored = await eventStore.projectDocument(id);
+    const query = new EventQuery(eventStore.storage);
+    const events = await query.getDocumentEvents(id);
+    const stored = await eventStore.projector.projectDocument(events, id);
 
     if (!stored) {
       throw new HTTPException(404, { message: 'Document not found' });

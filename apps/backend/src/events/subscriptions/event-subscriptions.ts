@@ -6,6 +6,8 @@
  * - Global subscriptions: notifications for all system-level events
  * - Fire-and-forget notification pattern (non-blocking)
  * - Automatic cleanup of empty subscription sets
+ *
+ * @see docs/EVENT-STORE.md#eventsubscriptions for architecture details
  */
 
 import type { StoredEvent } from '@semiont/core';

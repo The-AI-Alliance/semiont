@@ -9,7 +9,7 @@
  */
 
 import type { DocumentsRouterType } from '../shared';
-import { createEventStore } from '../../../services/event-store-service';
+import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import type { EventQuery, StoredEvent } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 import { HTTPException } from 'hono/http-exception';
@@ -47,12 +47,12 @@ export function registerGetEvents(router: DocumentsRouterType) {
    */
   router.get('/api/documents/:id/events', async (c) => {
     const { id } = c.req.param();
-    const query = c.req.query();
+    const queryParams = c.req.query();
 
     // Parse and validate query parameters
-    const type = query.type;
-    const userId = query.userId;
-    const limit = query.limit ? Number(query.limit) : 100;
+    const type = queryParams.type;
+    const userId = queryParams.userId;
+    const limit = queryParams.limit ? Number(queryParams.limit) : 100;
 
     // Validate type if provided
     if (type && !isValidEventType(type)) {
@@ -65,6 +65,7 @@ export function registerGetEvents(router: DocumentsRouterType) {
     }
 
     const eventStore = await createEventStore();
+    const eventQuery = createEventQuery(eventStore);
 
     // Build query filters - type is validated by this point
     const validatedType = type && isValidEventType(type) ? type : undefined;
@@ -82,7 +83,7 @@ export function registerGetEvents(router: DocumentsRouterType) {
     }
 
     // Query events
-    const storedEvents: StoredEvent[] = await eventStore.queryEvents(filters);
+    const storedEvents: StoredEvent[] = await eventQuery.queryEvents(filters);
 
     if (!storedEvents || storedEvents.length === 0) {
       const emptyResponse: GetEventsResponse = {

@@ -5,6 +5,8 @@
  * - prevEventHash links to previous event's checksum
  * - Each event's checksum is verified against its payload
  * - Detects broken chains and tampered events
+ *
+ * @see docs/EVENT-STORE.md#eventvalidator for architecture details
  */
 
 import type { StoredEvent } from '@semiont/core';

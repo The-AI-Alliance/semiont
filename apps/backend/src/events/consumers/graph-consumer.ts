@@ -5,7 +5,7 @@
  * Makes GraphDB a projection of Layer 2 events (single source of truth)
  */
 
-import { createEventStore } from '../../services/event-store-service';
+import { createEventStore, createEventQuery } from '../../services/event-store-service';
 import { getGraphDatabase } from '../../graph/factory';
 import { getStorageService } from '../../storage/filesystem';
 import { didToAgent } from '../../utils/id-generator';
@@ -37,7 +37,7 @@ export class GraphDBConsumer {
   private async subscribeToGlobalEvents() {
     const eventStore = await createEventStore();
 
-    this._globalSubscription = eventStore.subscribeGlobal(async (storedEvent) => {
+    this._globalSubscription = eventStore.subscriptions.subscribeGlobal(async (storedEvent) => {
       console.log(`[GraphDBConsumer] Received global event: ${storedEvent.event.type}`);
       await this.processEvent(storedEvent);
     });
@@ -60,7 +60,7 @@ export class GraphDBConsumer {
     this.ensureInitialized();
     const eventStore = await createEventStore();
 
-    const subscription = eventStore.subscribe(documentId, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(documentId, async (storedEvent) => {
       await this.processEvent(storedEvent);
     });
 
@@ -271,7 +271,8 @@ export class GraphDBConsumer {
 
     // Replay all events
     const eventStore = await createEventStore();
-    const events = await eventStore.getDocumentEvents(documentId);
+    const query = createEventQuery(eventStore);
+    const events = await query.getDocumentEvents(documentId);
 
     for (const storedEvent of events) {
       await this.applyEventToGraph(storedEvent);
@@ -293,7 +294,7 @@ export class GraphDBConsumer {
 
     // Get all document IDs by scanning event shards
     const eventStore = await createEventStore();
-    const allDocumentIds = await eventStore.getAllDocumentIds();
+    const allDocumentIds = await eventStore.storage.getAllDocumentIds();
 
     console.log(`[GraphDBConsumer] Found ${allDocumentIds.length} documents to rebuild`);
 
@@ -383,7 +384,7 @@ export async function startGraphConsumer(): Promise<void> {
   const eventStore = await createEventStore();
 
   // Get all existing document IDs
-  const allDocumentIds = await eventStore.getAllDocumentIds();
+  const allDocumentIds = await eventStore.storage.getAllDocumentIds();
 
   console.log(`[GraphDBConsumer] Starting consumer for ${allDocumentIds.length} documents`);
 

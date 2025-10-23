@@ -6,6 +6,8 @@
  * - Get all events for a document
  * - Get last event from a file
  * - Efficient streaming reads from JSONL files
+ *
+ * @see docs/EVENT-STORE.md#eventquery for architecture details
  */
 
 import type { StoredEvent, EventQuery as EventQueryType } from '@semiont/core';

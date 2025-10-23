@@ -5,6 +5,8 @@
  * - Full projection rebuild from scratch
  * - Incremental projection updates
  * - System-level projections (entity types)
+ *
+ * @see docs/EVENT-STORE.md#eventprojector for architecture details
  */
 
 import { promises as fs } from 'fs';

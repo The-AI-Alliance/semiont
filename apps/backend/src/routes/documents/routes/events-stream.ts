@@ -16,7 +16,7 @@
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { DocumentsRouterType } from '../shared';
-import { createEventStore } from '../../../services/event-store-service';
+import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 
 /**
  * Document-scoped SSE event stream for real-time collaboration
@@ -42,7 +42,8 @@ export function registerGetEventStream(router: DocumentsRouterType) {
 
     // Verify document exists in event store (Layer 2 - source of truth)
     const eventStore = await createEventStore();
-    const events = await eventStore.getDocumentEvents(id);
+    const query = createEventQuery(eventStore);
+    const events = await query.getDocumentEvents(id);
     if (events.length === 0) {
       console.log(`[EventStream] Document ${id} not found - no events exist`);
       throw new HTTPException(404, { message: 'Document not found - no events exist for this document' });
@@ -67,7 +68,7 @@ export function registerGetEventStream(router: DocumentsRouterType) {
 
       // Track if stream is closed to prevent double cleanup
       let isStreamClosed = false;
-      let subscription: ReturnType<typeof eventStore.subscribe> | null = null;
+      let subscription: ReturnType<typeof eventStore.subscriptions.subscribe> | null = null;
       let keepAliveInterval: NodeJS.Timeout | null = null;
       let closeStreamCallback: (() => void) | null = null;
 
@@ -99,7 +100,7 @@ export function registerGetEventStream(router: DocumentsRouterType) {
       // Subscribe to events for this document
       const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
       console.log(`[EventStream:${streamId}] Subscribing to events for document ${id}`);
-      subscription = eventStore.subscribe(id, async (storedEvent) => {
+      subscription = eventStore.subscriptions.subscribe(id, async (storedEvent) => {
         if (isStreamClosed) {
           console.log(`[EventStream:${streamId}] Stream already closed for ${id}, ignoring event ${storedEvent.event.type}`);
           return;

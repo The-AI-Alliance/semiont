@@ -11,6 +11,7 @@ Semiont is a cloud-native semantic knowledge platform built on AWS using Infrast
 - [Application Architecture](#application-architecture) - Frontend/Backend services
 - [Authentication](#authentication-architecture) - OAuth and JWT implementation
 - [Security](#security-architecture) - Network and application security
+- [Event Store Architecture](./EVENT-STORE.md) - Event sourcing and Layer 2 implementation
 - [Database Management](./DATABASE.md) - PostgreSQL and migrations
 - [Graph Implementation](./GRAPH.md) - Graph database storage patterns
 - [W3C Web Annotation](./W3C-WEB-ANNOTATION.md) - Complete annotation implementation across all layers
@@ -165,6 +166,7 @@ The application layer consists of two separate ECS services running on Fargate:
 - **Architecture Pattern**: Backend for Frontend (BFF) - optimized API layer for the Next.js frontend
 - **Framework**: OpenAPIHono (Hono with OpenAPI integration)
 - **Language**: TypeScript
+- **Event Store**: Append-only event log with projections (see [EVENT-STORE.md](./EVENT-STORE.md) for details)
 - **Database ORM**: Prisma with PostgreSQL (see [DATABASE.md](./DATABASE.md) for details)
 - **Graph Database**: Multiple implementations for annotation relationship traversal (see [GRAPH.md](./GRAPH.md) for details)
 - **Authentication**: JWT tokens for API access (see [Authentication Architecture](#authentication-architecture))
@@ -686,6 +688,7 @@ TypeScript-based management scripts provide:
 
 - [Deployment Guide](DEPLOYMENT.md) - Step-by-step deployment instructions
 - [Configuration Guide](CONFIGURATION.md) - Environment and secret management
+- [Event Store Architecture](EVENT-STORE.md) - Event sourcing and immutable event log
 - [Database Management](DATABASE.md) - Schema migrations and backup procedures
 - [Graph Implementation Guide](GRAPH.md) - Graph database patterns and implementations
 - [OAuth Setup](OAuth.md) - Authentication configuration guide

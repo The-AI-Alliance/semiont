@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
-import { createEventStore } from '../../../services/event-store-service';
+import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import type { components } from '@semiont/api-client';
@@ -39,9 +39,10 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
     }
 
     const eventStore = await createEventStore();
+    const query = createEventQuery(eventStore);
 
     // Get all events for this document
-    const allEvents = await eventStore.queryEvents({
+    const allEvents = await query.queryEvents({
       documentId,
     });
 
