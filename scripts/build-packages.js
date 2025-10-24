@@ -15,14 +15,14 @@ const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-// CRITICAL: Copy OpenAPI spec from backend to api-client BEFORE building
-// In spec-first architecture, backend/public/openapi.json is the source of truth (committed to git)
-console.log('📋 Copying OpenAPI spec from backend to api-client...');
-const backendSpecPath = path.join(__dirname, '..', 'apps', 'backend', 'public', 'openapi.json');
+// CRITICAL: Copy OpenAPI spec from specs/ to api-client BEFORE building
+// In spec-first architecture, specs/openapi.json is the source of truth (committed to git)
+console.log('📋 Copying OpenAPI spec from specs/ to api-client...');
+const specsPath = path.join(__dirname, '..', 'specs', 'openapi.json');
 const apiClientSpecPath = path.join(__dirname, '..', 'packages', 'api-client', 'openapi.json');
 
-if (!fs.existsSync(backendSpecPath)) {
-  console.error('❌ Backend OpenAPI spec not found:', backendSpecPath);
+if (!fs.existsSync(specsPath)) {
+  console.error('❌ OpenAPI spec not found:', specsPath);
   process.exit(1);
 }
 
@@ -31,7 +31,7 @@ if (!fs.existsSync(apiClientDir)) {
   fs.mkdirSync(apiClientDir, { recursive: true });
 }
 
-fs.copyFileSync(backendSpecPath, apiClientSpecPath);
+fs.copyFileSync(specsPath, apiClientSpecPath);
 console.log('✅ OpenAPI spec copied successfully\n');
 
 const buildSteps = [

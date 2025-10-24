@@ -17,11 +17,12 @@
     }
   },
   "scripts": {
-    "generate": "openapi-typescript openapi.json -o src/types.ts",
+    "copy-spec": "cp ../../specs/openapi.json openapi.json",
+    "generate": "npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
     "build": "tsc",
     "prebuild": "npm run generate",
     "watch": "tsc --watch",
-    "clean": "rm -rf dist src/types.ts"
+    "clean": "rm -rf dist src/types.ts openapi.json"
   },
   "dependencies": {
     "ky": "^1.2.0"

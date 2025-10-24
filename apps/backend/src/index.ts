@@ -183,8 +183,8 @@ app.get('/api', (c) => {
 
 // Serve OpenAPI JSON specification - now automatically generated
 app.get('/api/openapi.json', (c) => {
-  // Serve the static OpenAPI spec from the public directory
-  const openApiPath = path.join(__dirname, '../public/openapi.json');
+  // Serve the static OpenAPI spec from the specs directory
+  const openApiPath = path.join(__dirname, '../../../specs/openapi.json');
   const openApiContent = fs.readFileSync(openApiPath, 'utf-8');
   const openApiSpec = JSON.parse(openApiContent);
 
