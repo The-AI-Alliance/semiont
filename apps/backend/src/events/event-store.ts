@@ -20,7 +20,7 @@ import type { ProjectionStorage } from '../storage/projection-storage';
 // Import extracted modules
 import { EventStorage, type EventStorageConfig } from './storage/event-storage';
 import { EventProjector, type ProjectorConfig } from './projections/event-projector';
-import { EventSubscriptions } from './subscriptions/event-subscriptions';
+import { getEventSubscriptions, type EventSubscriptions } from './subscriptions/event-subscriptions';
 
 // EventStore uses EventStorageConfig directly - no duplication
 export type { EventStorageConfig as EventStoreConfig };
@@ -44,7 +44,10 @@ export class EventStore {
       dataDir: config.dataDir,
     };
     this.projector = new EventProjector(projectionStorage, projectorConfig);
-    this.subscriptions = new EventSubscriptions();
+
+    // Use global singleton EventSubscriptions to ensure all EventStore instances
+    // share the same subscription registry (critical for SSE real-time events)
+    this.subscriptions = getEventSubscriptions();
   }
 
   /**

@@ -7,6 +7,9 @@
  * - Fire-and-forget notification pattern (non-blocking)
  * - Automatic cleanup of empty subscription sets
  *
+ * SINGLETON PATTERN: All EventStore instances share the same EventSubscriptions
+ * to ensure SSE connections receive events from any EventStore instance.
+ *
  * @see docs/EVENT-STORE.md#eventsubscriptions for architecture details
  */
 
@@ -156,4 +159,16 @@ export class EventSubscriptions {
   getGlobalSubscriptionCount(): number {
     return this.globalSubscriptions.size;
   }
+}
+
+// Singleton instance - shared across all EventStore instances
+// This ensures SSE connections receive events from any EventStore instance
+let globalEventSubscriptions: EventSubscriptions | null = null;
+
+export function getEventSubscriptions(): EventSubscriptions {
+  if (!globalEventSubscriptions) {
+    globalEventSubscriptions = new EventSubscriptions();
+    console.log('[EventSubscriptions] Created global singleton instance');
+  }
+  return globalEventSubscriptions;
 }
