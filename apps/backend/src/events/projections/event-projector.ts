@@ -22,7 +22,7 @@ import { compareAnnotationIds, findBodyItem } from '@semiont/core';
 import type { ProjectionStorage, DocumentState } from '../../storage/projection-storage';
 
 export interface ProjectorConfig {
-  dataDir: string;
+  basePath: string;
 }
 
 /**
@@ -277,19 +277,23 @@ export class EventProjector {
    */
   async updateEntityTypesProjection(entityType: string): Promise<void> {
     const entityTypesPath = path.join(
-      this.config.dataDir,
+      this.config.basePath,
       'projections',
       'entity-types',
       'entity-types.json'
     );
+
+    console.log(`[EventProjector] Updating entity types projection: ${entityType} at ${entityTypesPath}`);
 
     // Read current projection
     let projection = { entityTypes: [] as string[] };
     try {
       const content = await fs.readFile(entityTypesPath, 'utf-8');
       projection = JSON.parse(content);
+      console.log(`[EventProjector] Read existing projection with ${projection.entityTypes.length} types`);
     } catch (error: any) {
       if (error.code !== 'ENOENT') throw error;
+      console.log(`[EventProjector] Projection file doesn't exist, creating new one`);
       // File doesn't exist - will create it
     }
 
@@ -301,5 +305,6 @@ export class EventProjector {
     // Write projection
     await fs.mkdir(path.dirname(entityTypesPath), { recursive: true });
     await fs.writeFile(entityTypesPath, JSON.stringify(projection, null, 2));
+    console.log(`[EventProjector] Wrote projection with ${projection.entityTypes.length} types to ${entityTypesPath}`);
   }
 }

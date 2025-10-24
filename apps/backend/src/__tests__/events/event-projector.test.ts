@@ -24,7 +24,7 @@ describe('EventProjector', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     projectionStorage = new FilesystemProjectionStorage(testDir);
-    projector = new EventProjector(projectionStorage, { dataDir: testDir });
+    projector = new EventProjector(projectionStorage, { basePath: testDir });
   });
 
   afterEach(async () => {

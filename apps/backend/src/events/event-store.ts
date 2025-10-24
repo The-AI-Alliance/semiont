@@ -22,9 +22,6 @@ import { EventStorage, type EventStorageConfig } from './storage/event-storage';
 import { EventProjector, type ProjectorConfig } from './projections/event-projector';
 import { getEventSubscriptions, type EventSubscriptions } from './subscriptions/event-subscriptions';
 
-// EventStore uses EventStorageConfig directly - no duplication
-export type { EventStorageConfig as EventStoreConfig };
-
 /**
  * EventStore orchestrates event sourcing operations
  * Delegates to specialized modules for focused functionality
@@ -41,7 +38,7 @@ export class EventStore {
     this.storage = new EventStorage(config);
 
     const projectorConfig: ProjectorConfig = {
-      dataDir: config.dataDir,
+      basePath: config.basePath,
     };
     this.projector = new EventProjector(projectionStorage, projectorConfig);
 
@@ -66,7 +63,7 @@ export class EventStore {
       // System projection (entity types)
       if (storedEvent.event.type === 'entitytype.added') {
         const payload = storedEvent.event.payload as any;
-        await this.projector.updateEntityTypesProjection(payload.tag);
+        await this.projector.updateEntityTypesProjection(payload.entityType);
       }
       // Notify global subscribers
       await this.subscriptions.notifyGlobalSubscribers(storedEvent);

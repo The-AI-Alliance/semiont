@@ -19,11 +19,12 @@ import type { StoredEvent, DocumentEvent, EventMetadata } from '@semiont/core';
 import { jumpConsistentHash, sha256 } from '../../storage/shard-utils';
 
 export interface EventStorageConfig {
-  dataDir: string;
+  basePath: string;              // Base path (e.g., /data/uploads)
+  dataDir: string;               // Events directory (e.g., /data/uploads/events)
   maxEventsPerFile?: number;     // File rotation threshold (default: 10000)
-  enableSharding?: boolean;       // Enable 4-hex sharding (default: true)
-  numShards?: number;             // Number of shards (default: 65536)
-  enableCompression?: boolean;    // Gzip rotated files (default: true)
+  enableSharding?: boolean;      // Enable 4-hex sharding (default: true)
+  numShards?: number;            // Number of shards (default: 65536)
+  enableCompression?: boolean;   // Gzip rotated files (default: true)
 }
 
 /**
@@ -40,6 +41,7 @@ export class EventStorage {
 
   constructor(config: EventStorageConfig) {
     this.config = {
+      basePath: config.basePath,
       dataDir: config.dataDir,
       maxEventsPerFile: config.maxEventsPerFile || 10000,
       enableSharding: config.enableSharding ?? true,

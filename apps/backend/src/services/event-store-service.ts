@@ -8,7 +8,8 @@
  */
 
 import * as path from 'path';
-import { EventStore, type EventStoreConfig } from '../events/event-store';
+import { EventStore } from '../events/event-store';
+import type { EventStorageConfig } from '../events/storage/event-storage';
 import { EventQuery } from '../events/query/event-query';
 import { EventValidator } from '../events/validation/event-validator';
 import { createProjectionManager } from './storage-service';
@@ -22,7 +23,7 @@ import { createProjectionManager } from './storage-service';
  */
 export async function createEventStore(
   basePath: string,
-  config?: Omit<EventStoreConfig, 'dataDir'>
+  config?: Omit<EventStorageConfig, 'basePath' | 'dataDir'>
 ): Promise<EventStore> {
   // Create ProjectionManager (Layer 3)
   // Structure: <basePath>/projections/documents/...
@@ -36,6 +37,7 @@ export async function createEventStore(
 
   const eventStore = new EventStore({
     ...config,
+    basePath,
     dataDir,
     enableSharding: true,
     numShards: 65536,  // 4 hex digits

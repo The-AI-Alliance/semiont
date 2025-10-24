@@ -25,6 +25,7 @@ describe('Event Store', () => {
     const projectionStorage = new FilesystemProjectionStorage(testDir);
 
     eventStore = new EventStore({
+      basePath: testDir,
       dataDir: testDir,
       enableSharding: false, // Faster without sharding
       maxEventsPerFile: 100,

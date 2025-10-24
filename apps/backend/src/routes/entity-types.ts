@@ -41,9 +41,8 @@ async function getEntityTypesFromLayer3(): Promise<string[]> {
     return projection.entityTypes || [];
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      // File doesn't exist yet - return defaults
-      const { DEFAULT_ENTITY_TYPES } = await import('../graph/tag-collections');
-      return DEFAULT_ENTITY_TYPES;
+      // File doesn't exist yet - return empty array
+      return [];
     }
     throw error;
   }
