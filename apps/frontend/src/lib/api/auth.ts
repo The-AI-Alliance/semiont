@@ -1,7 +1,3 @@
-/**
- * Auth API
- */
-
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';

@@ -4,10 +4,10 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AdminUsers from '../client';
-import { admin } from '@/lib/api';
+import { admin } from '@/lib/api/admin';
 
 // Mock the API client
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/api/admin', () => ({
   admin: {
     users: {
       all: {

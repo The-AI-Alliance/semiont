@@ -1,14 +1,6 @@
-/**
- * Fetch wrapper for frontend API calls
- * Simple fetch wrapper with authentication and error handling
- */
-
 import { NEXT_PUBLIC_API_URL } from '../env';
 import { APIError } from './index';
 
-/**
- * Fetch helper with authentication
- */
 export async function fetchAPI<T>(
   endpoint: string,
   options: RequestInit = {},

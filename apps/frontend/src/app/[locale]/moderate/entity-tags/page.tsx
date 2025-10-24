@@ -9,7 +9,7 @@ import {
   PlusIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
-import { entityTypes as entityTypesAPI } from '@/lib/api';
+import { entityTypes as entityTypesAPI } from '@/lib/api/entity-types';
 import { useQueryClient } from '@tanstack/react-query';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';

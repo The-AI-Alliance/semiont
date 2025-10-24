@@ -1,18 +1,87 @@
 /**
- * Event Formatting Utilities
+ * Event Utilities
  *
- * Helper functions for displaying document events in the UI
- * Complete implementation with i18n support, ported from SDK
+ * Pure TypeScript utilities for working with document events.
+ * No React dependencies - safe to use in any JavaScript environment.
  */
 
-import type { StoredEvent, DocumentEventType } from './event-utils';
-import type { components } from '@semiont/api-client';
-import { getExactText } from './selector-utils';
-import { compareAnnotationIds, getTargetSelector } from './annotation-utils';
+import type { paths, components } from '../types';
+import { getExactText, compareAnnotationIds, getTargetSelector } from './annotations';
 
+// Extract StoredEvent type from events endpoint response
+type EventsResponse = paths['/api/documents/{id}/events']['get']['responses'][200]['content']['application/json'];
+export type StoredEvent = EventsResponse['events'][number];
+export type DocumentEvent = StoredEvent['event'];
+export type EventMetadata = StoredEvent['metadata'];
 type Annotation = components['schemas']['Annotation'];
 
+// Event types
+export type DocumentEventType =
+  | 'document.created'
+  | 'document.cloned'
+  | 'document.archived'
+  | 'document.unarchived'
+  | 'annotation.added'
+  | 'annotation.removed'
+  | 'annotation.body.updated'
+  | 'entitytag.added'
+  | 'entitytag.removed'
+  | 'entitytype.added';  // Global entity type collection
+
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
+
+// =============================================================================
+// EVENT TYPE GUARDS AND EXTRACTION
+// =============================================================================
+
+/**
+ * Extract annotation ID from event payload
+ * Returns null if event is not annotation-related
+ */
+export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
+  const eventData = event.event;
+  const payload = eventData.payload as any;
+
+  if (!payload) {
+    return null;
+  }
+
+  switch (eventData.type) {
+    case 'annotation.added':
+    case 'annotation.removed':
+    case 'annotation.body.updated':
+      return payload.annotationId || null;
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Check if an event is related to a specific annotation
+ */
+export function isEventRelatedToAnnotation(event: StoredEvent, annotationId: string): boolean {
+  const eventAnnotationId = getAnnotationIdFromEvent(event);
+  return eventAnnotationId === annotationId;
+}
+
+/**
+ * Type guard to check if event is a document event
+ */
+export function isDocumentEvent(event: any): event is StoredEvent {
+  return event &&
+    typeof event.event === 'object' &&
+    typeof event.event.id === 'string' &&
+    typeof event.event.timestamp === 'string' &&
+    typeof event.event.documentId === 'string' &&
+    typeof event.event.type === 'string' &&
+    typeof event.metadata === 'object' &&
+    typeof event.metadata.sequenceNumber === 'number';
+}
+
+// =============================================================================
+// EVENT FORMATTING AND DISPLAY
+// =============================================================================
 
 /**
  * Format event type for display with i18n support

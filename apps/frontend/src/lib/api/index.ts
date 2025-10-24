@@ -1,17 +1,6 @@
 /**
- * Frontend API Client
- *
- * Pure TanStack Query hooks that use types from @semiont/api-client.
- * Domain-based organization for better maintainability.
- *
- * NOTE: Types are imported directly from @semiont/api-client.
- * Do NOT re-export types from this file.
+ * API Error with HTTP status metadata
  */
-
-// Re-export query keys
-export { QUERY_KEYS } from '../query-keys';
-
-// API Error class (not in OpenAPI spec, defined here)
 export class APIError extends Error {
   public status: number;
   public statusText: string;
@@ -32,71 +21,3 @@ export class APIError extends Error {
     this.data = details;
   }
 }
-
-// Re-export utilities
-export {
-  isHighlight,
-  isReference,
-  isStubReference,
-  isResolvedReference,
-  extractAnnotationId,
-  compareAnnotationIds,
-  getBodySource,
-  getBodyType,
-  isBodyResolved,
-  getTargetSource,
-  getTargetSelector,
-  hasTargetSelector,
-  getEntityTypes,
-} from './annotation-utils';
-
-export {
-  getExactText,
-  getAnnotationExactText,
-  getPrimarySelector,
-  getTextPositionSelector,
-  getTextQuoteSelector,
-} from './selector-utils';
-
-export type {
-  Selector,
-  TextPositionSelector,
-  TextQuoteSelector,
-} from './selector-utils';
-
-export { LOCALES } from './locales';
-export type { LocaleInfo } from './locales';
-
-export {
-  getAnnotationIdFromEvent,
-  isEventRelatedToAnnotation,
-  isDocumentEvent,
-} from './event-utils';
-
-export type {
-  StoredEvent,
-  DocumentEvent,
-  EventMetadata,
-  DocumentEventType,
-} from './event-utils';
-
-// Export individual domain APIs
-export { health } from './health';
-export { auth } from './auth';
-export { admin } from './admin';
-export { entityTypes } from './entity-types';
-export { documents } from './documents';
-export { annotations } from './annotations';
-
-export {
-  formatEventType,
-  getEventEmoji,
-  formatRelativeTime,
-  getEventDisplayContent,
-  getEventEntityTypes,
-  getDocumentCreationDetails,
-} from './event-formatting';
-
-export type { DocumentCreationDetails } from './event-formatting';
-
-export { formatLocaleDisplay } from './locales';

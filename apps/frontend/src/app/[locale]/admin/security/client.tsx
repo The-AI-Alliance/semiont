@@ -9,7 +9,7 @@ import {
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 import { useSession } from 'next-auth/react';
-import { admin } from '@/lib/api';
+import { admin } from '@/lib/api/admin';
 import type { components, paths } from '@semiont/api-client';
 import { Toolbar } from '@/components/Toolbar';
 

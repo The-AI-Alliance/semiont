@@ -6,7 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartme
 import { markdown } from '@codemirror/lang-markdown';
 import { annotationStyles } from '@/lib/annotation-styles';
 import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
-import { isHighlight, isReference, isResolvedReference, compareAnnotationIds, getBodySource } from '@/lib/api';
+import { isHighlight, isReference, isResolvedReference, compareAnnotationIds, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import '@/styles/animations.css';
 

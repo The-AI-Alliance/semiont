@@ -1,9 +1,21 @@
 {
   "name": "@semiont/api-client",
   "version": "0.1.0",
-  "description": "Generated API client from OpenAPI spec",
+  "description": "Semiont API SDK - types, client, and utilities",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./utils": {
+      "import": "./dist/utils/index.js",
+      "require": "./dist/utils/index.js",
+      "types": "./dist/utils/index.d.ts"
+    }
+  },
   "scripts": {
     "generate": "openapi-typescript openapi.json -o src/types.ts",
     "build": "tsc",
@@ -23,7 +35,11 @@
     "semiont",
     "api",
     "client",
-    "openapi"
+    "sdk",
+    "openapi",
+    "annotations",
+    "utilities",
+    "w3c"
   ],
   "author": "Semiont Team",
   "license": "Apache-2.0"

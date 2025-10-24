@@ -3,7 +3,7 @@
  * These styles are used across the application for consistent appearance
  */
 
-import { isHighlight, isReference } from '@/lib/api';
+import { isHighlight, isReference } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];

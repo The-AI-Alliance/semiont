@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import { useRouter } from '@/i18n/routing';
-import { documents } from '@/lib/api';
+import { documents } from '@/lib/api/documents';
 import { useSearchAnnouncements } from '@/components/LiveRegion';
 
 interface GlobalSearchModalProps {

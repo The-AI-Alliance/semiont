@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { documents, entityTypes as entityTypesAPI } from '@/lib/api';
+import { documents } from '@/lib/api/documents';
+import { entityTypes as entityTypesAPI } from '@/lib/api/entity-types';
 import type { components } from '@semiont/api-client';
 
 type Document = components['schemas']['Document'];

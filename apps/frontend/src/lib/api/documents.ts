@@ -1,7 +1,3 @@
-/**
- * Documents API
- */
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';

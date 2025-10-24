@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
-import { documents } from '@/lib/api';
+import { documents } from '@/lib/api/documents';
 
 interface SearchDocumentsModalProps {
   isOpen: boolean;

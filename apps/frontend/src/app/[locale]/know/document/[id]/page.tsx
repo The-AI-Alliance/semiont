@@ -7,7 +7,9 @@ import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { documents, entityTypes, QUERY_KEYS } from '@/lib/api';
+import { documents } from '@/lib/api/documents';
+import { entityTypes } from '@/lib/api/entity-types';
+import { QUERY_KEYS } from '@/lib/query-keys';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
@@ -36,7 +38,7 @@ import { CollaborationPanel } from '@/components/document/panels/CollaborationPa
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
 import { JsonLdPanel } from '@/components/document/panels/JsonLdPanel';
 import { Toolbar } from '@/components/Toolbar';
-import { extractAnnotationId, compareAnnotationIds } from '@/lib/api';
+import { extractAnnotationId, compareAnnotationIds } from '@semiont/api-client';
 
 // Loading state component
 function DocumentLoadingState() {

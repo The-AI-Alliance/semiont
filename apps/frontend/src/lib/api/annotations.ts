@@ -1,12 +1,8 @@
-/**
- * Annotations API
- */
-
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
-import { getTargetSource } from './annotation-utils';
+import { getTargetSource } from '@semiont/api-client';
 import type { paths } from '@semiont/api-client';
 
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;

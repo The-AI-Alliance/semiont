@@ -12,7 +12,7 @@ import {
   getEventEntityTypes,
   getDocumentCreationDetails,
   getAnnotationIdFromEvent,
-} from '@/lib/api';
+} from '@semiont/api-client';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 

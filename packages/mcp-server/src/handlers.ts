@@ -2,8 +2,7 @@
  * Tool execution handlers using @semiont/api-client
  */
 
-import { SemiontApiClient } from '@semiont/api-client';
-import { extractBodySource } from '@semiont/core';
+import { SemiontApiClient, getExactText, getBodySource } from '@semiont/api-client';
 
 export async function handleCreateDocument(client: SemiontApiClient, args: any) {
   const data = await client.createDocument({
@@ -87,13 +86,11 @@ export async function handleCreateAnnotation(client: SemiontApiClient, args: any
     body,
   });
 
-  // Safely get exact text from TextQuoteSelector
+  // Extract text using SDK utility
   const targetSelector = typeof data.annotation.target === 'string'
     ? undefined
     : data.annotation.target.selector;
-  const selectors = Array.isArray(targetSelector) ? targetSelector : [targetSelector];
-  const textQuoteSelector = selectors.find(s => s?.type === 'TextQuoteSelector');
-  const exactText = textQuoteSelector && 'exact' in textQuoteSelector ? textQuoteSelector.exact : 'N/A';
+  const exactText = getExactText(targetSelector);
 
   return {
     content: [{
@@ -246,13 +243,10 @@ export async function handleGetDocumentReferences(client: SemiontApiClient, args
     content: [{
       type: 'text' as const,
       text: `Found ${references.length} references in document:\n${references.map(r => {
-        // Safely get exact text from TextQuoteSelector
+        // Use SDK utilities to extract text and source
         const targetSelector = typeof r.target === 'string' ? undefined : r.target.selector;
-        const selectors = Array.isArray(targetSelector) ? targetSelector : [targetSelector];
-        const textQuoteSelector = selectors.find(s => s?.type === 'TextQuoteSelector');
-        const text = textQuoteSelector && 'exact' in textQuoteSelector ? textQuoteSelector.exact : r.id;
-        // Extract source from W3C body array
-        const source = extractBodySource(r.body);
+        const text = getExactText(targetSelector) || r.id;
+        const source = getBodySource(r.body);
         return `- ${text} → ${source || 'stub (no link)'}`;
       }).join('\n')}`,
     }],

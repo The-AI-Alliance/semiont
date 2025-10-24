@@ -6,7 +6,7 @@ import { HighlightPopup } from './annotation-popups/HighlightPopup';
 import { StubReferencePopup } from './annotation-popups/StubReferencePopup';
 import { ResolvedReferencePopup } from './annotation-popups/ResolvedReferencePopup';
 import type { components } from '@semiont/api-client';
-import { isHighlight, isReference, isBodyResolved } from '@/lib/api';
+import { isHighlight, isReference, isBodyResolved } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type HighlightAnnotation = components['schemas']['Annotation'];
