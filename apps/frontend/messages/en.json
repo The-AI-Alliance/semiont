@@ -377,6 +377,7 @@
     "entitytagRemoved": "Tag Removed",
     "assessmentAdded": "Assessment Added",
     "assessmentRemoved": "Assessment Removed",
+    "annotationBodyUpdated": "Annotation Updated",
     "justNow": "just now",
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
