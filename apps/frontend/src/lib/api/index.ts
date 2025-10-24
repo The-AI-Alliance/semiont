@@ -5,9 +5,6 @@
  * React Query hooks are in domain-specific files (annotations.ts, documents.ts, etc.)
  */
 
-// Re-export query keys
-export { QUERY_KEYS } from '../query-keys';
-
 // API Error class (frontend-specific, not in OpenAPI spec)
 export class APIError extends Error {
   public status: number;

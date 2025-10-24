@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { documents } from '@/lib/api/documents';
 import { entityTypes } from '@/lib/api/entity-types';
-import { QUERY_KEYS } from '@/lib/api';
+import { QUERY_KEYS } from '@/lib/query-keys';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
