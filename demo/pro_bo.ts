@@ -194,12 +194,17 @@ async function createStubReferences(
       motivation: 'linking',
       target: {
         source: tocId,
-        selector: {
-          type: 'TextPositionSelector',
-          offset: ref.start,
-          length: ref.end - ref.start,
-          exact: ref.text,
-        },
+        selector: [
+          {
+            type: 'TextPositionSelector',
+            start: ref.start,
+            end: ref.end,
+          },
+          {
+            type: 'TextQuoteSelector',
+            exact: ref.text,
+          },
+        ],
       },
       body: [{
         type: 'TextualBody',

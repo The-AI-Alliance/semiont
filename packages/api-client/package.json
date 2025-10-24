@@ -35,7 +35,11 @@
     "semiont",
     "api",
     "client",
-    "openapi"
+    "sdk",
+    "openapi",
+    "annotations",
+    "utilities",
+    "w3c"
   ],
   "author": "Semiont Team",
   "license": "Apache-2.0"
