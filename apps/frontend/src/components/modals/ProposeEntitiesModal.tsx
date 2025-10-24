@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
-import { entityTypes as entityTypesAPI } from '@/lib/api';
+import { entityTypes as entityTypesAPI } from '@/lib/api/entity-types';
 
 interface ProposeEntitiesModalProps {
   isOpen: boolean;

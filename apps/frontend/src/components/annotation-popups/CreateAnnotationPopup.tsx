@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
-import { entityTypes as entityTypesAPI } from '@/lib/api';
+import { entityTypes as entityTypesAPI } from '@/lib/api/entity-types';
 
 interface CreateAnnotationPopupProps {
   isOpen: boolean;

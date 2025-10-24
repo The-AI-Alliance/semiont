@@ -9,7 +9,7 @@ import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes } from '@semiont/api-client';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { annotations } from '@/lib/api';
+import { annotations } from '@/lib/api/annotations';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontDocument = components['schemas']['Document'];

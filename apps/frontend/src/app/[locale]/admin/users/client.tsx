@@ -13,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { admin } from '@/lib/api';
+import { admin } from '@/lib/api/admin';
 import type { paths } from '@semiont/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 

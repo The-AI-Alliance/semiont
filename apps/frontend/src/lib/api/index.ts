@@ -1,8 +1,8 @@
 /**
  * Frontend API Client
  *
- * Pure TanStack Query hooks for API calls.
- * Domain-based organization for better maintainability.
+ * Shared utilities for the frontend API layer.
+ * React Query hooks are in domain-specific files (annotations.ts, documents.ts, etc.)
  */
 
 // Re-export query keys
@@ -29,11 +29,3 @@ export class APIError extends Error {
     this.data = details;
   }
 }
-
-// Export React Query hooks (domain-based)
-export { health } from './health';
-export { auth } from './auth';
-export { admin } from './admin';
-export { entityTypes } from './entity-types';
-export { documents } from './documents';
-export { annotations } from './annotations';

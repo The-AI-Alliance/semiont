@@ -5,10 +5,10 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '@testing-library/jest-dom'
 import AdminSecurity from '../client'
-import { admin } from '@/lib/api'
+import { admin } from '@/lib/api/admin'
 
 // Mock the API client
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/api/admin', () => ({
   admin: {
     oauth: {
       config: {

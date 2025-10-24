@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { PageLayout } from '@/components/PageLayout';
 import { useToast } from '@/components/Toast';
-import { auth } from '@/lib/api';
+import { auth } from '@/lib/api/auth';
 
 export default function Welcome() {
   const t = useTranslations('AuthWelcome');
