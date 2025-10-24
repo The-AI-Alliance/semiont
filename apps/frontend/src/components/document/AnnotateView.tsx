@@ -3,7 +3,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Annotation } from '@/lib/api';
-import { getTextPositionSelector } from '@/lib/api';
+import { getTextPositionSelector, getTargetSelector } from '@/lib/api';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
@@ -40,7 +40,8 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
 
   const normalizedAnnotations = annotations
     .map(ann => {
-      const posSelector = getTextPositionSelector(ann.target.selector);
+      const targetSelector = getTargetSelector(ann.target);
+      const posSelector = getTextPositionSelector(targetSelector);
       return {
         annotation: ann,
         start: posSelector?.offset ?? 0,

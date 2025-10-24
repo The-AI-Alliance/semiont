@@ -99,11 +99,24 @@ semiont restart --service backend # Restart backend with fresh connection
 ### Why Use Semiont CLI for Frontend?
 
 - **🔄 Smart Dependencies**: Frontend auto-starts backend when needed
-- **📦 Consistent Environment**: Everyone gets identical setup  
+- **📦 Consistent Environment**: Everyone gets identical setup
 - **⚡ Zero Configuration**: No environment files, API URLs, or manual setup
 - **🧹 Easy Reset**: Fresh database with sample data via `--reset`
 - **🎯 Focused Development**: Mock mode for UI work, real API mode for integration
 - **🐳 Container Runtime Flexibility**: Works with Docker or Podman (auto-detected)
+
+## 🎯 Annotation System
+
+The Semiont frontend provides a rich annotation experience built on W3C Web Annotation standards:
+
+- **Type guards** for distinguishing stub vs resolved references
+- **Contextual popups** for different annotation types
+- **JSON-LD export** buttons throughout the UI
+- **Multi-body support** for entity tags + document linking
+
+For UI patterns and component architecture, see [Frontend Annotations Documentation](docs/ANNOTATIONS.md).
+
+For complete W3C implementation across all layers, see [W3C-WEB-ANNOTATION.md](../../docs/W3C-WEB-ANNOTATION.md).
 
 ### Development Workflow with Semiont CLI
 
@@ -768,6 +781,8 @@ npm run perf-monitor
 ## Testing
 
 The frontend uses **Vitest** with React Testing Library for testing React components and custom hooks, along with **MSW v2** (Mock Service Worker) for API mocking.
+
+For comprehensive testing documentation covering all services, see [Testing Guide](../../docs/TESTING.md).
 
 ### Running Tests
 

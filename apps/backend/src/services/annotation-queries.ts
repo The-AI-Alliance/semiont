@@ -6,9 +6,10 @@
  * - Graph queries use Layer 4 (graph database)
  */
 
-import { getProjectionStorage } from '../storage/projection-storage';
+import { createProjectionManager } from './storage-service';
 import { getGraphDatabase } from '../graph/factory';
 import type { Annotation, DocumentAnnotations } from '@semiont/core';
+import { getFilesystemConfig } from '../config/environment-loader';
 
 export class AnnotationQueryService {
   /**
@@ -16,8 +17,9 @@ export class AnnotationQueryService {
    * Falls back to GraphDB if projection missing
    */
   static async getDocumentAnnotations(documentId: string): Promise<DocumentAnnotations> {
-    const projectionStorage = getProjectionStorage();
-    const stored = await projectionStorage.getProjection(documentId);
+    const basePath = getFilesystemConfig().path;
+    const projectionManager = createProjectionManager(basePath);
+    const stored = await projectionManager.get(documentId);
 
     if (!stored) {
       throw new Error(`Document ${documentId} not found in Layer 3 projections`);
@@ -56,8 +58,9 @@ export class AnnotationQueryService {
    * Check if document exists in Layer 3
    */
   static async documentExists(documentId: string): Promise<boolean> {
-    const projectionStorage = getProjectionStorage();
-    return await projectionStorage.projectionExists(documentId);
+    const basePath = getFilesystemConfig().path;
+    const projectionManager = createProjectionManager(basePath);
+    return await projectionManager.exists(documentId);
   }
 
   /**

@@ -42,7 +42,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
   private getProjectionPath(documentId: string): string {
     // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
     const [ab, cd] = getShardPath(documentId);
-    return path.join(this.basePath, 'annotations', ab, cd, `${documentId}.json`);
+    return path.join(this.basePath, 'projections', 'annotations', ab, cd, `${documentId}.json`);
   }
 
   async saveProjection(documentId: string, projection: DocumentState): Promise<void> {
@@ -96,7 +96,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
 
   async getAllProjections(): Promise<DocumentState[]> {
     const projections: DocumentState[] = [];
-    const annotationsPath = path.join(this.basePath, 'annotations');
+    const annotationsPath = path.join(this.basePath, 'projections', 'annotations');
 
     try {
       // Recursively walk through all shard directories
@@ -124,7 +124,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
       await walkDir(annotationsPath);
     } catch (error: any) {
       if (error.code === 'ENOENT') {
-        // Annotations directory doesn't exist yet
+        // Projections/annotations directory doesn't exist yet
         return [];
       }
       throw error;
@@ -132,14 +132,4 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
 
     return projections;
   }
-}
-
-// Singleton instance
-let projectionStorageInstance: ProjectionStorage | null = null;
-
-export function getProjectionStorage(): ProjectionStorage {
-  if (!projectionStorageInstance) {
-    projectionStorageInstance = new FilesystemProjectionStorage();
-  }
-  return projectionStorageInstance;
 }

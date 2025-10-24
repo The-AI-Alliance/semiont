@@ -7,6 +7,7 @@ import { PopupContainer, PopupHeader, EntityTypeBadges } from './SharedPopupElem
 import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
+import { getBodySource, getEntityTypes } from '@/lib/api/annotation-utils';
 import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/lib/api';
 
 interface ResolvedReferencePopupProps {
@@ -33,7 +34,7 @@ export function ResolvedReferencePopup({
   const t = useTranslations('ResolvedReferencePopup');
   const router = useRouter();
   const [showJsonLd, setShowJsonLd] = useState(false);
-  const resolvedDocumentId = annotation.body.source;
+  const resolvedDocumentId = getBodySource(annotation.body);
 
   // Calculate centered position when showing JSON-LD
   const displayPosition = useMemo(() => {
@@ -70,20 +71,17 @@ export function ResolvedReferencePopup({
   };
 
   const handleUnlinkDocument = () => {
+    // Unlink converts to stub reference (empty body array)
     onUpdateAnnotation({
-      body: {
-        type: 'SpecificResource' as const,
-        source: null,
-      },
+      body: [],
     });
   };
 
   const handleConvertToHighlight = () => {
+    // Convert reference to highlight
     onUpdateAnnotation({
-      body: {
-        type: 'TextualBody',
-        source: null,
-      },
+      motivation: 'highlighting',
+      body: [],
     });
   };
 
@@ -100,9 +98,12 @@ export function ResolvedReferencePopup({
         <>
           <PopupHeader title={t('title')} selectedText={selection.exact} onClose={onClose} />
 
-          {annotation.body.entityTypes && annotation.body.entityTypes.length > 0 && (
-            <EntityTypeBadges entityTypes={annotation.body.entityTypes.join(', ')} />
-          )}
+          {(() => {
+            const entityTypes = getEntityTypes(annotation);
+            return entityTypes.length > 0 && (
+              <EntityTypeBadges entityTypes={entityTypes.join(', ')} />
+            );
+          })()}
 
           {/* Primary Actions */}
           <div className="mb-4">

@@ -4,6 +4,8 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { EventStore } from '../../events/event-store';
+import { EventQuery } from '../../events/query/event-query';
+import { EventValidator } from '../../events/validation/event-validator';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import { CREATION_METHODS } from '@semiont/core';
 import { promises as fs } from 'fs';
@@ -13,6 +15,8 @@ import { join } from 'path';
 describe('Event Store', () => {
   let testDir: string;
   let eventStore: EventStore;
+  let query: EventQuery;
+  let validator: EventValidator;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-${Date.now()}`);
@@ -26,7 +30,8 @@ describe('Event Store', () => {
       maxEventsPerFile: 100,
     }, projectionStorage);
 
-    await eventStore.initialize();
+    query = new EventQuery(eventStore.storage);
+    validator = new EventValidator();
   });
 
   afterAll(async () => {
@@ -51,7 +56,7 @@ describe('Event Store', () => {
 
     expect(event1.metadata.sequenceNumber).toBe(1);
 
-    const events = await eventStore.getDocumentEvents(docId);
+    const events = await query.getDocumentEvents(docId);
     expect(events).toHaveLength(1);
     expect(events[0]?.event.type).toBe('document.created');
   });
@@ -87,10 +92,7 @@ describe('Event Store', () => {
               length: 4,
             },
           },
-          body: {
-            type: 'TextualBody' as const,
-            entityTypes: [],
-          },
+          body: [], // Empty body array (no entity tags)
           modified: new Date().toISOString(),
         },
       },
@@ -99,7 +101,8 @@ describe('Event Store', () => {
     expect(e1.metadata.prevEventHash).toBeUndefined();
     expect(e2.metadata.prevEventHash).toBe(e1.metadata.checksum);
 
-    const validation = await eventStore.validateEventChain(docId);
+    const eventsForValidation = await query.getDocumentEvents(docId);
+    const validation = validator.validateEventChain(eventsForValidation);
     expect(validation.valid).toBe(true);
   });
 
@@ -122,7 +125,8 @@ describe('Event Store', () => {
       payload: { entityType: 'note' },
     });
 
-    const stored = await eventStore.projectDocument(docId);
+    const events = await query.getDocumentEvents(docId);
+    const stored = await eventStore.projector.projectDocument(events, docId);
 
     expect(stored).toBeDefined();
     expect(stored!.document.name).toBe('Doc');

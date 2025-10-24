@@ -35,6 +35,13 @@ export {
   isResolvedReference,
   extractAnnotationId,
   compareAnnotationIds,
+  getBodySource,
+  getBodyType,
+  isBodyResolved,
+  getTargetSource,
+  getTargetSelector,
+  hasTargetSelector,
+  getEntityTypes,
 } from './annotation-utils';
 
 export {

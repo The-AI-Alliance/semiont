@@ -252,16 +252,23 @@ Delete an annotation.
 await client.deleteAnnotation('annotation-id', 'doc-sha256:abc123...');
 ```
 
-#### `resolveAnnotation(id: string, targetDocumentId: string)`
-Resolve a stub reference to point to a target document.
+#### `updateAnnotationBody(id: string, data: UpdateAnnotationBodyRequest)`
+Update an annotation's body with fine-grained operations (add, remove, replace body items).
 
 ```typescript
-const result = await client.resolveAnnotation(
-  'annotation-id',
-  'doc-sha256:target...'
-);
+const result = await client.updateAnnotationBody('annotation-id', {
+  documentId: 'doc-sha256:abc123...',
+  operations: [{
+    op: 'add',
+    item: {
+      type: 'SpecificResource',
+      source: 'doc-sha256:target...',
+      purpose: 'linking'
+    }
+  }]
+});
 
-console.log('Resolved to:', result.targetDocument?.id);
+console.log('Updated annotation:', result.annotation.id);
 ```
 
 #### `generateDocumentFromAnnotation(id: string, data)`

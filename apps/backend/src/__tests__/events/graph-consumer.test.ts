@@ -114,11 +114,16 @@ const createMockGraphDB = (): GraphDatabase => ({
   clearDatabase: vi.fn().mockResolvedValue(undefined),
 });
 
-// Mock storage service
-vi.mock('../../storage/filesystem', () => ({
-  getStorageService: () => ({
-    getDocument: vi.fn().mockResolvedValue(Buffer.from('test content')),
-    saveDocument: vi.fn().mockResolvedValue(undefined),
+// Mock content manager
+vi.mock('../../services/storage-service', () => ({
+  createContentManager: () => ({
+    get: vi.fn().mockResolvedValue(Buffer.from('test content')),
+    save: vi.fn().mockResolvedValue('path/to/file'),
+    delete: vi.fn().mockResolvedValue(undefined),
+    exists: vi.fn().mockResolvedValue(true),
+    createReadStream: vi.fn(),
+    createWriteStream: vi.fn(),
+    saveStream: vi.fn().mockResolvedValue('path/to/file'),
   }),
 }));
 
@@ -336,7 +341,7 @@ describe('GraphDBConsumer', () => {
   });
 
   describe('annotation.added event (highlighting)', () => {
-    it('should create highlighting annotation in GraphDB', async () => {
+    it('should create highlighting annotation with entity tags in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-5',
         type: 'annotation.added',
@@ -359,10 +364,10 @@ describe('GraphDBConsumer', () => {
                 length: 14,
               },
             },
-            body: {
-              type: 'TextualBody' as const,
-              entityTypes: [],
-            },
+            body: [
+              { type: 'TextualBody' as const, value: 'TechnicalTerm', purpose: 'tagging' as const },
+              { type: 'TextualBody' as const, value: 'ImportantConcept', purpose: 'tagging' as const },
+            ],
             modified: new Date().toISOString(),
           },
         },
@@ -391,10 +396,10 @@ describe('GraphDBConsumer', () => {
             length: 14,
           },
         },
-        body: {
-          type: 'TextualBody',
-          entityTypes: [],
-        },
+        body: [
+          { type: 'TextualBody', value: 'TechnicalTerm', purpose: 'tagging' },
+          { type: 'TextualBody', value: 'ImportantConcept', purpose: 'tagging' },
+        ],
         creator: {
           type: 'Person',
           id: 'user1',
@@ -434,7 +439,7 @@ describe('GraphDBConsumer', () => {
   });
 
   describe('annotation.added event (linking)', () => {
-    it('should create linking annotation in GraphDB', async () => {
+    it('should create resolved linking annotation with entity tags in GraphDB', async () => {
       const event: DocumentEvent = {
         id: 'evt-7',
         type: 'annotation.added',
@@ -457,11 +462,11 @@ describe('GraphDBConsumer', () => {
                 length: 14,
               },
             },
-            body: {
-              type: 'SpecificResource' as const,
-              entityTypes: ['Person', 'Organization'],
-              source: 'doc-456',
-            },
+            body: [
+              { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
+              { type: 'TextualBody' as const, value: 'Organization', purpose: 'tagging' as const },
+              { type: 'SpecificResource' as const, source: 'doc-456', purpose: 'linking' as const },
+            ],
             modified: new Date().toISOString(),
           },
         },
@@ -490,11 +495,11 @@ describe('GraphDBConsumer', () => {
             length: 14,
           },
         },
-        body: {
-          type: 'SpecificResource',
-          source: 'doc-456',
-          entityTypes: ['Person', 'Organization'],
-        },
+        body: [
+          { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+          { type: 'TextualBody', value: 'Organization', purpose: 'tagging' },
+          { type: 'SpecificResource', source: 'doc-456', purpose: 'linking' },
+        ],
         creator: {
           type: 'Person',
           id: 'user1',
@@ -503,7 +508,7 @@ describe('GraphDBConsumer', () => {
       }));
     });
 
-    it('should create stub linking annotation without targetDocumentId', async () => {
+    it('should create stub linking annotation with entity tags', async () => {
       const event: DocumentEvent = {
         id: 'evt-8',
         type: 'annotation.added',
@@ -526,11 +531,10 @@ describe('GraphDBConsumer', () => {
                 length: 14,
               },
             },
-            body: {
-              type: 'SpecificResource' as const,
-              entityTypes: [],
-              source: null, // Stub reference
-            },
+            body: [
+              { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
+              { type: 'TextualBody' as const, value: 'Scientist', purpose: 'tagging' as const },
+            ],
             modified: new Date().toISOString(),
           },
         },
@@ -559,10 +563,10 @@ describe('GraphDBConsumer', () => {
             length: 14,
           },
         },
-        body: expect.objectContaining({
-          type: 'SpecificResource',
-          entityTypes: [],
-        }),
+        body: [
+          { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+          { type: 'TextualBody', value: 'Scientist', purpose: 'tagging' },
+        ],
         creator: {
           type: 'Person',
           id: 'user1',
@@ -572,18 +576,39 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('annotation.resolved event', () => {
-    it('should resolve annotation in GraphDB', async () => {
+  describe('annotation.body.updated event', () => {
+    it('should add SpecificResource to annotation body in GraphDB', async () => {
+      // Mock getAnnotation to return an annotation with existing body
+      (mockGraphDB.getAnnotation as any).mockResolvedValueOnce({
+        id: 'ref-456',
+        type: 'Annotation',
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        motivation: 'linking',
+        target: { source: 'doc-123' },
+        body: [
+          { type: 'TextualBody', value: 'Entity1', purpose: 'tagging' }
+        ],
+        creator: { id: 'user1', type: 'Person' },
+        created: new Date().toISOString(),
+      });
+
       const event: DocumentEvent = {
         id: 'evt-9',
-        type: 'annotation.resolved',
+        type: 'annotation.body.updated',
         documentId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
           annotationId: 'ref-456',
-          targetDocumentId: 'doc-789',
+          operations: [{
+            op: 'add',
+            item: {
+              type: 'SpecificResource',
+              source: 'doc-789',
+              purpose: 'linking',
+            },
+          }],
         },
       };
 
@@ -598,12 +623,12 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
+      // Should update annotation with both TextualBody and SpecificResource
       expect(mockGraphDB.updateAnnotation).toHaveBeenCalledWith('ref-456', {
-        body: {
-          type: 'SpecificResource',
-          entityTypes: [],
-          source: 'doc-789',
-        },
+        body: [
+          { type: 'TextualBody', value: 'Entity1', purpose: 'tagging' },
+          { type: 'SpecificResource', source: 'doc-789', purpose: 'linking' },
+        ],
       });
     });
   });

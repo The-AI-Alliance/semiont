@@ -11,8 +11,9 @@ import { JobWorker } from './job-worker';
 import type { Job, DetectionJob } from '../types';
 import { DocumentQueryService } from '../../services/document-queries';
 import { detectAnnotationsInDocument } from '../../routes/documents/helpers';
-import { getEventStore } from '../../events/event-store';
+import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
+import { getFilesystemConfig } from '../../config/environment-loader';
 
 export class DetectionWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -96,7 +97,8 @@ export class DetectionWorker extends JobWorker {
         }
 
         try {
-          const eventStore = await getEventStore();
+          const basePath = getFilesystemConfig().path;
+          const eventStore = await createEventStore(basePath);
           await eventStore.appendEvent({
             type: 'annotation.added',
             documentId: job.documentId,
@@ -117,11 +119,11 @@ export class DetectionWorker extends JobWorker {
                     length: detected.annotation.selector.length,
                   },
                 },
-                body: {
-                  type: 'SpecificResource' as const,
-                  entityTypes: detected.annotation.entityTypes,
-                  source: null, // Will be resolved later
-                },
+                body: (detected.annotation.entityTypes || []).map(et => ({
+                  type: 'TextualBody' as const,
+                  value: et,
+                  purpose: 'tagging' as const,
+                })),
                 modified: new Date().toISOString(),
               },
             },

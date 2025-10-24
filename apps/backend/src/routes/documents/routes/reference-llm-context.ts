@@ -10,10 +10,12 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import { generateDocumentSummary } from '../../../inference/factory';
+import { getBodySource, getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type ReferenceLLMContextResponse = components['schemas']['ReferenceLLMContextResponse'];
 
@@ -32,6 +34,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
   router.get('/api/documents/:documentId/references/:referenceId/llm-context', async (c) => {
     const { documentId, referenceId } = c.req.param();
     const query = c.req.query();
+    const basePath = getFilesystemConfig().path;
 
     // Parse and validate query parameters
     const includeSourceContext = query.includeSourceContext === 'false' ? false : true;
@@ -44,11 +47,11 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
+    const contentManager = createContentManager(basePath);
 
     // Get the reference
     const reference = await graphDb.getAnnotation(referenceId);
-    if (!reference || reference.target.source !== documentId) {
+    if (!reference || getTargetSource(reference.target) !== documentId) {
       throw new HTTPException(404, { message: 'Reference not found' });
     }
 
@@ -59,18 +62,19 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     }
 
     // Get target document if reference is resolved
-    const targetDoc = reference.body.source ?
-      await graphDb.getDocument(reference.body.source) : null;
+    const bodySource = getBodySource(reference.body);
+    const targetDoc = bodySource ? await graphDb.getDocument(bodySource) : null;
 
     // Build source context if requested
     let sourceContext;
     if (includeSourceContext) {
-      const sourceContent = await storage.getDocument(documentId);
+      const sourceContent = await contentManager.get(documentId);
       const contentStr = sourceContent.toString('utf-8');
 
-      if (reference.target.selector && 'offset' in reference.target.selector) {
-        const offset = reference.target.selector.offset as number;
-        const length = reference.target.selector.length as number;
+      const targetSelector = getTargetSelector(reference.target);
+      if (targetSelector && 'offset' in targetSelector) {
+        const offset = targetSelector.offset as number;
+        const length = targetSelector.length as number;
 
         const before = contentStr.slice(Math.max(0, offset - contextWindow), offset);
         const selected = contentStr.slice(offset, offset + length);
@@ -83,7 +87,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     // Build target context if requested and available
     let targetContext;
     if (includeTargetContext && targetDoc) {
-      const targetContent = await storage.getDocument(targetDoc.id);
+      const targetContent = await contentManager.get(targetDoc.id);
       const contentStr = targetContent.toString('utf-8');
 
       targetContext = {

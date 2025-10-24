@@ -7,6 +7,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FilesystemStorage } from '../../storage/filesystem';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import { EventStore } from '../../events/event-store';
+import { EventQuery } from '../../events/query/event-query';
 import { CREATION_METHODS } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -17,6 +18,7 @@ describe('Layered Storage', () => {
   let documentStorage: FilesystemStorage;
   let projectionStorage: FilesystemProjectionStorage;
   let eventStore: EventStore;
+  let query: EventQuery;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-layered-test-${Date.now()}`);
@@ -31,7 +33,7 @@ describe('Layered Storage', () => {
       maxEventsPerFile: 100,
     }, projectionStorage);
 
-    await eventStore.initialize();
+    query = new EventQuery(eventStore.storage);
   });
 
   afterAll(async () => {
@@ -139,10 +141,7 @@ describe('Layered Storage', () => {
                   length: 9,
                 },
               },
-              body: {
-                type: 'TextualBody' as const,
-                entityTypes: [],
-              },
+              body: [], // Empty body array (no entity tags)
               creator: {
                 type: 'Person' as const,
                 id: 'did:web:test.com:users:test',
@@ -267,10 +266,7 @@ describe('Layered Storage', () => {
                 length: 14,
               },
             },
-            body: {
-              type: 'TextualBody' as const,
-              entityTypes: [],
-            },
+            body: [], // Empty body array (no entity tags)
             modified: new Date().toISOString(),
           },
         },
@@ -301,10 +297,12 @@ describe('Layered Storage', () => {
       });
 
       // First call rebuilds from events
-      const projection1 = await eventStore.projectDocument(docId);
+      const events1 = await query.getDocumentEvents(docId);
+      const projection1 = await eventStore.projector.projectDocument(events1, docId);
 
       // Second call should load from Layer 3 (no rebuild)
-      const projection2 = await eventStore.projectDocument(docId);
+      const events2 = await query.getDocumentEvents(docId);
+      const projection2 = await eventStore.projector.projectDocument(events2, docId);
 
       expect(projection1).toEqual(projection2);
     });

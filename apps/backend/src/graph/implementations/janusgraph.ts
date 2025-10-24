@@ -3,6 +3,7 @@
 
 import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
+import { extractEntityTypes, extractBodySource } from '../annotation-body-utils';
 import {
   Document,
   Annotation,
@@ -122,17 +123,65 @@ export class JanusGraphDatabase implements GraphDatabase {
     return prop?.value || prop;
   }
 
+  // Helper method to fetch annotations with their entity types
+  private async fetchAnnotationsWithEntityTypes(annotationVertices: any[]): Promise<Annotation[]> {
+    const annotations: Annotation[] = [];
+
+    for (const vertex of annotationVertices) {
+      const id = this.getPropertyValue(vertex.properties || {}, 'id');
+
+      // Fetch entity types for this annotation
+      const entityTypeVertices = await this.g!
+        .V()
+        .has('Annotation', 'id', id)
+        .out('TAGGED_AS')
+        .has('EntityType')
+        .toList();
+
+      const entityTypes = entityTypeVertices.map((v: any) =>
+        this.getPropertyValue(v.properties || {}, 'name')
+      ).filter(Boolean);
+
+      annotations.push(this.vertexToAnnotation(vertex, entityTypes));
+    }
+
+    return annotations;
+  }
+
   // Helper function to convert vertex to Annotation
-  private vertexToAnnotation(vertex: any): Annotation {
+  private vertexToAnnotation(vertex: any, entityTypes: string[] = []): Annotation {
     const props = vertex.properties || {};
 
-    const type = this.getPropertyValue(props, 'type') as 'TextualBody' | 'SpecificResource';
     // Derive motivation from type if not present (backward compatibility)
-    const motivation = this.getPropertyValue(props, 'motivation') || (type === 'TextualBody' ? 'highlighting' : 'linking');
+    const motivation = this.getPropertyValue(props, 'motivation') || 'linking';
 
     // Parse creator - always stored as JSON string in DB
     const creatorJson = this.getPropertyValue(props, 'creator');
     const creator = JSON.parse(creatorJson);
+
+    // Reconstruct body array from entity tags and linking body
+    const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
+
+    // Add entity tag bodies (TextualBody with purpose: "tagging")
+    for (const entityType of entityTypes) {
+      if (entityType) {
+        bodyArray.push({
+          type: 'TextualBody' as const,
+          value: entityType,
+          purpose: 'tagging' as const,
+        });
+      }
+    }
+
+    // Add linking body (SpecificResource) if annotation is resolved
+    const bodySource = this.getPropertyValue(props, 'source');
+    if (bodySource) {
+      bodyArray.push({
+        type: 'SpecificResource' as const,
+        source: bodySource,
+        purpose: 'linking' as const,
+      });
+    }
 
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -143,12 +192,7 @@ export class JanusGraphDatabase implements GraphDatabase {
         source: this.getPropertyValue(props, 'documentId'),
         selector: JSON.parse(this.getPropertyValue(props, 'selector') || '{}'),
       },
-      body: {
-        type,
-        value: this.getPropertyValue(props, 'value') || undefined,
-        entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
-        source: this.getPropertyValue(props, 'source') || undefined,
-      },
+      body: bodyArray,
       creator,
       created: this.getPropertyValue(props, 'created'), // ISO string from DB
     };
@@ -297,46 +341,43 @@ export class JanusGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const id = this.generateId();
 
-    // Derive motivation from body type
-    const motivation = input.body.type === 'TextualBody' ? 'highlighting' : 'linking';
+    // Only linking motivation with SpecificResource or empty array (stub)
+    const motivation = input.motivation;
 
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
       id,
       motivation,
-      target: {
-        source: input.target.source,
-        selector: input.target.selector,
-      },
-      body: {
-        type: input.body.type,
-        value: input.body.value,
-        entityTypes: input.body.entityTypes || [],
-        source: input.body.source,
-      },
+      target: input.target,
+      body: input.body,
       creator: input.creator,
       created: new Date().toISOString(),
     };
+
+    // Extract source from body using helper
+    const bodySource = extractBodySource(input.body);
+    const entityTypes = extractEntityTypes(input.body);
+    const bodyType = Array.isArray(input.body) ? 'SpecificResource' : input.body.type;
+
+    // Extract target source and selector
+    const targetSource = typeof input.target === 'string' ? input.target : input.target.source;
+    const targetSelector = typeof input.target === 'string' ? undefined : input.target.selector;
 
     // Create annotation vertex
     const vertex = this.g!
       .addV('Annotation')
       .property('id', id)
-      .property('documentId', input.target.source)
-      .property('text', getExactText(input.target.selector))
-      .property('selector', JSON.stringify(input.target.selector))
-      .property('type', input.body.type)
+      .property('documentId', targetSource)
+      .property('text', targetSelector ? getExactText(targetSelector) : '')
+      .property('selector', JSON.stringify(targetSelector || {}))
+      .property('type', bodyType)
       .property('motivation', motivation)
       .property('creator', JSON.stringify(input.creator))
-      .property('created', annotation.created)
-      .property('entityTypes', JSON.stringify(input.body.entityTypes || []));
+      .property('created', annotation.created);
 
-    if (input.body.value) {
-      vertex.property('value', input.body.value);
-    }
-    if (input.body.source) {
-      vertex.property('source', input.body.source);
+    if (bodySource) {
+      vertex.property('source', bodySource);
     }
 
     const annVertex = await vertex.next();
@@ -345,15 +386,42 @@ export class JanusGraphDatabase implements GraphDatabase {
     await this.g!
       .V(annVertex.value)
       .addE('BELONGS_TO')
-      .to(this.g!.V().has('Document', 'id', input.target.source))
+      .to(this.g!.V().has('Document', 'id', targetSource))
       .next();
 
-    // If it's a reference, create edge to target document
-    if (input.body.source) {
+    // If it's a resolved reference, create edge to target document
+    if (bodySource) {
       await this.g!
         .V(annVertex.value)
         .addE('REFERENCES')
-        .to(this.g!.V().has('Document', 'id', input.body.source))
+        .to(this.g!.V().has('Document', 'id', bodySource))
+        .next();
+    }
+
+    // Create TAGGED_AS relationships for entity types
+    for (const entityType of entityTypes) {
+      // Get or create EntityType vertex
+      const etResults = await this.g!
+        .V()
+        .has('EntityType', 'name', entityType)
+        .toList();
+
+      let etVertex;
+      if (etResults.length === 0) {
+        // Create new EntityType vertex
+        etVertex = await this.g!
+          .addV('EntityType')
+          .property('name', entityType)
+          .next();
+      } else {
+        etVertex = { value: etResults[0] };
+      }
+
+      // Create TAGGED_AS edge from Annotation to EntityType
+      await this.g!
+        .V(annVertex.value)
+        .addE('TAGGED_AS')
+        .to(this.g!.V(etVertex.value))
         .next();
     }
 
@@ -371,7 +439,19 @@ export class JanusGraphDatabase implements GraphDatabase {
       return null;
     }
 
-    return this.vertexToAnnotation(vertices[0] as any);
+    // Fetch entity types from TAGGED_AS relationships
+    const entityTypeVertices = await this.g!
+      .V()
+      .has('Annotation', 'id', id)
+      .out('TAGGED_AS')
+      .has('EntityType')
+      .toList();
+
+    const entityTypes = entityTypeVertices.map((v: any) =>
+      this.getPropertyValue(v.properties || {}, 'name')
+    ).filter(Boolean);
+
+    return this.vertexToAnnotation(vertices[0] as any, entityTypes);
   }
   
   async updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation> {
@@ -379,25 +459,74 @@ export class JanusGraphDatabase implements GraphDatabase {
       .V()
       .has('Annotation', 'id', id);
 
-    // Update properties
-    if (updates.target?.selector !== undefined) {
-      await traversalQuery.property('text', getExactText(updates.target.selector)).next();
-      await traversalQuery.property('selector', JSON.stringify(updates.target.selector)).next();
+    // Update target properties
+    if (updates.target !== undefined && typeof updates.target !== 'string') {
+      if (updates.target.selector !== undefined) {
+        await traversalQuery.property('text', getExactText(updates.target.selector)).next();
+        await traversalQuery.property('selector', JSON.stringify(updates.target.selector)).next();
+      }
     }
-    if (updates.body?.type !== undefined) {
-      await traversalQuery.property('type', updates.body?.type).next();
+
+    // Update body properties and entity types
+    if (updates.body !== undefined) {
+      const bodySource = extractBodySource(updates.body);
+      const entityTypes = extractEntityTypes(updates.body);
+
+      if (bodySource) {
+        await traversalQuery.property('source', bodySource).next();
+      }
+
+      // Update entity type relationships - remove old ones and create new ones
+      if (entityTypes.length >= 0) {
+        // Remove existing TAGGED_AS edges
+        await this.g!
+          .V()
+          .has('Annotation', 'id', id)
+          .outE('TAGGED_AS')
+          .drop()
+          .iterate();
+
+        // Create new TAGGED_AS edges
+        for (const entityType of entityTypes) {
+          // Get or create EntityType vertex
+          const etResults = await this.g!
+            .V()
+            .has('EntityType', 'name', entityType)
+            .toList();
+
+          let etVertex;
+          if (etResults.length === 0) {
+            // Create new EntityType vertex
+            etVertex = await this.g!
+              .addV('EntityType')
+              .property('name', entityType)
+              .next();
+          } else {
+            etVertex = { value: etResults[0] };
+          }
+
+          // Create TAGGED_AS edge from Annotation to EntityType
+          const annVertices = await this.g!
+            .V()
+            .has('Annotation', 'id', id)
+            .toList();
+
+          if (annVertices.length > 0) {
+            await this.g!
+              .V(annVertices[0])
+              .addE('TAGGED_AS')
+              .to(this.g!.V(etVertex.value))
+              .next();
+          }
+        }
+      }
     }
-    if (updates.body?.source !== undefined) {
-      await traversalQuery.property('source', updates.body?.source).next();
-    }
+
     if (updates.modified !== undefined) {
       await traversalQuery.property('modified', updates.modified).next();
     }
     if (updates.generator !== undefined) {
       await traversalQuery.property('generator', JSON.stringify(updates.generator)).next();
-    }
-    if (updates.body?.entityTypes !== undefined) {
-      await traversalQuery.property('entityTypes', JSON.stringify(updates.body?.entityTypes)).next();
     }
 
     const updatedAnnotation = await this.getAnnotation(id);
@@ -432,7 +561,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     }
 
     const vertices = await traversalQuery.toList();
-    const annotations = vertices.map((v: any) => this.vertexToAnnotation(v));
+    const annotations = await this.fetchAnnotationsWithEntityTypes(vertices);
 
     return {
       annotations,
@@ -452,14 +581,16 @@ export class JanusGraphDatabase implements GraphDatabase {
     const annotation = await this.getAnnotation(annotationId);
     if (!annotation) throw new Error('Annotation not found');
 
-    // Update the annotation properties
-    // Note: modified and generator should be set by the caller (operations.ts)
+    // TODO Preserve existing TextualBody entities, add SpecificResource
+    // For now, just update with SpecificResource (losing entity tags)
     await this.updateAnnotation(annotationId, {
-      body: {
-        type: 'SpecificResource',
-        entityTypes: [],
-        source,
-      },
+      body: [
+        {
+          type: 'SpecificResource',
+          source,
+          purpose: 'linking' as const,
+        },
+      ],
     });
 
     // Create edge from annotation to target document
@@ -492,13 +623,15 @@ export class JanusGraphDatabase implements GraphDatabase {
       type: 'reference'
     });
 
+    // TODO Extract entity types from body using helper
     if (entityTypes && entityTypes.length > 0) {
-      return annotations.filter(ann =>
-        ann.body.entityTypes?.some((type: string) => entityTypes.includes(type))
-      );
+      return annotations.filter(ann => {
+        const annEntityTypes = extractEntityTypes(ann.body);
+        return annEntityTypes.some((type: string) => entityTypes.includes(type));
+      });
     }
 
-    return annotations.filter(ann => ann.body.entityTypes && ann.body.entityTypes.length > 0);
+    return annotations.filter(ann => extractEntityTypes(ann.body).length > 0);
   }
 
   async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
@@ -514,7 +647,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .has('source', documentId)
       .toList();
 
-    return vertices.map((v: any) => this.vertexToAnnotation(v));
+    return await this.fetchAnnotationsWithEntityTypes(vertices);
   }
   
   async getDocumentConnections(documentId: string): Promise<GraphConnection[]> {
@@ -538,8 +671,10 @@ export class JanusGraphDatabase implements GraphDatabase {
     const refs = await this.getReferences(documentId);
 
     for (const ref of refs) {
-      if (ref.body.source) {
-        const targetDoc = await this.getDocument(ref.body.source);
+      // Extract source from body using helper
+      const bodySource = extractBodySource(ref.body);
+      if (bodySource) {
+        const targetDoc = await this.getDocument(bodySource);
         if (targetDoc) {
           const existing = connections.find(c => c.targetDocument.id === targetDoc.id);
           if (existing) {
@@ -597,11 +732,11 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     // Get all annotations
     const anns = await this.g!.V().hasLabel('Annotation').toList();
-    const annotations = anns.map((v: any) => this.vertexToAnnotation(v));
+    const annotations = await this.fetchAnnotationsWithEntityTypes(anns);
 
-    const highlights = annotations.filter(a => a.body.type === 'TextualBody');
-    const references = annotations.filter(a => a.body.type === 'SpecificResource');
-    const entityReferences = references.filter(a => a.body.entityTypes && a.body.entityTypes.length > 0);
+    const highlights = annotations.filter(a => a.motivation === 'highlighting');
+    const references = annotations.filter(a => a.motivation === 'linking');
+    const entityReferences = references.filter(a => extractEntityTypes(a.body).length > 0);
 
     return {
       documentCount: documents.length,

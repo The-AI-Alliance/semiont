@@ -44,10 +44,10 @@ export function HighlightPopup({
   }, [showJsonLd, position]);
 
   const handleConvertToReference = () => {
+    // Convert to linking motivation with stub body (empty array)
     onUpdateAnnotation({
-      body: {
-        type: 'SpecificResource',
-      },
+      motivation: 'linking',
+      body: [],
     });
   };
 

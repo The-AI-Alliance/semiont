@@ -29,8 +29,12 @@ export type Selector = TextPositionSelector | TextQuoteSelector;
  *
  * When selector is an array, returns the exact text from the first selector.
  * All selectors in an array should point to the same text, so first is preferred.
+ * Handles undefined selector (when target is a string IRI with no selector)
  */
-export function getExactText(selector: Selector | Selector[]): string {
+export function getExactText(selector: Selector | Selector[] | undefined): string {
+  if (!selector) {
+    return ''; // No selector means entire resource
+  }
   if (Array.isArray(selector)) {
     if (selector.length === 0) {
       throw new Error('Empty selector array');
@@ -46,9 +50,13 @@ export function getExactText(selector: Selector | Selector[]): string {
 
 /**
  * Get the exact text from an annotation's target selector
+ * Uses getTargetSelector helper to safely get selector
  */
 export function getAnnotationExactText(annotation: Annotation): string {
-  return getExactText(annotation.target.selector as Selector | Selector[]);
+  // Import the helper at runtime to avoid circular dependencies
+  const { getTargetSelector } = require('./annotation-utils');
+  const selector = getTargetSelector(annotation.target);
+  return getExactText(selector as Selector | Selector[] | undefined);
 }
 
 /**
@@ -75,8 +83,10 @@ export function getPrimarySelector(selector: Selector | Selector[]): Selector {
  * Get TextPositionSelector from a selector (single or array)
  *
  * Returns the first TextPositionSelector found, or null if none exists.
+ * Handles undefined selector (when target is a string IRI with no selector)
  */
-export function getTextPositionSelector(selector: Selector | Selector[]): TextPositionSelector | null {
+export function getTextPositionSelector(selector: Selector | Selector[] | undefined): TextPositionSelector | null {
+  if (!selector) return null; // No selector means entire resource
   const selectors = Array.isArray(selector) ? selector : [selector];
   const found = selectors.find(s => s.type === 'TextPositionSelector');
   if (!found) return null;

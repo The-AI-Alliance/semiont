@@ -2,7 +2,7 @@
  * Entity Types API
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
@@ -10,13 +10,14 @@ import type { AddEntityTypeResponse } from './types';
 
 export const entityTypes = {
   all: {
-    useQuery: () => {
+    useQuery: (options?: Omit<UseQueryOptions<{ entityTypes: string[] }>, 'queryKey' | 'queryFn'>) => {
       const { data: session } = useSession();
       return useQuery({
         queryKey: QUERY_KEYS.entityTypes.all(),
         queryFn: () => fetchAPI<{ entityTypes: string[] }>('/api/entity-types', {}, session?.backendToken),
         // All authenticated users can read entity types for creating annotations
         enabled: !!session?.backendToken,
+        ...options, // Allow overriding defaults with custom options
       });
     },
   },

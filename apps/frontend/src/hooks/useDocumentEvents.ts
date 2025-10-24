@@ -32,7 +32,7 @@ interface UseDocumentEventsOptions {
   onEvent?: (event: DocumentEvent) => void;
   onAnnotationAdded?: (event: DocumentEvent) => void;
   onAnnotationRemoved?: (event: DocumentEvent) => void;
-  onAnnotationResolved?: (event: DocumentEvent) => void;
+  onAnnotationBodyUpdated?: (event: DocumentEvent) => void;
   onEntityTagAdded?: (event: DocumentEvent) => void;
   onEntityTagRemoved?: (event: DocumentEvent) => void;
   onDocumentArchived?: (event: DocumentEvent) => void;
@@ -55,9 +55,9 @@ interface UseDocumentEventsOptions {
  *     console.log('New annotation:', event.payload);
  *     // Update UI to show new annotation (highlight, reference, or assessment)
  *   },
- *   onAnnotationResolved: (event) => {
- *     console.log('Reference resolved:', event.payload);
- *     // Update reference to show target document
+ *   onAnnotationBodyUpdated: (event) => {
+ *     console.log('Annotation body updated:', event.payload);
+ *     // Update annotation display to reflect body changes
  *   }
  * });
  * ```
@@ -67,7 +67,7 @@ export function useDocumentEvents({
   onEvent,
   onAnnotationAdded,
   onAnnotationRemoved,
-  onAnnotationResolved,
+  onAnnotationBodyUpdated,
   onEntityTagAdded,
   onEntityTagRemoved,
   onDocumentArchived,
@@ -98,8 +98,8 @@ export function useDocumentEvents({
       case 'annotation.removed':
         onAnnotationRemoved?.(event);
         break;
-      case 'annotation.resolved':
-        onAnnotationResolved?.(event);
+      case 'annotation.body.updated':
+        onAnnotationBodyUpdated?.(event);
         break;
       case 'entitytag.added':
         onEntityTagAdded?.(event);
@@ -118,7 +118,7 @@ export function useDocumentEvents({
     onEvent,
     onAnnotationAdded,
     onAnnotationRemoved,
-    onAnnotationResolved,
+    onAnnotationBodyUpdated,
     onEntityTagAdded,
     onEntityTagRemoved,
     onDocumentArchived,

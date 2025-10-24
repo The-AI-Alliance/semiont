@@ -11,6 +11,12 @@ Semiont uses PostgreSQL as its primary database, managed through AWS RDS with th
 - **Migration Strategy**: Automatic migrations on backend startup
 - **Connection Management**: Connection pooling via Prisma Client
 
+**Event-Sourced Architecture**: Semiont uses an event-sourced architecture for annotations. The PostgreSQL database contains both:
+- **Layer 2 (Event Store)**: Immutable event log in JSONL files - source of truth for all annotation changes (see [EVENT-STORE.md](./EVENT-STORE.md))
+- **Layer 3 (Projection)**: Materialized current state - filesystem JSON files and `annotations` table in PostgreSQL - optimized for fast queries (see [PROJECTION.md](./PROJECTION.md))
+
+See [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md), [EVENT-STORE.md](./EVENT-STORE.md), and [PROJECTION.md](./PROJECTION.md) for detailed architecture and how annotations flow through all layers.
+
 ## Database Architecture
 
 ### Data Infrastructure

@@ -19,6 +19,8 @@ import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { getExactText, compareAnnotationIds } from '@semiont/core';
+import { getTargetSelector } from '../../../lib/annotation-utils';
+import { extractEntityTypes } from '../../../graph/annotation-body-utils';
 
 type GenerateDocumentStreamRequest = components['schemas']['GenerateDocumentStreamRequest'];
 
@@ -89,7 +91,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
         title: body.title,
         prompt: body.prompt,
         language: body.language,
-        entityTypes: reference.body.entityTypes,
+        entityTypes: extractEntityTypes(reference.body),
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3
@@ -100,7 +102,8 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
       console.log(`[GenerateDocument] Job includes locale:`, job.language);
 
       // Determine document name for progress messages
-      const documentName = body.title || getExactText(reference.target.selector) || 'New Document';
+      const targetSelector = getTargetSelector(reference.target);
+      const documentName = body.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Document';
 
       // Stream the job's progress to the client
       return streamSSE(c, async (stream) => {

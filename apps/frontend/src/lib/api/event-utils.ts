@@ -21,9 +21,10 @@ export type DocumentEventType =
   | 'document.unarchived'
   | 'annotation.added'
   | 'annotation.removed'
-  | 'annotation.resolved'
+  | 'annotation.body.updated'
   | 'entitytag.added'
-  | 'entitytag.removed';
+  | 'entitytag.removed'
+  | 'entitytype.added';  // Global entity type collection
 
 /**
  * Extract annotation ID from event payload
@@ -40,7 +41,7 @@ export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
   switch (eventData.type) {
     case 'annotation.added':
     case 'annotation.removed':
-    case 'annotation.resolved':
+    case 'annotation.body.updated':
       return payload.annotationId || null;
 
     default:

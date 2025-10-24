@@ -29,7 +29,16 @@ vi.mock('@/lib/api', () => ({
         }))
       }
     }
-  }
+  },
+  getEntityTypes: vi.fn((annotation: any) => {
+    // Extract entity types from W3C body array
+    if (Array.isArray(annotation.body)) {
+      return annotation.body
+        .filter((item: any) => item.type === 'TextualBody' && item.purpose === 'tagging')
+        .map((item: any) => item.value);
+    }
+    return [];
+  })
 }));
 
 // Helper to wrap component with QueryClientProvider
@@ -63,6 +72,8 @@ describe('StubReferencePopup', () => {
       end: 13
     } as TextSelection,
     annotation: {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id: 'test-annotation',
       target: {
         source: 'test-doc',
@@ -73,11 +84,10 @@ describe('StubReferencePopup', () => {
           length: 13,
         },
       },
-      body: {
-        type: 'SpecificResource',
-        entityTypes: ['Person'],
-        source: null,
-      },
+      // Stub reference has empty body array
+      body: [],
+      // entityTypes at annotation level
+      entityTypes: ['Person'],
       motivation: 'linking',
       creator: {
         type: 'Person',

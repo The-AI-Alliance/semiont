@@ -163,12 +163,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'semiont_resolve_selection',
-        description: 'Resolve a selection to a document',
+        description: 'Link a selection to a document (adds SpecificResource to annotation body)',
         inputSchema: {
           type: 'object',
           properties: {
             selectionId: { type: 'string', description: 'Selection ID' },
-            documentId: { type: 'string', description: 'Target document ID' },
+            documentId: { type: 'string', description: 'Target document ID to link to' },
           },
           required: ['selectionId', 'documentId'],
         },
@@ -176,7 +176,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // Document Generation from Selections
       {
         name: 'semiont_create_document_from_selection',
-        description: 'Create a new document from a selection and resolve the selection to it',
+        description: 'Create a new document from a selection and link the selection to it',
         inputSchema: {
           type: 'object',
           properties: {
@@ -294,7 +294,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'semiont_get_document_references',
-        description: 'Get resolved references in a document',
+        description: 'Get linked references in a document',
         inputSchema: {
           type: 'object',
           properties: {

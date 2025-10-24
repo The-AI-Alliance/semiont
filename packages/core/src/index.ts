@@ -36,7 +36,9 @@ export type {
   DocumentUnarchivedEvent,
   AnnotationAddedEvent,
   AnnotationRemovedEvent,
-  AnnotationResolvedEvent,
+  AnnotationBodyUpdatedEvent,
+  BodyOperation,
+  BodyItem,
   EntityTagAddedEvent,
   EntityTagRemovedEvent,
   EventMetadata,
@@ -60,7 +62,7 @@ export {
 } from './selector-utils';
 
 // Annotation utilities
-export { compareAnnotationIds } from './annotation-utils';
+export { compareAnnotationIds, extractEntityTypes, extractBodySource, bodyItemsMatch, findBodyItem } from './annotation-utils';
 
 // Document types
 export type { CreateDocumentInput, UpdateDocumentInput, DocumentFilter } from './document-types';

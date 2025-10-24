@@ -28,8 +28,19 @@ export function getExactText(selector: Selector | Selector[]): string {
 /**
  * Get the exact text from an annotation's target selector
  * Accepts full Annotation or Omit<Annotation, 'creator' | 'created'>
+ * Returns empty string if target is a simple IRI (no selector)
  */
 export function getAnnotationExactText(annotation: Annotation | Omit<Annotation, 'creator' | 'created'>): string {
+  // Target can be a simple string IRI (entire resource) or an object with selector (fragment)
+  if (typeof annotation.target === 'string') {
+    return ''; // No selector for entire resource
+  }
+
+  // Target has optional selector
+  if (!annotation.target.selector) {
+    return ''; // No selector provided
+  }
+
   return getExactText(annotation.target.selector);
 }
 

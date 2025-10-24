@@ -21,7 +21,9 @@ type ContentFormat = components['schemas']['ContentFormat'];
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
   timestamp: string;              // ISO 8601 timestamp (for humans, NOT for ordering)
-  documentId: string;             // Content hash: doc-sha256:abc... (federation-ready)
+  documentId?: string;            // Optional - present for document-scoped events, absent for system events
+                                  // ⚠️ BRITTLE: Event routing depends on presence/absence of this field
+                                  // TODO: Add explicit projection target field for cleaner routing
   userId: string;                 // DID format: did:web:org.com:users:alice (federation-ready)
   version: number;                // Event schema version
 }
@@ -87,17 +89,28 @@ export interface AnnotationRemovedEvent extends BaseEvent {
   };
 }
 
-export interface AnnotationResolvedEvent extends BaseEvent {
-  type: 'annotation.resolved';      // Only for motivation: 'linking'
+// Body operation types for fine-grained annotation body modifications
+export type BodyItem =
+  | { type: 'TextualBody'; value: string; purpose: 'tagging' | 'commenting' | 'describing'; format?: string; language?: string }
+  | { type: 'SpecificResource'; source: string; purpose: 'linking' };
+
+export type BodyOperation =
+  | { op: 'add'; item: BodyItem }
+  | { op: 'remove'; item: BodyItem }
+  | { op: 'replace'; oldItem: BodyItem; newItem: BodyItem };
+
+export interface AnnotationBodyUpdatedEvent extends BaseEvent {
+  type: 'annotation.body.updated';
   payload: {
     annotationId: string;
-    targetDocumentId: string;
+    operations: BodyOperation[];
   };
 }
 
-// Entity tag events
+// Entity tag events (document-level)
 export interface EntityTagAddedEvent extends BaseEvent {
   type: 'entitytag.added';
+  documentId: string;  // Required - document-scoped event
   payload: {
     entityType: string;
   };
@@ -105,8 +118,18 @@ export interface EntityTagAddedEvent extends BaseEvent {
 
 export interface EntityTagRemovedEvent extends BaseEvent {
   type: 'entitytag.removed';
+  documentId: string;  // Required - document-scoped event
   payload: {
     entityType: string;
+  };
+}
+
+// Entity type events (global collection)
+export interface EntityTypeAddedEvent extends BaseEvent {
+  type: 'entitytype.added';
+  documentId?: undefined;  // System-level event - no document scope
+  payload: {
+    entityType: string;  // The entity type being added to global collection
   };
 }
 
@@ -118,9 +141,10 @@ export type DocumentEvent =
   | DocumentUnarchivedEvent
   | AnnotationAddedEvent
   | AnnotationRemovedEvent
-  | AnnotationResolvedEvent
-  | EntityTagAddedEvent
-  | EntityTagRemovedEvent;
+  | AnnotationBodyUpdatedEvent
+  | EntityTagAddedEvent      // Document-level
+  | EntityTagRemovedEvent    // Document-level
+  | EntityTypeAddedEvent;    // Global collection
 
 // Extract just the event type strings from the union
 export type DocumentEventType = DocumentEvent['type'];
@@ -130,7 +154,7 @@ export function isDocumentEvent(event: any): event is DocumentEvent {
   return event &&
     typeof event.id === 'string' &&
     typeof event.timestamp === 'string' &&
-    typeof event.documentId === 'string' &&
+    (event.documentId === undefined || typeof event.documentId === 'string') &&  // documentId now optional
     typeof event.type === 'string' &&
     event.type.includes('.');
 }

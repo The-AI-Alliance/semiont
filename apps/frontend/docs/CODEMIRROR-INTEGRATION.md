@@ -443,3 +443,10 @@ Uses fast-check to verify axioms:
 CodeMirror provides a solid foundation for our annotation system by eliminating the position mapping problem entirely. While the current display isn't ideal for reading, it ensures 100% accurate annotation placement. The custom preview extension provides a clear path to better formatting without sacrificing accuracy.
 
 The key insight: **It's better to have accurate annotations with less polish than beautiful rendering with broken annotations.**
+
+## Related Documentation
+
+- [W3C-WEB-ANNOTATION.md](../../../docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers
+- [ANNOTATIONS.md](./ANNOTATIONS.md) - Frontend UI patterns and components
+- [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
+- [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Document rendering pipeline

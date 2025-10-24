@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { remarkAnnotations } from '@/lib/remark-annotations';
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
 import type { Annotation } from '@/lib/api';
-import { getExactText, getTextPositionSelector, isReference, isStubReference } from '@/lib/api';
+import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource } from '@/lib/api';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import '@/styles/animations.css';
 
@@ -21,9 +21,10 @@ interface Props {
 // Convert Annotation[] to the simpler format needed by plugins
 function prepareAnnotations(annotations: Annotation[]) {
   return annotations
-    .filter(ann => ann.target.selector)
+    .filter(ann => getTargetSelector(ann.target))
     .map(ann => {
-      const posSelector = getTextPositionSelector(ann.target.selector);
+      const targetSelector = getTargetSelector(ann.target);
+      const posSelector = getTextPositionSelector(targetSelector);
       // Use W3C motivation to determine type
       let type: 'highlight' | 'reference' | 'assessment';
       if (ann.motivation === 'assessing') {
@@ -35,11 +36,11 @@ function prepareAnnotations(annotations: Annotation[]) {
       }
       return {
         id: ann.id,
-        exact: getExactText(ann.target.selector),
+        exact: getExactText(targetSelector),
         offset: posSelector?.offset ?? 0,
         length: posSelector?.length ?? 0,
         type,
-        source: ann.body.source
+        source: getBodySource(ann.body)
       };
     });
 }

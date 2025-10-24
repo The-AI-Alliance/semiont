@@ -9,6 +9,7 @@ import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
 import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/lib/api';
+import { getEntityTypes } from '@/lib/api';
 
 interface StubReferencePopupProps {
   isOpen: boolean;
@@ -66,10 +67,12 @@ export function StubReferencePopup({
   };
 
   const handleSelectDocument = (documentId: string) => {
+    // Link to selected document using SpecificResource
     onUpdateAnnotation({
       body: {
         type: 'SpecificResource' as const,
         source: documentId,
+        purpose: 'linking' as const,
       },
     });
     setShowSearchModal(false);
@@ -83,11 +86,10 @@ export function StubReferencePopup({
   };
 
   const handleConvertToHighlight = () => {
+    // Convert to highlighting motivation with empty body
     onUpdateAnnotation({
-      body: {
-        type: 'TextualBody',
-        source: null,
-      },
+      motivation: 'highlighting',
+      body: [],
     });
   };
 
@@ -105,9 +107,12 @@ export function StubReferencePopup({
           <>
             <PopupHeader title={t('title')} selectedText={selection.exact} onClose={onClose} />
 
-            {annotation.body.entityTypes && annotation.body.entityTypes.length > 0 && (
-              <EntityTypeBadges entityTypes={annotation.body.entityTypes.join(', ')} />
-            )}
+            {(() => {
+              const entityTypes = getEntityTypes(annotation);
+              return entityTypes.length > 0 && (
+                <EntityTypeBadges entityTypes={entityTypes.join(', ')} />
+              );
+            })()}
 
             {/* Link Options */}
             <div className="mb-4">

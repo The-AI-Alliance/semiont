@@ -6,7 +6,7 @@ import { HighlightPopup } from './annotation-popups/HighlightPopup';
 import { StubReferencePopup } from './annotation-popups/StubReferencePopup';
 import { ResolvedReferencePopup } from './annotation-popups/ResolvedReferencePopup';
 import type { Annotation, AnnotationUpdate, TextSelection, HighlightAnnotation, ReferenceAnnotation } from '@/lib/api';
-import { isHighlight, isReference } from '@/lib/api';
+import { isHighlight, isReference, isBodyResolved } from '@/lib/api';
 
 interface AnnotationPopupProps {
   isOpen: boolean;
@@ -42,7 +42,8 @@ export function AnnotationPopup({
     if (!annotation) return 'initial';
     if (isHighlight(annotation)) return 'highlight';
     if (isReference(annotation)) {
-      return annotation.body.source ? 'resolved_reference' : 'stub_reference';
+      // Body is either empty array (stub) or SpecificResource with source (resolved)
+      return isBodyResolved(annotation.body) ? 'resolved_reference' : 'stub_reference';
     }
     return 'initial';
   };

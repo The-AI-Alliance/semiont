@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import type { Document, CreateDocumentInput, CreationMethod } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 import { calculateChecksum } from '@semiont/core';
@@ -19,6 +19,9 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
+import { getTargetSource } from '../../../lib/annotation-utils';
+import { extractEntityTypes } from '../../../graph/annotation-body-utils';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type CreateFromAnnotationRequest = components['schemas']['CreateFromAnnotationRequest'];
 type CreateFromAnnotationResponse = components['schemas']['CreateFromAnnotationResponse'];
@@ -38,8 +41,9 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       const { annotationId } = c.req.param();
       const body = c.get('validatedBody') as CreateFromAnnotationRequest;
       const user = c.get('user');
+      const basePath = getFilesystemConfig().path;
       const graphDb = await getGraphDatabase();
-      const storage = getStorageService();
+      const contentManager = createContentManager(basePath);
 
       const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.documentId);
       if (!annotation) {
@@ -52,10 +56,10 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
         name: body.name,
         archived: false,
         format: body.format,
-        entityTypes: annotation.body.entityTypes,
+        entityTypes: extractEntityTypes(annotation.body),
         creationMethod: CREATION_METHODS.REFERENCE as CreationMethod,
         sourceAnnotationId: annotationId,
-        sourceDocumentId: annotation.target.source,
+        sourceDocumentId: getTargetSource(annotation.target),
         contentChecksum: checksum,
         creator: userToAgent(user),
         created: new Date().toISOString(),
@@ -77,7 +81,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       };
 
       const savedDoc = await graphDb.createDocument(createInput);
-      await storage.saveDocument(documentId, Buffer.from(body.content));
+      await contentManager.save(documentId, Buffer.from(body.content));
 
       // Update the annotation to resolve to the new document
       await graphDb.resolveReference(annotationId, savedDoc.id);

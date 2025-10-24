@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import type { Annotation, ReferencedBy } from '@/lib/api';
-import { formatLocaleDisplay } from '@/lib/api';
+import { formatLocaleDisplay, getBodySource, isBodyResolved, getEntityTypes } from '@/lib/api';
 
 interface Props {
   highlights: Annotation[];
@@ -27,20 +27,20 @@ export function DocumentInfoPanel({
 
   // Count stub vs resolved references
   const stubCount = useMemo(
-    () => references.filter((r) => r.body.source === null || r.body.source === undefined).length,
+    () => references.filter((r) => !isBodyResolved(r.body)).length,
     [references]
   );
 
   const resolvedCount = useMemo(
-    () => references.filter((r) => r.body.source !== null && r.body.source !== undefined).length,
+    () => references.filter((r) => isBodyResolved(r.body)).length,
     [references]
   );
 
-  // Count entity types from references
+  // Count entity types from references (at annotation level)
   const entityTypesList = useMemo(() => {
     const entityTypeCounts = new Map<string, number>();
     references.forEach((ref) => {
-      const entityTypes = ref.body.entityTypes || [];
+      const entityTypes = getEntityTypes(ref);
       entityTypes.forEach((type: string) => {
         entityTypeCounts.set(type, (entityTypeCounts.get(type) || 0) + 1);
       });

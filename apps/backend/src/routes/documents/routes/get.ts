@@ -9,9 +9,12 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore } from '../../../services/event-store-service';
+import { EventQuery } from '../../../events/query/event-query';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
+import { extractEntityTypes } from '../../../graph/annotation-body-utils';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
 
@@ -25,10 +28,13 @@ export function registerGetDocument(router: DocumentsRouterType) {
    */
   router.get('/api/documents/:id', async (c) => {
     const { id } = c.req.param();
+    const basePath = getFilesystemConfig().path;
 
     // Read from Layer 2/3: Event store builds/loads projection
-    const eventStore = await getEventStore();
-    const stored = await eventStore.projectDocument(id);
+    const eventStore = await createEventStore(basePath);
+    const query = new EventQuery(eventStore.storage);
+    const events = await query.getDocumentEvents(id);
+    const stored = await eventStore.projector.projectDocument(events, id);
 
     if (!stored) {
       throw new HTTPException(404, { message: 'Document not found' });
@@ -38,9 +44,11 @@ export function registerGetDocument(router: DocumentsRouterType) {
     // Clients must call GET /documents/:id/content separately to get content
 
     const annotations = stored.annotations.annotations;
-    const entityReferences = annotations.filter(a =>
-      a.motivation === 'linking' && a.body.entityTypes && a.body.entityTypes.length > 0
-    );
+    const entityReferences = annotations.filter(a => {
+      if (a.motivation !== 'linking') return false;
+      const entityTypes = extractEntityTypes(a.body);
+      return entityTypes.length > 0;
+    });
 
     const response: GetDocumentResponse = {
       document: stored.document,

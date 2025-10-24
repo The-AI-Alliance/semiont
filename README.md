@@ -147,6 +147,7 @@ For complete deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 |----------|-------------|
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Complete deployment guide with validation steps |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design decisions |
+| [W3C-WEB-ANNOTATION.md](docs/W3C-WEB-ANNOTATION.md) | W3C Web Annotation implementation across all layers |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration management and environment setup |
 | [DATABASE.md](docs/DATABASE.md) | Database setup, migrations, and management |
 | [TESTING.md](docs/TESTING.md) | Testing strategy, frameworks, and best practices |

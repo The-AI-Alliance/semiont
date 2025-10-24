@@ -9,7 +9,7 @@
  *
  * Routes:
  * - POST /api/annotations (create)
- * - PUT /api/annotations/:id/resolve (resolve reference)
+ * - PUT /api/annotations/:id/body (update annotation body)
  * - GET /api/annotations/:id (get single)
  * - GET /api/annotations (list)
  * - DELETE /api/annotations/:id (delete)
@@ -17,22 +17,25 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { getEventStore } from '../../events/event-store';
+import { createEventStore } from '../../services/event-store-service';
 import {
   getTextPositionSelector,
   type Annotation,
   type AnnotationAddedEvent,
+  type BodyOperation,
 } from '@semiont/core';
+import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { validateRequestBody } from '../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../config/environment-loader';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type CreateAnnotationResponse = components['schemas']['CreateAnnotationResponse'];
-type ResolveAnnotationRequest = components['schemas']['ResolveAnnotationRequest'];
-type ResolveAnnotationResponse = components['schemas']['ResolveAnnotationResponse'];
+type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
+type UpdateAnnotationBodyResponse = components['schemas']['UpdateAnnotationBodyResponse'];
 type DeleteAnnotationRequest = components['schemas']['DeleteAnnotationRequest'];
 type GetAnnotationResponse = components['schemas']['GetAnnotationResponse'];
 type ListAnnotationsResponse = components['schemas']['ListAnnotationsResponse'];
@@ -64,30 +67,25 @@ crudRouter.post('/api/annotations',
       throw new HTTPException(400, { message: 'TextPositionSelector required for creating annotations' });
     }
 
-    // Determine motivation: use provided value or default based on body type
-    const motivation = request.motivation || (request.body.type === 'TextualBody' ? 'highlighting' : 'linking');
+    // Validation ensures motivation is present (it's required in schema)
+    if (!request.motivation) {
+      throw new HTTPException(400, { message: 'motivation is required' });
+    }
 
     // Build annotation object (includes W3C required @context and type)
     const annotation: Omit<Annotation, 'creator' | 'created'> = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
       id: annotationId,
-      motivation: motivation,
-      target: {
-        source: request.target.source,
-        selector: request.target.selector,
-      },
-      body: {
-        type: request.body.type,
-        value: request.body.value,
-        entityTypes: request.body.entityTypes || [],
-        source: request.body.source,
-      },
+      motivation: request.motivation,
+      target: request.target,
+      body: request.body as Annotation['body'],
       modified: new Date().toISOString(),
     };
 
     // Emit unified annotation.added event (single source of truth)
-    const eventStore = await getEventStore();
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
     const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
       type: 'annotation.added',
       documentId: request.target.source,
@@ -102,20 +100,7 @@ crudRouter.post('/api/annotations',
     // Return optimistic response (consumer will update GraphDB async)
     const response: CreateAnnotationResponse = {
       annotation: {
-        '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-        'type': 'Annotation' as const,
-        id: annotationId,
-        motivation: motivation,
-        target: {
-          source: request.target.source,
-          selector: request.target.selector,
-        },
-        body: {
-          type: request.body.type,
-          value: request.body.value,
-          entityTypes: request.body.entityTypes || [],
-          source: request.body.source,
-        },
+        ...annotation,
         creator: userToAgent(user),
         created: new Date().toISOString(),
       },
@@ -126,54 +111,78 @@ crudRouter.post('/api/annotations',
 );
 
 /**
- * PUT /api/annotations/:id/resolve
- * Resolve a reference annotation to a target document
- * MUST come BEFORE GET to avoid {id} matching "/resolve"
+ * PUT /api/annotations/:id/body
+ * Apply fine-grained operations to modify annotation body items
+ * MUST come BEFORE GET to avoid {id} matching "/body"
  */
-crudRouter.put('/api/annotations/:id/resolve',
-  validateRequestBody('ResolveAnnotationRequest'),
+crudRouter.put('/api/annotations/:id/body',
+  validateRequestBody('UpdateAnnotationBodyRequest'),
   async (c) => {
     const { id } = c.req.param();
-    const request = c.get('validatedBody') as ResolveAnnotationRequest;
+    const request = c.get('validatedBody') as UpdateAnnotationBodyRequest;
     const user = c.get('user');
 
-    console.log(`[RESOLVE HANDLER] Called for annotation ${id}, request:`, request);
+    console.log(`[BODY UPDATE HANDLER] Called for annotation ${id}, operations:`, request.operations);
 
     // Get annotation from Layer 3 (event store projection)
     const annotation = await AnnotationQueryService.getAnnotation(id, request.documentId);
-    console.log(`[RESOLVE HANDLER] Layer 3 lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
+    console.log(`[BODY UPDATE HANDLER] Layer 3 lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
 
     if (!annotation) {
-      console.log(`[RESOLVE HANDLER] Throwing 404 - annotation ${id} not found in Layer 3`);
+      console.log(`[BODY UPDATE HANDLER] Throwing 404 - annotation ${id} not found in Layer 3`);
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
-    // Emit annotation.resolved event to Layer 2 (consumer will update Layer 3 projection)
-    const eventStore = await getEventStore();
+    // Emit annotation.body.updated event to Layer 2 (consumer will update Layer 3 projection)
+    const basePath2 = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath2);
     await eventStore.appendEvent({
-      type: 'annotation.resolved',
-      documentId: annotation.target.source,
+      type: 'annotation.body.updated',
+      documentId: getTargetSource(annotation.target),
       userId: user.id,
       version: 1,
       payload: {
         annotationId: id,
-        targetDocumentId: request.documentId,
+        operations: request.operations as BodyOperation[],
       },
     });
 
-    // Get target document from Layer 3
-    const targetDocument = await DocumentQueryService.getDocumentMetadata(request.documentId);
+    // Return optimistic response - Apply operations to body array
+    const bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
 
-    // Return optimistic response
-    const response: ResolveAnnotationResponse = {
+    for (const op of request.operations) {
+      if (op.op === 'add') {
+        // Add item (idempotent - don't add if already exists)
+        const exists = bodyArray.some(item =>
+          JSON.stringify(item) === JSON.stringify(op.item)
+        );
+        if (!exists) {
+          bodyArray.push(op.item);
+        }
+      } else if (op.op === 'remove') {
+        // Remove item
+        const index = bodyArray.findIndex(item =>
+          JSON.stringify(item) === JSON.stringify(op.item)
+        );
+        if (index !== -1) {
+          bodyArray.splice(index, 1);
+        }
+      } else if (op.op === 'replace') {
+        // Replace item
+        const index = bodyArray.findIndex(item =>
+          JSON.stringify(item) === JSON.stringify(op.oldItem)
+        );
+        if (index !== -1) {
+          bodyArray[index] = op.newItem;
+        }
+      }
+    }
+
+    const response: UpdateAnnotationBodyResponse = {
       annotation: {
         ...annotation,
-        body: {
-          ...annotation.body,
-          source: request.documentId,
-        },
+        body: bodyArray,
       },
-      targetDocument,
     };
 
     return c.json(response);
@@ -206,10 +215,11 @@ crudRouter.get('/api/annotations/:id', async (c) => {
   // Get document metadata
   const document = await DocumentQueryService.getDocumentMetadata(documentId);
 
-  // If it's a linking annotation with a source, get resolved document
+  // If it's a linking annotation with a resolved source, get resolved document
   let resolvedDocument = null;
-  if (annotation.motivation === 'linking' && annotation.body.source) {
-    resolvedDocument = await DocumentQueryService.getDocumentMetadata(annotation.body.source);
+  const bodySource = getBodySource(annotation.body);
+  if (annotation.motivation === 'linking' && bodySource) {
+    resolvedDocument = await DocumentQueryService.getDocumentMetadata(bodySource);
   }
 
   const response: GetAnnotationResponse = {
@@ -273,7 +283,8 @@ crudRouter.delete('/api/annotations/:id',
     }
 
     // Emit unified annotation.removed event (consumer will delete from GraphDB and update Layer 3)
-    const eventStore = await getEventStore();
+    const basePath3 = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath3);
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',

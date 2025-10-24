@@ -48,6 +48,52 @@
         ],
         "description": "Annotation body type - TextualBody for textual content, SpecificResource for resource links"
       },
+      "SpecificResource": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "SpecificResource"
+          },
+          "source": {
+            "type": "string",
+            "description": "IRI of the target resource"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": ["linking"],
+            "description": "Why this body is included"
+          }
+        },
+        "required": ["type", "source"]
+      },
+      "TextualBody": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "TextualBody"
+          },
+          "value": {
+            "type": "string",
+            "description": "The text content (e.g., entity type name)"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": ["tagging", "describing", "commenting"],
+            "description": "Why this body is included"
+          },
+          "format": {
+            "type": "string",
+            "description": "MIME type (defaults to text/plain)"
+          },
+          "language": {
+            "type": "string",
+            "description": "BCP 47 language tag"
+          }
+        },
+        "required": ["type", "value"]
+      },
       "HealthResponse": {
         "type": "object",
         "properties": {
@@ -1237,39 +1283,31 @@
             ]
           },
           "body": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "TextualBody",
-                  "SpecificResource"
-                ]
+            "oneOf": [
+              {
+                "type": "array",
+                "maxItems": 0,
+                "description": "Empty array (Phase 1 stub pattern - will be migrated to contain entity tag bodies in Phase 2)"
               },
-              "value": {
-                "type": "string"
+              {
+                "$ref": "#/components/schemas/AnnotationBody",
+                "description": "Single body (TextualBody or SpecificResource)"
               },
-              "source": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "entityTypes": {
+              {
                 "type": "array",
                 "items": {
-                  "type": "string"
-                }
+                  "$ref": "#/components/schemas/AnnotationBody"
+                },
+                "minItems": 1,
+                "description": "Array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
               }
-            },
-            "required": [
-              "type"
             ]
           }
         },
         "required": [
           "target",
-          "body"
+          "body",
+          "motivation"
         ]
       },
       "StatusResponse": {
@@ -1974,6 +2012,113 @@
           "documentId"
         ]
       },
+      "BodyOperationAdd": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "add"
+          },
+          "item": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextualBody"
+              },
+              {
+                "$ref": "#/components/schemas/SpecificResource"
+              }
+            ]
+          }
+        },
+        "required": ["op", "item"]
+      },
+      "BodyOperationRemove": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "remove"
+          },
+          "item": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextualBody"
+              },
+              {
+                "$ref": "#/components/schemas/SpecificResource"
+              }
+            ]
+          }
+        },
+        "required": ["op", "item"]
+      },
+      "BodyOperationReplace": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "replace"
+          },
+          "oldItem": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextualBody"
+              },
+              {
+                "$ref": "#/components/schemas/SpecificResource"
+              }
+            ]
+          },
+          "newItem": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextualBody"
+              },
+              {
+                "$ref": "#/components/schemas/SpecificResource"
+              }
+            ]
+          }
+        },
+        "required": ["op", "oldItem", "newItem"]
+      },
+      "UpdateAnnotationBodyRequest": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "Document ID containing the annotation (required for O(1) Layer 3 lookup)"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/BodyOperationAdd"
+                },
+                {
+                  "$ref": "#/components/schemas/BodyOperationRemove"
+                },
+                {
+                  "$ref": "#/components/schemas/BodyOperationReplace"
+                }
+              ]
+            },
+            "minItems": 1,
+            "description": "Array of body modification operations to apply"
+          }
+        },
+        "required": ["documentId", "operations"]
+      },
+      "UpdateAnnotationBodyResponse": {
+        "type": "object",
+        "properties": {
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          }
+        },
+        "required": ["annotation"]
+      },
       "DeleteAnnotationRequest": {
         "type": "object",
         "properties": {
@@ -2166,78 +2311,40 @@
             "$ref": "#/components/schemas/Motivation"
           },
           "target": {
-            "type": "object",
-            "properties": {
-              "source": {
-                "type": "string"
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "IRI of the entire resource being annotated"
               },
-              "selector": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/TextPositionSelector"
-                  },
-                  {
-                    "$ref": "#/components/schemas/TextQuoteSelector"
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "anyOf": [
-                        {
-                          "$ref": "#/components/schemas/TextPositionSelector"
-                        },
-                        {
-                          "$ref": "#/components/schemas/TextQuoteSelector"
-                        }
-                      ]
-                    }
-                  }
-                ]
+              {
+                "$ref": "#/components/schemas/AnnotationTarget"
               }
-            },
-            "required": [
-              "source",
-              "selector"
-            ]
+            ],
+            "description": "W3C Web Annotation target - can be a simple IRI string (entire resource) or an object with source and optional selector (fragment)"
           },
           "body": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "$ref": "#/components/schemas/BodyType"
-              },
-              "purpose": {
-                "$ref": "#/components/schemas/Motivation",
-                "description": "W3C purpose - why this resource is included in the annotation body"
-              },
-              "value": {
-                "type": "string"
-              },
-              "format": {
-                "$ref": "#/components/schemas/ContentFormat"
-              },
-              "language": {
-                "type": "string",
-                "description": "W3C language - BCP47 language tag (e.g., 'en', 'es', 'fr')"
-              },
-              "source": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "entityTypes": {
+            "oneOf": [
+              {
                 "type": "array",
                 "items": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/AnnotationBody"
                 },
-                "default": []
+                "maxItems": 0,
+                "description": "Empty array for stub references (Phase 1 pattern)"
+              },
+              {
+                "$ref": "#/components/schemas/AnnotationBody",
+                "description": "Single body (TextualBody or SpecificResource)"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AnnotationBody"
+                },
+                "description": "Array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
               }
-            },
-            "required": [
-              "type",
-              "entityTypes"
-            ]
+            ],
+            "description": "W3C Web Annotation body - can be empty array, single body, or array of bodies"
           },
           "creator": {
             "$ref": "#/components/schemas/Agent"
@@ -2260,6 +2367,54 @@
           "target",
           "body"
         ]
+      },
+      "AnnotationBody": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TextualBody"
+          },
+          {
+            "$ref": "#/components/schemas/SpecificResource"
+          }
+        ],
+        "description": "Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)"
+      },
+      "AnnotationTarget": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "IRI of the resource being annotated"
+          },
+          "selector": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TextPositionSelector"
+              },
+              {
+                "$ref": "#/components/schemas/TextQuoteSelector"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TextPositionSelector"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TextQuoteSelector"
+                    }
+                  ]
+                }
+              }
+            ],
+            "description": "Optional selector to identify a specific segment of the source resource"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "description": "W3C Web Annotation target object - source is required, selector is optional"
       },
       "UpdateUserResponse": {
         "type": "object",
@@ -4133,9 +4288,10 @@
                 "document.unarchived",
                 "annotation.added",
                 "annotation.removed",
-                "annotation.resolved",
+                "annotation.body.updated",
                 "entitytag.added",
-                "entitytag.removed"
+                "entitytag.removed",
+                "entitytype.added"
               ]
             },
             "required": false,
@@ -4566,10 +4722,10 @@
         }
       }
     },
-    "/api/annotations/{id}/resolve": {
+    "/api/annotations/{id}/body": {
       "put": {
-        "summary": "Resolve Annotation",
-        "description": "Resolve a reference annotation to a target document",
+        "summary": "Update Annotation Body",
+        "description": "Apply fine-grained operations to modify annotation body items (add, remove, or replace TextualBody and SpecificResource items)",
         "tags": [
           "Annotations"
         ],
@@ -4592,18 +4748,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ResolveAnnotationRequest"
+                "$ref": "#/components/schemas/UpdateAnnotationBodyRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Annotation resolved successfully",
+            "description": "Annotation body updated successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ResolveAnnotationResponse"
+                  "$ref": "#/components/schemas/UpdateAnnotationBodyResponse"
                 }
               }
             }

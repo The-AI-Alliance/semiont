@@ -10,24 +10,29 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { getStorageService } from '../../storage/filesystem';
+import { createContentManager } from '../../services/storage-service';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
 import { calculateChecksum } from '@semiont/core';
 import { userToAgent } from '../../utils/id-generator';
+import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
+import { getFilesystemConfig } from '../../config/environment-loader';
 import {
   CREATION_METHODS,
   getAnnotationExactText,
   getTextPositionSelector,
   type Document,
   type Annotation,
+  type BodyOperation,
 } from '@semiont/core';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 import { registerGenerateDocument } from './routes/generate-document';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
-import { getEventStore } from '../../events/event-store';
+import { createEventStore } from '../../services/event-store-service';
 import { validateRequestBody } from '../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { extractEntityTypes } from '../../graph/annotation-body-utils';
+import type { User } from '@prisma/client';
 
 type CreateDocumentFromSelectionRequest = components['schemas']['CreateDocumentFromSelectionRequest'];
 type GenerateDocumentFromAnnotationRequest = components['schemas']['GenerateDocumentFromAnnotationRequest'];
@@ -35,6 +40,55 @@ type CreateDocumentFromSelectionResponse = components['schemas']['CreateDocument
 type GenerateDocumentFromAnnotationResponse = components['schemas']['GenerateDocumentFromAnnotationResponse'];
 type AnnotationContextResponse = components['schemas']['AnnotationContextResponse'];
 type ContextualSummaryResponse = components['schemas']['ContextualSummaryResponse'];
+
+// Helper: Create resolved annotation with SpecificResource body
+function createResolvedAnnotation(annotation: Annotation, documentId: string, user: User): Annotation {
+  const bodyArray = Array.isArray(annotation.body) ? annotation.body : [];
+  return {
+    ...annotation,
+    motivation: 'linking' as const,
+    body: [
+      ...bodyArray.filter(b => b.type !== 'SpecificResource'),
+      {
+        type: 'SpecificResource' as const,
+        source: documentId,
+        purpose: 'linking' as const,
+      },
+    ],
+    modified: new Date().toISOString(),
+    generator: userToAgent(user),
+  };
+}
+
+// Helper: Extract annotation context from document content
+interface AnnotationContext {
+  before: string;
+  selected: string;
+  after: string;
+}
+
+function getAnnotationContext(
+  annotation: Annotation,
+  contentStr: string,
+  contextBefore: number,
+  contextAfter: number
+): AnnotationContext {
+  const targetSelector = getTargetSelector(annotation.target);
+  const posSelector = targetSelector ? getTextPositionSelector(targetSelector) : null;
+  if (!posSelector) {
+    throw new HTTPException(400, { message: 'TextPositionSelector required for context' });
+  }
+  const selStart = posSelector.offset;
+  const selEnd = posSelector.offset + posSelector.length;
+  const start = Math.max(0, selStart - contextBefore);
+  const end = Math.min(contentStr.length, selEnd + contextAfter);
+
+  return {
+    before: contentStr.substring(start, selStart),
+    selected: contentStr.substring(selStart, selEnd),
+    after: contentStr.substring(selEnd, end),
+  };
+}
 
 // Create router with auth middleware
 export const operationsRouter: AnnotationsRouterType = createAnnotationRouter();
@@ -51,7 +105,8 @@ operationsRouter.post('/api/annotations/:id/create-document',
     const { id } = c.req.param();
     const body = c.get('validatedBody') as CreateDocumentFromSelectionRequest;
     const user = c.get('user');
-    const storage = getStorageService();
+    const basePath = getFilesystemConfig().path;
+    const contentManager = createContentManager(basePath);
 
     if (!body.content) {
       throw new HTTPException(400, { message: 'Content is required when creating a document' });
@@ -72,10 +127,10 @@ operationsRouter.post('/api/annotations/:id/create-document',
     const documentId = `doc-sha256:${checksum}`;
 
     // Save content to Layer 1 (filesystem)
-    await storage.saveDocument(documentId, Buffer.from(body.content));
+    await contentManager.save(documentId, Buffer.from(body.content));
 
     // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore(basePath);
     await eventStore.appendEvent({
       type: 'document.created',
       documentId,
@@ -94,30 +149,29 @@ operationsRouter.post('/api/annotations/:id/create-document',
       },
     });
 
-    // Emit annotation.resolved event to link the annotation to the new document
+    // Emit annotation.body.updated event to link the annotation to the new document
+    const operations: BodyOperation[] = [{
+      op: 'add',
+      item: {
+        type: 'SpecificResource',
+        source: documentId,
+        purpose: 'linking',
+      },
+    }];
+
     await eventStore.appendEvent({
-      type: 'annotation.resolved',
-      documentId: annotation.target.source,
+      type: 'annotation.body.updated',
+      documentId: getTargetSource(annotation.target),
       userId: user.id,
       version: 1,
       payload: {
         annotationId: id,
-        targetDocumentId: documentId,
+        operations,
       },
     });
 
-    // Return optimistic response - update annotation to link to new document
-    const resolvedAnnotation: Annotation = {
-      ...annotation,
-      motivation: 'linking' as const,
-      body: {
-        ...annotation.body,
-        type: 'SpecificResource' as const,
-        source: documentId,
-      },
-      modified: new Date().toISOString(),
-      generator: userToAgent(user),
-    };
+    // Return optimistic response - Add SpecificResource to body array
+    const resolvedAnnotation = createResolvedAnnotation(annotation, documentId, user);
 
     const documentMetadata: Document = {
       id: documentId,
@@ -152,7 +206,8 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     const { id } = c.req.param();
     const body = c.get('validatedBody') as GenerateDocumentFromAnnotationRequest;
     const user = c.get('user');
-    const storage = getStorageService();
+    const basePath = getFilesystemConfig().path;
+    const contentManager = createContentManager(basePath);
 
     if (!body.documentId) {
       throw new HTTPException(400, { message: 'documentId is required' });
@@ -165,7 +220,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     }
 
     // Get the original document metadata from Layer 3
-    const originalDoc = await DocumentQueryService.getDocumentMetadata(annotation.target.source);
+    const originalDoc = await DocumentQueryService.getDocumentMetadata(getTargetSource(annotation.target));
     if (!originalDoc) {
       throw new HTTPException(404, { message: 'Original document not found' });
     }
@@ -173,10 +228,13 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     // Use annotation text
     const selectedText = getAnnotationExactText(annotation);
 
+    // Extract entity types from annotation body
+    const annotationEntityTypes = extractEntityTypes(annotation.body);
+
     // Generate content using the proper document generation function
     const { title, content: generatedContent } = await generateDocumentFromTopic(
       selectedText,
-      body.entityTypes || annotation.body.entityTypes || [],
+      body.entityTypes || annotationEntityTypes,
       body.prompt,
       body.language
     );
@@ -191,10 +249,10 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     const documentId = `doc-sha256:${checksum}`;
 
     // Store generated content to Layer 1
-    await storage.saveDocument(documentId, Buffer.from(generatedContent));
+    await contentManager.save(documentId, Buffer.from(generatedContent));
 
     // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore(basePath);
     await eventStore.appendEvent({
       type: 'document.created',
       documentId,
@@ -205,7 +263,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
         format: 'text/markdown',
         contentChecksum: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
-        entityTypes: body.entityTypes || annotation.body.entityTypes || [],
+        entityTypes: body.entityTypes || annotationEntityTypes,
         language: body.language,
         isDraft: false,
         generatedFrom: id,
@@ -213,36 +271,35 @@ operationsRouter.post('/api/annotations/:id/generate-document',
       },
     });
 
-    // Emit annotation.resolved event to link the annotation to the new document
+    // Emit annotation.body.updated event to link the annotation to the new document
+    const operations: BodyOperation[] = [{
+      op: 'add',
+      item: {
+        type: 'SpecificResource',
+        source: documentId,
+        purpose: 'linking',
+      },
+    }];
+
     await eventStore.appendEvent({
-      type: 'annotation.resolved',
-      documentId: annotation.target.source,
+      type: 'annotation.body.updated',
+      documentId: getTargetSource(annotation.target),
       userId: user.id,
       version: 1,
       payload: {
         annotationId: id,
-        targetDocumentId: documentId,
+        operations,
       },
     });
 
-    // Return optimistic response - update annotation to link to generated document
-    const resolvedAnnotation: Annotation = {
-      ...annotation,
-      motivation: 'linking' as const,
-      body: {
-        ...annotation.body,
-        type: 'SpecificResource' as const,
-        source: documentId,
-      },
-      modified: new Date().toISOString(),
-      generator: userToAgent(user),
-    };
+    // Return optimistic response - Add SpecificResource to body array
+    const resolvedAnnotation = createResolvedAnnotation(annotation, documentId, user);
 
     const documentMetadata: Document = {
       id: documentId,
       name: documentName,
       format: 'text/markdown',
-      entityTypes: body.entityTypes || annotation.body.entityTypes || [],
+      entityTypes: body.entityTypes || annotationEntityTypes,
       language: body.language,
       sourceAnnotationId: id,
       creationMethod: CREATION_METHODS.GENERATED,
@@ -294,7 +351,8 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
     throw new HTTPException(400, { message: 'Query parameter "contextAfter" must be between 0 and 5000' });
   }
 
-  const storage = getStorageService();
+  const basePath = getFilesystemConfig().path;
+  const contentManager = createContentManager(basePath);
 
   // Get annotation from Layer 3
   const annotation = await AnnotationQueryService.getAnnotation(id, documentId);
@@ -303,28 +361,17 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   }
 
   // Get document metadata from Layer 3
-  const document = await DocumentQueryService.getDocumentMetadata(annotation.target.source);
+  const document = await DocumentQueryService.getDocumentMetadata(getTargetSource(annotation.target));
   if (!document) {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
   // Get content from Layer 1
-  const content = await storage.getDocument(annotation.target.source);
+  const content = await contentManager.get(getTargetSource(annotation.target));
   const contentStr = content.toString('utf-8');
 
   // Extract context based on annotation position
-  const posSelector3 = getTextPositionSelector(annotation.target.selector);
-  if (!posSelector3) {
-    throw new HTTPException(400, { message: 'TextPositionSelector required for context' });
-  }
-  const selStart = posSelector3.offset;
-  const selEnd = posSelector3.offset + posSelector3.length;
-  const start = Math.max(0, selStart - contextBefore);
-  const end = Math.min(contentStr.length, selEnd + contextAfter);
-
-  const before = contentStr.substring(start, selStart);
-  const selected = contentStr.substring(selStart, selEnd);
-  const after = contentStr.substring(selEnd, end);
+  const { before, selected, after } = getAnnotationContext(annotation, contentStr, contextBefore, contextAfter);
 
   const response: AnnotationContextResponse = {
     annotation: annotation,  // Return full W3C annotation
@@ -358,7 +405,8 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
 operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
-  const storage = getStorageService();
+  const basePath = getFilesystemConfig().path;
+  const contentManager = createContentManager(basePath);
 
   // Require documentId query parameter
   const documentId = query.documentId;
@@ -373,29 +421,21 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   }
 
   // Get document from Layer 3
-  const document = await DocumentQueryService.getDocumentMetadata(annotation.target.source);
+  const document = await DocumentQueryService.getDocumentMetadata(getTargetSource(annotation.target));
   if (!document) {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
   // Get content from Layer 1
-  const content = await storage.getDocument(annotation.target.source);
+  const content = await contentManager.get(getTargetSource(annotation.target));
   const contentStr = content.toString('utf-8');
 
   // Extract annotation text with context
   const contextSize = 500; // Fixed context for summary
-  const posSelector4 = getTextPositionSelector(annotation.target.selector);
-  if (!posSelector4) {
-    throw new HTTPException(400, { message: 'TextPositionSelector required for summary' });
-  }
-  const selStart = posSelector4.offset;
-  const selEnd = posSelector4.offset + posSelector4.length;
-  const start = Math.max(0, selStart - contextSize);
-  const end = Math.min(contentStr.length, selEnd + contextSize);
+  const { before, selected, after } = getAnnotationContext(annotation, contentStr, contextSize, contextSize);
 
-  const before = contentStr.substring(start, selStart);
-  const selected = contentStr.substring(selStart, selEnd);
-  const after = contentStr.substring(selEnd, end);
+  // Extract entity types from annotation body
+  const annotationEntityTypes = extractEntityTypes(annotation.body);
 
   // Generate summary using the proper inference function
   const summaryPrompt = `Summarize this text in context:
@@ -405,7 +445,7 @@ Selected exact: "${selected}"
 Context after: "${after.substring(0, 200)}"
 
 Document: ${document.name}
-Entity types: ${(annotation.body.entityTypes || []).join(', ')}`;
+Entity types: ${annotationEntityTypes.join(', ')}`;
 
   const summary = await generateText(summaryPrompt, 500, 0.5);
 
@@ -414,7 +454,7 @@ Entity types: ${(annotation.body.entityTypes || []).join(', ')}`;
     relevantFields: {
       documentId: document.id,
       documentName: document.name,
-      entityTypes: annotation.body.entityTypes || [],
+      entityTypes: annotationEntityTypes,
     },
     context: {
       before: before.substring(Math.max(0, before.length - 200)), // Last 200 chars

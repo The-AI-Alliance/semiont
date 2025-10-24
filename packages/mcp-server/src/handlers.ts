@@ -3,6 +3,7 @@
  */
 
 import { SemiontApiClient } from '@semiont/api-client';
+import { extractBodySource } from '@semiont/core';
 
 export async function handleCreateDocument(client: SemiontApiClient, args: any) {
   const data = await client.createDocument({
@@ -58,6 +59,15 @@ export async function handleDetectAnnotations(_client: SemiontApiClient, _args: 
 
 export async function handleCreateAnnotation(client: SemiontApiClient, args: any) {
   const selectionData = args?.selectionData || {};
+  const entityTypes = args?.entityTypes || [];
+
+  // Convert entityTypes to W3C TextualBody items
+  const body = entityTypes.map((value: string) => ({
+    type: 'TextualBody' as const,
+    value,
+    purpose: 'tagging' as const,
+  }));
+
   const data = await client.createAnnotation({
     motivation: 'highlighting',
     target: {
@@ -69,15 +79,16 @@ export async function handleCreateAnnotation(client: SemiontApiClient, args: any
         length: selectionData.length || 0,
       },
     },
-    body: {
-      type: 'TextualBody',
-      entityTypes: args?.entityTypes || [],
-    },
+    body,
   });
 
-  const selector = Array.isArray(data.annotation.target.selector)
-    ? data.annotation.target.selector[0]
+  // Safely get selector (target can be string or object)
+  const targetSelector = typeof data.annotation.target === 'string'
+    ? undefined
     : data.annotation.target.selector;
+  const selector = targetSelector && Array.isArray(targetSelector)
+    ? targetSelector[0]
+    : targetSelector;
 
   return {
     content: [{
@@ -100,12 +111,22 @@ export async function handleSaveAnnotation(_client: SemiontApiClient, _args: any
 }
 
 export async function handleResolveAnnotation(client: SemiontApiClient, args: any) {
-  const data = await client.resolveAnnotation(args?.selectionId, args?.documentId);
+  const data = await client.updateAnnotationBody(args?.selectionId, {
+    documentId: args?.sourceDocumentId,
+    operations: [{
+      op: 'add',
+      item: {
+        type: 'SpecificResource',
+        source: args?.documentId,
+        purpose: 'linking',
+      },
+    }],
+  });
 
   return {
     content: [{
       type: 'text' as const,
-      text: `Annotation resolved to document:\nAnnotation ID: ${data.annotation.id}\nResolved to: ${data.targetDocument?.id || 'null'}\nTarget: ${data.targetDocument?.name || 'None'}`,
+      text: `Annotation linked to document:\nAnnotation ID: ${data.annotation.id}\nLinked to: ${args?.documentId || 'null'}`,
     }],
   };
 }
@@ -201,7 +222,9 @@ export async function handleGetDocumentHighlights(client: SemiontApiClient, args
     content: [{
       type: 'text' as const,
       text: `Found ${highlights.length} highlights in document:\n${highlights.map(h => {
-        const selector = Array.isArray(h.target.selector) ? h.target.selector[0] : h.target.selector;
+        // Safely get selector (target can be string or object)
+        const targetSelector = typeof h.target === 'string' ? undefined : h.target.selector;
+        const selector = targetSelector && Array.isArray(targetSelector) ? targetSelector[0] : targetSelector;
         const text = selector?.exact || h.id;
         return `- ${text}${h.creator ? ` (creator: ${h.creator.name})` : ''}`;
       }).join('\n')}`,
@@ -217,9 +240,13 @@ export async function handleGetDocumentReferences(client: SemiontApiClient, args
     content: [{
       type: 'text' as const,
       text: `Found ${references.length} references in document:\n${references.map(r => {
-        const selector = Array.isArray(r.target.selector) ? r.target.selector[0] : r.target.selector;
+        // Safely get selector (target can be string or object)
+        const targetSelector = typeof r.target === 'string' ? undefined : r.target.selector;
+        const selector = targetSelector && Array.isArray(targetSelector) ? targetSelector[0] : targetSelector;
         const text = selector?.exact || r.id;
-        return `- ${text} → ${r.body.source || 'unresolved'}`;
+        // Extract source from W3C body array
+        const source = extractBodySource(r.body);
+        return `- ${text} → ${source || 'stub (no link)'}`;
       }).join('\n')}`,
     }],
   };

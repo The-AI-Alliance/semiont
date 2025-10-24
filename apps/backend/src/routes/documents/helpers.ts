@@ -1,7 +1,8 @@
 // Helper functions for document routes
 import type { Document } from '@semiont/core';
 import { extractEntities } from '../../inference/entity-extractor';
-import { getStorageService } from '../../storage/filesystem';
+import { createContentManager } from '../../services/storage-service';
+import { getFilesystemConfig } from '../../config/environment-loader';
 
 // For search results ONLY - includes content preview
 export function formatSearchResult(doc: Document, contentPreview: string): Document & { content: string } {
@@ -37,8 +38,9 @@ export async function detectAnnotationsInDocument(
   // Only process text content
   if (format === 'text/plain' || format === 'text/markdown') {
     // Load content from filesystem
-    const storage = getStorageService();
-    const contentBuffer = await storage.getDocument(documentId);
+    const basePath = getFilesystemConfig().path;
+    const contentManager = createContentManager(basePath);
+    const contentBuffer = await contentManager.get(documentId);
     const content = contentBuffer.toString('utf-8');
 
     // Use AI to extract entities

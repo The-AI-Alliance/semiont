@@ -21,6 +21,7 @@ import { nanoid } from 'nanoid';
 import { compareAnnotationIds } from '@semiont/core';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { extractEntityTypes } from '../../../graph/annotation-body-utils';
 
 type GenerateDocumentRequest = components['schemas']['GenerateDocumentRequest'];
 type CreateJobResponse = components['schemas']['CreateJobResponse'];
@@ -72,7 +73,7 @@ export function registerGenerateDocument(router: AnnotationsRouterType) {
         title: body.title,
         prompt: body.prompt,
         language: body.language,
-        entityTypes: annotation.body.entityTypes,
+        entityTypes: extractEntityTypes(annotation.body),
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3

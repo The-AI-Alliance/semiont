@@ -8,7 +8,7 @@
 import type { StoredEvent, DocumentEventType } from './event-utils';
 import type { Annotation } from './types';
 import { getExactText } from './selector-utils';
-import { compareAnnotationIds } from './annotation-utils';
+import { compareAnnotationIds, getTargetSelector } from './annotation-utils';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
@@ -36,14 +36,16 @@ export function formatEventType(type: DocumentEventType, t: TranslateFn, payload
     case 'annotation.removed': {
       return t('annotationRemoved');
     }
-    case 'annotation.resolved': {
-      return t('referenceResolved');
+    case 'annotation.body.updated': {
+      return t('annotationBodyUpdated');
     }
 
     case 'entitytag.added':
       return t('entitytagAdded');
     case 'entitytag.removed':
       return t('entitytagRemoved');
+    case 'entitytype.added':
+      return t('entitytypeAdded');
 
     default:
       const _exhaustiveCheck: never = type;
@@ -73,13 +75,15 @@ export function getEventEmoji(type: DocumentEventType, payload?: any): string {
     case 'annotation.removed': {
       return '🗑️';
     }
-    case 'annotation.resolved': {
-      return '🔗';
+    case 'annotation.body.updated': {
+      return '✏️';
     }
 
     case 'entitytag.added':
     case 'entitytag.removed':
       return '🏷️';
+    case 'entitytype.added':
+      return '🏷️';  // Same emoji as entitytag (global entity type collection)
 
     default:
       const _exhaustiveCheck: never = type;
@@ -133,15 +137,16 @@ export function getEventDisplayContent(
     }
 
     // Unified annotation events
-    case 'annotation.resolved': {
+    case 'annotation.body.updated': {
       // Find current annotation to get its text
       const annotation = annotations.find(a =>
         compareAnnotationIds(a.id, payload.annotationId)
       );
 
-      if (annotation?.target?.selector) {
+      if (annotation?.target) {
         try {
-          const exact = getExactText(annotation.target.selector as any);
+          const targetSelector = getTargetSelector(annotation.target);
+          const exact = getExactText(targetSelector);
           if (exact) {
             return { exact: truncateText(exact), isQuoted: true, isTag: false };
           }
