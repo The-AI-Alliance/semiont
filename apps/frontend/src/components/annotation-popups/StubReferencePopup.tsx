@@ -9,7 +9,7 @@ import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components } from '@semiont/api-client';
-import { getEntityTypes } from '@/lib/api';
+import { getEntityTypes } from '@semiont/api-client';
 
 type ReferenceAnnotation = components['schemas']['Annotation'];
 type AnnotationUpdate = Partial<components['schemas']['Annotation']>;

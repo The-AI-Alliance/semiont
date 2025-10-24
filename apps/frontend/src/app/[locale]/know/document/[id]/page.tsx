@@ -36,7 +36,7 @@ import { CollaborationPanel } from '@/components/document/panels/CollaborationPa
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
 import { JsonLdPanel } from '@/components/document/panels/JsonLdPanel';
 import { Toolbar } from '@/components/Toolbar';
-import { extractAnnotationId, compareAnnotationIds } from '@/lib/api';
+import { extractAnnotationId, compareAnnotationIds } from '@semiont/api-client';
 
 // Loading state component
 function DocumentLoadingState() {

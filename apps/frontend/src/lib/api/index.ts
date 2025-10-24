@@ -1,17 +1,14 @@
 /**
  * Frontend API Client
  *
- * Pure TanStack Query hooks that use types from @semiont/api-client.
+ * Pure TanStack Query hooks for API calls.
  * Domain-based organization for better maintainability.
- *
- * NOTE: Types are imported directly from @semiont/api-client.
- * Do NOT re-export types from this file.
  */
 
 // Re-export query keys
 export { QUERY_KEYS } from '../query-keys';
 
-// API Error class (not in OpenAPI spec, defined here)
+// API Error class (frontend-specific, not in OpenAPI spec)
 export class APIError extends Error {
   public status: number;
   public statusText: string;
@@ -33,64 +30,10 @@ export class APIError extends Error {
   }
 }
 
-// Re-export utilities from @semiont/api-client SDK
-export {
-  // Annotation utilities
-  isHighlight,
-  isReference,
-  isStubReference,
-  isResolvedReference,
-  extractAnnotationId,
-  compareAnnotationIds,
-  getBodySource,
-  getBodyType,
-  isBodyResolved,
-  getTargetSource,
-  getTargetSelector,
-  hasTargetSelector,
-  getEntityTypes,
-  // Selector utilities
-  getExactText,
-  getAnnotationExactText,
-  getPrimarySelector,
-  getTextPositionSelector,
-  getTextQuoteSelector,
-  // Event utilities
-  getAnnotationIdFromEvent,
-  isEventRelatedToAnnotation,
-  isDocumentEvent,
-  // Locales
-  LOCALES,
-} from '@semiont/api-client';
-
-export type {
-  Selector,
-  TextPositionSelector,
-  TextQuoteSelector,
-  LocaleInfo,
-  StoredEvent,
-  DocumentEvent,
-  EventMetadata,
-  DocumentEventType,
-} from '@semiont/api-client';
-
-// Export individual domain APIs
+// Export React Query hooks (domain-based)
 export { health } from './health';
 export { auth } from './auth';
 export { admin } from './admin';
 export { entityTypes } from './entity-types';
 export { documents } from './documents';
 export { annotations } from './annotations';
-
-export {
-  formatEventType,
-  getEventEmoji,
-  formatRelativeTime,
-  getEventDisplayContent,
-  getEventEntityTypes,
-  getDocumentCreationDetails,
-} from '@semiont/api-client';
-
-export type { DocumentCreationDetails } from '@semiont/api-client';
-
-export { formatLocaleDisplay } from '@semiont/api-client';

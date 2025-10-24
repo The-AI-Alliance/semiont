@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { annotations } from '@/lib/api';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import type { components, paths } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector } from '@/lib/api';
+import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
