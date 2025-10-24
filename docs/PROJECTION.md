@@ -4,7 +4,7 @@
 
 Semiont's Projection Storage is a **Layer 3** component that provides materialized views of document state and annotations. It stores the current state of documents built from Layer 2 event streams, optimized for fast read access without requiring event replay.
 
-**Architecture Position**: Projection Storage sits between Layer 2 (Event Store) and Layer 4 (Graph Database). It receives updates from EventProjector and provides fast queries for the API layer. See [ARCHITECTURE.md](./ARCHITECTURE.md) and [EVENT-STORE.md](./EVENT-STORE.md) for complete layer details.
+**Architecture Position**: Projection Storage sits between Layer 2 (Event Store) and Layer 4 (Graph Database). Layer 1 stores raw document content, Layer 2 records events, Layer 3 materializes current state, and Layer 4 handles relationships. See [CONTENT-STORE.md](./CONTENT-STORE.md), [EVENT-STORE.md](./EVENT-STORE.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [GRAPH.md](./GRAPH.md) for complete layer details.
 
 **Quick Navigation:**
 - [Core Design Principles](#core-design-principles) - Why this architecture works
