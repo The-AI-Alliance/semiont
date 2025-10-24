@@ -170,12 +170,17 @@ describe('EventProjector', () => {
         motivation: 'highlighting' as const,
         target: {
           source: 'doc1',
-          selector: {
-            type: 'TextPositionSelector' as const,
-            exact: 'highlighted text',
-            offset: 0,
-            length: 16,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector' as const,
+              start: 0,
+              end: 16,
+            },
+            {
+              type: 'TextQuoteSelector' as const,
+              exact: 'highlighted text',
+            },
+          ],
         },
         body: [],
         modified: new Date().toISOString(),

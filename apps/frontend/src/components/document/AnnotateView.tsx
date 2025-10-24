@@ -2,8 +2,10 @@
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import type { Annotation } from '@/lib/api';
+import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@/lib/api';
+
+type Annotation = components['schemas']['Annotation'];
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
@@ -44,8 +46,8 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
       const posSelector = getTextPositionSelector(targetSelector);
       return {
         annotation: ann,
-        start: posSelector?.offset ?? 0,
-        end: (posSelector?.offset ?? 0) + (posSelector?.length ?? 0)
+        start: posSelector?.start ?? 0,
+        end: posSelector?.end ?? 0
       };
     })
     .filter(a => a.start >= 0 && a.end <= exact.length && a.start < a.end)

@@ -3,9 +3,8 @@
 
 import { GraphDatabase } from '../interface';
 import { extractEntityTypes, extractBodySource } from '../annotation-body-utils';
-import {
-  Document,
-  Annotation,
+import type { components } from '@semiont/api-client';
+import type {
   AnnotationCategory,
   GraphConnection,
   GraphPath,
@@ -14,10 +13,13 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
-  getExactText,
 } from '@semiont/core';
+import { getExactText } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
+
+type Document = components['schemas']['Document'];
+type Annotation = components['schemas']['Annotation'];
 
 // Dynamic imports for AWS SDK and Gremlin
 let NeptuneClient: any;

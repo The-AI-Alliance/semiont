@@ -86,12 +86,17 @@ describe('Event Store', () => {
           motivation: 'highlighting' as const,
           target: {
             source: docId,
-            selector: {
-              type: 'TextPositionSelector',
-              exact: 'Test',
-              offset: 0,
-              length: 4,
-            },
+            selector: [
+              {
+                type: 'TextPositionSelector',
+                start: 0,
+                end: 4,
+              },
+              {
+                type: 'TextQuoteSelector',
+                exact: 'Test',
+              },
+            ],
           },
           body: [], // Empty body array (no entity tags)
           modified: new Date().toISOString(),

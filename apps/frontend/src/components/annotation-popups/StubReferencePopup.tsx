@@ -8,8 +8,12 @@ import { SearchDocumentsModal } from '../modals/SearchDocumentsModal';
 import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
-import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/lib/api';
+import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@/lib/api';
+
+type ReferenceAnnotation = components['schemas']['Annotation'];
+type AnnotationUpdate = Partial<components['schemas']['Annotation']>;
+type TextSelection = { exact: string; start: number; end: number };
 
 interface StubReferencePopupProps {
   isOpen: boolean;

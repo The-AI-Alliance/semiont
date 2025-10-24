@@ -11,8 +11,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { Annotation } from '@semiont/core';
+import type { components } from '@semiont/api-client';
 import { getEntityTypes, getBodySource, isResolved } from './helpers/annotation-helpers';
+
+type Annotation = components['schemas']['Annotation'];
 
 describe('W3C Web Annotation Compliance', () => {
   describe('Stub Reference Validation', () => {
@@ -25,12 +27,17 @@ describe('W3C Web Annotation Compliance', () => {
         motivation: 'linking',
         target: {
           source: 'doc-123',
-          selector: {
-            type: 'TextPositionSelector',
-            exact: 'Albert Einstein',
-            offset: 0,
-            length: 15,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: 0,
+              end: 15,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: 'Albert Einstein',
+            },
+          ],
         },
         body: [], // W3C allows zero bodies
         creator: {
@@ -117,12 +124,17 @@ describe('W3C Web Annotation Compliance', () => {
         motivation: 'linking',
         target: {
           source: 'doc-source-123',
-          selector: {
-            type: 'TextPositionSelector',
-            exact: 'relativity theory',
-            offset: 100,
-            length: 17,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: 100,
+              end: 117,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: 'relativity theory',
+            },
+          ],
         },
         body: [
           {
@@ -363,12 +375,17 @@ describe('W3C Web Annotation Compliance', () => {
         motivation: 'highlighting',
         target: {
           source: 'doc-456',
-          selector: {
-            type: 'TextPositionSelector',
-            exact: 'important text',
-            offset: 0,
-            length: 14,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: 0,
+              end: 14,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: 'important text',
+            },
+          ],
         },
         body: [
           {

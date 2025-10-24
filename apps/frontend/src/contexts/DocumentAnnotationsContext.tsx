@@ -1,10 +1,14 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { annotations } from '@/lib/api';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { Annotation, CreateAnnotationRequest } from '@/lib/api';
+import type { components, paths } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector } from '@/lib/api';
+
+type Annotation = components['schemas']['Annotation'];
+type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
+type CreateAnnotationRequest = RequestContent<paths['/api/annotations']['post']>;
 
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
@@ -30,9 +34,9 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
   // Set up mutation hooks
-  const saveHighlightMutation = api.annotations.saveAsHighlight.useMutation();
-  const createAnnotationMutation = api.annotations.create.useMutation();
-  const deleteAnnotationMutation = api.annotations.delete.useMutation();
+  const saveHighlightMutation = annotations.saveAsHighlight.useMutation();
+  const createAnnotationMutation = annotations.create.useMutation();
+  const deleteAnnotationMutation = annotations.delete.useMutation();
 
   const addHighlight = useCallback(async (
     documentId: string,
@@ -84,12 +88,17 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         motivation: 'linking',
         target: {
           source: documentId,
-          selector: {
-            type: 'TextPositionSelector',
-            exact: exact,
-            offset: position.start,
-            length: position.end - position.start,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: position.start,
+              end: position.end,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: exact,
+            },
+          ],
         },
         // Build body array with entity tag bodies + linking body (if resolved)
         body: (() => {
@@ -159,12 +168,17 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         motivation: 'assessing',  // W3C motivation for assessments
         target: {
           source: documentId,
-          selector: {
-            type: 'TextPositionSelector',
-            exact: exact,
-            offset: position.start,
-            length: position.end - position.start,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: position.start,
+              end: position.end,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: exact,
+            },
+          ],
         },
         // Empty body array (assessments don't have bodies yet)
         body: [],
@@ -236,7 +250,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       await addReference(
         targetSource,
         getExactText(targetSelector),
-        { start: posSelector.offset, end: posSelector.offset + posSelector.length },
+        { start: posSelector.start, end: posSelector.end },
         targetDocId,
         entityType,
         referenceType
@@ -271,7 +285,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       await addHighlight(
         targetSource,
         getExactText(targetSelector),
-        { start: posSelector.offset, end: posSelector.offset + posSelector.length }
+        { start: posSelector.start, end: posSelector.end }
       );
     } catch (err) {
       console.error('Failed to convert reference to highlight:', err);

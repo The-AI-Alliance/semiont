@@ -4,7 +4,7 @@
  */
 
 import { NEXT_PUBLIC_API_URL } from '../env';
-import { APIError } from './types';
+import { APIError } from './index';
 
 /**
  * Fetch helper with authentication

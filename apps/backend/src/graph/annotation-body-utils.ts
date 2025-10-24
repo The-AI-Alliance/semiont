@@ -5,8 +5,10 @@
  * This file re-exports them for backward compatibility.
  */
 
-import type { Annotation } from '@semiont/core';
+import type { components } from '@semiont/api-client';
 import { extractEntityTypes as coreExtractEntityTypes, extractBodySource as coreExtractBodySource } from '@semiont/core';
+
+type Annotation = components['schemas']['Annotation'];
 
 /**
  * Extract entity types from annotation body array

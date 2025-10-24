@@ -18,19 +18,21 @@
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { createEventStore } from '../../services/event-store-service';
-import {
-  getTextPositionSelector,
-  type Annotation,
-  type AnnotationAddedEvent,
-  type BodyOperation,
+import type { components } from '@semiont/api-client';
+import type {
+  AnnotationAddedEvent,
+  BodyOperation,
 } from '@semiont/core';
+import { getTextPositionSelector } from '@semiont/core';
 import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
+
 import { validateRequestBody } from '../../middleware/validate-openapi';
-import type { components } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../config/environment-loader';
+
+type Annotation = components['schemas']['Annotation'];
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type CreateAnnotationResponse = components['schemas']['CreateAnnotationResponse'];
@@ -61,7 +63,7 @@ crudRouter.post('/api/annotations',
       console.error('Failed to generate annotation ID:', error);
       throw new HTTPException(500, { message: 'Failed to create annotation' });
     }
-    // Extract TextPositionSelector for event (events require offset/length)
+    // Extract TextPositionSelector (required for creating annotations)
     const posSelector = getTextPositionSelector(request.target.selector);
     if (!posSelector) {
       throw new HTTPException(400, { message: 'TextPositionSelector required for creating annotations' });

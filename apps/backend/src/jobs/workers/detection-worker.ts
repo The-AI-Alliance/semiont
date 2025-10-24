@@ -112,12 +112,17 @@ export class DetectionWorker extends JobWorker {
                 motivation: 'linking' as const,
                 target: {
                   source: job.documentId,
-                  selector: {
-                    type: 'TextPositionSelector',
-                    exact: detected.annotation.selector.exact,
-                    offset: detected.annotation.selector.offset,
-                    length: detected.annotation.selector.length,
-                  },
+                  selector: [
+                    {
+                      type: 'TextPositionSelector',
+                      start: detected.annotation.selector.start,
+                      end: detected.annotation.selector.end,
+                    },
+                    {
+                      type: 'TextQuoteSelector',
+                      exact: detected.annotation.selector.exact,
+                    },
+                  ],
                 },
                 body: (detected.annotation.entityTypes || []).map(et => ({
                   type: 'TextualBody' as const,

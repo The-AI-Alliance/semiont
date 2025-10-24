@@ -3,7 +3,11 @@
 import React, { useMemo } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import type { Annotation, ReferencedBy } from '@/lib/api';
+import type { components, paths } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
+type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+type ReferencedBy = ResponseContent<paths['/api/documents/{id}/referenced-by']['get']>['referencedBy'][number];
 import { formatLocaleDisplay, getBodySource, isBodyResolved, getEntityTypes } from '@/lib/api';
 
 interface Props {

@@ -2,7 +2,9 @@
  * Helper functions for creating W3C-compliant test annotations
  */
 
-import type { Annotation } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
 
 /**
  * Extract entity types from annotation bodies

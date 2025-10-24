@@ -16,8 +16,11 @@
  */
 
 import { promises as fs } from 'fs';
-import type { Document, DocumentAnnotations } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+import type { DocumentAnnotations } from '@semiont/core';
 import { PathBuilder } from '../shared/path-builder';
+
+type Document = components['schemas']['Document'];
 
 // Complete state for a document in Layer 3 (metadata + annotations)
 export interface DocumentState {

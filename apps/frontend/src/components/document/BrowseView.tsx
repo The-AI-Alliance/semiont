@@ -5,8 +5,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { remarkAnnotations } from '@/lib/remark-annotations';
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
-import type { Annotation } from '@/lib/api';
+import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource } from '@/lib/api';
+
+type Annotation = components['schemas']['Annotation'];
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import '@/styles/animations.css';
 
@@ -37,8 +39,8 @@ function prepareAnnotations(annotations: Annotation[]) {
       return {
         id: ann.id,
         exact: getExactText(targetSelector),
-        offset: posSelector?.offset ?? 0,
-        length: posSelector?.length ?? 0,
+        start: posSelector?.start ?? 0,
+        end: posSelector?.end ?? 0,
         type,
         source: getBodySource(ann.body)
       };

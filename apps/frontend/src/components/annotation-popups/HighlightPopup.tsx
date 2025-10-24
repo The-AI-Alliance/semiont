@@ -6,7 +6,11 @@ import { PopupContainer, PopupHeader } from './SharedPopupElements';
 import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
-import type { HighlightAnnotation, AnnotationUpdate, TextSelection } from '@/lib/api';
+import type { components } from '@semiont/api-client';
+
+type HighlightAnnotation = components['schemas']['Annotation'];
+type AnnotationUpdate = Partial<components['schemas']['Annotation']>;
+type TextSelection = { exact: string; start: number; end: number };
 
 interface HighlightPopupProps {
   isOpen: boolean;

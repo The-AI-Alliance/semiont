@@ -8,7 +8,11 @@ import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
 import { getBodySource, getEntityTypes } from '@/lib/api/annotation-utils';
-import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/lib/api';
+import type { components } from '@semiont/api-client';
+
+type ReferenceAnnotation = components['schemas']['Annotation'];
+type AnnotationUpdate = Partial<components['schemas']['Annotation']>;
+type TextSelection = { exact: string; start: number; end: number };
 
 interface ResolvedReferencePopupProps {
   isOpen: boolean;

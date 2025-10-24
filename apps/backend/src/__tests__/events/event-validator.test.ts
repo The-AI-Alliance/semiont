@@ -277,12 +277,17 @@ describe('EventValidator', () => {
           motivation: 'highlighting' as const,
           target: {
             source: 'doc1',
-            selector: {
-              type: 'TextPositionSelector' as const,
-              exact: 'text',
-              offset: 0,
-              length: 4,
-            },
+            selector: [
+              {
+                type: 'TextPositionSelector' as const,
+                start: 0,
+                end: 4,
+              },
+              {
+                type: 'TextQuoteSelector' as const,
+                exact: 'text',
+              },
+            ],
           },
           body: [
             { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },

@@ -9,9 +9,13 @@ import {
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 import { useSession } from 'next-auth/react';
-import { api } from '@/lib/api';
-import type { OAuthProvider, OAuthConfigResponse } from '@/lib/api';
+import { admin } from '@/lib/api';
+import type { components, paths } from '@semiont/api-client';
 import { Toolbar } from '@/components/Toolbar';
+
+type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+type OAuthProvider = ResponseContent<paths['/api/admin/oauth/config']['get']>['providers'][number];
+type OAuthConfigResponse = ResponseContent<paths['/api/admin/oauth/config']['get']>;
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
@@ -27,7 +31,7 @@ export default function AdminSecurity() {
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Get OAuth configuration from API - only run when authenticated
-  const { data: oauthConfig, isLoading: oauthLoading } = api.admin.oauth.config.useQuery();
+  const { data: oauthConfig, isLoading: oauthLoading } = admin.oauth.config.useQuery();
 
   const allowedDomains = (oauthConfig as OAuthConfigResponse | undefined)?.allowedDomains ?? [];
   const providers = (oauthConfig as OAuthConfigResponse | undefined)?.providers ?? [];

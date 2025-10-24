@@ -3,29 +3,35 @@
  *
  * Pure TanStack Query hooks that use types from @semiont/api-client.
  * Domain-based organization for better maintainability.
+ *
+ * NOTE: Types are imported directly from @semiont/api-client.
+ * Do NOT re-export types from this file.
  */
 
-// Re-export types for convenience
-export type {
-  Document,
-  Annotation,
-  HighlightAnnotation,
-  ReferenceAnnotation,
-  AnnotationUpdate,
-  TextSelection,
-  CreateAnnotationRequest,
-  ReferencedBy,
-  AdminUser,
-  AdminUsersResponse,
-  AdminUserStatsResponse,
-  UpdateUserRequest,
-  OAuthProvider,
-  OAuthConfigResponse,
-} from './types';
-
-// Re-export API Error class and query keys
-export { APIError } from './types';
+// Re-export query keys
 export { QUERY_KEYS } from '../query-keys';
+
+// API Error class (not in OpenAPI spec, defined here)
+export class APIError extends Error {
+  public status: number;
+  public statusText: string;
+  public details: unknown;
+  public data: unknown;
+
+  constructor(
+    message: string,
+    status: number = 500,
+    statusText: string = 'Internal Server Error',
+    details?: unknown
+  ) {
+    super(message);
+    this.name = 'APIError';
+    this.status = status;
+    this.statusText = statusText;
+    this.details = details;
+    this.data = details;
+  }
+}
 
 // Re-export utilities
 export {
@@ -81,27 +87,6 @@ export { admin } from './admin';
 export { entityTypes } from './entity-types';
 export { documents } from './documents';
 export { annotations } from './annotations';
-
-// Import for main API object
-import { health } from './health';
-import { auth } from './auth';
-import { admin } from './admin';
-import { entityTypes } from './entity-types';
-import { documents } from './documents';
-import { annotations } from './annotations';
-
-/**
- * Main API object - for backward compatibility
- * Prefer importing individual domains directly for better tree-shaking
- */
-export const api = {
-  health,
-  auth,
-  admin,
-  entityTypes,
-  documents,
-  annotations,
-};
 
 export {
   formatEventType,

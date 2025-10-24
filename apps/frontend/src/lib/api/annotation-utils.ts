@@ -7,7 +7,11 @@
  * Target can be simple string IRI or object with source and optional selector
  */
 
-import type { Annotation, HighlightAnnotation, ReferenceAnnotation } from './types';
+import type { components } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
+type HighlightAnnotation = Annotation;
+type ReferenceAnnotation = Annotation;
 
 /**
  * Get the source from an annotation body (null if stub)

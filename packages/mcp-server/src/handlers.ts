@@ -72,28 +72,33 @@ export async function handleCreateAnnotation(client: SemiontApiClient, args: any
     motivation: 'highlighting',
     target: {
       source: args?.documentId,
-      selector: {
-        type: selectionData.type || 'TextPositionSelector',
-        exact: selectionData.text || '',
-        offset: selectionData.offset || 0,
-        length: selectionData.length || 0,
-      },
+      selector: [
+        {
+          type: 'TextPositionSelector',
+          start: selectionData.offset || 0,
+          end: (selectionData.offset || 0) + (selectionData.length || 0),
+        },
+        {
+          type: 'TextQuoteSelector',
+          exact: selectionData.text || '',
+        },
+      ],
     },
     body,
   });
 
-  // Safely get selector (target can be string or object)
+  // Safely get exact text from TextQuoteSelector
   const targetSelector = typeof data.annotation.target === 'string'
     ? undefined
     : data.annotation.target.selector;
-  const selector = targetSelector && Array.isArray(targetSelector)
-    ? targetSelector[0]
-    : targetSelector;
+  const selectors = Array.isArray(targetSelector) ? targetSelector : [targetSelector];
+  const textQuoteSelector = selectors.find(s => s?.type === 'TextQuoteSelector');
+  const exactText = textQuoteSelector && 'exact' in textQuoteSelector ? textQuoteSelector.exact : 'N/A';
 
   return {
     content: [{
       type: 'text' as const,
-      text: `Annotation created:\nID: ${data.annotation.id}\nMotivation: ${data.annotation.motivation}\nText: ${selector?.exact || 'N/A'}`,
+      text: `Annotation created:\nID: ${data.annotation.id}\nMotivation: ${data.annotation.motivation}\nText: ${exactText}`,
     }],
   };
 }
@@ -222,10 +227,11 @@ export async function handleGetDocumentHighlights(client: SemiontApiClient, args
     content: [{
       type: 'text' as const,
       text: `Found ${highlights.length} highlights in document:\n${highlights.map(h => {
-        // Safely get selector (target can be string or object)
+        // Safely get exact text from TextQuoteSelector
         const targetSelector = typeof h.target === 'string' ? undefined : h.target.selector;
-        const selector = targetSelector && Array.isArray(targetSelector) ? targetSelector[0] : targetSelector;
-        const text = selector?.exact || h.id;
+        const selectors = Array.isArray(targetSelector) ? targetSelector : [targetSelector];
+        const textQuoteSelector = selectors.find(s => s?.type === 'TextQuoteSelector');
+        const text = textQuoteSelector && 'exact' in textQuoteSelector ? textQuoteSelector.exact : h.id;
         return `- ${text}${h.creator ? ` (creator: ${h.creator.name})` : ''}`;
       }).join('\n')}`,
     }],
@@ -240,10 +246,11 @@ export async function handleGetDocumentReferences(client: SemiontApiClient, args
     content: [{
       type: 'text' as const,
       text: `Found ${references.length} references in document:\n${references.map(r => {
-        // Safely get selector (target can be string or object)
+        // Safely get exact text from TextQuoteSelector
         const targetSelector = typeof r.target === 'string' ? undefined : r.target.selector;
-        const selector = targetSelector && Array.isArray(targetSelector) ? targetSelector[0] : targetSelector;
-        const text = selector?.exact || r.id;
+        const selectors = Array.isArray(targetSelector) ? targetSelector : [targetSelector];
+        const textQuoteSelector = selectors.find(s => s?.type === 'TextQuoteSelector');
+        const text = textQuoteSelector && 'exact' in textQuoteSelector ? textQuoteSelector.exact : r.id;
         // Extract source from W3C body array
         const source = extractBodySource(r.body);
         return `- ${text} → ${source || 'stub (no link)'}`;

@@ -8,8 +8,11 @@
 
 import { createProjectionManager } from './storage-service';
 import { getGraphDatabase } from '../graph/factory';
-import type { Annotation, DocumentAnnotations } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+import type { DocumentAnnotations } from '@semiont/core';
 import { getFilesystemConfig } from '../config/environment-loader';
+
+type Annotation = components['schemas']['Annotation'];
 
 export class AnnotationQueryService {
   /**

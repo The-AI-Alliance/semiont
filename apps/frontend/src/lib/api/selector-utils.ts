@@ -2,50 +2,39 @@
  * Selector Utilities
  *
  * Helper functions for working with W3C Web Annotation selectors
- * These utilities are copied from SDK for frontend use
  */
 
-import type { Annotation } from './types';
+import type { components } from '@semiont/api-client';
 
-// Selector types extracted from Annotation type
-export type TextPositionSelector = {
-  type: 'TextPositionSelector';
-  exact: string;
-  offset: number;
-  length: number;
-};
+type Annotation = components['schemas']['Annotation'];
+type TextPositionSelector = components['schemas']['TextPositionSelector'];
+type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
+type Selector = TextPositionSelector | TextQuoteSelector;
 
-export type TextQuoteSelector = {
-  type: 'TextQuoteSelector';
-  exact: string;
-  prefix?: string;
-  suffix?: string;
-};
-
-export type Selector = TextPositionSelector | TextQuoteSelector;
+// Re-export selector types for convenience
+export type { TextPositionSelector, TextQuoteSelector, Selector };
 
 /**
  * Get the exact text from a selector (single or array)
  *
- * When selector is an array, returns the exact text from the first selector.
- * All selectors in an array should point to the same text, so first is preferred.
+ * When selector is an array, tries to find a TextQuoteSelector (which has exact text).
+ * TextPositionSelector does not have exact text, only character offsets.
  * Handles undefined selector (when target is a string IRI with no selector)
  */
 export function getExactText(selector: Selector | Selector[] | undefined): string {
   if (!selector) {
     return ''; // No selector means entire resource
   }
-  if (Array.isArray(selector)) {
-    if (selector.length === 0) {
-      throw new Error('Empty selector array');
-    }
-    const first = selector[0];
-    if (!first) {
-      throw new Error('Invalid selector array');
-    }
-    return first.exact;
+  const selectors = Array.isArray(selector) ? selector : [selector];
+
+  // Try to find TextQuoteSelector (has exact text)
+  const quoteSelector = selectors.find(s => s.type === 'TextQuoteSelector') as TextQuoteSelector | undefined;
+  if (quoteSelector) {
+    return quoteSelector.exact;
   }
-  return selector.exact;
+
+  // No TextQuoteSelector found
+  return '';
 }
 
 /**

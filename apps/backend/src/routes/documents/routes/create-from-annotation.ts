@@ -11,17 +11,18 @@
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { createContentManager } from '../../../services/storage-service';
-import type { Document, CreateDocumentInput, CreationMethod } from '@semiont/core';
-import { CREATION_METHODS } from '@semiont/core';
-import { calculateChecksum } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+import type { CreateDocumentInput, CreationMethod } from '@semiont/core';
+import { CREATION_METHODS, calculateChecksum } from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
-import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import { extractEntityTypes } from '../../../graph/annotation-body-utils';
 import { getFilesystemConfig } from '../../../config/environment-loader';
+
+type Document = components['schemas']['Document'];
 
 type CreateFromAnnotationRequest = components['schemas']['CreateFromAnnotationRequest'];
 type CreateFromAnnotationResponse = components['schemas']['CreateFromAnnotationResponse'];

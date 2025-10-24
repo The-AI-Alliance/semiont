@@ -12,14 +12,16 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { didToAgent } from '../../utils/id-generator';
+import type { components } from '@semiont/api-client';
 import type {
   DocumentEvent,
   StoredEvent,
-  Document,
   DocumentAnnotations,
 } from '@semiont/core';
 import { compareAnnotationIds, findBodyItem } from '@semiont/core';
 import type { ProjectionStorage, DocumentState } from '../../storage/projection-storage';
+
+type Document = components['schemas']['Document'];
 
 export interface ProjectorConfig {
   basePath: string;

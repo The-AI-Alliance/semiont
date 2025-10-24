@@ -1,18 +1,14 @@
 /**
  * @semiont/core
  *
- * Core domain types for the Semiont semantic knowledge platform.
- * Types are re-exported from @semiont/api-client (generated from OpenAPI spec).
+ * Core domain logic and utilities for the Semiont semantic knowledge platform.
+ * For OpenAPI types, import directly from @semiont/api-client.
  */
 
-// Re-export OpenAPI-generated types as the single source of truth
-export type { components, paths, operations } from '@semiont/api-client';
-
-// Re-export common schema types for convenience
-import type { components } from '@semiont/api-client';
-export type Document = components['schemas']['Document'];
-export type Annotation = components['schemas']['Annotation'];
-export type ContentFormat = components['schemas']['ContentFormat'];
+// NOTE: OpenAPI types are NOT re-exported from @semiont/core.
+// Import types directly from @semiont/api-client where needed:
+//   import type { components } from '@semiont/api-client';
+//   type Annotation = components['schemas']['Annotation'];
 
 // Creation methods
 export { CREATION_METHODS } from './creation-methods';

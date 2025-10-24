@@ -5,7 +5,10 @@ import '@testing-library/jest-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StubReferencePopup } from '../StubReferencePopup';
 import { useRouter } from '@/i18n/routing';
-import type { ReferenceAnnotation, TextSelection } from '@/lib/api';
+import type { components } from '@semiont/api-client';
+
+type ReferenceAnnotation = components['schemas']['Annotation'];
+type TextSelection = { exact: string; start: number; end: number };
 
 // Mock @/i18n/routing
 vi.mock('@/i18n/routing', () => ({
@@ -14,20 +17,13 @@ vi.mock('@/i18n/routing', () => ({
 
 // Mock API service
 vi.mock('@/lib/api', () => ({
-  apiService: {
-    documents: {
-      search: vi.fn(() => Promise.resolve({ documents: [] }))
-    }
-  },
-  api: {
-    documents: {
-      search: {
-        useQuery: vi.fn(() => ({
-          data: { documents: [] },
-          isLoading: false,
-          error: null
-        }))
-      }
+  documents: {
+    search: {
+      useQuery: vi.fn(() => ({
+        data: { documents: [] },
+        isLoading: false,
+        error: null
+      }))
     }
   },
   getEntityTypes: vi.fn((annotation: any) => {
@@ -77,12 +73,17 @@ describe('StubReferencePopup', () => {
       id: 'test-annotation',
       target: {
         source: 'test-doc',
-        selector: {
-          type: 'TextPositionSelector',
-          exact: 'Selected text',
-          offset: 0,
-          length: 13,
-        },
+        selector: [
+          {
+            type: 'TextPositionSelector',
+            start: 0,
+            end: 13,
+          },
+          {
+            type: 'TextQuoteSelector',
+            exact: 'Selected text',
+          },
+        ],
       },
       // Stub reference has empty body array
       body: [],

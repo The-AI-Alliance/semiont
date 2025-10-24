@@ -3,7 +3,10 @@
  * These styles are used across the application for consistent appearance
  */
 
-import { isHighlight, isReference, type Annotation } from '@/lib/api';
+import { isHighlight, isReference } from '@/lib/api';
+import type { components } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
 
 export const annotationStyles = {
   // Highlight annotation style - dark yellow with dashed ring
