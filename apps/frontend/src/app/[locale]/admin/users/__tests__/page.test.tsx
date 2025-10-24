@@ -8,21 +8,19 @@ import { admin } from '@/lib/api';
 
 // Mock the API client
 vi.mock('@/lib/api', () => ({
-  api: {
-    admin: {
-      users: {
-        all: {
-          useQuery: vi.fn()
-        },
-        stats: {
-          useQuery: vi.fn()
-        },
-        update: {
-          useMutation: vi.fn()
-        },
-        delete: {
-          useMutation: vi.fn()
-        }
+  admin: {
+    users: {
+      all: {
+        useQuery: vi.fn()
+      },
+      stats: {
+        useQuery: vi.fn()
+      },
+      update: {
+        useMutation: vi.fn()
+      },
+      delete: {
+        useMutation: vi.fn()
       }
     }
   }
