@@ -126,8 +126,11 @@ export function useDocumentEvents({
   ]);
 
   const connect = useCallback(async () => {
+    console.log(`[DocumentEvents] Attempting to connect to document ${documentId} events stream`);
+
     // Close any existing connection
     if (abortControllerRef.current) {
+      console.log(`[DocumentEvents] Closing existing connection for ${documentId}`);
       abortControllerRef.current.abort();
     }
 
@@ -139,11 +142,13 @@ export function useDocumentEvents({
 
     // Get auth token from session
     if (!session?.backendToken) {
+      console.error(`[DocumentEvents] Cannot connect to ${documentId}: No auth token`);
       onError?.('Authentication required');
       setStatus('error');
       return;
     }
 
+    console.log(`[DocumentEvents] Connecting to SSE stream for document ${documentId}`);
     setStatus('connecting');
 
     // Create new abort controller
@@ -164,9 +169,11 @@ export function useDocumentEvents({
 
         async onopen(response) {
           if (response.ok) {
+            console.log(`[DocumentEvents] Successfully connected to document ${documentId} events stream`);
             setStatus('connected');
             reconnectAttemptsRef.current = 0; // Reset reconnect counter
           } else {
+            console.error(`[DocumentEvents] Failed to open stream for ${documentId}: ${response.status}`);
             throw new Error(`Failed to open stream: ${response.status}`);
           }
         },
@@ -179,8 +186,11 @@ export function useDocumentEvents({
 
           // Handle stream-connected event
           if (msg.event === 'stream-connected') {
+            console.log(`[DocumentEvents] Stream connected event received for ${documentId}`);
             return;
           }
+
+          console.log(`[DocumentEvents] Received event for document ${documentId}:`, msg.event);
 
           // Handle document events
           try {

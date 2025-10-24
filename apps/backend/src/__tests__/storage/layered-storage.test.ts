@@ -28,6 +28,7 @@ describe('Layered Storage', () => {
     projectionStorage = new FilesystemProjectionStorage(testDir);
 
     eventStore = new EventStore({
+      basePath: testDir,
       dataDir: testDir,
       enableSharding: true,
       maxEventsPerFile: 100,

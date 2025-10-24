@@ -257,7 +257,18 @@ if (CONFIG.NODE_ENV !== 'test') {
   }, async (info) => {
     console.log(`🚀 Server ready at http://localhost:${info.port}`);
     console.log(`📡 API ready at http://localhost:${info.port}/api`);
-    
+
+    // Bootstrap entity types projection if it doesn't exist
+    try {
+      console.log('🌱 Bootstrapping entity types...');
+      const { bootstrapEntityTypes } = await import('./bootstrap/entity-types-bootstrap');
+      await bootstrapEntityTypes();
+      console.log('✅ Entity types bootstrap complete');
+    } catch (error) {
+      console.error('⚠️ Failed to bootstrap entity types:', error);
+      // Continue running even if bootstrap fails
+    }
+
     // Initialize graph database and seed tag collections
     try {
       console.log('🔧 Initializing graph database...');

@@ -35,13 +35,13 @@ export function useGenerationProgress({
   const startGeneration = useCallback(async (
     referenceId: string,
     documentId: string,
-    options?: { prompt?: string; title?: string; locale?: string }
+    options?: { prompt?: string; title?: string; language?: string }
   ) => {
     console.log('[useGenerationProgress] startGeneration called with:', {
       referenceId,
       documentId,
       options,
-      locale: options?.locale
+      language: options?.language
     });
 
     // Close any existing connection

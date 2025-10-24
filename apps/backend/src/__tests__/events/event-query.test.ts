@@ -23,6 +23,7 @@ describe('EventQuery', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     storage = new EventStorage({
+      basePath: testDir,
       dataDir: testDir,
       enableSharding: false, // Faster for tests
       maxEventsPerFile: 100,

@@ -397,10 +397,10 @@ function DocumentView({
     clearNewAnnotationId(fullUri);
 
     // Widget sparkle (✨ emoji) will show automatically during generation via generatingReferenceId
-    // Pass locale to ensure generated content is in the user's preferred language
-    const optionsWithLocale = { ...options, locale };
-    console.log('[DocumentPage] Calling startGeneration with:', optionsWithLocale);
-    startGeneration(referenceId, documentId, optionsWithLocale);
+    // Pass language (using locale from Next.js routing) to ensure generated content is in the user's preferred language
+    const optionsWithLanguage = { ...options, language: locale };
+    console.log('[DocumentPage] Calling startGeneration with:', optionsWithLanguage);
+    startGeneration(referenceId, documentId, optionsWithLanguage);
   }, [startGeneration, documentId, clearNewAnnotationId, locale]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
