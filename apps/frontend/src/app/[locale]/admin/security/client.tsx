@@ -9,7 +9,7 @@ import {
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 import { useSession } from 'next-auth/react';
-import { api } from '@/lib/api';
+import { admin } from '@/lib/api';
 import type { components, paths } from '@semiont/api-client';
 import { Toolbar } from '@/components/Toolbar';
 
@@ -31,7 +31,7 @@ export default function AdminSecurity() {
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Get OAuth configuration from API - only run when authenticated
-  const { data: oauthConfig, isLoading: oauthLoading } = api.admin.oauth.config.useQuery();
+  const { data: oauthConfig, isLoading: oauthLoading } = admin.oauth.config.useQuery();
 
   const allowedDomains = (oauthConfig as OAuthConfigResponse | undefined)?.allowedDomains ?? [];
   const providers = (oauthConfig as OAuthConfigResponse | undefined)?.providers ?? [];

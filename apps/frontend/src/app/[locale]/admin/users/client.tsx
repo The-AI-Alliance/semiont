@@ -13,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { api } from '@/lib/api';
+import { admin } from '@/lib/api';
 import type { paths } from '@semiont/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -136,8 +136,8 @@ export default function AdminUsers() {
 
   const queryClient = useQueryClient();
   // Only run queries when authenticated
-  const { data: usersResponse, isLoading: usersLoading, error: usersError } = api.admin.users.all.useQuery();
-  const { data: statsResponse, isLoading: statsLoading, error: statsError } = api.admin.users.stats.useQuery();
+  const { data: usersResponse, isLoading: usersLoading, error: usersError } = admin.users.all.useQuery();
+  const { data: statsResponse, isLoading: statsLoading, error: statsError } = admin.users.stats.useQuery();
   
   // Debug logging for API responses
   React.useEffect(() => {
@@ -146,8 +146,8 @@ export default function AdminUsers() {
     if (usersResponse) console.log('Users Response:', usersResponse);
     if (statsResponse) console.log('Stats Response:', statsResponse);
   }, [usersError, statsError, usersResponse, statsResponse]);
-  const updateUserMutation = api.admin.users.update.useMutation();
-  const deleteUserMutation = api.admin.users.delete.useMutation();
+  const updateUserMutation = admin.users.update.useMutation();
+  const deleteUserMutation = admin.users.delete.useMutation();
 
   const users = (usersResponse as AdminUsersResponse | undefined)?.users ?? [];
   const userStats = (statsResponse as AdminUserStatsResponse | undefined)?.stats;

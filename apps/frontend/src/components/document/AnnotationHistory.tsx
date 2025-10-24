@@ -2,7 +2,7 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { api } from '@/lib/api';
+import { documents } from '@/lib/api';
 import { type StoredEvent, isEventRelatedToAnnotation } from '@/lib/api';
 import { HistoryEvent } from './HistoryEvent';
 
@@ -18,10 +18,10 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
 
   // Load events using React Query
   // React Query will automatically refetch when the query is invalidated by the parent
-  const { data: eventsData, isLoading: loading, isError: error } = api.documents.events.useQuery(documentId);
+  const { data: eventsData, isLoading: loading, isError: error } = documents.events.useQuery(documentId);
 
   // Load annotations to look up text for removed/resolved events (single request)
-  const { data: annotationsData } = api.documents.annotations.useQuery(documentId);
+  const { data: annotationsData } = documents.annotations.useQuery(documentId);
   const annotations = annotationsData?.annotations || [];
 
   // Refs to track event elements for scrolling

@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { api } from '@/lib/api';
+import { documents,annotations,entityTypes } from '@/lib/api';
 import { buttonStyles } from '@/lib/button-styles';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
@@ -46,16 +46,16 @@ function ComposeDocumentContent() {
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Fetch available entity types
-  const { data: entityTypesData } = api.entityTypes.all.useQuery();
+  const { data: entityTypesData } = entityTypes.all.useQuery();
   const availableEntityTypes = entityTypesData?.entityTypes || [];
 
   // Set up mutation hooks
-  const createDocMutation = api.documents.create.useMutation();
-  const updateAnnotationBodyMutation = api.annotations.updateBody.useMutation();
+  const createDocMutation = documents.create.useMutation();
+  const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
 
   // Fetch cloned document data if in clone mode
-  const { data: cloneData } = api.documents.getByToken.useQuery(tokenFromUrl || '');
-  const createFromTokenMutation = api.documents.createFromToken.useMutation();
+  const { data: cloneData } = documents.getByToken.useQuery(tokenFromUrl || '');
+  const createFromTokenMutation = documents.createFromToken.useMutation();
 
   // Load cloned document data if in clone mode or pre-fill reference completion data
   useEffect(() => {

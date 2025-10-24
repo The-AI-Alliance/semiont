@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { annotations } from '@/lib/api';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import type { components, paths } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector } from '@/lib/api';
@@ -34,9 +34,9 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
   // Set up mutation hooks
-  const saveHighlightMutation = api.annotations.saveAsHighlight.useMutation();
-  const createAnnotationMutation = api.annotations.create.useMutation();
-  const deleteAnnotationMutation = api.annotations.delete.useMutation();
+  const saveHighlightMutation = annotations.saveAsHighlight.useMutation();
+  const createAnnotationMutation = annotations.create.useMutation();
+  const deleteAnnotationMutation = annotations.delete.useMutation();
 
   const addHighlight = useCallback(async (
     documentId: string,

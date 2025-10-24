@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { api } from '@/lib/api';
+import { documents, entityTypes as entityTypesAPI } from '@/lib/api';
 import type { components } from '@semiont/api-client';
 
 type Document = components['schemas']['Document'];
@@ -113,16 +113,16 @@ export default function DiscoverPage() {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // Load recent documents using React Query
-  const { data: recentDocsData, isLoading: isLoadingRecent } = api.documents.list.useQuery(
+  const { data: recentDocsData, isLoading: isLoadingRecent } = documents.list.useQuery(
     10,
     false
   );
 
   // Load entity types using React Query
-  const { data: entityTypesData } = api.entityTypes.all.useQuery();
+  const { data: entityTypesData } = entityTypesAPI.all.useQuery();
 
   // Search documents using React Query (only when there's a search query)
-  const { data: searchData, isFetching: isSearching } = api.documents.search.useQuery(
+  const { data: searchData, isFetching: isSearching } = documents.search.useQuery(
     debouncedSearchQuery,
     20
   );

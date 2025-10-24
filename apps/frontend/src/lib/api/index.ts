@@ -88,27 +88,6 @@ export { entityTypes } from './entity-types';
 export { documents } from './documents';
 export { annotations } from './annotations';
 
-// Import for main API object
-import { health } from './health';
-import { auth } from './auth';
-import { admin } from './admin';
-import { entityTypes } from './entity-types';
-import { documents } from './documents';
-import { annotations } from './annotations';
-
-/**
- * Main API object - for backward compatibility
- * Prefer importing individual domains directly for better tree-shaking
- */
-export const api = {
-  health,
-  auth,
-  admin,
-  entityTypes,
-  documents,
-  annotations,
-};
-
 export {
   formatEventType,
   getEventEmoji,

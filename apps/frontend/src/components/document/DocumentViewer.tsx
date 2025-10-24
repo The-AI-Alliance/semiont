@@ -9,7 +9,7 @@ import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes } from '@/lib/api';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { api } from '@/lib/api';
+import { annotations } from '@/lib/api';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontDocument = components['schemas']['Document'];
@@ -58,7 +58,7 @@ export function DocumentViewer({
   } = useDocumentAnnotations();
 
   // API mutations
-  const updateAnnotationBodyMutation = api.annotations.updateBody.useMutation();
+  const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
 
   // Annotation popup state
   const [selectedText, setSelectedText] = useState<string>('');

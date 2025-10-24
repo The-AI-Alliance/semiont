@@ -7,7 +7,7 @@ import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { api, QUERY_KEYS } from '@/lib/api';
+import { documents, entityTypes, QUERY_KEYS } from '@/lib/api';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
@@ -83,7 +83,7 @@ export default function KnowledgeDocumentPage() {
     isError,
     error,
     refetch: refetchDocument
-  } = api.documents.get.useQuery(documentId);
+  } = documents.get.useQuery(documentId);
 
   // Log error for debugging
   useEffect(() => {
@@ -160,7 +160,7 @@ function DocumentView({
   }, [documentId, session?.backendToken, showError]);
 
   // Fetch all annotations with a single request
-  const { data: annotationsData, refetch: refetchAnnotations } = api.documents.annotations.useQuery(documentId);
+  const { data: annotationsData, refetch: refetchAnnotations } = documents.annotations.useQuery(documentId);
   const annotations = annotationsData?.annotations || [];
 
   // Filter by motivation client-side
@@ -179,20 +179,20 @@ function DocumentView({
     },
     500 // Wait 500ms after last event before invalidating (batches rapid updates)
   );
-  const { data: referencedByData, isLoading: referencedByLoading } = api.documents.referencedBy.useQuery(documentId);
+  const { data: referencedByData, isLoading: referencedByLoading } = documents.referencedBy.useQuery(documentId);
   const referencedBy = referencedByData?.referencedBy || [];
 
   // Derived state
   const documentEntityTypes = document.entityTypes || [];
 
   // Get entity types for detection
-  const { data: entityTypesData } = api.entityTypes.all.useQuery();
+  const { data: entityTypesData } = entityTypes.all.useQuery();
   const allEntityTypes = entityTypesData?.entityTypes || [];
 
   // Set up mutations
-  const updateDocMutation = api.documents.update.useMutation();
-  const createDocMutation = api.documents.create.useMutation();
-  const generateCloneTokenMutation = api.documents.generateCloneToken.useMutation();
+  const updateDocMutation = documents.update.useMutation();
+  const createDocMutation = documents.create.useMutation();
+  const generateCloneTokenMutation = documents.generateCloneToken.useMutation();
 
   const [annotateMode, setAnnotateMode] = useState(() => {
     if (typeof window !== 'undefined') {
