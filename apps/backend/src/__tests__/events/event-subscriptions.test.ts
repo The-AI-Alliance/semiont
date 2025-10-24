@@ -285,7 +285,7 @@ describe('EventSubscriptions', () => {
     });
 
     it('should support async callbacks', async () => {
-      const asyncCallback = vi.fn(async (event: StoredEvent) => {
+      const asyncCallback = vi.fn(async (_event: StoredEvent) => {
         await new Promise(resolve => setTimeout(resolve, 10));
         // Just process the event, don't return anything
       });

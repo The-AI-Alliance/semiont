@@ -34,21 +34,19 @@ describe('ProjectionStorage', () => {
       id: docId,
       name: `Test Document ${docId}`,
       format: 'text/plain',
-      creationMethod: 'manual',
+      creationMethod: 'ui',
       creator: {
         id: 'user-123',
         type: 'Person',
         name: 'Test User',
       },
       created: '2025-01-01T00:00:00.000Z',
-      modified: '2025-01-01T00:00:00.000Z',
       archived: false,
-      size: 100,
       entityTypes: [],
+      contentChecksum: 'sha256:test',
     };
 
     const annotations: DocumentAnnotations = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld',
       documentId: docId,
       version: 1,
       updatedAt: '2025-01-01T00:00:00.000Z',
