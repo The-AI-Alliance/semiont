@@ -17,20 +17,13 @@ vi.mock('@/i18n/routing', () => ({
 
 // Mock API service
 vi.mock('@/lib/api', () => ({
-  apiService: {
-    documents: {
-      search: vi.fn(() => Promise.resolve({ documents: [] }))
-    }
-  },
-  api: {
-    documents: {
-      search: {
-        useQuery: vi.fn(() => ({
-          data: { documents: [] },
-          isLoading: false,
-          error: null
-        }))
-      }
+  documents: {
+    search: {
+      useQuery: vi.fn(() => ({
+        data: { documents: [] },
+        isLoading: false,
+        error: null
+      }))
     }
   },
   getEntityTypes: vi.fn((annotation: any) => {
