@@ -3,42 +3,46 @@
  *
  * Single initialization point for EventStore and all its dependencies.
  * No singleton pattern - just a simple factory function.
+ * No getFilesystemConfig - requires explicit basePath.
  */
 
 import * as path from 'path';
 import { EventStore, type EventStoreConfig } from '../events/event-store';
 import { EventQuery } from '../events/query/event-query';
 import { EventValidator } from '../events/validation/event-validator';
-import { createProjectionManager } from './storage-service';
-import { getFilesystemConfig } from '../config/environment-loader';
+import { createProjectionManager, getBasePath } from './storage-service';
+
+export interface EventStoreServiceConfig extends EventStoreConfig {
+  basePath?: string;  // Optional: Base filesystem path (defaults to environment config)
+}
 
 /**
  * Create and initialize an EventStore instance
  * This is the ONE place where EventStore is instantiated
+ *
+ * @param config - Optional configuration
  */
-export async function createEventStore(config?: EventStoreConfig): Promise<EventStore> {
-  const filesystemConfig = getFilesystemConfig();
+export async function createEventStore(config?: EventStoreServiceConfig): Promise<EventStore> {
+  // Get base path from config or environment
+  const basePath = config?.basePath || getBasePath();
 
-  // Create ProjectionManager (Layer 3) - NO singleton
+  // Create ProjectionManager (Layer 3)
+  // Structure: <basePath>/projections/documents/...
   const projectionManager = createProjectionManager({
-    basePath: config?.dataDir || filesystemConfig.path,
+    basePath,
     subNamespace: 'documents',
   });
 
   // Determine data directory for events (Layer 2)
-  let dataDir: string;
-  if (config?.dataDir) {
-    dataDir = config.dataDir;
-  } else {
-    dataDir = path.join(filesystemConfig.path, 'events');
-  }
+  // Structure: <dataDir>/events/...
+  const dataDir = config?.dataDir || path.join(basePath, 'events');
 
   const eventStore = new EventStore({
+    ...config,
     dataDir,
     enableSharding: true,
     numShards: 65536,  // 4 hex digits
-    ...config
-  }, projectionManager);  // ProjectionManager implements old ProjectionStorage interface
+  }, projectionManager);
 
   return eventStore;
 }

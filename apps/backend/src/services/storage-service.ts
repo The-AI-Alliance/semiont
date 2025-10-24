@@ -4,7 +4,7 @@
  * Provides helper functions to create storage managers with correct configuration
  *
  * NO singletons - creates new instances
- * Uses environment configuration by default
+ * NO getFilesystemConfig calls - requires explicit basePath
  */
 
 import { getFilesystemConfig } from '../config/environment-loader';
@@ -12,34 +12,31 @@ import { ProjectionManager, type ProjectionManagerConfig } from '../storage/proj
 import { ContentManager, type ContentManagerConfig } from '../storage/content/content-manager';
 
 /**
- * Create ProjectionManager with environment configuration
- *
- * @param config - Optional configuration override
- * @returns New ProjectionManager instance
+ * Get base path from environment config
+ * Centralized location for loading filesystem config
  */
-export function createProjectionManager(config?: Partial<ProjectionManagerConfig>): ProjectionManager {
-  const fsConfig = getFilesystemConfig();
-
-  const fullConfig: ProjectionManagerConfig = {
-    basePath: config?.basePath || fsConfig.path,
-    subNamespace: config?.subNamespace || 'documents',
-  };
-
-  return new ProjectionManager(fullConfig);
+export function getBasePath(): string {
+  return getFilesystemConfig().path;
 }
 
 /**
- * Create ContentManager with environment configuration
+ * Create ProjectionManager
  *
- * @param config - Optional configuration override
+ * @param config - Optional configuration. If omitted, uses basePath from environment config
+ * @returns New ProjectionManager instance
+ */
+export function createProjectionManager(config?: Partial<ProjectionManagerConfig>): ProjectionManager {
+  const basePath = config?.basePath || getBasePath();
+  return new ProjectionManager({ ...config, basePath });
+}
+
+/**
+ * Create ContentManager
+ *
+ * @param config - Optional configuration. If omitted, uses basePath from environment config
  * @returns New ContentManager instance
  */
 export function createContentManager(config?: Partial<ContentManagerConfig>): ContentManager {
-  const fsConfig = getFilesystemConfig();
-
-  const fullConfig: ContentManagerConfig = {
-    basePath: config?.basePath || fsConfig.path,
-  };
-
-  return new ContentManager(fullConfig);
+  const basePath = config?.basePath || getBasePath();
+  return new ContentManager({ ...config, basePath });
 }
