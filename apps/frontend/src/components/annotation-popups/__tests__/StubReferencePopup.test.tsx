@@ -77,12 +77,17 @@ describe('StubReferencePopup', () => {
       id: 'test-annotation',
       target: {
         source: 'test-doc',
-        selector: {
-          type: 'TextPositionSelector',
-          exact: 'Selected text',
-          offset: 0,
-          length: 13,
-        },
+        selector: [
+          {
+            type: 'TextPositionSelector',
+            start: 0,
+            end: 13,
+          },
+          {
+            type: 'TextQuoteSelector',
+            exact: 'Selected text',
+          },
+        ],
       },
       // Stub reference has empty body array
       body: [],

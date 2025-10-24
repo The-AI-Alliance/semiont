@@ -135,12 +135,17 @@ describe('Layered Storage', () => {
               motivation: 'highlighting' as const,
               target: {
                 source: docId,
-                selector: {
-                  type: 'TextPositionSelector' as const,
-                  exact: 'important',
-                  offset: 0,
-                  length: 9,
-                },
+                selector: [
+                  {
+                    type: 'TextPositionSelector' as const,
+                    start: 0,
+                    end: 9,
+                  },
+                  {
+                    type: 'TextQuoteSelector' as const,
+                    exact: 'important',
+                  },
+                ],
               },
               body: [], // Empty body array (no entity tags)
               creator: {
@@ -260,12 +265,17 @@ describe('Layered Storage', () => {
             motivation: 'highlighting' as const,
             target: {
               source: docId,
-              selector: {
-                type: 'TextPositionSelector',
-                exact: 'Test highlight',
-                offset: 0,
-                length: 14,
-              },
+              selector: [
+                {
+                  type: 'TextPositionSelector',
+                  start: 0,
+                  end: 14,
+                },
+                {
+                  type: 'TextQuoteSelector',
+                  exact: 'Test highlight',
+                },
+              ],
             },
             body: [], // Empty body array (no entity tags)
             modified: new Date().toISOString(),

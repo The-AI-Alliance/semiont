@@ -84,12 +84,17 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
         motivation: 'linking',
         target: {
           source: testDocId,
-          selector: {
-            type: 'TextPositionSelector',
-            exact: 'test text',
-            offset: 0,
-            length: 9,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: 0,
+              end: 9,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: 'test text',
+            },
+          ],
         },
         body: [], // Empty array for stub
         modified: new Date().toISOString(),
@@ -199,12 +204,17 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
         motivation: 'linking',
         target: {
           source: testDocId,
-          selector: {
-            type: 'TextPositionSelector',
-            exact: 'quantum mechanics',
-            offset: 0,
-            length: 17,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: 0,
+              end: 17,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: 'quantum mechanics',
+            },
+          ],
         },
         body: [
           {
@@ -294,12 +304,17 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
         motivation: 'linking',
         target: {
           source: testDocId,
-          selector: {
-            type: 'TextPositionSelector',
-            exact: 'reference text',
-            offset: 0,
-            length: 14,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: 0,
+              end: 14,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: 'reference text',
+            },
+          ],
         },
         body: [],
         modified: new Date().toISOString(),
@@ -400,12 +415,17 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
         motivation: 'linking',
         target: {
           source: testDocId,
-          selector: {
-            type: 'TextPositionSelector',
-            exact: 'delete me',
-            offset: 0,
-            length: 9,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: 0,
+              end: 9,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: 'delete me',
+            },
+          ],
         },
         body: [
           {

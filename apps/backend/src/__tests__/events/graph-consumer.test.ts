@@ -357,12 +357,17 @@ describe('GraphDBConsumer', () => {
             motivation: 'highlighting' as const,
             target: {
               source: 'doc-123',
-              selector: {
-                type: 'TextPositionSelector',
-                exact: 'important text',
-                offset: 10,
-                length: 14,
-              },
+              selector: [
+                {
+                  type: 'TextPositionSelector',
+                  start: 10,
+                  end: 24,
+                },
+                {
+                  type: 'TextQuoteSelector',
+                  exact: 'important text',
+                },
+              ],
             },
             body: [
               { type: 'TextualBody' as const, value: 'TechnicalTerm', purpose: 'tagging' as const },
@@ -455,12 +460,17 @@ describe('GraphDBConsumer', () => {
             motivation: 'linking' as const,
             target: {
               source: 'doc-123',
-              selector: {
-                type: 'TextPositionSelector',
-                exact: 'reference text',
-                offset: 20,
-                length: 14,
-              },
+              selector: [
+                {
+                  type: 'TextPositionSelector',
+                  start: 20,
+                  end: 34,
+                },
+                {
+                  type: 'TextQuoteSelector',
+                  exact: 'reference text',
+                },
+              ],
             },
             body: [
               { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
@@ -524,12 +534,17 @@ describe('GraphDBConsumer', () => {
             motivation: 'linking' as const,
             target: {
               source: 'doc-123',
-              selector: {
-                type: 'TextPositionSelector',
-                exact: 'stub reference',
-                offset: 30,
-                length: 14,
-              },
+              selector: [
+                {
+                  type: 'TextPositionSelector',
+                  start: 30,
+                  end: 44,
+                },
+                {
+                  type: 'TextQuoteSelector',
+                  exact: 'stub reference',
+                },
+              ],
             },
             body: [
               { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
