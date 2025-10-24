@@ -231,7 +231,7 @@ describe('EventQuery', () => {
     it('should filter by toTimestamp', async () => {
       const allEvents = await query.getDocumentEvents('doc1');
 
-      // Use 2nd event's timestamp as cutoff
+      // Use 2nd event's timestamp as cutoff (sequence 2)
       const cutoff = allEvents[1]?.event.timestamp!;
 
       const events = await query.queryEvents({
@@ -239,11 +239,18 @@ describe('EventQuery', () => {
         toTimestamp: cutoff,
       });
 
-      // Should get events 1, 2
-      expect(events.length).toBeLessThanOrEqual(2);
+      // All returned events must have timestamp <= cutoff
       events.forEach(e => {
         expect(e.event.timestamp <= cutoff).toBe(true);
       });
+
+      // Must include events 1 and 2 (sequences 1, 2)
+      const sequences = events.map(e => e.metadata.sequenceNumber).sort();
+      expect(sequences).toContain(1);
+      expect(sequences).toContain(2);
+
+      // Should NOT include events with timestamps strictly greater than cutoff
+      expect(events.every(e => e.event.timestamp <= cutoff)).toBe(true);
     });
 
     it('should filter by timestamp range', async () => {
