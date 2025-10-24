@@ -1286,9 +1286,6 @@
             "oneOf": [
               {
                 "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/AnnotationBody"
-                },
                 "maxItems": 0,
                 "description": "Empty array (Phase 1 stub pattern - will be migrated to contain entity tag bodies in Phase 2)"
               },
@@ -1301,6 +1298,7 @@
                 "items": {
                   "$ref": "#/components/schemas/AnnotationBody"
                 },
+                "minItems": 1,
                 "description": "Array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
               }
             ]
