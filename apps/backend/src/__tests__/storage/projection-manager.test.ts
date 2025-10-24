@@ -41,14 +41,12 @@ describe('ProjectionManager', () => {
         name: 'Test User',
       },
       created: '2025-01-01T00:00:00.000Z',
-      modified: '2025-01-01T00:00:00.000Z',
       archived: false,
-      size: 100,
       entityTypes: [],
+      contentChecksum: 'sha256:test',
     };
 
     const annotations: DocumentAnnotations = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld',
       documentId: docId,
       version: 1,
       updatedAt: '2025-01-01T00:00:00.000Z',
@@ -275,7 +273,7 @@ describe('ProjectionManager', () => {
 
       const results = await manager4.query.findByEntityType('Person');
       expect(results.length).toBe(1);
-      expect(results[0].document.id).toBe('doc-query-1');
+      expect(results[0]?.document.id).toBe('doc-query-1');
     });
   });
 

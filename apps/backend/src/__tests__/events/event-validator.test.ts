@@ -301,21 +301,13 @@ describe('EventValidator', () => {
       const event = createStoredEvent({ type: 'annotation.added' }, 1);
 
       const originalChecksum = event.metadata.checksum;
-      const originalPayload = event.event.payload;
 
       // Subtle modifications that change the checksum
-      const modifications = [
-        { ...originalPayload, extra: 'field' }, // Extra field
-        { ...originalPayload }, // Even same payload with checksum restored should fail if we modify and restore
-      ];
+      (event.event as any).payload = { ...event.event.payload, extra: 'field' };
+      event.metadata.checksum = originalChecksum;
 
-      modifications.forEach((modifiedPayload) => {
-        (event.event as any).payload = modifiedPayload;
-        event.metadata.checksum = originalChecksum;
-
-        const isValid = validator.validateEventChecksum(event);
-        expect(isValid).toBe(false);
-      });
+      const isValid = validator.validateEventChecksum(event);
+      expect(isValid).toBe(false);
 
       // Note: Property order DOES matter in JSON serialization for SHA-256
       // Different order = different string = different hash

@@ -48,21 +48,19 @@ describe('ProjectionQuery', () => {
       id,
       name,
       format: 'text/plain',
-      creationMethod: 'manual',
+      creationMethod: 'ui',
       creator: {
         id: creator,
         type: 'Person',
         name: `User ${creator}`,
       },
       created: '2025-01-01T00:00:00.000Z',
-      modified: '2025-01-01T00:00:00.000Z',
       archived,
-      size: 100,
       entityTypes,
+      contentChecksum: 'sha256:test',
     };
 
     const annotations: DocumentAnnotations = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld',
       documentId: id,
       version: 1,
       updatedAt: '2025-01-01T00:00:00.000Z',
@@ -339,7 +337,7 @@ describe('ProjectionQuery', () => {
       const aliceResults = searchResults.filter(d => d.document.creator.id === 'user-alice');
 
       expect(aliceResults.length).toBe(1); // Only 'Alice Document'
-      expect(aliceResults[0].document.id).toBe('doc-1');
+      expect(aliceResults[0]?.document.id).toBe('doc-1');
     });
   });
 

@@ -114,11 +114,16 @@ const createMockGraphDB = (): GraphDatabase => ({
   clearDatabase: vi.fn().mockResolvedValue(undefined),
 });
 
-// Mock storage service
-vi.mock('../../storage/filesystem', () => ({
-  getStorageService: () => ({
-    getDocument: vi.fn().mockResolvedValue(Buffer.from('test content')),
-    saveDocument: vi.fn().mockResolvedValue(undefined),
+// Mock content manager
+vi.mock('../../services/storage-service', () => ({
+  createContentManager: () => ({
+    get: vi.fn().mockResolvedValue(Buffer.from('test content')),
+    save: vi.fn().mockResolvedValue('path/to/file'),
+    delete: vi.fn().mockResolvedValue(undefined),
+    exists: vi.fn().mockResolvedValue(true),
+    createReadStream: vi.fn(),
+    createWriteStream: vi.fn(),
+    saveStream: vi.fn().mockResolvedValue('path/to/file'),
   }),
 }));
 

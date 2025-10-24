@@ -120,14 +120,12 @@ describe('ProjectionStorage', () => {
       const docId = 'doc-sha256:preserve-test';
       const original = createTestDocumentState(docId);
       original.document.entityTypes = ['Person', 'Organization'];
-      original.document.size = 12345;
       original.annotations.version = 42;
 
       await storage.save(docId, original);
 
       const loaded = await storage.get(docId);
       expect(loaded?.document.entityTypes).toEqual(['Person', 'Organization']);
-      expect(loaded?.document.size).toBe(12345);
       expect(loaded?.annotations.version).toBe(42);
     });
   });
@@ -193,7 +191,7 @@ describe('ProjectionStorage', () => {
 
       const loaded = await storage.get(docId);
       expect(loaded?.annotations.annotations).toHaveLength(1);
-      expect(loaded?.annotations.annotations[0].id).toBe('ann-123');
+      expect(loaded?.annotations.annotations[0]?.id).toBe('ann-123');
     });
   });
 
