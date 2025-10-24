@@ -7,7 +7,7 @@ import { PopupContainer, PopupHeader, EntityTypeBadges } from './SharedPopupElem
 import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
-import { getBodySource, getEntityTypes } from '@/lib/api/annotation-utils';
+import { getBodySource, getEntityTypes } from '@/lib/api';
 import type { components } from '@semiont/api-client';
 
 type ReferenceAnnotation = components['schemas']['Annotation'];

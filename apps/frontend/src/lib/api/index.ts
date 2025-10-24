@@ -33,8 +33,9 @@ export class APIError extends Error {
   }
 }
 
-// Re-export utilities
+// Re-export utilities from @semiont/api-client SDK
 export {
+  // Annotation utilities
   isHighlight,
   isReference,
   isStubReference,
@@ -48,37 +49,30 @@ export {
   getTargetSelector,
   hasTargetSelector,
   getEntityTypes,
-} from './annotation-utils';
-
-export {
+  // Selector utilities
   getExactText,
   getAnnotationExactText,
   getPrimarySelector,
   getTextPositionSelector,
   getTextQuoteSelector,
-} from './selector-utils';
+  // Event utilities
+  getAnnotationIdFromEvent,
+  isEventRelatedToAnnotation,
+  isDocumentEvent,
+  // Locales
+  LOCALES,
+} from '@semiont/api-client';
 
 export type {
   Selector,
   TextPositionSelector,
   TextQuoteSelector,
-} from './selector-utils';
-
-export { LOCALES } from './locales';
-export type { LocaleInfo } from './locales';
-
-export {
-  getAnnotationIdFromEvent,
-  isEventRelatedToAnnotation,
-  isDocumentEvent,
-} from './event-utils';
-
-export type {
+  LocaleInfo,
   StoredEvent,
   DocumentEvent,
   EventMetadata,
   DocumentEventType,
-} from './event-utils';
+} from '@semiont/api-client';
 
 // Export individual domain APIs
 export { health } from './health';
@@ -95,8 +89,8 @@ export {
   getEventDisplayContent,
   getEventEntityTypes,
   getDocumentCreationDetails,
-} from './event-formatting';
+} from '@semiont/api-client';
 
-export type { DocumentCreationDetails } from './event-formatting';
+export type { DocumentCreationDetails } from '@semiont/api-client';
 
-export { formatLocaleDisplay } from './locales';
+export { formatLocaleDisplay } from '@semiont/api-client';

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getEntityTypes, getBodySource, isStubReference, isResolvedReference } from '../annotation-utils';
+import { getEntityTypes, getBodySource, isStubReference, isResolvedReference } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
