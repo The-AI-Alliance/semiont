@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Markera",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Hänvisa",
+    "createReference": "Create Reference",
     "createAssessment": "Bedöm"
   },
   "HighlightPopup": {

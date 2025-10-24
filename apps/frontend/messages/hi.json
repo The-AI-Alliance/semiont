@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "हाइलाइट",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "संदर्भ",
+    "createReference": "Create Reference",
     "createAssessment": "मूल्यांकन"
   },
   "HighlightPopup": {

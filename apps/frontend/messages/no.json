@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Uthev",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Henvis",
+    "createReference": "Create Reference",
     "createAssessment": "Vurder"
   },
   "HighlightPopup": {

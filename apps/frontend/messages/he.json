@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "הדגש",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "הפנה",
+    "createReference": "Create Reference",
     "createAssessment": "העריך"
   },
   "HighlightPopup": {

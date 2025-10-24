@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Destacar",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Referir",
+    "createReference": "Create Reference",
     "createAssessment": "Avaliar"
   },
   "HighlightPopup": {

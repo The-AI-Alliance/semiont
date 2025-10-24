@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Evidenzia",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Riferisci",
+    "createReference": "Create Reference",
     "createAssessment": "Valuta"
   },
   "HighlightPopup": {

@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Evidențiază",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Referă",
+    "createReference": "Create Reference",
     "createAssessment": "Evaluează"
   },
   "HighlightPopup": {

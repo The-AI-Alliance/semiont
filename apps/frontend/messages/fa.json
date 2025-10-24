@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "برجسته",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "ارجاع",
+    "createReference": "Create Reference",
     "createAssessment": "ارزیابی"
   },
   "HighlightPopup": {

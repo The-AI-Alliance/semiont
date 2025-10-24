@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Vurgula",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Atıfta Bulun",
+    "createReference": "Create Reference",
     "createAssessment": "Değerlendir"
   },
   "HighlightPopup": {

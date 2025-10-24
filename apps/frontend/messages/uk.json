@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Виділити",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Посилатися",
+    "createReference": "Create Reference",
     "createAssessment": "Оцінити"
   },
   "HighlightPopup": {

@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Podświetl",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Odnieś",
+    "createReference": "Create Reference",
     "createAssessment": "Oceń"
   },
   "HighlightPopup": {

@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "高亮",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "引用",
+    "createReference": "Create Reference",
     "createAssessment": "评估"
   },
   "HighlightPopup": {

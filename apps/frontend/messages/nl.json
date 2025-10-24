@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Markeren",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Verwijzen",
+    "createReference": "Create Reference",
     "createAssessment": "Beoordelen"
   },
   "HighlightPopup": {

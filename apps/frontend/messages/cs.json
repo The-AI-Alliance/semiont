@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Zvýraznit",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Odkázat",
+    "createReference": "Create Reference",
     "createAssessment": "Posoudit"
   },
   "HighlightPopup": {

@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Επισήμανση",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Αναφορά",
+    "createReference": "Create Reference",
     "createAssessment": "Αξιολόγηση"
   },
   "HighlightPopup": {

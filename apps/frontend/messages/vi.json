@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Làm nổi",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Tham chiếu",
+    "createReference": "Create Reference",
     "createAssessment": "Đánh giá"
   },
   "HighlightPopup": {

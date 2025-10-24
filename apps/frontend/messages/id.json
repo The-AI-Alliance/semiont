@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Sorot",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Rujuk",
+    "createReference": "Create Reference",
     "createAssessment": "Nilai"
   },
   "HighlightPopup": {

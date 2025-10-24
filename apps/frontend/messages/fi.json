@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Korosta",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Viittaa",
+    "createReference": "Create Reference",
     "createAssessment": "Arvioi"
   },
   "HighlightPopup": {

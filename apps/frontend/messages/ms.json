@@ -387,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "Serlah",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "Rujuk",
+    "createReference": "Create Reference",
     "createAssessment": "Nilai"
   },
   "HighlightPopup": {
