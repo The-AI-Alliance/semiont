@@ -16,23 +16,25 @@ import { calculateChecksum } from '@semiont/core';
 import { userToAgent } from '../../utils/id-generator';
 import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getFilesystemConfig } from '../../config/environment-loader';
+import type { components } from '@semiont/api-client';
 import {
   CREATION_METHODS,
   getAnnotationExactText,
   getTextPositionSelector,
-  type Document,
-  type Annotation,
   type BodyOperation,
 } from '@semiont/core';
+
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 import { registerGenerateDocument } from './routes/generate-document';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { createEventStore } from '../../services/event-store-service';
 import { validateRequestBody } from '../../middleware/validate-openapi';
-import type { components } from '@semiont/api-client';
 import { extractEntityTypes } from '../../graph/annotation-body-utils';
 import type { User } from '@prisma/client';
+
+type Document = components['schemas']['Document'];
+type Annotation = components['schemas']['Annotation'];
 
 type CreateDocumentFromSelectionRequest = components['schemas']['CreateDocumentFromSelectionRequest'];
 type GenerateDocumentFromAnnotationRequest = components['schemas']['GenerateDocumentFromAnnotationRequest'];

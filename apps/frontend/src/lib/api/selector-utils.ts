@@ -4,12 +4,12 @@
  * Helper functions for working with W3C Web Annotation selectors
  */
 
-import type {
-  Annotation,
-  TextPositionSelector,
-  TextQuoteSelector,
-  Selector,
-} from './types';
+import type { components } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
+type TextPositionSelector = components['schemas']['TextPositionSelector'];
+type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
+type Selector = TextPositionSelector | TextQuoteSelector;
 
 // Re-export selector types for convenience
 export type { TextPositionSelector, TextQuoteSelector, Selector };

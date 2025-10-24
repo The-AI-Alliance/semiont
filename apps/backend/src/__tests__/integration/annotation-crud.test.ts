@@ -4,8 +4,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { Annotation, DocumentCreatedEvent } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+import type { DocumentCreatedEvent } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
+
+type Annotation = components['schemas']['Annotation'];
 import { createEventStore } from '../../services/event-store-service';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { tmpdir } from 'os';

@@ -8,7 +8,9 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting } from '@codemirror/language';
 import { jsonLightTheme, jsonLightHighlightStyle } from '@/lib/codemirror-json-theme';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import type { Document as SemiontDocument } from '@/lib/api';
+import type { components } from '@semiont/api-client';
+
+type SemiontDocument = components['schemas']['Document'];
 
 interface Props {
   document: SemiontDocument;

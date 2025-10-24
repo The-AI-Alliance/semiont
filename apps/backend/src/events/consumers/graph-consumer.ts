@@ -10,9 +10,12 @@ import { getGraphDatabase } from '../../graph/factory';
 import { createContentManager } from '../../services/storage-service';
 import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
-import type { DocumentEvent, StoredEvent, Annotation } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+import type { DocumentEvent, StoredEvent } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
 import { getFilesystemConfig } from '../../config/environment-loader';
+
+type Annotation = components['schemas']['Annotation'];
 
 export class GraphDBConsumer {
   private graphDb: GraphDatabase | null = null;

@@ -2,8 +2,10 @@
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import type { Annotation } from '@/lib/api';
+import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@/lib/api';
+
+type Annotation = components['schemas']['Annotation'];
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';

@@ -3,9 +3,8 @@
 
 import { GraphDatabase } from '../interface';
 import { extractEntityTypes } from '../annotation-body-utils';
-import {
-  Document,
-  Annotation,
+import type { components } from '@semiont/api-client';
+import type {
   AnnotationCategory,
   GraphConnection,
   GraphPath,
@@ -17,6 +16,9 @@ import {
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
+
+type Document = components['schemas']['Document'];
+type Annotation = components['schemas']['Annotation'];
 
 // Simple in-memory storage using Maps
 // Useful for development and testing

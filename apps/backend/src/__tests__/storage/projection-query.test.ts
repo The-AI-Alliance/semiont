@@ -9,7 +9,10 @@ import { ProjectionQuery } from '../../storage/projection/projection-query';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import type { Document, DocumentAnnotations } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+import type { DocumentAnnotations } from '@semiont/core';
+
+type Document = components['schemas']['Document'];
 
 describe('ProjectionQuery', () => {
   let testDir: string;

@@ -4,7 +4,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { api } from '@/lib/api';
-import type { Document } from '@/lib/api';
+import type { components } from '@semiont/api-client';
+
+type Document = components['schemas']['Document'];
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useRovingTabIndex } from '@/hooks/useRovingTabIndex';
 import { useTheme } from '@/hooks/useTheme';

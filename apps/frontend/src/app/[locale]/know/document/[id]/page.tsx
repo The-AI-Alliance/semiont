@@ -12,7 +12,9 @@ import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
-import type { Document as SemiontDocument } from '@/lib/api';
+import type { components } from '@semiont/api-client';
+
+type SemiontDocument = components['schemas']['Document'];
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -162,8 +164,9 @@ function DocumentView({
   const annotations = annotationsData?.annotations || [];
 
   // Filter by motivation client-side
-  const highlights = annotations.filter(a => a.motivation === 'highlighting');
-  const references = annotations.filter(a => a.motivation === 'linking');
+  type Annotation = components['schemas']['Annotation'];
+  const highlights = annotations.filter((a: Annotation) => a.motivation === 'highlighting');
+  const references = annotations.filter((a: Annotation) => a.motivation === 'linking');
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   // Using React Query's invalidateQueries is the best practice - it invalidates cache

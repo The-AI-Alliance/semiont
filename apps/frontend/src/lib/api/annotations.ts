@@ -7,16 +7,18 @@ import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
 import { getTargetSource } from './annotation-utils';
-import type {
-  CreateAnnotationRequest,
-  CreateAnnotationResponse,
-  DeleteAnnotationRequest,
-  DeleteAnnotationResponse,
-  GenerateDocumentFromAnnotationRequest,
-  GenerateDocumentFromAnnotationResponse,
-  UpdateAnnotationBodyRequest,
-  UpdateAnnotationBodyResponse,
-} from './types';
+import type { paths } from '@semiont/api-client';
+
+type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
+
+type CreateAnnotationRequest = RequestContent<paths['/api/annotations']['post']>;
+type CreateAnnotationResponse = paths['/api/annotations']['post']['responses'][201]['content']['application/json'];
+type DeleteAnnotationRequest = { documentId: string };
+type DeleteAnnotationResponse = { success: boolean };
+type GenerateDocumentFromAnnotationRequest = RequestContent<paths['/api/annotations/{id}/generate-document']['post']>;
+type GenerateDocumentFromAnnotationResponse = paths['/api/annotations/{id}/generate-document']['post']['responses'][201]['content']['application/json'];
+type UpdateAnnotationBodyRequest = RequestContent<paths['/api/annotations/{id}/body']['put']>;
+type UpdateAnnotationBodyResponse = paths['/api/annotations/{id}/body']['put']['responses'][200]['content']['application/json'];
 
 export const annotations = {
   create: {

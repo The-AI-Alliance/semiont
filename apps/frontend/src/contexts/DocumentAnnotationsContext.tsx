@@ -3,8 +3,12 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { Annotation, CreateAnnotationRequest } from '@/lib/api';
+import type { components, paths } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector } from '@/lib/api';
+
+type Annotation = components['schemas']['Annotation'];
+type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
+type CreateAnnotationRequest = RequestContent<paths['/api/annotations']['post']>;
 
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components

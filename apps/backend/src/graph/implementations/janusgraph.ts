@@ -4,9 +4,8 @@
 import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
 import { extractEntityTypes, extractBodySource } from '../annotation-body-utils';
-import {
-  Document,
-  Annotation,
+import type { components } from '@semiont/api-client';
+import type {
   AnnotationCategory,
   GraphConnection,
   GraphPath,
@@ -15,9 +14,12 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
-  getExactText,
 } from '@semiont/core';
+import { getExactText } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
+
+type Document = components['schemas']['Document'];
+type Annotation = components['schemas']['Annotation'];
 
 const traversal = gremlin.process.AnonymousTraversalSource.traversal;
 const DriverRemoteConnection = gremlin.driver.DriverRemoteConnection;

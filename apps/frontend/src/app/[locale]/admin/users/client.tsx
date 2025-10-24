@@ -13,8 +13,14 @@ import {
 } from '@heroicons/react/24/outline';
 import { useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { api, type AdminUser, type AdminUsersResponse, type AdminUserStatsResponse } from '@/lib/api';
+import { api } from '@/lib/api';
+import type { paths } from '@semiont/api-client';
 import { useQueryClient } from '@tanstack/react-query';
+
+type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+type AdminUser = ResponseContent<paths['/api/admin/users']['get']>['users'][number];
+type AdminUsersResponse = ResponseContent<paths['/api/admin/users']['get']>;
+type AdminUserStatsResponse = ResponseContent<paths['/api/admin/users/stats']['get']>;
 import { buttonStyles } from '@/lib/button-styles';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';

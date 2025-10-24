@@ -6,7 +6,8 @@ import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@ta
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
-import type { AddEntityTypeResponse } from './types';
+import type { paths } from '@semiont/api-client';
+type AddEntityTypeResponse = paths['/api/entity-types']['post']['responses'][200]['content']['application/json'];
 
 export const entityTypes = {
   all: {

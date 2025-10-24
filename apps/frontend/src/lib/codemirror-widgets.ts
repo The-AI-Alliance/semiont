@@ -8,8 +8,10 @@
  */
 
 import { WidgetType, Decoration, EditorView } from '@codemirror/view';
-import type { Annotation } from '@/components/CodeMirrorRenderer';
+import type { components } from '@semiont/api-client';
 import { isResolvedReference, getBodySource, isBodyResolved } from '@/lib/api';
+
+type Annotation = components['schemas']['Annotation'];
 
 /**
  * Reference Resolution Widget

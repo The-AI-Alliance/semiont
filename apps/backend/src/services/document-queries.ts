@@ -9,8 +9,8 @@
 
 import { getFilesystemConfig } from '../config/environment-loader';
 import { createProjectionManager } from './storage-service';
-import type { CreationMethod } from '@semiont/core';
 import type { components } from '@semiont/api-client';
+import type { CreationMethod } from '@semiont/core';
 
 type Document = components['schemas']['Document'];
 

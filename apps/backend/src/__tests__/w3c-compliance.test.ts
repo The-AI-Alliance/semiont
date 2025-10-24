@@ -11,8 +11,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { Annotation } from '@semiont/core';
+import type { components } from '@semiont/api-client';
 import { getEntityTypes, getBodySource, isResolved } from './helpers/annotation-helpers';
+
+type Annotation = components['schemas']['Annotation'];
 
 describe('W3C Web Annotation Compliance', () => {
   describe('Stub Reference Validation', () => {

@@ -5,12 +5,14 @@ import { useRouter } from '@/i18n/routing';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
-import type { Annotation } from '@/lib/api';
+import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes } from '@/lib/api';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import type { Document as SemiontDocument } from '@/lib/api';
 import { api } from '@/lib/api';
+
+type Annotation = components['schemas']['Annotation'];
+type SemiontDocument = components['schemas']['Document'];
 
 interface Props {
   document: SemiontDocument & { content: string };
@@ -191,10 +193,10 @@ export function DocumentViewer({
       if (editingAnnotation) {
         if (isHighlight(editingAnnotation)) {
           // Convert highlight to reference
-          await convertHighlightToReference(highlights, editingAnnotation.id, targetDocId, entityType, referenceType);
+          await convertHighlightToReference(highlights, (editingAnnotation as Annotation).id, targetDocId, entityType, referenceType);
         } else {
           // Update existing reference
-          await deleteAnnotation(editingAnnotation.id, document.id);
+          await deleteAnnotation((editingAnnotation as Annotation).id, document.id);
           await addReference(document.id, selectedText, annotationPosition, targetDocId, entityType, referenceType);
         }
       } else {
@@ -271,7 +273,7 @@ export function DocumentViewer({
         setShowAnnotationPopup(true);
       } else if (isReference(annotation)) {
         // Convert reference to highlight
-        await convertReferenceToHighlight(references, annotation.id);
+        await convertReferenceToHighlight(references, (annotation as Annotation).id);
         onRefetchAnnotations?.();
       }
     } catch (err) {

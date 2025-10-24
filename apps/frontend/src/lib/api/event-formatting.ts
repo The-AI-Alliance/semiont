@@ -6,9 +6,11 @@
  */
 
 import type { StoredEvent, DocumentEventType } from './event-utils';
-import type { Annotation } from './types';
+import type { components } from '@semiont/api-client';
 import { getExactText } from './selector-utils';
 import { compareAnnotationIds, getTargetSelector } from './annotation-utils';
+
+type Annotation = components['schemas']['Annotation'];
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 

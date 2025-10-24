@@ -5,7 +5,10 @@ import '@testing-library/jest-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StubReferencePopup } from '../StubReferencePopup';
 import { useRouter } from '@/i18n/routing';
-import type { ReferenceAnnotation, TextSelection } from '@/lib/api';
+import type { components } from '@semiont/api-client';
+
+type ReferenceAnnotation = components['schemas']['Annotation'];
+type TextSelection = { exact: string; start: number; end: number };
 
 // Mock @/i18n/routing
 vi.mock('@/i18n/routing', () => ({
