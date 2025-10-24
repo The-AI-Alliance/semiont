@@ -34,7 +34,7 @@ describe('ProjectionManager', () => {
       id: docId,
       name: `Test Document ${docId}`,
       format: 'text/plain',
-      creationMethod: 'manual',
+      creationMethod: 'api',
       creator: {
         id: 'user-test',
         type: 'Person',

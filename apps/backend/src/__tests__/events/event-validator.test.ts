@@ -6,7 +6,7 @@
  * @see docs/EVENT-STORE.md#eventvalidator
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { EventValidator } from '../../events/validation/event-validator';
 import type { StoredEvent, DocumentEvent } from '@semiont/core';
 import { sha256 } from '../../storage/shard-utils';
@@ -20,19 +20,42 @@ describe('EventValidator', () => {
 
   // Helper to create StoredEvent with proper checksum
   function createStoredEvent(
-    event: Partial<DocumentEvent>,
+    event: Partial<Omit<DocumentEvent, 'id' | 'timestamp' | 'version' | 'userId'>> & { type: DocumentEvent['type']; userId?: string },
     sequenceNumber: number,
     prevChecksum?: string
   ): StoredEvent {
+    // Provide default payloads based on event type
+    let payload: any;
+    if (event.type === 'document.created' || event.type === 'document.cloned') {
+      payload = event.payload || { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum', creationMethod: 'api' as const };
+    } else if (event.type === 'annotation.added') {
+      payload = event.payload || {
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+          type: 'Annotation' as const,
+          id: `anno-${sequenceNumber}`,
+          motivation: 'highlighting' as const,
+          target: { source: 'doc1' },
+          body: []
+        }
+      };
+    } else if (event.type === 'annotation.removed') {
+      payload = event.payload || { annotationId: `anno-${sequenceNumber}` };
+    } else if (event.type === 'entitytype.added') {
+      payload = event.payload || { entityType: 'Test' };
+    } else {
+      payload = event.payload || {};
+    }
+
     const fullEvent: DocumentEvent = {
       id: `event-${sequenceNumber}`,
-      type: event.type || 'document.created',
       userId: event.userId || 'user1',
-      documentId: event.documentId || 'doc1',
       timestamp: new Date().toISOString(),
       version: 1,
-      payload: event.payload || {},
-    };
+      documentId: event.documentId || 'doc1',
+      ...event,
+      payload,
+    } as DocumentEvent;
 
     const checksum = sha256(fullEvent);
 
@@ -256,20 +279,22 @@ describe('EventValidator', () => {
     it('should handle events with complex nested objects', () => {
       const complexPayload = {
         annotation: {
-          '@context': 'http://www.w3.org/ns/anno.jsonld',
-          'type': 'Annotation',
+          '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+          type: 'Annotation' as const,
+          id: 'anno-complex',
+          motivation: 'highlighting' as const,
           target: {
             source: 'doc1',
             selector: {
-              type: 'TextPositionSelector',
+              type: 'TextPositionSelector' as const,
               exact: 'text',
               offset: 0,
               length: 4,
             },
           },
           body: [
-            { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
-            { type: 'SpecificResource', source: 'doc2' },
+            { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
+            { type: 'SpecificResource' as const, source: 'doc2', purpose: 'linking' as const },
           ],
         },
       };

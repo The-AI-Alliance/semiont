@@ -27,8 +27,8 @@ describe('EventSubscriptions', () => {
         documentId,
         timestamp: new Date().toISOString(),
         version: 1,
-        payload: {},
-      },
+        payload: {} as any,
+      } as DocumentEvent,
       metadata: {
         sequenceNumber: 1,
         streamPosition: 0,
@@ -287,7 +287,7 @@ describe('EventSubscriptions', () => {
     it('should support async callbacks', async () => {
       const asyncCallback = vi.fn(async (event: StoredEvent) => {
         await new Promise(resolve => setTimeout(resolve, 10));
-        return event.event.type;
+        // Just process the event, don't return anything
       });
 
       subscriptions.subscribe('doc1', asyncCallback);

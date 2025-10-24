@@ -32,16 +32,14 @@ describe('EventProjector', () => {
   });
 
   // Helper to create StoredEvent
-  function createStoredEvent(event: Partial<DocumentEvent>, sequenceNumber: number): StoredEvent {
+  function createStoredEvent(event: Omit<DocumentEvent, 'id' | 'timestamp' | 'version' | 'userId'> & { userId?: string }, sequenceNumber: number): StoredEvent {
     const fullEvent: DocumentEvent = {
       id: `event-${sequenceNumber}`,
-      type: event.type || 'document.created',
       userId: event.userId || 'user1',
-      documentId: event.documentId || 'doc1',
       timestamp: new Date().toISOString(),
       version: 1,
-      payload: event.payload || {},
-    };
+      ...event,
+    } as DocumentEvent;
 
     return {
       event: fullEvent,
@@ -173,7 +171,7 @@ describe('EventProjector', () => {
         target: {
           source: 'doc1',
           selector: {
-            type: 'TextPositionSelector',
+            type: 'TextPositionSelector' as const,
             exact: 'highlighted text',
             offset: 0,
             length: 16,
@@ -260,7 +258,7 @@ describe('EventProjector', () => {
           payload: {
             annotationId: 'anno1',
             operations: [
-              { op: 'add', item: { type: 'TextualBody', value: 'Person', purpose: 'tagging' } },
+              { op: 'add' as const, item: { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const } },
             ],
           },
         }, 3),
@@ -268,8 +266,9 @@ describe('EventProjector', () => {
 
       const projection = await projector.projectDocument(events, 'doc1');
 
-      expect(projection!.annotations.annotations[0]?.body).toHaveLength(1);
-      expect(projection!.annotations.annotations[0]?.body[0]).toEqual({
+      const body = projection!.annotations.annotations[0]?.body;
+      expect(Array.isArray(body) ? body : []).toHaveLength(1);
+      expect(Array.isArray(body) ? body[0] : null).toEqual({
         type: 'TextualBody',
         value: 'Person',
         purpose: 'tagging',
@@ -286,8 +285,8 @@ describe('EventProjector', () => {
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
         body: [
-          { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
-          { type: 'TextualBody', value: 'Organization', purpose: 'tagging' },
+          { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
+          { type: 'TextualBody' as const, value: 'Organization', purpose: 'tagging' as const },
         ],
         modified: new Date().toISOString(),
       };
@@ -306,7 +305,7 @@ describe('EventProjector', () => {
           payload: {
             annotationId: 'anno1',
             operations: [
-              { op: 'remove', item: { type: 'TextualBody', value: 'Person', purpose: 'tagging' } },
+              { op: 'remove' as const, item: { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const } },
             ],
           },
         }, 3),
@@ -314,8 +313,9 @@ describe('EventProjector', () => {
 
       const projection = await projector.projectDocument(events, 'doc1');
 
-      expect(projection!.annotations.annotations[0]?.body).toHaveLength(1);
-      expect(projection!.annotations.annotations[0]?.body[0]).toEqual({
+      const body = projection!.annotations.annotations[0]?.body;
+      expect(Array.isArray(body) ? body : []).toHaveLength(1);
+      expect(Array.isArray(body) ? body[0] : null).toEqual({
         type: 'TextualBody',
         value: 'Organization',
         purpose: 'tagging',
@@ -330,7 +330,7 @@ describe('EventProjector', () => {
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
         body: [
-          { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+          { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
         ],
         modified: new Date().toISOString(),
       };
@@ -350,9 +350,9 @@ describe('EventProjector', () => {
             annotationId: 'anno1',
             operations: [
               {
-                op: 'replace',
-                oldItem: { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
-                newItem: { type: 'TextualBody', value: 'Organization', purpose: 'tagging' },
+                op: 'replace' as const,
+                oldItem: { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
+                newItem: { type: 'TextualBody' as const, value: 'Organization', purpose: 'tagging' as const },
               },
             ],
           },
@@ -361,8 +361,9 @@ describe('EventProjector', () => {
 
       const projection = await projector.projectDocument(events, 'doc1');
 
-      expect(projection!.annotations.annotations[0]?.body).toHaveLength(1);
-      expect(projection!.annotations.annotations[0]?.body[0]).toEqual({
+      const body = projection!.annotations.annotations[0]?.body;
+      expect(Array.isArray(body) ? body : []).toHaveLength(1);
+      expect(Array.isArray(body) ? body[0] : null).toEqual({
         type: 'TextualBody',
         value: 'Organization',
         purpose: 'tagging',

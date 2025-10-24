@@ -36,7 +36,7 @@ describe('EventQuery', () => {
       userId: 'user1',
       documentId: 'doc1',
       version: 1,
-      payload: { name: 'Doc1' },
+      payload: { name: 'Doc1', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
     }, 'doc1');
 
     await storage.appendEvent({
@@ -77,7 +77,7 @@ describe('EventQuery', () => {
       userId: 'user1',
       documentId: 'doc2',
       version: 1,
-      payload: { name: 'Doc2' },
+      payload: { name: 'Doc2', format: 'text/plain' as const, contentChecksum: 'checksum2', creationMethod: 'api' as const },
     }, 'doc2');
   });
 
@@ -192,7 +192,7 @@ describe('EventQuery', () => {
     it('should return empty for nonexistent event type', async () => {
       const events = await query.queryEvents({
         documentId: 'doc1',
-        eventTypes: ['nonexistent.type'],
+        eventTypes: ['nonexistent.type' as any],
       });
 
       expect(events).toEqual([]);
@@ -449,7 +449,7 @@ describe('EventQuery', () => {
       const events = await query.queryEvents({
         documentId: 'doc1',
         userId: 'user-nonexistent',
-        eventTypes: ['nonexistent.type'],
+        eventTypes: ['nonexistent.type' as any],
         fromSequence: 999,
         limit: 1,
       });
@@ -467,7 +467,16 @@ describe('EventQuery', () => {
           userId: 'user1',
           documentId: 'doc-perf',
           version: 1,
-          payload: { index: i },
+          payload: {
+            annotation: {
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+              type: 'Annotation' as const,
+              id: `anno-${i}`,
+              motivation: 'highlighting' as const,
+              target: { source: 'doc-perf' },
+              body: []
+            }
+          },
         }, 'doc-perf');
       }
 
@@ -487,7 +496,18 @@ describe('EventQuery', () => {
           userId: i % 3 === 0 ? 'user1' : 'user2',
           documentId: 'doc-filter',
           version: 1,
-          payload: { index: i },
+          payload: i % 2 === 0
+            ? {
+                annotation: {
+                  '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+                  type: 'Annotation' as const,
+                  id: `anno-${i}`,
+                  motivation: 'highlighting' as const,
+                  target: { source: 'doc-filter' },
+                  body: []
+                }
+              }
+            : { annotationId: `anno-${i}` },
         }, 'doc-filter');
       }
 

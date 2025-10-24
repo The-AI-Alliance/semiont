@@ -39,7 +39,7 @@ describe('EventStorage', () => {
         userId: 'user1',
         documentId: 'doc1',
         version: 1,
-        payload: { name: 'Test' },
+        payload: { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
       }, 'doc1');
 
       expect(stored.event.id).toBeDefined();
@@ -54,7 +54,7 @@ describe('EventStorage', () => {
         userId: 'user1',
         documentId: 'doc1',
         version: 1,
-        payload: { name: 'Test' },
+        payload: { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
       }, 'doc1');
 
       expect(stored.metadata.checksum).toBeDefined();
@@ -67,7 +67,7 @@ describe('EventStorage', () => {
         userId: 'user1',
         documentId: 'doc1',
         version: 1,
-        payload: { name: 'Test' },
+        payload: { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
       }, 'doc1');
 
       const e2 = await storage.appendEvent({
@@ -75,7 +75,16 @@ describe('EventStorage', () => {
         userId: 'user1',
         documentId: 'doc1',
         version: 1,
-        payload: { annotation: {} },
+        payload: {
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+            type: 'Annotation' as const,
+            id: 'anno1',
+            motivation: 'highlighting' as const,
+            target: { source: 'doc1' },
+            body: []
+          }
+        },
       }, 'doc1');
 
       expect(e1.metadata.prevEventHash).toBeUndefined();
@@ -281,7 +290,16 @@ describe('EventStorage', () => {
           userId: 'user1',
           documentId: 'doc1',
           version: 1,
-          payload: { index: i },
+          payload: {
+            annotation: {
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+              type: 'Annotation' as const,
+              id: `anno-${i}`,
+              motivation: 'highlighting' as const,
+              target: { source: 'doc1' },
+              body: []
+            }
+          },
         }, 'doc1');
       }
 
@@ -299,7 +317,16 @@ describe('EventStorage', () => {
           userId: 'user1',
           documentId: 'doc1',
           version: 1,
-          payload: { index: i },
+          payload: {
+            annotation: {
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+              type: 'Annotation' as const,
+              id: `anno-${i}`,
+              motivation: 'highlighting' as const,
+              target: { source: 'doc1' },
+              body: []
+            }
+          },
         }, 'doc1');
       }
 
@@ -314,7 +341,7 @@ describe('EventStorage', () => {
         type: 'entitytype.added',
         userId: 'user1',
         version: 1,
-        payload: { tag: 'Person' },
+        payload: { entityType: 'Person' },
       }, '__system__');
 
       const systemPath = join(testDir, 'events', '__system__');
@@ -327,14 +354,14 @@ describe('EventStorage', () => {
         type: 'entitytype.added',
         userId: 'user1',
         version: 1,
-        payload: { tag: 'Person' },
+        payload: { entityType: 'Person' },
       }, '__system__');
 
       const e2 = await storage.appendEvent({
         type: 'entitytype.added',
         userId: 'user1',
         version: 1,
-        payload: { tag: 'Organization' },
+        payload: { entityType: 'Organization' },
       }, '__system__');
 
       expect(e1.metadata.sequenceNumber).toBe(1);
@@ -346,14 +373,14 @@ describe('EventStorage', () => {
         type: 'entitytype.added',
         userId: 'user1',
         version: 1,
-        payload: { tag: 'Person' },
+        payload: { entityType: 'Person' },
       }, '__system__');
 
       await storage.appendEvent({
         type: 'entitytype.added',
         userId: 'user1',
         version: 1,
-        payload: { tag: 'Organization' },
+        payload: { entityType: 'Organization' },
       }, '__system__');
 
       const events = await storage.getAllEvents('__system__');
@@ -370,7 +397,7 @@ describe('EventStorage', () => {
         userId: 'user1',
         documentId: 'doc1',
         version: 1,
-        payload: { name: 'Doc1' },
+        payload: { name: 'Doc1', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
       }, 'doc1');
 
       await storage.appendEvent({
@@ -378,7 +405,16 @@ describe('EventStorage', () => {
         userId: 'user1',
         documentId: 'doc1',
         version: 1,
-        payload: {},
+        payload: {
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+            type: 'Annotation' as const,
+            id: 'anno1',
+            motivation: 'highlighting' as const,
+            target: { source: 'doc1' },
+            body: []
+          }
+        },
       }, 'doc1');
 
       await storage.appendEvent({
@@ -386,7 +422,7 @@ describe('EventStorage', () => {
         userId: 'user1',
         documentId: 'doc2',
         version: 1,
-        payload: { name: 'Doc2' },
+        payload: { name: 'Doc2', format: 'text/plain' as const, contentChecksum: 'checksum2', creationMethod: 'api' as const },
       }, 'doc2');
     });
 
