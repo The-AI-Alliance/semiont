@@ -4,7 +4,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { extractEntityTypes, extractBodySource } from '../annotation-body-utils';
-import type { Annotation } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
 
 describe('extractEntityTypes', () => {
   it('should extract entity types from TextualBody bodies with purpose: "tagging"', () => {
