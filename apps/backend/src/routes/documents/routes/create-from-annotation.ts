@@ -21,6 +21,7 @@ import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import { extractEntityTypes } from '../../../graph/annotation-body-utils';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type CreateFromAnnotationRequest = components['schemas']['CreateFromAnnotationRequest'];
 type CreateFromAnnotationResponse = components['schemas']['CreateFromAnnotationResponse'];
@@ -40,8 +41,9 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       const { annotationId } = c.req.param();
       const body = c.get('validatedBody') as CreateFromAnnotationRequest;
       const user = c.get('user');
+      const basePath = getFilesystemConfig().path;
       const graphDb = await getGraphDatabase();
-      const contentManager = createContentManager();
+      const contentManager = createContentManager(basePath);
 
       const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.documentId);
       if (!annotation) {

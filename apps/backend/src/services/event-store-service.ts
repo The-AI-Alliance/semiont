@@ -3,39 +3,36 @@
  *
  * Single initialization point for EventStore and all its dependencies.
  * No singleton pattern - just a simple factory function.
- * No getFilesystemConfig - requires explicit basePath.
+ * NO getFilesystemConfig calls - requires EXPLICIT basePath from caller
+ * NO fallbacks - basePath is REQUIRED
  */
 
 import * as path from 'path';
 import { EventStore, type EventStoreConfig } from '../events/event-store';
 import { EventQuery } from '../events/query/event-query';
 import { EventValidator } from '../events/validation/event-validator';
-import { createProjectionManager, getBasePath } from './storage-service';
-
-export interface EventStoreServiceConfig extends EventStoreConfig {
-  basePath?: string;  // Optional: Base filesystem path (defaults to environment config)
-}
+import { createProjectionManager } from './storage-service';
 
 /**
  * Create and initialize an EventStore instance
  * This is the ONE place where EventStore is instantiated
  *
- * @param config - Optional configuration
+ * @param basePath - REQUIRED: Base filesystem path for all storage
+ * @param config - Optional additional configuration
  */
-export async function createEventStore(config?: EventStoreServiceConfig): Promise<EventStore> {
-  // Get base path from config or environment
-  const basePath = config?.basePath || getBasePath();
-
+export async function createEventStore(
+  basePath: string,
+  config?: Omit<EventStoreConfig, 'dataDir'>
+): Promise<EventStore> {
   // Create ProjectionManager (Layer 3)
   // Structure: <basePath>/projections/documents/...
-  const projectionManager = createProjectionManager({
-    basePath,
+  const projectionManager = createProjectionManager(basePath, {
     subNamespace: 'documents',
   });
 
   // Determine data directory for events (Layer 2)
-  // Structure: <dataDir>/events/...
-  const dataDir = config?.dataDir || path.join(basePath, 'events');
+  // Structure: <basePath>/events/...
+  const dataDir = path.join(basePath, 'events');
 
   const eventStore = new EventStore({
     ...config,

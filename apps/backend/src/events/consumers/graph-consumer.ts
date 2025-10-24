@@ -12,6 +12,7 @@ import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { DocumentEvent, StoredEvent, Annotation } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
+import { getFilesystemConfig } from '../../config/environment-loader';
 
 export class GraphDBConsumer {
   private graphDb: GraphDatabase | null = null;
@@ -35,7 +36,8 @@ export class GraphDBConsumer {
    * This allows the consumer to react to events like entitytype.added
    */
   private async subscribeToGlobalEvents() {
-    const eventStore = await createEventStore();
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
 
     this._globalSubscription = eventStore.subscriptions.subscribeGlobal(async (storedEvent) => {
       console.log(`[GraphDBConsumer] Received global event: ${storedEvent.event.type}`);
@@ -58,7 +60,8 @@ export class GraphDBConsumer {
    */
   async subscribeToDocument(documentId: string) {
     this.ensureInitialized();
-    const eventStore = await createEventStore();
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
 
     const subscription = eventStore.subscriptions.subscribe(documentId, async (storedEvent) => {
       await this.processEvent(storedEvent);
@@ -114,7 +117,8 @@ export class GraphDBConsumer {
     switch (event.type) {
       case 'document.created': {
         if (!event.documentId) throw new Error('document.created requires documentId');
-        const contentManager = createContentManager();
+        const basePath = getFilesystemConfig().path;
+        const contentManager = createContentManager(basePath);
         const content = await contentManager.get(event.documentId);
         await graphDb.createDocument({
           id: event.documentId,
@@ -131,7 +135,8 @@ export class GraphDBConsumer {
 
       case 'document.cloned': {
         if (!event.documentId) throw new Error('document.cloned requires documentId');
-        const contentManager = createContentManager();
+        const basePath = getFilesystemConfig().path;
+        const contentManager = createContentManager(basePath);
         const content = await contentManager.get(event.documentId);
         await graphDb.createDocument({
           id: event.documentId,
@@ -270,7 +275,8 @@ export class GraphDBConsumer {
     }
 
     // Replay all events
-    const eventStore = await createEventStore();
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
     const events = await query.getDocumentEvents(documentId);
 
@@ -293,7 +299,8 @@ export class GraphDBConsumer {
     await graphDb.clearDatabase();
 
     // Get all document IDs by scanning event shards
-    const eventStore = await createEventStore();
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
     const allDocumentIds = await eventStore.storage.getAllDocumentIds();
 
     console.log(`[GraphDBConsumer] Found ${allDocumentIds.length} documents to rebuild`);
@@ -381,7 +388,8 @@ export async function getGraphConsumer(): Promise<GraphDBConsumer> {
  */
 export async function startGraphConsumer(): Promise<void> {
   const consumer = await getGraphConsumer();
-  const eventStore = await createEventStore();
+  const basePath = getFilesystemConfig().path;
+  const eventStore = await createEventStore(basePath);
 
   // Get all existing document IDs
   const allDocumentIds = await eventStore.storage.getAllDocumentIds();

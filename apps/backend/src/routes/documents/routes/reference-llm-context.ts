@@ -15,6 +15,7 @@ import { generateDocumentSummary } from '../../../inference/factory';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type ReferenceLLMContextResponse = components['schemas']['ReferenceLLMContextResponse'];
 
@@ -33,6 +34,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
   router.get('/api/documents/:documentId/references/:referenceId/llm-context', async (c) => {
     const { documentId, referenceId } = c.req.param();
     const query = c.req.query();
+    const basePath = getFilesystemConfig().path;
 
     // Parse and validate query parameters
     const includeSourceContext = query.includeSourceContext === 'false' ? false : true;
@@ -45,7 +47,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const contentManager = createContentManager();
+    const contentManager = createContentManager(basePath);
 
     // Get the reference
     const reference = await graphDb.getAnnotation(referenceId);

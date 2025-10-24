@@ -13,6 +13,7 @@ import { DocumentQueryService } from '../../services/document-queries';
 import { detectAnnotationsInDocument } from '../../routes/documents/helpers';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
+import { getFilesystemConfig } from '../../config/environment-loader';
 
 export class DetectionWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -96,7 +97,8 @@ export class DetectionWorker extends JobWorker {
         }
 
         try {
-          const eventStore = await createEventStore();
+          const basePath = getFilesystemConfig().path;
+          const eventStore = await createEventStore(basePath);
           await eventStore.appendEvent({
             type: 'annotation.added',
             documentId: job.documentId,

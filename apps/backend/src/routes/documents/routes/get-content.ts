@@ -12,6 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createContentManager } from '../../../services/storage-service';
 import { DocumentQueryService } from '../../../services/document-queries';
 import type { DocumentsRouterType } from '../shared';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 export function registerGetDocumentContent(router: DocumentsRouterType) {
   /**
@@ -23,7 +24,8 @@ export function registerGetDocumentContent(router: DocumentsRouterType) {
    */
   router.get('/api/documents/:id/content', async (c) => {
     const { id } = c.req.param();
-    const contentManager = createContentManager();
+    const basePath = getFilesystemConfig().path;
+    const contentManager = createContentManager(basePath);
 
     // Get document metadata from Layer 3 to retrieve the format (MIME type)
     const doc = await DocumentQueryService.getDocumentMetadata(id);

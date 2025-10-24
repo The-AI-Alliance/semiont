@@ -128,6 +128,12 @@ export function getGraphConfig(): GraphServiceConfig {
 export function getFilesystemConfig(): {
   path: string;
 } {
+  // Allow tests to override filesystem path via environment variable
+  // This provides explicit control for integration tests
+  if (process.env.SEMIONT_TEST_FS_PATH) {
+    return { path: process.env.SEMIONT_TEST_FS_PATH };
+  }
+
   // For test environments (SEMIONT_ENV=unit or integration), use a temporary directory
   // This avoids requiring environment config files for tests
   const semontEnv = process.env.SEMIONT_ENV;

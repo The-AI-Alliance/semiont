@@ -17,6 +17,7 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { DocumentsRouterType } from '../shared';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 /**
  * Document-scoped SSE event stream for real-time collaboration
@@ -37,11 +38,12 @@ export function registerGetEventStream(router: DocumentsRouterType) {
    */
   router.get('/api/documents/:id/events/stream', async (c) => {
     const { id } = c.req.param();
+    const basePath = getFilesystemConfig().path;
 
     console.log(`[EventStream] Client connecting to document events stream for ${id}`);
 
     // Verify document exists in event store (Layer 2 - source of truth)
-    const eventStore = await createEventStore();
+    const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
     const events = await query.getDocumentEvents(id);
     if (events.length === 0) {

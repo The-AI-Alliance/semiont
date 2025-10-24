@@ -4,39 +4,37 @@
  * Provides helper functions to create storage managers with correct configuration
  *
  * NO singletons - creates new instances
- * NO getFilesystemConfig calls - requires explicit basePath
+ * NO getFilesystemConfig calls - requires EXPLICIT basePath from caller
+ * NO fallbacks - basePath is REQUIRED
  */
 
-import { getFilesystemConfig } from '../config/environment-loader';
 import { ProjectionManager, type ProjectionManagerConfig } from '../storage/projection/projection-manager';
 import { ContentManager, type ContentManagerConfig } from '../storage/content/content-manager';
 
 /**
- * Get base path from environment config
- * Centralized location for loading filesystem config
- */
-export function getBasePath(): string {
-  return getFilesystemConfig().path;
-}
-
-/**
  * Create ProjectionManager
  *
- * @param config - Optional configuration. If omitted, uses basePath from environment config
+ * @param basePath - REQUIRED: Base filesystem path for projections
+ * @param config - Optional additional configuration
  * @returns New ProjectionManager instance
  */
-export function createProjectionManager(config?: Partial<ProjectionManagerConfig>): ProjectionManager {
-  const basePath = config?.basePath || getBasePath();
+export function createProjectionManager(
+  basePath: string,
+  config?: Omit<ProjectionManagerConfig, 'basePath'>
+): ProjectionManager {
   return new ProjectionManager({ ...config, basePath });
 }
 
 /**
  * Create ContentManager
  *
- * @param config - Optional configuration. If omitted, uses basePath from environment config
+ * @param basePath - REQUIRED: Base filesystem path for content
+ * @param config - Optional additional configuration
  * @returns New ContentManager instance
  */
-export function createContentManager(config?: Partial<ContentManagerConfig>): ContentManager {
-  const basePath = config?.basePath || getBasePath();
+export function createContentManager(
+  basePath: string,
+  config?: Omit<ContentManagerConfig, 'basePath'>
+): ContentManager {
   return new ContentManager({ ...config, basePath });
 }

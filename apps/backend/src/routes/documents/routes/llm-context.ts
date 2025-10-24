@@ -14,6 +14,7 @@ import { createContentManager } from '../../../services/storage-service';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type DocumentLLMContextResponse = components['schemas']['DocumentLLMContextResponse'];
 
@@ -33,6 +34,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
   router.get('/api/documents/:id/llm-context', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
+    const basePath = getFilesystemConfig().path;
 
     // Parse and validate query parameters
     const depth = query.depth ? Number(query.depth) : 2;
@@ -51,7 +53,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const contentManager = createContentManager();
+    const contentManager = createContentManager(basePath);
 
     const mainDoc = await graphDb.getDocument(id);
     if (!mainDoc) {

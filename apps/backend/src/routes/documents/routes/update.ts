@@ -16,6 +16,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { extractEntityTypes } from '../../../graph/annotation-body-utils';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type UpdateDocumentRequest = components['schemas']['UpdateDocumentRequest'];
 type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
@@ -34,6 +35,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as UpdateDocumentRequest;
       const user = c.get('user');
+      const basePath = getFilesystemConfig().path;
 
       // Check document exists using Layer 3
       const doc = await DocumentQueryService.getDocumentMetadata(id);
@@ -41,7 +43,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         throw new HTTPException(404, { message: 'Document not found' });
       }
 
-      const eventStore = await createEventStore();
+      const eventStore = await createEventStore(basePath);
 
       // Emit archived/unarchived events (event store updates Layer 3, graph consumer updates Layer 4)
       if (body.archived !== undefined && body.archived !== doc.archived) {

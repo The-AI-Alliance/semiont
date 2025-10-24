@@ -30,6 +30,7 @@ import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { validateRequestBody } from '../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../config/environment-loader';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type CreateAnnotationResponse = components['schemas']['CreateAnnotationResponse'];
@@ -83,7 +84,8 @@ crudRouter.post('/api/annotations',
     };
 
     // Emit unified annotation.added event (single source of truth)
-    const eventStore = await createEventStore();
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
     const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
       type: 'annotation.added',
       documentId: request.target.source,
@@ -132,7 +134,8 @@ crudRouter.put('/api/annotations/:id/body',
     }
 
     // Emit annotation.body.updated event to Layer 2 (consumer will update Layer 3 projection)
-    const eventStore = await createEventStore();
+    const basePath2 = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath2);
     await eventStore.appendEvent({
       type: 'annotation.body.updated',
       documentId: getTargetSource(annotation.target),
@@ -280,7 +283,8 @@ crudRouter.delete('/api/annotations/:id',
     }
 
     // Emit unified annotation.removed event (consumer will delete from GraphDB and update Layer 3)
-    const eventStore = await createEventStore();
+    const basePath3 = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath3);
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',

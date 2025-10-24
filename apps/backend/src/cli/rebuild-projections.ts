@@ -17,9 +17,7 @@ async function rebuildProjections(documentId?: string) {
   console.log('🔄 Rebuilding annotation projections from events...\n');
 
   const config = getFilesystemConfig();
-  const eventStore = await createEventStore({
-    dataDir: config.path,
-  });
+  const eventStore = await createEventStore(config.path);
   const query = createEventQuery(eventStore);
   const validator = createEventValidator();
 

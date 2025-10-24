@@ -21,6 +21,7 @@ import type { DocumentsRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type GetDocumentByTokenResponse = components['schemas']['GetDocumentByTokenResponse'];
 type CreateDocumentFromTokenRequest = components['schemas']['CreateDocumentFromTokenRequest'];
@@ -79,6 +80,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     async (c) => {
       const body = c.get('validatedBody') as CreateDocumentFromTokenRequest;
       const user = c.get('user');
+      const basePath = getFilesystemConfig().path;
 
       const tokenData = cloneTokens.get(body.token);
       if (!tokenData) {
@@ -91,7 +93,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       }
 
       const graphDb = await getGraphDatabase();
-      const contentManager = createContentManager();
+      const contentManager = createContentManager(basePath);
 
       // Get source document
       const sourceDoc = await graphDb.getDocument(tokenData.documentId);
@@ -164,8 +166,9 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
    */
   router.post('/api/documents/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
+    const basePath = getFilesystemConfig().path;
     const graphDb = await getGraphDatabase();
-    const contentManager = createContentManager();
+    const contentManager = createContentManager(basePath);
 
     const sourceDoc = await graphDb.getDocument(id);
     if (!sourceDoc) {

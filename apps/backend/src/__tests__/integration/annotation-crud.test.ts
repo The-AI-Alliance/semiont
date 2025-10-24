@@ -3,19 +3,31 @@
  * Tests multi-body arrays with TextualBody (tagging) and SpecificResource (linking)
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { Annotation, DocumentCreatedEvent } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 import { createEventStore } from '../../services/event-store-service';
 import { AnnotationQueryService } from '../../services/annotation-queries';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { mkdir, rm } from 'fs/promises';
 
 describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => {
+  let testBasePath: string;
   const testDocId = 'test-doc-integration-' + Date.now();
   const testDocId2 = 'test-doc-target-' + Date.now();
 
   beforeAll(async () => {
-    // Create test documents in event store
-    const eventStore = await createEventStore();
+    // Create temp dir ONCE for entire test suite
+    testBasePath = join(tmpdir(), `semiont-integration-${Date.now()}`);
+    await mkdir(testBasePath, { recursive: true });
+
+    // Set environment variable so getFilesystemConfig() returns our test path
+    // This ensures all services (AnnotationQueryService, etc.) use the SAME path
+    process.env.SEMIONT_TEST_FS_PATH = testBasePath;
+
+    // Create test documents in event store with explicit path
+    const eventStore = await createEventStore(testBasePath);
 
     const docEvent1: Omit<DocumentCreatedEvent, 'id' | 'timestamp'> = {
       type: 'document.created',
@@ -50,9 +62,20 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     await new Promise(resolve => setTimeout(resolve, 100));
   });
 
+  afterAll(async () => {
+    // Clean up environment variable
+    delete process.env.SEMIONT_TEST_FS_PATH;
+
+    // Clean up temp directory
+    if (testBasePath) {
+      await rm(testBasePath, { recursive: true, force: true });
+    }
+  });
+
   describe('Create Annotation with Entity Tags (stub reference)', () => {
     it('should create annotation with empty body array', async () => {
-      const eventStore = await createEventStore();
+      // Use SAME path from beforeAll
+      const eventStore = await createEventStore(testBasePath);
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -92,7 +115,8 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     });
 
     it('should create annotation with TextualBody entity tags', async () => {
-      const eventStore = await createEventStore();
+      // Use SAME path from beforeAll
+      const eventStore = await createEventStore(testBasePath);
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -163,7 +187,8 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   describe('Resolve Annotation (add SpecificResource)', () => {
     it('should add SpecificResource to existing entity tags', async () => {
-      const eventStore = await createEventStore();
+      // Use SAME path from beforeAll
+      const eventStore = await createEventStore(testBasePath);
 
       // Create stub annotation with entity tags
       const stubId = 'test-resolve-stub-' + Date.now();
@@ -257,7 +282,8 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     });
 
     it('should resolve annotation with empty body to have only SpecificResource', async () => {
-      const eventStore = await createEventStore();
+      // Use SAME path from beforeAll
+      const eventStore = await createEventStore(testBasePath);
 
       // Create stub with empty body
       const stubId = 'test-resolve-empty-' + Date.now();
@@ -362,7 +388,8 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   describe('Delete Annotation', () => {
     it('should delete annotation with multi-body', async () => {
-      const eventStore = await createEventStore();
+      // Use SAME path from beforeAll
+      const eventStore = await createEventStore(testBasePath);
 
       // Create annotation
       const deleteId = 'test-delete-' + Date.now();
@@ -430,7 +457,8 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   describe('W3C Compliance in Integration', () => {
     it('should maintain W3C structure through event sourcing', async () => {
-      const eventStore = await createEventStore();
+      // Use SAME path from beforeAll
+      const eventStore = await createEventStore(testBasePath);
 
       const w3cId = 'test-w3c-' + Date.now();
       const annotation: Omit<Annotation, 'creator' | 'created'> = {

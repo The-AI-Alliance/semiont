@@ -14,6 +14,7 @@ import { formatSearchResult } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { DocumentQueryService } from '../../../services/document-queries';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type ListDocumentsResponse = components['schemas']['ListDocumentsResponse'];
 
@@ -28,6 +29,7 @@ export function registerListDocuments(router: DocumentsRouterType) {
   router.get('/api/documents', async (c) => {
     // Parse query parameters with defaults and coercion
     const query = c.req.query();
+    const basePath = getFilesystemConfig().path;
     const offset = Number(query.offset) || 0;
     const limit = Number(query.limit) || 50;
     const entityType = query.entityType;
@@ -44,7 +46,7 @@ export function registerListDocuments(router: DocumentsRouterType) {
 
     const search = query.search;
 
-    const contentManager = createContentManager();
+    const contentManager = createContentManager(basePath);
 
     // Read from Layer 3 projection storage
     let filteredDocs = await DocumentQueryService.listDocuments({

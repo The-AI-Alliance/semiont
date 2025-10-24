@@ -19,6 +19,7 @@ import { calculateChecksum } from '@semiont/core';
 import { createEventStore } from '../../services/event-store-service';
 import { getExactText, compareAnnotationIds, type BodyOperation } from '@semiont/core';
 import { extractEntityTypes } from '../../graph/annotation-body-utils';
+import { getFilesystemConfig } from '../../config/environment-loader';
 
 export class GenerationWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -40,7 +41,8 @@ export class GenerationWorker extends JobWorker {
   private async processGenerationJob(job: GenerationJob): Promise<void> {
     console.log(`[GenerationWorker] Processing generation for reference ${job.referenceId} (job: ${job.id})`);
 
-    const contentManager = createContentManager();
+    const basePath = getFilesystemConfig().path;
+    const contentManager = createContentManager(basePath);
 
     // Update progress: fetching
     job.progress = {
@@ -121,7 +123,7 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] ✅ Saved document to filesystem: ${documentId}`);
 
     // Emit document.created event
-    const eventStore = await createEventStore();
+    const eventStore = await createEventStore(basePath);
     await eventStore.appendEvent({
       type: 'document.created',
       documentId,
