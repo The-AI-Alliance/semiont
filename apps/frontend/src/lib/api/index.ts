@@ -1,11 +1,6 @@
 /**
- * Frontend API Client
- *
- * Shared utilities for the frontend API layer.
- * React Query hooks are in domain-specific files (annotations.ts, documents.ts, etc.)
+ * API Error with HTTP status metadata
  */
-
-// API Error class (frontend-specific, not in OpenAPI spec)
 export class APIError extends Error {
   public status: number;
   public statusText: string;
