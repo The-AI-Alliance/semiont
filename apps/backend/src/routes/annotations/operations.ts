@@ -78,8 +78,8 @@ function getAnnotationContext(
   if (!posSelector) {
     throw new HTTPException(400, { message: 'TextPositionSelector required for context' });
   }
-  const selStart = posSelector.offset;
-  const selEnd = posSelector.offset + posSelector.length;
+  const selStart = posSelector.start;
+  const selEnd = posSelector.end;
   const start = Math.max(0, selStart - contextBefore);
   const end = Math.min(contentStr.length, selEnd + contextAfter);
 

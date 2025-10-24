@@ -61,11 +61,16 @@
           },
           "purpose": {
             "type": "string",
-            "enum": ["linking"],
+            "enum": [
+              "linking"
+            ],
             "description": "Why this body is included"
           }
         },
-        "required": ["type", "source"]
+        "required": [
+          "type",
+          "source"
+        ]
       },
       "TextualBody": {
         "type": "object",
@@ -80,7 +85,11 @@
           },
           "purpose": {
             "type": "string",
-            "enum": ["tagging", "describing", "commenting"],
+            "enum": [
+              "tagging",
+              "describing",
+              "commenting"
+            ],
             "description": "Why this body is included"
           },
           "format": {
@@ -92,7 +101,10 @@
             "description": "BCP 47 language tag"
           }
         },
-        "required": ["type", "value"]
+        "required": [
+          "type",
+          "value"
+        ]
       },
       "HealthResponse": {
         "type": "object",
@@ -1168,30 +1180,7 @@
               "selector": {
                 "anyOf": [
                   {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "enum": [
-                          "TextPositionSelector"
-                        ]
-                      },
-                      "exact": {
-                        "type": "string"
-                      },
-                      "offset": {
-                        "type": "number"
-                      },
-                      "length": {
-                        "type": "number"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "exact",
-                      "offset",
-                      "length"
-                    ]
+                    "$ref": "#/components/schemas/TextPositionSelector"
                   },
                   {
                     "type": "object",
@@ -1222,30 +1211,7 @@
                     "items": {
                       "anyOf": [
                         {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "TextPositionSelector"
-                              ]
-                            },
-                            "exact": {
-                              "type": "string"
-                            },
-                            "offset": {
-                              "type": "number"
-                            },
-                            "length": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "exact",
-                            "offset",
-                            "length"
-                          ]
+                          "$ref": "#/components/schemas/TextPositionSelector"
                         },
                         {
                           "type": "object",
@@ -1975,7 +1941,9 @@
             "type": "string"
           }
         },
-        "required": ["documentId"]
+        "required": [
+          "documentId"
+        ]
       },
       "GenerateDocumentStreamRequest": {
         "type": "object",
@@ -2030,7 +1998,10 @@
             ]
           }
         },
-        "required": ["op", "item"]
+        "required": [
+          "op",
+          "item"
+        ]
       },
       "BodyOperationRemove": {
         "type": "object",
@@ -2050,7 +2021,10 @@
             ]
           }
         },
-        "required": ["op", "item"]
+        "required": [
+          "op",
+          "item"
+        ]
       },
       "BodyOperationReplace": {
         "type": "object",
@@ -2080,7 +2054,11 @@
             ]
           }
         },
-        "required": ["op", "oldItem", "newItem"]
+        "required": [
+          "op",
+          "oldItem",
+          "newItem"
+        ]
       },
       "UpdateAnnotationBodyRequest": {
         "type": "object",
@@ -2108,7 +2086,10 @@
             "description": "Array of body modification operations to apply"
           }
         },
-        "required": ["documentId", "operations"]
+        "required": [
+          "documentId",
+          "operations"
+        ]
       },
       "UpdateAnnotationBodyResponse": {
         "type": "object",
@@ -2117,7 +2098,9 @@
             "$ref": "#/components/schemas/Annotation"
           }
         },
-        "required": ["annotation"]
+        "required": [
+          "annotation"
+        ]
       },
       "DeleteAnnotationRequest": {
         "type": "object",
@@ -2140,21 +2123,19 @@
               "TextPositionSelector"
             ]
           },
-          "exact": {
-            "type": "string"
+          "start": {
+            "type": "number",
+            "description": "Character offset from document start"
           },
-          "offset": {
-            "type": "number"
-          },
-          "length": {
-            "type": "number"
+          "end": {
+            "type": "number",
+            "description": "Character offset from document start"
           }
         },
         "required": [
           "type",
-          "exact",
-          "offset",
-          "length"
+          "start",
+          "end"
         ]
       },
       "TextQuoteSelector": {

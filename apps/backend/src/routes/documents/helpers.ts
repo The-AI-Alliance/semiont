@@ -17,8 +17,8 @@ export function formatSearchResult(doc: Document, contentPreview: string): Docum
 export interface DetectedAnnotation {
   annotation: {
     selector: {
-      offset: number;
-      length: number;
+      start: number;
+      end: number;
       exact: string;
     };
     entityTypes: string[];
@@ -51,8 +51,8 @@ export async function detectAnnotationsInDocument(
       const annotation: DetectedAnnotation = {
         annotation: {
           selector: {
-            offset: entity.startOffset,
-            length: entity.endOffset - entity.startOffset,
+            start: entity.startOffset,
+            end: entity.endOffset,
             exact: entity.exact,
           },
           entityTypes: [entity.entityType],

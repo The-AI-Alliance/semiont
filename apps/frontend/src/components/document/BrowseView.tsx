@@ -37,8 +37,8 @@ function prepareAnnotations(annotations: Annotation[]) {
       return {
         id: ann.id,
         exact: getExactText(targetSelector),
-        offset: posSelector?.offset ?? 0,
-        length: posSelector?.length ?? 0,
+        start: posSelector?.start ?? 0,
+        end: posSelector?.end ?? 0,
         type,
         source: getBodySource(ann.body)
       };

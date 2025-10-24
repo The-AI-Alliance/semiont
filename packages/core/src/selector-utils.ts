@@ -15,14 +15,20 @@ type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
 /**
  * Get the exact text from a selector (single or array)
  *
- * When selector is an array, returns the exact text from the first selector.
- * All selectors in an array should point to the same text, so first is preferred.
+ * When selector is an array, tries to find a TextQuoteSelector (which has exact text).
+ * TextPositionSelector does not have exact text, only character offsets.
  */
 export function getExactText(selector: Selector | Selector[]): string {
-  if (Array.isArray(selector)) {
-    return selector[0].exact;
+  const selectors = Array.isArray(selector) ? selector : [selector];
+
+  // Try to find TextQuoteSelector (has exact text)
+  const quoteSelector = selectors.find(s => s.type === 'TextQuoteSelector') as TextQuoteSelector | undefined;
+  if (quoteSelector) {
+    return quoteSelector.exact;
   }
-  return selector.exact;
+
+  // No TextQuoteSelector found
+  return '';
 }
 
 /**

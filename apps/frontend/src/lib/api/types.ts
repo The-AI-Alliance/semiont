@@ -7,7 +7,7 @@
  * Note: Hono OpenAPI inlines all schemas, so we extract types from response/request bodies
  */
 
-import type { paths } from '@semiont/api-client';
+import type { paths, components } from '@semiont/api-client';
 
 // Helper type to extract response content
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
@@ -45,6 +45,11 @@ export type HighlightAnnotation = Annotation & { motivation: 'highlighting' };
 export type ReferenceAnnotation = Annotation & { motivation: 'linking' };
 export type AnnotationUpdate = Partial<CreateAnnotationRequest>;
 export type TextSelection = { exact: string; start: number; end: number };
+
+// Selector types from OpenAPI components
+export type TextPositionSelector = components['schemas']['TextPositionSelector'];
+export type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
+export type Selector = TextPositionSelector | TextQuoteSelector;
 
 // Admin types
 export type AdminUser = ResponseContent<paths['/api/admin/users']['get']>['users'][number];

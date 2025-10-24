@@ -84,12 +84,17 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         motivation: 'linking',
         target: {
           source: documentId,
-          selector: {
-            type: 'TextPositionSelector',
-            exact: exact,
-            offset: position.start,
-            length: position.end - position.start,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: position.start,
+              end: position.end,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: exact,
+            },
+          ],
         },
         // Build body array with entity tag bodies + linking body (if resolved)
         body: (() => {
@@ -159,12 +164,17 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         motivation: 'assessing',  // W3C motivation for assessments
         target: {
           source: documentId,
-          selector: {
-            type: 'TextPositionSelector',
-            exact: exact,
-            offset: position.start,
-            length: position.end - position.start,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: position.start,
+              end: position.end,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: exact,
+            },
+          ],
         },
         // Empty body array (assessments don't have bodies yet)
         body: [],
@@ -236,7 +246,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       await addReference(
         targetSource,
         getExactText(targetSelector),
-        { start: posSelector.offset, end: posSelector.offset + posSelector.length },
+        { start: posSelector.start, end: posSelector.end },
         targetDocId,
         entityType,
         referenceType
@@ -271,7 +281,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       await addHighlight(
         targetSource,
         getExactText(targetSelector),
-        { start: posSelector.offset, end: posSelector.offset + posSelector.length }
+        { start: posSelector.start, end: posSelector.end }
       );
     } catch (err) {
       console.error('Failed to convert reference to highlight:', err);

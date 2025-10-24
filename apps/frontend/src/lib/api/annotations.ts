@@ -53,12 +53,17 @@ export const annotations = {
           const data: CreateAnnotationRequest = {
             target: {
               source: documentId,
-              selector: {
-                type: 'TextPositionSelector',
-                exact,
-                offset: position.start,
-                length: position.end - position.start,
-              },
+              selector: [
+                {
+                  type: 'TextPositionSelector',
+                  start: position.start,
+                  end: position.end,
+                },
+                {
+                  type: 'TextQuoteSelector',
+                  exact,
+                },
+              ],
             },
             // Empty body array for highlights
             body: [],

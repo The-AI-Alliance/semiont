@@ -102,8 +102,8 @@ export function DocumentViewer({
       const posSelector = getTextPositionSelector(targetSelector);
       if (posSelector) {
         setAnnotationPosition({
-          start: posSelector.offset,
-          end: posSelector.offset + posSelector.length
+          start: posSelector.start,
+          end: posSelector.end
         });
       }
 
@@ -127,8 +127,8 @@ export function DocumentViewer({
     const posSelector = getTextPositionSelector(targetSelector);
     if (posSelector) {
       setAnnotationPosition({
-        start: posSelector.offset,
-        end: posSelector.offset + posSelector.length
+        start: posSelector.start,
+        end: posSelector.end
       });
     }
     setPopupPosition({ x, y: y + 10 });
@@ -145,8 +145,8 @@ export function DocumentViewer({
       const posSelector = getTextPositionSelector(targetSelector);
       if (posSelector) {
         setAnnotationPosition({
-          start: posSelector.offset,
-          end: posSelector.offset + posSelector.length
+          start: posSelector.start,
+          end: posSelector.end
         });
       }
       setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });

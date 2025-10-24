@@ -72,13 +72,13 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
       const contentStr = sourceContent.toString('utf-8');
 
       const targetSelector = getTargetSelector(reference.target);
-      if (targetSelector && 'offset' in targetSelector) {
-        const offset = targetSelector.offset as number;
-        const length = targetSelector.length as number;
+      if (targetSelector && 'start' in targetSelector && 'end' in targetSelector) {
+        const start = targetSelector.start as number;
+        const end = targetSelector.end as number;
 
-        const before = contentStr.slice(Math.max(0, offset - contextWindow), offset);
-        const selected = contentStr.slice(offset, offset + length);
-        const after = contentStr.slice(offset + length, Math.min(contentStr.length, offset + length + contextWindow));
+        const before = contentStr.slice(Math.max(0, start - contextWindow), start);
+        const selected = contentStr.slice(start, end);
+        const after = contentStr.slice(end, Math.min(contentStr.length, end + contextWindow));
 
         sourceContext = { before, selected, after };
       }

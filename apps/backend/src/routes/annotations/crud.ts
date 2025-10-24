@@ -61,7 +61,7 @@ crudRouter.post('/api/annotations',
       console.error('Failed to generate annotation ID:', error);
       throw new HTTPException(500, { message: 'Failed to create annotation' });
     }
-    // Extract TextPositionSelector for event (events require offset/length)
+    // Extract TextPositionSelector (required for creating annotations)
     const posSelector = getTextPositionSelector(request.target.selector);
     if (!posSelector) {
       throw new HTTPException(400, { message: 'TextPositionSelector required for creating annotations' });
