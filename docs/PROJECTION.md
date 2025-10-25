@@ -505,7 +505,7 @@ Layer 1: API Route (download)
 }
 ```
 
-See [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) for complete annotation format details.
+See [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) for complete annotation format details.
 
 ### Content Storage Format
 
@@ -745,7 +745,7 @@ Per explicit requirements during refactoring:
 
 - [EVENT-STORE.md](./EVENT-STORE.md) - Layer 2 event sourcing (feeds projections)
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Complete layer architecture
-- [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) - Annotation format in projections
+- [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation format in projections
 - [GRAPH.md](./GRAPH.md) - Layer 4 graph database (built from projections)
 - [LAYER-3-REFACTOR-PLAN.md](../LAYER-3-REFACTOR-PLAN.md) - Refactoring implementation details
 - [CLAUDE.md](../CLAUDE.md) - Zero cruft philosophy

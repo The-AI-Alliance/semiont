@@ -971,7 +971,7 @@ jobs:
 - [Frontend Architecture](../apps/frontend/docs/ARCHITECTURE.md) - Component structure and testing strategy
 
 ### W3C Compliance Testing
-- [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) - W3C Web Annotation compliance and testing
+- [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) - W3C Web Annotation compliance and testing
 
 ## Resources
 

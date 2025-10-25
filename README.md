@@ -21,13 +21,16 @@ Built on the **W3C Web Annotation** standard, Semiont automatically extracts kno
 
 ```text
 semiont/
+├── specs/                # API specifications (spec-first architecture)
+│   ├── openapi.json      # OpenAPI 3.0 REST API specification (source of truth)
+│   └── docs/             # API and W3C annotation documentation
 ├── apps/                 # Application packages
 │   ├── frontend/         # Next.js 14 frontend application
 │   ├── backend/          # Hono backend API server
 │   └── cli/              # Semiont management CLI
 ├── packages/             # Shared workspace packages
 │   ├── core/             # Core TypeScript SDK with types, schemas, and utilities
-│   ├── api-client/       # Generated OpenAPI client for external applications
+│   ├── api-client/       # TypeScript SDK generated from OpenAPI spec
 │   ├── mcp-server/       # Model Context Protocol server for AI integration
 │   └── test-utils/       # Testing utilities and mock factories
 ├── demo/                 # Example scripts and demonstrations
@@ -59,15 +62,17 @@ const doc = await client.createDocument({
 
 **Features:**
 
-- 🎯 Complete TypeScript types generated from OpenAPI specification
+- 🎯 Complete TypeScript types generated from [OpenAPI specification](specs/openapi.json)
 - 🔌 High-level API client with authentication and error handling
 - ✅ Type-safe request/response handling
-- 🔄 Automatic code generation from backend OpenAPI spec
+- 🔄 Spec-first development: Types generated from canonical [specs/openapi.json](specs/openapi.json)
 
 For internal use, **[@semiont/core](packages/core/)** provides shared types, schemas, and utilities used across the monorepo.
 
-[→ Read the API Client documentation](packages/api-client/README.md)
-[→ Read the Core SDK documentation](packages/core/README.md)
+**Documentation:**
+- [API Client README](packages/api-client/README.md) - SDK usage and utilities
+- [API Reference](specs/docs/API.md) - Complete HTTP API endpoint documentation
+- [OpenAPI Specification](specs/openapi.json) - Machine-readable API contract
 
 ### Demo Scripts
 
@@ -150,13 +155,20 @@ For complete deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 | [Test Utils README](packages/test-utils/README.md) | Shared testing utilities and mock factories |
 | [MCP Server README](packages/mcp-server/README.md) | Model Context Protocol server for AI integration |
 
+### API Specifications
+
+| Document | Description |
+|----------|-------------|
+| [OpenAPI Specification](specs/openapi.json) | REST API specification (OpenAPI 3.0) - source of truth for API contract |
+| [API Reference](specs/docs/API.md) | Complete HTTP API endpoint documentation |
+| [W3C Web Annotation](specs/docs/W3C-WEB-ANNOTATION.md) | W3C Web Annotation implementation across all layers |
+
 ### System Documentation
 
 | Document | Description |
 |----------|-------------|
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Complete deployment guide with validation steps |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design decisions |
-| [W3C-WEB-ANNOTATION.md](docs/W3C-WEB-ANNOTATION.md) | W3C Web Annotation implementation across all layers |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration management and environment setup |
 | [DATABASE.md](docs/DATABASE.md) | Database setup, migrations, and management |
 | [TESTING.md](docs/TESTING.md) | Testing strategy, frameworks, and best practices |

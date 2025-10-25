@@ -560,7 +560,7 @@ This uses MSW (Mock Service Worker) to intercept API calls and return mock data.
 ## Additional Resources
 
 - [Architecture Overview](./ARCHITECTURE.md)
-- [Backend API Documentation](../apps/backend/docs/API.md)
+- [API Documentation](../specs/docs/API.md)
 - [Deployment Guide](./DEPLOYMENT.md)
 - [Contributing Guidelines](../CONTRIBUTING.md)
 

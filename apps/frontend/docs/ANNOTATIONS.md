@@ -4,7 +4,7 @@
 
 The Semiont annotation system enables users to mark up documents with highlights and references, creating a rich knowledge graph. Built on the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/), annotations are standards-compliant objects with multi-body arrays supporting entity type tags and document linking.
 
-This document describes the frontend UI patterns, component architecture, and user workflows. For the complete W3C implementation across all layers (API, event store, projection, and graph database), see [W3C-WEB-ANNOTATION.md](../../../docs/W3C-WEB-ANNOTATION.md).
+This document describes the frontend UI patterns, component architecture, and user workflows. For the complete W3C implementation across all layers (API, event store, projection, and graph database), see [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md).
 
 ## Core Principles
 
@@ -65,7 +65,7 @@ DocumentViewer (Container)
 7. **Server Sync** → Background API call to Layer 1 (API), persisted to Layer 2 (Event Store), Layer 3 (Projection), and Layer 4 (Graph Database)
 8. **Confirmation** → Animation complete, W3C-compliant annotation persisted across all layers
 
-For complete architecture details on how annotations flow through the event-sourced backend layers, see [W3C-WEB-ANNOTATION.md](../../../docs/W3C-WEB-ANNOTATION.md).
+For complete architecture details on how annotations flow through the event-sourced backend layers, see [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md).
 
 ## Component Design
 
@@ -305,7 +305,7 @@ The modular architecture ensures maintainability and extensibility, while the pr
 ## Related Documentation
 
 ### W3C Web Annotation Implementation
-- [W3C-WEB-ANNOTATION.md](../../../docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers (UI, API, Event Store, Projection, Graph)
+- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers (UI, API, Event Store, Projection, Graph)
 
 ### Frontend Documentation
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - Document rendering and editor implementation

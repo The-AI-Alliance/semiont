@@ -26,7 +26,7 @@ Semiont is a semantic knowledge platform with a modern architecture focused on:
 - [Event Store (Layer 2)](./EVENT-STORE.md) - Event sourcing
 - [Projection Storage (Layer 3)](./PROJECTION.md) - Materialized views
 - [Graph Database (Layer 4)](./GRAPH.md) - Relationship traversal
-- [W3C Web Annotation](./W3C-WEB-ANNOTATION.md) - Complete annotation flow
+- [W3C Web Annotation](../specs/docs/W3C-WEB-ANNOTATION.md) - Complete annotation flow
 
 ## Application Architecture
 
@@ -222,7 +222,7 @@ For general deployment procedures, see [DEPLOYMENT.md](./DEPLOYMENT.md).
 - [Event Store (Layer 2)](./EVENT-STORE.md) - Event sourcing and immutable event log
 - [Projection Storage (Layer 3)](./PROJECTION.md) - Materialized views and query optimization
 - [Graph Database (Layer 4)](./GRAPH.md) - Graph database patterns and implementations
-- [W3C Web Annotation](./W3C-WEB-ANNOTATION.md) - Complete annotation implementation across all layers
+- [W3C Web Annotation](../specs/docs/W3C-WEB-ANNOTATION.md) - Complete annotation implementation across all layers
 - [Database Management](./DATABASE.md) - PostgreSQL schema migrations and backup procedures
 
 ### Operations Documentation

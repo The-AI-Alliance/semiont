@@ -10,7 +10,7 @@ For complete details on how data flows through all layers:
 - [CONTENT-STORE.md](./CONTENT-STORE.md) - Layer 1 raw document content storage
 - [EVENT-STORE.md](./EVENT-STORE.md) - Layer 2 event sourcing architecture
 - [PROJECTION.md](./PROJECTION.md) - Layer 3 projection storage and queries
-- [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) - Complete annotation flow (UI, API, Event Store, Projection, Graph)
+- [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) - Complete annotation flow (UI, API, Event Store, Projection, Graph)
 
 ## Graph Architecture
 
@@ -68,7 +68,7 @@ All implementations use three primary vertex types:
    - Can be updated (unlike documents)
    - W3C-compliant with multi-body arrays combining entity type tags and document links
    - Links source document to optional target document via body SpecificResource
-   - Entity types stored as [:TAGGED_AS] relationships to EntityType vertices (see [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md))
+   - Entity types stored as [:TAGGED_AS] relationships to EntityType vertices (see [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md))
 
 3. **TagCollection** - Stores collections of entity types and reference types
    - Two collections: 'entity-types' and 'reference-types'
@@ -92,7 +92,7 @@ All implementations use consistent edge labels:
 2. **Type Safety**: All required fields must be present; no defensive defaults for mandatory data
 3. **Vertex Labels for Type Identification**: Use graph-native vertex labels instead of ID prefixes
 4. **Consistent Edge Directions**: Annotations point TO documents, not vice versa
-5. **W3C Compliance**: All annotations follow W3C Web Annotation Data Model. Multi-body arrays are reconstructed from entity type relationships ([:TAGGED_AS] edges to EntityType vertices) and document link properties (source in body). See [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) for full specification details.
+5. **W3C Compliance**: All annotations follow W3C Web Annotation Data Model. Multi-body arrays are reconstructed from entity type relationships ([:TAGGED_AS] edges to EntityType vertices) and document link properties (source in body). See [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) for full specification details.
 
 ## Implementation-Specific Details
 

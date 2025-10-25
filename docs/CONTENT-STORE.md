@@ -762,7 +762,7 @@ find {basePath}/documents -name "*.dat" | \
 - [Event Store (Layer 2)](./EVENT-STORE.md) - Event sourcing patterns
 - [Projection Storage (Layer 3)](./PROJECTION.md) - Metadata and query layer
 - [Graph Database (Layer 4)](./GRAPH.md) - Relationship traversal
-- [W3C Web Annotation](./W3C-WEB-ANNOTATION.md) - Annotation data model
+- [W3C Web Annotation](../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation data model
 - [Database Management](./DATABASE.md) - PostgreSQL and migrations
 
 ## Future Enhancements

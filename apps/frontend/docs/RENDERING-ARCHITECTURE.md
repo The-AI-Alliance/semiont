@@ -453,7 +453,7 @@ The rendering system is tested through:
 
 ## Related Documentation
 
-- [W3C-WEB-ANNOTATION.md](../../../docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers
+- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
 - [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering implementation
