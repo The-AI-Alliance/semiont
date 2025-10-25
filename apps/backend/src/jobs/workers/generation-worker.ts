@@ -14,11 +14,11 @@ import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
 import { getTargetSelector } from '../../lib/annotation-utils';
-import { CREATION_METHODS } from '@semiont/core';
-import { calculateChecksum } from '@semiont/core';
+import { CREATION_METHODS, calculateChecksum, type BodyOperation } from '@semiont/core';
+import { getExactText, compareAnnotationIds } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
-import { getExactText, compareAnnotationIds, type BodyOperation } from '@semiont/core';
-import { extractEntityTypes } from '../../graph/annotation-body-utils';
+
+import { getEntityTypes } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../config/environment-loader';
 
 export class GenerationWorker extends JobWorker {
@@ -86,7 +86,7 @@ export class GenerationWorker extends JobWorker {
     // Generate content using AI
     const prompt = job.prompt || `Create a comprehensive document about "${documentName}"`;
     // Extract entity types from annotation body
-    const annotationEntityTypes = extractEntityTypes(annotation.body);
+    const annotationEntityTypes = getEntityTypes({ body: annotation.body });
 
     const generatedContent = await generateDocumentFromTopic(
       documentName,

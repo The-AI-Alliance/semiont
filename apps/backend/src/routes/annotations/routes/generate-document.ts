@@ -18,10 +18,10 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
-import { compareAnnotationIds } from '@semiont/core';
+import { compareAnnotationIds } from '@semiont/api-client';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
-import { extractEntityTypes } from '../../../graph/annotation-body-utils';
+import { getEntityTypes } from '@semiont/api-client';
 
 type GenerateDocumentRequest = components['schemas']['GenerateDocumentRequest'];
 type CreateJobResponse = components['schemas']['CreateJobResponse'];
@@ -73,7 +73,7 @@ export function registerGenerateDocument(router: AnnotationsRouterType) {
         title: body.title,
         prompt: body.prompt,
         language: body.language,
-        entityTypes: extractEntityTypes(annotation.body),
+        entityTypes: getEntityTypes({ body: annotation.body }),
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3

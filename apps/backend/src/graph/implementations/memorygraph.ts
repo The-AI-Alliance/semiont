@@ -2,7 +2,7 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
-import { extractEntityTypes } from '../annotation-body-utils';
+import { getEntityTypes } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import type {
   AnnotationCategory,
@@ -264,7 +264,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
       console.log('  Reference:', {
         id: ref.id,
         source: getBodySource(ref.body),
-        entityTypes: extractEntityTypes(ref.body) // from body
+        entityTypes: getEntityTypes(ref) // from body
       });
     });
     return references;
@@ -274,13 +274,13 @@ export class MemoryGraphDatabase implements GraphDatabase {
     // TODO Extract entity types from body
     let refs = Array.from(this.annotations.values())
       .filter(sel => {
-        const selEntityTypes = extractEntityTypes(sel.body);
+        const selEntityTypes = getEntityTypes(sel);
         return getTargetSource(sel.target) === documentId && selEntityTypes.length > 0;
       });
 
     if (entityTypes && entityTypes.length > 0) {
       refs = refs.filter(sel => {
-        const selEntityTypes = extractEntityTypes(sel.body);
+        const selEntityTypes = getEntityTypes(sel);
         return selEntityTypes.some((type: string) => entityTypes.includes(type));
       });
     }
@@ -426,7 +426,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const highlightCount = annotations.filter(a => a.motivation === 'highlighting').length;
     const referenceCount = annotations.filter(a => a.motivation === 'linking').length;
     // TODO Extract entity types from body
-    const entityReferenceCount = annotations.filter(a => a.motivation === 'linking' && extractEntityTypes(a.body).length > 0).length;
+    const entityReferenceCount = annotations.filter(a => a.motivation === 'linking' && getEntityTypes(a).length > 0).length;
     
     return {
       documentCount: this.documents.size,

@@ -20,8 +20,7 @@ import type {
 } from './events';
 import type { CreationMethod } from './creation-methods';
 import type { components } from '@semiont/api-client';
-import { getAnnotationExactText } from './selector-utils';
-import { extractEntityTypes } from './annotation-utils';
+import { getAnnotationExactText, getEntityTypes } from '@semiont/api-client';
 
 // Import OpenAPI types
 type Annotation = components['schemas']['Annotation'];
@@ -205,8 +204,8 @@ export function getEventEntityTypes(event: StoredEvent): string[] {
 
   if (eventData.type === 'annotation.added') {
     const payload = eventData.payload as AnnotationAddedEvent['payload'];
-    // Extract entity types from W3C annotation body
-    return extractEntityTypes(payload.annotation.body);
+    // Extract entity types from W3C annotation
+    return getEntityTypes(payload.annotation);
   }
 
   return [];

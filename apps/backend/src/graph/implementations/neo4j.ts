@@ -14,10 +14,10 @@ import type {
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
-import { getExactText } from '@semiont/core';
+import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
-import { extractEntityTypes } from '../annotation-body-utils';
+import { getEntityTypes } from '@semiont/api-client';
 
 type Document = components['schemas']['Document'];
 type Annotation = components['schemas']['Annotation'];
@@ -360,7 +360,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const bodySource = getBodySource(input.body);
 
       // Extract entity types from TextualBody bodies with purpose: "tagging"
-      const entityTypes = extractEntityTypes(input.body);
+      const entityTypes = getEntityTypes(input);
 
       // Create the annotation node and relationships
       let cypher: string;

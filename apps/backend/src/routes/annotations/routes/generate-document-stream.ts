@@ -14,13 +14,13 @@ import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { getExactText, compareAnnotationIds } from '@semiont/api-client';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
-import { getExactText, compareAnnotationIds } from '@semiont/core';
 import { getTargetSelector } from '../../../lib/annotation-utils';
-import { extractEntityTypes } from '../../../graph/annotation-body-utils';
+import { getEntityTypes } from '@semiont/api-client';
 
 type GenerateDocumentStreamRequest = components['schemas']['GenerateDocumentStreamRequest'];
 
@@ -91,7 +91,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
         title: body.title,
         prompt: body.prompt,
         language: body.language,
-        entityTypes: extractEntityTypes(reference.body),
+        entityTypes: getEntityTypes(reference),
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3

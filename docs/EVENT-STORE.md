@@ -4,7 +4,7 @@
 
 Semiont's Event Store is a **Layer 2** component in the multi-layered architecture that provides event sourcing for document and annotation changes. It uses an immutable append-only event log as the source of truth, from which materialized projections (Layer 3) are built.
 
-**Architecture Position**: The Event Store sits between Layer 1 (Content Storage) and Layer 3 (Projections/Database). Layer 1 stores raw document content, Layer 2 records what happened, and Layer 3 materializes current state. See [CONTENT-STORE.md](./CONTENT-STORE.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) for complete layer details.
+**Architecture Position**: The Event Store sits between Layer 1 (Content Storage) and Layer 3 (Projections/Database). Layer 1 stores raw document content, Layer 2 records what happened, and Layer 3 materializes current state. See [CONTENT-STORE.md](./CONTENT-STORE.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) for complete layer details.
 
 **Quick Navigation:**
 - [Core Design Principles](#core-design-principles) - Why this architecture works
@@ -533,7 +533,7 @@ Events are stored in **JSON Lines** format (one JSON object per line):
 **System Events**:
 - `entitytype.added` - New entity type registered globally
 
-See [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) for complete annotation event details.
+See [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) for complete annotation event details.
 
 ## System Events
 
@@ -712,7 +712,7 @@ console.log('Rebuilt projection:', projection);
 - [GET /api/documents/:id/events-stream](../apps/backend/src/routes/events/events-stream.ts)
 - Subscribes to document events
 - Streams events to connected clients
-- See [W3C-WEB-ANNOTATION.md](./W3C-WEB-ANNOTATION.md) for event payload details
+- See [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) for event payload details
 
 ## Performance Considerations
 
@@ -925,7 +925,7 @@ async function rebuildAllProjections() {
 ## Related Documentation
 
 - [Architecture Overview](./ARCHITECTURE.md) - Complete system architecture
-- [W3C Web Annotation](./W3C-WEB-ANNOTATION.md) - Annotation event details and layer flow
+- [W3C Web Annotation](../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation event details and layer flow
 - [Database Management](./DATABASE.md) - Layer 3 projection storage
 - [Graph Implementation](./GRAPH.md) - Layer 4 graph database
 - [Testing Strategy](./TESTING.md) - Testing guidelines

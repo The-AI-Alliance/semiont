@@ -217,7 +217,7 @@ Property-based tests verify:
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Complete rendering pipeline
 
 ### Data Model & API
-- [W3C-WEB-ANNOTATION.md](../../../docs/W3C-WEB-ANNOTATION.md) - W3C annotation structure and full-stack implementation
+- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - W3C annotation structure and full-stack implementation
 - [../../backend/README.md](../../backend/README.md) - Backend API endpoints
 
 ### Testing

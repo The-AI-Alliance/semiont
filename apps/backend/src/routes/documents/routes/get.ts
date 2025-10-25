@@ -13,7 +13,7 @@ import { createEventStore } from '../../../services/event-store-service';
 import { EventQuery } from '../../../events/query/event-query';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { extractEntityTypes } from '../../../graph/annotation-body-utils';
+import { getEntityTypes } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
@@ -46,7 +46,7 @@ export function registerGetDocument(router: DocumentsRouterType) {
     const annotations = stored.annotations.annotations;
     const entityReferences = annotations.filter(a => {
       if (a.motivation !== 'linking') return false;
-      const entityTypes = extractEntityTypes(a.body);
+      const entityTypes = getEntityTypes({ body: a.body });
       return entityTypes.length > 0;
     });
 

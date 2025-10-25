@@ -1,12 +1,12 @@
-# Backend API Reference
+# Semiont REST API Reference
 
-Complete API endpoint documentation for the Semiont backend service.
+Complete HTTP API endpoint documentation for the Semiont semantic knowledge platform.
 
 **Related Documentation:**
-- [Main README](../README.md) - Backend overview
-- [W3C Web Annotation Implementation](../../../docs/W3C-WEB-ANNOTATION.md) - Annotation architecture across layers
-- [Authentication Guide](./AUTHENTICATION.md) - JWT tokens and OAuth
-- [Development Guide](./DEVELOPMENT.md) - Local development setup
+- [OpenAPI Specification](../openapi.json) - Machine-readable API spec
+- [W3C Web Annotation Implementation](./W3C-WEB-ANNOTATION.md) - Annotation architecture across layers
+- [API Client Package](../../packages/api-client/) - TypeScript SDK for consuming this API
+- [Backend Documentation](../../apps/backend/) - Backend implementation details
 
 ## API Documentation
 
@@ -22,11 +22,11 @@ Complete API endpoint documentation for the Semiont backend service.
 
 ### OpenAPI Specification
 
-- **Endpoint**: `/doc` - Raw OpenAPI 3.0 specification
-- **File**: [../public/openapi.json](../public/openapi.json) - Generated OpenAPI 3.0 schema
+- **Endpoint**: `/api/openapi.json` - Live OpenAPI 3.0 specification with dynamic server URL
+- **File**: [../openapi.json](../openapi.json) - Source OpenAPI 3.0 schema (manually maintained)
 - **Usage**: Import into Postman, Insomnia, or generate client SDKs
-- **Auto-Generated**: From Hono route definitions with Zod schemas
-- **Type-Safe**: Full TypeScript type definitions included
+- **Spec-First**: Types generated from this specification
+- **Type-Safe**: Full TypeScript type definitions in [@semiont/api-client](../../packages/api-client/)
 
 ## Document Management
 
@@ -107,7 +107,7 @@ The API follows the [W3C Web Annotation Data Model](https://www.w3.org/TR/annota
 - **Multi-body arrays** mixing entity tags and document links
 - **Three target forms**: simple IRI, source-only, or source + selector
 
-For complete details on how annotations flow through all layers, see [W3C Web Annotation Implementation](../../../docs/W3C-WEB-ANNOTATION.md).
+For complete details on how annotations flow through all layers, see [W3C Web Annotation Implementation](./W3C-WEB-ANNOTATION.md).
 
 ### Annotation Body Structure (Phase 2)
 
@@ -273,7 +273,12 @@ Get all references for a document
 
 ## Authentication & Authorization
 
-For complete authentication documentation, see [AUTHENTICATION.md](./AUTHENTICATION.md).
+All API endpoints require authentication via JWT token in the `Authorization: Bearer <token>` header, except:
+- `/api/health` - Health check endpoint
+- `/api/openapi.json` - OpenAPI specification
+- `/api/tokens/google` - OAuth token exchange
+
+For backend authentication implementation details, see [Backend Authentication Guide](../../apps/backend/docs/AUTHENTICATION.md).
 
 ### `POST /api/tokens/google`
 
@@ -320,44 +325,51 @@ API documentation and available endpoints
 - **Auth**: None
 - **Response**: HTML documentation page
 
-## Graph Operations
+## Semantic Graph
 
-The backend integrates with a graph database (Neptune in production) to manage relationships between documents and selections.
+The API manages a knowledge graph of documents, annotations, and entity relationships.
 
 ### Key Concepts
 
 - **Documents**: Text documents with markdown content
-- **Selections**: Text ranges within documents
-- **Highlights**: Saved selections for important passages
-- **References**: Selections that link to other documents
-- **Entity References**: Selections marking entities (Person, Organization, etc.)
+- **Annotations**: W3C-compliant text annotations with entity tags and links
+- **Selections** (Legacy): Text ranges within documents (being migrated to Annotations)
+- **Highlights**: Important passages marked for reference
+- **References**: Links between documents via annotations
+- **Entity References**: Annotations marking entities (Person, Organization, Concept, etc.)
 
-### Automatic Selection Detection
+### Automatic Entity Detection
 
-When documents are created or updated, the system automatically detects:
+When documents are created or updated, the system can automatically detect:
 - Wiki-style links: `[[page name]]`
-- Common patterns: "lorem ipsum", "John Doe"
-- Entity mentions based on configured patterns
+- Common entity patterns
+- Predefined entity types via configuration
 
-## API Routing Architecture
+## API Architecture
 
-The backend handles ALL `/api/*` routes. This clean separation from the frontend (which handles `/auth/*` for OAuth flows) eliminates routing conflicts:
+### Base URL
 
-- **Backend owns**: `/api/*` - All API endpoints including `/api/auth/google`, `/api/auth/refresh`, etc.
-- **Frontend owns**: `/auth/*` - NextAuth.js OAuth flows
-- **ALB routing**: Simple 3-rule pattern (Priority 10: `/auth/*` → Frontend, Priority 20: `/api/*` → Backend, Default → Frontend)
+- **Development**: `http://localhost:4000`
+- **Production**: Configured via environment (see [Backend Configuration](../../apps/backend/docs/CONFIGURATION.md))
 
-This architecture ensures:
-- No path conflicts between NextAuth and backend auth routes
+### Route Separation
+
+The API backend handles ALL `/api/*` routes. Frontend handles `/auth/*` for OAuth flows:
+
+- **API Routes**: `/api/*` - Document management, annotations, graph operations
+- **Auth Routes**: `/auth/*` - OAuth flows (handled by frontend)
+
+This ensures:
 - Clear ownership of endpoints
-- Simple debugging (all API calls go to backend)
-- Easy to add new API endpoints without routing concerns
+- No path conflicts
+- Simple API client configuration
 
 ## Related Resources
 
-- **[W3C Web Annotation Implementation](../../../docs/W3C-WEB-ANNOTATION.md)** - Complete guide to how W3C Web Annotations flow through all layers of the backend (event store, projections, graph database)
-- **[API Client Package](../../../packages/api-client/)** - Type-safe TypeScript client for consuming the backend API from frontend or other services
-- **[Core Package](../../../packages/core/)** - Shared types, utilities, and business logic used across all services
+- **[W3C Web Annotation Implementation](./W3C-WEB-ANNOTATION.md)** - Complete guide to annotation architecture across all system layers
+- **[API Client Package](../../packages/api-client/)** - TypeScript SDK for consuming this API
+- **[OpenAPI Specification](../openapi.json)** - Machine-readable API specification
+- **[Backend Implementation](../../apps/backend/)** - Backend service that implements this API
 
 ---
 

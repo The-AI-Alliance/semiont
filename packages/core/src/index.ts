@@ -48,17 +48,8 @@ export {
   getEventType,
 } from './events';
 
-// Selector utilities
-export {
-  getExactText,
-  getAnnotationExactText,
-  getPrimarySelector,
-  getTextPositionSelector,
-  getTextQuoteSelector,
-} from './selector-utils';
-
-// Annotation utilities
-export { compareAnnotationIds, extractEntityTypes, extractBodySource, bodyItemsMatch, findBodyItem } from './annotation-utils';
+// Backend-specific annotation utilities
+export { bodyItemsMatch, findBodyItem } from './annotation-utils';
 
 // Document types
 export type { CreateDocumentInput, UpdateDocumentInput, DocumentFilter } from './document-types';
@@ -76,7 +67,6 @@ export * from './errors';
 export * from './http-client';
 export * from './annotation-history-utils';
 export * from './did-utils';
-export * from './locales';
 
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';

@@ -15,7 +15,7 @@ import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
-import { extractEntityTypes } from '../../../graph/annotation-body-utils';
+import { getEntityTypes } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type UpdateDocumentRequest = components['schemas']['UpdateDocumentRequest'];
@@ -101,7 +101,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       const annotations = await AnnotationQueryService.getAllAnnotations(id);
       const entityReferences = annotations.filter(a => {
         if (a.motivation !== 'linking') return false;
-        const entityTypes = extractEntityTypes(a.body);
+        const entityTypes = getEntityTypes({ body: a.body });
         return entityTypes.length > 0;
       });
 

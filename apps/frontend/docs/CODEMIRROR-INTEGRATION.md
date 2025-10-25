@@ -446,7 +446,7 @@ The key insight: **It's better to have accurate annotations with less polish tha
 
 ## Related Documentation
 
-- [W3C-WEB-ANNOTATION.md](../../../docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers
+- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Frontend UI patterns and components
 - [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Document rendering pipeline

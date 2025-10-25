@@ -12,15 +12,14 @@ import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { createContentManager } from '../../services/storage-service';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
-import { calculateChecksum } from '@semiont/core';
 import { userToAgent } from '../../utils/id-generator';
 import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getFilesystemConfig } from '../../config/environment-loader';
 import type { components } from '@semiont/api-client';
+import { getAnnotationExactText, getTextPositionSelector } from '@semiont/api-client';
 import {
   CREATION_METHODS,
-  getAnnotationExactText,
-  getTextPositionSelector,
+  calculateChecksum,
   type BodyOperation,
 } from '@semiont/core';
 
@@ -30,7 +29,7 @@ import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { createEventStore } from '../../services/event-store-service';
 import { validateRequestBody } from '../../middleware/validate-openapi';
-import { extractEntityTypes } from '../../graph/annotation-body-utils';
+import { getEntityTypes } from '@semiont/api-client';
 import type { User } from '@prisma/client';
 
 type Document = components['schemas']['Document'];
@@ -231,7 +230,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     const selectedText = getAnnotationExactText(annotation);
 
     // Extract entity types from annotation body
-    const annotationEntityTypes = extractEntityTypes(annotation.body);
+    const annotationEntityTypes = getEntityTypes(annotation);
 
     // Generate content using the proper document generation function
     const { title, content: generatedContent } = await generateDocumentFromTopic(
@@ -437,7 +436,7 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { before, selected, after } = getAnnotationContext(annotation, contentStr, contextSize, contextSize);
 
   // Extract entity types from annotation body
-  const annotationEntityTypes = extractEntityTypes(annotation.body);
+  const annotationEntityTypes = getEntityTypes(annotation);
 
   // Generate summary using the proper inference function
   const summaryPrompt = `Summarize this text in context:

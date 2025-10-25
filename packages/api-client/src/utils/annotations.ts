@@ -131,8 +131,9 @@ export function hasTargetSelector(target: Annotation['target']): boolean {
 /**
  * Extract entity types from annotation bodies
  * Entity types are stored as TextualBody with purpose: "tagging"
+ * Accepts any object with a body property matching Annotation['body']
  */
-export function getEntityTypes(annotation: Annotation): string[] {
+export function getEntityTypes(annotation: { body: Annotation['body'] }): string[] {
   // Extract from TextualBody bodies with purpose: "tagging"
   if (Array.isArray(annotation.body)) {
     const entityTags: string[] = [];

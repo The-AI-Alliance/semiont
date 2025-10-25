@@ -6,14 +6,14 @@ A type-safe Node.js backend API following the Backend for Frontend (BFF) pattern
 
 ### 📚 Documentation
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, manual setup
-- **[API Reference](./docs/API.md)** - API endpoints, request/response formats
+- **[API Reference](../../specs/docs/API.md)** - API endpoints, request/response formats
 - **[Authentication](./docs/AUTHENTICATION.md)** - JWT tokens, OAuth, MCP authentication
 - **[Testing Guide](./docs/TESTING.md)** - Running tests, writing tests, coverage
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
 - **[Contributing Guide](./docs/CONTRIBUTING.md)** - Code style, development patterns, PR requirements
 
 ### 🔗 Related Resources
-- **[W3C Web Annotation Implementation](../../docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, projections, graph database)
+- **[W3C Web Annotation Implementation](../../specs/docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, projections, graph database)
 - **[API Client Package](../../packages/api-client/)** - Type-safe TypeScript client for consuming the backend API
 - **[Core Package](../../packages/core/)** - Shared types, utilities, and business logic
 - **[OpenAPI Specification](./public/openapi.json)** - Generated OpenAPI 3.0 schema
