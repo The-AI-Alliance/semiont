@@ -3,7 +3,7 @@
 
 import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
-import { extractEntityTypes, extractBodySource } from '../annotation-body-utils';
+import { getEntityTypes, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import type {
   AnnotationCategory,
@@ -15,7 +15,7 @@ import type {
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
-import { getExactText } from '@semiont/core';
+import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 
 type Document = components['schemas']['Document'];
@@ -358,8 +358,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     };
 
     // Extract source from body using helper
-    const bodySource = extractBodySource(input.body);
-    const entityTypes = extractEntityTypes(input.body);
+    const bodySource = getBodySource(input.body);
+    const entityTypes = getEntityTypes(input);
     const bodyType = Array.isArray(input.body) ? 'SpecificResource' : input.body.type;
 
     // Extract target source and selector
@@ -471,8 +471,8 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     // Update body properties and entity types
     if (updates.body !== undefined) {
-      const bodySource = extractBodySource(updates.body);
-      const entityTypes = extractEntityTypes(updates.body);
+      const bodySource = getBodySource(updates.body);
+      const entityTypes = getEntityTypes({ body: updates.body });
 
       if (bodySource) {
         await traversalQuery.property('source', bodySource).next();
@@ -628,12 +628,12 @@ export class JanusGraphDatabase implements GraphDatabase {
     // TODO Extract entity types from body using helper
     if (entityTypes && entityTypes.length > 0) {
       return annotations.filter(ann => {
-        const annEntityTypes = extractEntityTypes(ann.body);
+        const annEntityTypes = getEntityTypes(ann);
         return annEntityTypes.some((type: string) => entityTypes.includes(type));
       });
     }
 
-    return annotations.filter(ann => extractEntityTypes(ann.body).length > 0);
+    return annotations.filter(ann => getEntityTypes(ann).length > 0);
   }
 
   async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
@@ -674,7 +674,7 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     for (const ref of refs) {
       // Extract source from body using helper
-      const bodySource = extractBodySource(ref.body);
+      const bodySource = getBodySource(ref.body);
       if (bodySource) {
         const targetDoc = await this.getDocument(bodySource);
         if (targetDoc) {
@@ -738,7 +738,7 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     const highlights = annotations.filter(a => a.motivation === 'highlighting');
     const references = annotations.filter(a => a.motivation === 'linking');
-    const entityReferences = references.filter(a => extractEntityTypes(a.body).length > 0);
+    const entityReferences = references.filter(a => getEntityTypes(a).length > 0);
 
     return {
       documentCount: documents.length,

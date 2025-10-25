@@ -9,7 +9,7 @@
  */
 
 import { getGraphDatabase } from '../../../graph/factory';
-import { getExactText } from '@semiont/core';
+import { getExactText } from '@semiont/api-client';
 import { getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';

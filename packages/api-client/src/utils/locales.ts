@@ -41,18 +41,48 @@ export const LOCALES: readonly LocaleInfo[] = [
   { code: 'zh', nativeName: '中文', englishName: 'Chinese' },
 ] as const;
 
+// Create lookup map for efficient access
+const localeByCode = new Map<string, LocaleInfo>(
+  LOCALES.map(locale => [locale.code.toLowerCase(), locale])
+);
+
 /**
- * Format locale code for display (shows native name and English name)
+ * Get locale information by code
+ */
+export function getLocaleInfo(code: string | undefined): LocaleInfo | undefined {
+  if (!code) return undefined;
+  return localeByCode.get(code.toLowerCase());
+}
+
+/**
+ * Get the native name of a language by its locale code
+ */
+export function getLocaleNativeName(code: string | undefined): string | undefined {
+  return getLocaleInfo(code)?.nativeName;
+}
+
+/**
+ * Get the English name of a language by its locale code
+ */
+export function getLocaleEnglishName(code: string | undefined): string | undefined {
+  return getLocaleInfo(code)?.englishName;
+}
+
+/**
+ * Format locale code for display as "Native Name (code)"
  */
 export function formatLocaleDisplay(code: string | undefined): string | undefined {
-  if (!code) {
-    return undefined;
-  }
+  if (!code) return undefined;
 
-  const locale = LOCALES.find(l => l.code === code);
-  if (!locale) {
-    return code;
-  }
+  const info = getLocaleInfo(code);
+  if (!info) return code;
 
-  return `${locale.nativeName} (${locale.englishName})`;
+  return `${info.nativeName} (${code.toLowerCase()})`;
+}
+
+/**
+ * Get all supported locale codes
+ */
+export function getAllLocaleCodes(): readonly string[] {
+  return LOCALES.map(l => l.code);
 }

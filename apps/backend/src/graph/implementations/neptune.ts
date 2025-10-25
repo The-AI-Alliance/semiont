@@ -2,7 +2,7 @@
 // Uses Gremlin for graph traversal
 
 import { GraphDatabase } from '../interface';
-import { extractEntityTypes, extractBodySource } from '../annotation-body-utils';
+import { getEntityTypes, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import type {
   AnnotationCategory,
@@ -14,9 +14,9 @@ import type {
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
-import { getExactText } from '@semiont/core';
+import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
-import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
+import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 
 type Document = components['schemas']['Document'];
 type Annotation = components['schemas']['Annotation'];
@@ -531,7 +531,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     const targetSource = getTargetSource(input.target);
     const targetSelector = getTargetSelector(input.target);
     const bodySource = getBodySource(input.body);
-    const entityTypes = extractEntityTypes(input.body);
+    const entityTypes = getEntityTypes(input);
 
     try {
       // Create Annotation vertex
@@ -639,8 +639,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       // Update body properties and entity types
       if (updates.body !== undefined) {
-        const bodySource = extractBodySource(updates.body);
-        const entityTypes = extractEntityTypes(updates.body);
+        const bodySource = getBodySource(updates.body);
+        const entityTypes = getEntityTypes({ body: updates.body });
 
         if (bodySource) {
           traversal = traversal.property('source', bodySource);

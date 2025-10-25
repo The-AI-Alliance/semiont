@@ -19,11 +19,11 @@ import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { createEventStore } from '../../services/event-store-service';
 import type { components } from '@semiont/api-client';
+import { getTextPositionSelector } from '@semiont/api-client';
 import type {
   AnnotationAddedEvent,
   BodyOperation,
 } from '@semiont/core';
-import { getTextPositionSelector } from '@semiont/core';
 import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
