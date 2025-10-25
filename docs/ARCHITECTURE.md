@@ -61,47 +61,6 @@ The application consists of two separate services:
 
 **For complete backend details**, including API documentation, framework choices, and development setup, see [Backend README](../apps/backend/README.md).
 
-### Service Communication
-
-```mermaid
-sequenceDiagram
-    participant Browser
-    participant CDN
-    participant LoadBalancer
-    participant Frontend
-    participant Backend
-    participant Database
-
-    Browser->>CDN: HTTPS Request
-    CDN->>LoadBalancer: Forward Request
-
-    alt OAuth Flow (/auth/*)
-        LoadBalancer->>Frontend: Route to NextAuth
-        Frontend->>Browser: Handle OAuth
-    else API Call (/api/*)
-        LoadBalancer->>Backend: Route to API
-        Backend->>Database: Query Data
-        Database-->>Backend: Return Data
-        Backend-->>LoadBalancer: JSON Response
-    else UI Request (/*)
-        LoadBalancer->>Frontend: Route to Next.js
-        Frontend->>Backend: API Request (if needed)
-        Backend-->>Frontend: JSON Data
-        Frontend-->>LoadBalancer: HTML/React
-    end
-
-    LoadBalancer-->>CDN: Response
-    CDN-->>Browser: Cached Response
-```
-
-**Routing Pattern**:
-1. **Browser to Frontend**: Direct HTTPS connection via CDN/Load Balancer
-2. **Frontend to Backend**: Path-based routing with clear separation:
-   - `/auth/*` → Frontend (NextAuth.js OAuth flows)
-   - `/api/*` → Backend (All API endpoints)
-   - `/*` → Frontend (Default - UI and static assets)
-3. **Backend to Database**: Direct connection via private networking
-
 ## Authentication
 
 Semiont implements a **secure-by-default** authentication model using OAuth 2.0 and JWT tokens.
@@ -181,59 +140,8 @@ graph TB
 2. **Read Path**: Single-document queries → Layer 3, Graph queries → Layer 4
 3. **Rebuild Path**: Layer 2 events can rebuild Layer 3 projections and Layer 4 graph at any time
 
-## Development Workflow
-
-### Local Development
-
-For detailed local development instructions, see [LOCAL-DEVELOPMENT.md](./LOCAL-DEVELOPMENT.md).
-
-```bash
-# Frontend development
-cd apps/frontend && npm run dev
-
-# Backend development
-cd apps/backend && npm run dev
-
-# Database migrations
-cd apps/backend && npm run prisma:migrate
-```
-
-For testing strategies, see [TESTING.md](./TESTING.md).
-
-### Configuration
-
-For configuration management, see [CONFIGURATION.md](./CONFIGURATION.md).
-
-## Deployment
-
-For platform-specific deployment:
-- [AWS Deployment](./platforms/AWS.md) - ECS Fargate, RDS, CloudFormation
-
-For general deployment procedures, see [DEPLOYMENT.md](./DEPLOYMENT.md).
-
-## Related Documentation
-
-### Platform Documentation
-- [AWS Deployment](./platforms/AWS.md) - AWS-specific infrastructure and deployment
-
-### Architecture Documentation
-- [Authentication](./AUTHENTICATION.md) - OAuth 2.0, JWT tokens, and MCP client support
-- [Content Storage (Layer 1)](./CONTENT-STORE.md) - Raw document storage and filesystem sharding
-- [Event Store (Layer 2)](./EVENT-STORE.md) - Event sourcing and immutable event log
-- [Projection Storage (Layer 3)](./PROJECTION.md) - Materialized views and query optimization
-- [Graph Database (Layer 4)](./GRAPH.md) - Graph database patterns and implementations
-- [W3C Web Annotation](../specs/docs/W3C-WEB-ANNOTATION.md) - Complete annotation implementation across all layers
-- [Database Management](./DATABASE.md) - PostgreSQL schema migrations and backup procedures
-
-### Operations Documentation
-- [Deployment Guide](./DEPLOYMENT.md) - Step-by-step deployment instructions
-- [Configuration Guide](./CONFIGURATION.md) - Environment and secret management
-- [Local Development](./LOCAL-DEVELOPMENT.md) - Local development setup
-- [Testing Guide](./TESTING.md) - Testing strategies and patterns
-- [Troubleshooting](./TROUBLESHOOTING.md) - Common issues and solutions
-
 ---
 
 **Document Version**: 2.0
-**Last Updated**: 2025-10-23
+**Last Updated**: 2025-10-25
 **Architecture**: Platform-agnostic application architecture
