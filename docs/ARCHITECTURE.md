@@ -138,15 +138,15 @@ graph TB
     end
 
     subgraph "Layer 3: Projections"
-        Projections[Projection Storage<br/>Filesystem JSON + PostgreSQL<br/>────────<br/>• Materialized views<br/>• Document metadata<br/>• Annotation collections<br/>• Fast single-doc queries<br/>────────<br/>Read: O\(1\) by document ID<br/>Rebuild: From Layer 2 events]
+        Projections[Projection Storage<br/>Filesystem JSON + PostgreSQL<br/>────────<br/>• Materialized views<br/>• Document metadata<br/>• Annotation collections<br/>• Fast single-doc queries<br/>────────<br/>Rebuild: From Layer 2 events]
     end
 
     subgraph "Layer 2: Event Store"
-        EventStore[Event Store<br/>Filesystem JSONL<br/>────────<br/>• Immutable event log<br/>• Append-only writes<br/>• Complete audit trail<br/>• Source of truth<br/>────────<br/>Write: O\(1\) append<br/>Read: O\(n\) scan for replay]
+        EventStore[Event Store<br/>Filesystem JSONL<br/>────────<br/>• Immutable event log<br/>• Append-only writes<br/>• Complete audit trail<br/>• Source of truth]
     end
 
     subgraph "Layer 1: Content Storage"
-        Content[Content Storage<br/>Filesystem Binary/Text<br/>────────<br/>• Document content \(.dat\)<br/>• PDF, text, images<br/>• Sharded storage<br/>• Stream support<br/>────────<br/>65,536 shards via JCH<br/>Read/Write: O\(1\) by ID]
+        Content[Content Storage<br/>Filesystem Binary/Text<br/>────────<br/>• Document content files<br/>• PDF, text, images<br/>• Sharded storage<br/>• Stream support<br/>────────<br/>65,536 shards via JCH]
     end
 
     EventStore -->|Projects to| Projections

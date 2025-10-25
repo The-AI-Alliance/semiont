@@ -1,11 +1,14 @@
 # @semiont/api-client
 
-**Complete SDK for Semiont**
+**Primary TypeScript SDK for Semiont**
 
-> This package provides a type-safe, framework-agnostic SDK that includes:
+> 🎯 **Use this package for all external integrations, demos, MCP servers, and frontend applications.**
+>
+> This package provides a type-safe, spec-first SDK that includes:
 > - **API Client**: HTTP client for all backend endpoints
-> - **TypeScript Types**: Generated from OpenAPI specification
-> - **Utilities**: Helpers for working with annotations, events, and selectors
+> - **TypeScript Types**: Generated from OpenAPI specification ([specs/openapi.json](../../specs/openapi.json))
+> - **W3C Utilities**: Helpers for annotations, selectors, entity types, and locales
+> - **Event Utilities**: Formatting and display helpers for event streams
 
 ## Installation
 
@@ -42,10 +45,12 @@ console.log('Created:', doc.document.id);
 
 ## Features
 
-- ✅ **Type-Safe**: Full TypeScript types from OpenAPI specification
+- ✅ **Spec-First**: Types generated from [OpenAPI specification](../../specs/openapi.json)
+- ✅ **Type-Safe**: Full TypeScript types for all API operations
 - ✅ **Framework-Agnostic**: Works in Node.js, browser, or any JavaScript environment
 - ✅ **Built-in Authentication**: Multiple auth methods (local, Google OAuth, refresh tokens)
-- ✅ **Utilities**: Helpers for annotations, events, selectors, and locales
+- ✅ **W3C Utilities**: Selector helpers, entity type extraction, locale formatting
+- ✅ **Event Utilities**: Event formatting, display names, relative time
 - ✅ **Automatic Retry**: Configurable retry logic with exponential backoff
 - ✅ **Error Handling**: Structured error responses with `APIError` class
 - ✅ **HTTP Client**: Uses `ky` for reliable HTTP requests
@@ -54,12 +59,15 @@ console.log('Created:', doc.document.id);
 
 - ✅ **MCP Server** (`packages/mcp-server`) - Model Context Protocol integration
 - ✅ **Demo Scripts** (`demo/`) - Example scripts and automation
-- ✅ **Frontend** (`apps/frontend`) - Can wrap with React hooks for UI
+- ✅ **Frontend** (`apps/frontend`) - Web application (can wrap with React hooks)
+- ✅ **External Applications** - Third-party integrations and tools
+- ✅ **CLI Tools** - Command-line utilities consuming the API
 
 ## Who Should NOT Use This
 
-- ❌ **Backend** (`apps/backend`) - Backend is the API, doesn't call itself
-- ❌ **Internal Services** - Use internal SDK or direct database access
+- ❌ **Backend Internal Code** - Use [`@semiont/core`](../core/) for backend domain logic (events, crypto, DID utilities)
+
+**Note**: If you need backend-specific utilities (event sourcing, crypto, type guards), use [`@semiont/core`](../core/). For API consumption and W3C annotation utilities, use this package.
 
 ## API Reference
 
