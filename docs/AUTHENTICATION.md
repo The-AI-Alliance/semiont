@@ -416,7 +416,7 @@ See [Configuration Guide](./CONFIGURATION.md) for detailed secret management.
 - [Architecture Overview](./ARCHITECTURE.md) - Application architecture and service communication
 - [AWS Deployment](./platforms/AWS.md) - AWS Secrets Manager and security groups
 - [Configuration Guide](./CONFIGURATION.md) - Environment variables and secret management
-- [Database Management](./DATABASE.md) - User table schema and Prisma setup
+- [Database Management](./services/DATABASE.md) - User table schema and Prisma setup
 
 ---
 

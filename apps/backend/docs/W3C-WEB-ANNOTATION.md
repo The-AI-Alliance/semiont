@@ -53,6 +53,60 @@ Semiont implements a **4-layer data architecture** for W3C annotations:
 
 **NOT stored in Postgres:** Events, projections, documents, annotations
 
+## Data Layer Architecture
+
+The backend implements a 4-layer data architecture, each layer serving a specific purpose:
+
+```mermaid
+graph TB
+    subgraph "Layer 4: Graph Database"
+        Graph[Graph Database<br/>Neo4j/Memgraph/ArangoDB<br/>────────<br/>• Relationship traversal<br/>• Backlinks & connections<br/>• Path finding<br/>• Cross-document queries]
+    end
+
+    subgraph "Layer 3: Projections"
+        Projections[Projection Storage<br/>Filesystem JSON + PostgreSQL<br/>────────<br/>• Materialized views<br/>• Document metadata<br/>• Annotation collections<br/>• Fast single-doc queries<br/>────────<br/>Rebuild: From Layer 2 events]
+    end
+
+    subgraph "Layer 2: Event Store"
+        EventStore[Event Store<br/>Filesystem JSONL<br/>────────<br/>• Immutable event log<br/>• Append-only writes<br/>• Complete audit trail<br/>• Source of truth]
+    end
+
+    subgraph "Layer 1: Content Storage"
+        Content[Content Storage<br/>Filesystem Binary/Text<br/>────────<br/>• Document content files<br/>• PDF, text, images<br/>• Sharded storage<br/>• Stream support<br/>────────<br/>65,536 shards via JCH]
+    end
+
+    EventStore -->|Projects to| Projections
+    Projections -->|Syncs to| Graph
+    EventStore -.->|Can rebuild| Projections
+    Projections -.->|Can rebuild| Graph
+
+    style Content fill:#e1f5ff
+    style EventStore fill:#fff4e1
+    style Projections fill:#f0ffe1
+    style Graph fill:#ffe1f5
+
+    classDef layer1 fill:#e1f5ff
+    classDef layer2 fill:#fff4e1
+    classDef layer3 fill:#f0ffe1
+    classDef layer4 fill:#ffe1f5
+```
+
+### Layer Responsibilities
+
+- **Layer 1 (Content Storage)**: Stores raw document content in binary/text format with 4-hex sharding (65,536 shards). Provides fast read/write by document ID.
+
+- **Layer 2 (Event Store)**: Immutable append-only event log (JSONL files). Source of truth for all state changes. Supports event replay and projection rebuilding.
+
+- **Layer 3 (Projections)**: Materialized views of document state built from Layer 2 events. Optimized for fast single-document queries. Can be rebuilt from events at any time.
+
+- **Layer 4 (Graph Database)**: Relationship and connection data synced from Layer 3. Handles graph traversal, backlinks, path finding, and cross-document queries.
+
+### Data Flow
+
+1. **Write Path**: Content → Layer 1, Events → Layer 2, Events → Layer 3 (projection), Projection → Layer 4 (sync)
+2. **Read Path**: Single-document queries → Layer 3, Graph queries → Layer 4
+3. **Rebuild Path**: Layer 2 events can rebuild Layer 3 projections and Layer 4 graph at any time
+
 ## Annotation Lifecycle
 
 ### 1. Create Annotation (API → Layer 2)

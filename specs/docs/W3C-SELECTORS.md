@@ -71,20 +71,6 @@ Specifies the exact text with optional context:
 - **TextQuoteSelector**: Recovery when document content shifts
 - **Prefix/Suffix**: Additional context for robust matching
 
-### Migration (Completed 2025-10-24)
-
-Previous non-compliant format:
-```json
-{
-  "type": "TextPositionSelector",
-  "exact": "text",     // ❌ Wrong - belongs to TextQuoteSelector
-  "offset": 0,         // ❌ Wrong - should be "start"
-  "length": 10         // ❌ Wrong - should be "end" (absolute)
-}
-```
-
-All selectors migrated to W3C-compliant format. See commit history for details.
-
 ## Image Selectors (Future)
 
 Planned support for image annotation using W3C-compliant selectors.

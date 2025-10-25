@@ -1,32 +1,27 @@
 # Semiont Architecture
 
-This document describes the platform-agnostic architecture of the Semiont semantic knowledge platform.
-
-For platform-specific deployment details, see:
-- [AWS Deployment](./platforms/AWS.md) - ECS Fargate, RDS, EFS deployment
+Platform-agnostic architecture for the Semiont semantic knowledge platform.
 
 ## Overview
 
-Semiont is a semantic knowledge platform with a modern architecture focused on:
+Semiont builds a semantic knowledge graph from markdown documents and W3C-compliant annotations. The architecture emphasizes:
 
 - **Event Sourcing**: Immutable event log as source of truth
 - **4-Layer Data Model**: Separation of content, events, projections, and relationships
-- **Type Safety**: TypeScript throughout with schema validation
 - **W3C Standards**: Full Web Annotation Data Model compliance
-- **Modularity**: Clear separation of concerns with focused modules
+- **Type Safety**: TypeScript throughout with OpenAPI-driven schemas
+- **Spec-First**: Types generated from OpenAPI specification
 
-**Quick Navigation:**
-- [Application Architecture](#application-architecture) - Frontend/Backend services
-- [Data Layer Architecture](#data-layer-architecture) - 4-layer storage model
-- [Authentication](#authentication) - OAuth and JWT (see [AUTHENTICATION.md](./AUTHENTICATION.md) for details)
-- [Development Workflow](#development-workflow) - Local development guide
+**Navigation:**
+- [Application Services](#application-architecture) - Frontend and backend services
+- [API Overview](#api-overview) - High-level API design and flavor
+- [Authentication](#authentication) - OAuth 2.0 and JWT model
+- [AWS Deployment](./platforms/AWS.md) - Production deployment guide
 
-**Layer-Specific Documentation:**
-- [Content Storage (Layer 1)](./CONTENT-STORE.md) - Raw document storage
-- [Event Store (Layer 2)](./EVENT-STORE.md) - Event sourcing
-- [Projection Storage (Layer 3)](./PROJECTION.md) - Materialized views
-- [Graph Database (Layer 4)](./GRAPH.md) - Relationship traversal
-- [W3C Web Annotation](../specs/docs/W3C-WEB-ANNOTATION.md) - Complete annotation flow
+**Deep Dives:**
+- [Content Store](./services/CONTENT-STORE.md), [Event Store](./services/EVENT-STORE.md), [Projections](./services/PROJECTION.md), [Graph Database](./services/GRAPH.md)
+- [W3C Web Annotation](../specs/docs/W3C-WEB-ANNOTATION.md) - Complete annotation semantics
+- [Backend Architecture](../apps/backend/docs/W3C-WEB-ANNOTATION.md#data-layer-architecture) - 4-layer implementation
 
 ## Application Architecture
 
@@ -61,84 +56,68 @@ The application consists of two separate services:
 
 **For complete backend details**, including API documentation, framework choices, and development setup, see [Backend README](../apps/backend/README.md).
 
+## API Overview
+
+The Semiont API is a **REST/CRUD** API with a **semantic knowledge graph** flavor.
+
+### Core Nouns
+
+- **Documents**: Markdown content (the primary knowledge artifact)
+- **Annotations**: W3C-compliant markup linking text spans to entities and other documents
+- **Entity Types**: Semantic classifications (Person, Organization, Concept, Location, Event, etc.)
+- **Events**: Immutable change records (event sourcing)
+
+### Core Verbs
+
+- **Create/Update/Delete**: Standard CRUD operations on documents and annotations
+- **Annotate**: Mark text spans with entity types or link to other documents
+- **Discover**: Extract graph context from text or documents
+- **Generate**: AI-powered document creation from annotated selections
+- **Query**: Graph traversal (backlinks, references, entity networks)
+
+### API Flavor
+
+**RESTful with semantic extensions:**
+
+- Standard REST patterns (`POST /api/documents`, `GET /api/documents/{id}`)
+- W3C Web Annotation vocabulary (motivations, selectors, bodies)
+- Graph-aware operations (context discovery, reference resolution)
+- Event-sourced mutations (all writes create immutable events)
+- Streaming support (real-time entity detection, event logs)
+
+**Type-Safe Client:**
+
+The [@semiont/api-client](../packages/api-client/) package provides a fully type-safe TypeScript SDK:
+
+- Types generated from [OpenAPI specification](../specs/openapi.json)
+- Automatic request/response validation
+- Streaming support for long-running operations
+- Authentication helpers (JWT, OAuth, MCP tokens)
+
+**Working Examples:**
+
+See [/demo](../demo/) for complete TypeScript examples using the API client to build knowledge graphs.
+
+**API Documentation:**
+
+- [API Overview](../specs/docs/API.md) - High-level capabilities and workflows
+- [OpenAPI Specification](../specs/openapi.json) - Complete endpoint reference (source of truth)
+
 ## Authentication
 
-Semiont implements a **secure-by-default** authentication model using OAuth 2.0 and JWT tokens.
+Secure-by-default authentication using OAuth 2.0 and JWT tokens:
 
-**Quick Summary**:
-- **OAuth 2.0**: Google OAuth with domain restrictions
-- **JWT Tokens**: Stateless authentication for API requests
-- **MCP Support**: Special flow for Model Context Protocol clients
-- **Default Protected**: All API routes require authentication unless explicitly public
+- **OAuth 2.0**: Google OAuth with email domain restrictions
+- **JWT Tokens**: Stateless bearer token authentication (7-day expiry)
+- **MCP Support**: Special token flow for Model Context Protocol clients (30-day refresh tokens)
+- **Default Protected**: All endpoints require authentication except health checks and OAuth exchange
+- **Role-Based Access**: Admin role support for user management
 
-**Public Endpoints**:
-- `GET /api/health` - Health check
-- `GET /api` - API documentation
-- `POST /api/auth/google` - OAuth login
+**Public Endpoints:** `/api/health`, `/api/openapi.json`, `/api/tokens/google`
 
-**Key Features**:
-- Automatic JWT validation middleware
-- 7-day access tokens, 30-day refresh tokens (MCP only)
-- Email domain restrictions
-- Admin role support
-
-For complete details on authentication flows, token management, security best practices, and implementation examples, see [AUTHENTICATION.md](./AUTHENTICATION.md).
+For complete authentication details, token management, and security best practices, see [AUTHENTICATION.md](./AUTHENTICATION.md).
 
 For MCP client implementation, see [MCP Server](../packages/mcp-server/README.md).
-
-## Data Layer Architecture
-
-The backend implements a 4-layer data architecture, each layer serving a specific purpose:
-
-```mermaid
-graph TB
-    subgraph "Layer 4: Graph Database"
-        Graph[Graph Database<br/>Neo4j/Memgraph/ArangoDB<br/>────────<br/>• Relationship traversal<br/>• Backlinks & connections<br/>• Path finding<br/>• Cross-document queries]
-    end
-
-    subgraph "Layer 3: Projections"
-        Projections[Projection Storage<br/>Filesystem JSON + PostgreSQL<br/>────────<br/>• Materialized views<br/>• Document metadata<br/>• Annotation collections<br/>• Fast single-doc queries<br/>────────<br/>Rebuild: From Layer 2 events]
-    end
-
-    subgraph "Layer 2: Event Store"
-        EventStore[Event Store<br/>Filesystem JSONL<br/>────────<br/>• Immutable event log<br/>• Append-only writes<br/>• Complete audit trail<br/>• Source of truth]
-    end
-
-    subgraph "Layer 1: Content Storage"
-        Content[Content Storage<br/>Filesystem Binary/Text<br/>────────<br/>• Document content files<br/>• PDF, text, images<br/>• Sharded storage<br/>• Stream support<br/>────────<br/>65,536 shards via JCH]
-    end
-
-    EventStore -->|Projects to| Projections
-    Projections -->|Syncs to| Graph
-    EventStore -.->|Can rebuild| Projections
-    Projections -.->|Can rebuild| Graph
-
-    style Content fill:#e1f5ff
-    style EventStore fill:#fff4e1
-    style Projections fill:#f0ffe1
-    style Graph fill:#ffe1f5
-
-    classDef layer1 fill:#e1f5ff
-    classDef layer2 fill:#fff4e1
-    classDef layer3 fill:#f0ffe1
-    classDef layer4 fill:#ffe1f5
-```
-
-### Layer Responsibilities
-
-- **Layer 1 (Content Storage)**: Stores raw document content in binary/text format with 4-hex sharding (65,536 shards). Provides O(1) read/write by document ID. See [CONTENT-STORE.md](./CONTENT-STORE.md).
-
-- **Layer 2 (Event Store)**: Immutable append-only event log (JSONL files). Source of truth for all state changes. Supports event replay and projection rebuilding. See [EVENT-STORE.md](./EVENT-STORE.md).
-
-- **Layer 3 (Projections)**: Materialized views of document state built from Layer 2 events. Optimized for fast single-document queries. Can be rebuilt from events at any time. See [PROJECTION.md](./PROJECTION.md).
-
-- **Layer 4 (Graph Database)**: Relationship and connection data synced from Layer 3. Handles graph traversal, backlinks, path finding, and cross-document queries. See [GRAPH.md](./GRAPH.md).
-
-### Data Flow
-
-1. **Write Path**: Content → Layer 1, Events → Layer 2, Events → Layer 3 (projection), Projection → Layer 4 (sync)
-2. **Read Path**: Single-document queries → Layer 3, Graph queries → Layer 4
-3. **Rebuild Path**: Layer 2 events can rebuild Layer 3 projections and Layer 4 graph at any time
 
 ---
 

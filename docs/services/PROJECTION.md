@@ -63,8 +63,6 @@ Projection Storage implements the Materialized View pattern:
 
 ### 3. Zero Cruft Philosophy
 
-Following [CLAUDE.md](../CLAUDE.md) principles:
-
 **NO singleton patterns:**
 - All modules use factory functions
 - Direct instantiation everywhere
@@ -748,7 +746,6 @@ Per explicit requirements during refactoring:
 - [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation format in projections
 - [GRAPH.md](./GRAPH.md) - Layer 4 graph database (built from projections)
 - [LAYER-3-REFACTOR-PLAN.md](../LAYER-3-REFACTOR-PLAN.md) - Refactoring implementation details
-- [CLAUDE.md](../CLAUDE.md) - Zero cruft philosophy
 
 ## Troubleshooting
 

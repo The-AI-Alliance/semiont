@@ -290,9 +290,9 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 ### System Documentation
 - [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
 - [W3C Web Annotation](../../docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
-- [Event Store](../../docs/EVENT-STORE.md) - Layer 2 event sourcing
-- [Projection Storage](../../docs/PROJECTION.md) - Layer 3 materialized views
-- [Graph Database](../../docs/GRAPH.md) - Layer 4 relationships
+- [Event Store](../../docs/services/EVENT-STORE.md) - Layer 2 event sourcing
+- [Projection Storage](../../docs/services/PROJECTION.md) - Layer 3 materialized views
+- [Graph Database](../../docs/services/GRAPH.md) - Layer 4 relationships
 
 ### External Resources
 - [Hono Documentation](https://hono.dev/)

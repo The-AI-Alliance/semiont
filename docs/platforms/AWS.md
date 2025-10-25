@@ -544,7 +544,7 @@ Set via ECS task definitions:
 - [Architecture Overview](../ARCHITECTURE.md) - Platform-agnostic application architecture
 - [Deployment Guide](../DEPLOYMENT.md) - Step-by-step deployment instructions
 - [Configuration Guide](../CONFIGURATION.md) - Environment and secret management
-- [Database Management](../DATABASE.md) - PostgreSQL management on RDS
+- [Database Management](../services/DATABASE.md) - PostgreSQL management on RDS
 - [Troubleshooting](../TROUBLESHOOTING.md) - Common issues and solutions
 
 ---
