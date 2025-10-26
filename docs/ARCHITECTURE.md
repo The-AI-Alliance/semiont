@@ -73,11 +73,11 @@ graph TB
     BE -->|Generate/Detect| INF
     BE -.->|Future| SEC
 
-    %% Styling - colors chosen for readability in both light and dark modes
-    classDef client fill:#d0e8f2,stroke:#2c5f7a,stroke-width:2px
-    classDef app fill:#ffd966,stroke:#8b6914,stroke-width:2px
-    classDef data fill:#dac4e8,stroke:#6b4a7a,stroke-width:2px
-    classDef infra fill:#b8dac0,stroke:#3d6644,stroke-width:2px
+    %% Styling - darker fills ensure text contrast in both light and dark modes
+    classDef client fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+    classDef app fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
+    classDef data fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
+    classDef infra fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class USER,AI client
     class FE,BE,MCP app
