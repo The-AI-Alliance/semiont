@@ -75,7 +75,7 @@ Example mapping for `*Athena*`:
 
 ### Remark Plugin: Attach Metadata
 
-[remark-annotations.ts](apps/frontend/src/lib/remark-annotations.ts) runs during the remark phase:
+[remark-annotations.ts](../../src/lib/remark-annotations.ts) runs during the remark phase:
 
 ```typescript
 export function remarkAnnotations(options: { annotations: Annotation[] }) {
@@ -110,7 +110,7 @@ export function remarkAnnotations(options: { annotations: Annotation[] }) {
 
 ### Rehype Plugin: Render Annotations
 
-[rehype-render-annotations.ts](apps/frontend/src/lib/rehype-render-annotations.ts) runs during the rehype phase:
+[rehype-render-annotations.ts](../../src/lib/rehype-render-annotations.ts) runs during the rehype phase:
 
 ```typescript
 export function rehypeRenderAnnotations() {
@@ -134,7 +134,7 @@ export function rehypeRenderAnnotations() {
 
 ### Component Integration
 
-[BrowseView.tsx](apps/frontend/src/components/document/BrowseView.tsx):
+[BrowseView.tsx](../../src/components/document/BrowseView.tsx):
 
 ```typescript
 <ReactMarkdown
@@ -236,7 +236,7 @@ The breakthrough came from realizing:
 
 ## Testing
 
-Comprehensive test coverage in [markdown-annotations.test.ts](apps/frontend/src/lib/__tests__/markdown-annotations.test.ts):
+Comprehensive test coverage in [markdown-annotations.test.ts](../../src/lib/__tests__/markdown-annotations.test.ts):
 
 - Plain text annotations
 - Bold markdown (`**Zeus**`)
@@ -276,7 +276,7 @@ All tests validate that annotations:
 
 If you need to debug the annotation rendering pipeline:
 
-1. **Enable intermediate data**: In [rehype-render-annotations.ts](apps/frontend/src/lib/rehype-render-annotations.ts), comment out the cleanup line:
+1. **Enable intermediate data**: In [rehype-render-annotations.ts](../../src/lib/rehype-render-annotations.ts), comment out the cleanup line:
    ```typescript
    // delete element.properties['data-annotations'];
    ```

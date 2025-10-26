@@ -1,8 +1,3 @@
-import { ErrorResponseSchema } from '@semiont/core';
-
-// Shared error response schema used across all routes (imported from SDK)
-export { ErrorResponseSchema };
-
 // Create route definitions for OpenAPI documentation
 // Routes are now defined in separate files under src/routes/
 // This keeps the route definitions close to their implementations

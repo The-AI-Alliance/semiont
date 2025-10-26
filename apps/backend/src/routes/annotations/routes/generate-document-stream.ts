@@ -14,11 +14,13 @@ import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { getExactText, compareAnnotationIds } from '@semiont/api-client';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
-import { getExactText, compareAnnotationIds } from '@semiont/core';
+import { getTargetSelector } from '../../../lib/annotation-utils';
+import { getEntityTypes } from '@semiont/api-client';
 
 type GenerateDocumentStreamRequest = components['schemas']['GenerateDocumentStreamRequest'];
 
@@ -56,20 +58,21 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
       }
 
       console.log(`[GenerateDocument] Starting generation for reference ${referenceId} in document ${body.documentId}`);
-      console.log(`[GenerateDocument] Locale from request:`, body.locale);
+      console.log(`[GenerateDocument] Locale from request:`, body.language);
 
-      // Validate reference exists using Layer 3
+      // Validate annotation exists using Layer 3
       const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
 
-      // Debug: log what references exist
-      console.log(`[GenerateDocument] Found ${projection.references.length} references in document`);
-      projection.references.forEach((r: any, i: number) => {
-        console.log(`  [${i}] id: ${r.id}`);
+      // Debug: log what annotations exist
+      const linkingAnnotations = projection.annotations.filter((a: any) => a.motivation === 'linking');
+      console.log(`[GenerateDocument] Found ${linkingAnnotations.length} linking annotations in document`);
+      linkingAnnotations.forEach((a: any, i: number) => {
+        console.log(`  [${i}] id: ${a.id}`);
       });
 
       // Compare by ID portion (handle both URI and simple ID formats)
-      const reference = projection.references.find((r: any) =>
-        compareAnnotationIds(r.id, referenceId)
+      const reference = projection.annotations.find((a: any) =>
+        compareAnnotationIds(a.id, referenceId) && a.motivation === 'linking'
       );
 
       if (!reference) {
@@ -87,8 +90,8 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
         sourceDocumentId: body.documentId,
         title: body.title,
         prompt: body.prompt,
-        locale: body.locale,
-        entityTypes: reference.body.entityTypes,
+        language: body.language,
+        entityTypes: getEntityTypes(reference),
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3
@@ -96,10 +99,11 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
 
       await jobQueue.createJob(job);
       console.log(`[GenerateDocument] Created job ${job.id} for reference ${referenceId}`);
-      console.log(`[GenerateDocument] Job includes locale:`, job.locale);
+      console.log(`[GenerateDocument] Job includes locale:`, job.language);
 
       // Determine document name for progress messages
-      const documentName = body.title || getExactText(reference.target.selector) || 'New Document';
+      const targetSelector = getTargetSelector(reference.target);
+      const documentName = body.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Document';
 
       // Stream the job's progress to the client
       return streamSSE(c, async (stream) => {

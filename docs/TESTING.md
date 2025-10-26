@@ -959,6 +959,20 @@ jobs:
           directory: ./coverage
 ```
 
+## Related Documentation
+
+### Application Testing Documentation
+- [Frontend Testing](../apps/frontend/README.md#testing) - Frontend-specific testing setup, scripts, and philosophy
+- [Backend Testing](../apps/backend/README.md#testing) - Backend API testing and integration tests
+- [CLI Testing](../apps/cli/TESTING.md) - CLI command testing and validation
+
+### Component Testing
+- [Annotation Rendering Principles](../apps/frontend/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Property-based testing for annotation renderer
+- [Frontend Architecture](../apps/frontend/docs/ARCHITECTURE.md) - Component structure and testing strategy
+
+### W3C Compliance Testing
+- [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) - W3C Web Annotation compliance and testing
+
 ## Resources
 
 - [Vitest Documentation](https://vitest.dev/)

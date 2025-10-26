@@ -2,7 +2,7 @@
  * Tool execution handlers using @semiont/api-client
  */
 
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontApiClient, getExactText, getBodySource } from '@semiont/api-client';
 
 export async function handleCreateDocument(client: SemiontApiClient, args: any) {
   const data = await client.createDocument({
@@ -58,31 +58,44 @@ export async function handleDetectAnnotations(_client: SemiontApiClient, _args: 
 
 export async function handleCreateAnnotation(client: SemiontApiClient, args: any) {
   const selectionData = args?.selectionData || {};
+  const entityTypes = args?.entityTypes || [];
+
+  // Convert entityTypes to W3C TextualBody items
+  const body = entityTypes.map((value: string) => ({
+    type: 'TextualBody' as const,
+    value,
+    purpose: 'tagging' as const,
+  }));
+
   const data = await client.createAnnotation({
     motivation: 'highlighting',
     target: {
       source: args?.documentId,
-      selector: {
-        type: selectionData.type || 'TextPositionSelector',
-        exact: selectionData.text || '',
-        offset: selectionData.offset || 0,
-        length: selectionData.length || 0,
-      },
+      selector: [
+        {
+          type: 'TextPositionSelector',
+          start: selectionData.offset || 0,
+          end: (selectionData.offset || 0) + (selectionData.length || 0),
+        },
+        {
+          type: 'TextQuoteSelector',
+          exact: selectionData.text || '',
+        },
+      ],
     },
-    body: {
-      type: 'TextualBody',
-      entityTypes: args?.entityTypes || [],
-    },
+    body,
   });
 
-  const selector = Array.isArray(data.annotation.target.selector)
-    ? data.annotation.target.selector[0]
+  // Extract text using SDK utility
+  const targetSelector = typeof data.annotation.target === 'string'
+    ? undefined
     : data.annotation.target.selector;
+  const exactText = getExactText(targetSelector);
 
   return {
     content: [{
       type: 'text' as const,
-      text: `Annotation created:\nID: ${data.annotation.id}\nMotivation: ${data.annotation.motivation}\nText: ${selector?.exact || 'N/A'}`,
+      text: `Annotation created:\nID: ${data.annotation.id}\nMotivation: ${data.annotation.motivation}\nText: ${exactText}`,
     }],
   };
 }
@@ -100,12 +113,22 @@ export async function handleSaveAnnotation(_client: SemiontApiClient, _args: any
 }
 
 export async function handleResolveAnnotation(client: SemiontApiClient, args: any) {
-  const data = await client.resolveAnnotation(args?.selectionId, args?.documentId);
+  const data = await client.updateAnnotationBody(args?.selectionId, {
+    documentId: args?.sourceDocumentId,
+    operations: [{
+      op: 'add',
+      item: {
+        type: 'SpecificResource',
+        source: args?.documentId,
+        purpose: 'linking',
+      },
+    }],
+  });
 
   return {
     content: [{
       type: 'text' as const,
-      text: `Annotation resolved to document:\nAnnotation ID: ${data.annotation.id}\nResolved to: ${data.targetDocument?.id || 'null'}\nTarget: ${data.targetDocument?.name || 'None'}`,
+      text: `Annotation linked to document:\nAnnotation ID: ${data.annotation.id}\nLinked to: ${args?.documentId || 'null'}`,
     }],
   };
 }
@@ -126,7 +149,7 @@ export async function handleGenerateDocumentFromAnnotation(client: SemiontApiCli
     documentId: args?.documentId,
     title: args?.title,
     prompt: args?.prompt,
-    locale: args?.locale,
+    language: args?.language,
   });
 
   return {
@@ -193,24 +216,39 @@ export async function handleGetDocumentAnnotations(_client: SemiontApiClient, _a
   };
 }
 
-export async function handleGetDocumentHighlights(client: SemiontApiClient, args: any) {
-  const data = await client.getDocumentHighlights(args?.documentId);
+export async function handleGetDocumentHighlights(client: SemiontApiClient, args: Record<string, unknown>) {
+  const data = await client.getDocumentAnnotations(args?.documentId as string);
+  const highlights = data.annotations.filter(a => a.motivation === 'highlighting');
 
   return {
     content: [{
       type: 'text' as const,
-      text: `Found ${data.highlights.length} highlights in document:\n${data.highlights.map((h: any) => `- ${h.selectionData?.text || h.id} (saved by ${h.savedBy})`).join('\n')}`,
+      text: `Found ${highlights.length} highlights in document:\n${highlights.map(h => {
+        // Safely get exact text from TextQuoteSelector
+        const targetSelector = typeof h.target === 'string' ? undefined : h.target.selector;
+        const selectors = Array.isArray(targetSelector) ? targetSelector : [targetSelector];
+        const textQuoteSelector = selectors.find(s => s?.type === 'TextQuoteSelector');
+        const text = textQuoteSelector && 'exact' in textQuoteSelector ? textQuoteSelector.exact : h.id;
+        return `- ${text}${h.creator ? ` (creator: ${h.creator.name})` : ''}`;
+      }).join('\n')}`,
     }],
   };
 }
 
-export async function handleGetDocumentReferences(client: SemiontApiClient, args: any) {
-  const data = await client.getDocumentReferences(args?.documentId);
+export async function handleGetDocumentReferences(client: SemiontApiClient, args: Record<string, unknown>) {
+  const data = await client.getDocumentAnnotations(args?.documentId as string);
+  const references = data.annotations.filter(a => a.motivation === 'linking');
 
   return {
     content: [{
       type: 'text' as const,
-      text: `Found ${data.references.length} references in document:\n${data.references.map((r: any) => `- ${r.selectionData?.text || r.id} → ${r.resolvedDocumentId}`).join('\n')}`,
+      text: `Found ${references.length} references in document:\n${references.map(r => {
+        // Use SDK utilities to extract text and source
+        const targetSelector = typeof r.target === 'string' ? undefined : r.target.selector;
+        const text = getExactText(targetSelector) || r.id;
+        const source = getBodySource(r.body);
+        return `- ${text} → ${source || 'stub (no link)'}`;
+      }).join('\n')}`,
     }],
   };
 }
