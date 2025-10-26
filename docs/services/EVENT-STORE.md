@@ -4,7 +4,7 @@
 
 Semiont's Event Store is a **Layer 2** component in the multi-layered architecture that provides event sourcing for document and annotation changes. It uses an immutable append-only event log as the source of truth, from which materialized projections (Layer 3) are built.
 
-**Architecture Position**: The Event Store sits between Layer 1 (Content Storage) and Layer 3 (Projections/Database). Layer 1 stores raw document content, Layer 2 records what happened, and Layer 3 materializes current state. See [CONTENT-STORE.md](./CONTENT-STORE.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) for complete layer details.
+**Architecture Position**: The Event Store sits between Layer 1 (Content Storage) and Layer 3 (Projections/Database). Layer 1 stores raw document content, Layer 2 records what happened, and Layer 3 materializes current state. See [CONTENT-STORE.md](./CONTENT-STORE.md), [ARCHITECTURE.md](../ARCHITECTURE.md), and [W3C-WEB-ANNOTATION.md](../../specs/docs/W3C-WEB-ANNOTATION.md) for complete layer details.
 
 **Quick Navigation:**
 - [Core Design Principles](#core-design-principles) - Why this architecture works
@@ -64,8 +64,6 @@ The Event Store implements true event sourcing:
 - Allows multiple projection types from same events
 
 ### 3. Zero Cruft Philosophy
-
-Following [CLAUDE.md](../CLAUDE.md) principles:
 
 **NO backward compatibility layers:**
 - No singleton patterns
@@ -929,4 +927,3 @@ async function rebuildAllProjections() {
 - [Database Management](./DATABASE.md) - Layer 3 projection storage
 - [Graph Implementation](./GRAPH.md) - Layer 4 graph database
 - [Testing Strategy](./TESTING.md) - Testing guidelines
-- [CLAUDE.md Code Quality Standards](../CLAUDE.md) - Design principles applied

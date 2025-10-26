@@ -97,7 +97,36 @@ Layer 2: Event Store (immutable event log, source of truth)
 Layer 1: Content Storage (binary/text documents, sharded)
 ```
 
+**Job Worker Integration**: Background workers process long-running AI operations (entity detection, document generation) and emit events to Layer 2, which flow through to Layers 3 and 4 via the event-driven architecture.
+
 See [Architecture Overview](../../docs/ARCHITECTURE.md) for complete details.
+
+### Background Job Processing
+
+Asynchronous job processing for long-running AI operations that can't block HTTP requests:
+
+**Current Status**: Prototype implementation embedded in backend process (not yet a standalone CLI-managed service)
+
+**Job Types**:
+- **Entity Detection**: Find entities in documents using AI inference, emit `annotation.added` events
+- **Document Generation**: Create new documents from annotations using AI, emit `document.created` events
+
+**Architecture**:
+- Filesystem-based job queue with atomic operations
+- FIFO job processing with automatic retry logic
+- Progress tracking with Server-Sent Events (SSE) streaming
+- Workers emit events to Layer 2 (Event Store)
+- Jobs continue even if client disconnects
+
+**Key Benefits**:
+- Decouple long-running operations from HTTP request lifecycle
+- Enable real-time progress updates via SSE
+- Full audit trail via event sourcing
+- Automatic retry on failures
+
+**Future State**: Will become a standalone service with CLI integration, platform abstraction, and support for Redis/SQS queue backends.
+
+See [Job Worker Documentation](../../docs/services/JOB-WORKER.md) for implementation details.
 
 ### Secure-by-Default Authentication
 
@@ -136,9 +165,17 @@ apps/backend/
 │   ├── types/                # Type definitions
 │   ├── validation/           # Zod validation schemas
 │   ├── events/               # Event sourcing (Layer 2)
-│   ├── jobs/                 # Background job workers
+│   │   ├── event-store.ts   # Immutable event log
+│   │   ├── event-projector.ts # Layer 2 → Layer 3 projection
+│   │   └── consumers/       # Event subscription (e.g., graph sync)
+│   ├── jobs/                 # Background job workers (prototype)
+│   │   ├── job-queue.ts     # Filesystem-based job queue
+│   │   ├── types.ts         # Job type definitions
+│   │   └── workers/         # Detection & generation workers
 │   ├── services/             # Business logic services
 │   ├── storage/              # Storage layers (1, 2, 3)
+│   │   ├── content/         # Layer 1: Content store
+│   │   └── projection/      # Layer 3: Projections
 │   └── index.ts              # Main application
 ├── prisma/
 │   └── schema.prisma         # Database schema
@@ -290,9 +327,10 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 ### System Documentation
 - [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
 - [W3C Web Annotation](../../docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
-- [Event Store](../../docs/EVENT-STORE.md) - Layer 2 event sourcing
-- [Projection Storage](../../docs/PROJECTION.md) - Layer 3 materialized views
-- [Graph Database](../../docs/GRAPH.md) - Layer 4 relationships
+- [Event Store](../../docs/services/EVENT-STORE.md) - Layer 2 event sourcing
+- [Projection Storage](../../docs/services/PROJECTION.md) - Layer 3 materialized views
+- [Graph Database](../../docs/services/GRAPH.md) - Layer 4 relationships
+- [Job Worker](../../docs/services/JOB-WORKER.md) - Background job processing (prototype)
 
 ### External Resources
 - [Hono Documentation](https://hono.dev/)
@@ -302,4 +340,4 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 
 ---
 
-**Last Updated**: 2025-10-23
+**Last Updated**: 2025-10-25

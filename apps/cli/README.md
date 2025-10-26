@@ -92,10 +92,15 @@ $ semiont start production --dry-run
 
 Flexible service targeting:
 - `all` - All services in the environment (default)
-- `frontend` - Just the frontend service
-- `backend` - Just the backend service
-- `database` - Just the database service
-- `filesystem` - Just the filesystem service
+- `frontend` - Frontend web application
+- `backend` - Backend API service
+- `database` - PostgreSQL database
+- `graph` - Graph database (Neo4j/Neptune)
+- `event-store` - Event Store (immutable event log)
+- `projection` - Projection Store (materialized views)
+- `filesystem` - File storage service
+- `inference` - AI/ML inference service
+- `mcp` - Model Context Protocol server
 - Service combinations and patterns (future extension)
 
 ### Environment-Driven Architecture

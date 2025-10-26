@@ -18,6 +18,17 @@ Thank you for your interest in contributing to Semiont! This document provides g
 
 See [Platform Development Guide](#adding-new-platform-support) for implementation details.
 
+**Alternative frontend implementations:**
+
+We also welcome contributions that bring Semiont to new user interfaces and integration points:
+
+- **Mobile apps** (iOS, Android, React Native)
+- **Browser extensions** (Chrome, Firefox, Safari)
+- **Desktop applications** (Electron, Tauri)
+- **IDE integrations** (VS Code, IntelliJ)
+
+See [apps/frontend/docs/FUTURE.md](apps/frontend/docs/FUTURE.md) for architectural guidance on building alternative frontends that share the core API client and authentication infrastructure.
+
 ## 📋 Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
@@ -96,7 +107,24 @@ See [docs/LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for complete setup in
 
 ## 🛠 Development Workflow
 
-### 1. Create a Branch
+**Most contributors will work from a fork.** Only a small number of maintainers have direct push access to the main repository.
+
+### 1. Work in Your Fork
+
+If you haven't already forked the repository (see [Initial Setup](#initial-setup) above):
+
+```bash
+# Fork on GitHub, then clone your fork
+git clone https://github.com/YOUR_USERNAME/semiont.git
+cd semiont
+
+# Add upstream remote to track main repository
+git remote add upstream https://github.com/The-AI-Alliance/semiont.git
+```
+
+### 2. Create a Branch
+
+Create a feature branch in your fork:
 
 ```bash
 git checkout -b feature/gcp-platform
@@ -114,14 +142,14 @@ git checkout -b docs/improve-api-reference
 - `refactor/` - Code refactoring
 - `platform/` - New platform implementations
 
-### 2. Make Changes
+### 3. Make Changes
 
 - Follow existing code style and patterns
 - Write tests for new functionality
 - Update documentation as needed
 - Follow [TypeScript strict mode](https://www.typescriptlang.org/tsconfig#strict)
 
-### 3. Test Your Changes
+### 4. Test Your Changes
 
 ```bash
 # Run all tests
@@ -138,7 +166,7 @@ npm run type-check
 npm run lint
 ```
 
-### 4. Commit Changes
+### 5. Commit Changes
 
 Write clear, descriptive commit messages:
 
@@ -148,13 +176,25 @@ git commit -m "Fix database connection timeout in CLI"
 git commit -m "Clarify authentication flow in API docs"
 ```
 
-### 5. Push and Create PR
+### 6. Sync with Upstream
+
+Before pushing, sync with the main repository:
 
 ```bash
+git fetch upstream
+git rebase upstream/main
+```
+
+### 7. Push to Your Fork and Create PR
+
+```bash
+# Push to your fork
 git push origin feature/gcp-platform
 ```
 
-Then create a Pull Request on GitHub.
+Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on GitHub.
+
+**For maintainers with push access:** You may push branches directly to the main repository, but pull requests are still required for code review.
 
 ## 🌍 Adding New Platform Support
 

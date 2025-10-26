@@ -29,8 +29,8 @@ semiont/
 │   ├── backend/          # Hono backend API server
 │   └── cli/              # Semiont management CLI
 ├── packages/             # Shared workspace packages
-│   ├── core/             # Core TypeScript SDK with types, schemas, and utilities
-│   ├── api-client/       # TypeScript SDK generated from OpenAPI spec
+│   ├── api-client/       # Primary TypeScript SDK (generated from OpenAPI spec)
+│   ├── core/             # Backend domain logic (events, crypto, type guards)
 │   ├── mcp-server/       # Model Context Protocol server for AI integration
 │   └── test-utils/       # Testing utilities and mock factories
 ├── demo/                 # Example scripts and demonstrations
@@ -66,8 +66,9 @@ const doc = await client.createDocument({
 - 🔌 High-level API client with authentication and error handling
 - ✅ Type-safe request/response handling
 - 🔄 Spec-first development: Types generated from canonical [specs/openapi.json](specs/openapi.json)
+- 🛠️ W3C annotation utilities (selectors, entity types, locales)
 
-For internal use, **[@semiont/core](packages/core/)** provides shared types, schemas, and utilities used across the monorepo.
+**Note:** For external integrations, use **@semiont/api-client**. The **[@semiont/core](packages/core/)** package is for backend internal domain logic only (event sourcing, crypto, DID utilities).
 
 **Documentation:**
 - [API Client README](packages/api-client/README.md) - SDK usage and utilities
@@ -170,7 +171,8 @@ For complete deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Complete deployment guide with validation steps |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design decisions |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration management and environment setup |
-| [DATABASE.md](docs/DATABASE.md) | Database setup, migrations, and management |
+| [Services](docs/services/README.md) | All service documentation and 4-layer data architecture |
+| [Platforms](docs/platforms/README.md) | Platform implementations (POSIX, Container, AWS, External, Mock) |
 | [TESTING.md](docs/TESTING.md) | Testing strategy, frameworks, and best practices |
 
 ### Operations & Security

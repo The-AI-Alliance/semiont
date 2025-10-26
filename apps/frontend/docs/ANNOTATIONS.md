@@ -314,5 +314,5 @@ The modular architecture ensures maintainability and extensibility, while the pr
 
 ### System Documentation
 - [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) - Overall system architecture
-- [DATABASE.md](../../../docs/DATABASE.md) - PostgreSQL event store and projection layers
-- [GRAPH.md](../../../docs/GRAPH.md) - Graph database implementations (Neo4j, Neptune, JanusGraph)
+- [DATABASE.md](../../../docs/services/DATABASE.md) - PostgreSQL event store and projection layers
+- [GRAPH.md](../../../docs/services/GRAPH.md) - Graph database implementations (Neo4j, Neptune, JanusGraph)
