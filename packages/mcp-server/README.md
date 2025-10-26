@@ -6,7 +6,7 @@ This Model Context Protocol (MCP) server provides AI applications with access to
 
 Provides MCP tools for:
 - Document management (create, read, update, list, search)
-- Annotation operations (create, resolve, generate documents)
+- Annotation operations (create, link to documents, generate documents)
 - Document highlights and references
 - Event history access
 

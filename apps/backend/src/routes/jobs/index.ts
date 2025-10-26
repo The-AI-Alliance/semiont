@@ -1,59 +1,31 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+/**
+ * Jobs Routes - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
+import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import { getJobQueue } from '../../jobs/job-queue';
+import type { components } from '@semiont/api-client';
 
-// Create jobs router with auth middleware
-export const jobsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
+type JobStatusResponse = components['schemas']['JobStatusResponse'];
 
-/**
- * Job status response schema
- */
-const JobStatusResponseSchema = z.object({
-  jobId: z.string(),
-  type: z.enum(['detection', 'generation']),
-  status: z.enum(['pending', 'running', 'complete', 'failed', 'cancelled']),
-  userId: z.string(),
-  created: z.string(),
-  startedAt: z.string().optional(),
-  completedAt: z.string().optional(),
-  error: z.string().optional(),
-  progress: z.any().optional(),
-  result: z.any().optional(),
-});
+// Create jobs router
+export const jobsRouter = new Hono<{ Variables: { user: User } }>();
 
 /**
- * GET /api/jobs/{id} - Get job status
+ * GET /api/jobs/:id
+ *
+ * Get job status and progress
+ * Requires authentication
  */
-const getJobStatusRoute = createRoute({
-  method: 'get',
-  path: '/api/jobs/{id}',
-  summary: 'Get Job Status',
-  description: 'Get the current status and progress of an async job',
-  tags: ['Jobs'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: JobStatusResponseSchema,
-        },
-      },
-      description: 'Job status retrieved successfully',
-    },
-    404: {
-      description: 'Job not found',
-    },
-  },
-});
-
-jobsRouter.openapi(getJobStatusRoute, async (c) => {
-  const { id } = c.req.valid('param');
+jobsRouter.get('/api/jobs/:id', async (c) => {
+  const { id } = c.req.param();
   const user = c.get('user');
 
   const jobQueue = getJobQueue();
@@ -68,7 +40,7 @@ jobsRouter.openapi(getJobStatusRoute, async (c) => {
     throw new HTTPException(404, { message: 'Job not found' });
   }
 
-  return c.json({
+  const response: JobStatusResponse = {
     jobId: job.id,
     type: job.type,
     status: job.status,
@@ -87,5 +59,7 @@ jobsRouter.openapi(getJobStatusRoute, async (c) => {
       : job.type === 'generation'
         ? (job as any).result
         : undefined,
-  });
+  };
+
+  return c.json(response);
 });

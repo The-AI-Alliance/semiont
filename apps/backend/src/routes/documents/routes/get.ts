@@ -1,44 +1,40 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Get Document Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No validation needed (path param extracted directly)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import { HTTPException } from 'hono/http-exception';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore } from '../../../services/event-store-service';
+import { EventQuery } from '../../../events/query/event-query';
 import type { DocumentsRouterType } from '../shared';
-import {
-  GetDocumentResponseSchema as GetDocumentResponseSchema,
-  type GetDocumentResponse,
-} from '@semiont/core';
+import type { components } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
-
-export const getDocumentRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{id}',
-  summary: 'Get Document',
-  description: 'Get a document by ID',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetDocumentResponseSchema as any,
-        },
-      },
-      description: 'Document retrieved successfully',
-    },
-  },
-});
+type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
 
 export function registerGetDocument(router: DocumentsRouterType) {
-  router.openapi(getDocumentRoute, async (c) => {
-    const { id } = c.req.valid('param');
+  /**
+   * GET /api/documents/:id
+   *
+   * Get a document by ID
+   * Returns document metadata and annotations (NOT content)
+   * Requires authentication
+   */
+  router.get('/api/documents/:id', async (c) => {
+    const { id } = c.req.param();
+    const basePath = getFilesystemConfig().path;
 
     // Read from Layer 2/3: Event store builds/loads projection
-    const eventStore = await getEventStore();
-    const stored = await eventStore.projectDocument(id);
+    const eventStore = await createEventStore(basePath);
+    const query = new EventQuery(eventStore.storage);
+    const events = await query.getDocumentEvents(id);
+    const stored = await eventStore.projector.projectDocument(events, id);
 
     if (!stored) {
       throw new HTTPException(404, { message: 'Document not found' });
@@ -47,19 +43,16 @@ export function registerGetDocument(router: DocumentsRouterType) {
     // NOTE: Content is NOT included in this response
     // Clients must call GET /documents/:id/content separately to get content
 
-    const annotations = [
-      ...stored.annotations.highlights,
-      ...stored.annotations.references
-    ];
-    const highlights = stored.annotations.highlights;
-    const references = stored.annotations.references;
-    const entityReferences = references.filter(ref => ref.body.entityTypes && ref.body.entityTypes.length > 0);
+    const annotations = stored.annotations.annotations;
+    const entityReferences = annotations.filter(a => {
+      if (a.motivation !== 'linking') return false;
+      const entityTypes = getEntityTypes({ body: a.body });
+      return entityTypes.length > 0;
+    });
 
     const response: GetDocumentResponse = {
       document: stored.document,
       annotations,
-      highlights,
-      references,
       entityReferences,
     };
 
