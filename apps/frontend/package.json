@@ -34,6 +34,7 @@
     "perf-check": "npm run perf-monitor && npm run analyze"
   },
   "dependencies": {
+    "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-markdown": "^6.3.4",
     "@codemirror/language": "^6.11.3",
     "@codemirror/state": "^6.5.2",

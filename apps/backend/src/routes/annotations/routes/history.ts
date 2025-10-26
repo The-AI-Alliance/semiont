@@ -10,9 +10,11 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
-import { getEventStore } from '../../../events/event-store';
-import { getGraphDatabase } from '../../../graph/factory';
+import { createEventStore, createEventQuery } from '../../../services/event-store-service';
+import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { getTargetSource } from '../../../lib/annotation-utils';
 import type { components } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
 
@@ -27,21 +29,22 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
   router.get('/api/documents/:documentId/annotations/:annotationId/history', async (c) => {
     const { documentId, annotationId } = c.req.param();
 
-    // Verify annotation exists
-    const graphDb = await getGraphDatabase();
-    const annotation = await graphDb.getAnnotation(annotationId);
+    // Verify annotation exists using Layer 3 (not GraphDB)
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId, documentId);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
-    if (annotation.target.source !== documentId) {
+    if (getTargetSource(annotation.target) !== documentId) {
       throw new HTTPException(404, { message: 'Annotation does not belong to this document' });
     }
 
-    const eventStore = await getEventStore();
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
+    const query = createEventQuery(eventStore);
 
     // Get all events for this document
-    const allEvents = await eventStore.queryEvents({
+    const allEvents = await query.queryEvents({
       documentId,
     });
 
@@ -63,7 +66,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       type: stored.event.type,
       timestamp: stored.event.timestamp,
       userId: stored.event.userId,
-      documentId: stored.event.documentId,
+      documentId: stored.event.documentId!, // Annotation events always have documentId
       payload: stored.event.payload,
       metadata: {
         sequenceNumber: stored.metadata.sequenceNumber,
