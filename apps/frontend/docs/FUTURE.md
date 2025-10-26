@@ -345,44 +345,6 @@ const annotation = {
 };
 ```
 
-### Obsidian Plugin
-
-**Use Cases**:
-- Sync Obsidian notes to Semiont
-- Annotate Obsidian markdown documents
-- Import Semiont annotations into Obsidian
-- Bidirectional sync
-
-**Architecture**:
-- **Plugin API**: Obsidian Plugin API
-- **Language**: TypeScript
-- **API Client**: `@semiont/api-client`
-
-**Key Features**:
-- **Two-way sync**: Obsidian ↔ Semiont
-- **Wiki link mapping**: `[[note]]` ↔ Semiont document references
-- **Tag mapping**: Obsidian tags ↔ Semiont entity tags
-- **Annotation import**: Import highlights/annotations from Semiont
-
-### Jupyter Notebook Extension
-
-**Use Cases**:
-- Annotate notebook cells
-- Tag code/data as entities
-- Link notebooks to Semiont documentation
-- Research paper annotations in notebooks
-
-**Architecture**:
-- **Extension**: JupyterLab extension
-- **Language**: TypeScript
-- **API Client**: `@semiont/api-client`
-
-**Key Features**:
-- **Cell annotations**: Annotate code/markdown cells
-- **Entity tagging**: Tag variables, functions as entities
-- **Documentation links**: Link cells to Semiont docs
-- **Export**: Export annotated notebook to Semiont
-
 ## Shared Infrastructure
 
 ### API Client Package
