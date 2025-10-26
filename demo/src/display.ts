@@ -4,7 +4,6 @@
  * Console output utilities for progress tracking and results display.
  */
 
-import { extractAnnotationId } from '@semiont/core';
 import type { ChunkInfo } from './chunking';
 
 /**
@@ -77,7 +76,8 @@ export function printChunkingStats(numChunks: number, avgSize: number): void {
  * Prints annotation details with short ID
  */
 export function printAnnotationCreated(fullAnnotationId: string): void {
-  const shortId = extractAnnotationId(fullAnnotationId);
+  // Extract short ID from full annotation ID (after last slash)
+  const shortId = fullAnnotationId.split('/').pop() || fullAnnotationId;
   printSuccess(`Annotation ${shortId}`, 7);
 }
 
@@ -109,13 +109,13 @@ export interface EventDetails {
 export function printEvent(event: EventDetails): void {
   console.log(`     [${event.eventNum}] seq=${event.sequenceNumber} - ${event.type}`);
 
-  if (event.type === 'reference.created' && event.payload) {
+  if (event.type === 'annotation.added' && event.payload) {
     const exact = event.payload.exact || 'unknown';
     const offset = event.payload.position?.offset ?? '?';
-    console.log(`         → Stub: "${exact}" at offset ${offset}`);
-  } else if (event.type === 'reference.resolved' && event.payload) {
+    console.log(`         → Created: "${exact}" at offset ${offset}`);
+  } else if (event.type === 'annotation.body.updated' && event.payload) {
     const targetId = event.payload.targetDocumentId || 'unknown';
-    console.log(`         → Resolved to: ${targetId.substring(0, 40)}...`);
+    console.log(`         → Linked to: ${targetId.substring(0, 40)}...`);
   }
 }
 
@@ -125,7 +125,7 @@ export function printEvent(event: EventDetails): void {
 export interface ResultsSummary {
   tocId: string;
   chunkIds: string[];
-  resolvedCount: number;
+  linkedCount: number;
   totalCount: number;
   frontendUrl: string;
 }
@@ -144,11 +144,11 @@ export function printResults(summary: ResultsSummary): void {
   console.log('\n📊 Summary:');
   console.log(`   Total chunks: ${summary.chunkIds.length}`);
   console.log(`   Annotations created: ${summary.totalCount}`);
-  console.log(`   Annotations resolved: ${summary.resolvedCount}`);
+  console.log(`   Annotations linked: ${summary.linkedCount}`);
 
-  if (summary.resolvedCount < summary.totalCount) {
-    const pending = summary.totalCount - summary.resolvedCount;
-    printWarning(`${pending} annotations failed to resolve`);
+  if (summary.linkedCount < summary.totalCount) {
+    const pending = summary.totalCount - summary.linkedCount;
+    printWarning(`${pending} annotations failed to link`);
   }
 }
 

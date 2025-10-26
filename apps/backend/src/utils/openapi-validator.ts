@@ -7,7 +7,7 @@
 
 import Ajv, { type ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
-import openapiSpec from '../../public/openapi.json';
+import openapiSpec from '../../../../specs/openapi.json';
 
 // Initialize Ajv with OpenAPI-compatible settings
 const ajv = new Ajv({

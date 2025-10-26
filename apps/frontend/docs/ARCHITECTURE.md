@@ -48,6 +48,59 @@ The Semiont frontend is a Next.js 14 application using the App Router with React
 - **Server-Sent Events (SSE)** - Real-time updates for long-running operations
 - **WebSockets** - (Future) Real-time collaboration
 
+### Request Routing
+
+The frontend handles three types of requests with path-based routing:
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant CDN
+    participant LoadBalancer
+    participant Frontend
+    participant Backend
+
+    Browser->>CDN: HTTPS Request
+    CDN->>LoadBalancer: Forward Request
+
+    alt OAuth Flow (/auth/*)
+        LoadBalancer->>Frontend: Route to NextAuth
+        Frontend->>Browser: Handle OAuth
+    else API Call (/api/*)
+        LoadBalancer->>Backend: Route to Backend API
+        Backend-->>LoadBalancer: JSON Response
+        LoadBalancer-->>CDN: Response
+    else UI Request (/*)
+        LoadBalancer->>Frontend: Route to Next.js
+        Frontend->>Backend: API Request (if needed)
+        Backend-->>Frontend: JSON Data
+        Frontend-->>LoadBalancer: HTML/React
+        LoadBalancer-->>CDN: Response
+    end
+
+    CDN-->>Browser: Cached Response
+```
+
+**Path-Based Routing:**
+
+- **`/auth/*`** → Frontend (NextAuth.js OAuth flows)
+  - OAuth login/callback handling
+  - Session management
+  - No backend API calls during auth
+
+- **`/api/*`** → Backend API (proxied through load balancer)
+  - All REST API endpoints
+  - WebSocket connections
+  - SSE streams
+
+- **`/*`** → Frontend (Default - Next.js App Router)
+  - Server-side rendering
+  - Static pages
+  - Client-side navigation
+  - Makes `/api/*` calls to backend as needed
+
+This separation ensures clean boundaries between authentication, API, and UI concerns.
+
 ## Authentication Architecture
 
 See [AUTHENTICATION.md](./AUTHENTICATION.md) for detailed authentication flow.
@@ -490,7 +543,7 @@ The document and history panels synchronize via hover interactions:
 - [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering with ReactMarkdown
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering with CodeMirror
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
-- [SELECTIONS.md](./SELECTIONS.md) - Annotation data model and API (backend)
+- [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [KEYBOARD-NAV.md](./KEYBOARD-NAV.md) - Keyboard shortcuts
 - [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization
 

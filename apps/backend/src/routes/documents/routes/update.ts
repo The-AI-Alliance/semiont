@@ -10,11 +10,13 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { DocumentsRouterType } from '../shared';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore } from '../../../services/event-store-service';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type UpdateDocumentRequest = components['schemas']['UpdateDocumentRequest'];
 type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
@@ -33,6 +35,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as UpdateDocumentRequest;
       const user = c.get('user');
+      const basePath = getFilesystemConfig().path;
 
       // Check document exists using Layer 3
       const doc = await DocumentQueryService.getDocumentMetadata(id);
@@ -40,7 +43,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         throw new HTTPException(404, { message: 'Document not found' });
       }
 
-      const eventStore = await getEventStore();
+      const eventStore = await createEventStore(basePath);
 
       // Emit archived/unarchived events (event store updates Layer 3, graph consumer updates Layer 4)
       if (body.archived !== undefined && body.archived !== doc.archived) {
@@ -95,8 +98,12 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       }
 
       // Read annotations from Layer 3
-      const highlights = await AnnotationQueryService.getHighlights(id);
-      const references = await AnnotationQueryService.getReferences(id);
+      const annotations = await AnnotationQueryService.getAllAnnotations(id);
+      const entityReferences = annotations.filter(a => {
+        if (a.motivation !== 'linking') return false;
+        const entityTypes = getEntityTypes({ body: a.body });
+        return entityTypes.length > 0;
+      });
 
       // Return optimistic response (content NOT included - must be fetched separately)
       const response: GetDocumentResponse = {
@@ -105,10 +112,8 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
           archived: body.archived !== undefined ? body.archived : doc.archived,
           entityTypes: body.entityTypes !== undefined ? body.entityTypes : doc.entityTypes,
         },
-        annotations: [...highlights, ...references],
-        highlights: highlights,
-        references: references,
-        entityReferences: references.filter(annotation => annotation.body.entityTypes.length > 0),
+        annotations,
+        entityReferences,
       };
 
       return c.json(response);

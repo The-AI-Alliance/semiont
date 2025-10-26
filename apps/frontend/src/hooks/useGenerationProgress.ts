@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { extractAnnotationId } from '@/lib/api';
+import { extractAnnotationId } from '@semiont/api-client';
 
 export interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
@@ -35,13 +35,13 @@ export function useGenerationProgress({
   const startGeneration = useCallback(async (
     referenceId: string,
     documentId: string,
-    options?: { prompt?: string; title?: string; locale?: string }
+    options?: { prompt?: string; title?: string; language?: string }
   ) => {
     console.log('[useGenerationProgress] startGeneration called with:', {
       referenceId,
       documentId,
       options,
-      locale: options?.locale
+      language: options?.language
     });
 
     // Close any existing connection

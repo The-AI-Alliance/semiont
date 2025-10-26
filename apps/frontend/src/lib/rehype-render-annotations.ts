@@ -30,10 +30,10 @@ export function rehypeRenderAnnotations() {
 
       const annotations: Annotation[] = JSON.parse(annotationsJson);
 
-      // PHASE 1: Handle annotations that span across multiple immediate children
+      // Handle annotations that span across multiple immediate children
       wrapCrossElementAnnotations(element, annotations);
 
-      // PHASE 2: Handle annotations within individual text nodes
+      // Handle annotations within individual text nodes
       applyWithinTextNodeAnnotations(element, annotations, originalSource);
 
       // CLEANUP: Remove temporary annotation metadata from the DOM
@@ -43,7 +43,7 @@ export function rehypeRenderAnnotations() {
 }
 
 /**
- * Phase 1: Wrap annotations that span multiple child elements.
+ * Wrap annotations that span multiple child elements.
  * Example: <strong>Zeus</strong> and <strong>Hera</strong>
  * If annotation spans both, wrap them: <span class="annotation"><strong>Zeus</strong> and <strong>Hera</strong></span>
  */
@@ -154,7 +154,7 @@ function wrapChildRange(element: Element, span: ChildSpan) {
 }
 
 /**
- * Phase 2: Apply annotations within individual text nodes.
+ * Apply annotations within individual text nodes.
  * This handles the normal case where an annotation is entirely within a text node.
  */
 function applyWithinTextNodeAnnotations(
