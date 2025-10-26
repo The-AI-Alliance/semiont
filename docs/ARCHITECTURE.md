@@ -25,12 +25,12 @@ graph TB
     subgraph "Client Layer"
         USER[User Browser]
         AI[AI Agents]
+        MCP[MCP Server]
     end
 
     subgraph "Application Layer"
         FE[Frontend]
         BE[Backend API]
-        MCP[MCP Server]
     end
 
     subgraph "Data Layer - 4 Layers"
@@ -79,8 +79,8 @@ graph TB
     classDef data fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef infra fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
-    class USER,AI client
-    class FE,BE,MCP app
+    class USER,AI,MCP client
+    class FE,BE app
     class L1,L2,L3,L4 data
     class DB,FS,INF,SEC infra
 ```
