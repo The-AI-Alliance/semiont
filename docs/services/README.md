@@ -78,6 +78,13 @@ Semiont's architecture consists of multiple services that work together to provi
 - **CLI Service**: [inference-service.ts](../../apps/cli/src/services/inference-service.ts)
 - **Providers**: Anthropic Claude, OpenAI, local models
 
+**Job Worker** - Background job processing (prototype)
+
+- **Documentation**: [JOB-WORKER.md](./JOB-WORKER.md)
+- **Implementation**: [apps/backend/src/jobs/](../../apps/backend/src/jobs/)
+- **Status**: Embedded in backend (not yet a proper CLI service)
+- **Workers**: Entity detection, document generation
+
 **Secrets Management** - Future secrets manager integration (planned)
 - **Documentation**: [SECRETS.md](./SECRETS.md)
 - **Status**: Planning phase (Q1-Q4 2026)
@@ -97,6 +104,7 @@ Semiont's architecture consists of multiple services that work together to provi
 | **Database** | Infrastructure | [DATABASE.md](./DATABASE.md) | [apps/backend/prisma/](../../apps/backend/prisma/) |
 | **Filesystem** | Infrastructure | [FILESYSTEM.md](./FILESYSTEM.md) | [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/) |
 | **Inference** | Infrastructure | [INFERENCE.md](./INFERENCE.md) | [apps/backend/src/jobs/](../../apps/backend/src/jobs/) |
+| **Job Worker** | Infrastructure (prototype) | [JOB-WORKER.md](./JOB-WORKER.md) | [apps/backend/src/jobs/](../../apps/backend/src/jobs/) |
 | **Secrets** | Infrastructure | [SECRETS.md](./SECRETS.md) | Planned (Q1-Q4 2026) |
 
 ## CLI Service Implementations

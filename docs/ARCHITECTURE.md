@@ -313,6 +313,36 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Documentation**: [INFERENCE.md](./services/INFERENCE.md)
 
+### Job Worker - Background Processing
+
+**Purpose**: Asynchronous job processing for long-running AI operations
+
+**Technology**: Filesystem-based job queue, embedded worker processes
+
+**Status**: Prototype implementation (not yet a proper CLI-managed service)
+
+**Capabilities**:
+
+- Entity detection jobs (find entities in documents using AI)
+- Document generation jobs (create new documents from annotations)
+- Progress tracking with SSE streaming to clients
+- Automatic retry logic for failed jobs
+- Event emission to Event Store (Layer 2)
+
+**Key Characteristics**:
+
+- Embedded in backend process (not independently deployable)
+- Filesystem-based job queue with atomic operations
+- FIFO job processing with configurable polling
+- Graceful shutdown (waits for in-flight jobs)
+- No CLI integration or environment configuration (yet)
+
+**Why This Matters**: Long-running AI operations (entity detection across large documents, document generation) can't block HTTP requests. Job workers decouple processing from client connections—jobs continue even if the client disconnects. This is a temporary embedded implementation; future versions will be independently scalable services.
+
+**Current Limitations**: Not yet a proper service—no CLI integration, no platform abstraction, no independent deployment. Workers start automatically with the backend. This will eventually become a standalone service with Redis/SQS queue options and ECS deployment.
+
+**Documentation**: [JOB-WORKER.md](./services/JOB-WORKER.md)
+
 ## Platform Abstraction
 
 Services run on different platforms depending on the deployment environment. The CLI manages platform selection and service lifecycle.
@@ -575,6 +605,7 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 - [Database](./services/DATABASE.md) - PostgreSQL schema and migrations
 - [Filesystem](./services/FILESYSTEM.md) - File upload and storage
 - [Inference](./services/INFERENCE.md) - AI/ML integration
+- [Job Worker](./services/JOB-WORKER.md) - Background job processing (prototype)
 - [Services Overview](./services/README.md) - Complete service index
 
 ### Platform Documentation
