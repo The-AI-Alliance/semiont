@@ -10,9 +10,12 @@
 
 import { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import { authMiddleware } from '../middleware/auth';
-import { getGraphDatabase } from '../graph/factory';
 import { validateRequestBody } from '../middleware/validate-openapi';
+import { createEventStore } from '../services/event-store-service';
+import { getFilesystemConfig } from '../config/environment-loader';
 import type { components } from '@semiont/api-client';
 
 type AddEntityTypeRequest = components['schemas']['AddEntityTypeRequest'];
@@ -20,18 +23,42 @@ type AddEntityTypeResponse = components['schemas']['AddEntityTypeResponse'];
 type BulkAddEntityTypesRequest = components['schemas']['BulkAddEntityTypesRequest'];
 type GetEntityTypesResponse = components['schemas']['GetEntityTypesResponse'];
 
+/**
+ * Read entity types from Layer 3 projection
+ */
+async function getEntityTypesFromLayer3(): Promise<string[]> {
+  const config = getFilesystemConfig();
+  const entityTypesPath = path.join(
+    config.path,
+    'projections',
+    'entity-types',
+    'entity-types.json'
+  );
+
+  try {
+    const content = await fs.readFile(entityTypesPath, 'utf-8');
+    const projection = JSON.parse(content);
+    return projection.entityTypes || [];
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      // File doesn't exist yet - return empty array
+      return [];
+    }
+    throw error;
+  }
+}
+
 // Create router with auth middleware
 export const entityTypesRouter = new Hono<{ Variables: { user: User } }>();
 entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
 /**
  * GET /api/entity-types
- * Get list of available entity types for references
+ * Get list of available entity types from Layer 3 projection
  */
 entityTypesRouter.get('/api/entity-types', async (c) => {
   try {
-    const graphDb = await getGraphDatabase();
-    const entityTypes = await graphDb.getEntityTypes();
+    const entityTypes = await getEntityTypesFromLayer3();
 
     const response: GetEntityTypesResponse = { entityTypes };
     return c.json(response, 200);
@@ -44,6 +71,7 @@ entityTypesRouter.get('/api/entity-types', async (c) => {
 /**
  * POST /api/entity-types
  * Add a new entity type to the collection (append-only, requires moderator/admin)
+ * Emits entitytype.added event → Layer 2 → Layer 3 projection → Layer 4 (graph)
  */
 entityTypesRouter.post('/api/entity-types',
   validateRequestBody('AddEntityTypeRequest'),
@@ -55,10 +83,22 @@ entityTypesRouter.post('/api/entity-types',
     }
 
     const body = c.get('validatedBody') as AddEntityTypeRequest;
-    const graphDb = await getGraphDatabase();
 
-    await graphDb.addEntityType(body.tag);
-    const entityTypes = await graphDb.getEntityTypes();
+    // Emit event (no documentId for system-level events)
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
+    await eventStore.appendEvent({
+      type: 'entitytype.added',
+      // documentId: undefined - system-level event
+      userId: user.id,
+      version: 1,
+      payload: {
+        entityType: body.tag,
+      },
+    });
+
+    // Read from Layer 3
+    const entityTypes = await getEntityTypesFromLayer3();
 
     const response: AddEntityTypeResponse = { success: true, entityTypes };
     return c.json(response, 200);
@@ -68,6 +108,7 @@ entityTypesRouter.post('/api/entity-types',
 /**
  * POST /api/entity-types/bulk
  * Add multiple entity types to the collection (append-only, requires moderator/admin)
+ * Emits one entitytype.added event per tag → Layer 2 → Layer 3 projection → Layer 4 (graph)
  */
 entityTypesRouter.post('/api/entity-types/bulk',
   validateRequestBody('BulkAddEntityTypesRequest'),
@@ -79,10 +120,24 @@ entityTypesRouter.post('/api/entity-types/bulk',
     }
 
     const body = c.get('validatedBody') as BulkAddEntityTypesRequest;
-    const graphDb = await getGraphDatabase();
+    const basePath2 = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath2);
 
-    await graphDb.addEntityTypes(body.tags);
-    const entityTypes = await graphDb.getEntityTypes();
+    // Emit one event per entity type (no documentId)
+    for (const tag of body.tags) {
+      await eventStore.appendEvent({
+        type: 'entitytype.added',
+        // documentId: undefined - system-level event
+        userId: user.id,
+        version: 1,
+        payload: {
+          entityType: tag,
+        },
+      });
+    }
+
+    // Read from Layer 3
+    const entityTypes = await getEntityTypesFromLayer3();
 
     const response: AddEntityTypeResponse = { success: true, entityTypes };
     return c.json(response, 200);

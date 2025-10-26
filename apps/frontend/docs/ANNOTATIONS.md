@@ -2,7 +2,9 @@
 
 ## Overview
 
-The Semiont annotation system enables users to mark up documents with highlights and references, creating a rich knowledge graph. This document describes the principles, architecture, and implementation of the annotation workflow and UI components.
+The Semiont annotation system enables users to mark up documents with highlights and references, creating a rich knowledge graph. Built on the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/), annotations are standards-compliant objects with multi-body arrays supporting entity type tags and document linking.
+
+This document describes the frontend UI patterns, component architecture, and user workflows. For the complete W3C implementation across all layers (API, event store, projection, and graph database), see [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md).
 
 ## Core Principles
 
@@ -25,6 +27,12 @@ The Semiont annotation system enables users to mark up documents with highlights
 - **Instant feedback**: Visual confirmation of actions without waiting for server
 - **Optimistic updates**: UI updates immediately, with graceful rollback on error
 - **Lightweight components**: Minimal DOM manipulation and re-renders
+
+### 5. Standards Compliance
+- **W3C Web Annotation Data Model**: All annotations follow the W3C specification
+- **Multi-body arrays**: Support for entity type tags (`TextualBody` with `purpose: "tagging"`) and document links (`SpecificResource` with `purpose: "linking"`)
+- **JSON-LD export**: W3C-compliant serialization for semantic web integration
+- **Interoperability**: Standards-based approach enables data portability and tool integration
 
 ## Architecture
 
@@ -54,8 +62,10 @@ DocumentViewer (Container)
 4. **Popup Display** → Contextual popup based on selection state
 5. **User Decision** → Choose annotation type and properties
 6. **Optimistic Update** → Immediate UI update with sparkle animation
-7. **Server Sync** → Background API call with error handling
-8. **Confirmation** → Animation complete, annotation persisted
+7. **Server Sync** → Background API call to Layer 1 (API), persisted to Layer 2 (Event Store), Layer 3 (Projection), and Layer 4 (Graph Database)
+8. **Confirmation** → Animation complete, W3C-compliant annotation persisted across all layers
+
+For complete architecture details on how annotations flow through the event-sourced backend layers, see [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md).
 
 ## Component Design
 
@@ -81,10 +91,10 @@ DocumentViewer (Container)
 **Purpose**: Modular popup system for annotation operations
 
 **Component Breakdown**:
-- **CreateAnnotationPopup**: Initial selection, no existing annotation
-- **HighlightPopup**: Existing highlight, can convert to reference
-- **StubReferencePopup**: Unresolved reference, can link to document
-- **ResolvedReferencePopup**: Linked reference, can edit or unlink
+- **CreateAnnotationPopup**: Initial selection, no existing annotation (creates W3C annotation with entity type tags)
+- **HighlightPopup**: Existing highlight, can convert to reference (annotation with empty body array)
+- **StubReferencePopup**: Unresolved reference with entity types (`TextualBody` with `purpose: "tagging"`), can link to document, includes JSON-LD export button
+- **ResolvedReferencePopup**: Linked reference with entity types + document link (`SpecificResource` with `purpose: "linking"`), can edit or unlink, includes JSON-LD export button
 
 **Shared Features**:
 - Headless UI Dialog for accessibility
@@ -291,3 +301,18 @@ interface Annotation {
 The Semiont annotation system provides a powerful yet intuitive way to create structured knowledge from documents. By focusing on user experience, accessibility, and performance, we've created a system that scales from simple highlighting to complex knowledge graph construction.
 
 The modular architecture ensures maintainability and extensibility, while the progressive enhancement approach ensures the system remains usable across different contexts and capabilities.
+
+## Related Documentation
+
+### W3C Web Annotation Implementation
+- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers (UI, API, Event Store, Projection, Graph)
+
+### Frontend Documentation
+- [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - Document rendering and editor implementation
+- [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
+- [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Document rendering pipeline
+
+### System Documentation
+- [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) - Overall system architecture
+- [DATABASE.md](../../../docs/services/DATABASE.md) - PostgreSQL event store and projection layers
+- [GRAPH.md](../../../docs/services/GRAPH.md) - Graph database implementations (Neo4j, Neptune, JanusGraph)

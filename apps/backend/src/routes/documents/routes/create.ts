@@ -8,16 +8,18 @@
  * - OpenAPI spec is the source of truth
  */
 
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import {
   CREATION_METHODS,
   type CreationMethod,
   calculateChecksum,
 } from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore } from '../../../services/event-store-service';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { userToAgent } from '../../../utils/id-generator';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type CreateDocumentRequest = components['schemas']['CreateDocumentRequest'];
 type CreateDocumentResponse = components['schemas']['CreateDocumentResponse'];
@@ -36,13 +38,14 @@ export function registerCreateDocument(router: DocumentsRouterType) {
     async (c) => {
       const body = c.get('validatedBody') as CreateDocumentRequest;
       const user = c.get('user');
-      const storage = getStorageService();
+      const basePath = getFilesystemConfig().path;
+      const contentManager = createContentManager(basePath);
 
       const checksum = calculateChecksum(body.content);
       const documentId = `doc-sha256:${checksum}`;
 
       // Save to filesystem (Layer 1)
-      await storage.saveDocument(documentId, Buffer.from(body.content));
+      await contentManager.save(documentId, Buffer.from(body.content));
 
       // Subscribe GraphDB consumer to new document BEFORE emitting event
       // This ensures the consumer receives the document.created event
@@ -62,7 +65,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         : CREATION_METHODS.API;
 
       // Emit document.created event (consumer will update GraphDB)
-      const eventStore = await getEventStore();
+      const eventStore = await createEventStore(basePath);
       await eventStore.appendEvent({
         type: 'document.created',
         documentId,
@@ -71,10 +74,13 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         payload: {
           name: body.name,
           format: body.format,
-          contentHash: checksum,
+          contentChecksum: checksum,
           creationMethod,
           entityTypes: body.entityTypes,
-          metadata: body.locale ? { locale: body.locale } : undefined,
+          language: body.language,
+          isDraft: false,
+          generatedFrom: undefined,
+          generationPrompt: undefined,
         },
       });
 
@@ -85,10 +91,10 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         archived: false,
         format: body.format,
         entityTypes: body.entityTypes,
-        locale: body.locale,
+        language: body.language,
         creationMethod,
         contentChecksum: checksum,
-        creator: user.id,
+        creator: userToAgent(user),
         created: new Date().toISOString(),
       };
 

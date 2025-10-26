@@ -11,13 +11,19 @@
  * - Optional signatures for cross-org verification
  */
 
-import type { Annotation } from './annotation-schemas';
 import type { CreationMethod } from './creation-methods';
+import type { components } from '@semiont/api-client';
+
+// Import OpenAPI types
+type Annotation = components['schemas']['Annotation'];
+type ContentFormat = components['schemas']['ContentFormat'];
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
   timestamp: string;              // ISO 8601 timestamp (for humans, NOT for ordering)
-  documentId: string;             // Content hash: doc-sha256:abc... (federation-ready)
+  documentId?: string;            // Optional - present for document-scoped events, absent for system events
+                                  // ⚠️ BRITTLE: Event routing depends on presence/absence of this field
+                                  // TODO: Add explicit projection target field for cleaner routing
   userId: string;                 // DID format: did:web:org.com:users:alice (federation-ready)
   version: number;                // Event schema version
 }
@@ -27,11 +33,16 @@ export interface DocumentCreatedEvent extends BaseEvent {
   type: 'document.created';
   payload: {
     name: string;
-    format: string;              // MIME type
-    contentHash: string;        // SHA-256 of content (should match documentId)
+    format: ContentFormat;       // MIME type (validated enum)
+    contentChecksum: string;     // SHA-256 of content (should match documentId)
     creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];
-    metadata?: Record<string, any>;
+
+    // First-class fields (promoted from metadata)
+    language?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
+    isDraft?: boolean;           // Draft status for generated documents
+    generatedFrom?: string;      // Annotation/Reference ID that triggered generation
+    generationPrompt?: string;   // Prompt used for AI generation (events-only, not on Document)
   };
 }
 
@@ -39,12 +50,14 @@ export interface DocumentClonedEvent extends BaseEvent {
   type: 'document.cloned';
   payload: {
     name: string;
-    format: string;              // MIME type
-    contentHash: string;        // SHA-256 of new content
+    format: ContentFormat;       // MIME type (validated enum)
+    contentChecksum: string;     // SHA-256 of new content
     parentDocumentId: string;   // Content hash of parent document
     creationMethod: CreationMethod;  // How the document was created
     entityTypes?: string[];
-    metadata?: Record<string, any>;
+
+    // First-class fields (promoted from metadata)
+    language?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
   };
 }
 
@@ -60,59 +73,44 @@ export interface DocumentUnarchivedEvent extends BaseEvent {
   payload: Record<string, never>;  // Empty payload
 }
 
-// Highlight events
-export interface HighlightAddedEvent extends BaseEvent {
-  type: 'highlight.added';
+// Unified annotation events
+// Single principle: An annotation is an annotation. The motivation field tells you what kind it is.
+export interface AnnotationAddedEvent extends BaseEvent {
+  type: 'annotation.added';
   payload: {
-    highlightId: string;
-    exact: string;  // W3C Web Annotation standard
-    position: {
-      offset: number;
-      length: number;
-    };
+    annotation: Omit<Annotation, 'creator' | 'created'>;  // W3C Annotation (creator/created come from event metadata)
   };
 }
 
-export interface HighlightRemovedEvent extends BaseEvent {
-  type: 'highlight.removed';
+export interface AnnotationRemovedEvent extends BaseEvent {
+  type: 'annotation.removed';
   payload: {
-    highlightId: string;
+    annotationId: string;           // Unified ID field
   };
 }
 
-// Reference events
-export interface ReferenceCreatedEvent extends BaseEvent {
-  type: 'reference.created';
+// Body operation types for fine-grained annotation body modifications
+export type BodyItem =
+  | { type: 'TextualBody'; value: string; purpose: 'tagging' | 'commenting' | 'describing'; format?: string; language?: string }
+  | { type: 'SpecificResource'; source: string; purpose: 'linking' };
+
+export type BodyOperation =
+  | { op: 'add'; item: BodyItem }
+  | { op: 'remove'; item: BodyItem }
+  | { op: 'replace'; oldItem: BodyItem; newItem: BodyItem };
+
+export interface AnnotationBodyUpdatedEvent extends BaseEvent {
+  type: 'annotation.body.updated';
   payload: {
-    referenceId: string;
-    exact: string;  // W3C Web Annotation standard
-    position: {
-      offset: number;
-      length: number;
-    };
-    entityTypes?: string[];
-    targetDocumentId?: string;  // Content hash of target doc (if null, it's a stub reference)
+    annotationId: string;
+    operations: BodyOperation[];
   };
 }
 
-export interface ReferenceResolvedEvent extends BaseEvent {
-  type: 'reference.resolved';
-  payload: {
-    referenceId: string;
-    targetDocumentId: string;   // Content hash of target document
-  };
-}
-
-export interface ReferenceDeletedEvent extends BaseEvent {
-  type: 'reference.deleted';
-  payload: {
-    referenceId: string;
-  };
-}
-
-// Entity tag events
+// Entity tag events (document-level)
 export interface EntityTagAddedEvent extends BaseEvent {
   type: 'entitytag.added';
+  documentId: string;  // Required - document-scoped event
   payload: {
     entityType: string;
   };
@@ -120,29 +118,18 @@ export interface EntityTagAddedEvent extends BaseEvent {
 
 export interface EntityTagRemovedEvent extends BaseEvent {
   type: 'entitytag.removed';
+  documentId: string;  // Required - document-scoped event
   payload: {
     entityType: string;
   };
 }
 
-// Assessment events (W3C motivation 'assessing' - for errors, warnings, issues)
-export interface AssessmentAddedEvent extends BaseEvent {
-  type: 'assessment.added';
+// Entity type events (global collection)
+export interface EntityTypeAddedEvent extends BaseEvent {
+  type: 'entitytype.added';
+  documentId?: undefined;  // System-level event - no document scope
   payload: {
-    assessmentId: string;
-    exact: string;  // W3C Web Annotation standard
-    position: {
-      offset: number;
-      length: number;
-    };
-    value?: string;  // Optional assessment message/description
-  };
-}
-
-export interface AssessmentRemovedEvent extends BaseEvent {
-  type: 'assessment.removed';
-  payload: {
-    assessmentId: string;
+    entityType: string;  // The entity type being added to global collection
   };
 }
 
@@ -152,15 +139,12 @@ export type DocumentEvent =
   | DocumentClonedEvent
   | DocumentArchivedEvent
   | DocumentUnarchivedEvent
-  | HighlightAddedEvent
-  | HighlightRemovedEvent
-  | ReferenceCreatedEvent
-  | ReferenceResolvedEvent
-  | ReferenceDeletedEvent
-  | EntityTagAddedEvent
-  | EntityTagRemovedEvent
-  | AssessmentAddedEvent
-  | AssessmentRemovedEvent;
+  | AnnotationAddedEvent
+  | AnnotationRemovedEvent
+  | AnnotationBodyUpdatedEvent
+  | EntityTagAddedEvent      // Document-level
+  | EntityTagRemovedEvent    // Document-level
+  | EntityTypeAddedEvent;    // Global collection
 
 // Extract just the event type strings from the union
 export type DocumentEventType = DocumentEvent['type'];
@@ -170,7 +154,7 @@ export function isDocumentEvent(event: any): event is DocumentEvent {
   return event &&
     typeof event.id === 'string' &&
     typeof event.timestamp === 'string' &&
-    typeof event.documentId === 'string' &&
+    (event.documentId === undefined || typeof event.documentId === 'string') &&  // documentId now optional
     typeof event.type === 'string' &&
     event.type.includes('.');
 }
@@ -220,8 +204,7 @@ export interface EventQuery {
 // Annotations are NOT part of the document - they reference the document
 export interface DocumentAnnotations {
   documentId: string;           // Which document these annotations belong to
-  highlights: Annotation[];     // Full Annotation objects
-  references: Annotation[];     // Full Annotation objects
+  annotations: Annotation[];    // All annotations (highlights, references, assessments, etc.)
   version: number;              // Event count for this document's annotation stream
   updatedAt: string;           // Last annotation event timestamp
 }
