@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
-import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api-client';
+import { useRouter } from '@/i18n/routing';
+import { documents } from '@/lib/api/documents';
 import { useSearchAnnouncements } from '@/components/LiveRegion';
 
 interface GlobalSearchModalProps {
@@ -36,10 +36,9 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   }, [query]);
 
   // Use React Query for search
-  const { data: searchData, isFetching: loading } = api.documents.search.useQuery(
+  const { data: searchData, isFetching: loading } = documents.search.useQuery(
     debouncedQuery,
-    5,
-    { enabled: debouncedQuery.trim() !== '' }
+    5
   );
 
   // Reset state when modal opens/closes

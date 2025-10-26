@@ -1,11 +1,51 @@
 # Semiont MCP Server
 
-This Model Context Protocol (MCP) server provides AI applications with access to the Semiont API.
+This Model Context Protocol (MCP) server provides AI applications with access to the Semiont API using the common `@semiont/api-client`.
 
 ## Features
 
-Currently exposes:
-- `semiont_hello` - Get a personalized greeting from the Semiont platform
+Provides MCP tools for:
+- Document management (create, read, update, list, search)
+- Annotation operations (create, link to documents, generate documents)
+- Document highlights and references
+- Event history access
+
+## Architecture
+
+The MCP server uses `@semiont/api-client` to communicate with the Semiont backend:
+
+```typescript
+import { SemiontApiClient } from '@semiont/api-client';
+
+// Create client with access token
+const apiClient = new SemiontApiClient({
+  baseUrl: SEMIONT_API_URL,
+  accessToken: SEMIONT_ACCESS_TOKEN,
+});
+
+// All handlers receive the client instance
+async function handleCreateDocument(client: SemiontApiClient, args: any) {
+  const data = await client.createDocument({
+    name: args.name,
+    content: args.content,
+    format: args.contentType || 'text/plain',
+    entityTypes: args.entityTypes || [],
+  });
+
+  return {
+    content: [{
+      type: 'text',
+      text: `Document created: ${data.document.id}`,
+    }],
+  };
+}
+```
+
+**Key Benefits:**
+- **Type-Safe**: Full TypeScript types from OpenAPI specification
+- **Common Client**: Same client used by demo scripts and other external consumers
+- **No Duplication**: Reuses authentication, retry logic, and error handling
+- **Maintainable**: Changes to the API client benefit all consumers
 
 ## Installation
 

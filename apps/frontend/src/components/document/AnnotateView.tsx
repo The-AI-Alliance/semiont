@@ -1,10 +1,14 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import type { Annotation } from '@semiont/core-types';
+import { useTranslations } from 'next-intl';
+import type { components } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
-import type { TextSegment as CMTextSegment } from '@/components/CodeMirrorRenderer';
+import type { TextSegment } from '@/components/CodeMirrorRenderer';
 import '@/styles/animations.css';
 
 interface Props {
@@ -22,19 +26,12 @@ interface Props {
   onWikiLinkClick?: (pageName: string) => void;
   onEntityTypeClick?: (entityType: string) => void;
   onReferenceNavigate?: (documentId: string) => void;
-  onUnresolvedReferenceClick?: (annotation: any) => void;
+  onUnresolvedReferenceClick?: (annotation: Annotation) => void;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null;
-  onDeleteAnnotation?: (annotation: any) => void;
-  onConvertAnnotation?: (annotation: any) => void;
+  onDeleteAnnotation?: (annotation: Annotation) => void;
+  onConvertAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
-}
-
-interface TextSegment {
-  exact: string;
-  annotation?: Annotation;
-  start: number;
-  end: number;
 }
 
 // Segment text with annotations - SIMPLE because it's source view!
@@ -44,11 +41,15 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
   }
 
   const normalizedAnnotations = annotations
-    .map(ann => ({
-      annotation: ann,
-      start: ann.selector?.offset ?? 0,
-      end: (ann.selector?.offset ?? 0) + (ann.selector?.length ?? 0)
-    }))
+    .map(ann => {
+      const targetSelector = getTargetSelector(ann.target);
+      const posSelector = getTextPositionSelector(targetSelector);
+      return {
+        annotation: ann,
+        start: posSelector?.start ?? 0,
+        end: posSelector?.end ?? 0
+      };
+    })
     .filter(a => a.start >= 0 && a.end <= exact.length && a.start < a.end)
     .sort((a, b) => a.start - b.start);
 
@@ -116,9 +117,10 @@ export function AnnotateView({
   onConvertAnnotation,
   showLineNumbers = false
 }: Props) {
+  const t = useTranslations('AnnotateView');
   const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [selectionState, setSelectionState] = useState<{
+  const [annotationState, setSelectionState] = useState<{
     exact: string;
     start: number;
     end: number;
@@ -128,8 +130,8 @@ export function AnnotateView({
   // Combine annotations
   const allAnnotations = [...highlights, ...references];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
-  
-  // Handle text selection with sparkle
+
+  // Handle text annotation with sparkle
   useEffect(() => {
     if (!onTextSelect) return;
 
@@ -182,7 +184,7 @@ export function AnnotateView({
     };
     
     const handleMouseDown = (e: MouseEvent) => {
-      if (!(e.target as Element).closest('[data-selection-ui]')) {
+      if (!(e.target as Element).closest('[data-annotation-ui]')) {
         setSelectionState(null);
       }
     };
@@ -198,42 +200,34 @@ export function AnnotateView({
   
   // Handle sparkle click
   const handleSparkleClick = useCallback(() => {
-    if (selectionState && onTextSelect) {
-      onTextSelect(selectionState.exact, {
-        start: selectionState.start,
-        end: selectionState.end
+    if (annotationState && onTextSelect) {
+      onTextSelect(annotationState.exact, {
+        start: annotationState.start,
+        end: annotationState.end
       });
       setSelectionState(null);
     }
-  }, [selectionState, onTextSelect]);
+  }, [annotationState, onTextSelect]);
   
-  // Handle right-click on selection
+  // Handle right-click on annotation
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (selectionState && onTextSelect) {
+    if (annotationState && onTextSelect) {
       e.preventDefault();
-      onTextSelect(selectionState.exact, {
-        start: selectionState.start,
-        end: selectionState.end
+      onTextSelect(annotationState.exact, {
+        start: annotationState.start,
+        end: annotationState.end
       });
       setSelectionState(null);
     }
-  }, [selectionState, onTextSelect]);
-  
-  // Convert segments to CodeMirror format
-  const cmSegments: CMTextSegment[] = segments.map(seg => ({
-    exact: seg.exact,
-    annotation: seg.annotation as any, // Types are compatible
-    start: seg.start,
-    end: seg.end
-  }));
+  }, [annotationState, onTextSelect]);
 
   return (
     <div className="relative h-full" ref={containerRef} onContextMenu={handleContextMenu}>
       <CodeMirrorRenderer
         content={content}
-        segments={cmSegments}
-        onAnnotationClick={onAnnotationClick as any}
-        onAnnotationRightClick={onAnnotationRightClick as any}
+        segments={segments}
+        {...(onAnnotationClick && { onAnnotationClick })}
+        {...(onAnnotationRightClick && { onAnnotationRightClick })}
         {...(onAnnotationHover && { onAnnotationHover })}
         editable={false}
         newAnnotationIds={newAnnotationIds}
@@ -253,10 +247,10 @@ export function AnnotateView({
       />
       
       {/* Sparkle UI - THE GOOD STUFF WE'RE KEEPING! */}
-      {selectionState && onTextSelect && (
+      {annotationState && onTextSelect && (
         <>
           {/* Dashed ring around selection */}
-          {selectionState.rects.map((rect, index) => (
+          {annotationState.rects.map((rect, index) => (
             <div
               key={index}
               className="absolute pointer-events-none z-40"
@@ -275,7 +269,7 @@ export function AnnotateView({
           
           {/* Sparkle at the end */}
           {(() => {
-            const lastRect = selectionState.rects[selectionState.rects.length - 1];
+            const lastRect = annotationState.rects[annotationState.rects.length - 1];
             const containerRect = containerRef.current?.getBoundingClientRect();
             if (!lastRect || !containerRect) return null;
             
@@ -288,9 +282,9 @@ export function AnnotateView({
                   top: `${lastRect.top - containerRect.top + lastRect.height / 2}px`,
                   transform: 'translateY(-50%)'
                 }}
-                aria-label="Create annotation from selected text. Press H for highlight or R for reference."
-                title="Click to create highlight • Right-click for more options"
-                data-selection-ui
+                aria-label={t('ariaLabel')}
+                title={t('tooltip')}
+                data-annotation-ui
               >
                 <span className="relative inline-flex items-center justify-center">
                   {/* Pulsing ring animation */}

@@ -1,8 +1,23 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Document Events Stream Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No response validation (SSE streams validated on request only)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ *
+ * SSE Strategy (per SSE-VALIDATION-CONSIDERATIONS.md):
+ * - Validate request only (path params)
+ * - No response validation (streaming data)
+ * - Use TypeScript types for event data structures
+ */
+
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { DocumentsRouterType } from '../shared';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore, createEventQuery } from '../../../services/event-store-service';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 /**
  * Document-scoped SSE event stream for real-time collaboration
@@ -13,48 +28,35 @@ import { getEventStore } from '../../../events/event-store';
  * Use case: Multiple users viewing the same document see each other's changes in real-time
  */
 
-export const getEventStreamRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{id}/events/stream',
-  summary: 'Subscribe to Document Events (SSE)',
-  description: 'Open a Server-Sent Events stream to receive real-time document events',
-  tags: ['Documents', 'Events', 'Real-time'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      description: 'SSE stream opened successfully',
-      content: {
-        'text/event-stream': {
-          schema: z.object({
-            event: z.string(),
-            data: z.string(),
-            id: z.string().optional(),
-          }),
-        },
-      },
-    },
-  },
-});
-
 export function registerGetEventStream(router: DocumentsRouterType) {
-  router.openapi(getEventStreamRoute, async (c) => {
-    const { id } = c.req.valid('param');
+  /**
+   * GET /api/documents/:id/events/stream
+   *
+   * Open a Server-Sent Events stream to receive real-time document events
+   * Requires authentication
+   * Returns text/event-stream
+   */
+  router.get('/api/documents/:id/events/stream', async (c) => {
+    const { id } = c.req.param();
+    const basePath = getFilesystemConfig().path;
+
+    console.log(`[EventStream] Client connecting to document events stream for ${id}`);
 
     // Verify document exists in event store (Layer 2 - source of truth)
-    const eventStore = await getEventStore();
-    const events = await eventStore.getDocumentEvents(id);
+    const eventStore = await createEventStore(basePath);
+    const query = createEventQuery(eventStore);
+    const events = await query.getDocumentEvents(id);
     if (events.length === 0) {
+      console.log(`[EventStream] Document ${id} not found - no events exist`);
       throw new HTTPException(404, { message: 'Document not found - no events exist for this document' });
     }
+
+    console.log(`[EventStream] Document ${id} exists with ${events.length} events`);
 
     return streamSSE(c, async (stream) => {
 
       // Send initial connection message
+      console.log(`[EventStream] Sending connection message to client for ${id}`);
       await stream.writeSSE({
         data: JSON.stringify({
           type: 'connected',
@@ -68,7 +70,7 @@ export function registerGetEventStream(router: DocumentsRouterType) {
 
       // Track if stream is closed to prevent double cleanup
       let isStreamClosed = false;
-      let subscription: ReturnType<typeof eventStore.subscribe> | null = null;
+      let subscription: ReturnType<typeof eventStore.subscriptions.subscribe> | null = null;
       let keepAliveInterval: NodeJS.Timeout | null = null;
       let closeStreamCallback: (() => void) | null = null;
 
@@ -98,28 +100,40 @@ export function registerGetEventStream(router: DocumentsRouterType) {
       };
 
       // Subscribe to events for this document
-      subscription = eventStore.subscribe(id, async (storedEvent) => {
-        if (isStreamClosed) return;
+      const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
+      console.log(`[EventStream:${streamId}] Subscribing to events for document ${id}`);
+      subscription = eventStore.subscriptions.subscribe(id, async (storedEvent) => {
+        if (isStreamClosed) {
+          console.log(`[EventStream:${streamId}] Stream already closed for ${id}, ignoring event ${storedEvent.event.type}`);
+          return;
+        }
+
+        console.log(`[EventStream:${streamId}] Received event ${storedEvent.event.type} for document ${id}, attempting to write to SSE stream`);
 
         try {
+          const eventData = {
+            id: storedEvent.event.id,
+            type: storedEvent.event.type,
+            timestamp: storedEvent.event.timestamp,
+            userId: storedEvent.event.userId,
+            documentId: storedEvent.event.documentId,
+            payload: storedEvent.event.payload,
+            metadata: {
+              sequenceNumber: storedEvent.metadata.sequenceNumber,
+              prevEventHash: storedEvent.metadata.prevEventHash,
+              checksum: storedEvent.metadata.checksum,
+            },
+          };
+
+          console.log(`[EventStream:${streamId}] Event data prepared, calling writeSSE...`);
           await stream.writeSSE({
-            data: JSON.stringify({
-              id: storedEvent.event.id,
-              type: storedEvent.event.type,
-              timestamp: storedEvent.event.timestamp,
-              userId: storedEvent.event.userId,
-              documentId: storedEvent.event.documentId,
-              payload: storedEvent.event.payload,
-              metadata: {
-                sequenceNumber: storedEvent.metadata.sequenceNumber,
-                prevEventHash: storedEvent.metadata.prevEventHash,
-                checksum: storedEvent.metadata.checksum,
-              },
-            }),
+            data: JSON.stringify(eventData),
             event: storedEvent.event.type,
             id: storedEvent.metadata.sequenceNumber.toString(),
           });
+          console.log(`[EventStream:${streamId}] Successfully wrote event ${storedEvent.event.type} to SSE stream for ${id}`);
         } catch (error) {
+          console.error(`[EventStream:${streamId}] Error writing event ${storedEvent.event.type} to SSE stream for ${id}:`, error);
           cleanup();
         }
       });
@@ -144,6 +158,7 @@ export function registerGetEventStream(router: DocumentsRouterType) {
 
       // Cleanup on disconnect
       c.req.raw.signal.addEventListener('abort', () => {
+        console.log(`[EventStream] Client disconnected from document events stream for ${id}`);
         cleanup();
       });
 

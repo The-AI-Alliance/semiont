@@ -14,6 +14,12 @@ declare module 'next-auth' {
       termsAcceptedAt?: string | null;
     };
     isNewUser?: boolean;
+    user?: {
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+      isAdmin?: boolean;
+    };
   }
 
   interface User extends DefaultUser {

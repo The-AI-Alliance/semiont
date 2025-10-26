@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 
 interface DetectionLog {
@@ -23,6 +24,7 @@ export function DetectPanel({
   onDetect,
   onCancelDetection
 }: Props) {
+  const t = useTranslations('DetectPanel');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
 
@@ -45,17 +47,17 @@ export function DetectPanel({
       <div className="flex items-center gap-2 mb-4">
         <span className="text-2xl">🔵</span>
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-          Detect References
+          {t('title')}
         </h3>
       </div>
 
-      {/* Show selection UI only when not detecting and no completed log */}
+      {/* Show annotation UI only when not detecting and no completed log */}
       {!detectionProgress && !lastDetectionLog && (
         <>
           {/* Entity Types Selection */}
           <div className="mb-4">
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Select entity types to detect:
+              {t('selectEntityTypes')}
             </p>
             <div className="flex flex-wrap gap-2">
               {allEntityTypes.length > 0 ? (
@@ -70,7 +72,7 @@ export function DetectPanel({
                       );
                     }}
                     aria-pressed={selectedEntityTypes.includes(type)}
-                    aria-label={`${selectedEntityTypes.includes(type) ? 'Deselect' : 'Select'} ${type}`}
+                    aria-label={`${selectedEntityTypes.includes(type) ? t('deselect') : t('select')} ${type}`}
                     className={`px-3 py-1 text-sm rounded-full transition-colors border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       selectedEntityTypes.includes(type)
                         ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
@@ -82,7 +84,7 @@ export function DetectPanel({
                 ))
               ) : (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  No entity types available
+                  {t('noEntityTypes')}
                 </p>
               )}
             </div>
@@ -91,7 +93,7 @@ export function DetectPanel({
           {/* Selected Count */}
           {selectedEntityTypes.length > 0 && (
             <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-4">
-              {selectedEntityTypes.length} type{selectedEntityTypes.length !== 1 ? 's' : ''} selected
+              {t('typesSelected', { count: selectedEntityTypes.length })}
             </p>
           )}
 
@@ -105,7 +107,7 @@ export function DetectPanel({
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
             }`}
           >
-            ✨ Start Detection
+            ✨ {t('startDetection')}
           </button>
         </>
       )}
@@ -128,7 +130,7 @@ export function DetectPanel({
               <div key={index} className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2">
                 <span className="text-green-600 dark:text-green-400">✓</span>
                 <span className="font-medium">{item.entityType}:</span>
-                <span>{item.foundCount} found</span>
+                <span>{t('found', { count: item.foundCount })}</span>
               </div>
             ))}
           </div>
@@ -136,7 +138,7 @@ export function DetectPanel({
             onClick={() => setLastDetectionLog(null)}
             className="w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg"
           >
-            More
+            {t('more')}
           </button>
         </div>
       )}

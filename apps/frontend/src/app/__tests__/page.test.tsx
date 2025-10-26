@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
-import Home from '@/app/page';
+import Home from '@/app/[locale]/page';
 
 // Mock all child components to isolate the Home page structure
 vi.mock('@/components/shared/UnifiedHeader', () => ({

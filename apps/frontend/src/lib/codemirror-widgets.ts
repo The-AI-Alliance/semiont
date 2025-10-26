@@ -8,7 +8,10 @@
  */
 
 import { WidgetType, Decoration, EditorView } from '@codemirror/view';
-import type { AnnotationSelection } from '@/components/CodeMirrorRenderer';
+import type { components } from '@semiont/api-client';
+import { isResolvedReference, getBodySource, isBodyResolved } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
 
 /**
  * Reference Resolution Widget
@@ -16,17 +19,20 @@ import type { AnnotationSelection } from '@/components/CodeMirrorRenderer';
  */
 export class ReferenceResolutionWidget extends WidgetType {
   constructor(
-    readonly annotation: AnnotationSelection,
+    readonly annotation: Annotation,
     readonly targetDocumentName?: string,
     readonly onNavigate?: (documentId: string) => void,
-    readonly onUnresolvedClick?: (annotation: AnnotationSelection) => void,
+    readonly onUnresolvedClick?: (annotation: Annotation) => void,
     readonly isGenerating?: boolean
   ) {
     super();
   }
 
   override eq(other: ReferenceResolutionWidget) {
+    const thisSource = getBodySource(this.annotation.body);
+    const otherSource = getBodySource(other.annotation.body);
     return other.annotation.id === this.annotation.id &&
+           otherSource === thisSource &&
            other.targetDocumentName === this.targetDocumentName &&
            other.isGenerating === this.isGenerating;
   }
@@ -47,7 +53,7 @@ export class ReferenceResolutionWidget extends WidgetType {
     indicator.type = 'button';
 
     // Different states: resolved, generating, or stub
-    const isResolved = !!this.annotation.referencedDocumentId;
+    const isResolved = isResolvedReference(this.annotation);
 
     if (isResolved) {
       indicator.innerHTML = '<span aria-hidden="true">🔗</span>';
@@ -158,11 +164,12 @@ export class ReferenceResolutionWidget extends WidgetType {
       });
 
       // Click handler: navigate for resolved, show popup for unresolved
-      if (isResolved && this.annotation.referencedDocumentId && this.onNavigate) {
+      const bodySource = getBodySource(this.annotation.body);
+      if (isResolved && bodySource && this.onNavigate) {
         indicator.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          this.onNavigate!(this.annotation.referencedDocumentId!);
+          this.onNavigate!(bodySource);
         });
       } else if (!isResolved && this.onUnresolvedClick) {
         indicator.addEventListener('click', (e) => {

@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import '@testing-library/jest-dom';
 import { PermissionDeniedModal } from '../PermissionDeniedModal';
 import { signIn, useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
@@ -19,8 +19,8 @@ vi.mock('next-auth/react', () => ({
   }))
 }));
 
-// Mock next/navigation
-vi.mock('next/navigation', () => ({
+// Mock @/i18n/routing
+vi.mock('@/i18n/routing', () => ({
   useRouter: vi.fn()
 }));
 

@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useMemo, useEffect, useRef } from 'react';
-import { api } from '@/lib/api-client';
-import type { StoredEvent } from '@semiont/core-types';
+import { useTranslations } from 'next-intl';
+import { documents } from '@/lib/api/documents';
+import { type StoredEvent, isEventRelatedToAnnotation } from '@semiont/api-client';
 import { HistoryEvent } from './HistoryEvent';
-import { isEventRelatedToAnnotation } from '@/lib/annotation-history-utils';
 
 interface Props {
   documentId: string;
@@ -14,15 +14,15 @@ interface Props {
 }
 
 export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHover, onEventClick }: Props) {
+  const t = useTranslations('AnnotationHistory');
+
   // Load events using React Query
   // React Query will automatically refetch when the query is invalidated by the parent
-  const { data: eventsData, isLoading: loading, isError: error } = api.documents.getEvents.useQuery(documentId);
+  const { data: eventsData, isLoading: loading, isError: error } = documents.events.useQuery(documentId);
 
-  // Load annotations to look up text for removed/resolved events
-  const { data: referencesData } = api.selections.getReferences.useQuery(documentId);
-  const { data: highlightsData } = api.selections.getHighlights.useQuery(documentId);
-  const references = referencesData?.references || [];
-  const highlights = highlightsData?.highlights || [];
+  // Load annotations to look up text for removed/resolved events (single request)
+  const { data: annotationsData } = documents.annotations.useQuery(documentId);
+  const annotations = annotationsData?.annotations || [];
 
   // Refs to track event elements for scrolling
   const eventRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -39,7 +39,12 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   // Scroll to bottom when History is first shown or when events change
   useEffect(() => {
     if (containerRef.current && events.length > 0) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      // Use requestAnimationFrame to ensure DOM has updated before scrolling
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
+      });
     }
   }, [events.length]); // Only trigger when number of events changes
 
@@ -65,9 +70,9 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-          History
+          {t('history')}
         </h3>
-        <div className="text-sm text-gray-500 dark:text-gray-400">Loading...</div>
+        <div className="text-sm text-gray-500 dark:text-gray-400">{t('loading')}</div>
       </div>
     );
   }
@@ -83,7 +88,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 flex flex-col h-full">
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-        History
+        {t('history')}
       </h3>
       <div ref={containerRef} className="space-y-1.5 overflow-y-auto flex-1 min-h-0">
         {events.map((stored) => {
@@ -93,10 +98,10 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
             <HistoryEvent
               key={stored.event.id}
               event={stored}
-              references={references}
-              highlights={highlights}
+              annotations={annotations}
               allEvents={events}
               isRelated={isRelated}
+              t={t}
               onEventRef={(annotationId, el) => {
                 if (el && annotationId) {
                   eventRefs.current.set(annotationId, el);

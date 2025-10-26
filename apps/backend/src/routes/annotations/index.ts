@@ -1,5 +1,5 @@
 // Main annotations router that combines all sub-routers
-import { OpenAPIHono } from '@hono/zod-openapi';
+import { Hono } from 'hono';
 import { User } from '@prisma/client';
 import { crudRouter } from './crud';
 import { operationsRouter } from './operations';
@@ -7,7 +7,7 @@ import { createAnnotationRouter } from './shared';
 import { registerGetAnnotationHistory } from './routes/history';
 
 // Create main annotations router
-export const annotationsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
+export const annotationsRouter = new Hono<{ Variables: { user: User } }>();
 
 // Mount all sub-routers
 // IMPORTANT: operationsRouter must come BEFORE crudRouter so that specific routes

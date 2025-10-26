@@ -3,9 +3,9 @@
 
 import neo4j, { Driver, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
-import {
-  Document,
-  Annotation,
+import type { components } from '@semiont/api-client';
+import type {
+  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
@@ -13,8 +13,14 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
-} from '@semiont/core-types';
+} from '@semiont/core';
+import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
+import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
+import { getEntityTypes } from '@semiont/api-client';
+
+type Document = components['schemas']['Document'];
+type Annotation = components['schemas']['Annotation'];
 
 export class Neo4jGraphDatabase implements GraphDatabase {
   private driver: Driver | null = null;
@@ -28,7 +34,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
   // Tag Collections - cached in memory for performance
   private entityTypesCollection: Set<string> | null = null;
-  private referenceTypesCollection: Set<string> | null = null;
 
   constructor(config: {
     uri?: string;
@@ -165,11 +170,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         id,
         name: input.name,
         entityTypes: input.entityTypes,
-        contentType: input.contentType,
-        metadata: input.metadata,
+        format: input.format,
         archived: false,
-        createdAt: now,
-        createdBy: input.createdBy,
+        created: now,
+        creator: input.creator,
         creationMethod: input.creationMethod,
         contentChecksum: input.contentChecksum,
       };
@@ -182,11 +186,11 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           id: $id,
           name: $name,
           entityTypes: $entityTypes,
-          contentType: $contentType,
+          format: $contentType,
           metadata: $metadata,
           archived: $archived,
-          createdAt: datetime($createdAt),
-          createdBy: $createdBy,
+          created: datetime($created),
+          creator: $creator,
           creationMethod: $creationMethod,
           contentChecksum: $contentChecksum,
           sourceAnnotationId: $sourceAnnotationId,
@@ -196,11 +200,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           id,
           name: document.name,
           entityTypes: document.entityTypes,
-          contentType: document.contentType,
-          metadata: JSON.stringify(document.metadata),
+          format: document.format,
           archived: document.archived,
-          createdAt: now,
-          createdBy: document.createdBy,
+          created: now,
+          creator: document.creator,
           creationMethod: document.creationMethod,
           contentChecksum: document.contentChecksum,
           sourceAnnotationId: document.sourceAnnotationId ?? null,
@@ -257,7 +260,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async deleteDocument(id: string): Promise<void> {
     const session = this.getSession();
     try {
-      // Delete document and all its selections
+      // Delete document and all its annotations
       await session.run(
         `MATCH (d:Document {id: $id})
          OPTIONAL MATCH (a:Annotation)-[:BELONGS_TO|:REFERENCES]->(d)
@@ -338,81 +341,94 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const session = this.getSession();
     try {
-      const id = this.generateId();
+      const id = input.id;
 
       const annotation: Annotation = {
+        '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+        'type': 'Annotation' as const,
         id,
-        documentId: input.documentId,
-        exact: input.exact,
-        selector: input.selector,
-        type: input.type,
-        createdBy: input.createdBy,
-        createdAt: new Date().toISOString(),
-        entityTypes: input.entityTypes || [],
-        referencedDocumentId: input.referencedDocumentId,
-        referenceType: input.referenceType,
+        motivation: input.motivation,
+        target: input.target,
+        body: input.body,
+        creator: input.creator,
+        created: new Date().toISOString(),
       };
+
+      // Extract values for Cypher query
+      const targetSource = getTargetSource(input.target);
+      const targetSelector = getTargetSelector(input.target);
+      const bodySource = getBodySource(input.body);
+
+      // Extract entity types from TextualBody bodies with purpose: "tagging"
+      const entityTypes = getEntityTypes(input);
 
       // Create the annotation node and relationships
       let cypher: string;
-      if (input.referencedDocumentId) {
-        // Reference with target document
+      if (bodySource) {
+        // Resolved reference with target document
         cypher = `MATCH (from:Document {id: $fromId})
            MATCH (to:Document {id: $toId})
            CREATE (a:Annotation {
              id: $id,
              documentId: $documentId,
-             exact: $text,
+             exact: $exact,
              selector: $selector,
              type: $type,
-             createdBy: $createdBy,
-             createdAt: datetime($createdAt),
-             entityTypes: $entityTypes,
-             referencedDocumentId: $referencedDocumentId,
-             referenceType: $referenceType
+             motivation: $motivation,
+             creator: $creator,
+             created: datetime($created),
+             source: $source
            })
            CREATE (a)-[:BELONGS_TO]->(from)
            CREATE (a)-[:REFERENCES]->(to)
+           FOREACH (entityType IN $entityTypes |
+             MERGE (et:EntityType {name: entityType})
+             CREATE (a)-[:TAGGED_AS]->(et)
+           )
            RETURN a`;
       } else {
-        // Highlight or unresolved reference
+        // Stub reference (unresolved)
         cypher = `MATCH (d:Document {id: $documentId})
            CREATE (a:Annotation {
              id: $id,
              documentId: $documentId,
-             exact: $text,
+             exact: $exact,
              selector: $selector,
              type: $type,
-             createdBy: $createdBy,
-             createdAt: datetime($createdAt),
-             entityTypes: $entityTypes
+             motivation: $motivation,
+             creator: $creator,
+             created: datetime($created)
            })
            CREATE (a)-[:BELONGS_TO]->(d)
+           FOREACH (entityType IN $entityTypes |
+             MERGE (et:EntityType {name: entityType})
+             CREATE (a)-[:TAGGED_AS]->(et)
+           )
            RETURN a`;
       }
 
       const params: any = {
         id,
-        documentId: annotation.documentId,
-        fromId: annotation.documentId,
-        toId: annotation.referencedDocumentId || null,
-        exact: annotation.exact,
-        selector: JSON.stringify(annotation.selector),
-        type: annotation.type,
-        createdBy: annotation.createdBy,
-        createdAt: annotation.createdAt,
-        entityTypes: annotation.entityTypes,
-        referencedDocumentId: annotation.referencedDocumentId || null,
-        referenceType: annotation.referenceType || null,
+        documentId: targetSource,
+        fromId: targetSource,
+        toId: bodySource || null,
+        exact: targetSelector ? getExactText(targetSelector) : '',
+        selector: JSON.stringify(targetSelector || {}),
+        type: 'SpecificResource',
+        motivation: annotation.motivation,
+        creator: JSON.stringify(annotation.creator),
+        created: annotation.created,
+        entityTypes,
+        source: bodySource || null,
       };
 
       const result = await session.run(cypher, params);
 
       if (result.records.length === 0) {
-        throw new Error(`Failed to create annotation: Document ${annotation.documentId} not found in graph database`);
+        throw new Error(`Failed to create annotation: Document ${targetSource} not found in graph database`);
       }
 
-      return this.parseAnnotationNode(result.records[0]!.get('a'));
+      return this.parseAnnotationNode(result.records[0]!.get('a'), entityTypes);
     } finally {
       await session.close();
     }
@@ -422,12 +438,17 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     const session = this.getSession();
     try {
       const result = await session.run(
-        'MATCH (a:Annotation {id: $id}) RETURN a',
+        `MATCH (a:Annotation {id: $id})
+         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+         RETURN a, collect(et.name) as entityTypes`,
         { id }
       );
 
       if (result.records.length === 0) return null;
-      return this.parseAnnotationNode(result.records[0]!.get('a'));
+      return this.parseAnnotationNode(
+        result.records[0]!.get('a'),
+        result.records[0]!.get('entityTypes')
+      );
     } finally {
       await session.close();
     }
@@ -442,10 +463,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Build SET clauses dynamically
       Object.entries(updates).forEach(([key, value]) => {
         if (key !== 'id' && key !== 'updatedAt') {
-          setClauses.push(`s.${key} = $${key}`);
+          setClauses.push(`a.${key} = $${key}`);
           if (key === 'selector' || key === 'metadata') {
             params[key] = JSON.stringify(value);
-          } else if (key === 'createdAt' || key === 'resolvedAt') {
+          } else if (key === 'created' || key === 'resolvedAt') {
             params[key] = value ? new Date(value as any).toISOString() : null;
           } else {
             params[key] = value;
@@ -456,15 +477,19 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const result = await session.run(
         `MATCH (a:Annotation {id: $id})
          SET ${setClauses.join(', ')}
-         RETURN a`,
+         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+         RETURN a, collect(et.name) as entityTypes`,
         params
       );
 
       if (result.records.length === 0) {
-        throw new Error('Selection not found');
+        throw new Error('Annotation not found');
       }
 
-      return this.parseAnnotationNode(result.records[0]!.get('a'));
+      return this.parseAnnotationNode(
+        result.records[0]!.get('a'),
+        result.records[0]!.get('entityTypes')
+      );
     } finally {
       await session.close();
     }
@@ -482,7 +507,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async listAnnotations(filter: { documentId?: string; type?: 'highlight' | 'reference' }): Promise<{ annotations: Annotation[]; total: number }> {
+  async listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     const session = this.getSession();
     try {
       const conditions: string[] = [];
@@ -494,19 +519,24 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       }
 
       if (filter.type) {
+        const w3cType = filter.type === 'highlight' ? 'TextualBody' : 'SpecificResource';
         conditions.push('a.type = $type');
-        params.type = filter.type;
+        params.type = w3cType;
       }
 
       const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
       // Get all results (no pagination in new simplified interface)
       const result = await session.run(
-        `MATCH (a:Annotation) ${whereClause} RETURN a`,
+        `MATCH (a:Annotation) ${whereClause}
+         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+         RETURN a, collect(et.name) as entityTypes`,
         params
       );
 
-      const annotations = result.records.map(record => this.parseAnnotationNode(record.get('a')));
+      const annotations = result.records.map(record =>
+        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+      );
 
       return { annotations, total: annotations.length };
     } finally {
@@ -519,45 +549,52 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       const result = await session.run(
         `MATCH (a:Annotation {documentId: $documentId})
-         WHERE a.selectionCategory = 'highlight'
-         RETURN a
-         ORDER BY a.createdAt DESC`,
+         WHERE a.annotationCategory = 'highlight'
+         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+         RETURN a, collect(et.name) as entityTypes
+         ORDER BY a.created DESC`,
         { documentId }
       );
 
-      return result.records.map(record => this.parseAnnotationNode(record.get('a')));
+      return result.records.map(record =>
+        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+      );
     } finally {
       await session.close();
     }
   }
 
-  async resolveReference(annotationId: string, referencedDocumentId: string): Promise<Annotation> {
+  async resolveReference(annotationId: string, source: string): Promise<Annotation> {
     const session = this.getSession();
     try {
       // Get the target document's name
       const docResult = await session.run(
         'MATCH (d:Document {id: $id}) RETURN d.name as name',
-        { id: referencedDocumentId }
+        { id: source }
       );
       const documentName = docResult.records[0]?.get('name');
 
       // Update annotation and create REFERENCES relationship
       const result = await session.run(
         `MATCH (a:Annotation {id: $annotationId})
-         MATCH (to:Document {id: $referencedDocumentId})
-         SET a.referencedDocumentId = $referencedDocumentId,
+         MATCH (to:Document {id: $source})
+         SET a.source = $source,
              a.resolvedDocumentName = $documentName,
              a.resolvedAt = datetime()
          MERGE (a)-[:REFERENCES]->(to)
-         RETURN a`,
-        { annotationId, referencedDocumentId, documentName }
+         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+         RETURN a, collect(et.name) as entityTypes`,
+        { annotationId, source, documentName }
       );
 
       if (result.records.length === 0) {
         throw new Error('Annotation not found');
       }
 
-      return this.parseAnnotationNode(result.records[0]!.get('a'));
+      return this.parseAnnotationNode(
+        result.records[0]!.get('a'),
+        result.records[0]!.get('entityTypes')
+      );
     } finally {
       await session.close();
     }
@@ -568,13 +605,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       const result = await session.run(
         `MATCH (a:Annotation {documentId: $documentId})
-         WHERE a.selectionCategory IN ['stub_reference', 'resolved_reference']
-         RETURN a
-         ORDER BY a.createdAt DESC`,
+         WHERE a.annotationCategory IN ['stub_reference', 'resolved_reference']
+         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+         RETURN a, collect(et.name) as entityTypes
+         ORDER BY a.created DESC`,
         { documentId }
       );
 
-      return result.records.map(record => this.parseAnnotationNode(record.get('a')));
+      return result.records.map(record =>
+        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+      );
     } finally {
       await session.close();
     }
@@ -584,21 +624,27 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     const session = this.getSession();
     try {
       let cypher = `MATCH (a:Annotation {documentId: $documentId})
-                    WHERE a.resolvedDocumentId IS NOT NULL
-                    AND size(a.entityTypes) > 0`;
+                    WHERE a.source IS NOT NULL`;
 
       const params: any = { documentId };
 
       if (entityTypes && entityTypes.length > 0) {
-        cypher += ' AND ANY(type IN $entityTypes WHERE type IN s.entityTypes)';
+        cypher += `
+          MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+          WHERE et.name IN $entityTypes`;
         params.entityTypes = entityTypes;
       }
 
-      cypher += ' RETURN a ORDER BY a.createdAt DESC';
+      cypher += `
+        OPTIONAL MATCH (a)-[:TAGGED_AS]->(et2:EntityType)
+        RETURN a, collect(et2.name) as entityTypes
+        ORDER BY a.created DESC`;
 
       const result = await session.run(cypher, params);
 
-      return result.records.map(record => this.parseAnnotationNode(record.get('a')));
+      return result.records.map(record =>
+        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+      );
     } finally {
       await session.close();
     }
@@ -609,12 +655,15 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       const result = await session.run(
         `MATCH (a:Annotation {documentId: $documentId})
-         RETURN a
-         ORDER BY a.createdAt DESC`,
+         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+         RETURN a, collect(et.name) as entityTypes
+         ORDER BY a.created DESC`,
         { documentId }
       );
 
-      return result.records.map(record => this.parseAnnotationNode(record.get('a')));
+      return result.records.map(record =>
+        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+      );
     } finally {
       await session.close();
     }
@@ -624,13 +673,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (a:Annotation {resolvedDocumentId: $documentId})
-         RETURN a
-         ORDER BY a.createdAt DESC`,
+        `MATCH (a:Annotation)-[:REFERENCES]->(d:Document {id: $documentId})
+         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+         RETURN a, collect(et.name) as entityTypes
+         ORDER BY a.created DESC`,
         { documentId }
       );
 
-      return result.records.map(record => this.parseAnnotationNode(record.get('a')));
+      return result.records.map(record =>
+        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+      );
     } finally {
       await session.close();
     }
@@ -643,7 +695,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         `MATCH (d:Document {id: $documentId})
          OPTIONAL MATCH (d)<-[:BELONGS_TO]-(a1:Annotation)-[:REFERENCES]->(other:Document)
          OPTIONAL MATCH (other)<-[:BELONGS_TO]-(a2:Annotation)-[:REFERENCES]->(d)
-         WITH other, COLLECT(DISTINCT s1) as outgoing, COLLECT(DISTINCT s2) as incoming
+         WITH other, COLLECT(DISTINCT a1) as outgoing, COLLECT(DISTINCT a2) as incoming
          WHERE other IS NOT NULL
          RETURN other, outgoing, incoming`,
         { documentId }
@@ -653,8 +705,44 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       for (const record of result.records) {
         const targetDocument = this.parseDocumentNode(record.get('other'));
-        const outgoing = record.get('outgoing').map((s: any) => this.parseAnnotationNode(s));
-        const incoming = record.get('incoming').map((s: any) => this.parseAnnotationNode(s));
+
+        // Fetch entity types for outgoing annotations
+        const outgoingNodes = record.get('outgoing');
+        const outgoing: Annotation[] = [];
+        for (const annNode of outgoingNodes) {
+          const annId = annNode.properties.id;
+          const annResult = await session.run(
+            `MATCH (a:Annotation {id: $id})
+             OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+             RETURN a, collect(et.name) as entityTypes`,
+            { id: annId }
+          );
+          if (annResult.records.length > 0) {
+            outgoing.push(this.parseAnnotationNode(
+              annResult.records[0]!.get('a'),
+              annResult.records[0]!.get('entityTypes')
+            ));
+          }
+        }
+
+        // Fetch entity types for incoming annotations
+        const incomingNodes = record.get('incoming');
+        const incoming: Annotation[] = [];
+        for (const annNode of incomingNodes) {
+          const annId = annNode.properties.id;
+          const annResult = await session.run(
+            `MATCH (a:Annotation {id: $id})
+             OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+             RETURN a, collect(et.name) as entityTypes`,
+            { id: annId }
+          );
+          if (annResult.records.length > 0) {
+            incoming.push(this.parseAnnotationNode(
+              annResult.records[0]!.get('a'),
+              annResult.records[0]!.get('entityTypes')
+            ));
+          }
+        }
 
         connections.push({
           targetDocument,
@@ -686,18 +774,22 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         const docs = record.get('docs').map((node: any) => this.parseDocumentNode(node));
         const rels = record.get('rels');
 
-        // Get selection details for the relationships
-        const selectionIds = rels.map((rel: any) => rel.properties.id).filter((id: any) => id);
+        // Get annotation details for the relationships
+        const annotationIds = rels.map((rel: any) => rel.properties.id).filter((id: any) => id);
         const annotations: Annotation[] = [];
 
-        if (selectionIds.length > 0) {
+        if (annotationIds.length > 0) {
           const selResult = await session.run(
-            'MATCH (a:Annotation) WHERE a.id IN $ids RETURN a',
-            { ids: selectionIds }
+            `MATCH (a:Annotation) WHERE a.id IN $ids
+             OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+             RETURN a, collect(et.name) as entityTypes`,
+            { ids: annotationIds }
           );
-          const annotations: Annotation[] = [];
           selResult.records.forEach(rec => {
-            annotations.push(this.parseAnnotationNode(rec.get('a')));
+            annotations.push(this.parseAnnotationNode(
+              rec.get('a'),
+              rec.get('entityTypes')
+            ));
           });
         }
 
@@ -747,7 +839,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const docCountResult = await session.run('MATCH (d:Document) RETURN count(d) as count');
       const documentCount = docCountResult.records[0]!.get('count').toNumber();
 
-      // Get selection counts
+      // Get annotation counts
       const selCountResult = await session.run('MATCH (a:Annotation) RETURN count(a) as count');
       const annotationCount = selCountResult.records[0]!.get('count').toNumber();
 
@@ -781,7 +873,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Get content type stats
       const contentTypeResult = await session.run(
         `MATCH (d:Document)
-         RETURN d.contentType as type, count(*) AS count`
+         RETURN d.format as type, count(*) AS count`
       );
 
       const contentTypes: Record<string, number> = {};
@@ -811,16 +903,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async resolveReferences(inputs: { annotationId: string; referencedDocumentId: string }[]): Promise<Annotation[]> {
+  async resolveReferences(inputs: { annotationId: string; source: string }[]): Promise<Annotation[]> {
     const results: Annotation[] = [];
     for (const input of inputs) {
-      results.push(await this.resolveReference(input.annotationId, input.referencedDocumentId));
+      results.push(await this.resolveReference(input.annotationId, input.source));
     }
     return results;
   }
 
   async detectAnnotations(_documentId: string): Promise<Annotation[]> {
-    // This would use AI/ML to detect selections in a document
+    // This would use AI/ML to detect annotations in a document
     // For now, return empty array as a placeholder
     return [];
   }
@@ -833,27 +925,12 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return Array.from(this.entityTypesCollection!).sort();
   }
 
-  async getReferenceTypes(): Promise<string[]> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.referenceTypesCollection!).sort();
-  }
-
   async addEntityType(tag: string): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
     }
     this.entityTypesCollection!.add(tag);
     await this.persistTagCollection('entity-types', this.entityTypesCollection!);
-  }
-
-  async addReferenceType(tag: string): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.referenceTypesCollection!.add(tag);
-    await this.persistTagCollection('reference-types', this.referenceTypesCollection!);
   }
 
   async addEntityTypes(tags: string[]): Promise<void> {
@@ -864,46 +941,32 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     await this.persistTagCollection('entity-types', this.entityTypesCollection!);
   }
 
-  async addReferenceTypes(tags: string[]): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.referenceTypesCollection!.add(tag));
-    await this.persistTagCollection('reference-types', this.referenceTypesCollection!);
-  }
-
   private async initializeTagCollections(): Promise<void> {
     const session = this.getSession();
     try {
       // Load existing collections from Neo4j
       const result = await session.run(
-        'MATCH (t:TagCollection) RETURN t.type as type, t.tags as tags'
+        'MATCH (t:TagCollection {type: "entity-types"}) RETURN t.tags as tags'
       );
 
       let entityTypesFromDb: string[] = [];
-      let referenceTypesFromDb: string[] = [];
 
-      result.records.forEach(record => {
-        const type = record.get('type');
-        const tags = record.get('tags') || [];
-
-        if (type === 'entity-types') {
-          entityTypesFromDb = tags;
-        } else if (type === 'reference-types') {
-          referenceTypesFromDb = tags;
+      if (result.records.length > 0) {
+        const record = result.records[0];
+        if (record) {
+          const tags = record.get('tags');
+          entityTypesFromDb = tags || [];
         }
-      });
+      }
 
       // Load defaults
-      const { DEFAULT_ENTITY_TYPES, DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
+      const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
 
       // Merge with defaults
       this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);
-      this.referenceTypesCollection = new Set([...DEFAULT_REFERENCE_TYPES, ...referenceTypesFromDb]);
 
-      // Persist merged collections back to Neo4j
+      // Persist merged collection back to Neo4j
       await this.persistTagCollection('entity-types', this.entityTypesCollection);
-      await this.persistTagCollection('reference-types', this.referenceTypesCollection);
     } finally {
       await session.close();
     }
@@ -931,7 +994,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // CAREFUL! This clears the entire database
       await session.run('MATCH (n) DETACH DELETE n');
       this.entityTypesCollection = null;
-      this.referenceTypesCollection = null;
     } finally {
       await session.close();
     }
@@ -945,11 +1007,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!props.id) throw new Error('Document missing required field: id');
     if (!props.name) throw new Error(`Document ${props.id} missing required field: name`);
     if (!props.entityTypes) throw new Error(`Document ${props.id} missing required field: entityTypes`);
-    if (!props.contentType) throw new Error(`Document ${props.id} missing required field: contentType`);
-    if (!props.metadata) throw new Error(`Document ${props.id} missing required field: metadata`);
+    if (!props.format) throw new Error(`Document ${props.id} missing required field: contentType`);
     if (props.archived === undefined || props.archived === null) throw new Error(`Document ${props.id} missing required field: archived`);
-    if (!props.createdAt) throw new Error(`Document ${props.id} missing required field: createdAt`);
-    if (!props.createdBy) throw new Error(`Document ${props.id} missing required field: createdBy`);
+    if (!props.created) throw new Error(`Document ${props.id} missing required field: created`);
+    if (!props.creator) throw new Error(`Document ${props.id} missing required field: creator`);
     if (!props.creationMethod) throw new Error(`Document ${props.id} missing required field: creationMethod`);
     if (!props.contentChecksum) throw new Error(`Document ${props.id} missing required field: contentChecksum`);
 
@@ -957,11 +1018,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       id: props.id,
       name: props.name,
       entityTypes: props.entityTypes,
-      contentType: props.contentType,
-      metadata: JSON.parse(props.metadata),
+      format: props.format,
       archived: props.archived,
-      createdAt: props.createdAt.toString(), // ISO string from DB
-      createdBy: props.createdBy,
+      created: props.created.toString(), // ISO string from DB
+      creator: props.creator,
       creationMethod: props.creationMethod,
       contentChecksum: props.contentChecksum,
       sourceAnnotationId: props.sourceAnnotationId,
@@ -969,7 +1029,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     };
   }
 
-  private parseAnnotationNode(node: any): Annotation {
+  private parseAnnotationNode(node: any, entityTypes: string[] = []): Annotation {
     const props = node.properties;
 
     // Validate required fields
@@ -978,24 +1038,59 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!props.exact) throw new Error(`Annotation ${props.id} missing required field: text`);
     if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
     if (!props.selector) throw new Error(`Annotation ${props.id} missing required field: selector`);
-    if (!props.createdBy) throw new Error(`Annotation ${props.id} missing required field: createdBy`);
+    if (!props.creator) throw new Error(`Annotation ${props.id} missing required field: creator`);
+
+    if (!props.motivation) throw new Error(`Annotation ${props.id} missing required field: motivation`);
+
+    // Parse creator - always stored as JSON string in DB
+    const creator = JSON.parse(props.creator);
+
+    // Reconstruct body array from entity tags and linking body
+    const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
+
+    // Add entity tag bodies (TextualBody with purpose: "tagging")
+    for (const entityType of entityTypes) {
+      if (entityType) {  // Filter out nulls
+        bodyArray.push({
+          type: 'TextualBody' as const,
+          value: entityType,
+          purpose: 'tagging' as const,
+        });
+      }
+    }
+
+    // Add linking body (SpecificResource) if annotation is resolved
+    if (props.source) {
+      bodyArray.push({
+        type: 'SpecificResource' as const,
+        source: props.source,
+        purpose: 'linking' as const,
+      });
+    }
 
     const annotation: Annotation = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id: props.id,
-      documentId: props.documentId,
-      exact: props.exact,
-      selector: JSON.parse(props.selector),
-      type: props.type as 'highlight' | 'reference',
-      createdBy: props.createdBy,
-      createdAt: props.createdAt, // ISO string from DB
-      entityTypes: props.entityTypes || [],
+      motivation: props.motivation,
+      target: {
+        source: props.documentId,
+        selector: JSON.parse(props.selector),
+      },
+      body: bodyArray as Annotation['body'],
+      creator,
+      created: props.created, // ISO string from DB
     };
 
-    if (props.referencedDocumentId) annotation.referencedDocumentId = props.referencedDocumentId;
-    if (props.resolvedDocumentName) annotation.resolvedDocumentName = props.resolvedDocumentName;
-    if (props.referenceType) annotation.referenceType = props.referenceType;
-    if (props.resolvedAt) annotation.resolvedAt = props.resolvedAt.toString(); // ISO string from DB
-    if (props.resolvedBy) annotation.resolvedBy = props.resolvedBy;
+    // W3C Web Annotation modification tracking
+    if (props.modified) annotation.modified = props.modified.toString();
+    if (props.generator) {
+      try {
+        annotation.generator = JSON.parse(props.generator);
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
 
     return annotation;
   }

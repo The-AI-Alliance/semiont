@@ -7,8 +7,8 @@ interface Annotation {
   exact: string;
   offset: number;
   length: number;
-  type: 'highlight' | 'reference';
-  referencedDocumentId?: string;
+  type: 'highlight' | 'reference' | 'assessment';
+  source?: string;
 }
 
 interface RemarkAnnotationsOptions {

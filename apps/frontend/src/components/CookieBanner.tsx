@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { 
-  getCookieConsent, 
-  setCookieConsent, 
-  shouldShowBanner, 
+import { useTranslations } from 'next-intl';
+import {
+  getCookieConsent,
+  setCookieConsent,
+  shouldShowBanner,
   COOKIE_CATEGORIES,
   CookieConsent,
   isCCPAApplicable,
@@ -18,6 +19,7 @@ interface CookieBannerProps {
 }
 
 export function CookieBanner({ className = '' }: CookieBannerProps) {
+  const t = useTranslations('CookieBanner');
   const [isVisible, setIsVisible] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -125,21 +127,21 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
     switch (region) {
       case 'GDPR':
         return {
-          title: 'We value your privacy',
-          description: 'We use cookies and similar technologies to provide, protect, and improve our services. By clicking "Accept All", you consent to our use of cookies as described in our Cookie Policy. You can change your preferences at any time.',
-          learnMore: 'Learn more about our data processing in our Privacy Policy.'
+          title: t('gdprTitle'),
+          description: t('gdprDescription'),
+          learnMore: t('gdprLearnMore')
         };
       case 'CCPA':
         return {
-          title: 'Your Privacy Choices',
-          description: 'We use cookies to personalize content and ads, provide social media features, and analyze our traffic. California residents have the right to opt out of the sale of personal information.',
-          learnMore: 'See our Privacy Policy for details about your California privacy rights.'
+          title: t('ccpaTitle'),
+          description: t('ccpaDescription'),
+          learnMore: t('ccpaLearnMore')
         };
       default:
         return {
-          title: 'Cookie Notice',
-          description: 'We use cookies to enhance your experience, analyze site usage, and assist in our marketing efforts.',
-          learnMore: 'See our Privacy Policy for more information.'
+          title: t('generalTitle'),
+          description: t('generalDescription'),
+          learnMore: t('generalLearnMore')
         };
     }
   };
@@ -174,7 +176,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 <span className="flex items-center">
-                  Customize
+                  {t('customize')}
                   {showDetails ? (
                     <ChevronUpIcon className="w-4 h-4 ml-1" />
                   ) : (
@@ -190,17 +192,17 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                   disabled={isLoading}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
                 >
-                  {isLoading ? 'Saving...' : 'Reject All'}
+                  {isLoading ? t('saving') : t('rejectAll')}
                 </button>
               )}
-              
+
               <button
                 type="button"
                 onClick={handleAcceptAll}
                 disabled={isLoading}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
               >
-                {isLoading ? 'Saving...' : 'Accept All'}
+                {isLoading ? t('saving') : t('acceptAll')}
               </button>
             </div>
           </div>
@@ -210,7 +212,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
             <div className="border-t border-gray-200 pt-4">
               <div className="space-y-4">
                 <h4 className="text-base font-medium text-gray-900">
-                  Cookie Preferences
+                  {t('cookiePreferences')}
                 </h4>
                 
                 <div className="space-y-3">
@@ -227,13 +229,13 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <label 
+                        <label
                           htmlFor={`cookie-${category.id}`}
                           className="text-sm font-medium text-gray-900 cursor-pointer"
                         >
                           {category.name}
                           {category.required && (
-                            <span className="text-xs text-gray-500 ml-1">(Required)</span>
+                            <span className="text-xs text-gray-500 ml-1">{t('required')}</span>
                           )}
                         </label>
                         <p className="text-xs text-gray-600 mt-1">
@@ -241,7 +243,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                         </p>
                         <details className="mt-1">
                           <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
-                            View cookies
+                            {t('viewCookies')}
                           </summary>
                           <div className="mt-1 text-xs text-gray-500">
                             {category.cookies.join(', ')}
@@ -258,7 +260,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                     onClick={() => setShowDetails(false)}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                   <button
                     type="button"
@@ -266,7 +268,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                     disabled={isLoading}
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                   >
-                    {isLoading ? 'Saving...' : 'Save Preferences'}
+                    {isLoading ? t('saving') : t('savePreferences')}
                   </button>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
-import { APIError } from '@/lib/api-client';
+import { APIError } from '@/lib/api';
 
 export interface FetchAPIOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>;
@@ -44,7 +45,7 @@ export function useAuthenticatedAPI(): UseAuthenticatedAPIResult {
       }
 
       // Build full URL
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = NEXT_PUBLIC_API_URL;
       const fullUrl = `${baseUrl}${url}`;
 
       // Merge headers with auth token
@@ -72,7 +73,12 @@ export function useAuthenticatedAPI(): UseAuthenticatedAPIResult {
           errorData = { error: errorText };
         }
 
-        throw new APIError(response.status, errorData);
+        throw new APIError(
+          errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+          response.status,
+          response.statusText,
+          errorData
+        );
       }
 
       // Handle 204 No Content responses

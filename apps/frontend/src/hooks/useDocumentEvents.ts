@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
@@ -29,11 +30,9 @@ export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 interface UseDocumentEventsOptions {
   documentId: string;
   onEvent?: (event: DocumentEvent) => void;
-  onHighlightAdded?: (event: DocumentEvent) => void;
-  onHighlightRemoved?: (event: DocumentEvent) => void;
-  onReferenceCreated?: (event: DocumentEvent) => void;
-  onReferenceResolved?: (event: DocumentEvent) => void;
-  onReferenceDeleted?: (event: DocumentEvent) => void;
+  onAnnotationAdded?: (event: DocumentEvent) => void;
+  onAnnotationRemoved?: (event: DocumentEvent) => void;
+  onAnnotationBodyUpdated?: (event: DocumentEvent) => void;
   onEntityTagAdded?: (event: DocumentEvent) => void;
   onEntityTagRemoved?: (event: DocumentEvent) => void;
   onDocumentArchived?: (event: DocumentEvent) => void;
@@ -52,13 +51,13 @@ interface UseDocumentEventsOptions {
  * ```tsx
  * const { status, connect, disconnect } = useDocumentEvents({
  *   documentId: 'doc-123',
- *   onHighlightAdded: (event) => {
- *     console.log('New highlight:', event.payload);
- *     // Update UI to show new highlight
+ *   onAnnotationAdded: (event) => {
+ *     console.log('New annotation:', event.payload);
+ *     // Update UI to show new annotation (highlight, reference, or assessment)
  *   },
- *   onReferenceCreated: (event) => {
- *     console.log('New reference:', event.payload);
- *     // Refresh references list
+ *   onAnnotationBodyUpdated: (event) => {
+ *     console.log('Annotation body updated:', event.payload);
+ *     // Update annotation display to reflect body changes
  *   }
  * });
  * ```
@@ -66,11 +65,9 @@ interface UseDocumentEventsOptions {
 export function useDocumentEvents({
   documentId,
   onEvent,
-  onHighlightAdded,
-  onHighlightRemoved,
-  onReferenceCreated,
-  onReferenceResolved,
-  onReferenceDeleted,
+  onAnnotationAdded,
+  onAnnotationRemoved,
+  onAnnotationBodyUpdated,
   onEntityTagAdded,
   onEntityTagRemoved,
   onDocumentArchived,
@@ -95,20 +92,14 @@ export function useDocumentEvents({
 
     // Call specific handlers
     switch (event.type) {
-      case 'highlight.added':
-        onHighlightAdded?.(event);
+      case 'annotation.added':
+        onAnnotationAdded?.(event);
         break;
-      case 'highlight.removed':
-        onHighlightRemoved?.(event);
+      case 'annotation.removed':
+        onAnnotationRemoved?.(event);
         break;
-      case 'reference.created':
-        onReferenceCreated?.(event);
-        break;
-      case 'reference.resolved':
-        onReferenceResolved?.(event);
-        break;
-      case 'reference.deleted':
-        onReferenceDeleted?.(event);
+      case 'annotation.body.updated':
+        onAnnotationBodyUpdated?.(event);
         break;
       case 'entitytag.added':
         onEntityTagAdded?.(event);
@@ -125,11 +116,9 @@ export function useDocumentEvents({
     }
   }, [
     onEvent,
-    onHighlightAdded,
-    onHighlightRemoved,
-    onReferenceCreated,
-    onReferenceResolved,
-    onReferenceDeleted,
+    onAnnotationAdded,
+    onAnnotationRemoved,
+    onAnnotationBodyUpdated,
     onEntityTagAdded,
     onEntityTagRemoved,
     onDocumentArchived,
@@ -137,8 +126,11 @@ export function useDocumentEvents({
   ]);
 
   const connect = useCallback(async () => {
+    console.log(`[DocumentEvents] Attempting to connect to document ${documentId} events stream`);
+
     // Close any existing connection
     if (abortControllerRef.current) {
+      console.log(`[DocumentEvents] Closing existing connection for ${documentId}`);
       abortControllerRef.current.abort();
     }
 
@@ -150,11 +142,13 @@ export function useDocumentEvents({
 
     // Get auth token from session
     if (!session?.backendToken) {
+      console.error(`[DocumentEvents] Cannot connect to ${documentId}: No auth token`);
       onError?.('Authentication required');
       setStatus('error');
       return;
     }
 
+    console.log(`[DocumentEvents] Connecting to SSE stream for document ${documentId}`);
     setStatus('connecting');
 
     // Create new abort controller
@@ -162,7 +156,7 @@ export function useDocumentEvents({
     abortControllerRef.current = abortController;
 
     // Build SSE URL
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const apiUrl = NEXT_PUBLIC_API_URL;
     const url = `${apiUrl}/api/documents/${documentId}/events/stream`;
 
     try {
@@ -175,9 +169,11 @@ export function useDocumentEvents({
 
         async onopen(response) {
           if (response.ok) {
+            console.log(`[DocumentEvents] Successfully connected to document ${documentId} events stream`);
             setStatus('connected');
             reconnectAttemptsRef.current = 0; // Reset reconnect counter
           } else {
+            console.error(`[DocumentEvents] Failed to open stream for ${documentId}: ${response.status}`);
             throw new Error(`Failed to open stream: ${response.status}`);
           }
         },
@@ -190,8 +186,11 @@ export function useDocumentEvents({
 
           // Handle stream-connected event
           if (msg.event === 'stream-connected') {
+            console.log(`[DocumentEvents] Stream connected event received for ${documentId}`);
             return;
           }
+
+          console.log(`[DocumentEvents] Received event for document ${documentId}:`, msg.event);
 
           // Handle document events
           try {
