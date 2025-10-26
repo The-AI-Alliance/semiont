@@ -9,9 +9,10 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import { DocumentQueryService } from '../../../services/document-queries';
 import type { DocumentsRouterType } from '../shared';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 export function registerGetDocumentContent(router: DocumentsRouterType) {
   /**
@@ -23,7 +24,8 @@ export function registerGetDocumentContent(router: DocumentsRouterType) {
    */
   router.get('/api/documents/:id/content', async (c) => {
     const { id } = c.req.param();
-    const storage = getStorageService();
+    const basePath = getFilesystemConfig().path;
+    const contentManager = createContentManager(basePath);
 
     // Get document metadata from Layer 3 to retrieve the format (MIME type)
     const doc = await DocumentQueryService.getDocumentMetadata(id);
@@ -32,7 +34,7 @@ export function registerGetDocumentContent(router: DocumentsRouterType) {
     }
 
     // Read content from Layer 1 (filesystem)
-    const content = await storage.getDocument(id);
+    const content = await contentManager.get(id);
     if (!content) {
       throw new HTTPException(404, { message: 'Document content not found' });
     }

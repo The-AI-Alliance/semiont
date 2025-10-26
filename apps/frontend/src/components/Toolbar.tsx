@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user';
+type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user' | 'jsonld';
 type ToolbarContext = 'document' | 'simple';
 
 interface Props<T extends string = string> {
@@ -117,6 +117,17 @@ export function Toolbar<T extends string = string>({
             title={t('collaboration')}
           >
             <span className="text-xl" aria-hidden="true">👥</span>
+          </button>
+
+          {/* JSON-LD Icon */}
+          <button
+            onClick={() => onPanelToggle('jsonld' as T)}
+            className={buttonClass('jsonld')}
+            aria-label="JSON-LD"
+            aria-pressed={activePanel === 'jsonld'}
+            title="JSON-LD"
+          >
+            <span className="text-base font-mono" aria-hidden="true">{'{}'}</span>
           </button>
         </>
       )}

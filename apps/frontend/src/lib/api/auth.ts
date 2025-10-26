@@ -1,12 +1,10 @@
-/**
- * Auth API
- */
-
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
-import type { AcceptTermsResponse } from './types';
+import type { paths } from '@semiont/api-client';
+type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+type AcceptTermsResponse = ResponseContent<paths['/api/users/accept-terms']['post']>;
 
 export const auth = {
   me: {

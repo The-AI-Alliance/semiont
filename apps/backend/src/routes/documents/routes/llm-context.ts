@@ -10,10 +10,11 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type DocumentLLMContextResponse = components['schemas']['DocumentLLMContextResponse'];
 
@@ -33,6 +34,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
   router.get('/api/documents/:id/llm-context', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
+    const basePath = getFilesystemConfig().path;
 
     // Parse and validate query parameters
     const depth = query.depth ? Number(query.depth) : 2;
@@ -51,7 +53,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
+    const contentManager = createContentManager(basePath);
 
     const mainDoc = await graphDb.getDocument(id);
     if (!mainDoc) {
@@ -60,7 +62,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
 
     // Get content for main document
     const mainContent = includeContent ?
-      (await storage.getDocument(id)).toString('utf-8') : undefined;
+      (await contentManager.get(id)).toString('utf-8') : undefined;
 
     // Get related documents through graph connections
     const connections = await graphDb.getDocumentConnections(id);
@@ -72,7 +74,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     if (includeContent) {
       await Promise.all(limitedRelatedDocs.map(async (doc) => {
         try {
-          const content = await storage.getDocument(doc.id);
+          const content = await contentManager.get(doc.id);
           relatedDocumentsContent[doc.id] = content.toString('utf-8');
         } catch {
           // Skip documents where content can't be loaded
@@ -81,8 +83,8 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     }
 
     // Get all annotations for the main document
-    const highlights = await graphDb.getHighlights(id);
-    const references = await graphDb.getReferences(id);
+    const result = await graphDb.listAnnotations({ documentId: id });
+    const annotations = result.annotations;
 
     // Build graph representation
     const nodes = [
@@ -118,7 +120,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     const response: DocumentLLMContextResponse = {
       mainDocument: mainDoc,
       relatedDocuments: limitedRelatedDocs,
-      annotations: [...highlights, ...references],
+      annotations,
       graph: { nodes, edges },
       ...(mainContent ? { mainDocumentContent: mainContent } : {}),
       ...(Object.keys(relatedDocumentsContent).length > 0 ? { relatedDocumentsContent } : {}),

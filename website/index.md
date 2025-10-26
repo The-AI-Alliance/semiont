@@ -5,7 +5,11 @@ title: Semiont
 
 ## Semiont
 
-An AI-powered semantic knowledge platform that automatically extracts knowledge graphs from unstructured content and constructs rich contextual understanding for agentic RAG systems. Semiont combines advanced NLP, entity recognition, and relationship extraction to transform documents into interconnected semantic networks that enable intelligent agents to reason over and retrieve contextually relevant information.
+**The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.**
+
+An AI-native knowledge base for human/agent collaboration. Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructure with your data for true **sovereign AI**.
+
+Built on the **W3C Web Annotation** standard, Semiont automatically extracts knowledge graphs from unstructured content, enabling collaborative annotation, linking, and reasoning over documents. It transforms text into interconnected semantic networks with entity recognition, relationship extraction, and contextual understanding—all stored as standard, interoperable annotations.
 
 ## Repository
 

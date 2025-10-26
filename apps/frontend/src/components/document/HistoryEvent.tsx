@@ -12,14 +12,13 @@ import {
   getEventEntityTypes,
   getDocumentCreationDetails,
   getAnnotationIdFromEvent,
-} from '@/lib/api';
+} from '@semiont/api-client';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 interface Props {
   event: StoredEvent;
-  references: any[];
-  highlights: any[];
+  annotations: any[]; // Unified annotations array (all types)
   allEvents: StoredEvent[];
   isRelated: boolean;
   t: TranslateFn;
@@ -30,8 +29,7 @@ interface Props {
 
 export function HistoryEvent({
   event,
-  references,
-  highlights,
+  annotations,
   allEvents,
   isRelated,
   t,
@@ -39,7 +37,7 @@ export function HistoryEvent({
   onEventClick,
   onEventHover
 }: Props) {
-  const displayContent = getEventDisplayContent(event, references, highlights, allEvents);
+  const displayContent = getEventDisplayContent(event, annotations, allEvents);
   const annotationId = getAnnotationIdFromEvent(event);
   const creationDetails = getDocumentCreationDetails(event);
   const entityTypes = getEventEntityTypes(event);
@@ -103,7 +101,7 @@ export function HistoryEvent({
           onMouseEnter={handleEmojiMouseEnter}
           onMouseLeave={handleEmojiMouseLeave}
         >
-          {getEventEmoji(event.event.type as DocumentEventType)}
+          {getEventEmoji(event.event.type as DocumentEventType, event.event.payload)}
         </span>
         {displayContent ? (
           displayContent.isTag ? (
@@ -121,7 +119,7 @@ export function HistoryEvent({
           )
         ) : (
           <span className="font-medium text-gray-900 dark:text-gray-100">
-            {formatEventType(event.event.type as DocumentEventType, t)}
+            {formatEventType(event.event.type as DocumentEventType, t, event.event.payload)}
           </span>
         )}
         <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-auto">
