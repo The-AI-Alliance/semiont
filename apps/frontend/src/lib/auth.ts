@@ -30,9 +30,11 @@ if (process.env.ENABLE_LOCAL_AUTH === 'true' && process.env.NODE_ENV === 'develo
         }
 
         // Call backend local auth endpoint
+        // BACKEND_INTERNAL_URL: Server-side env var for internal backend communication (e.g., Service Connect DNS)
+        // NEXT_PUBLIC_API_URL: Public-facing API URL (fallback for local dev)
         const apiUrl = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
         if (!apiUrl) {
-          throw new Error('Backend API URL is required for authentication');
+          throw new Error('Either BACKEND_INTERNAL_URL or NEXT_PUBLIC_API_URL is required for authentication');
         }
 
         try {
@@ -82,31 +84,35 @@ export const authOptions: NextAuthOptions = {
       
       if (account?.provider === 'google') {
         // Frontend domain validation for better UX (fail fast)
-        // Security principle: No configured domains = reject all (closed system)
-        // Force fresh read of environment variable to bypass any caching
-        const allowedDomainsStr = process.env.OAUTH_ALLOWED_DOMAINS || '';
+        // Security principle: OAUTH_ALLOWED_DOMAINS must be explicitly configured
+        const allowedDomainsStr = process.env.OAUTH_ALLOWED_DOMAINS;
+        if (!allowedDomainsStr) {
+          console.error('OAUTH_ALLOWED_DOMAINS environment variable is required for authentication');
+          return false;
+        }
+
         const allowedDomains = allowedDomainsStr.split(',').map(d => d.trim()).filter(Boolean);
-        
+
         console.log(`OAuth Debug: Raw env var = '${allowedDomainsStr}'`);
         console.log(`OAuth Debug: Parsed domains = ${JSON.stringify(allowedDomains)}`);
-        
+
         if (!user.email) {
           console.log('OAuth Debug: No email provided');
           return false;
         }
-        
+
         const emailParts = user.email.split('@');
         if (emailParts.length !== 2 || !emailParts[1]) {
           console.log(`OAuth Debug: Invalid email format: ${user.email}`);
           return false;
         }
-        
+
         const emailDomain: string = emailParts[1];
         console.log(`OAuth Debug: email=${user.email}, domain=${emailDomain}`);
-        
-        // If no domains are configured, reject all (closed system)
+
+        // If no domains are configured after trimming, reject all (closed system)
         if (allowedDomains.length === 0) {
-          console.log('No allowed domains configured - rejecting all logins');
+          console.error('OAUTH_ALLOWED_DOMAINS is empty after parsing - rejecting all logins');
           return false;
         }
         
@@ -120,13 +126,27 @@ export const authOptions: NextAuthOptions = {
 
         // Backend authentication for security validation and token generation
         try {
-          // Use Service Connect DNS name for internal backend communication
-          // In production with Service Connect: http://backend:4000
-          // For local development: use BACKEND_INTERNAL_URL or fallback to public URL
-          const apiUrl = process.env.BACKEND_INTERNAL_URL || 
-                        (process.env.NODE_ENV === 'production' ? 'http://backend:4000' : process.env.NEXT_PUBLIC_API_URL);
+          // BACKEND_INTERNAL_URL: Server-side env var for internal backend communication
+          //   - In AWS: Set to Service Connect DNS like 'http://backend:4000' for container-to-container
+          //   - In local dev: Can be same as NEXT_PUBLIC_API_URL
+          // NEXT_PUBLIC_API_URL: Public-facing API URL (exposed to browser)
+          //   - Always the public URL users access
+          //
+          // Priority: BACKEND_INTERNAL_URL > production default > NEXT_PUBLIC_API_URL
+          let apiUrl = process.env.BACKEND_INTERNAL_URL;
+
+          if (!apiUrl && process.env.NODE_ENV === 'production') {
+            // Production fallback: use Service Connect DNS for internal communication
+            apiUrl = 'http://backend:4000';
+          }
+
           if (!apiUrl) {
-            throw new Error('Backend API URL is required for authentication');
+            // Development: use public API URL
+            apiUrl = process.env.NEXT_PUBLIC_API_URL;
+          }
+
+          if (!apiUrl) {
+            throw new Error('Backend API URL is required: set BACKEND_INTERNAL_URL or NEXT_PUBLIC_API_URL');
           }
           console.log(`Calling backend at: ${apiUrl}/api/tokens/google`);
           const response = await fetch(`${apiUrl}/api/tokens/google`, {
@@ -163,7 +183,13 @@ export const authOptions: NextAuthOptions = {
           
           // Store our validated backend token and user in the user object
           user.backendToken = tokenValidation.data;
-          user.backendUser = userValidation.data;
+          // Convert null to undefined for name and image to match expected types
+          const validatedUser = userValidation.data;
+          user.backendUser = {
+            ...validatedUser,
+            name: validatedUser.name === null ? undefined : validatedUser.name,
+            image: validatedUser.image === null ? undefined : validatedUser.image,
+          };
           // Store isNewUser in a way TypeScript accepts
           if ('__isNewUser' in user) {
             user.__isNewUser = data.isNewUser;
@@ -211,6 +237,10 @@ export const authOptions: NextAuthOptions = {
         if (validation.success) {
           session.backendToken = validation.data;
           session.backendUser = token.backendUser;
+          // Also populate standard session.user fields with isAdmin
+          if (session.user && token.backendUser) {
+            session.user.isAdmin = token.backendUser.isAdmin;
+          }
           if (token.isNewUser !== undefined) {
             session.isNewUser = token.isNewUser;
           }

@@ -1,37 +1,37 @@
-import { createRoute, z } from '@hono/zod-openapi';
-import { formatDocument } from '../helpers';
-import type { DocumentsRouterType } from '../shared';
-import { ListDocumentsResponseSchema } from '../schemas';
-import { DocumentQueryService } from '../../../services/document-queries';
+/**
+ * Search Documents Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - Manual query parameter parsing
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
 
-export const searchDocumentsRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/search',
-  summary: 'Search Documents',
-  description: 'Search documents by name',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    query: z.object({
-      q: z.string().min(1),
-      limit: z.coerce.number().default(10),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: ListDocumentsResponseSchema,
-        },
-      },
-      description: 'Search results',
-    },
-  },
-});
+import { HTTPException } from 'hono/http-exception';
+import type { DocumentsRouterType } from '../shared';
+import { DocumentQueryService } from '../../../services/document-queries';
+import type { components } from '@semiont/api-client';
+
+type ListDocumentsResponse = components['schemas']['ListDocumentsResponse'];
 
 export function registerSearchDocuments(router: DocumentsRouterType) {
-  router.openapi(searchDocumentsRoute, async (c) => {
-    const { q, limit } = c.req.valid('query');
+  /**
+   * GET /api/documents/search
+   *
+   * Search documents by name
+   * Query params: q (required), limit (optional, default 10)
+   * Requires authentication
+   */
+  router.get('/api/documents/search', async (c) => {
+    const query = c.req.query();
+    const q = query.q;
+    const limit = Number(query.limit) || 10;
+
+    // Validate required param
+    if (!q || q.trim().length === 0) {
+      throw new HTTPException(400, { message: 'Query parameter "q" is required and must not be empty' });
+    }
 
     // Search using Layer 3 projection storage
     const matchingDocs = await DocumentQueryService.listDocuments({
@@ -41,11 +41,13 @@ export function registerSearchDocuments(router: DocumentsRouterType) {
     // Limit results
     const limitedDocs = matchingDocs.slice(0, limit);
 
-    return c.json({
-      documents: limitedDocs.map(doc => formatDocument(doc)),
+    const response: ListDocumentsResponse = {
+      documents: limitedDocs,
       total: limitedDocs.length,
       offset: 0,
       limit,
-    });
+    };
+
+    return c.json(response);
   });
 }

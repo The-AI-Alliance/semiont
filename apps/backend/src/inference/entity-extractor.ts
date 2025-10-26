@@ -55,12 +55,12 @@ Return empty array [] if no entities found.
 Do not include markdown formatting or code fences, just the raw JSON array.
 
 Example output:
-[{"text":"Alice","entityType":"Person","startOffset":0,"endOffset":5},{"text":"Paris","entityType":"Location","startOffset":20,"endOffset":25}]`;
+[{"exact":"Alice","entityType":"Person","startOffset":0,"endOffset":5},{"exact":"Paris","entityType":"Location","startOffset":20,"endOffset":25}]`;
 
   console.log('Sending entity extraction request to model:', getInferenceModel());
   const response = await client.messages.create({
     model: getInferenceModel(),
-    max_tokens: 1000,
+    max_tokens: 4000, // Increased to handle many entities without truncation
     temperature: 0.3, // Lower temperature for more consistent extraction
     messages: [
       {
@@ -89,24 +89,53 @@ Example output:
     const entities = JSON.parse(jsonStr);
     console.log('Parsed', entities.length, 'entities from response');
 
+    // Check if response was truncated - this is an ERROR condition
+    if (response.stop_reason === 'max_tokens') {
+      const errorMsg = `AI response truncated: Found ${entities.length} entities but response hit max_tokens limit. Increase max_tokens or reduce document size.`;
+      console.error(`❌ ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+
     // Validate and fix offsets
-    return entities.map((entity: any) => {
+    return entities.map((entity: any, idx: number) => {
       let startOffset = entity.startOffset;
       let endOffset = entity.endOffset;
+
+      console.log(`\n[Entity ${idx + 1}/${entities.length}]`);
+      console.log(`  Type: ${entity.entityType}`);
+      console.log(`  Text: "${entity.exact}"`);
+      console.log(`  Offsets from AI: [${startOffset}, ${endOffset}]`);
 
       // Verify the offsets are correct by checking if the text matches
       const extractedText = exact.substring(startOffset, endOffset);
 
       // If the extracted text doesn't match, find the correct position
       if (extractedText !== entity.exact) {
+        console.log(`  ⚠️  Offset mismatch!`);
+        console.log(`  Expected: "${entity.exact}"`);
+        console.log(`  Found at AI offsets [${startOffset}:${endOffset}]: "${extractedText}"`);
+
+        // Show context around the AI-provided offset
+        const contextStart = Math.max(0, startOffset - 50);
+        const contextEnd = Math.min(exact.length, endOffset + 50);
+        const contextBefore = exact.substring(contextStart, startOffset);
+        const contextAfter = exact.substring(endOffset, contextEnd);
+        console.log(`  Context: "...${contextBefore}[${extractedText}]${contextAfter}..."`);
+
+        console.log(`  Searching for exact match in document...`);
         const index = exact.indexOf(entity.exact);
         if (index !== -1) {
+          console.log(`  ✅ Found at offset ${index} (diff: ${index - startOffset})`);
           startOffset = index;
           endOffset = index + entity.exact.length;
         } else {
+          console.log(`  ❌ Cannot find "${entity.exact}" anywhere in document`);
+          console.log(`  Document starts with: "${exact.substring(0, 200)}..."`);
           // If we still can't find it, skip this entity
           return null;
         }
+      } else {
+        console.log(`  ✅ Offsets correct`);
       }
 
       return {
@@ -115,16 +144,37 @@ Example output:
         startOffset: startOffset,
         endOffset: endOffset
       };
-    }).filter((entity: ExtractedEntity | null): entity is ExtractedEntity =>
+    }).filter((entity: ExtractedEntity | null): entity is ExtractedEntity => {
       // Filter out nulls and ensure we have valid offsets
-      entity !== null &&
-      entity.startOffset !== undefined &&
-      entity.endOffset !== undefined &&
-      entity.startOffset >= 0 &&
-      entity.endOffset <= exact.length &&
+      if (entity === null) {
+        console.log('❌ Filtered entity: null');
+        return false;
+      }
+      if (entity.startOffset === undefined || entity.endOffset === undefined) {
+        console.log(`❌ Filtered entity "${entity.exact}": missing offsets`);
+        return false;
+      }
+      if (entity.startOffset < 0) {
+        console.log(`❌ Filtered entity "${entity.exact}": negative startOffset (${entity.startOffset})`);
+        return false;
+      }
+      if (entity.endOffset > exact.length) {
+        console.log(`❌ Filtered entity "${entity.exact}": endOffset (${entity.endOffset}) > text length (${exact.length})`);
+        return false;
+      }
+
       // Verify the text at the offsets matches
-      exact.substring(entity.startOffset, entity.endOffset) === entity.exact
-    );
+      const extractedText = exact.substring(entity.startOffset, entity.endOffset);
+      if (extractedText !== entity.exact) {
+        console.log(`❌ Filtered entity "${entity.exact}": offset mismatch`);
+        console.log(`   Expected: "${entity.exact}"`);
+        console.log(`   Got at [${entity.startOffset}:${entity.endOffset}]: "${extractedText}"`);
+        return false;
+      }
+
+      console.log(`✅ Accepted entity "${entity.exact}" at [${entity.startOffset}:${entity.endOffset}]`);
+      return true;
+    });
   } catch (error) {
     console.error('Failed to parse entity extraction response:', error);
     return [];

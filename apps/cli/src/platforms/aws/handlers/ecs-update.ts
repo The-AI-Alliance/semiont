@@ -338,7 +338,7 @@ async function waitForECSDeployment(
         // Display other significant events in verbose mode
         if (verbose) {
           for (const event of newEvents.slice(0, 5)) { // Show last 5 events
-            const eventTime = new Date(event.createdAt).toLocaleTimeString();
+            const eventTime = new Date(event.created).toLocaleTimeString();
             console.log(`[${eventTime}] ${event.message}`);
           }
         }

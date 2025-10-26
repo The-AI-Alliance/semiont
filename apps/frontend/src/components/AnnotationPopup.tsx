@@ -5,7 +5,14 @@ import { CreateAnnotationPopup } from './annotation-popups/CreateAnnotationPopup
 import { HighlightPopup } from './annotation-popups/HighlightPopup';
 import { StubReferencePopup } from './annotation-popups/StubReferencePopup';
 import { ResolvedReferencePopup } from './annotation-popups/ResolvedReferencePopup';
-import type { Annotation, AnnotationUpdate, TextSelection, HighlightAnnotation, ReferenceAnnotation } from '@semiont/core-types';
+import type { components } from '@semiont/api-client';
+import { isHighlight, isReference, isBodyResolved } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
+type HighlightAnnotation = components['schemas']['Annotation'];
+type ReferenceAnnotation = components['schemas']['Annotation'];
+type AnnotationUpdate = Partial<components['schemas']['Annotation']>;
+type TextSelection = { exact: string; start: number; end: number };
 
 interface AnnotationPopupProps {
   isOpen: boolean;
@@ -15,6 +22,7 @@ interface AnnotationPopupProps {
   annotation?: Annotation;
   onCreateHighlight?: () => void;
   onCreateReference?: (targetDocId?: string, entityType?: string, referenceType?: string) => void;
+  onCreateAssessment?: () => void;
   onUpdateAnnotation?: (updates: AnnotationUpdate) => void;
   onDeleteAnnotation?: () => void;
   onGenerateDocument?: (title: string, prompt?: string) => void;
@@ -30,6 +38,7 @@ export function AnnotationPopup({
   annotation,
   onCreateHighlight,
   onCreateReference,
+  onCreateAssessment,
   onUpdateAnnotation,
   onDeleteAnnotation,
   onGenerateDocument
@@ -37,9 +46,11 @@ export function AnnotationPopup({
   // Determine which popup to show
   const getPopupState = (): PopupState => {
     if (!annotation) return 'initial';
-    if (annotation.type === 'highlight') return 'highlight';
-    if (annotation.type === 'reference') {
-      return annotation.referencedDocumentId ? 'resolved_reference' : 'stub_reference';
+    if (isHighlight(annotation)) return 'highlight';
+    if (isReference(annotation)) {
+      // Body is either empty array (stub) or SpecificResource with source (resolved)
+      // Type assertion needed because TypeScript can't narrow the union properly
+      return isBodyResolved((annotation as Annotation).body) ? 'resolved_reference' : 'stub_reference';
     }
     return 'initial';
   };
@@ -60,6 +71,7 @@ export function AnnotationPopup({
           selection={selection}
           onCreateHighlight={onCreateHighlight!}
           onCreateReference={onCreateReference!}
+          onCreateAssessment={onCreateAssessment!}
         />
       );
 
@@ -79,7 +91,7 @@ export function AnnotationPopup({
       );
 
     case 'stub_reference':
-      // We know annotation is a reference without resolvedDocumentId
+      // We know annotation is a reference without body.source
       return (
         <StubReferencePopup
           isOpen={isOpen}
@@ -94,14 +106,14 @@ export function AnnotationPopup({
       );
 
     case 'resolved_reference':
-      // We know annotation is a reference with resolvedDocumentId
+      // We know annotation is a reference with body.source
       return (
         <ResolvedReferencePopup
           isOpen={isOpen}
           onClose={onClose}
           position={position}
           selection={selection}
-          annotation={annotation as ReferenceAnnotation & { resolvedDocumentId: string }}
+          annotation={annotation as ReferenceAnnotation}
           onUpdateAnnotation={onUpdateAnnotation!}
           onDeleteAnnotation={onDeleteAnnotation!}
         />

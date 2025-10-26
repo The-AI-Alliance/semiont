@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 
 export interface DetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
@@ -55,13 +56,7 @@ export function useDetectionProgress({
     abortControllerRef.current = abortController;
 
     // Build SSE URL
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const url = `${apiUrl}/api/documents/${documentId}/detect-annotations-stream`;
-
-    console.log('[Detection] Starting with entity types:', entityTypes);
-    console.log('[Detection] URL:', url);
-    console.log('[Detection] Has backendToken:', !!session.backendToken);
-    console.log('[Detection] Calling fetchEventSource...');
+    const url = `${NEXT_PUBLIC_API_URL}/api/documents/${documentId}/detect-annotations-stream`;
 
     try {
       await fetchEventSource(url, {
@@ -78,7 +73,6 @@ export function useDetectionProgress({
 
           // Track completed entity types
           if (data.foundCount !== undefined && data.currentEntityType) {
-            console.log('[Detection] Adding to log:', data.currentEntityType, data.foundCount);
             completedEntityTypesRef.current.push({
               entityType: data.currentEntityType,
               foundCount: data.foundCount
@@ -91,7 +85,6 @@ export function useDetectionProgress({
             completedEntityTypes: [...completedEntityTypesRef.current]
           };
 
-          console.log('[Detection] Progress with history:', progressWithHistory);
           setProgress(progressWithHistory);
           onProgress?.(progressWithHistory);
 

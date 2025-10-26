@@ -21,7 +21,7 @@ export function createMockUser(overrides?: Partial<any>) {
     isActive: true,
     termsAcceptedAt: null,
     lastLogin: new Date(),
-    createdAt: new Date(),
+    created: new Date(),
     updatedAt: new Date(),
     ...overrides
   };

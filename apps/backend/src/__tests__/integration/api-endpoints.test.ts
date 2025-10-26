@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import type { OpenAPIHono } from '@hono/zod-openapi';
+import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import { JWTService } from '../../auth/jwt';
 
@@ -13,7 +13,7 @@ type Variables = {
 };
 
 // Delay app import until after test setup to avoid Prisma validation errors
-let app: OpenAPIHono<{ Variables: Variables }>;
+let app: Hono<{ Variables: Variables }>;
 // Local type definitions to replace api-contracts imports
 interface HealthResponse {
   status: string;
@@ -61,7 +61,7 @@ interface UserResponse {
   isActive: boolean;
   termsAcceptedAt: string | null;
   lastLogin: string | null;
-  createdAt: string;
+  created: string;
 }
 
 interface LogoutResponse {
@@ -171,6 +171,12 @@ vi.mock('../../config', () => ({
 
 describe('API Endpoints Integration Tests', () => {
   beforeAll(async () => {
+    // Set required environment variables before importing app
+    process.env.BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+    process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
+    process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+    process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+
     // Import app after test setup has set DATABASE_URL to avoid Prisma validation errors
     const serverModule = await import('../../index');
     app = serverModule.app;

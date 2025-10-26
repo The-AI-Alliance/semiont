@@ -46,7 +46,7 @@ describe('AdminAuthWrapper', () => {
         isAdmin: false,
         isActive: true,
         lastLogin: null,
-        createdAt: '2024-01-01',
+        created: '2024-01-01',
         updatedAt: '2024-01-01'
       },
       expires: '2024-12-31'
@@ -73,7 +73,7 @@ describe('AdminAuthWrapper', () => {
         isAdmin: true,
         isActive: true,
         lastLogin: null,
-        createdAt: '2024-01-01',
+        created: '2024-01-01',
         updatedAt: '2024-01-01'
       },
       expires: '2024-12-31'

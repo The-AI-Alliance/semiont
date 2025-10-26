@@ -12,13 +12,13 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
-    "node-fetch": "^3.3.2",
-    "zod": "^4.1.9"
+    "@semiont/api-client": "*",
+    "formdata-polyfill": "^4.0.10"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
-    "vitest": "^1.2.0"
+    "vitest": "^3.2.4"
   }
 }

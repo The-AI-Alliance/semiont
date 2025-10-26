@@ -1,8 +1,8 @@
 // Graph database interface - all implementations must follow this contract
 
-import {
-  Document,
-  Annotation,
+import type { components } from '@semiont/api-client';
+import type {
+  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
@@ -10,7 +10,10 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
-} from '@semiont/core-types';
+} from '@semiont/core';
+
+type Document = components['schemas']['Document'];
+type Annotation = components['schemas']['Annotation'];
 
 export interface GraphDatabase {
   // Connection management
@@ -32,13 +35,13 @@ export interface GraphDatabase {
   getAnnotation(id: string): Promise<Annotation | null>;
   updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation>;
   deleteAnnotation(id: string): Promise<void>;
-  listAnnotations(filter: { documentId?: string; type?: 'highlight' | 'reference' }): Promise<{ annotations: Annotation[]; total: number }>;
+  listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }>;
 
   // Highlight operations
   getHighlights(documentId: string): Promise<Annotation[]>;
 
   // Reference operations
-  resolveReference(annotationId: string, referencedDocumentId: string): Promise<Annotation>;
+  resolveReference(annotationId: string, source: string): Promise<Annotation>;
   getReferences(documentId: string): Promise<Annotation[]>;
   getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]>;
 
@@ -64,18 +67,15 @@ export interface GraphDatabase {
   
   // Bulk operations
   createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]>;
-  resolveReferences(inputs: { annotationId: string; referencedDocumentId: string }[]): Promise<Annotation[]>;
+  resolveReferences(inputs: { annotationId: string; source: string }[]): Promise<Annotation[]>;
 
   // Auto-detection
   detectAnnotations(documentId: string): Promise<Annotation[]>;
   
   // Tag Collections
   getEntityTypes(): Promise<string[]>;
-  getReferenceTypes(): Promise<string[]>;
   addEntityType(tag: string): Promise<void>;
-  addReferenceType(tag: string): Promise<void>;
   addEntityTypes(tags: string[]): Promise<void>;
-  addReferenceTypes(tags: string[]): Promise<void>;
   
   // Utility
   generateId(): string;

@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { QueryClient } from '@tanstack/react-query';
 import { Providers } from '@/app/providers';
-import { APIError } from '@/lib/api-client';
+import { APIError } from '@/lib/api';
 
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
@@ -134,15 +134,15 @@ describe('Providers', () => {
     expect(retryFunction).toBeDefined();
     
     // Test retry logic for 401 errors
-    const error401 = new APIError(401, { error: 'Unauthorized' });
+    const error401 = new APIError('Unauthorized', 401, 'Unauthorized', { error: 'Unauthorized' });
     expect(retryFunction(0, error401)).toBe(false);
 
     // Test retry logic for 403 errors
-    const error403 = new APIError(403, { error: 'Forbidden' });
+    const error403 = new APIError('Forbidden', 403, 'Forbidden', { error: 'Forbidden' });
     expect(retryFunction(0, error403)).toBe(false);
 
     // Test retry logic for other API errors (should retry)
-    const error500 = new APIError(500, { error: 'Internal Server Error' });
+    const error500 = new APIError('Internal Server Error', 500, 'Internal Server Error', { error: 'Internal Server Error' });
     expect(retryFunction(0, error500)).toBe(true);
     
     // Test retry logic for other errors (should retry up to 3 times)
