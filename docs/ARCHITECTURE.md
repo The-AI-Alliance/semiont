@@ -24,27 +24,27 @@ Semiont transforms unstructured text into a queryable knowledge graph using W3C 
 graph TB
     subgraph "Client Layer"
         USER[User Browser]
-        AI[AI Agents<br/>Claude Desktop]
+        AI[AI Agents]
     end
 
     subgraph "Application Layer"
-        FE[Frontend<br/>Next.js]
-        BE[Backend API<br/>Hono]
+        FE[Frontend]
+        BE[Backend API]
         MCP[MCP Server]
     end
 
-    subgraph "Data Layer (4 Layers)"
-        L1[Layer 1: Content Store<br/>Binary/Text Files<br/>65K Shards]
-        L2[Layer 2: Event Store<br/>Immutable Events<br/>JSONL]
-        L3[Layer 3: Projections<br/>Materialized Views<br/>PostgreSQL + JSON]
-        L4[Layer 4: Graph<br/>Relationships<br/>Neo4j/Neptune]
+    subgraph "Data Layer - 4 Layers"
+        L1[Layer 1: Content Store]
+        L2[Layer 2: Event Store]
+        L3[Layer 3: Projections]
+        L4[Layer 4: Graph]
     end
 
     subgraph "Infrastructure"
-        DB[(Database<br/>PostgreSQL<br/>Users/Auth)]
-        FS[Filesystem<br/>Uploads/Assets<br/>S3/EFS]
-        INF[Inference<br/>LLM APIs<br/>Claude/GPT]
-        SEC[Secrets<br/>Credentials<br/>Planned]
+        DB[(Database)]
+        FS[Filesystem]
+        INF[Inference]
+        SEC[Secrets]
     end
 
     %% Client connections
@@ -84,6 +84,20 @@ graph TB
     class L1,L2,L3,L4 data
     class DB,FS,INF,SEC infra
 ```
+
+**Component Details**:
+
+- **Frontend**: Next.js 14 web application with SSR/SSG
+- **Backend API**: Hono server implementing W3C Web Annotation Data Model
+- **MCP Server**: Model Context Protocol for AI agent integration
+- **Layer 1 (Content Store)**: Binary/text files, 65K shards, O(1) access
+- **Layer 2 (Event Store)**: Immutable JSONL event log, source of truth
+- **Layer 3 (Projections)**: Materialized views in PostgreSQL + JSON files
+- **Layer 4 (Graph)**: Neo4j/Neptune for relationship queries
+- **Database**: PostgreSQL for users and authentication
+- **Filesystem**: S3/EFS for uploads and assets
+- **Inference**: LLM APIs (Anthropic Claude, OpenAI)
+- **Secrets**: Planned credential management integration
 
 **Key Flows**:
 
