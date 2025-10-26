@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { getStorageService } from '../../../storage/filesystem';
+import { createContentManager } from '../../../services/storage-service';
 import { calculateChecksum } from '@semiont/core';
 import {
   CREATION_METHODS,
@@ -20,6 +20,8 @@ import {
 import type { DocumentsRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { userToAgent } from '../../../utils/id-generator';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type GetDocumentByTokenResponse = components['schemas']['GetDocumentByTokenResponse'];
 type CreateDocumentFromTokenRequest = components['schemas']['CreateDocumentFromTokenRequest'];
@@ -78,6 +80,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     async (c) => {
       const body = c.get('validatedBody') as CreateDocumentFromTokenRequest;
       const user = c.get('user');
+      const basePath = getFilesystemConfig().path;
 
       const tokenData = cloneTokens.get(body.token);
       if (!tokenData) {
@@ -90,7 +93,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       }
 
       const graphDb = await getGraphDatabase();
-      const storage = getStorageService();
+      const contentManager = createContentManager(basePath);
 
       // Get source document
       const sourceDoc = await graphDb.getDocument(tokenData.documentId);
@@ -112,7 +115,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
         sourceDocumentId: tokenData.documentId,
         contentChecksum: checksum,
 
-        creator: user.id,
+        creator: userToAgent(user),
         created: new Date().toISOString(),
       };
 
@@ -131,7 +134,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       };
 
       const savedDoc = await graphDb.createDocument(createInput);
-      await storage.saveDocument(documentId, Buffer.from(body.content));
+      await contentManager.save(documentId, Buffer.from(body.content));
 
       // Archive original if requested
       if (body.archiveOriginal) {
@@ -144,12 +147,11 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       cloneTokens.delete(body.token);
 
       // Get annotations
-      const highlights = await graphDb.getHighlights(savedDoc.id);
-      const references = await graphDb.getReferences(savedDoc.id);
+      const result = await graphDb.listAnnotations({ documentId: savedDoc.id });
 
       const response: CreateDocumentFromTokenResponse = {
         document: savedDoc,
-        annotations: [...highlights, ...references],
+        annotations: result.annotations,
       };
 
       return c.json(response, 201);
@@ -164,8 +166,9 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
    */
   router.post('/api/documents/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
+    const basePath = getFilesystemConfig().path;
     const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
+    const contentManager = createContentManager(basePath);
 
     const sourceDoc = await graphDb.getDocument(id);
     if (!sourceDoc) {
@@ -174,7 +177,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
 
     // Check if content exists
     try {
-      await storage.getDocument(id);
+      await contentManager.get(id);
     } catch {
       throw new HTTPException(404, { message: 'Document content not found' });
     }

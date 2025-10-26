@@ -8,8 +8,10 @@
  */
 
 import { WidgetType, Decoration, EditorView } from '@codemirror/view';
-import type { Annotation } from '@/components/CodeMirrorRenderer';
-import { isResolvedReference } from '@/lib/api';
+import type { components } from '@semiont/api-client';
+import { isResolvedReference, getBodySource, isBodyResolved } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
 
 /**
  * Reference Resolution Widget
@@ -27,8 +29,10 @@ export class ReferenceResolutionWidget extends WidgetType {
   }
 
   override eq(other: ReferenceResolutionWidget) {
+    const thisSource = getBodySource(this.annotation.body);
+    const otherSource = getBodySource(other.annotation.body);
     return other.annotation.id === this.annotation.id &&
-           other.annotation.body.source === this.annotation.body.source &&
+           otherSource === thisSource &&
            other.targetDocumentName === this.targetDocumentName &&
            other.isGenerating === this.isGenerating;
   }
@@ -160,11 +164,12 @@ export class ReferenceResolutionWidget extends WidgetType {
       });
 
       // Click handler: navigate for resolved, show popup for unresolved
-      if (isResolved && this.annotation.body.source && this.onNavigate) {
+      const bodySource = getBodySource(this.annotation.body);
+      if (isResolved && bodySource && this.onNavigate) {
         indicator.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          this.onNavigate!(this.annotation.body.source!);
+          this.onNavigate!(bodySource);
         });
       } else if (!isResolved && this.onUnresolvedClick) {
         indicator.addEventListener('click', (e) => {

@@ -2,8 +2,8 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { api } from '@/lib/api';
-import { type StoredEvent, isEventRelatedToAnnotation } from '@/lib/api';
+import { documents } from '@/lib/api/documents';
+import { type StoredEvent, isEventRelatedToAnnotation } from '@semiont/api-client';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
@@ -18,13 +18,11 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
 
   // Load events using React Query
   // React Query will automatically refetch when the query is invalidated by the parent
-  const { data: eventsData, isLoading: loading, isError: error } = api.documents.events.useQuery(documentId);
+  const { data: eventsData, isLoading: loading, isError: error } = documents.events.useQuery(documentId);
 
-  // Load annotations to look up text for removed/resolved events
-  const { data: referencesData } = api.documents.references.useQuery(documentId);
-  const { data: highlightsData } = api.documents.highlights.useQuery(documentId);
-  const references = referencesData?.references || [];
-  const highlights = highlightsData?.highlights || [];
+  // Load annotations to look up text for removed/resolved events (single request)
+  const { data: annotationsData } = documents.annotations.useQuery(documentId);
+  const annotations = annotationsData?.annotations || [];
 
   // Refs to track event elements for scrolling
   const eventRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -100,8 +98,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
             <HistoryEvent
               key={stored.event.id}
               event={stored}
-              references={references}
-              highlights={highlights}
+              annotations={annotations}
               allEvents={events}
               isRelated={isRelated}
               t={t}

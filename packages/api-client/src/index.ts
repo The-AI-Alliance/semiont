@@ -1,15 +1,16 @@
 /**
  * @semiont/api-client
  *
- * Generated API client for Semiont backend
+ * Complete SDK for Semiont - types, client, and utilities
  *
  * This package provides:
  * - TypeScript types generated from the OpenAPI specification
- * - A common SemiontApiClient class for making API requests
+ * - A SemiontApiClient class for making API requests
+ * - Utilities for working with annotations, events, and text
  *
  * Example:
  * ```typescript
- * import { SemiontApiClient } from '@semiont/api-client';
+ * import { SemiontApiClient, isReference, getExactText } from '@semiont/api-client';
  *
  * const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
  * await client.authenticateLocal('user@example.com', '123456');
@@ -20,8 +21,17 @@
  *   format: 'text/plain',
  *   entityTypes: ['example']
  * });
+ *
+ * // Use utilities
+ * if (isReference(annotation)) {
+ *   const text = getExactText(annotation.target.selector);
+ * }
  * ```
  */
 
+// Generated OpenAPI types and client
 export * from './types';
 export * from './client';
+
+// Handwritten utilities
+export * from './utils';
