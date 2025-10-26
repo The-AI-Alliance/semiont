@@ -33,18 +33,17 @@ graph TB
         BE[Backend API]
     end
 
-    subgraph "Data Layer - 4 Layers"
+    subgraph "Data Layer"
         L1[Layer 1: Content Store]
         L2[Layer 2: Event Store]
         L3[Layer 3: Projections]
         L4[Layer 4: Graph]
+        DB[(Database)]
+        SEC[Secrets]
     end
 
-    subgraph "Infrastructure"
-        DB[(Database)]
-        FS[Filesystem]
+    subgraph "Compute"
         INF[Inference]
-        SEC[Secrets]
     end
 
     %% Client connections
@@ -59,6 +58,7 @@ graph TB
     BE -->|Write Content| L1
     BE -->|Append Events| L2
     BE -->|Auth/Users| DB
+    BE -.->|Future| SEC
 
     %% Event-driven flow
     L2 -.->|Project| L3
@@ -69,20 +69,19 @@ graph TB
     BE -->|Query State| L3
     BE -->|Graph Queries| L4
 
-    %% External services
+    %% Compute services
     BE -->|Generate/Detect| INF
-    BE -.->|Future| SEC
 
     %% Styling - darker fills ensure text contrast in both light and dark modes
     classDef client fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef app fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
     classDef data fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
-    classDef infra fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
+    classDef compute fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class USER,AI,MCP client
     class FE,BE app
-    class L1,L2,L3,L4 data
-    class DB,FS,INF,SEC infra
+    class L1,L2,L3,L4,DB,SEC data
+    class INF compute
 ```
 
 **Component Details**:
@@ -95,9 +94,8 @@ graph TB
 - **Layer 3 (Projections)**: Materialized views in PostgreSQL + JSON files
 - **Layer 4 (Graph)**: Neo4j/Neptune for relationship queries
 - **Database**: PostgreSQL for users and authentication
-- **Filesystem**: S3/EFS for uploads and assets
-- **Inference**: LLM APIs (Anthropic Claude, OpenAI)
 - **Secrets**: Planned credential management integration
+- **Inference**: External LLM APIs (Anthropic Claude, OpenAI)
 
 **Key Flows**:
 
