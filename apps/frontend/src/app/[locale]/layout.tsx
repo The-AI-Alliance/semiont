@@ -32,11 +32,14 @@ export function generateStaticParams() {
 
 export default async function LocaleLayout({
   children,
-  params: { locale }
+  params
 }: Readonly<{
   children: React.ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }>) {
+  // Await params before accessing properties
+  const { locale } = await params;
+
   // Validate locale
   if (!routing.locales.includes(locale as any)) {
     notFound();
