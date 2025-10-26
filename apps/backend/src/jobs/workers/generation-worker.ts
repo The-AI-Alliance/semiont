@@ -2,21 +2,24 @@
  * Generation Worker
  *
  * Processes generation jobs: runs AI inference to generate new documents
- * and emits document.created and reference.resolved events.
+ * and emits document.created and annotation.body.updated events.
  *
  * This worker is INDEPENDENT of HTTP clients - it just processes jobs and emits events.
  */
 
 import { JobWorker } from './job-worker';
 import type { Job, GenerationJob } from '../types';
-import { getStorageService } from '../../storage/filesystem';
+import { createContentManager } from '../../services/storage-service';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
-import { CREATION_METHODS } from '@semiont/core';
-import { calculateChecksum } from '@semiont/core';
-import { getEventStore } from '../../events/event-store';
-import { getExactText, compareAnnotationIds } from '@semiont/core';
+import { getTargetSelector } from '../../lib/annotation-utils';
+import { CREATION_METHODS, calculateChecksum, type BodyOperation } from '@semiont/core';
+import { getExactText, compareAnnotationIds } from '@semiont/api-client';
+import { createEventStore } from '../../services/event-store-service';
+
+import { getEntityTypes } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../config/environment-loader';
 
 export class GenerationWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -38,7 +41,8 @@ export class GenerationWorker extends JobWorker {
   private async processGenerationJob(job: GenerationJob): Promise<void> {
     console.log(`[GenerationWorker] Processing generation for reference ${job.referenceId} (job: ${job.id})`);
 
-    const storage = getStorageService();
+    const basePath = getFilesystemConfig().path;
+    const contentManager = createContentManager(basePath);
 
     // Update progress: fetching
     job.progress = {
@@ -49,15 +53,15 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] 📥 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
-    // Fetch reference from Layer 3
+    // Fetch annotation from Layer 3
     const projection = await AnnotationQueryService.getDocumentAnnotations(job.sourceDocumentId);
     // Compare by ID portion (handle both URI and simple ID formats)
-    const reference = projection.references.find((r: any) =>
-      compareAnnotationIds(r.id, job.referenceId)
+    const annotation = projection.annotations.find((a: any) =>
+      compareAnnotationIds(a.id, job.referenceId) && a.motivation === 'linking'
     );
 
-    if (!reference) {
-      throw new Error(`Reference ${job.referenceId} not found in document ${job.sourceDocumentId}`);
+    if (!annotation) {
+      throw new Error(`Reference annotation ${job.referenceId} not found in document ${job.sourceDocumentId}`);
     }
 
     const sourceDocument = await DocumentQueryService.getDocumentMetadata(job.sourceDocumentId);
@@ -66,7 +70,8 @@ export class GenerationWorker extends JobWorker {
     }
 
     // Determine document name
-    const documentName = job.title || getExactText(reference.target.selector) || 'New Document';
+    const targetSelector = getTargetSelector(annotation.target);
+    const documentName = job.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Document';
     console.log(`[GenerationWorker] Generating document: "${documentName}"`);
 
     // Update progress: generating
@@ -80,11 +85,14 @@ export class GenerationWorker extends JobWorker {
 
     // Generate content using AI
     const prompt = job.prompt || `Create a comprehensive document about "${documentName}"`;
+    // Extract entity types from annotation body
+    const annotationEntityTypes = getEntityTypes({ body: annotation.body });
+
     const generatedContent = await generateDocumentFromTopic(
       documentName,
-      job.entityTypes || reference.body.entityTypes || [],
+      job.entityTypes || annotationEntityTypes,
       prompt,
-      job.locale
+      job.language
     );
 
     console.log(`[GenerationWorker] ✅ Generated ${generatedContent.content.length} bytes of content`);
@@ -111,11 +119,11 @@ export class GenerationWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Save content to Layer 1 (filesystem)
-    await storage.saveDocument(documentId, Buffer.from(generatedContent.content));
+    await contentManager.save(documentId, Buffer.from(generatedContent.content));
     console.log(`[GenerationWorker] ✅ Saved document to filesystem: ${documentId}`);
 
     // Emit document.created event
-    const eventStore = await getEventStore();
+    const eventStore = await createEventStore(basePath);
     await eventStore.appendEvent({
       type: 'document.created',
       documentId,
@@ -124,14 +132,13 @@ export class GenerationWorker extends JobWorker {
       payload: {
         name: documentName,
         format: 'text/markdown',
-        contentHash: checksum,
+        contentChecksum: checksum,
         creationMethod: CREATION_METHODS.GENERATED,
-        entityTypes: job.entityTypes || reference.body.entityTypes || [],
-        metadata: {
-          isDraft: true,
-          generatedFrom: job.referenceId,
-          locale: job.locale,
-        },
+        entityTypes: job.entityTypes || annotationEntityTypes,
+        language: job.language,
+        isDraft: true,
+        generatedFrom: job.referenceId,
+        generationPrompt: undefined,  // Could be added if we track the prompt
       },
     });
     console.log(`[GenerationWorker] Emitted document.created event for ${documentId}`);
@@ -145,18 +152,27 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] 🔗 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
-    // Emit reference.resolved event to link the reference to the new document
+    // Emit annotation.body.updated event to link the annotation to the new document
+    const operations: BodyOperation[] = [{
+      op: 'add',
+      item: {
+        type: 'SpecificResource',
+        source: documentId,
+        purpose: 'linking',
+      },
+    }];
+
     await eventStore.appendEvent({
-      type: 'reference.resolved',
+      type: 'annotation.body.updated',
       documentId: job.sourceDocumentId,
       userId: job.userId,
       version: 1,
       payload: {
-        referenceId: job.referenceId,
-        targetDocumentId: documentId,
+        annotationId: job.referenceId,
+        operations,
       },
     });
-    console.log(`[GenerationWorker] ✅ Emitted reference.resolved event linking ${job.referenceId} → ${documentId}`);
+    console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${job.referenceId} → ${documentId}`);
 
     // Set final result
     job.result = {

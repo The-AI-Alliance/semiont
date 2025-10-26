@@ -1,26 +1,24 @@
-/**
- * Documents API
- */
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
-import type {
-  Document,
-  CreateDocumentRequest,
-  CreateDocumentResponse,
-  UpdateDocumentRequest,
-  GetDocumentResponse,
-  ListDocumentsResponse,
-  ReferencedBy,
-  GetDocumentByTokenResponse,
-  CreateDocumentFromTokenRequest,
-  CreateDocumentFromTokenResponse,
-  CloneDocumentWithTokenResponse,
-  GetHighlightsResponse,
-  GetReferencesResponse,
-} from './types';
+import type { paths } from '@semiont/api-client';
+
+type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : T extends { responses: { 201: { content: { 'application/json': infer R } } } } ? R : never;
+type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
+
+type Document = ResponseContent<paths['/api/documents']['get']>['documents'][number];
+type CreateDocumentRequest = RequestContent<paths['/api/documents']['post']>;
+type CreateDocumentResponse = paths['/api/documents']['post']['responses'][201]['content']['application/json'];
+type UpdateDocumentRequest = RequestContent<paths['/api/documents/{id}']['patch']>;
+type GetDocumentResponse = paths['/api/documents/{id}']['get']['responses'][200]['content']['application/json'];
+type ListDocumentsResponse = ResponseContent<paths['/api/documents']['get']>;
+type ReferencedBy = paths['/api/documents/{id}/referenced-by']['get']['responses'][200]['content']['application/json']['referencedBy'][number];
+type GetDocumentByTokenResponse = paths['/api/documents/token/{token}']['get']['responses'][200]['content']['application/json'];
+type CreateDocumentFromTokenRequest = RequestContent<paths['/api/documents/create-from-token']['post']>;
+type CreateDocumentFromTokenResponse = paths['/api/documents/create-from-token']['post']['responses'][201]['content']['application/json'];
+type CloneDocumentWithTokenResponse = paths['/api/documents/{id}/clone-with-token']['post']['responses'][200]['content']['application/json'];
+type GetAnnotationsResponse = paths['/api/documents/{id}/annotations']['get']['responses'][200]['content']['application/json'];
 
 export const documents = {
   list: {
@@ -178,28 +176,13 @@ export const documents = {
     },
   },
 
-  highlights: {
+  annotations: {
     useQuery: (documentId: string) => {
       const { data: session } = useSession();
       return useQuery({
-        queryKey: QUERY_KEYS.documents.highlights(documentId),
-        queryFn: () => fetchAPI<GetHighlightsResponse>(
-          `/api/documents/${documentId}/highlights`,
-          {},
-          session?.backendToken
-        ),
-        enabled: !!session?.backendToken && !!documentId,
-      });
-    },
-  },
-
-  references: {
-    useQuery: (documentId: string) => {
-      const { data: session } = useSession();
-      return useQuery({
-        queryKey: QUERY_KEYS.documents.references(documentId),
-        queryFn: () => fetchAPI<GetReferencesResponse>(
-          `/api/documents/${documentId}/references`,
+        queryKey: QUERY_KEYS.documents.annotations(documentId),
+        queryFn: () => fetchAPI<GetAnnotationsResponse>(
+          `/api/documents/${documentId}/annotations`,
           {},
           session?.backendToken
         ),

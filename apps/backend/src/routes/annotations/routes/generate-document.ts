@@ -18,9 +18,10 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
-import { compareAnnotationIds } from '@semiont/core';
+import { compareAnnotationIds } from '@semiont/api-client';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/api-client';
 
 type GenerateDocumentRequest = components['schemas']['GenerateDocumentRequest'];
 type CreateJobResponse = components['schemas']['CreateJobResponse'];
@@ -52,8 +53,8 @@ export function registerGenerateDocument(router: AnnotationsRouterType) {
 
       // Validate annotation exists using Layer 3
       const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
-      const annotation = projection.references.find((r: any) =>
-        compareAnnotationIds(r.id, annotationId)
+      const annotation = projection.annotations.find((a: any) =>
+        compareAnnotationIds(a.id, annotationId) && a.motivation === 'linking'
       );
 
       if (!annotation) {
@@ -71,8 +72,8 @@ export function registerGenerateDocument(router: AnnotationsRouterType) {
         sourceDocumentId: body.documentId,
         title: body.title,
         prompt: body.prompt,
-        locale: body.locale,
-        entityTypes: annotation.body.entityTypes,
+        language: body.language,
+        entityTypes: getEntityTypes({ body: annotation.body }),
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3

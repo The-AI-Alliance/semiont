@@ -12,7 +12,7 @@
  * 2. Upload Chunks
  * 3. Create Table of Contents
  * 4. Create Stub References
- * 5. Resolve References
+ * 5. Link References to Documents
  * 6. Show Document History
  * 7. Print Results
  */
@@ -191,20 +191,26 @@ async function createStubReferences(
     printBatchProgress(i + 1, references.length, `Creating annotation for "${ref.text}"...`);
 
     const response = await client.createAnnotation({
+      motivation: 'linking',
       target: {
         source: tocId,
-        selector: {
-          type: 'TextPositionSelector',
-          offset: ref.start,
-          length: ref.end - ref.start,
-          exact: ref.text,
-        },
+        selector: [
+          {
+            type: 'TextPositionSelector',
+            start: ref.start,
+            end: ref.end,
+          },
+          {
+            type: 'TextQuoteSelector',
+            exact: ref.text,
+          },
+        ],
       },
-      body: {
-        type: 'SpecificResource',
-        source: null,
-        entityTypes: ['part-reference'],
-      },
+      body: [{
+        type: 'TextualBody',
+        value: 'part-reference',
+        purpose: 'tagging',
+      }],
     });
 
     // Store the FULL annotation ID (includes URL prefix)
@@ -219,27 +225,40 @@ async function createStubReferences(
   return references;
 }
 
-// === PASS 5: Resolve References ===
-async function resolveReferences(references: PartReference[], client: SemiontApiClient): Promise<number> {
-  printSectionHeader('🎯', 5, 'Resolve References');
+// === PASS 5: Link References to Documents ===
+async function linkReferences(references: PartReference[], client: SemiontApiClient): Promise<number> {
+  printSectionHeader('🎯', 5, 'Link References to Documents');
 
   let successCount = 0;
 
   for (let i = 0; i < references.length; i++) {
     const ref = references[i];
     const shortDocId = ref.documentId.substring(0, 20);
-    printBatchProgress(i + 1, references.length, `Resolving "${ref.text}" → ${shortDocId}...`);
+    printBatchProgress(i + 1, references.length, `Linking "${ref.text}" → ${shortDocId}...`);
 
     try {
-      await client.resolveAnnotation(ref.annotationId!, ref.documentId);
-      printSuccess('Resolved', 7);
+      // Extract just the annotation ID (remove URL prefix if present)
+      const annotationId = ref.annotationId!.split('/').pop() || ref.annotationId!;
+
+      await client.updateAnnotationBody(annotationId, {
+        documentId: references[i].documentId,
+        operations: [{
+          op: 'add',
+          item: {
+            type: 'SpecificResource',
+            source: ref.documentId,
+            purpose: 'linking',
+          },
+        }],
+      });
+      printSuccess('Linked', 7);
       successCount++;
     } catch (error) {
       printWarning(`Failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 7);
     }
   }
 
-  printSuccess(`Resolved ${successCount}/${references.length} references`);
+  printSuccess(`Linked ${successCount}/${references.length} references`);
   return successCount;
 }
 
@@ -293,11 +312,11 @@ async function showDocumentHistory(tocId: string, client: SemiontApiClient): Pro
 }
 
 // === PASS 7: Print Results ===
-function printFinalResults(tocId: string, chunkIds: string[], resolvedCount: number, totalCount: number): void {
+function printFinalResults(tocId: string, chunkIds: string[], linkedCount: number, totalCount: number): void {
   printResults({
     tocId,
     chunkIds,
-    resolvedCount,
+    linkedCount,
     totalCount,
     frontendUrl: FRONTEND_URL,
   });
@@ -317,9 +336,9 @@ async function main() {
     const chunkIds = await uploadChunks(chunks, client);
     const { tocId, references } = await createTableOfContents(chunks, client);
     const referencesWithIds = await createStubReferences(tocId, references, chunkIds, client);
-    const resolvedCount = await resolveReferences(referencesWithIds, client);
+    const linkedCount = await linkReferences(referencesWithIds, client);
     await showDocumentHistory(tocId, client);
-    printFinalResults(tocId, chunkIds, resolvedCount, references.length);
+    printFinalResults(tocId, chunkIds, linkedCount, references.length);
 
     printCompletion();
   } catch (error) {

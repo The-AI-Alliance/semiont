@@ -180,16 +180,10 @@ export class SemiontApiClient {
     return this.http.get(`api/documents/${id}/events`).json();
   }
 
-  async getDocumentHighlights(
+  async getDocumentAnnotations(
     id: string
-  ): Promise<ResponseContent<paths['/api/documents/{id}/highlights']['get']>> {
-    return this.http.get(`api/documents/${id}/highlights`).json();
-  }
-
-  async getDocumentReferences(
-    id: string
-  ): Promise<ResponseContent<paths['/api/documents/{id}/references']['get']>> {
-    return this.http.get(`api/documents/${id}/references`).json();
+  ): Promise<ResponseContent<paths['/api/documents/{id}/annotations']['get']>> {
+    return this.http.get(`api/documents/${id}/annotations`).json();
   }
 
   async getDocumentReferencedBy(id: string): Promise<{ referencedBy: any[] }> {
@@ -227,12 +221,12 @@ export class SemiontApiClient {
     });
   }
 
-  async resolveAnnotation(
+  async updateAnnotationBody(
     id: string,
-    targetDocumentId: string
-  ): Promise<ResponseContent<paths['/api/annotations/{id}/resolve']['put']>> {
-    return this.http.put(`api/annotations/${id}/resolve`, {
-      json: { targetDocumentId },
+    data: RequestContent<paths['/api/annotations/{id}/body']['put']>
+  ): Promise<ResponseContent<paths['/api/annotations/{id}/body']['put']>> {
+    return this.http.put(`api/annotations/${id}/body`, {
+      json: data,
     }).json();
   }
 
