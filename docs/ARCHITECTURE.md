@@ -44,6 +44,7 @@ graph TB
 
     subgraph "Compute"
         INF[Inference]
+        JW[Job Worker]
     end
 
     %% Client connections
@@ -71,6 +72,9 @@ graph TB
 
     %% Compute services
     BE -->|Generate/Detect| INF
+    BE -->|Queue Jobs| JW
+    JW -->|Emit Events| L2
+    JW -->|Use AI| INF
 
     %% Styling - darker fills ensure text contrast in both light and dark modes
     classDef client fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
@@ -81,7 +85,7 @@ graph TB
     class USER,AI,MCP client
     class FE,BE app
     class L1,L2,L3,L4,DB,SEC data
-    class INF compute
+    class INF,JW compute
 ```
 
 **Component Details**:
@@ -96,11 +100,13 @@ graph TB
 - **Database**: PostgreSQL for users and authentication
 - **Secrets**: Planned credential management integration
 - **Inference**: External LLM APIs (Anthropic Claude, OpenAI)
+- **Job Worker**: Background job processing (prototype, embedded in backend)
 
 **Key Flows**:
 
 - **Write Path**: User → Frontend → Backend → Content Store (L1) + Event Store (L2) → Projections (L3) → Graph (L4)
 - **Read Path**: User → Frontend → Backend → Projections (L3) or Graph (L4) → Response
+- **Job Processing**: User → Frontend → Backend → Job Worker → Inference → Event Store (L2)
 - **Event Sourcing**: All writes create immutable events (L2), projections (L3) rebuilt from events
 - **Graph Sync**: Graph database (L4) updated automatically via event subscriptions
 
