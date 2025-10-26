@@ -142,6 +142,7 @@ Some operations run asynchronously via background job workers:
 - **[Annotation Rendering](./docs/ANNOTATION-RENDERING-PRINCIPLES.md)** - Annotation rendering principles
 - **[Adding Languages](./docs/ADDING-LANGUAGE.md)** - Internationalization
 - **[Archive & Clone](./docs/ARCHIVE-CLONE.md)** - Document archiving and cloning
+- **[Future Implementations](./docs/FUTURE.md)** - Mobile apps, browser extensions, desktop apps, integrations
 
 ## Common Commands
 
