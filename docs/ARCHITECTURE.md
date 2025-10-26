@@ -106,7 +106,7 @@ graph TB
 
 ## Application Services
 
-Semiont consists of two primary application services plus supporting infrastructure.
+The application layer consists of server-side services that handle user requests and coordinate data operations.
 
 ### Frontend - Next.js Web Application
 
@@ -186,6 +186,8 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Why This Matters**: Storing content separately from metadata allows independent scaling. A 1GB PDF doesn't bloat your database. Content can live on cheap object storage while metadata stays in PostgreSQL.
 
+**Filesystem Backend**: Content Store uses the [Filesystem](./services/FILESYSTEM.md) service for physical storage (local filesystem, AWS S3, AWS EFS).
+
 **Documentation**: [CONTENT-STORE.md](./services/CONTENT-STORE.md)
 
 ### Layer 2: Event Store
@@ -255,10 +257,6 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Documentation**: [GRAPH.md](./services/GRAPH.md)
 
-## Infrastructure Services
-
-These services support the application layer but aren't directly visible to end users.
-
 ### Database - PostgreSQL
 
 **Purpose**: User accounts, API keys, projection metadata
@@ -282,26 +280,17 @@ These services support the application layer but aren't directly visible to end 
 
 **Documentation**: [DATABASE.md](./services/DATABASE.md)
 
-### Filesystem - File Storage
+### Secrets - Credential Management
 
-**Purpose**: User uploads, document attachments, temporary files
+**Purpose**: Future integration with secrets managers
 
-**Technology**: Local filesystem (dev), AWS S3/EFS (production)
+**Status**: Planned (Q1-Q4 2026)
 
-**Storage**:
+**Planned Providers**: AWS Secrets Manager, HashiCorp Vault, Azure Key Vault
 
-- User profile images
-- Uploaded PDF/image attachments
-- Temporary processing files
-- Generated document exports
+**Documentation**: [SECRETS.md](./services/SECRETS.md)
 
-**Key Characteristics**:
-
-- Separate from Layer 1 content store
-- Configurable backend (local, S3, EFS)
-- Multipart upload support
-
-**Documentation**: [FILESYSTEM.md](./services/FILESYSTEM.md)
+## Compute Services
 
 ### Inference - AI/ML Service
 
@@ -323,16 +312,6 @@ These services support the application layer but aren't directly visible to end 
 - Streaming support for long-running operations
 
 **Documentation**: [INFERENCE.md](./services/INFERENCE.md)
-
-### Secrets - Credential Management
-
-**Purpose**: Future integration with secrets managers
-
-**Status**: Planned (Q1-Q4 2026)
-
-**Planned Providers**: AWS Secrets Manager, HashiCorp Vault, Azure Key Vault
-
-**Documentation**: [SECRETS.md](./services/SECRETS.md)
 
 ## Platform Abstraction
 
