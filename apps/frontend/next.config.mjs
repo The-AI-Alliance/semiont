@@ -118,12 +118,8 @@ const baseConfig = {
   reactStrictMode: true,
 
   // Performance optimizations
-  swcMinify: true,
   compress: true,
   poweredByHeader: false,
-
-  // Optimize fonts
-  optimizeFonts: true,
 
   // Externalize packages to prevent webpack bundling issues
   // This is critical for packages using Zod v4 which has known bundling issues
