@@ -439,7 +439,7 @@ Annotations are styled using CSS classes from `/src/lib/annotation-styles.ts`:
 ## Testing
 
 The rendering system is tested through:
-1. Property-based tests verifying axioms (see SELECTIONS.md)
+1. Property-based tests verifying axioms (see [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md))
 2. Integration tests with real markdown documents
 3. Visual regression tests for annotation styling
 4. Performance benchmarks for large documents
@@ -453,10 +453,11 @@ The rendering system is tested through:
 
 ## Related Documentation
 
-- [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering implementation
-- [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
+- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
-- [SELECTIONS.md](./SELECTIONS.md) - Annotation data model and API
+- [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
+- [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering implementation
+- [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall frontend architecture
 - [ADDING-LANGUAGE.md](./ADDING-LANGUAGE.md) - How to add new content types
 - [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization strategies
