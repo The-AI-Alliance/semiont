@@ -112,3 +112,9 @@ The `__tests__/setup-env.ts` file:
 - Cleans up after all tests complete
 
 This setup is only used for integration tests, allowing unit tests to run in complete isolation.
+
+## Related Documentation
+
+- [Testing Guide](../../docs/TESTING.md) - Comprehensive testing documentation for all services
+- [Backend Testing](../backend/README.md#testing) - Backend API testing
+- [Frontend Testing](../frontend/README.md#testing) - Frontend component and integration testing

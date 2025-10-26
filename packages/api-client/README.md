@@ -1,8 +1,14 @@
 # @semiont/api-client
 
-**Common API client for Semiont backend**
+**Primary TypeScript SDK for Semiont**
 
-> This package provides a type-safe, framework-agnostic API client that can be used by external consumers (MCP server, demo scripts, frontend).
+> 🎯 **Use this package for all external integrations, demos, MCP servers, and frontend applications.**
+>
+> This package provides a type-safe, spec-first SDK that includes:
+> - **API Client**: HTTP client for all backend endpoints
+> - **TypeScript Types**: Generated from OpenAPI specification ([specs/openapi.json](../../specs/openapi.json))
+> - **W3C Utilities**: Helpers for annotations, selectors, entity types, and locales
+> - **Event Utilities**: Formatting and display helpers for event streams
 
 ## Installation
 
@@ -39,9 +45,12 @@ console.log('Created:', doc.document.id);
 
 ## Features
 
-- ✅ **Type-Safe**: Full TypeScript types from OpenAPI specification
+- ✅ **Spec-First**: Types generated from [OpenAPI specification](../../specs/openapi.json)
+- ✅ **Type-Safe**: Full TypeScript types for all API operations
 - ✅ **Framework-Agnostic**: Works in Node.js, browser, or any JavaScript environment
 - ✅ **Built-in Authentication**: Multiple auth methods (local, Google OAuth, refresh tokens)
+- ✅ **W3C Utilities**: Selector helpers, entity type extraction, locale formatting
+- ✅ **Event Utilities**: Event formatting, display names, relative time
 - ✅ **Automatic Retry**: Configurable retry logic with exponential backoff
 - ✅ **Error Handling**: Structured error responses with `APIError` class
 - ✅ **HTTP Client**: Uses `ky` for reliable HTTP requests
@@ -50,12 +59,15 @@ console.log('Created:', doc.document.id);
 
 - ✅ **MCP Server** (`packages/mcp-server`) - Model Context Protocol integration
 - ✅ **Demo Scripts** (`demo/`) - Example scripts and automation
-- ✅ **Frontend** (`apps/frontend`) - Can wrap with React hooks for UI
+- ✅ **Frontend** (`apps/frontend`) - Web application (can wrap with React hooks)
+- ✅ **External Applications** - Third-party integrations and tools
+- ✅ **CLI Tools** - Command-line utilities consuming the API
 
 ## Who Should NOT Use This
 
-- ❌ **Backend** (`apps/backend`) - Backend is the API, doesn't call itself
-- ❌ **Internal Services** - Use internal SDK or direct database access
+- ❌ **Backend Internal Code** - Use [`@semiont/core`](../core/) for backend domain logic (events, crypto, DID utilities)
+
+**Note**: If you need backend-specific utilities (event sourcing, crypto, type guards), use [`@semiont/core`](../core/). For API consumption and W3C annotation utilities, use this package.
 
 ## API Reference
 
@@ -205,24 +217,26 @@ console.log(`Found ${result.references.length} references`);
 ### Annotation Methods
 
 #### `createAnnotation(data)`
-Create a new annotation (highlight or reference).
+Create a new annotation (highlight or reference). Uses W3C Web Annotation Model with dual selectors.
 
 ```typescript
 const result = await client.createAnnotation({
   target: {
     source: 'doc-sha256:abc123...',
-    selector: {
-      type: 'TextPositionSelector',
-      offset: 0,
-      length: 10,
-      exact: 'Hello World'
-    }
+    selector: [
+      {
+        type: 'TextPositionSelector',
+        start: 0,
+        end: 11
+      },
+      {
+        type: 'TextQuoteSelector',
+        exact: 'Hello World'
+      }
+    ]
   },
-  body: {
-    type: 'TextualBody',
-    value: 'My comment',
-    entityTypes: ['note']
-  }
+  body: [],
+  motivation: 'highlighting'
 });
 
 console.log('Annotation ID:', result.annotation.id);
@@ -252,16 +266,23 @@ Delete an annotation.
 await client.deleteAnnotation('annotation-id', 'doc-sha256:abc123...');
 ```
 
-#### `resolveAnnotation(id: string, targetDocumentId: string)`
-Resolve a stub reference to point to a target document.
+#### `updateAnnotationBody(id: string, data: UpdateAnnotationBodyRequest)`
+Update an annotation's body with fine-grained operations (add, remove, replace body items).
 
 ```typescript
-const result = await client.resolveAnnotation(
-  'annotation-id',
-  'doc-sha256:target...'
-);
+const result = await client.updateAnnotationBody('annotation-id', {
+  documentId: 'doc-sha256:abc123...',
+  operations: [{
+    op: 'add',
+    item: {
+      type: 'SpecificResource',
+      source: 'doc-sha256:target...',
+      purpose: 'linking'
+    }
+  }]
+});
 
-console.log('Resolved to:', result.targetDocument?.id);
+console.log('Updated annotation:', result.annotation.id);
 ```
 
 #### `generateDocumentFromAnnotation(id: string, data)`
@@ -329,6 +350,103 @@ Check backend health status.
 ```typescript
 const result = await client.healthCheck();
 console.log('Status:', result.status);
+```
+
+## Utilities
+
+The SDK includes pure TypeScript utilities for working with Semiont data structures. These have no React dependencies and work in any JavaScript environment.
+
+### Annotation Utilities
+
+```typescript
+import {
+  isReference,
+  isHighlight,
+  getBodySource,
+  getTargetSource,
+  getEntityTypes
+} from '@semiont/api-client';
+
+// Check annotation type
+if (isReference(annotation)) {
+  const source = getBodySource(annotation.body);
+  console.log('References:', source);
+}
+
+if (isHighlight(annotation)) {
+  console.log('This is a highlight');
+}
+
+// Extract entity types from annotation
+const types = getEntityTypes(annotation);
+console.log('Entity types:', types);
+
+// Get target document ID
+const docId = getTargetSource(annotation.target);
+```
+
+### Selector Utilities
+
+```typescript
+import {
+  getExactText,
+  getTextPositionSelector,
+  getTextQuoteSelector
+} from '@semiont/api-client';
+
+// Extract text from W3C selectors
+const text = getExactText(annotation.target.selector);
+console.log('Selected text:', text);
+
+// Get specific selector types
+const position = getTextPositionSelector(annotation.target.selector);
+if (position) {
+  console.log(`Range: ${position.start} - ${position.end}`);
+}
+
+const quote = getTextQuoteSelector(annotation.target.selector);
+if (quote) {
+  console.log('Exact text:', quote.exact);
+}
+```
+
+### Event Utilities
+
+```typescript
+import {
+  formatEventType,
+  getEventEmoji,
+  formatRelativeTime,
+  isDocumentEvent,
+  getAnnotationIdFromEvent
+} from '@semiont/api-client';
+
+// Format events for display
+events.forEach(event => {
+  const emoji = getEventEmoji(event.type);
+  const type = formatEventType(event.type);
+  const time = formatRelativeTime(event.timestamp);
+
+  console.log(`${emoji} ${type} - ${time}`);
+
+  if (isDocumentEvent(event.event)) {
+    const annId = getAnnotationIdFromEvent(event.event);
+    console.log('  Annotation:', annId);
+  }
+});
+```
+
+### Locale Utilities
+
+```typescript
+import { LOCALES, formatLocaleDisplay } from '@semiont/api-client';
+
+// List all supported locales
+console.log('Available locales:', LOCALES.length);
+
+// Format locale for display
+const display = formatLocaleDisplay('en');
+console.log(display); // "English"
 ```
 
 ## Error Handling

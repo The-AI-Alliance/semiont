@@ -10,22 +10,22 @@
  *   npm run rebuild-projections <documentId> # Rebuild specific document
  */
 
-import { getEventStore } from '../events/event-store';
+import { createEventStore, createEventQuery, createEventValidator } from '../services/event-store-service';
 import { getFilesystemConfig } from '../config/environment-loader';
 
 async function rebuildProjections(documentId?: string) {
   console.log('🔄 Rebuilding annotation projections from events...\n');
 
   const config = getFilesystemConfig();
-  const eventStore = await getEventStore({
-    dataDir: config.path,
-  });
+  const eventStore = await createEventStore(config.path);
+  const query = createEventQuery(eventStore);
+  const validator = createEventValidator();
 
   if (documentId) {
     // Rebuild single document
     console.log(`📄 Rebuilding projection for document: ${documentId}`);
 
-    const events = await eventStore.getDocumentEvents(documentId);
+    const events = await query.getDocumentEvents(documentId);
     if (events.length === 0) {
       console.error(`❌ No events found for document: ${documentId}`);
       process.exit(1);
@@ -34,7 +34,7 @@ async function rebuildProjections(documentId?: string) {
     console.log(`   Found ${events.length} events`);
 
     // Validate event chain
-    const validation = await eventStore.validateEventChain(documentId);
+    const validation = validator.validateEventChain(events);
     if (!validation.valid) {
       console.error(`❌ Event chain validation failed:`);
       validation.errors.forEach(err => console.error(`   - ${err}`));
@@ -43,7 +43,7 @@ async function rebuildProjections(documentId?: string) {
     console.log(`   ✅ Event chain valid`);
 
     // Rebuild projection
-    const stored = await eventStore.projectDocument(documentId);
+    const stored = await eventStore.projector.projectDocument(events, documentId);
     if (!stored) {
       console.error(`❌ Failed to build projection`);
       process.exit(1);
@@ -51,8 +51,7 @@ async function rebuildProjections(documentId?: string) {
 
     console.log(`   ✅ Projection rebuilt:`);
     console.log(`      - Name: ${stored.document.name}`);
-    console.log(`      - Highlights: ${stored.annotations.highlights.length}`);
-    console.log(`      - References: ${stored.annotations.references.length}`);
+    console.log(`      - Annotations: ${stored.annotations.annotations.length}`);
     console.log(`      - Entity Types: ${stored.document.entityTypes.join(', ') || 'none'}`);
     console.log(`      - Version: ${stored.annotations.version}`);
     console.log(`      - Archived: ${stored.document.archived}`);
@@ -66,7 +65,7 @@ async function rebuildProjections(documentId?: string) {
     // For now, show usage message
     console.log(`   To rebuild all projections, you need to:`);
     console.log(`   1. Scan all event shards in ${config.path}/events/shards/`);
-    console.log(`   2. For each document found, call eventStore.projectDocument(documentId)`);
+    console.log(`   2. For each document found, call eventStore.projector.projectDocument(documentId)`);
     console.log(`   3. Projections are automatically saved to Layer 3\n`);
     console.log(`   For now, rebuild individual documents by ID.`);
   }
