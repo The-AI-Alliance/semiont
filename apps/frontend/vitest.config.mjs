@@ -14,6 +14,15 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.js'],
     // Don't fail on uncaught exceptions from intentional error tests
     dangerouslyIgnoreUnhandledErrors: true,
+    // Pool configuration to reduce memory usage
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        singleThread: false,
+        maxThreads: 2,
+        minThreads: 1
+      }
+    },
     // Configure reporters (replaces deprecated 'basic' reporter)
     reporters: [
       ['default', { summary: false }]

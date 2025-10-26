@@ -1,11 +1,17 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { CookiePreferences } from '@/components/CookiePreferences';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 
 export function Footer() {
   const [showCookiePreferences, setShowCookiePreferences] = useState(false);
+  const t = useTranslations('Footer');
+
+  // Get keyboard shortcuts context if available (may not be available in all contexts)
+  const keyboardContext = useContext(KeyboardShortcutsContext);
 
   return (
     <>
@@ -13,49 +19,60 @@ export function Footer() {
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
             <div className="text-sm text-gray-500">
-              © {new Date().getFullYear()} Semiont. All rights reserved.
+              {t('copyright', { year: new Date().getFullYear() })}
             </div>
-            
+
             <div className="flex space-x-6 text-sm">
-              <Link 
-                href="/about" 
+              <Link
+                href="/about"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
-                About
+                {t('about')}
               </Link>
-              <Link 
-                href="/privacy" 
+              <Link
+                href="/privacy"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
-                Privacy Policy
+                {t('privacyPolicy')}
               </Link>
               <button
                 onClick={() => setShowCookiePreferences(true)}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
-                Cookie Preferences
+                {t('cookiePreferences')}
               </button>
-              <Link 
-                href="/terms" 
+              {keyboardContext && (
+                <button
+                  onClick={() => keyboardContext.openKeyboardHelp()}
+                  className="text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-1"
+                >
+                  {t('keyboardShortcuts')}
+                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded">
+                    ?
+                  </kbd>
+                </button>
+              )}
+              <Link
+                href="/terms"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
-                Terms of Service
+                {t('termsOfService')}
               </Link>
-              <a 
+              <a
                 href="/api/docs"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
-                API Docs
+                {t('apiDocs')}
               </a>
-              <a 
+              <a
                 href="https://github.com/The-AI-Alliance/semiont"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
-                Source Code
+                {t('sourceCode')}
               </a>
             </div>
           </div>

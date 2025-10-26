@@ -5,15 +5,32 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
-interface GraphServiceConfig {
-  type: 'janusgraph' | 'neptune' | 'neo4j' | 'memory';  // Required field
-  port?: number;
-  host?: string;
-  storage?: 'cassandra' | 'berkeleydb';
-  index?: 'elasticsearch' | 'none';
-  [key: string]: any;
-}
+type GraphServiceConfig =
+  | {
+      type: 'janusgraph';
+      host?: string;
+      port?: number;
+      storage?: 'cassandra' | 'berkeleydb';
+      index?: 'elasticsearch' | 'none';
+    }
+  | {
+      type: 'neptune';
+      endpoint?: string;
+      port?: number;
+      region?: string;
+    }
+  | {
+      type: 'neo4j';
+      uri?: string;
+      username?: string;
+      password?: string;
+      database?: string;
+    }
+  | {
+      type: 'memory';
+    };
 
 interface FilesystemServiceConfig {
   path: string;  // Required field
@@ -55,20 +72,22 @@ export function getProjectRoot(): string {
  */
 export function loadEnvironmentConfig(): EnvironmentConfig | null {
   try {
-    // Get environment name from SEMIONT_ENV or NODE_ENV
-    const envName = process.env.SEMIONT_ENV || process.env.NODE_ENV || 'local';
-    
+    // Get environment name from SEMIONT_ENV
+    // Note: SEMIONT_ENV is the deployment environment (production, staging, local, etc.)
+    // This is distinct from NODE_ENV (production, development, test)
+    const envName = process.env.SEMIONT_ENV || 'local';
+
     // Project root is either SEMIONT_ROOT or cwd
     const projectRoot = getProjectRoot();
-    
+
     // Environment file is deterministically at <project_root>/environments/<environment>.json
     const envPath = path.join(projectRoot, 'environments', `${envName}.json`);
-    
+
     if (fs.existsSync(envPath)) {
       const content = fs.readFileSync(envPath, 'utf-8');
       return JSON.parse(content);
     }
-    
+
     // No environment file found
     return null;
   } catch (error) {
@@ -80,52 +99,27 @@ export function loadEnvironmentConfig(): EnvironmentConfig | null {
 /**
  * Get graph database configuration from environment
  */
-export function getGraphConfig(): {
-  type: 'janusgraph' | 'neptune' | 'neo4j' | 'memory';
-  host?: string;
-  port?: number;
-  storage?: string;
-  index?: string;
-} {
+export function getGraphConfig(): GraphServiceConfig {
   // First try to load from environment JSON
   const envConfig = loadEnvironmentConfig();
-  
-  if (envConfig?.services?.graph) {
-    const graphService = envConfig.services.graph;
-    
-    if (!graphService.type) {
-      throw new Error('Graph service configuration must specify a "type" field (janusgraph, neptune, neo4j, or memory)');
-    }
-    
-    const validTypes = ['janusgraph', 'neptune', 'neo4j', 'memory'];
-    if (!validTypes.includes(graphService.type)) {
-      throw new Error(`Invalid graph service type: ${graphService.type}. Must be one of: ${validTypes.join(', ')}`);
-    }
-    
-    const result: {
-      type: 'janusgraph' | 'neptune' | 'neo4j' | 'memory';
-      host?: string;
-      port?: number;
-      storage?: string;
-      index?: string;
-    } = {
-      type: graphService.type,
-      host: graphService.host || 'localhost',
-      port: graphService.port || 8182
-    };
-    
-    if (graphService.storage) {
-      result.storage = graphService.storage;
-    }
-    if (graphService.index) {
-      result.index = graphService.index;
-    }
-    
-    return result;
+
+  if (!envConfig?.services?.graph) {
+    throw new Error('Graph service configuration not found. Please specify graph service settings in your environment configuration.');
   }
 
-  // If no configuration found, error
-  throw new Error('Graph service configuration not found. Please specify graph service settings your environment configuration.');
+  const graphService = envConfig.services.graph as any;
+
+  if (!graphService.type) {
+    throw new Error('Graph service configuration must specify a "type" field (janusgraph, neptune, neo4j, or memory)');
+  }
+
+  const validTypes = ['janusgraph', 'neptune', 'neo4j', 'memory'];
+  if (!validTypes.includes(graphService.type)) {
+    throw new Error(`Invalid graph service type: ${graphService.type}. Must be one of: ${validTypes.join(', ')}`);
+  }
+
+  // Return the config as-is, typed as GraphServiceConfig discriminated union
+  return graphService as GraphServiceConfig;
 }
 
 /**
@@ -134,29 +128,43 @@ export function getGraphConfig(): {
 export function getFilesystemConfig(): {
   path: string;
 } {
+  // Allow tests to override filesystem path via environment variable
+  // This provides explicit control for integration tests
+  if (process.env.SEMIONT_TEST_FS_PATH) {
+    return { path: process.env.SEMIONT_TEST_FS_PATH };
+  }
+
+  // For test environments (SEMIONT_ENV=unit or integration), use a temporary directory
+  // This avoids requiring environment config files for tests
+  const semontEnv = process.env.SEMIONT_ENV;
+  if (semontEnv === 'unit' || semontEnv === 'integration') {
+    const tmpDir = path.join(os.tmpdir(), 'semiont-test-fs', Date.now().toString());
+    return { path: tmpDir };
+  }
+
   // Load from environment JSON
   const envConfig = loadEnvironmentConfig();
-  
+
   if (envConfig?.services?.filesystem) {
     const filesystemService = envConfig.services.filesystem;
-    
+
     if (!filesystemService.path) {
       throw new Error('Filesystem service configuration must specify a "path" field');
     }
-    
+
     let resolvedPath = filesystemService.path;
-    
+
     // If path is relative, prepend project root
     if (!path.isAbsolute(resolvedPath)) {
       const projectRoot = getProjectRoot();
       resolvedPath = path.join(projectRoot, resolvedPath);
     }
-    
+
     return {
       path: resolvedPath
     };
   }
-  
+
   // If no configuration found, error
   throw new Error('Filesystem service configuration not found. Please specify services.filesystem.path in your environment configuration.');
 }

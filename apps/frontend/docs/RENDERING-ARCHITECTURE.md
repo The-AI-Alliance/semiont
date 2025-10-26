@@ -1,94 +1,270 @@
 # Rendering Architecture
 
+> **⚠️ Note:** Code examples in this document use the old `apiService.*` pattern. The current architecture uses React Query hooks (`api.*`). See [ARCHITECTURE.md](./ARCHITECTURE.md) and [AUTHENTICATION.md](./AUTHENTICATION.md) for current patterns.
+
 ## Overview
 
-The Semiont frontend uses a sophisticated rendering pipeline to display documents with annotations (highlights and references). This document explains the architecture and the role of each component.
+The Semiont frontend uses **two different rendering pipelines** to display documents with annotations (highlights and references), depending on the mode:
+
+- **AnnotateView** (curation mode): CodeMirror-based editor with decorations and widgets
+- **BrowseView** (browse mode): ReactMarkdown-based prose renderer
+
+This document explains the architecture and the role of each component.
+
+## Dual Rendering Architecture
+
+We maintain **two separate rendering systems** with different purposes:
+
+### AnnotateView (CodeMirror)
+- **Use case**: Curation mode - creating/editing annotations
+- **Renderer**: CodeMirror 6 editor
+- **Styling**: Monospace font, gradient backgrounds, editor-like appearance
+- **Features**: Inline widgets (🔗, ❓, ✨), hover effects, right-click menus
+- **See**: [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md)
+
+### BrowseView (ReactMarkdown)
+- **Use case**: Browse mode - read-only document viewing
+- **Renderer**: react-markdown with remark/rehype plugins
+- **Styling**: Variable-width font, text colors, document-like appearance
+- **Features**: Simple click-to-navigate, clean reading experience
+- **See**: [REACT-MARKDOWN.md](./REACT-MARKDOWN.md)
 
 ## Component Hierarchy
 
 ```
 Document Page (/know/document/[id]/page.tsx)
-└── AnnotationRenderer
-    ├── CodeMirrorRenderer (for markdown content)
-    │   └── CodeMirror with markdown mode
-    └── Plain Text Renderer (for non-markdown content)
+├── Main Content Area
+│   ├── AnnotateView (curation mode)
+│   │   └── CodeMirrorRenderer
+│   │       └── CodeMirror 6 with markdown mode + decorations + widgets
+│   └── BrowseView (browse mode)
+│       └── ReactMarkdown
+│           └── remark-gfm → remarkAnnotations → rehypeRenderAnnotations
+├── Right Panel (conditionally visible)
+│   ├── Progress Display Area (top)
+│   │   ├── GenerationProgressWidget
+│   │   └── DetectionProgressWidget
+│   ├── History Panel (append-only event log)
+│   │   └── AnnotationHistory component
+│   ├── Stats Panel (document metadata)
+│   │   ├── Document statistics
+│   │   └── Referenced By section
+│   └── Detect Panel (reference detection UI)
+└── Toolbar (far right, vertically aligned icons)
+    ├── Detect References button (🔵)
+    ├── History button (📒)
+    └── Statistics button (ℹ️)
 ```
 
 ## Key Components
 
-### AnnotationRenderer
+### AnnotateView
 
-**Location**: `/src/components/AnnotationRenderer.tsx`
+**Location**: `/src/components/document/AnnotateView.tsx`
 
-**Role**: The orchestrator component that manages document rendering with annotations.
+**Role**: Production component for curation mode, handling document editing and annotation creation.
 
 **Responsibilities**:
-- Determines content type (markdown vs plain text)
+- Renders document content via CodeMirrorRenderer
 - Manages text selection state for creating new annotations
-- Segments text based on annotation positions
-- Routes to appropriate renderer based on content type
-- Provides selection UI (sparkle button) for creating annotations
+- Provides selection UI (sparkle button) for creating highlights/references
+- Handles manual annotation position calculation using CodeMirror's `posAtDOM()` API
+- Manages hover state for Document ↔ History synchronization
 
 **Key Features**:
-- Separates selection UI from annotation rendering (clean separation of concerns)
-- Uses `segmentTextWithAnnotations()` to split text into annotated and non-annotated segments
-- Handles both left-click (navigation) and right-click (edit) on annotations
+- Uses CodeMirrorRenderer for efficient incremental updates
+- Accurate position calculation via CodeMirror's DOM API (not manual text measurement)
+- Sparkle animation for newly created annotations
+- Bi-directional focusing with History panel (hover to pulse and scroll)
 
-### CodeMirrorRenderer (Primary Renderer)
+### BrowseView
+
+**Location**: `/src/components/document/BrowseView.tsx`
+
+**Role**: Production component for browse mode (read-only document viewing).
+
+**Renderer**: ReactMarkdown with remark/rehype plugins (NOT CodeMirror)
+
+**Responsibilities**:
+- Renders markdown content with prose styling (variable-width font)
+- Displays annotations as colored text:
+  - Highlights: Yellow background
+  - Resolved references: Blue text
+  - Stub references: Red text
+- Handles annotation clicks for navigation
+- Provides clean, document-like reading experience
+
+**See**: [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for detailed implementation
+
+### CodeMirrorRenderer (AnnotateView Renderer)
 
 **Location**: `/src/components/CodeMirrorRenderer.tsx`
 
-**Role**: Renders markdown content with annotations using CodeMirror editor in read-only mode.
+**Role**: Core rendering component for **AnnotateView only** that displays markdown content with annotations using CodeMirror 6.
+
+**Note**: BrowseView does NOT use this component - it uses ReactMarkdown instead.
 
 **Why CodeMirror**:
 - **Perfect position mapping**: Source positions ARE display positions
 - **No transformation needed**: Annotations work directly with source text
+- **Incremental decoration updates**: StateField system updates decorations without recreating view
 - **Built-in decoration system**: Efficiently highlights text without DOM manipulation
-- **Reliable and performant**: Handles large documents well
+- **Reliable and performant**: Handles large documents well (~10x faster than previous approach)
+
+**Props**:
+- `content: string` - Document source text
+- `segments: TextSegment[]` - Pre-computed annotation segments
+- `onAnnotationClick?: (annotation) => void` - Left-click handler
+- `onAnnotationRightClick?: (annotation, x, y) => void` - Right-click handler
+- `onAnnotationHover?: (annotationId | null) => void` - Hover handler for bi-directional focusing
+- `onTextSelect?: (text, position) => void` - Text selection handler
+- `hoveredAnnotationId?: string | null` - Annotation to pulse and scroll to
+- `scrollToAnnotationId?: string | null` - Annotation to scroll to without pulse
+- `newAnnotationIds?: Set<string>` - Recently created annotations for sparkle animation
+- `sourceView?: boolean` - If true, shows line numbers and raw source
+- `editable?: boolean` - If true, allows editing (default: false)
 
 **How it works**:
-1. Creates a CodeMirror instance with markdown syntax highlighting
-2. Applies decoration marks at source positions for annotations
-3. Handles click and right-click events on annotations
-4. Configured as read-only for viewing
+1. Creates a CodeMirror instance once on mount (persists for component lifetime)
+2. Uses StateField + Effects for incremental decoration updates (no view recreation)
+3. Applies decoration marks at source positions for annotations
+4. Handles click, right-click, and mousemove events on annotations
+5. Scrolls and pulses annotations on hover from History panel
 
-**Current Display**:
-- Shows markdown syntax with highlighting (e.g., `# Title`, `**bold**`)
-- Not ideal for reading but ensures accurate annotation positioning
-- Custom extension available for preview-like formatting
+**Display Modes**:
+- **Default**: Markdown syntax with highlighting (e.g., `# Title`, `**bold**`)
+- **Source View**: Raw source with line numbers (enabled via `sourceView` prop)
 
-### Custom Markdown Preview Extension
+**Incremental Updates**:
+- View created once, decorations updated via transactions
+- ~10x performance improvement vs recreation approach
+- No flicker or scroll position loss
+- Lower memory usage
 
-**Location**: `/src/lib/codemirror-markdown-preview.ts`
-
-**Role**: Custom CodeMirror 6 extension to format markdown for reading while maintaining positions.
-
-**Features**:
-- Hides markdown syntax characters using decorations
-- Applies CSS styling (larger headers, bold/italic text)
-- Can replace elements with widgets (e.g., bullets for lists)
-- Maintains perfect position mapping
-
-**Implementation Approaches**:
-1. **Decoration-based**: Hide syntax, apply CSS classes
-2. **Widget-based**: Replace ranges with custom HTML elements
 3. **Hybrid**: Combine both for optimal results
 
-### MarkdownWithAnnotations (Deprecated)
+## Progress Display System
 
-**Status**: Previously used but removed due to position mapping complexity
+The document page features a progress display area at the top of the right sidebar for showing real-time progress of long-running operations.
 
-**Why it was removed**:
+### Architecture
+
+**Location**: Top of right sidebar in `/app/know/document/[id]/page.tsx`
+
+**Components**:
+- `GenerationProgressWidget`: Shows document generation progress
+- `DetectionProgressWidget`: Shows entity detection progress
+
+### How It Works
+
+1. **Initiation**: User triggers an operation (e.g., "Generate Document" from AnnotationPopup)
+2. **SSE Connection**: Hook establishes Server-Sent Events connection to backend
+3. **Progress Updates**: Backend sends real-time updates via SSE
+4. **Widget Display**: Progress widget appears in right sidebar
+5. **Completion**: Widget shows success/error and auto-dismisses (or allows manual dismiss)
+
+### GenerationProgressWidget
+
+**Location**: `/src/components/GenerationProgressWidget.tsx`
+**Hook**: `/src/hooks/useGenerationProgress.ts`
+
+**Features**:
+- Real-time progress bar with percentage
+- Status messages for each generation phase
+- Sparkle animation during generation
+- Auto-dismiss after 5 seconds on success
+- Manual dismiss button for errors
+- Link to view generated document
+
+**SSE Events**:
+```typescript
+{
+  status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error',
+  referenceId: string,
+  documentName?: string,
+  documentId?: string,  // Available when complete
+  percentage: number,
+  message?: string
+}
+```
+
+### DetectionProgressWidget
+
+**Location**: `/src/components/DetectionProgressWidget.tsx`
+**Hook**: `/src/hooks/useDetectionProgress.ts`
+
+**Features**:
+- Shows entity type being detected
+- Real-time counter of detections found
+- Progress indication
+- Error handling
+
+### Design Decisions
+
+**Why Right Sidebar Top?**
+- Prominent but non-blocking location
+- Doesn't interfere with document reading/editing
+- Consistent location for all progress indicators
+- Easy to dismiss or ignore
+
+**Why SSE Instead of WebSockets?**
+- Simpler unidirectional flow (server → client)
+- Built-in reconnection
+- Lower overhead for progress updates
+- No need for bidirectional communication
+
+**Auto-dismiss Behavior**:
+- Success: Auto-dismiss after 5 seconds (user can see completion)
+- Error: Requires manual dismiss (user must acknowledge error)
+- In-progress: No auto-dismiss (shows until operation completes)
+
+### Integration with AnnotationPopup
+
+When user clicks "Generate Document" in AnnotationPopup:
+1. Popup calls `onGenerateDocument` callback
+2. Document page starts SSE connection via `useGenerationProgress`
+3. Progress widget appears in sidebar
+4. Popup closes immediately (no waiting)
+5. User can continue working while generation happens
+
+### Styling
+
+Progress widgets use:
+- Blue color scheme (matching reference annotations)
+- Subtle animations (sparkle for generation)
+- Border highlights for visibility
+- Responsive design for different viewport sizes
+
+### AnnotationHistory
+
+**Location**: `/src/components/document/AnnotationHistory.tsx`
+
+**Role**: Displays append-only event log for document changes (highlights, references, metadata updates).
+
+**Responsibilities**:
+- Shows chronological event stream from SSE
+- Scrolls to and pulses events when annotations are hovered in document
+- Provides hover handlers to trigger document pulsing and scrolling
+- Groups events by type with visual indicators (emojis)
+
+**Key Features**:
+- Bi-directional focusing with document (History ↔ Document)
+- Real-time updates via SSE
+- Event-specific styling and icons
+- Scroll synchronization with document annotations
+
+### Deleted Components
+
+**AnnotationRenderer** (deleted, 403 lines):
+- Previously orchestrated document rendering
+- Replaced by AnnotateView and BrowseView directly using CodeMirrorRenderer
+- Removed to simplify component hierarchy and improve performance
+
+**MarkdownWithAnnotations** (deprecated and removed):
 - Position mapping between source markdown and rendered HTML was unreliable
 - Required hacky DOM walking after ReactMarkdown rendered
 - 100ms delay needed for rendering
-- Complex and error-prone
-
-**What it did**:
-1. Used ReactMarkdown to convert markdown to HTML
-2. Walked DOM tree to rebuild position map
-3. Applied annotations by wrapping text in spans
-4. Handled the source→rendered position transformation
+- Replaced by CodeMirrorRenderer's direct source rendering
 
 ## Position Mapping Challenge
 
@@ -131,7 +307,7 @@ This approach trades visual polish for accuracy and reliability.
 
 ### Future Improvements
 
-The custom markdown preview extension (`codemirror-markdown-preview.ts`) provides a path to better visual formatting while maintaining position accuracy by using CodeMirror's decoration system to hide syntax and style content.
+For users who need better visual formatting during curation, future work could explore custom CodeMirror extensions to hide markdown syntax while maintaining position accuracy. Currently, users can switch to BrowseView for clean prose-style reading.
 
 ## Data Flow
 
@@ -146,26 +322,53 @@ The custom markdown preview extension (`codemirror-markdown-preview.ts`) provide
    ```
 
 3. **Rendering Pipeline**:
+
+   **AnnotateView (Curation Mode)**:
    ```
-   Document content + Selections
-   → AnnotationRenderer
+   Document content + Annotations
    → segmentTextWithAnnotations()
    → CodeMirrorRenderer
-   → CodeMirror with markdown mode
+   → CodeMirror StateField with incremental decoration updates
    → Decorations applied at source positions
-   → Final rendered output (syntax-highlighted markdown)
+   → Final rendered output (syntax-highlighted markdown with widgets)
    ```
 
-4. **User Interaction**:
+   **BrowseView (Browse Mode)**:
    ```
-   User selects text
+   Document content + Annotations
+   → ReactMarkdown
+   → remark-gfm → remarkAnnotations → rehypeRenderAnnotations
+   → Final rendered output (prose-style HTML with colored annotations)
+   ```
+
+4. **User Interaction - Manual Annotation Creation**:
+   ```
+   User selects text in AnnotateView
    → Browser Selection API
-   → Calculate source positions
+   → Calculate source positions using CodeMirror's posAtDOM() API
    → Show selection UI (sparkle)
-   → Create annotation
+   → User clicks to create annotation
    → Save to API
-   → Reload selections
-   → Re-render with new annotation
+   → Invalidate queries
+   → React Query refetches data
+   → CodeMirrorRenderer updates decorations incrementally
+   ```
+
+5. **Bi-directional Document ↔ History Focusing**:
+   ```
+   History → Document:
+   User hovers event in History panel
+   → handleEventHover(annotationId)
+   → setHoveredAnnotationId(annotationId)
+   → CodeMirrorRenderer scrolls to annotation
+   → Pulse animation applied
+
+   Document → History:
+   User hovers annotation in document
+   → mousemove event in CodeMirrorRenderer
+   → onAnnotationHover(annotationId)
+   → AnnotationHistory scrolls to event
+   → Background pulse on event
    ```
 
 ## API Integration
@@ -236,7 +439,7 @@ Annotations are styled using CSS classes from `/src/lib/annotation-styles.ts`:
 ## Testing
 
 The rendering system is tested through:
-1. Property-based tests verifying axioms (see SELECTIONS.md)
+1. Property-based tests verifying axioms (see [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md))
 2. Integration tests with real markdown documents
 3. Visual regression tests for annotation styling
 4. Performance benchmarks for large documents
@@ -250,6 +453,11 @@ The rendering system is tested through:
 
 ## Related Documentation
 
-- [SELECTIONS.md](./SELECTIONS.md) - Selection system axioms and testing
+- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers
+- [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
+- [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
+- [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering implementation
+- [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall frontend architecture
 - [ADDING-LANGUAGE.md](./ADDING-LANGUAGE.md) - How to add new content types
 - [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization strategies

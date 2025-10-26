@@ -5,11 +5,32 @@
  * Focus: command orchestration and result aggregation.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mockPlatformInstance, createServiceDeployments, resetMockState } from './_mock-setup.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { createServiceDeployments, resetMockState } from './_mock-setup';
+import type { UpdateOptions } from '../update.js';
 
 // Import mocks (side effects)
-import './_mock-setup.js';
+import './_mock-setup';
+
+// Helper to create complete UpdateOptions with defaults
+function createUpdateOptions(partial: Partial<UpdateOptions> = {}): UpdateOptions {
+  return {
+    environment: 'test',
+    verbose: false,
+    dryRun: false,
+    quiet: false,
+    output: 'json',
+    forceDiscovery: false,
+    force: false,
+    wait: false,
+    skipTests: false,
+    skipBuild: false,
+    service: undefined,
+    timeout: undefined,
+    gracePeriod: undefined,
+    ...partial
+  };
+}
 
 describe('Uupdate Command', () => {
   beforeEach(() => {
@@ -22,20 +43,15 @@ describe('Uupdate Command', () => {
 
   describe('Basic Functionality', () => {
     it('should execute update command successfully', async () => {
-      const { updateCommand } = await import('../update.js');
-      const update = updateCommand.handler;
+      const { update } = await import('../update.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'process' }
       ]);
 
-      const options = {
-        environment: 'test',
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
+      const options = createUpdateOptions({
+        output: 'json'
+      });
 
       const result = await update(serviceDeployments, options);
 

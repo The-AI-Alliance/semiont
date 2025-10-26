@@ -44,7 +44,7 @@ const UpdateOptionsSchema = BaseOptionsSchema.extend({
   gracePeriod: z.number().optional(),
 });
 
-type UpdateOptions = z.output<typeof UpdateOptionsSchema>;
+export type UpdateOptions = z.output<typeof UpdateOptionsSchema>;
 
 // =====================================================================
 // COMMAND DESCRIPTOR

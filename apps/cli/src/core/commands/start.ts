@@ -23,7 +23,7 @@ const StartOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
 });
 
-type StartOptions = z.output<typeof StartOptionsSchema>;
+export type StartOptions = z.output<typeof StartOptionsSchema>;
 
 // =====================================================================
 // COMMAND DESCRIPTOR

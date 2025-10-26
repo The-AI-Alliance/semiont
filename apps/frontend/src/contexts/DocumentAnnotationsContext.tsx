@@ -1,186 +1,256 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { apiService } from '@/lib/api-client';
-import { 
-  mapBackendToFrontendSelection,
-  type HighlightsApiResponse,
-  type ReferencesApiResponse,
-  type SelectionsApiResponse
-} from '@/lib/api-types';
+import { annotations } from '@/lib/api/annotations';
+import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
+import type { components, paths } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector } from '@semiont/api-client';
 
-export interface Annotation {
-  id: string;
-  documentId: string;
-  selectionData?: {
-    type: string;
-    offset: number;
-    length: number;
-    text: string;
-  };
-  text?: string;
-  referencedDocumentId?: string;
-  entityType?: string;
-  entityTypes?: string[];
-  referenceType?: string;
-  type?: 'highlight' | 'reference';
-  createdAt?: string;
-  updatedAt?: string;
-}
+type Annotation = components['schemas']['Annotation'];
+type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
+type CreateAnnotationRequest = RequestContent<paths['/api/annotations']['post']>;
 
 interface DocumentAnnotationsContextType {
-  highlights: Annotation[];
-  references: Annotation[];
-  isLoading: boolean;
-  error: string | null;
-  
-  // Actions
-  loadAnnotations: (documentId: string) => Promise<void>;
-  addHighlight: (documentId: string, text: string, position: { start: number; end: number }) => Promise<void>;
-  addReference: (documentId: string, text: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
-  deleteAnnotation: (annotationId: string) => Promise<void>;
-  convertHighlightToReference: (highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
-  convertReferenceToHighlight: (referenceId: string) => Promise<void>;
-  refreshAnnotations: () => Promise<void>;
+  // UI state only - data comes from React Query hooks in components
+  newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
+
+  // Mutation actions (still in context for consistency)
+  addHighlight: (documentId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  addReference: (documentId: string, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
+  addAssessment: (documentId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  deleteAnnotation: (annotationId: string, documentId: string) => Promise<void>;
+  convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
+  convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
+
+  // UI actions
+  clearNewAnnotationId: (id: string) => void;
+  triggerSparkleAnimation: (annotationId: string) => void;
 }
 
 const DocumentAnnotationsContext = createContext<DocumentAnnotationsContextType | undefined>(undefined);
 
 export function DocumentAnnotationsProvider({ children }: { children: React.ReactNode }) {
-  const [highlights, setHighlights] = useState<Annotation[]>([]);
-  const [references, setReferences] = useState<Annotation[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null);
+  // UI state only - no data management
+  const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
-  const loadAnnotations = useCallback(async (documentId: string) => {
-    if (!documentId) return;
-    
-    setIsLoading(true);
-    setError(null);
-    setCurrentDocumentId(documentId);
-    
-    try {
-      // Load highlights
-      const highlightsResponse = await apiService.selections.getHighlights(documentId) as unknown as HighlightsApiResponse | SelectionsApiResponse;
-      const highlightData = 'highlights' in highlightsResponse 
-        ? highlightsResponse.highlights 
-        : highlightsResponse.selections;
-      const mappedHighlights = highlightData.map(mapBackendToFrontendSelection);
-      setHighlights(mappedHighlights.map(h => ({ ...h, type: 'highlight' as const })));
-
-      // Load references
-      const referencesResponse = await apiService.selections.getReferences(documentId) as unknown as ReferencesApiResponse | SelectionsApiResponse;
-      const referenceData = 'references' in referencesResponse 
-        ? referencesResponse.references 
-        : referencesResponse.selections;
-      const mappedReferences = referenceData.map(mapBackendToFrontendSelection);
-      setReferences(mappedReferences.map(r => ({ ...r, type: 'reference' as const })));
-    } catch (err) {
-      console.error('Failed to load annotations:', err);
-      setError('Failed to load annotations');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const refreshAnnotations = useCallback(async () => {
-    if (currentDocumentId) {
-      await loadAnnotations(currentDocumentId);
-    }
-  }, [currentDocumentId, loadAnnotations]);
+  // Set up mutation hooks
+  const saveHighlightMutation = annotations.saveAsHighlight.useMutation();
+  const createAnnotationMutation = annotations.create.useMutation();
+  const deleteAnnotationMutation = annotations.delete.useMutation();
 
   const addHighlight = useCallback(async (
-    documentId: string, 
-    text: string, 
+    documentId: string,
+    exact: string,
     position: { start: number; end: number }
-  ) => {
+  ): Promise<string | undefined> => {
     try {
-      await apiService.selections.saveAsHighlight({
+      const result = await saveHighlightMutation.mutateAsync({
         documentId,
-        text,
+        exact,
         position
       });
-      await refreshAnnotations();
+
+      // Track this as a new annotation for sparkle animation
+      let newId: string | undefined;
+      if (result.annotation?.id) {
+        newId = result.annotation.id;
+        setNewAnnotationIds(prev => new Set(prev).add(newId!));
+
+        // Clear the ID after animation completes (6 seconds for 3 iterations)
+        setTimeout(() => {
+          setNewAnnotationIds(prev => {
+            const next = new Set(prev);
+            next.delete(newId!);
+            return next;
+          });
+        }, 6000);
+      }
+
+      // Return the new ID so component can invalidate queries
+      return newId;
     } catch (err) {
       console.error('Failed to create highlight:', err);
       throw err;
     }
-  }, [refreshAnnotations]);
+  }, [saveHighlightMutation]);
 
   const addReference = useCallback(async (
     documentId: string,
-    text: string,
+    exact: string,
     position: { start: number; end: number },
     targetDocId?: string,
     entityType?: string,
     referenceType?: string
-  ) => {
+  ): Promise<string | undefined> => {
     try {
-      // Build the create selection request with all metadata
-      const createData: any = {
-        documentId,
-        text,
-        position
+      // Build CreateAnnotationRequest following W3C Web Annotation format
+      const createData: CreateAnnotationRequest = {
+        motivation: 'linking',
+        target: {
+          source: documentId,
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: position.start,
+              end: position.end,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: exact,
+            },
+          ],
+        },
+        // Build body array with entity tag bodies + linking body (if resolved)
+        body: (() => {
+          const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
+
+          // Add entity tag bodies (TextualBody with purpose: "tagging")
+          if (entityType) {
+            const entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
+            for (const et of entityTypes) {
+              bodyArray.push({
+                type: 'TextualBody' as const,
+                value: et,
+                purpose: 'tagging' as const,
+              });
+            }
+          }
+
+          // Add linking body (SpecificResource) if resolved
+          if (targetDocId) {
+            bodyArray.push({
+              type: 'SpecificResource' as const,
+              source: targetDocId,
+              purpose: 'linking' as const,
+            });
+          }
+
+          return bodyArray;
+        })(),
       };
-      
-      // For references (both stub and resolved)
-      if (targetDocId !== undefined || referenceType || entityType) {
-        // Include resolvedDocumentId key (null for stubs, string for resolved)
-        createData.resolvedDocumentId = targetDocId || null;
-        
-        if (entityType) {
-          // Entity types is an array of strings
-          createData.entityTypes = entityType.split(',').map(t => t.trim()).filter(t => t);
-        }
-        if (referenceType) {
-          // Reference tags is an array, but we have a single reference type
-          createData.referenceTags = [referenceType];
-        }
+
+      // Create the annotation
+      const result = await createAnnotationMutation.mutateAsync(createData);
+
+      // Track this as a new annotation for sparkle animation
+      let newId: string | undefined;
+      if (result.annotation?.id) {
+        newId = result.annotation.id;
+        setNewAnnotationIds(prev => new Set(prev).add(newId!));
+
+        // Clear the ID after animation completes (6 seconds for 3 iterations)
+        setTimeout(() => {
+          setNewAnnotationIds(prev => {
+            const next = new Set(prev);
+            next.delete(newId!);
+            return next;
+          });
+        }, 6000);
       }
-      // If none of the above, it's a highlight (no resolvedDocumentId key)
-      
-      // Create the selection with metadata
-      await apiService.selections.create(createData);
-      
-      await refreshAnnotations();
+
+      // Return the new ID so component can invalidate queries
+      return newId;
     } catch (err) {
       console.error('Failed to create reference:', err);
       throw err;
     }
-  }, [refreshAnnotations]);
+  }, [createAnnotationMutation]);
 
-  const deleteAnnotation = useCallback(async (annotationId: string) => {
+  const addAssessment = useCallback(async (
+    documentId: string,
+    exact: string,
+    position: { start: number; end: number }
+  ): Promise<string | undefined> => {
     try {
-      await apiService.selections.delete(annotationId);
-      await refreshAnnotations();
+      // Build CreateAnnotationRequest following W3C Web Annotation format
+      // Assessment uses motivation: 'assessing'
+      const createData: CreateAnnotationRequest = {
+        motivation: 'assessing',  // W3C motivation for assessments
+        target: {
+          source: documentId,
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: position.start,
+              end: position.end,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: exact,
+            },
+          ],
+        },
+        // Empty body array (assessments don't have bodies yet)
+        body: [],
+      };
+
+      // Create the annotation
+      const result = await createAnnotationMutation.mutateAsync(createData);
+
+      // Track this as a new annotation for sparkle animation
+      let newId: string | undefined;
+      if (result.annotation?.id) {
+        newId = result.annotation.id;
+        setNewAnnotationIds(prev => new Set(prev).add(newId!));
+
+        // Clear the ID after animation completes (6 seconds for 3 iterations)
+        setTimeout(() => {
+          setNewAnnotationIds(prev => {
+            const next = new Set(prev);
+            next.delete(newId!);
+            return next;
+          });
+        }, 6000);
+      }
+
+      // Return the new ID so component can invalidate queries
+      return newId;
+    } catch (err) {
+      console.error('Failed to create assessment:', err);
+      throw err;
+    }
+  }, [createAnnotationMutation]);
+
+  const deleteAnnotation = useCallback(async (annotationId: string, documentId: string) => {
+    try {
+      await deleteAnnotationMutation.mutateAsync({ id: annotationId, documentId });
     } catch (err) {
       console.error('Failed to delete annotation:', err);
       throw err;
     }
-  }, [refreshAnnotations]);
+  }, [deleteAnnotationMutation]);
 
   const convertHighlightToReference = useCallback(async (
+    highlights: Annotation[],
     highlightId: string,
     targetDocId?: string,
     entityType?: string,
     referenceType?: string
   ) => {
-    const highlight = highlights.find(h => h.id === highlightId);
-    if (!highlight || !highlight.selectionData) return;
-    
     try {
-      // Delete the highlight
-      await apiService.selections.delete(highlightId);
-      
-      // Create new reference
+      // Find the highlight
+      const highlight = highlights.find(h => h.id === highlightId);
+      if (!highlight) {
+        throw new Error('Highlight not found');
+      }
+
+      // Delete old highlight (documentId required for Layer 3 lookup)
+      const targetSource = getTargetSource(highlight.target);
+      await deleteAnnotationMutation.mutateAsync({
+        id: highlightId,
+        documentId: targetSource
+      });
+
+      // Create new reference with same position
+      const targetSelector = getTargetSelector(highlight.target);
+      const posSelector = getTextPositionSelector(targetSelector);
+      if (!posSelector) {
+        throw new Error('Cannot convert highlight to reference: TextPositionSelector required');
+      }
       await addReference(
-        highlight.documentId,
-        highlight.selectionData.text,
-        {
-          start: highlight.selectionData.offset,
-          end: highlight.selectionData.offset + highlight.selectionData.length
-        },
+        targetSource,
+        getExactText(targetSelector),
+        { start: posSelector.start, end: posSelector.end },
         targetDocId,
         entityType,
         referenceType
@@ -189,45 +259,75 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       console.error('Failed to convert highlight to reference:', err);
       throw err;
     }
-  }, [highlights, addReference]);
+  }, [addReference, deleteAnnotationMutation]);
 
-  const convertReferenceToHighlight = useCallback(async (referenceId: string) => {
-    const reference = references.find(r => r.id === referenceId);
-    if (!reference || !reference.selectionData) return;
-    
+  const convertReferenceToHighlight = useCallback(async (references: Annotation[], referenceId: string) => {
     try {
-      // Delete the reference
-      await apiService.selections.delete(referenceId);
-      
-      // Create new highlight
+      // Find the reference
+      const reference = references.find(r => r.id === referenceId);
+      if (!reference) {
+        throw new Error('Reference not found');
+      }
+
+      // Delete old reference (documentId required for Layer 3 lookup)
+      const targetSource = getTargetSource(reference.target);
+      await deleteAnnotationMutation.mutateAsync({
+        id: referenceId,
+        documentId: targetSource
+      });
+
+      // Create new highlight with same position
+      const targetSelector = getTargetSelector(reference.target);
+      const posSelector = getTextPositionSelector(targetSelector);
+      if (!posSelector) {
+        throw new Error('Cannot convert reference to highlight: TextPositionSelector required');
+      }
       await addHighlight(
-        reference.documentId,
-        reference.selectionData.text,
-        {
-          start: reference.selectionData.offset,
-          end: reference.selectionData.offset + reference.selectionData.length
-        }
+        targetSource,
+        getExactText(targetSelector),
+        { start: posSelector.start, end: posSelector.end }
       );
     } catch (err) {
       console.error('Failed to convert reference to highlight:', err);
       throw err;
     }
-  }, [references, addHighlight]);
+  }, [addHighlight, deleteAnnotationMutation]);
+
+  const clearNewAnnotationId = useCallback((id: string) => {
+    setNewAnnotationIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const triggerSparkleAnimation = useCallback((annotationId: string) => {
+    setNewAnnotationIds(prev => new Set(prev).add(annotationId));
+
+    // Clear after animation
+    setTimeout(() => {
+      setNewAnnotationIds(prev => {
+        const next = new Set(prev);
+        next.delete(annotationId);
+        return next;
+      });
+    }, 6000);
+  }, []);
 
   return (
-    <DocumentAnnotationsContext.Provider value={{
-      highlights,
-      references,
-      isLoading,
-      error,
-      loadAnnotations,
-      addHighlight,
-      addReference,
-      deleteAnnotation,
-      convertHighlightToReference,
-      convertReferenceToHighlight,
-      refreshAnnotations
-    }}>
+    <DocumentAnnotationsContext.Provider
+      value={{
+        newAnnotationIds,
+        addHighlight,
+        addReference,
+        addAssessment,
+        deleteAnnotation,
+        convertHighlightToReference,
+        convertReferenceToHighlight,
+        clearNewAnnotationId,
+        triggerSparkleAnimation,
+      }}
+    >
       {children}
     </DocumentAnnotationsContext.Provider>
   );
@@ -235,8 +335,8 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
 
 export function useDocumentAnnotations() {
   const context = useContext(DocumentAnnotationsContext);
-  if (context === undefined) {
-    throw new Error('useDocumentAnnotations must be used within a DocumentAnnotationsProvider');
+  if (!context) {
+    throw new Error('useDocumentAnnotations must be used within DocumentAnnotationsProvider');
   }
   return context;
 }

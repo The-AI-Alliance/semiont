@@ -11,11 +11,11 @@ This guide provides commands to view logs, perform health checks, and resolve co
 semiont check
 
 # Check all stack resources
-aws cloudformation describe-stack-resources --stack-name SemiontInfraStack
+aws cloudformation describe-stack-resources --stack-name SemiontDataStack
 aws cloudformation describe-stack-resources --stack-name SemiontAppStack
 
 # Get all stack outputs
-aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs'
+aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs'
 aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs'
 
 # Quick service status check for both services
@@ -53,7 +53,7 @@ aws logs tail $LOG_GROUP --follow
 
 ```bash
 # Get RDS instance identifier
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
+DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
 
 # List available log files
 aws rds describe-db-log-files --db-instance-identifier $DB_IDENTIFIER
@@ -132,7 +132,7 @@ aws ecs describe-task-definition --task-definition semiont-backend
 semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
 
 # RDS instance status
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
+DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
 aws rds describe-db-instances --db-instance-identifier $DB_IDENTIFIER --query 'DBInstances[0].{Status:DBInstanceStatus,Endpoint:Endpoint.Address,Engine:Engine,Version:EngineVersion}'
 
 # Database connection test from backend service
@@ -201,7 +201,7 @@ aws cloudwatch get-metric-statistics --namespace AWS/CloudFront --metric-name Ca
 
 ```bash
 # Get EFS file system ID
-EFS_ID=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`EFSFileSystemId`].OutputValue' --output text)
+EFS_ID=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`EFSFileSystemId`].OutputValue' --output text)
 
 # Check EFS file system status
 aws efs describe-file-systems --file-system-id $EFS_ID
@@ -323,7 +323,7 @@ semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
 semiont exec --service backend 'npx prisma db pull --print'
 
 # Check RDS instance status
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
+DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
 aws rds describe-db-instances --db-instance-identifier $DB_IDENTIFIER --query 'DBInstances[0].{Status:DBInstanceStatus,MultiAZ:MultiAZ,AvailabilityZone:AvailabilityZone}'
 
 # Check database connections metric
@@ -333,7 +333,7 @@ aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DatabaseC
   --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Maximum
 
 # Verify security groups
-DB_SG=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecurityGroupId`].OutputValue' --output text)
+DB_SG=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecurityGroupId`].OutputValue' --output text)
 aws ec2 describe-security-groups --group-ids $DB_SG
 ```
 
@@ -479,7 +479,7 @@ semiont exec --service backend 'df -h | grep efs'
 semiont exec --service backend 'ls -la /mnt/efs'
 
 # Get EFS file system ID and check status
-EFS_ID=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`EFSFileSystemId`].OutputValue' --output text)
+EFS_ID=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`EFSFileSystemId`].OutputValue' --output text)
 aws efs describe-file-systems --file-system-id $EFS_ID
 
 # Check mount targets
@@ -589,7 +589,7 @@ aws ecs update-service --cluster SemiontCluster --service semiont-backend --desi
 
 ```bash
 # Get database identifier
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
+DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
 
 # Create manual database snapshot
 aws rds create-db-snapshot --db-instance-identifier $DB_IDENTIFIER --db-snapshot-identifier emergency-snapshot-$(date +%Y%m%d%H%M%S)
@@ -611,7 +611,7 @@ semiont exec --service backend 'npx prisma db push'
 aws ecs put-account-setting --name containerInsights --value enabled
 
 # Enable RDS Performance Insights
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
+DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
 aws rds modify-db-instance --db-instance-identifier $DB_IDENTIFIER --enable-performance-insights
 
 # Enable execute command for debugging

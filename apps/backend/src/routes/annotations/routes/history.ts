@@ -1,0 +1,90 @@
+/**
+ * Annotation History Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No request body validation needed (GET route with only path params)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
+import { HTTPException } from 'hono/http-exception';
+import type { AnnotationsRouterType } from '../shared';
+import { createEventStore, createEventQuery } from '../../../services/event-store-service';
+import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { getTargetSource } from '../../../lib/annotation-utils';
+import type { components } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../../config/environment-loader';
+
+type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
+
+export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
+  /**
+   * GET /api/documents/:documentId/annotations/:annotationId/history
+   *
+   * Get full event history for a specific annotation (highlight or reference)
+   * Requires authentication
+   * Returns annotation events sorted by sequence number
+   */
+  router.get('/api/documents/:documentId/annotations/:annotationId/history', async (c) => {
+    const { documentId, annotationId } = c.req.param();
+
+    // Verify annotation exists using Layer 3 (not GraphDB)
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId, documentId);
+    if (!annotation) {
+      throw new HTTPException(404, { message: 'Annotation not found' });
+    }
+
+    if (getTargetSource(annotation.target) !== documentId) {
+      throw new HTTPException(404, { message: 'Annotation does not belong to this document' });
+    }
+
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
+    const query = createEventQuery(eventStore);
+
+    // Get all events for this document
+    const allEvents = await query.queryEvents({
+      documentId,
+    });
+
+    // Filter events related to this annotation
+    const annotationEvents = allEvents.filter(stored => {
+      const event = stored.event;
+
+      // Check if event is about this annotation
+      // Highlight events have highlightId, Reference events have referenceId
+      if ('highlightId' in event.payload && event.payload.highlightId === annotationId) return true;
+      if ('referenceId' in event.payload && event.payload.referenceId === annotationId) return true;
+
+      return false;
+    });
+
+    // Format events for API response
+    const events: GetAnnotationHistoryResponse['events'] = annotationEvents.map(stored => ({
+      id: stored.event.id,
+      type: stored.event.type,
+      timestamp: stored.event.timestamp,
+      userId: stored.event.userId,
+      documentId: stored.event.documentId!, // Annotation events always have documentId
+      payload: stored.event.payload,
+      metadata: {
+        sequenceNumber: stored.metadata.sequenceNumber,
+        prevEventHash: stored.metadata.prevEventHash,
+        checksum: stored.metadata.checksum,
+      },
+    }));
+
+    // Sort by sequence number
+    events.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
+
+    const response: GetAnnotationHistoryResponse = {
+      events,
+      total: events.length,
+      annotationId,
+      documentId,
+    };
+
+    return c.json(response);
+  });
+}

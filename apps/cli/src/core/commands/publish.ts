@@ -38,7 +38,7 @@ const PublishOptionsSchema = BaseOptionsSchema.extend({
   noCache: z.boolean().optional().default(false),  // Skip Docker cache
 });
 
-type PublishOptions = z.output<typeof PublishOptionsSchema>;
+export type PublishOptions = z.output<typeof PublishOptionsSchema>;
 
 // =====================================================================
 // COMMAND DESCRIPTOR

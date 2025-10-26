@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "tsc --watch --preserveWatchOutput & node --watch dist/index.js",
-    "build": "prisma generate && npm run typecheck && tsc",
+    "build": "npm run build:app",
+    "build:app": "prisma generate && npm run typecheck && tsc",
+    "build:clean": "npm run clean && prisma generate && npm run typecheck && tsc",
+    "build:fast": "prisma generate && tsc --noEmit false",
     "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo",
     "start": "node dist/index.js",
-    "pretest": "npm run build --workspace=@semiont/api-types",
     "test": "SEMIONT_ENV=unit vitest run",
     "test:watch": "SEMIONT_ENV=unit vitest",
     "test:coverage": "SEMIONT_ENV=unit vitest run --coverage",
@@ -17,6 +20,7 @@
     "test:api": "SEMIONT_ENV=unit vitest run src/__tests__/api/admin-endpoints.test.ts src/__tests__/api/documentation.test.ts src/__tests__/middleware/auth.test.ts",
     "test:security": "SEMIONT_ENV=unit vitest run --reporter=verbose --testNamePattern=security",
     "type-check": "tsc --noEmit",
+    "rebuild-projections": "tsx src/cli/rebuild-projections.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -27,9 +31,10 @@
     "@aws-sdk/client-secrets-manager": "^3.600.0",
     "@hono/node-server": "^1.17.1",
     "@hono/swagger-ui": "^0.5.2",
-    "@hono/zod-openapi": "^1.1.1",
     "@prisma/client": "^6.13.0",
-    "@semiont/api-types": "*",
+    "@semiont/core": "*",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^2.1.1",
     "dotenv": "^16.3.1",
     "google-auth-library": "^9.10.0",
     "gremlin": "^3.7.4",
@@ -37,7 +42,7 @@
     "jsonwebtoken": "^9.0.2",
     "neo4j-driver": "^5.28.2",
     "uuid": "^9.0.1",
-    "zod": "^4.1.9"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.9.0",

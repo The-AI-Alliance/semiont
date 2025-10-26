@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type { Mock, MockedFunction } from 'vitest'
 import React from 'react'
 import { render, screen } from '@testing-library/react'
 import { getServerSession } from 'next-auth'
@@ -7,13 +8,13 @@ import { AdminAuthWrapper } from '../AdminAuthWrapper'
 
 // Mock next-auth
 vi.mock('next-auth')
-const mockGetServerSession = getServerSession as vi.MockedFunction<typeof getServerSession>
+const mockGetServerSession = getServerSession as MockedFunction<typeof getServerSession>
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   notFound: vi.fn()
 }))
-const mockNotFound = notFound as vi.MockedFunction<typeof notFound>
+const mockNotFound = notFound as MockedFunction<typeof notFound>
 
 describe('AdminAuthWrapper', () => {
   beforeEach(() => {
@@ -45,7 +46,7 @@ describe('AdminAuthWrapper', () => {
         isAdmin: false,
         isActive: true,
         lastLogin: null,
-        createdAt: '2024-01-01',
+        created: '2024-01-01',
         updatedAt: '2024-01-01'
       },
       expires: '2024-12-31'
@@ -72,7 +73,7 @@ describe('AdminAuthWrapper', () => {
         isAdmin: true,
         isActive: true,
         lastLogin: null,
-        createdAt: '2024-01-01',
+        created: '2024-01-01',
         updatedAt: '2024-01-01'
       },
       expires: '2024-12-31'

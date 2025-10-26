@@ -2,23 +2,23 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
-import {
-  Document,
-  Selection,
+import { getEntityTypes } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
+import type {
+  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  SelectionFilter,
   CreateDocumentInput,
   UpdateDocumentInput,
-  CreateSelectionInput,
-  ResolveSelectionInput,
-  isHighlight,
-  isReference,
-  isEntityReference,
-} from '../types';
+  CreateAnnotationInternal,
+} from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
+import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
+
+type Document = components['schemas']['Document'];
+type Annotation = components['schemas']['Annotation'];
 
 // Simple in-memory storage using Maps
 // Useful for development and testing
@@ -28,7 +28,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
   
   // In-memory storage using Maps
   private documents: Map<string, Document> = new Map();
-  private selections: Map<string, Selection> = new Map();
+  private annotations: Map<string, Annotation> = new Map();
   
   constructor(config: any = {}) {
     // Config is ignored for in-memory implementation
@@ -52,23 +52,22 @@ export class MemoryGraphDatabase implements GraphDatabase {
   
   async createDocument(input: CreateDocumentInput): Promise<Document> {
     const id = this.generateId();
-    const now = new Date();
-    
+    const now = new Date().toISOString();
+
     const document: Document = {
       id,
       name: input.name,
       entityTypes: input.entityTypes,
-      contentType: input.contentType,
-      metadata: input.metadata,
+      format: input.format,
       archived: false,  // New documents are not archived by default
       creationMethod: input.creationMethod,
       contentChecksum: input.contentChecksum,
-      createdAt: now,
-      createdBy: input.createdBy,
+      created: now,
+      creator: input.creator,
     };
 
     // Provenance tracking fields
-    if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
+    if (input.sourceAnnotationId) document.sourceAnnotationId = input.sourceAnnotationId;
     if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
     
     // Simply add to in-memory map
@@ -79,7 +78,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     //     .property('name', name)
     //     .property('entityTypes', entityTypes)
     //     .property('contentType', contentType)
-    //     .property('createdAt', createdAt)
+    //     .property('created', created)
     //     .property('updatedAt', updatedAt)
     //   graph.tx().commit()
     // `, { id, name, entityTypes, ... });
@@ -120,10 +119,10 @@ export class MemoryGraphDatabase implements GraphDatabase {
     
     this.documents.delete(id);
     
-    // Delete selections
-    for (const [selId, sel] of this.selections) {
-      if (sel.documentId === id || sel.resolvedDocumentId === id) {
-        this.selections.delete(selId);
+    // Delete annotations
+    for (const [selId, sel] of this.annotations) {
+      if (getTargetSource(sel.target) === id || getBodySource(sel.body) === id) {
+        this.annotations.delete(selId);
       }
     }
   }
@@ -166,194 +165,137 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return results;
   }
   
-  async createSelection(input: CreateSelectionInput): Promise<Selection> {
+  async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const id = this.generateId();
-    const now = new Date();
-    
-    const selection: Selection = {
+
+    // Only linking motivation with SpecificResource or empty array (stub)
+    const annotation: Annotation = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id,
-      documentId: input.documentId,
-      selectionType: input.selectionType,
-      selectionData: input.selectionData,
-      provisional: input.provisional || false,
-      createdAt: now,
-      updatedAt: now,
+      motivation: input.motivation,
+      target: input.target,
+      body: input.body,
+      creator: input.creator,
+      created: new Date().toISOString(),
     };
-    
-    if (input.createdBy) {
-      selection.createdBy = input.createdBy;
-    }
-    
-    if ('resolvedDocumentId' in input) {
-      selection.resolvedDocumentId = input.resolvedDocumentId;
-      if (input.resolvedDocumentId) {
-        // Only set resolvedAt if actually resolved to a document
-        selection.resolvedAt = now;
-      }
-      if (input.resolvedBy) selection.resolvedBy = input.resolvedBy;
-    }
-    
-    if (input.referenceTags) selection.referenceTags = input.referenceTags;
-    if (input.entityTypes) selection.entityTypes = input.entityTypes;
-    if (input.confidence !== undefined) selection.confidence = input.confidence;
-    if (input.metadata) selection.metadata = input.metadata;
-    
-    // Simply add to selections map
-    // await this.client.submit(`
-    //   graph.tx().rollback()
-    //   g.V().has('id', documentId).as('from')
-    //     .V().has('id', resolvedDocumentId).as('to')
-    //     .addE('REFERENCES').from('from').to('to')
-    //     .property('id', id)
-    //     .property('selectionType', selectionType)
-    //     .property('saved', saved)
-    //     .property('provisional', provisional)
-    //     .property('confidence', confidence)
-    //   graph.tx().commit()
-    // `, { documentId, resolvedDocumentId, ... });
-    
-    this.selections.set(id, selection);
-    console.log('Memory: Created selection:', { 
-      id, 
-      hasResolvedDocumentId: 'resolvedDocumentId' in selection,
-      resolvedDocumentId: selection.resolvedDocumentId,
-      entityTypes: selection.entityTypes,
-      referenceTags: selection.referenceTags
+
+    this.annotations.set(id, annotation);
+    console.log('Memory: Created annotation:', {
+      id,
+      motivation: annotation.motivation,
+      hasSource: !!getBodySource(annotation.body),
+      targetSource: getTargetSource(annotation.target)
     });
-    return selection;
+    return annotation;
   }
   
-  async getSelection(id: string): Promise<Selection | null> {
-    return this.selections.get(id) || null;
+  async getAnnotation(id: string): Promise<Annotation | null> {
+    return this.annotations.get(id) || null;
   }
   
-  async updateSelection(id: string, updates: Partial<Selection>): Promise<Selection> {
-    const sel = this.selections.get(id);
-    if (!sel) throw new Error('Selection not found');
-    
-    const updated: Selection = {
-      ...sel,
+  async updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation> {
+    const annotation = this.annotations.get(id);
+    if (!annotation) throw new Error('Annotation not found');
+
+    const updated: Annotation = {
+      ...annotation,
       ...updates,
-      updatedAt: new Date(),
     };
-    
-    this.selections.set(id, updated);
+
+    // Motivation should come from updates if provided
+    // No need to derive from body type
+
+    this.annotations.set(id, updated);
     return updated;
   }
   
-  async deleteSelection(id: string): Promise<void> {
-    this.selections.delete(id);
+  async deleteAnnotation(id: string): Promise<void> {
+    this.annotations.delete(id);
   }
   
-  async listSelections(filter: SelectionFilter): Promise<{ selections: Selection[]; total: number }> {
-    let sels = Array.from(this.selections.values());
-    
+  async listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
+    let results = Array.from(this.annotations.values());
+
     if (filter.documentId) {
-      sels = sels.filter(sel => sel.documentId === filter.documentId);
+      results = results.filter(a => getTargetSource(a.target) === filter.documentId);
     }
-    
-    if (filter.resolvedDocumentId) {
-      sels = sels.filter(sel => sel.resolvedDocumentId === filter.resolvedDocumentId);
+
+    // Only SpecificResource supported, use motivation to distinguish
+    if (filter.type) {
+      const motivation = filter.type === 'highlight' ? 'highlighting' : 'linking';
+      results = results.filter(a => a.motivation === motivation);
     }
-    
-    if (filter.provisional !== undefined) {
-      sels = sels.filter(sel => sel.provisional === filter.provisional);
-    }
-    
-    
-    if (filter.resolved !== undefined) {
-      sels = sels.filter(sel => filter.resolved ? !!sel.resolvedDocumentId : !sel.resolvedDocumentId);
-    }
-    
-    if (filter.hasEntityTypes !== undefined) {
-      sels = sels.filter(sel => filter.hasEntityTypes ? 
-        (sel.entityTypes && sel.entityTypes.length > 0) : 
-        (!sel.entityTypes || sel.entityTypes.length === 0)
-      );
-    }
-    
-    if (filter.referenceTags && filter.referenceTags.length > 0) {
-      sels = sels.filter(sel => 
-        sel.referenceTags && sel.referenceTags.some(tag => filter.referenceTags!.includes(tag))
-      );
-    }
-    
-    const total = sels.length;
-    const offset = filter.offset || 0;
-    const limit = filter.limit || 20;
-    sels = sels.slice(offset, offset + limit);
-    
-    return { selections: sels, total };
+
+    return { annotations: results, total: results.length };
   }
   
   
-  async getHighlights(documentId: string): Promise<Selection[]> {
-    const highlights = Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId && !('resolvedDocumentId' in sel));
+  async getHighlights(documentId: string): Promise<Annotation[]> {
+    const highlights = Array.from(this.annotations.values())
+      .filter(sel => getTargetSource(sel.target) === documentId && sel.motivation === 'highlighting');
     console.log(`Memory: getHighlights for ${documentId} found ${highlights.length} highlights`);
     return highlights;
   }
-  
-  async resolveSelection(input: ResolveSelectionInput): Promise<Selection> {
-    const sel = this.selections.get(input.selectionId);
-    if (!sel) throw new Error('Selection not found');
-    
-    const updated: Selection = {
-      ...sel,
-      resolvedDocumentId: input.documentId,
-      provisional: input.provisional || false,
-      resolvedAt: new Date(),
-      updatedAt: new Date(),
+
+  async resolveReference(annotationId: string, source: string): Promise<Annotation> {
+    const annotation = this.annotations.get(annotationId);
+    if (!annotation) throw new Error('Annotation not found');
+
+    // Convert stub (empty array) to resolved SpecificResource
+    const updated: Annotation = {
+      ...annotation,
+      body: {
+        type: 'SpecificResource',
+        source,
+        purpose: 'linking',
+      },
     };
-    
-    if (input.referenceTags) updated.referenceTags = input.referenceTags;
-    if (input.entityTypes) updated.entityTypes = input.entityTypes;
-    if (input.confidence !== undefined) updated.confidence = input.confidence;
-    if (input.resolvedBy) updated.resolvedBy = input.resolvedBy;
-    if (input.metadata || sel.metadata) {
-      updated.metadata = { ...sel.metadata, ...input.metadata };
-    }
-    
-    this.selections.set(input.selectionId, updated);
+
+    this.annotations.set(annotationId, updated);
     return updated;
   }
-  
-  async getReferences(documentId: string): Promise<Selection[]> {
-    const references = Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId && 'resolvedDocumentId' in sel);
+
+  async getReferences(documentId: string): Promise<Annotation[]> {
+    const references = Array.from(this.annotations.values())
+      .filter(sel => getTargetSource(sel.target) === documentId && sel.motivation === 'linking');
     console.log(`Memory: getReferences for ${documentId} found ${references.length} references`);
     references.forEach(ref => {
-      console.log('  Reference:', { 
-        id: ref.id, 
-        resolvedDocumentId: ref.resolvedDocumentId,
-        entityTypes: ref.entityTypes,
-        referenceTags: ref.referenceTags
+      console.log('  Reference:', {
+        id: ref.id,
+        source: getBodySource(ref.body),
+        entityTypes: getEntityTypes(ref) // from body
       });
     });
     return references;
   }
-  
-  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Selection[]> {
-    let refs = Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId && isEntityReference(sel));
-    
+
+  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]> {
+    // TODO Extract entity types from body
+    let refs = Array.from(this.annotations.values())
+      .filter(sel => {
+        const selEntityTypes = getEntityTypes(sel);
+        return getTargetSource(sel.target) === documentId && selEntityTypes.length > 0;
+      });
+
     if (entityTypes && entityTypes.length > 0) {
-      refs = refs.filter(sel => 
-        sel.entityTypes && sel.entityTypes.some(type => entityTypes.includes(type))
-      );
+      refs = refs.filter(sel => {
+        const selEntityTypes = getEntityTypes(sel);
+        return selEntityTypes.some((type: string) => entityTypes.includes(type));
+      });
     }
-    
+
     return refs;
   }
-  
-  async getDocumentSelections(documentId: string): Promise<Selection[]> {
-    return Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId);
+
+  async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
+    return Array.from(this.annotations.values())
+      .filter(sel => getTargetSource(sel.target) === documentId);
   }
-  
-  async getDocumentReferencedBy(documentId: string): Promise<Selection[]> {
-    return Array.from(this.selections.values())
-      .filter(sel => sel.resolvedDocumentId === documentId);
+
+  async getDocumentReferencedBy(documentId: string): Promise<Annotation[]> {
+    return Array.from(this.annotations.values())
+      .filter(sel => getBodySource(sel.body) === documentId);
   }
   
   async getDocumentConnections(documentId: string): Promise<GraphConnection[]> {
@@ -369,15 +311,16 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const refs = await this.getReferences(documentId);
     
     for (const ref of refs) {
-      if (ref.resolvedDocumentId) {
-        const targetDoc = await this.getDocument(ref.resolvedDocumentId);
+      const bodySource = getBodySource(ref.body);
+      if (bodySource) {
+        const targetDoc = await this.getDocument(bodySource);
         if (targetDoc) {
-          const reverseRefs = await this.getReferences(ref.resolvedDocumentId);
-          const bidirectional = reverseRefs.some(r => r.resolvedDocumentId === documentId);
-          
+          const reverseRefs = await this.getReferences(bodySource);
+          const bidirectional = reverseRefs.some(r => getBodySource(r.body) === documentId);
+
           connections.push({
             targetDocument: targetDoc,
-            selections: [ref],
+            annotations: [ref],
             bidirectional,
           });
         }
@@ -400,7 +343,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     
     // Using BFS implementation for stub
     const visited = new Set<string>();
-    const queue: { docId: string; path: Document[]; sels: Selection[] }[] = [];
+    const queue: { docId: string; path: Document[]; sels: Annotation[] }[] = [];
     const fromDoc = await this.getDocument(fromDocumentId);
     
     if (!fromDoc) return [];
@@ -416,7 +359,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
       if (path.length > maxDepth) continue;
       
       if (docId === toDocumentId) {
-        paths.push({ documents: path, selections: sels });
+        paths.push({ documents: path, annotations: sels });
         continue;
       }
       
@@ -428,7 +371,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
           queue.push({
             docId: conn.targetDocument.id,
             path: [...path, conn.targetDocument],
-            sels: [...sels, ...conn.selections],
+            sels: [...sels, ...conn.annotations],
           });
         }
       }
@@ -461,7 +404,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
   
   async getStats(): Promise<{
     documentCount: number;
-    selectionCount: number;
+    annotationCount: number;
     highlightCount: number;
     referenceCount: number;
     entityReferenceCount: number;
@@ -475,17 +418,19 @@ export class MemoryGraphDatabase implements GraphDatabase {
       for (const type of doc.entityTypes) {
         entityTypes[type] = (entityTypes[type] || 0) + 1;
       }
-      contentTypes[doc.contentType] = (contentTypes[doc.contentType] || 0) + 1;
+      contentTypes[doc.format] = (contentTypes[doc.format] || 0) + 1;
     }
     
-    const selections = Array.from(this.selections.values());
-    const highlightCount = selections.filter(isHighlight).length;
-    const referenceCount = selections.filter(isReference).length;
-    const entityReferenceCount = selections.filter(isEntityReference).length;
+    const annotations = Array.from(this.annotations.values());
+    // Use motivation to distinguish types
+    const highlightCount = annotations.filter(a => a.motivation === 'highlighting').length;
+    const referenceCount = annotations.filter(a => a.motivation === 'linking').length;
+    // TODO Extract entity types from body
+    const entityReferenceCount = annotations.filter(a => a.motivation === 'linking' && getEntityTypes(a).length > 0).length;
     
     return {
       documentCount: this.documents.size,
-      selectionCount: this.selections.size,
+      annotationCount: this.annotations.size,
       highlightCount,
       referenceCount,
       entityReferenceCount,
@@ -494,38 +439,37 @@ export class MemoryGraphDatabase implements GraphDatabase {
     };
   }
   
-  async createSelections(inputs: CreateSelectionInput[]): Promise<Selection[]> {
+  async createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]> {
     // In production: Use batch operations for better performance
     // const tx = graph.tx()
     // tx.rollback()
     // ... batch operations ...
     // tx.commit()
     
-    const results: Selection[] = [];
+    const results: Annotation[] = [];
     for (const input of inputs) {
-      results.push(await this.createSelection(input));
+      results.push(await this.createAnnotation(input));
     }
     return results;
   }
   
   
-  async resolveSelections(inputs: ResolveSelectionInput[]): Promise<Selection[]> {
-    const results: Selection[] = [];
+  async resolveReferences(inputs: { annotationId: string; source: string }[]): Promise<Annotation[]> {
+    const results: Annotation[] = [];
     for (const input of inputs) {
-      results.push(await this.resolveSelection(input));
+      results.push(await this.resolveReference(input.annotationId, input.source));
     }
     return results;
   }
   
-  async detectSelections(_documentId: string): Promise<Selection[]> {
-    // This would use AI/ML to detect selections in a document
+  async detectAnnotations(_documentId: string): Promise<Annotation[]> {
+    // This would use AI/ML to detect annotations in a document
     // For now, return empty array as a placeholder
     return [];
   }
   
   // Tag Collections - stored as special vertices in the graph
   private entityTypesCollection: Set<string> | null = null;
-  private referenceTypesCollection: Set<string> | null = null;
   
   async getEntityTypes(): Promise<string[]> {
     // Initialize if not already loaded
@@ -534,15 +478,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     }
     return Array.from(this.entityTypesCollection!).sort();
   }
-  
-  async getReferenceTypes(): Promise<string[]> {
-    // Initialize if not already loaded
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.referenceTypesCollection!).sort();
-  }
-  
+
   async addEntityType(tag: string): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
@@ -552,17 +488,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     // await this.client.submit(`g.V().has('tagCollection', 'type', 'entity-types')
     //   .property(set, 'tags', '${tag}')`, {});
   }
-  
-  async addReferenceType(tag: string): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.referenceTypesCollection!.add(tag);
-    // Simply add to set
-    // await this.client.submit(`g.V().has('tagCollection', 'type', 'reference-types')
-    //   .property(set, 'tags', '${tag}')`, {});
-  }
-  
+
   async addEntityTypes(tags: string[]): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
@@ -571,30 +497,17 @@ export class MemoryGraphDatabase implements GraphDatabase {
     // Simply add to set
   }
   
-  async addReferenceTypes(tags: string[]): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.referenceTypesCollection!.add(tag));
-    // Simply add to set
-  }
-  
   private async initializeTagCollections(): Promise<void> {
     // Initialize in-memory collections
     // const result = await this.client.submit(
-    //   `g.V().has('tagCollection', 'type', within('entity-types', 'reference-types'))
+    //   `g.V().has('tagCollection', 'type', 'entity-types')
     //    .project('type', 'tags').by('type').by('tags')`, {}
     // );
-    
+
     // For now, initialize with defaults if not present
     if (this.entityTypesCollection === null) {
       const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
       this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
-    }
-    
-    if (this.referenceTypesCollection === null) {
-      const { DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
-      this.referenceTypesCollection = new Set(DEFAULT_REFERENCE_TYPES);
     }
   }
   
@@ -606,8 +519,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     // In production: CAREFUL! This would clear the entire graph
     // await this.client.submit(`g.V().drop()`);
     this.documents.clear();
-    this.selections.clear();
+    this.annotations.clear();
     this.entityTypesCollection = null;
-    this.referenceTypesCollection = null;
   }
 }

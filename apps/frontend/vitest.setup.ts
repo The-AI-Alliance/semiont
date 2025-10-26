@@ -4,8 +4,11 @@
  */
 
 import '@testing-library/jest-dom';
-import { beforeAll, afterEach, afterAll } from 'vitest';
+import { beforeAll, afterEach, afterAll, vi } from 'vitest';
 import { FrontendTestEnvironment } from './src/__tests__/test-environment';
+
+// Mock next-intl globally
+vi.mock('next-intl');
 
 let testEnv: FrontendTestEnvironment;
 

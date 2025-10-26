@@ -8,8 +8,24 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
-import { initCommand } from '../init';
-const init = initCommand.handler;
+import { init, type InitOptions } from '../init';
+
+// Helper to create complete InitOptions with defaults
+function createInitOptions(partial: Partial<InitOptions> = {}): InitOptions {
+  return {
+    environment: 'none',
+    verbose: false,
+    dryRun: false,
+    quiet: false,
+    output: 'summary',
+    forceDiscovery: false,
+    force: false,
+    environments: ['local', 'test', 'staging', 'production'],
+    name: undefined,
+    directory: undefined,
+    ...partial
+  };
+}
 
 describe('init command', () => {
   let testDir: string;
@@ -44,15 +60,9 @@ describe('init command', () => {
   describe('basic functionality', () => {
     it('should initialize a project with default settings', async () => {
       // init is a SetupCommandFunction, it only expects options
-      const options = {
-        environment: 'none',
-        force: false,
-        environments: ['local', 'test', 'staging', 'production'],
-        output: 'summary' as const,
-        quiet: true,
-        verbose: false,
-        dryRun: false,
-      };
+      const options = createInitOptions({
+        quiet: true
+      });
       const result = await init(options);
       expect(result.command).toBe('init');
       expect(result.summary.succeeded).toBe(1);
@@ -71,16 +81,11 @@ describe('init command', () => {
     });
 
     it('should use custom project name when provided', async () => {
-      const options = {
-        environment: 'none',
+      const options = createInitOptions({
         name: 'my-awesome-project',
-        force: false,
         environments: ['local', 'production'],
-        output: 'summary' as const,
-        quiet: true,
-        verbose: false,
-        dryRun: false,
-      };
+        quiet: true
+      });
       await init(options);
       
       // Check that project name is in semiont.json
@@ -90,16 +95,11 @@ describe('init command', () => {
 
     it('should use custom directory when provided', async () => {
       const customDir = path.join(testDir, 'custom-project');
-      const options = {
-        environment: 'none',
+      const options = createInitOptions({
         directory: customDir,
-        force: false,
         environments: ['local'],
-        output: 'summary' as const,
-        quiet: true,
-        verbose: false,
-        dryRun: false,
-      };
+        quiet: true
+      });
       const result = await init(options);
       expect(result.command).toBe('init');
       expect(result.summary.succeeded).toBe(1);
@@ -115,15 +115,10 @@ describe('init command', () => {
       // Create an existing semiont.json
       fs.writeFileSync('semiont.json', JSON.stringify({ version: '0.0.1' }));
       
-      const options = {
-        environment: 'none',
-        force: false,
+      const options = createInitOptions({
         environments: ['local'],
-        output: 'summary' as const,
-        quiet: true,
-        verbose: false,
-        dryRun: false,
-      };
+        quiet: true
+      });
 
       const result = await init(options);
 
@@ -140,15 +135,11 @@ describe('init command', () => {
       // Create an existing semiont.json
       fs.writeFileSync('semiont.json', JSON.stringify({ version: '0.0.1' }));
       
-      const options = {
-        environment: 'none',
+      const options = createInitOptions({
         force: true,
         environments: ['local'],
-        output: 'summary' as const,
-        quiet: true,
-        verbose: false,
-        dryRun: false,
-      };
+        quiet: true
+      });
 
       const result = await init(options);
 
@@ -173,16 +164,11 @@ describe('init command', () => {
         return;
       }
       
-      const options = {
-        environment: 'none',
+      const options = createInitOptions({
         directory: readOnlyDir,
-        force: false,
         environments: ['local'],
-        output: 'summary' as const,
-        quiet: true,
-        verbose: false,
-        dryRun: false,
-      };
+        quiet: true
+      });
       const result = await init(options);
       expect(result.summary.failed).toBe(1);
       expect(result.summary.succeeded).toBe(0);
@@ -194,15 +180,10 @@ describe('init command', () => {
 
   describe('environment configuration', () => {
     it('should create configs for custom environment list', async () => {
-      const options = {
-        environment: 'none',
+      const options = createInitOptions({
         environments: ['dev', 'qa', 'prod'],
-        force: false,
-        output: 'summary' as const,
-        quiet: true,
-        verbose: false,
-        dryRun: false,
-      };
+        quiet: true
+      });
 
       await init(options);
 
@@ -217,15 +198,10 @@ describe('init command', () => {
     });
 
     it('should generate appropriate configs for each environment type', async () => {
-      const options = {
-        environment: 'none',
+      const options = createInitOptions({
         environments: ['local', 'staging', 'production'],
-        force: false,
-        output: 'summary' as const,
-        quiet: true,
-        verbose: false,
-        dryRun: false,
-      };
+        quiet: true
+      });
       await init(options);
       
       // Check local environment config - uses container as default but services use posix
@@ -247,15 +223,10 @@ describe('init command', () => {
 
   describe('output modes', () => {
     it('should suppress output in quiet mode', async () => {
-      const options = {
-        environment: 'none',
-        force: false,
+      const options = createInitOptions({
         environments: ['local'],
-        output: 'summary' as const,
-        quiet: true,
-        verbose: false,
-        dryRun: false,
-      };
+        quiet: true
+      });
       const result = await init(options);
       // Should still succeed even in quiet mode
       expect(result.summary.succeeded).toBe(1);
@@ -263,15 +234,10 @@ describe('init command', () => {
     });
 
     it('should show verbose output when requested', async () => {
-      const options = {
-        environment: 'none',
-        force: false,
+      const options = createInitOptions({
         environments: ['local', 'staging'],
-        output: 'summary' as const,
-        quiet: false,
-        verbose: true,
-        dryRun: false,
-      };
+        verbose: true
+      });
       const result = await init(options);
       // Verbose mode should still succeed
       expect(result.summary.succeeded).toBe(1);
@@ -279,15 +245,10 @@ describe('init command', () => {
     });
 
     it('should handle dry run mode', async () => {
-      const options = {
-        environment: 'none',
-        force: false,
+      const options = createInitOptions({
         environments: ['local'],
-        output: 'summary' as const,
-        quiet: false,
-        verbose: false,
-        dryRun: true,
-      };
+        dryRun: true
+      });
       const result = await init(options);
       // In dry run mode, files should not be written
       // (Though current implementation doesn't check dryRun for init)
@@ -298,30 +259,18 @@ describe('init command', () => {
 
   describe('CommandFunction compliance', () => {
     it('should accept options as parameter', async () => {
-      const options = {
-        environment: 'none',
-        force: false,
-        environments: ['local'],
-        output: 'summary' as const,
-        quiet: false,
-        verbose: false,
-        dryRun: false,
-      };
+      const options = createInitOptions({
+        environments: ['local']
+      });
       const result = await init(options);
       expect(result).toBeDefined();
       expect(result.command).toBe('init');
     });
 
     it('should return CommandResults structure', async () => {
-      const options = {
-        environment: 'none',
-        force: false,
-        environments: ['local'],
-        output: 'summary' as const,
-        quiet: false,
-        verbose: false,
-        dryRun: false,
-      };
+      const options = createInitOptions({
+        environments: ['local']
+      });
       const result = await init(options);
       // Verify CommandResults structure
       expect(result).toHaveProperty('command');
@@ -348,15 +297,11 @@ describe('init command', () => {
           fs.rmSync('cdk', { recursive: true });
         }
         
-        const options = {
-          environment: 'none',
-          force: false,
+        const options = createInitOptions({
           environments: ['local'],
           output: format,
-          quiet: true,
-          verbose: false,
-          dryRun: false,
-        };
+          quiet: true
+        });
         const result = await init(options);
         expect(result.command).toBe('init');
         expect(result.summary.succeeded).toBe(1);

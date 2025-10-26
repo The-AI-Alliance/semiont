@@ -8,7 +8,7 @@
  * - Prevents security vulnerabilities
  */
 
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, type Mocked } from 'vitest';
 import { Context } from 'hono';
 import { authMiddleware, optionalAuthMiddleware } from '../../middleware/auth';
 import { OAuthService } from '../../auth/oauth';
@@ -21,7 +21,7 @@ vi.mock('../../auth/oauth', () => ({
   }
 }));
 
-const mockOAuthService = OAuthService as vi.Mocked<typeof OAuthService>;
+const mockOAuthService = OAuthService as Mocked<typeof OAuthService>;
 
 // Helper to create mock Hono context
 function createMockContext(headers: Record<string, string> = {}): Context {
@@ -169,6 +169,8 @@ describe('Auth Middleware', () => {
         providerId: 'google-123',
         isAdmin: false,
         isActive: true,
+        isModerator: false,
+        termsAcceptedAt: null,
         lastLogin: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -312,6 +314,8 @@ describe('Auth Middleware', () => {
           providerId: 'google-base',
           isAdmin: false,
           isActive: true,
+          isModerator: false,
+          termsAcceptedAt: null,
           lastLogin: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -403,6 +407,8 @@ describe('Auth Middleware', () => {
         providerId: 'google-123',
         isAdmin: true,
         isActive: true,
+        isModerator: false,
+        termsAcceptedAt: null,
         lastLogin: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -496,6 +502,8 @@ describe('Auth Middleware', () => {
         providerId: 'google-123',
         isAdmin: false,
         isActive: true,
+        isModerator: false,
+        termsAcceptedAt: null,
         lastLogin: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),

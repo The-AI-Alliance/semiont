@@ -1,10 +1,10 @@
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
 import path from 'path';
 
 export class DatabaseTestSetup {
-  private static container: PostgreSqlContainer;
+  private static container: StartedPostgreSqlContainer;
   private static prisma: PrismaClient;
   private static connectionString: string;
 
@@ -117,7 +117,7 @@ export class DatabaseTestSetup {
     try {
       // Delete in order that respects foreign key constraints
       await this.prisma.user.deleteMany();
-      await this.prisma.helloWorld.deleteMany();
+      // await this.prisma.helloWorld.deleteMany(); // helloWorld model doesn't exist
       console.log('✅ Database tables cleaned');
     } catch (error) {
       console.warn('⚠️  Warning: Failed to clean some tables:', error);

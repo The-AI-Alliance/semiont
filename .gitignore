@@ -66,3 +66,8 @@ temp/
 
 # TypeScript
 *.tsbuildinfo
+
+# Generated types and copied specs (NOT the source OpenAPI spec!)
+packages/api-client/openapi.json
+packages/api-client/src/types.ts
+packages/api-client/src/client/

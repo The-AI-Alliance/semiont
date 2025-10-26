@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { DatabaseTestSetup } from '../setup/database';
 
 describe('Database Module (db.ts) Integration Tests', () => {
@@ -96,7 +96,7 @@ describe('Database Module (db.ts) Integration Tests', () => {
       `;
       
       expect(result).toHaveLength(1);
-      expect(result[0].version).toContain('PostgreSQL');
+      expect(result[0]?.version).toContain('PostgreSQL');
     });
 
     it('should handle connection errors gracefully', async () => {
@@ -170,9 +170,9 @@ describe('Database Module (db.ts) Integration Tests', () => {
       const { prisma } = await import('../../db');
       
       const result = await prisma.$transaction(async (tx) => {
-        const helloWorld = await tx.helloWorld.create({
-          data: { message: 'Transaction test via db.ts' }
-        });
+        // const helloWorld = await tx.helloWorld.create({
+        //   data: { message: 'Transaction test via db.ts' }
+        // }); // helloWorld model doesn't exist
 
         const user = await tx.user.create({
           data: {
@@ -183,21 +183,21 @@ describe('Database Module (db.ts) Integration Tests', () => {
           }
         });
 
-        return { helloWorld, user };
+        return { user }; // helloWorld removed - model doesn't exist
       });
 
-      expect(result.helloWorld.id).toBeDefined();
+      // expect(result.helloWorld.id).toBeDefined(); // helloWorld doesn't exist
       expect(result.user.id).toBeDefined();
 
       // Verify records exist
-      const helloWorld = await prisma.helloWorld.findUnique({
-        where: { id: result.helloWorld.id }
-      });
+      // const helloWorld = await prisma.helloWorld.findUnique({
+      //   where: { id: result.helloWorld.id }
+      // });
       const user = await prisma.user.findUnique({
         where: { id: result.user.id }
       });
 
-      expect(helloWorld).toBeDefined();
+      // expect(helloWorld).toBeDefined();
       expect(user).toBeDefined();
     });
   });

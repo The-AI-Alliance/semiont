@@ -36,6 +36,7 @@ jobs:
           npm run typecheck
         env:
           CI: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Run frontend tests
         run: |
@@ -44,6 +45,7 @@ jobs:
           npm test
         env:
           CI: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
   test-backend:
     name: Backend Tests
@@ -75,6 +77,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
+      - name: Cache TypeScript incremental build info
+        uses: actions/cache@v3
+        with:
+          path: apps/backend/.tscache
+          key: ${{ runner.os }}-backend-tsc-${{ hashFiles('apps/backend/src/**/*.ts', 'apps/backend/tsconfig.json', 'packages/*/src/**/*.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-backend-tsc-
+
       - name: Install dependencies and CLI
         run: |
           npm install
@@ -96,8 +106,9 @@ jobs:
           npm run typecheck
         env:
           CI: true
+          NODE_OPTIONS: "--max-old-space-size=8192"
 
-      - name: Run backend tests
+      - name: Run backend unit tests
         run: |
           echo "Running backend unit tests..."
           cd apps/backend
@@ -108,6 +119,21 @@ jobs:
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
+          SITE_DOMAIN: test.semiont.com
+
+      - name: Run backend integration tests
+        run: |
+          echo "Running backend integration tests..."
+          cd apps/backend
+          npm run test:integration
+        env:
+          CI: true
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
+          JWT_SECRET: test-secret-for-ci
+          GOOGLE_CLIENT_ID: test-client-id
+          GOOGLE_CLIENT_SECRET: test-client-secret
+          SITE_DOMAIN: test.semiont.com
+          OAUTH_ALLOWED_DOMAINS: test.semiont.com
 
   test-cli:
     name: CLI Tests
@@ -134,7 +160,15 @@ jobs:
         run: |
           semiont --version
           semiont --help
-      
+
+      - name: Run CLI type check
+        run: |
+          echo "Running CLI TypeScript type check..."
+          cd apps/cli
+          npm run typecheck
+        env:
+          CI: true
+
       - name: Run CLI unit tests
         run: |
           echo "Running CLI package unit tests..."
@@ -207,16 +241,19 @@ jobs:
           echo "Running comprehensive test suite..."
           # Run tests for each package
           cd apps/frontend && npm test && cd ../..
-          cd apps/backend && npm test && cd ../..
+          cd apps/backend && npm test && npm run test:integration && cd ../..
           cd apps/cli && npm run test:unit && cd ../..
-          
+
           echo "All tests completed successfully"
         env:
           CI: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
+          SITE_DOMAIN: test.semiont.com
+          OAUTH_ALLOWED_DOMAINS: test.semiont.com
           
 
   validate-config:

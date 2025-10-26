@@ -8,6 +8,7 @@ import { sanitizeImageURL } from '@/lib/validation';
 import { useAuth } from '@/hooks/useAuth';
 import { useDropdown } from '@/hooks/useUI';
 import { useState } from 'react';
+import { UserMenuSkeleton } from './UserMenuSkeleton';
 
 // Fallback avatar when image fails to load or is invalid
 const FALLBACK_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2QjcyODAiLz4KPHBhdGggZD0iTTE2IDE2QzE4LjIwOTEgMTYgMjAgMTQuMjA5MSAyMCAxMkMyMCA5Ljc5MDg2IDE4LjIwOTEgOCAxNiA4QzEzLjc5MDkgOCAxMiA5Ljc5MDg2IDEyIDEyQzEyIDE0LjIwOTEgMTMuNzkwOSAxNiAxNiAxNloiIGZpbGw9IiNFNUU3RUIiLz4KPHBhdGggZD0iTTI0IDI1QzI0IDIxLjY4NjMgMjAuNDE4MyAxOSAxNiAxOUMxMS41ODE3IDE5IDggMjEuNjg2MyA4IDI1IiBzdHJva2U9IiNFNUU3RUIiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cjwvc3ZnPg==';
@@ -67,11 +68,7 @@ export function UserMenu({ }: UserMenuProps) {
   }, [avatarUrl]);
 
   if (isLoading) {
-    return (
-      <div className="text-gray-500 animate-pulse">
-        Loading...
-      </div>
-    );
+    return <UserMenuSkeleton />;
   }
 
   if (!isAuthenticated) {
@@ -88,6 +85,7 @@ export function UserMenu({ }: UserMenuProps) {
         className="w-8 h-8 rounded-full hover:ring-2 hover:ring-blue-500 hover:ring-offset-2 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 overflow-hidden"
         aria-label={`User menu for ${displayName || 'user'}`}
         aria-expanded={isOpen}
+        aria-controls="user-menu-dropdown"
         aria-haspopup="true"
         id="user-menu-button"
       >
@@ -109,22 +107,14 @@ export function UserMenu({ }: UserMenuProps) {
       
       {/* Dropdown Menu */}
       {isOpen && (
-        <div 
+        <div
+          id="user-menu-dropdown"
           className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="user-menu-button"
         >
           <div className="p-3">
-            <div className="text-sm">
-              <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                {displayName}
-              </div>
-              <div className="text-gray-500 dark:text-gray-400 truncate">
-                {userDomain && `@${userDomain}`}
-              </div>
-            </div>
-            <hr className="my-2 border-gray-200 dark:border-gray-600" />
             <Link
               href="/know"
               onClick={close}
@@ -152,34 +142,17 @@ export function UserMenu({ }: UserMenuProps) {
               </>
             )}
             {isAdmin && (
-              <>
-                <Link
-                  href="/admin"
-                  onClick={close}
-                  className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
-                  role="menuitem"
-                  tabIndex={0}
-                  aria-label="Access admin dashboard"
-                >
-                  Administer
-                </Link>
-                <hr className="my-2 border-gray-200 dark:border-gray-600" />
-              </>
+              <Link
+                href="/admin"
+                onClick={close}
+                className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+                role="menuitem"
+                tabIndex={0}
+                aria-label="Access admin dashboard"
+              >
+                Administer
+              </Link>
             )}
-            <button
-              ref={signOutButtonRef}
-              onClick={async () => {
-                close();
-                await signOut({ callbackUrl: '/' });
-              }}
-              onKeyDown={handleKeyDown}
-              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded"
-              role="menuitem"
-              tabIndex={0}
-              aria-label="Sign out of your account"
-            >
-              Sign Out
-            </button>
           </div>
         </div>
       )}

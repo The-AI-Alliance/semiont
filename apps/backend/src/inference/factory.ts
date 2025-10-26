@@ -1,5 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getInferenceConfig as getInferenceConfigFromEnv } from '../config/environment-loader';
+import { getLocaleEnglishName } from '@semiont/api-client';
+
+function getLanguageName(locale: string): string {
+  return getLocaleEnglishName(locale) || locale;
+}
 
 // Singleton instance
 let inferenceClient: Anthropic | null = null;
@@ -36,7 +41,10 @@ export async function getInferenceClient(): Promise<Anthropic> {
  */
 export function getInferenceModel(): string {
   const config = getInferenceConfigFromEnv();
-  return config?.model || 'claude-3-haiku-20240307';
+  if (!config?.model) {
+    throw new Error('Inference model not configured! Set it in your environment configuration.');
+  }
+  return config.model;
 }
 
 /**
@@ -47,6 +55,7 @@ export async function generateText(
   maxTokens: number = 500,
   temperature: number = 0.7
 ): Promise<string> {
+  console.log('generateText called with prompt length:', prompt.length, 'maxTokens:', maxTokens, 'temp:', temperature);
 
   const client = await getInferenceClient();
 
@@ -62,12 +71,16 @@ export async function generateText(
     ]
   });
 
+  console.log('Inference response received, content blocks:', response.content.length);
+
   const textContent = response.content.find(c => c.type === 'text');
 
   if (!textContent || textContent.type !== 'text') {
+    console.error('No text content in response:', response.content);
     throw new Error('No text content in inference response');
   }
 
+  console.log('Returning text content of length:', textContent.text.length);
   return textContent.text;
 
 }
@@ -78,15 +91,29 @@ export async function generateText(
 export async function generateDocumentFromTopic(
   topic: string,
   entityTypes: string[],
-  userPrompt?: string
+  userPrompt?: string,
+  locale?: string
 ): Promise<{ title: string; content: string }> {
+  console.log('generateDocumentFromTopic called with:', {
+    topic: topic.substring(0, 100),
+    entityTypes,
+    hasUserPrompt: !!userPrompt,
+    locale
+  });
+
   const config = getInferenceConfigFromEnv();
   const provider = config?.type || 'anthropic';
+  console.log('Using provider:', provider, 'with model:', config?.model);
+
+  // Determine language instruction
+  const languageInstruction = locale && locale !== 'en'
+    ? `\n\nIMPORTANT: Write the entire document in ${getLanguageName(locale)}. Both the title and all content must be in ${getLanguageName(locale)}.`
+    : '';
 
   // Provider-agnostic base requirements
   const basePrompt = `Generate a concise, informative document about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
-${userPrompt ? `Additional context: ${userPrompt}` : ''}
+${userPrompt ? `Additional context: ${userPrompt}` : ''}${languageInstruction}
 
 Requirements:
 - Create a clear, descriptive title
@@ -198,8 +225,19 @@ CONTENT:
       };
   }
 
+  console.log('Sending prompt to inference (length:', prompt.length, 'chars)');
   const response = await generateText(prompt, 500, 0.7);
-  return parseResponse(response);
+  console.log('Got raw response (length:', response.length, 'chars)');
+
+  const result = parseResponse(response);
+  console.log('Parsed result:', {
+    hasTitle: !!result.title,
+    titleLength: result.title?.length,
+    hasContent: !!result.content,
+    contentLength: result.content?.length
+  });
+
+  return result;
 }
 
 /**

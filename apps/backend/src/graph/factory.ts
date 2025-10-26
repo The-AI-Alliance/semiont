@@ -5,7 +5,7 @@ import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
 import { MemoryGraphDatabase } from './implementations/memorygraph';
-import { getGraphConfig, loadEnvironmentConfig } from '../config/environment-loader';
+import { getGraphConfig } from '../config/environment-loader';
 
 export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
 
@@ -75,19 +75,22 @@ function evaluateEnvVar(value: string | undefined): string | undefined {
 
   // Replace ${VAR_NAME} with actual environment variable value
   return value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
-    return process.env[varName] || match;
+    const envValue = process.env[varName];
+    if (!envValue) {
+      throw new Error(`Environment variable ${varName} is not set. Referenced in configuration as ${match}`);
+    }
+    return envValue;
   });
 }
 
 export async function getGraphDatabase(): Promise<GraphDatabase> {
   if (!graphDatabaseInstance) {
-    // Load config from environment JSON file or environment variables
     const graphConfig = getGraphConfig();
-    
+
     const config: GraphDatabaseConfig = {
       type: graphConfig.type,
     };
-    
+
     // Apply configuration based on type
     if (graphConfig.type === 'janusgraph') {
       if (graphConfig.host) {
@@ -103,44 +106,38 @@ export async function getGraphDatabase(): Promise<GraphDatabase> {
         config.janusIndexBackend = graphConfig.index as any;
       }
     } else if (graphConfig.type === 'neptune') {
-      // Neptune will discover its own endpoint using AWS SDK
-      // Only pass the port from config
+      if (graphConfig.endpoint) {
+        config.neptuneEndpoint = graphConfig.endpoint;
+      }
       if (graphConfig.port) {
         config.neptunePort = graphConfig.port;
       }
-      // Get AWS region from environment config
-      const envConfig = loadEnvironmentConfig();
-      if (envConfig?.aws?.region) {
-        config.neptuneRegion = envConfig.aws.region;
+      if (graphConfig.region) {
+        config.neptuneRegion = graphConfig.region;
       }
     } else if (graphConfig.type === 'neo4j') {
-      // Neo4j configuration from environment JSON or environment variables
-      const envConfig = loadEnvironmentConfig();
-      const graphService = envConfig?.services?.graph;
-
-      // Try environment JSON config first, then fall back to environment variables
-      if (graphService?.uri || process.env.NEO4J_URI) {
-        config.neo4jUri = evaluateEnvVar(graphService?.uri) || process.env.NEO4J_URI;
+      if (graphConfig.uri) {
+        config.neo4jUri = evaluateEnvVar(graphConfig.uri);
       }
-      if (graphService?.username || process.env.NEO4J_USERNAME) {
-        config.neo4jUsername = evaluateEnvVar(graphService?.username) || process.env.NEO4J_USERNAME;
+      if (graphConfig.username) {
+        config.neo4jUsername = evaluateEnvVar(graphConfig.username);
       }
-      if (graphService?.password || process.env.NEO4J_PASSWORD) {
-        config.neo4jPassword = evaluateEnvVar(graphService?.password) || process.env.NEO4J_PASSWORD;
+      if (graphConfig.password) {
+        config.neo4jPassword = evaluateEnvVar(graphConfig.password);
       }
-      if (graphService?.database || process.env.NEO4J_DATABASE) {
-        config.neo4jDatabase = evaluateEnvVar(graphService?.database) || process.env.NEO4J_DATABASE;
+      if (graphConfig.database) {
+        config.neo4jDatabase = evaluateEnvVar(graphConfig.database);
       }
     }
-    
+
     graphDatabaseInstance = createGraphDatabase(config);
     await graphDatabaseInstance.connect();
   }
-  
+
   if (!graphDatabaseInstance.isConnected()) {
     await graphDatabaseInstance.connect();
   }
-  
+
   return graphDatabaseInstance;
 }
 

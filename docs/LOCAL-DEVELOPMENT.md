@@ -2,6 +2,47 @@
 
 This guide explains how to run Semiont locally for development, including the frontend document editing interface and backend API.
 
+## Local Development Architecture
+
+```mermaid
+graph TB
+    subgraph "Browser"
+        UI[Frontend UI<br/>localhost:3000]
+    end
+
+    subgraph "Local Services"
+        subgraph "Node Processes"
+            FE[Next.js Frontend<br/>Port 3000]
+            BE[Hono Backend<br/>Port 4000]
+        end
+
+        subgraph "Containers"
+            PG[(PostgreSQL<br/>Port 5432)]
+            JG[(JanusGraph<br/>Port 8182)]
+        end
+
+        subgraph "File System"
+            ENV[.env.local files]
+            DATA[./data/uploads]
+            LOGS[./logs/]
+        end
+    end
+
+    subgraph "External"
+        OAUTH[Google OAuth<br/>optional]
+    end
+
+    UI -->|HTTP| FE
+    FE -->|API Calls| BE
+    BE -->|SQL| PG
+    BE -->|Gremlin| JG
+    BE -->|Read Config| ENV
+    BE -->|Store Files| DATA
+    FE -->|Auth Flow| OAUTH
+    FE -->|Logs| LOGS
+    BE -->|Logs| LOGS
+```
+
 ## Prerequisites
 
 Before starting, ensure you have the following installed:
@@ -519,7 +560,7 @@ This uses MSW (Mock Service Worker) to intercept API calls and return mock data.
 ## Additional Resources
 
 - [Architecture Overview](./ARCHITECTURE.md)
-- [API Documentation](./API.md)
+- [API Documentation](../specs/docs/API.md)
 - [Deployment Guide](./DEPLOYMENT.md)
 - [Contributing Guidelines](../CONTRIBUTING.md)
 

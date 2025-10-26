@@ -5,6 +5,7 @@ import * as path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { getFilesystemConfig } from '../config/environment-loader';
+import { getShardPath } from './shard-utils';
 
 export interface StorageService {
   saveDocument(documentId: string, content: string | Buffer): Promise<string>;
@@ -31,9 +32,9 @@ export class FilesystemStorage implements StorageService {
   }
   
   getDocumentPath(documentId: string): string {
-    // Use first 2 chars of UUID for directory sharding to avoid too many files in one directory
-    const shard = documentId.substring(0, 2);
-    return path.join(this.basePath, shard, `${documentId}.dat`);
+    // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
+    const [ab, cd] = getShardPath(documentId);
+    return path.join(this.basePath, 'documents', ab, cd, `${documentId}.dat`);
   }
   
   async saveDocument(documentId: string, content: string | Buffer): Promise<string> {
@@ -121,14 +122,4 @@ export class FilesystemStorage implements StorageService {
     
     return docPath;
   }
-}
-
-// Singleton instance
-let storageInstance: StorageService | null = null;
-
-export function getStorageService(): StorageService {
-  if (!storageInstance) {
-    storageInstance = new FilesystemStorage();
-  }
-  return storageInstance;
 }

@@ -33,6 +33,7 @@ const mockUsers: User[] = [
     providerId: 'google-1',
     isAdmin: false,
     isActive: true,
+    isModerator: false,
     termsAcceptedAt: null,
     lastLogin: new Date('2024-01-01'),
     createdAt: new Date('2024-01-01'),
@@ -48,6 +49,7 @@ const mockUsers: User[] = [
     providerId: 'google-2',
     isAdmin: true,
     isActive: true,
+    isModerator: false,
     termsAcceptedAt: new Date('2024-01-01'),
     lastLogin: new Date('2024-01-02'),
     createdAt: new Date('2024-01-01'),
@@ -67,7 +69,7 @@ describe('Admin API Unit Tests', () => {
 
       // Simulate the admin users fetch logic
       const users = await mockPrismaUser.findMany({
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created: 'desc' },
         select: {
           id: true,
           email: true,
@@ -78,14 +80,14 @@ describe('Admin API Unit Tests', () => {
           isAdmin: true,
           isActive: true,
           lastLogin: true,
-          createdAt: true,
+          created: true,
           updatedAt: true,
         }
       });
 
       expect(users).toEqual(mockUsers);
       expect(mockPrismaUser.findMany).toHaveBeenCalledWith({
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created: 'desc' },
         select: {
           id: true,
           email: true,
@@ -96,7 +98,7 @@ describe('Admin API Unit Tests', () => {
           isAdmin: true,
           isActive: true,
           lastLogin: true,
-          createdAt: true,
+          created: true,
           updatedAt: true,
         }
       });
@@ -119,7 +121,7 @@ describe('Admin API Unit Tests', () => {
         mockPrismaUser.count({ where: { isAdmin: true } }),
         mockPrismaUser.count({ 
           where: { 
-            createdAt: { 
+            created: { 
               gte: thirtyDaysAgo 
             } 
           } 
@@ -137,7 +139,7 @@ describe('Admin API Unit Tests', () => {
       expect(mockPrismaUser.count).toHaveBeenNthCalledWith(3, { where: { isAdmin: true } });
       expect(mockPrismaUser.count).toHaveBeenNthCalledWith(4, { 
         where: { 
-          createdAt: { 
+          created: { 
             gte: expect.any(Date)
           } 
         } 

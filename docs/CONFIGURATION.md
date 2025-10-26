@@ -16,7 +16,7 @@ Configuration files are located at the project root:
 <project-root>/
 ├── semiont.json                  # Project metadata (created by semiont init)
 ├── cdk/                          # CDK stack definitions (optional)
-│   ├── infra-stack.ts          # Infrastructure stack
+│   ├── data-stack.ts           # Data infrastructure stack
 │   └── app-stack.ts            # Application stack
 └── environments/                 # Environment configurations
     ├── local.json               # Local development
@@ -85,7 +85,7 @@ Each environment configuration file follows this structure:
     "certificateArn": "arn:aws:acm:...",
     "hostedZoneId": "Z1234567890ABC",
     "stacks": {
-      "infra": "SemiontInfraStack",
+      "data": "SemiontDataStack",
       "app": "SemiontAppStack"
     }
   },

@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
 import path from 'path';
 
 describe('Simple Database Integration Test', () => {
-  let container: PostgreSqlContainer;
+  let container: StartedPostgreSqlContainer;
   let prisma: PrismaClient;
   let connectionString: string;
 

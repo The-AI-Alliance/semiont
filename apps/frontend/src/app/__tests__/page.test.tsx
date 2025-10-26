@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
-import Home from '@/app/page';
+import Home from '@/app/[locale]/page';
 
 // Mock all child components to isolate the Home page structure
 vi.mock('@/components/shared/UnifiedHeader', () => ({
@@ -12,11 +12,7 @@ vi.mock('@/components/UserMenu', () => ({
   UserMenu: () => <div data-testid="user-menu">User Menu</div>
 }));
 
-// FeatureCards component was removed from the home page
-
-vi.mock('@/components/AuthenticatedHome', () => ({
-  AuthenticatedHome: () => <div data-testid="authenticated-home">AuthenticatedHome</div>
-}));
+// Removed unused components: FeatureCards, AuthenticatedHome
 
 vi.mock('@/components/SemiontBranding', () => ({
   SemiontBranding: ({ size, animated, className }: any) => (
@@ -102,7 +98,7 @@ describe('Home Page', () => {
 
   it('should have proper content spacing and layout', () => {
     render(<Home />);
-    
+
     // Check for text center and spacing on content area
     const contentArea = screen.getByText(/open-source.*future-proof/i).closest('.text-center');
     expect(contentArea).toBeInTheDocument();

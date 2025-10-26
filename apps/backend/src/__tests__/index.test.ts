@@ -10,6 +10,19 @@
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import type { Hono } from 'hono';
+import type { User } from '@prisma/client';
+
+type Variables = {
+  user: User;
+};
+
+interface HealthResponse {
+  status: string;
+  message: string;
+  version: string;
+  environment?: string;
+  timestamp?: string;
+}
 
 // Mock the database before any imports to avoid connection attempts
 vi.mock('../db', () => ({
@@ -26,9 +39,15 @@ vi.mock('../db', () => ({
 }));
 
 describe('Main Application (index.ts)', () => {
-  let app: Hono;
+  let app: Hono<{ Variables: Variables }>;
 
   beforeAll(async () => {
+    // Set required environment variables before importing app
+    process.env.BACKEND_URL = 'http://localhost:4000';
+    process.env.CORS_ORIGIN = 'http://localhost:3000';
+    process.env.FRONTEND_URL = 'http://localhost:3000';
+    process.env.NODE_ENV = 'test';
+
     // Import the app
     const { app: importedApp } = await import('../index');
     app = importedApp;
@@ -57,7 +76,7 @@ describe('Main Application (index.ts)', () => {
   describe('Public Endpoints', () => {
     it('should return health status without authentication', async () => {
       const response = await app.request('http://localhost/api/health');
-      const data = await response.json();
+      const data = await response.json() as HealthResponse;
 
       expect(response.status).toBe(200);
       expect(data.status).toBe('operational');

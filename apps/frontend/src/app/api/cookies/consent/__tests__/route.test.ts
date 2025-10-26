@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type { Mock, MockedFunction } from 'vitest'
 import { NextRequest } from 'next/server'
 import { GET, POST } from '../route'
 import { getServerSession } from 'next-auth'
@@ -25,7 +26,7 @@ describe('/api/cookies/consent', () => {
 
   describe('GET /api/cookies/consent', () => {
     it('should return consent data for authenticated user', async () => {
-      (getServerSession as vi.Mock).mockResolvedValue({
+      (getServerSession as Mock).mockResolvedValue({
         backendUser: {
           id: 'user123',
           email: 'test@example.com'
@@ -49,7 +50,7 @@ describe('/api/cookies/consent', () => {
     });
 
     it('should return 401 for unauthenticated user', async () => {
-      (getServerSession as vi.Mock).mockResolvedValue(null);
+      (getServerSession as Mock).mockResolvedValue(null);
 
       const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`);
       const response = await GET(request);
@@ -61,7 +62,7 @@ describe('/api/cookies/consent', () => {
     });
 
     it('should return 401 for user without backendUser', async () => {
-      (getServerSession as vi.Mock).mockResolvedValue({
+      (getServerSession as Mock).mockResolvedValue({
         user: { email: 'test@example.com' }
       });
 
@@ -75,7 +76,7 @@ describe('/api/cookies/consent', () => {
     });
 
     it('should handle server errors gracefully', async () => {
-      (getServerSession as vi.Mock).mockRejectedValue(new Error('Database error'));
+      (getServerSession as Mock).mockRejectedValue(new Error('Database error'));
 
       const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`);
       const response = await GET(request);
@@ -89,7 +90,7 @@ describe('/api/cookies/consent', () => {
 
   describe('POST /api/cookies/consent', () => {
     beforeEach(() => {
-      (getServerSession as vi.Mock).mockResolvedValue({
+      (getServerSession as Mock).mockResolvedValue({
         backendUser: {
           id: 'user123',
           email: 'test@example.com'
@@ -172,7 +173,7 @@ describe('/api/cookies/consent', () => {
     });
 
     it('should return 401 for unauthenticated user', async () => {
-      (getServerSession as vi.Mock).mockResolvedValue(null);
+      (getServerSession as Mock).mockResolvedValue(null);
 
       const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`, {
         method: 'POST',
@@ -236,7 +237,7 @@ describe('/api/cookies/consent', () => {
     });
 
     it('should handle server errors during save', async () => {
-      (getServerSession as vi.Mock).mockRejectedValue(new Error('Database error'));
+      (getServerSession as Mock).mockRejectedValue(new Error('Database error'));
 
       const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`, {
         method: 'POST',

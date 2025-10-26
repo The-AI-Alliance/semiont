@@ -1,5 +1,5 @@
 
-import { ScriptError } from '../../core/types.js';
+import { ScriptError } from '@semiont/core';
 
 // AWS CloudFormation Stack Output types
 export interface StackOutput {
@@ -56,7 +56,7 @@ export interface ECSTask {
   service: string;
   status: string;
   health: string;
-  createdAt: Date;
+  created: Date;
   lastStatus: string;
 }
 

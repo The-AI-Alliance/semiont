@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
+import type { Session } from 'next-auth';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -44,6 +46,11 @@ vi.mock('next/link', () => ({
 vi.mock('@/hooks/useAuth');
 vi.mock('@/hooks/useUI');
 
+// Mock SessionTimer component to avoid SessionContext dependency
+vi.mock('../SessionTimer', () => ({
+  SessionTimer: () => <div data-testid="session-timer">Session Timer</div>
+}));
+
 // Mock validation utilities
 vi.mock('@/lib/validation', () => ({
   sanitizeImageURL: vi.fn()
@@ -56,61 +63,195 @@ import { useDropdown } from '@/hooks/useUI';
 import { sanitizeImageURL } from '@/lib/validation';
 
 // Type the mocked functions
-const mockSignIn = signIn as vi.MockedFunction<typeof signIn>;
-const mockSignOut = signOut as vi.MockedFunction<typeof signOut>;
-const mockUseAuth = useAuth as vi.MockedFunction<typeof useAuth>;
-const mockUseDropdown = useDropdown as vi.MockedFunction<typeof useDropdown>;
-const mockSanitizeImageURL = sanitizeImageURL as vi.MockedFunction<typeof sanitizeImageURL>;
+const mockSignIn = signIn as MockedFunction<typeof signIn>;
+const mockSignOut = signOut as MockedFunction<typeof signOut>;
+const mockUseAuth = useAuth as MockedFunction<typeof useAuth>;
+const mockUseDropdown = useDropdown as MockedFunction<typeof useDropdown>;
+const mockSanitizeImageURL = sanitizeImageURL as MockedFunction<typeof sanitizeImageURL>;
 
 // Test data fixtures
 const mockAuthStates = {
   loading: {
+    session: null,
+    user: undefined,
+    backendUser: undefined,
     isLoading: true,
     isAuthenticated: false,
+    hasValidBackendToken: false,
+    userDomain: undefined,
     displayName: '',
-    avatarUrl: null,
-    userDomain: '',
-    isAdmin: false
+    avatarUrl: undefined,
+    isAdmin: false,
+    isModerator: false,
+    isFullyAuthenticated: false
   },
   unauthenticated: {
+    session: null,
+    user: undefined,
+    backendUser: undefined,
     isLoading: false,
     isAuthenticated: false,
+    hasValidBackendToken: false,
+    userDomain: undefined,
     displayName: '',
-    avatarUrl: null,
-    userDomain: '',
-    isAdmin: false
+    avatarUrl: undefined,
+    isAdmin: false,
+    isModerator: false,
+    isFullyAuthenticated: false
   },
   authenticatedUser: {
+    session: {
+      user: {
+        name: 'John Doe',
+        email: 'john@company.com',
+        image: 'https://example.com/avatar.jpg'
+      },
+      backendUser: {
+        id: '1',
+        email: 'john@company.com',
+        name: 'John Doe',
+        domain: 'company.com',
+        isAdmin: false,
+        isModerator: false,
+        termsAcceptedAt: null
+      },
+      backendToken: 'valid-token',
+      expires: '2024-01-01'
+    },
+    user: {
+      name: 'John Doe',
+      email: 'john@company.com',
+      image: 'https://example.com/avatar.jpg'
+    },
+    backendUser: {
+      id: '1',
+      email: 'john@company.com',
+      name: 'John Doe',
+      domain: 'company.com',
+      isAdmin: false,
+      isModerator: false,
+      termsAcceptedAt: null
+    },
     isLoading: false,
     isAuthenticated: true,
+    hasValidBackendToken: true,
+    userDomain: 'company.com',
     displayName: 'John Doe',
     avatarUrl: 'https://example.com/avatar.jpg',
-    userDomain: 'company.com',
-    isAdmin: false
+    isAdmin: false,
+    isModerator: false,
+    isFullyAuthenticated: true
   },
   authenticatedAdmin: {
+    session: {
+      user: {
+        name: 'Admin User',
+        email: 'admin@company.com',
+        image: 'https://example.com/admin.jpg'
+      },
+      backendUser: {
+        id: '2',
+        email: 'admin@company.com',
+        name: 'Admin User',
+        domain: 'company.com',
+        isAdmin: true,
+        isModerator: false,
+        termsAcceptedAt: null
+      },
+      backendToken: 'valid-token',
+      expires: '2024-01-01'
+    },
+    user: {
+      name: 'Admin User',
+      email: 'admin@company.com',
+      image: 'https://example.com/admin.jpg'
+    },
+    backendUser: {
+      id: '2',
+      email: 'admin@company.com',
+      name: 'Admin User',
+      domain: 'company.com',
+      isAdmin: true,
+      isModerator: false,
+      termsAcceptedAt: null
+    },
     isLoading: false,
     isAuthenticated: true,
+    hasValidBackendToken: true,
+    userDomain: 'company.com',
     displayName: 'Admin User',
     avatarUrl: 'https://example.com/admin.jpg',
-    userDomain: 'company.com',
-    isAdmin: true
+    isAdmin: true,
+    isModerator: false,
+    isFullyAuthenticated: true
   },
   userWithoutAvatar: {
+    session: {
+      user: {
+        name: 'Jane Smith',
+        email: 'jane@example.org',
+        image: null
+      },
+      backendUser: {
+        id: '3',
+        email: 'jane@example.org',
+        name: 'Jane Smith',
+        domain: 'example.org',
+        isAdmin: false,
+        isModerator: false,
+        termsAcceptedAt: null
+      },
+      backendToken: 'valid-token',
+      expires: '2024-01-01'
+    },
+    user: {
+      name: 'Jane Smith',
+      email: 'jane@example.org',
+      image: null
+    },
+    backendUser: {
+      id: '3',
+      email: 'jane@example.org',
+      name: 'Jane Smith',
+      domain: 'example.org',
+      isAdmin: false,
+      isModerator: false,
+      termsAcceptedAt: null
+    },
     isLoading: false,
     isAuthenticated: true,
+    hasValidBackendToken: true,
+    userDomain: 'example.org',
     displayName: 'Jane Smith',
     avatarUrl: null,
-    userDomain: 'example.org',
-    isAdmin: false
+    isAdmin: false,
+    isModerator: false,
+    isFullyAuthenticated: true
   },
   userWithoutDomain: {
+    session: {
+      user: {
+        name: 'Bob Wilson',
+        email: 'bob@email.com',
+        image: 'https://example.com/bob.jpg'
+      },
+      expires: '2024-01-01'
+    } as any as Session,
+    user: {
+      name: 'Bob Wilson',
+      email: 'bob@email.com',
+      image: 'https://example.com/bob.jpg'
+    },
+    backendUser: undefined,
     isLoading: false,
     isAuthenticated: true,
+    hasValidBackendToken: false,
+    userDomain: undefined,
     displayName: 'Bob Wilson',
     avatarUrl: 'https://example.com/bob.jpg',
-    userDomain: '',
-    isAdmin: false
+    isAdmin: false,
+    isModerator: false,
+    isFullyAuthenticated: false
   }
 };
 
@@ -132,7 +273,7 @@ const mockDropdownStates = {
 };
 
 describe('UserMenu Component', () => {
-  let consoleWarnSpy: vi.SpyInstance;
+  let consoleWarnSpy: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -150,8 +291,10 @@ describe('UserMenu Component', () => {
 
       render(<UserMenu />);
 
-      expect(screen.getByText('Loading...')).toBeInTheDocument();
-      expect(screen.getByText('Loading...')).toHaveClass('text-gray-500', 'animate-pulse');
+      // Check for loading skeleton instead of text
+      const loadingSkeleton = screen.getByRole('status', { name: 'Loading user menu' });
+      expect(loadingSkeleton).toBeInTheDocument();
+      expect(loadingSkeleton).toHaveClass('animate-pulse');
     });
 
     it('should not show anything when unauthenticated', () => {
@@ -343,26 +486,6 @@ describe('UserMenu Component', () => {
       expect(dropdown).toHaveAttribute('aria-labelledby', 'user-menu-button');
     });
 
-    it('should display user information in dropdown', () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(screen.getByText('@company.com')).toBeInTheDocument();
-    });
-
-    it('should handle missing user domain gracefully', () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.userWithoutDomain);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      expect(screen.getByText('Bob Wilson')).toBeInTheDocument();
-      expect(screen.queryByText(/@/)).not.toBeInTheDocument();
-    });
-
     it('should show admin dashboard link for admin users', () => {
       mockUseAuth.mockReturnValue(mockAuthStates.authenticatedAdmin);
       mockUseDropdown.mockReturnValue(mockDropdownStates.open);
@@ -396,48 +519,9 @@ describe('UserMenu Component', () => {
 
       expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
     });
-
-    it('should show sign out button with proper attributes', () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const signOutButton = screen.getByText('Sign Out');
-      expect(signOutButton).toBeInTheDocument();
-      expect(signOutButton).toHaveAttribute('role', 'menuitem');
-      expect(signOutButton).toHaveAttribute('aria-label', 'Sign out of your account');
-      expect(signOutButton).toHaveAttribute('tabIndex', '0');
-    });
   });
 
   describe('Keyboard Navigation', () => {
-    it('should handle Enter key to activate sign out', async () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const profileButton = screen.getByRole('button', { name: /user menu/i });
-      await userEvent.type(profileButton, '{Enter}');
-
-      expect(mockSignOut).toHaveBeenCalledOnce();
-      expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
-    });
-
-    it('should handle Space key to activate sign out', async () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const profileButton = screen.getByRole('button', { name: /user menu/i });
-      fireEvent.keyDown(profileButton, { key: ' ' });
-
-      expect(mockSignOut).toHaveBeenCalledOnce();
-      expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
-    });
-
     it('should handle Escape key to close dropdown', async () => {
       mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
       mockUseDropdown.mockReturnValue(mockDropdownStates.open);
@@ -474,35 +558,9 @@ describe('UserMenu Component', () => {
       expect(mockSignOut).not.toHaveBeenCalled();
       expect(mockDropdownStates.closed.close).not.toHaveBeenCalled();
     });
-
-    it('should handle sign out button keyboard events', async () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const signOutButton = screen.getByText('Sign Out');
-      fireEvent.keyDown(signOutButton, { key: 'Enter' });
-
-      expect(mockSignOut).toHaveBeenCalledOnce();
-      expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
-    });
   });
 
   describe('User Actions', () => {
-    it('should call signOut and close dropdown when sign out button is clicked', async () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const signOutButton = screen.getByText('Sign Out');
-      await userEvent.click(signOutButton);
-
-      expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
-      expect(mockSignOut).toHaveBeenCalledOnce();
-    });
-
     it('should have proper button styling and classes when authenticated', () => {
       mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
       mockUseDropdown.mockReturnValue(mockDropdownStates.closed);
@@ -529,10 +587,6 @@ describe('UserMenu Component', () => {
       expect(dropdown).toHaveAttribute('role', 'menu');
       expect(dropdown).toHaveAttribute('aria-orientation', 'vertical');
       expect(dropdown).toHaveAttribute('aria-labelledby', 'user-menu-button');
-
-      const signOutButton = screen.getByText('Sign Out');
-      expect(signOutButton).toHaveAttribute('role', 'menuitem');
-      expect(signOutButton).toHaveAttribute('tabIndex', '0');
     });
 
     it('should have proper focus management classes', () => {
@@ -574,23 +628,6 @@ describe('UserMenu Component', () => {
       );
     });
 
-    it('should handle text truncation for long names', () => {
-      mockUseAuth.mockReturnValue({
-        ...mockAuthStates.authenticatedUser,
-        displayName: 'Very Long User Name That Should Be Truncated',
-        userDomain: 'very-long-domain-name-that-should-also-be-truncated.com'
-      });
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const nameElement = screen.getByText('Very Long User Name That Should Be Truncated');
-      const domainElement = screen.getByText('@very-long-domain-name-that-should-also-be-truncated.com');
-      
-      expect(nameElement).toHaveClass('truncate');
-      expect(domainElement).toHaveClass('truncate');
-    });
-
     it('should maintain dropdown position and z-index', () => {
       mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
       mockUseDropdown.mockReturnValue(mockDropdownStates.open);
@@ -610,7 +647,7 @@ describe('UserMenu Component', () => {
       mockUseAuth.mockReturnValue(mockAuthStates.loading);
       mockUseDropdown.mockReturnValue(mockDropdownStates.closed);
       rerender(<UserMenu />);
-      expect(screen.getByText('Loading...')).toBeInTheDocument();
+      expect(screen.getByRole('status', { name: 'Loading user menu' })).toBeInTheDocument();
 
       // Unauthenticated state - component returns null
       mockUseAuth.mockReturnValue(mockAuthStates.unauthenticated);
@@ -627,7 +664,7 @@ describe('UserMenu Component', () => {
     it('should handle missing displayName with fallback', () => {
       mockUseAuth.mockReturnValue({
         ...mockAuthStates.authenticatedUser,
-        displayName: null
+        displayName: ''
       });
       mockUseDropdown.mockReturnValue(mockDropdownStates.open);
 

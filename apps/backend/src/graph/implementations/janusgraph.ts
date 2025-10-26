@@ -3,20 +3,23 @@
 
 import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
-import {
-  Document,
-  Selection,
+import { getEntityTypes, getBodySource } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
+import type {
+  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  SelectionFilter,
   CreateDocumentInput,
   UpdateDocumentInput,
-  CreateSelectionInput,
-  ResolveSelectionInput,
-} from '../types';
+  CreateAnnotationInternal,
+} from '@semiont/core';
+import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
+
+type Document = components['schemas']['Document'];
+type Annotation = components['schemas']['Annotation'];
 
 const traversal = gremlin.process.AnonymousTraversalSource.traversal;
 const DriverRemoteConnection = gremlin.driver.DriverRemoteConnection;
@@ -28,7 +31,6 @@ export class JanusGraphDatabase implements GraphDatabase {
 
   // Tag Collections - cached in memory for performance
   private entityTypesCollection: Set<string> | null = null;
-  private referenceTypesCollection: Set<string> | null = null;
 
 
   constructor(private config: {
@@ -39,8 +41,16 @@ export class JanusGraphDatabase implements GraphDatabase {
   } = {}) {}
   
   async connect(): Promise<void> {
-    const host = this.config.host || process.env.JANUSGRAPH_HOST || 'localhost';
-    const port = this.config.port || parseInt(process.env.JANUSGRAPH_PORT || '8182');
+    // Configuration must be provided via constructor
+    const host = this.config.host;
+    if (!host) {
+      throw new Error('JanusGraph host is required: provide in config');
+    }
+
+    const port = this.config.port;
+    if (!port) {
+      throw new Error('JanusGraph port is required: provide in config');
+    }
 
     console.log(`Attempting to connect to JanusGraph at ws://${host}:${port}/gremlin`);
 
@@ -85,11 +95,11 @@ export class JanusGraphDatabase implements GraphDatabase {
     const id = this.getPropertyValue(props, 'id');
 
     // Validate required fields
-    const createdBy = this.getPropertyValue(props, 'createdBy');
+    const creator = this.getPropertyValue(props, 'creator');
     const creationMethod = this.getPropertyValue(props, 'creationMethod');
     const contentChecksum = this.getPropertyValue(props, 'contentChecksum');
 
-    if (!createdBy) throw new Error(`Document ${id} missing required field: createdBy`);
+    if (!creator) throw new Error(`Document ${id} missing required field: creator`);
     if (!creationMethod) throw new Error(`Document ${id} missing required field: creationMethod`);
     if (!contentChecksum) throw new Error(`Document ${id} missing required field: contentChecksum`);
 
@@ -97,14 +107,13 @@ export class JanusGraphDatabase implements GraphDatabase {
       id,
       name: this.getPropertyValue(props, 'name'),
       entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
-      contentType: this.getPropertyValue(props, 'contentType'),
-      metadata: JSON.parse(this.getPropertyValue(props, 'metadata') || '{}'),
+      format: this.getPropertyValue(props, 'contentType'),
       archived: this.getPropertyValue(props, 'archived') === 'true',
-      createdBy,
-      createdAt: new Date(this.getPropertyValue(props, 'createdAt')),
+      creator,
+      created: this.getPropertyValue(props, 'created'), // ISO string from DB
       creationMethod,
       contentChecksum,
-      sourceSelectionId: this.getPropertyValue(props, 'sourceSelectionId'),
+      sourceAnnotationId: this.getPropertyValue(props, 'sourceAnnotationId'),
       sourceDocumentId: this.getPropertyValue(props, 'sourceDocumentId'),
     };
   }
@@ -116,44 +125,113 @@ export class JanusGraphDatabase implements GraphDatabase {
     return prop?.value || prop;
   }
 
-  // Helper function to convert vertex to Selection
-  private vertexToSelection(vertex: any): Selection {
+  // Helper method to fetch annotations with their entity types
+  private async fetchAnnotationsWithEntityTypes(annotationVertices: any[]): Promise<Annotation[]> {
+    const annotations: Annotation[] = [];
+
+    for (const vertex of annotationVertices) {
+      const id = this.getPropertyValue(vertex.properties || {}, 'id');
+
+      // Fetch entity types for this annotation
+      const entityTypeVertices = await this.g!
+        .V()
+        .has('Annotation', 'id', id)
+        .out('TAGGED_AS')
+        .has('EntityType')
+        .toList();
+
+      const entityTypes = entityTypeVertices.map((v: any) =>
+        this.getPropertyValue(v.properties || {}, 'name')
+      ).filter(Boolean);
+
+      annotations.push(this.vertexToAnnotation(vertex, entityTypes));
+    }
+
+    return annotations;
+  }
+
+  // Helper function to convert vertex to Annotation
+  private vertexToAnnotation(vertex: any, entityTypes: string[] = []): Annotation {
     const props = vertex.properties || {};
-    return {
+
+    // Derive motivation from type if not present (backward compatibility)
+    const motivation = this.getPropertyValue(props, 'motivation') || 'linking';
+
+    // Parse creator - always stored as JSON string in DB
+    const creatorJson = this.getPropertyValue(props, 'creator');
+    const creator = JSON.parse(creatorJson);
+
+    // Reconstruct body array from entity tags and linking body
+    const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
+
+    // Add entity tag bodies (TextualBody with purpose: "tagging")
+    for (const entityType of entityTypes) {
+      if (entityType) {
+        bodyArray.push({
+          type: 'TextualBody' as const,
+          value: entityType,
+          purpose: 'tagging' as const,
+        });
+      }
+    }
+
+    // Add linking body (SpecificResource) if annotation is resolved
+    const bodySource = this.getPropertyValue(props, 'source');
+    if (bodySource) {
+      bodyArray.push({
+        type: 'SpecificResource' as const,
+        source: bodySource,
+        purpose: 'linking' as const,
+      });
+    }
+
+    const annotation: Annotation = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id: this.getPropertyValue(props, 'id'),
-      documentId: this.getPropertyValue(props, 'documentId'),
-      selectionType: this.getPropertyValue(props, 'selectionType'),
-      selectionData: JSON.parse(this.getPropertyValue(props, 'selectionData') || '{}'),
-      provisional: this.getPropertyValue(props, 'provisional') === 'true',
-      createdAt: new Date(this.getPropertyValue(props, 'createdAt')),
-      updatedAt: new Date(this.getPropertyValue(props, 'updatedAt')),
-      createdBy: this.getPropertyValue(props, 'createdBy'),
-      confidence: this.getPropertyValue(props, 'confidence'),
-      metadata: JSON.parse(this.getPropertyValue(props, 'metadata') || '{}'),
-      resolvedDocumentId: this.getPropertyValue(props, 'resolvedDocumentId'),
-      resolvedAt: this.getPropertyValue(props, 'resolvedAt') ? new Date(this.getPropertyValue(props, 'resolvedAt')) : undefined,
-      resolvedBy: this.getPropertyValue(props, 'resolvedBy'),
-      referenceTags: JSON.parse(this.getPropertyValue(props, 'referenceTags') || '[]'),
-      entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
+      motivation,
+      target: {
+        source: this.getPropertyValue(props, 'documentId'),
+        selector: JSON.parse(this.getPropertyValue(props, 'selector') || '{}'),
+      },
+      body: bodyArray,
+      creator,
+      created: this.getPropertyValue(props, 'created'), // ISO string from DB
     };
+
+    // W3C Web Annotation modification tracking
+    const modified = this.getPropertyValue(props, 'modified');
+    if (modified) {
+      annotation.modified = modified;
+    }
+
+    const generatorJson = this.getPropertyValue(props, 'generator');
+    if (generatorJson) {
+      try {
+        annotation.generator = JSON.parse(generatorJson);
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+
+    return annotation;
   }
   
   async createDocument(input: CreateDocumentInput): Promise<Document> {
     const id = this.generateId();
-    const now = new Date();
+    const now = new Date().toISOString();
 
     const document: Document = {
       id,
       name: input.name,
       entityTypes: input.entityTypes,
-      contentType: input.contentType,
-      metadata: input.metadata,
+      format: input.format,
       archived: false,
-      createdAt: now,
-      createdBy: input.createdBy,
+      created: now,
+      creator: input.creator,
       creationMethod: input.creationMethod,
       contentChecksum: input.contentChecksum,
-      sourceSelectionId: input.sourceSelectionId,
+      sourceAnnotationId: input.sourceAnnotationId,
       sourceDocumentId: input.sourceDocumentId,
     };
 
@@ -163,16 +241,15 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('id', id)
       .property('name', input.name)
       .property('entityTypes', JSON.stringify(input.entityTypes))
-      .property('contentType', input.contentType)
-      .property('metadata', JSON.stringify(input.metadata))
+      .property('contentType', input.format)
       .property('archived', false)
-      .property('createdAt', now.toISOString())
-      .property('createdBy', input.createdBy)
+      .property('created', now)
+      .property('creator', input.creator)
       .property('creationMethod', input.creationMethod)
       .property('contentChecksum', input.contentChecksum);
 
-    if (input.sourceSelectionId) {
-      vertex.property('sourceSelectionId', input.sourceSelectionId);
+    if (input.sourceAnnotationId) {
+      vertex.property('sourceAnnotationId', input.sourceAnnotationId);
     }
     if (input.sourceDocumentId) {
       vertex.property('sourceDocumentId', input.sourceDocumentId);
@@ -263,247 +340,316 @@ export class JanusGraphDatabase implements GraphDatabase {
     return result.documents;
   }
   
-  async createSelection(input: CreateSelectionInput): Promise<Selection> {
+  async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const id = this.generateId();
-    const now = new Date();
 
-    const selection: Selection = {
+    // Only linking motivation with SpecificResource or empty array (stub)
+    const motivation = input.motivation;
+
+    const annotation: Annotation = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id,
-      documentId: input.documentId,
-      selectionType: input.selectionType,
-      selectionData: input.selectionData,
-      provisional: input.provisional || false,
-      createdAt: now,
-      updatedAt: now,
-      createdBy: input.createdBy,
-      confidence: input.confidence,
-      metadata: input.metadata,
+      motivation,
+      target: input.target,
+      body: input.body,
+      creator: input.creator,
+      created: new Date().toISOString(),
     };
 
-    if ('resolvedDocumentId' in input) {
-      selection.resolvedDocumentId = input.resolvedDocumentId;
-      if (input.resolvedDocumentId) {
-        selection.resolvedAt = now;
-      }
-      if (input.resolvedBy) selection.resolvedBy = input.resolvedBy;
+    // Extract source from body using helper
+    const bodySource = getBodySource(input.body);
+    const entityTypes = getEntityTypes(input);
+    const bodyType = Array.isArray(input.body) ? 'SpecificResource' : input.body.type;
+
+    // Extract target source and selector
+    const targetSource = typeof input.target === 'string' ? input.target : input.target.source;
+    const targetSelector = typeof input.target === 'string' ? undefined : input.target.selector;
+
+    // Create annotation vertex
+    const vertex = this.g!
+      .addV('Annotation')
+      .property('id', id)
+      .property('documentId', targetSource)
+      .property('text', targetSelector ? getExactText(targetSelector) : '')
+      .property('selector', JSON.stringify(targetSelector || {}))
+      .property('type', bodyType)
+      .property('motivation', motivation)
+      .property('creator', JSON.stringify(input.creator))
+      .property('created', annotation.created);
+
+    if (bodySource) {
+      vertex.property('source', bodySource);
     }
 
-    if (input.referenceTags) selection.referenceTags = input.referenceTags;
-    if (input.entityTypes) selection.entityTypes = input.entityTypes;
+    const annVertex = await vertex.next();
 
-    // Create selection vertex
-    const selVertex = await this.g!
-      .addV('Selection')
-      .property('id', id)
-      .property('documentId', input.documentId)
-      .property('selectionType', input.selectionType)
-      .property('selectionData', JSON.stringify(input.selectionData))
-      .property('provisional', input.provisional || false)
-      .property('createdAt', now.toISOString())
-      .property('updatedAt', now.toISOString())
-      .next();
-
-    // Create edge from selection to document (BELONGS_TO)
+    // Create edge from annotation to document (BELONGS_TO)
     await this.g!
-      .V(selVertex.value)
+      .V(annVertex.value)
       .addE('BELONGS_TO')
-      .to(this.g!.V().has('Document', 'id', input.documentId))
+      .to(this.g!.V().has('Document', 'id', targetSource))
       .next();
 
-    // If it's a reference, create edge to target document
-    if (input.resolvedDocumentId) {
+    // If it's a resolved reference, create edge to target document
+    if (bodySource) {
       await this.g!
-        .V(selVertex.value)
+        .V(annVertex.value)
         .addE('REFERENCES')
-        .to(this.g!.V().has('Document', 'id', input.resolvedDocumentId))
-        .property('referenceTags', JSON.stringify(input.referenceTags || []))
+        .to(this.g!.V().has('Document', 'id', bodySource))
         .next();
     }
 
-    console.log('Created selection in JanusGraph:', id);
-    return selection;
+    // Create TAGGED_AS relationships for entity types
+    for (const entityType of entityTypes) {
+      // Get or create EntityType vertex
+      const etResults = await this.g!
+        .V()
+        .has('EntityType', 'name', entityType)
+        .toList();
+
+      let etVertex;
+      if (etResults.length === 0) {
+        // Create new EntityType vertex
+        etVertex = await this.g!
+          .addV('EntityType')
+          .property('name', entityType)
+          .next();
+      } else {
+        etVertex = { value: etResults[0] };
+      }
+
+      // Create TAGGED_AS edge from Annotation to EntityType
+      await this.g!
+        .V(annVertex.value)
+        .addE('TAGGED_AS')
+        .to(this.g!.V(etVertex.value))
+        .next();
+    }
+
+    console.log('Created annotation in JanusGraph:', id);
+    return annotation;
   }
   
-  async getSelection(id: string): Promise<Selection | null> {
+  async getAnnotation(id: string): Promise<Annotation | null> {
     const vertices = await this.g!
       .V()
-      .has('Selection', 'id', id)
+      .has('Annotation', 'id', id)
       .toList();
 
     if (vertices.length === 0) {
       return null;
     }
 
-    return this.vertexToSelection(vertices[0] as any);
+    // Fetch entity types from TAGGED_AS relationships
+    const entityTypeVertices = await this.g!
+      .V()
+      .has('Annotation', 'id', id)
+      .out('TAGGED_AS')
+      .has('EntityType')
+      .toList();
+
+    const entityTypes = entityTypeVertices.map((v: any) =>
+      this.getPropertyValue(v.properties || {}, 'name')
+    ).filter(Boolean);
+
+    return this.vertexToAnnotation(vertices[0] as any, entityTypes);
   }
   
-  async updateSelection(id: string, updates: Partial<Selection>): Promise<Selection> {
+  async updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation> {
     const traversalQuery = this.g!
       .V()
-      .has('Selection', 'id', id);
+      .has('Annotation', 'id', id);
 
-    // Update properties
-    if (updates.selectionData !== undefined) {
-      await traversalQuery.property('selectionData', JSON.stringify(updates.selectionData)).next();
-    }
-    if (updates.provisional !== undefined) {
-      await traversalQuery.property('provisional', updates.provisional).next();
-    }
-    if (updates.confidence !== undefined) {
-      await traversalQuery.property('confidence', updates.confidence).next();
-    }
-    if (updates.metadata !== undefined) {
-      await traversalQuery.property('metadata', JSON.stringify(updates.metadata)).next();
-    }
-    if (updates.resolvedDocumentId !== undefined) {
-      await traversalQuery.property('resolvedDocumentId', updates.resolvedDocumentId).next();
-    }
-    if (updates.resolvedAt !== undefined) {
-      await traversalQuery.property('resolvedAt', updates.resolvedAt.toISOString()).next();
-    }
-    if (updates.resolvedBy !== undefined) {
-      await traversalQuery.property('resolvedBy', updates.resolvedBy).next();
-    }
-    if (updates.referenceTags !== undefined) {
-      await traversalQuery.property('referenceTags', JSON.stringify(updates.referenceTags)).next();
-    }
-    if (updates.entityTypes !== undefined) {
-      await traversalQuery.property('entityTypes', JSON.stringify(updates.entityTypes)).next();
+    // Update target properties
+    if (updates.target !== undefined && typeof updates.target !== 'string') {
+      if (updates.target.selector !== undefined) {
+        await traversalQuery.property('text', getExactText(updates.target.selector)).next();
+        await traversalQuery.property('selector', JSON.stringify(updates.target.selector)).next();
+      }
     }
 
-    await traversalQuery.property('updatedAt', new Date().toISOString()).next();
+    // Update body properties and entity types
+    if (updates.body !== undefined) {
+      const bodySource = getBodySource(updates.body);
+      const entityTypes = getEntityTypes({ body: updates.body });
 
-    const updatedSelection = await this.getSelection(id);
-    if (!updatedSelection) {
-      throw new Error('Selection not found');
+      if (bodySource) {
+        await traversalQuery.property('source', bodySource).next();
+      }
+
+      // Update entity type relationships - remove old ones and create new ones
+      if (entityTypes.length >= 0) {
+        // Remove existing TAGGED_AS edges
+        await this.g!
+          .V()
+          .has('Annotation', 'id', id)
+          .outE('TAGGED_AS')
+          .drop()
+          .iterate();
+
+        // Create new TAGGED_AS edges
+        for (const entityType of entityTypes) {
+          // Get or create EntityType vertex
+          const etResults = await this.g!
+            .V()
+            .has('EntityType', 'name', entityType)
+            .toList();
+
+          let etVertex;
+          if (etResults.length === 0) {
+            // Create new EntityType vertex
+            etVertex = await this.g!
+              .addV('EntityType')
+              .property('name', entityType)
+              .next();
+          } else {
+            etVertex = { value: etResults[0] };
+          }
+
+          // Create TAGGED_AS edge from Annotation to EntityType
+          const annVertices = await this.g!
+            .V()
+            .has('Annotation', 'id', id)
+            .toList();
+
+          if (annVertices.length > 0) {
+            await this.g!
+              .V(annVertices[0])
+              .addE('TAGGED_AS')
+              .to(this.g!.V(etVertex.value))
+              .next();
+          }
+        }
+      }
     }
 
-    return updatedSelection;
+    if (updates.modified !== undefined) {
+      await traversalQuery.property('modified', updates.modified).next();
+    }
+    if (updates.generator !== undefined) {
+      await traversalQuery.property('generator', JSON.stringify(updates.generator)).next();
+    }
+
+    const updatedAnnotation = await this.getAnnotation(id);
+    if (!updatedAnnotation) {
+      throw new Error('Annotation not found');
+    }
+
+    return updatedAnnotation;
   }
   
-  async deleteSelection(id: string): Promise<void> {
+  async deleteAnnotation(id: string): Promise<void> {
     await this.g!
       .V()
-      .has('Selection', 'id', id)
+      .has('Annotation', 'id', id)
       .drop()
       .next();
 
-    console.log('Deleted selection from JanusGraph:', id);
+    console.log('Deleted annotation from JanusGraph:', id);
   }
   
-  async listSelections(filter: SelectionFilter): Promise<{ selections: Selection[]; total: number }> {
-    let traversalQuery = this.g!.V().hasLabel('Selection');
+  async listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
+    let traversalQuery = this.g!.V().hasLabel('Annotation');
 
     // Apply filters
     if (filter.documentId) {
       traversalQuery = traversalQuery.has('documentId', filter.documentId);
     }
 
-    if (filter.resolvedDocumentId) {
-      traversalQuery = traversalQuery.has('resolvedDocumentId', filter.resolvedDocumentId);
+    if (filter.type) {
+      const w3cType = filter.type === 'highlight' ? 'TextualBody' : 'SpecificResource';
+      traversalQuery = traversalQuery.has('type', w3cType);
     }
 
-    if (filter.provisional !== undefined) {
-      traversalQuery = traversalQuery.has('provisional', filter.provisional);
-    }
-
-    const sels = await traversalQuery.toList();
-    let selections = sels.map((v: any) => this.vertexToSelection(v));
-
-    // Apply resolved filter after retrieval (since it's based on existence of resolvedDocumentId)
-    if (filter.resolved !== undefined) {
-      selections = selections.filter(sel => filter.resolved ? !!sel.resolvedDocumentId : !sel.resolvedDocumentId);
-    }
-
-    // Apply hasEntityTypes filter after retrieval
-    if (filter.hasEntityTypes !== undefined) {
-      selections = selections.filter(sel => filter.hasEntityTypes ? (sel.entityTypes && sel.entityTypes.length > 0) : (!sel.entityTypes || sel.entityTypes.length === 0));
-    }
-
-    const total = selections.length;
-    const offset = filter.offset || 0;
-    const limit = filter.limit || 50;
+    const vertices = await traversalQuery.toList();
+    const annotations = await this.fetchAnnotationsWithEntityTypes(vertices);
 
     return {
-      selections: selections.slice(offset, offset + limit),
-      total
+      annotations,
+      total: annotations.length
     };
   }
-  
-  async getHighlights(documentId: string): Promise<Selection[]> {
-    const { selections } = await this.listSelections({ 
-      documentId, 
-      resolved: false 
+
+  async getHighlights(documentId: string): Promise<Annotation[]> {
+    const { annotations } = await this.listAnnotations({
+      documentId,
+      type: 'highlight'
     });
-    return selections;
+    return annotations;
   }
-  
-  async resolveSelection(input: ResolveSelectionInput): Promise<Selection> {
-    const selection = await this.getSelection(input.selectionId);
-    if (!selection) throw new Error('Selection not found');
 
-    // Update the selection properties
-    await this.updateSelection(input.selectionId, {
-      resolvedDocumentId: input.documentId,
-      resolvedAt: new Date(),
-      resolvedBy: input.resolvedBy,
-      referenceTags: input.referenceTags,
-      entityTypes: input.entityTypes,
+  async resolveReference(annotationId: string, source: string): Promise<Annotation> {
+    const annotation = await this.getAnnotation(annotationId);
+    if (!annotation) throw new Error('Annotation not found');
+
+    // TODO Preserve existing TextualBody entities, add SpecificResource
+    // For now, just update with SpecificResource (losing entity tags)
+    await this.updateAnnotation(annotationId, {
+      body: [
+        {
+          type: 'SpecificResource',
+          source,
+          purpose: 'linking' as const,
+        },
+      ],
     });
 
-    // Create edge from selection to target document
-    if (input.documentId) {
-      await this.g!
-        .V()
-        .has('Selection', 'id', input.selectionId)
-        .addE('REFERENCES')
-        .to(this.g!.V().has('Document', 'id', input.documentId))
-        .property('referenceTags', JSON.stringify(input.referenceTags || []))
-        .next();
+    // Create edge from annotation to target document
+    await this.g!
+      .V()
+      .has('Annotation', 'id', annotationId)
+      .addE('REFERENCES')
+      .to(this.g!.V().has('Document', 'id', source))
+      .next();
+
+    const updatedAnnotation = await this.getAnnotation(annotationId);
+    if (!updatedAnnotation) {
+      throw new Error('Annotation not found after update');
     }
 
-    const updatedSelection = await this.getSelection(input.selectionId);
-    if (!updatedSelection) {
-      throw new Error('Selection not found after update');
-    }
+    return updatedAnnotation;
+  }
 
-    return updatedSelection;
-  }
-  
-  async getReferences(documentId: string): Promise<Selection[]> {
-    const { selections } = await this.listSelections({ 
-      documentId, 
-      resolved: true 
+  async getReferences(documentId: string): Promise<Annotation[]> {
+    const { annotations } = await this.listAnnotations({
+      documentId,
+      type: 'reference'
     });
-    return selections;
+    return annotations;
   }
-  
-  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Selection[]> {
-    const { selections } = await this.listSelections({ 
-      documentId, 
-      resolved: true,
-      hasEntityTypes: true 
+
+  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]> {
+    const { annotations } = await this.listAnnotations({
+      documentId,
+      type: 'reference'
     });
-    
+
+    // TODO Extract entity types from body using helper
     if (entityTypes && entityTypes.length > 0) {
-      return selections.filter(sel => 
-        sel.entityTypes?.some(type => entityTypes.includes(type))
-      );
+      return annotations.filter(ann => {
+        const annEntityTypes = getEntityTypes(ann);
+        return annEntityTypes.some((type: string) => entityTypes.includes(type));
+      });
     }
-    
-    return selections;
+
+    return annotations.filter(ann => getEntityTypes(ann).length > 0);
   }
-  
-  async getDocumentSelections(documentId: string): Promise<Selection[]> {
-    const { selections } = await this.listSelections({ documentId });
-    return selections;
+
+  async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
+    const { annotations } = await this.listAnnotations({ documentId });
+    return annotations;
   }
-  
-  async getDocumentReferencedBy(documentId: string): Promise<Selection[]> {
-    const { selections } = await this.listSelections({ 
-      resolvedDocumentId: documentId 
-    });
-    return selections;
+
+  async getDocumentReferencedBy(documentId: string): Promise<Annotation[]> {
+    // Find annotations that reference this document
+    const vertices = await this.g!
+      .V()
+      .hasLabel('Annotation')
+      .has('source', documentId)
+      .toList();
+
+    return await this.fetchAnnotationsWithEntityTypes(vertices);
   }
   
   async getDocumentConnections(documentId: string): Promise<GraphConnection[]> {
@@ -527,17 +673,19 @@ export class JanusGraphDatabase implements GraphDatabase {
     const refs = await this.getReferences(documentId);
 
     for (const ref of refs) {
-      if (ref.resolvedDocumentId) {
-        const targetDoc = await this.getDocument(ref.resolvedDocumentId);
+      // Extract source from body using helper
+      const bodySource = getBodySource(ref.body);
+      if (bodySource) {
+        const targetDoc = await this.getDocument(bodySource);
         if (targetDoc) {
           const existing = connections.find(c => c.targetDocument.id === targetDoc.id);
           if (existing) {
-            existing.selections.push(ref);
+            existing.annotations.push(ref);
           } else {
             connections.push({
               targetDocument: targetDoc,
-              selections: [ref],
-              relationshipType: ref.referenceTags?.[0],
+              annotations: [ref],
+              relationshipType: undefined,
               bidirectional: false,
             });
           }
@@ -581,20 +729,20 @@ export class JanusGraphDatabase implements GraphDatabase {
       for (const type of doc.entityTypes) {
         entityTypes[type] = (entityTypes[type] || 0) + 1;
       }
-      contentTypes[doc.contentType] = (contentTypes[doc.contentType] || 0) + 1;
+      contentTypes[doc.format] = (contentTypes[doc.format] || 0) + 1;
     }
 
-    // Get all selections
-    const sels = await this.g!.V().hasLabel('Selection').toList();
-    const selections = sels.map((v: any) => this.vertexToSelection(v));
+    // Get all annotations
+    const anns = await this.g!.V().hasLabel('Annotation').toList();
+    const annotations = await this.fetchAnnotationsWithEntityTypes(anns);
 
-    const highlights = selections.filter(s => !s.resolvedDocumentId);
-    const references = selections.filter(s => s.resolvedDocumentId);
-    const entityReferences = references.filter(s => s.entityTypes && s.entityTypes.length > 0);
+    const highlights = annotations.filter(a => a.motivation === 'highlighting');
+    const references = annotations.filter(a => a.motivation === 'linking');
+    const entityReferences = references.filter(a => getEntityTypes(a).length > 0);
 
     return {
       documentCount: documents.length,
-      selectionCount: selections.length,
+      annotationCount: annotations.length,
       highlightCount: highlights.length,
       referenceCount: references.length,
       entityReferenceCount: entityReferences.length,
@@ -602,24 +750,24 @@ export class JanusGraphDatabase implements GraphDatabase {
       contentTypes,
     };
   }
-  
-  async createSelections(inputs: CreateSelectionInput[]): Promise<Selection[]> {
+
+  async createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]> {
     const results = [];
     for (const input of inputs) {
-      results.push(await this.createSelection(input));
+      results.push(await this.createAnnotation(input));
     }
     return results;
   }
-  
-  async resolveSelections(inputs: ResolveSelectionInput[]): Promise<Selection[]> {
+
+  async resolveReferences(inputs: Array<{ annotationId: string; source: string }>): Promise<Annotation[]> {
     const results = [];
     for (const input of inputs) {
-      results.push(await this.resolveSelection(input));
+      results.push(await this.resolveReference(input.annotationId, input.source));
     }
     return results;
   }
-  
-  async detectSelections(_documentId: string): Promise<Selection[]> {
+
+  async detectAnnotations(_documentId: string): Promise<Annotation[]> {
     // Auto-detection would analyze document content
     return [];
   }
@@ -629,13 +777,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       await this.initializeTagCollections();
     }
     return Array.from(this.entityTypesCollection!).sort();
-  }
-  
-  async getReferenceTypes(): Promise<string[]> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.referenceTypesCollection!).sort();
   }
   
   async addEntityType(tag: string): Promise<void> {
@@ -668,38 +809,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       console.error('Failed to add entity type:', error);
     }
   }
-  
-  async addReferenceType(tag: string): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.referenceTypesCollection!.add(tag);
 
-    // Persist to JanusGraph
-    try {
-      // Find or create the TagCollection vertex
-      const existing = await this.g!.V()
-        .hasLabel('TagCollection')
-        .has('type', 'reference-types')
-        .toList();
-
-      if (existing.length > 0) {
-        // Update existing collection
-        await this.g!.V(existing[0])
-          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
-          .next();
-      } else {
-        // Create new collection
-        await this.g!.addV('TagCollection')
-          .property('type', 'reference-types')
-          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
-          .next();
-      }
-    } catch (error) {
-      console.error('Failed to add reference type:', error);
-    }
-  }
-  
   async addEntityTypes(tags: string[]): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
@@ -727,35 +837,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       console.error('Failed to add entity types:', error);
     }
   }
-  
-  async addReferenceTypes(tags: string[]): Promise<void> {
-    if (this.referenceTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.referenceTypesCollection!.add(tag));
 
-    // Persist all at once
-    try {
-      const existing = await this.g!.V()
-        .hasLabel('TagCollection')
-        .has('type', 'reference-types')
-        .toList();
-
-      if (existing.length > 0) {
-        await this.g!.V(existing[0])
-          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
-          .next();
-      } else {
-        await this.g!.addV('TagCollection')
-          .property('type', 'reference-types')
-          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
-          .next();
-      }
-    } catch (error) {
-      console.error('Failed to add reference types:', error);
-    }
-  }
-  
   private async initializeTagCollections(): Promise<void> {
     // Load existing collections from JanusGraph
     const collections = await this.g!.V()
@@ -763,7 +845,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       .toList();
 
     let entityTypesFromDb: string[] = [];
-    let referenceTypesFromDb: string[] = [];
 
     for (const vertex of collections) {
       const props = (vertex as any).properties || {};
@@ -773,24 +854,18 @@ export class JanusGraphDatabase implements GraphDatabase {
 
       if (type === 'entity-types') {
         entityTypesFromDb = tags;
-      } else if (type === 'reference-types') {
-        referenceTypesFromDb = tags;
       }
     }
 
     // Load defaults
-    const { DEFAULT_ENTITY_TYPES, DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
+    const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
 
     // Merge with defaults
     this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);
-    this.referenceTypesCollection = new Set([...DEFAULT_REFERENCE_TYPES, ...referenceTypesFromDb]);
 
-    // Persist merged collections back to JanusGraph if they don't exist
+    // Persist merged collection back to JanusGraph if it doesn't exist
     if (entityTypesFromDb.length === 0) {
       await this.addEntityTypes([]);
-    }
-    if (referenceTypesFromDb.length === 0) {
-      await this.addReferenceTypes([]);
     }
   }
 
@@ -803,7 +878,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     await this.g!.V().drop().next();
     // Reset cached collections
     this.entityTypesCollection = null;
-    this.referenceTypesCollection = null;
     console.log('Cleared JanusGraph database');
   }
 }

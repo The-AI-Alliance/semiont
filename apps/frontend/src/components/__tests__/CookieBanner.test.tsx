@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -68,11 +69,11 @@ import {
 } from '@/lib/cookies';
 
 // Type the mocked functions
-const mockShouldShowBanner = shouldShowBanner as vi.MockedFunction<typeof shouldShowBanner>;
-const mockIsGDPRApplicable = isGDPRApplicable as vi.MockedFunction<typeof isGDPRApplicable>;
-const mockIsCCPAApplicable = isCCPAApplicable as vi.MockedFunction<typeof isCCPAApplicable>;
-const mockSetCookieConsent = setCookieConsent as vi.MockedFunction<typeof setCookieConsent>;
-const mockGetCookieConsent = getCookieConsent as vi.MockedFunction<typeof getCookieConsent>;
+const mockShouldShowBanner = shouldShowBanner as MockedFunction<typeof shouldShowBanner>;
+const mockIsGDPRApplicable = isGDPRApplicable as MockedFunction<typeof isGDPRApplicable>;
+const mockIsCCPAApplicable = isCCPAApplicable as MockedFunction<typeof isCCPAApplicable>;
+const mockSetCookieConsent = setCookieConsent as MockedFunction<typeof setCookieConsent>;
+const mockGetCookieConsent = getCookieConsent as MockedFunction<typeof getCookieConsent>;
 
 // Test data fixtures
 const mockRegionStates = {
@@ -597,7 +598,7 @@ describe('CookieBanner Component', () => {
 
     it('should show loading states during consent operations', async () => {
       // Mock a delayed consent operation
-      let resolveConsent: () => void;
+      let resolveConsent: (value: unknown) => void;
       mockSetCookieConsent.mockImplementation(() => {
         return new Promise(resolve => {
           resolveConsent = resolve;
@@ -619,7 +620,7 @@ describe('CookieBanner Component', () => {
       });
 
       // Clean up
-      resolveConsent!();
+      resolveConsent!(undefined);
     });
 
     it('should disable buttons during loading', async () => {
@@ -633,7 +634,7 @@ describe('CookieBanner Component', () => {
       });
 
       // Mock a delayed consent operation
-      let resolveConsent: () => void;
+      let resolveConsent: (value: unknown) => void;
       mockSetCookieConsent.mockImplementation(() => {
         return new Promise(resolve => {
           resolveConsent = resolve;
@@ -651,7 +652,7 @@ describe('CookieBanner Component', () => {
       });
 
       // Resolve the promise
-      resolveConsent!();
+      resolveConsent!(undefined);
     });
 
     it('should handle cookie category toggle', async () => {
@@ -828,7 +829,7 @@ describe('CookieBanner Component', () => {
       const viewCookiesButtons = screen.getAllByText('View cookies');
       
       // Click the first "View cookies" (Strictly Necessary)
-      await userEvent.click(viewCookiesButtons[0]);
+      await userEvent.click(viewCookiesButtons[0]!);
 
       // Should show the cookies for that category
       expect(screen.getByText(/next-auth\.session-token, consent-preferences/)).toBeInTheDocument();
@@ -868,7 +869,7 @@ describe('CookieBanner Component', () => {
 
     it('should disable checkboxes during loading', async () => {
       // Mock a delayed consent operation
-      let resolveConsent: () => void;
+      let resolveConsent: (value: unknown) => void;
       mockSetCookieConsent.mockImplementation(() => {
         return new Promise(resolve => {
           resolveConsent = resolve;
@@ -883,7 +884,7 @@ describe('CookieBanner Component', () => {
         expect(analyticsCheckbox.disabled).toBe(true);
       });
 
-      resolveConsent!();
+      resolveConsent!(undefined);
     });
 
     it('should have proper form structure and accessibility', () => {
@@ -1054,7 +1055,7 @@ describe('CookieBanner Component', () => {
 
     it('should display loading text during operations', async () => {
       // Mock a delayed consent operation
-      let resolveConsent: () => void;
+      let resolveConsent: (value: unknown) => void;
       mockSetCookieConsent.mockImplementation(() => {
         return new Promise(resolve => {
           resolveConsent = resolve;
@@ -1074,7 +1075,7 @@ describe('CookieBanner Component', () => {
         expect(screen.getAllByText('Saving...')).toHaveLength(2); // Both Accept and Reject buttons show Saving...
       });
 
-      resolveConsent!();
+      resolveConsent!(undefined);
     });
 
     it('should handle responsive layout classes', async () => {
@@ -1109,7 +1110,7 @@ describe('CookieBanner Component', () => {
 
     it('should show appropriate visual feedback for disabled states', async () => {
       // Mock a delayed consent operation
-      let resolveConsent: () => void;
+      let resolveConsent: (value: unknown) => void;
       mockSetCookieConsent.mockImplementation(() => {
         return new Promise(resolve => {
           resolveConsent = resolve;
@@ -1131,7 +1132,7 @@ describe('CookieBanner Component', () => {
         savingButtons.forEach(button => expect(button).toBeDisabled());
       });
 
-      resolveConsent!();
+      resolveConsent!(undefined);
     });
 
     it('should maintain visual consistency across states', async () => {
@@ -1181,7 +1182,7 @@ describe('CookieBanner Component', () => {
     });
 
     it('should handle component unmounting during async operations', async () => {
-      let resolveConsent: () => void;
+      let resolveConsent: (value: unknown) => void;
       mockSetCookieConsent.mockImplementation(() => {
         return new Promise(resolve => {
           resolveConsent = resolve;
@@ -1201,7 +1202,7 @@ describe('CookieBanner Component', () => {
       expect(() => unmount()).not.toThrow();
       
       // Resolve the promise after unmount
-      resolveConsent!();
+      resolveConsent!(undefined);
     });
 
     it('should handle invalid region detection responses', async () => {

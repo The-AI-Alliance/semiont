@@ -1,4 +1,4 @@
-import { beforeAll, afterAll } from 'vitest';
+import { beforeAll, afterAll, expect } from 'vitest';
 import { DatabaseTestSetup } from './database';
 
 // Global test setup and teardown
@@ -14,10 +14,16 @@ beforeAll(async () => {
   
   try {
     // Load environment configuration using the unified system
-    const { loadEnvironmentConfig } = await import('@semiont/cli/lib/deployment-resolver.js');
+    // CLI module not available in test environment
+    // const { loadEnvironmentConfig } = await import('@semiont/cli/lib/deployment-resolver.js');
+    const loadEnvironmentConfig = (_env: string) => ({
+      services: {
+        database: undefined as any
+      }
+    });
     const config = loadEnvironmentConfig(testEnvironment);
     console.log(`📋 Loaded ${testEnvironment} test configuration`);
-    
+
     // Set DATABASE_URL from config if available (for integration tests)
     if (config.services?.database) {
       const db = config.services.database;
@@ -42,6 +48,7 @@ beforeAll(async () => {
   process.env.DATABASE_PASSWORD = 'integration_test_password';
   process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
   process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
+  process.env.BACKEND_URL = 'http://localhost:4000';
   
   // Only set up database for integration tests
   const testPath = expect.getState().testPath;

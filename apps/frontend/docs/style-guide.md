@@ -1,5 +1,42 @@
 # Semiont Frontend Style Guide
 
+## Color System
+
+### Primary Colors
+The Semiont design system uses a **blue/cyan** color palette as its primary theme:
+
+- **Primary Blue:** `blue-600` (RGB: 59, 130, 246) - Used for primary actions, links, and selections
+- **Cyan Accent:** `cyan-600` (RGB: 6, 182, 212) - Used in gradients and accent elements
+- **Blue/Cyan Gradient:** `from-blue-600 to-cyan-600` - Used for buttons, progress bars, and special elements
+
+### Secondary Colors
+- **Yellow:** Reserved exclusively for text highlights (`yellow-200` light / `yellow-900/50` dark)
+- **Green:** Success states and completion messages
+- **Red:** Error states and destructive actions
+- **Gray:** Neutral UI elements, backgrounds, and disabled states
+
+### Color Usage Guidelines
+
+#### Blue/Cyan for Primary UI Elements
+Use blue and cyan colors for:
+- Primary buttons and call-to-action elements
+- Selected states and active filters
+- Progress indicators and loading states
+- Links and interactive elements
+- Entity type tags and reference tags
+- Focus rings and form inputs
+- Detection progress and AI-powered features
+
+#### Yellow for Highlights
+Yellow is reserved exclusively for text highlights in documents. This creates a clear visual distinction between highlighted text and interactive references.
+
+#### Gradients
+Use the blue-to-cyan gradient (`from-blue-600 to-cyan-600`) for:
+- Primary action buttons
+- Progress bars
+- Special interactive elements
+- AI detection features
+
 ## Button Styles
 
 We have three standard button styles defined in `/src/lib/button-styles.ts`. Use these consistently throughout the application.
@@ -63,9 +100,10 @@ className="w-full py-2 bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-900/50 d
 ```
 
 ### Selected States
-When showing selected items (like entity types), use colored backgrounds:
-- **Purple** for entity-related selections: `bg-purple-200 dark:bg-purple-900/50`
-- **Blue** for document/reference selections: `bg-blue-50 dark:bg-blue-900/20`
+When showing selected items, use blue backgrounds:
+- **Entity type selections:** `bg-blue-100 dark:bg-blue-900/30`
+- **Document/reference selections:** `bg-blue-50 dark:bg-blue-900/20`
+- **Active filters:** `bg-blue-100 dark:bg-blue-900/30 border border-blue-300`
 
 ### Disabled States
 All button styles include `disabled:opacity-50 disabled:cursor-not-allowed`. Always disable buttons when:
@@ -79,20 +117,16 @@ Annotation styles are centralized in `/src/lib/annotation-styles.ts` for consist
 
 ### Highlights
 - **Background:** Yellow (`bg-yellow-200 dark:bg-yellow-900/50`)
-- **Border:** Ring effect for better visibility (`ring-1 ring-yellow-400/50 dark:ring-2 dark:ring-yellow-500/70`)
-- **Hover:** Deeper yellow
+- **Border:** Dashed outline for visibility in dark mode
+- **Hover:** Deeper yellow (`bg-yellow-300 dark:bg-yellow-900/60`)
 - **Purpose:** Visual prominence for highlighted text
 
-### Entity References
-- **Background:** Purple (`bg-purple-200 dark:bg-purple-900/50`)
-- **Border:** Ring effect for better visibility (`ring-1 ring-purple-400/50 dark:ring-2 dark:ring-purple-500/70`)
-- **Tags:** Purple badges for entity types
-- **Purpose:** Distinguish entities from regular references
-
-### Document References
+### References (All Types)
 - **Background:** Cyan/blue gradient (`from-cyan-200 to-blue-200`)
-- **Border:** Ring effect for better visibility (`ring-1 ring-cyan-400/50 dark:ring-2 dark:ring-cyan-500/70`)
-- **Purpose:** Show connections between documents
+- **Border:** Dashed outline for visibility (`outline-cyan-500/60`)
+- **Hover:** Deeper blue gradient
+- **Purpose:** Show connections between documents and entities
+- **Note:** All references use the same blue/cyan styling for consistency
 
 ### Usage
 ```typescript
@@ -108,7 +142,8 @@ const className = annotationStyles.getAnnotationStyle(annotation);
 
 ### Administrative/Moderation
 - **Active nav items:** Blue (`bg-blue-50 dark:bg-blue-900/20`)
-- **Tags:** Blue for entity types, purple for reference types
+- **All tags:** Blue (`bg-blue-100 dark:bg-blue-900/30`)
+- **Focus states:** Blue ring (`focus:ring-blue-500`)
 
 ## Form Elements
 
