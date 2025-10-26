@@ -27,7 +27,6 @@ export const QUERY_KEYS = {
     search: (query: string, limit: number) => ['/api/documents/search', query, limit],
     referencedBy: (id: string) => ['/api/documents', id, 'referenced-by'],
     events: (id: string) => ['/api/documents', id, 'events'],
-    highlights: (documentId: string) => ['/api/documents/:id/highlights', documentId],
-    references: (documentId: string) => ['/api/documents/:id/references', documentId],
+    annotations: (documentId: string) => ['/api/documents', documentId, 'annotations'],
   },
 };

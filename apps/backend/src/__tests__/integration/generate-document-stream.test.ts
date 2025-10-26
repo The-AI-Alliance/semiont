@@ -65,6 +65,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
   beforeAll(async () => {
     // Set required environment variables
     process.env.SITE_DOMAIN = process.env.SITE_DOMAIN || 'test.example.com';
+    process.env.OAUTH_ALLOWED_DOMAINS = process.env.OAUTH_ALLOWED_DOMAINS || 'test.example.com,example.com';
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-testing';
     process.env.BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
     process.env.NODE_ENV = process.env.NODE_ENV || 'test';
@@ -122,29 +123,35 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
     // Mock AnnotationQueryService to return a projection with test reference
     const { AnnotationQueryService } = await import('../../services/annotation-queries');
     vi.mocked(AnnotationQueryService.getDocumentAnnotations).mockResolvedValue({
-      references: [
+      documentId: 'test-doc-id',
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      annotations: [
         {
           id: 'test-ref-id',
-          type: 'Annotation',
           motivation: 'linking',
           body: {
-            type: 'TextualBody',
-            purpose: 'linking',
-            value: 'test-reference',
+            type: 'SpecificResource',
             entityTypes: ['Person', 'Organization'],
+            source: null,
           },
           target: {
             source: 'test-doc-id',
             selector: {
-              type: 'TextQuoteSelector',
+              type: 'TextPositionSelector',
               exact: 'test text',
+              offset: 0,
+              length: 9,
             },
           },
+          creator: {
+            type: 'Person',
+            id: 'test-user-id',
+            name: 'Test User',
+          },
+          created: new Date().toISOString(),
         },
       ],
-      annotations: [],
-      tags: [],
-      links: [],
     } as any);
   });
 
@@ -165,7 +172,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
       body: JSON.stringify({
         documentId: 'test-doc-id',
         title: 'Test Document',
-        locale: 'en'
+        language: 'en'
       }),
     });
 
@@ -182,7 +189,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
       expect(genJob.userId).toBe(testUser.id);
       expect(genJob.sourceDocumentId).toBe('test-doc-id');
       expect(genJob.title).toBe('Test Document');
-      expect(genJob.locale).toBe('en');
+      expect(genJob.language).toBe('en');
     }
   });
 
@@ -243,7 +250,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
         documentId: 'test-doc-id',
         title: 'Custom Title',
         prompt: 'Custom prompt for generation',
-        locale: 'es',
+        language: 'es',
       }),
     });
 

@@ -4,9 +4,9 @@
  * Build all packages in dependency order with proper error handling
  *
  * Build order (SPEC-FIRST ARCHITECTURE):
- * 1. @semiont/core - Base package with no dependencies
- * 2. @semiont/api-client - Generates types from openapi.json (spec-first)
- * 3. Backend - Consumes types from @semiont/api-client
+ * 1. @semiont/api-client - Generates types from openapi.json (spec-first) - NO DEPENDENCIES
+ * 2. @semiont/core - Depends on @semiont/api-client for types
+ * 3. Backend - Consumes types from @semiont/api-client and @semiont/core
  * 4. @semiont/test-utils - Testing utilities
  * 5. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
  */
@@ -15,14 +15,14 @@ const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-// CRITICAL: Copy OpenAPI spec from backend to api-client BEFORE building
-// In spec-first architecture, backend/public/openapi.json is the source of truth (committed to git)
-console.log('📋 Copying OpenAPI spec from backend to api-client...');
-const backendSpecPath = path.join(__dirname, '..', 'apps', 'backend', 'public', 'openapi.json');
+// CRITICAL: Copy OpenAPI spec from specs/ to api-client BEFORE building
+// In spec-first architecture, specs/openapi.json is the source of truth (committed to git)
+console.log('📋 Copying OpenAPI spec from specs/ to api-client...');
+const specsPath = path.join(__dirname, '..', 'specs', 'openapi.json');
 const apiClientSpecPath = path.join(__dirname, '..', 'packages', 'api-client', 'openapi.json');
 
-if (!fs.existsSync(backendSpecPath)) {
-  console.error('❌ Backend OpenAPI spec not found:', backendSpecPath);
+if (!fs.existsSync(specsPath)) {
+  console.error('❌ OpenAPI spec not found:', specsPath);
   process.exit(1);
 }
 
@@ -31,19 +31,19 @@ if (!fs.existsSync(apiClientDir)) {
   fs.mkdirSync(apiClientDir, { recursive: true });
 }
 
-fs.copyFileSync(backendSpecPath, apiClientSpecPath);
+fs.copyFileSync(specsPath, apiClientSpecPath);
 console.log('✅ OpenAPI spec copied successfully\n');
 
 const buildSteps = [
   {
-    name: '@semiont/core',
-    type: 'package',
-    description: 'Core SDK package'
-  },
-  {
     name: '@semiont/api-client',
     type: 'package',
     description: 'API client (generates types from openapi.json - SPEC-FIRST)'
+  },
+  {
+    name: '@semiont/core',
+    type: 'package',
+    description: 'Core SDK package (depends on @semiont/api-client for types)'
   },
   {
     name: 'semiont-backend',

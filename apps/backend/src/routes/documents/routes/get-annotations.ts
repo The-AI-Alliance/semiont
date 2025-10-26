@@ -33,7 +33,8 @@ export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
 
       // Layer 3 projections have simplified format - return directly
       const response: GetAnnotationsResponse = {
-        annotations
+        annotations,
+        total: annotations.length
       };
 
       return c.json(response);
@@ -47,11 +48,11 @@ export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
         throw new HTTPException(404, { message: 'Document not found' });
       }
 
-      const highlights = await graphDb.getHighlights(id);
-      const references = await graphDb.getReferences(id);
+      const result = await graphDb.listAnnotations({ documentId: id });
 
       const response: GetAnnotationsResponse = {
-        annotations: [...highlights, ...references]
+        annotations: result.annotations,
+        total: result.total
       };
 
       return c.json(response);
