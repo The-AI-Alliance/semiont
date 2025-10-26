@@ -1,106 +1,68 @@
 // Helper functions for document routes
-import type { Document, Annotation } from '@semiont/core-types';
+import type { components } from '@semiont/api-client';
 import { extractEntities } from '../../inference/entity-extractor';
+import { createContentManager } from '../../services/storage-service';
+import { getFilesystemConfig } from '../../config/environment-loader';
 
-export function formatDocument(doc: (Document | {
-  id: string;
-  name: string;
-  contentType: string;
-  metadata: Record<string, any>;
-  archived: boolean;
-  entityTypes: string[];
-  creationMethod: string;
-  sourceAnnotationId?: string;
-  sourceDocumentId?: string;
-  createdBy: string;
-  createdAt: Date | string;
-}) & { content?: string }): any {
-  const formatted: any = {
-    id: doc.id,
-    name: doc.name,
-    contentType: doc.contentType,
-    metadata: doc.metadata,
-    archived: doc.archived || false,
-    entityTypes: doc.entityTypes || [],
+type Document = components['schemas']['Document'];
 
-    creationMethod: doc.creationMethod,
-    sourceAnnotationId: doc.sourceAnnotationId,
-    sourceDocumentId: doc.sourceDocumentId,
-
-    createdBy: doc.createdBy,
-    createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
-  };
-
-  // Include content if it exists (for search results)
-  if ('content' in doc) {
-    formatted.content = doc.content;
-  }
-
-  return formatted;
-}
-
-export function formatAnnotation(annotation: Annotation): any {
+// For search results ONLY - includes content preview
+export function formatSearchResult(doc: Document, contentPreview: string): Document & { content: string } {
   return {
-    id: annotation.id,
-    documentId: annotation.documentId,
-    exact: annotation.exact,
-    selector: annotation.selector,
-    type: annotation.type,
-    referencedDocumentId: annotation.referencedDocumentId,
-    resolvedDocumentName: annotation.resolvedDocumentName,
-    entityTypes: annotation.entityTypes,
-    referenceType: annotation.referenceType,
+    ...doc,
+    content: contentPreview,
   };
 }
+
 
 // Types for the detection result
-export interface DetectedSelection {
-  selection: {
+export interface DetectedAnnotation {
+  annotation: {
     selector: {
-      offset: number;
-      length: number;
+      start: number;
+      end: number;
       exact: string;
     };
     entityTypes: string[];
-    metadata: Record<string, any>;
   };
 }
 
 // Implementation for detecting entity references in document using AI
-export async function detectSelectionsInDocument(
-  document: any,
+export async function detectAnnotationsInDocument(
+  documentId: string,
+  format: string,
   entityTypes: string[]
-): Promise<DetectedSelection[]> {
+): Promise<DetectedAnnotation[]> {
   console.log(`Detecting entities of types: ${entityTypes.join(', ')}`);
 
-  const detectedSelections: DetectedSelection[] = [];
+  const detectedAnnotations: DetectedAnnotation[] = [];
 
   // Only process text content
-  if (document.contentType === 'text/plain' || document.contentType === 'text/markdown') {
-    const content = document.content;
+  if (format === 'text/plain' || format === 'text/markdown') {
+    // Load content from filesystem
+    const basePath = getFilesystemConfig().path;
+    const contentManager = createContentManager(basePath);
+    const contentBuffer = await contentManager.get(documentId);
+    const content = contentBuffer.toString('utf-8');
 
     // Use AI to extract entities
     const extractedEntities = await extractEntities(content, entityTypes);
 
-    // Convert extracted entities to selection format
+    // Convert extracted entities to annotation format
     for (const entity of extractedEntities) {
-      const selection: DetectedSelection = {
-        selection: {
+      const annotation: DetectedAnnotation = {
+        annotation: {
           selector: {
-            offset: entity.startOffset,
-            length: entity.endOffset - entity.startOffset,
+            start: entity.startOffset,
+            end: entity.endOffset,
             exact: entity.exact,
           },
           entityTypes: [entity.entityType],
-          metadata: {
-            detectionType: 'ai_extraction',
-            extractedBy: 'inference/entity-extractor',
-          },
         },
       };
-      detectedSelections.push(selection);
+      detectedAnnotations.push(annotation);
     }
   }
 
-  return detectedSelections;
+  return detectedAnnotations;
 }

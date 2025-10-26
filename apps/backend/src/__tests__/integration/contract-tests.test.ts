@@ -52,7 +52,7 @@ interface UserResponse {
   isActive: boolean;
   termsAcceptedAt: string | null;
   lastLogin: string | null;
-  createdAt: string;
+  created: string;
 }
 
 interface LogoutResponse {
@@ -157,7 +157,7 @@ describe('API Contract Tests', () => {
         isActive: true,
         termsAcceptedAt: '2024-01-01T00:00:00.000Z',
         lastLogin: '2024-01-01T00:00:00.000Z',
-        createdAt: '2024-01-01T00:00:00.000Z',
+        created: '2024-01-01T00:00:00.000Z',
       };
 
       expect(mockResponse.id).toBeDefined();
@@ -249,7 +249,7 @@ describe('API Contract Tests', () => {
             isActive: true,
             termsAcceptedAt: '2024-01-01T00:00:00.000Z',
             lastLogin: '2024-01-01T00:00:00.000Z',
-            createdAt: '2024-01-01T00:00:00.000Z',
+            created: '2024-01-01T00:00:00.000Z',
           },
         ],
         pagination: {
@@ -373,7 +373,7 @@ describe('API Contract Tests', () => {
         isActive: true,
         termsAcceptedAt: null,
         lastLogin: '2024-01-01T00:00:00.000Z',
-        createdAt: '2024-01-01T00:00:00.000Z',
+        created: '2024-01-01T00:00:00.000Z',
       };
 
       expect(typeof userResponse.isAdmin).toBe('boolean');

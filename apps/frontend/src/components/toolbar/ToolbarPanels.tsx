@@ -64,7 +64,7 @@ export function ToolbarPanels({
   }
 
   return (
-    <div className={`${width} bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 overflow-hidden flex flex-col h-screen`}>
+    <div className={`${width} bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 overflow-hidden flex flex-col h-full`}>
       {/* Custom context-specific panels */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {children}

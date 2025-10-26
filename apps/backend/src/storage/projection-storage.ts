@@ -1,22 +1,33 @@
 /**
- * Layer 3: Annotation Projection Storage
+ * Layer 3: Projection Storage
  *
- * Stores materialized views of document annotations
+ * Stores materialized views of document state and annotations
  * Built from Layer 2 event streams, can be rebuilt at any time
+ *
+ * Stores both Document metadata and DocumentAnnotations, but keeps them logically separate
  */
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from './shard-utils';
 import { getFilesystemConfig } from '../config/environment-loader';
-import type { DocumentProjection } from '@semiont/core-types';
+import type { components } from '@semiont/api-client';
+import type { DocumentAnnotations } from '@semiont/core';
+
+type Document = components['schemas']['Document'];
+
+// Complete state for a document in Layer 3 (metadata + annotations)
+export interface DocumentState {
+  document: Document;
+  annotations: DocumentAnnotations;
+}
 
 export interface ProjectionStorage {
-  saveProjection(documentId: string, projection: DocumentProjection): Promise<void>;
-  getProjection(documentId: string): Promise<DocumentProjection | null>;
+  saveProjection(documentId: string, projection: DocumentState): Promise<void>;
+  getProjection(documentId: string): Promise<DocumentState | null>;
   deleteProjection(documentId: string): Promise<void>;
   projectionExists(documentId: string): Promise<boolean>;
-  getAllProjections(): Promise<DocumentProjection[]>;
+  getAllProjections(): Promise<DocumentState[]>;
 }
 
 export class FilesystemProjectionStorage implements ProjectionStorage {
@@ -34,10 +45,10 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
   private getProjectionPath(documentId: string): string {
     // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
     const [ab, cd] = getShardPath(documentId);
-    return path.join(this.basePath, 'annotations', ab, cd, `${documentId}.json`);
+    return path.join(this.basePath, 'projections', 'annotations', ab, cd, `${documentId}.json`);
   }
 
-  async saveProjection(documentId: string, projection: DocumentProjection): Promise<void> {
+  async saveProjection(documentId: string, projection: DocumentState): Promise<void> {
     const projPath = this.getProjectionPath(documentId);
     const projDir = path.dirname(projPath);
 
@@ -48,12 +59,12 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     await fs.writeFile(projPath, JSON.stringify(projection, null, 2), 'utf-8');
   }
 
-  async getProjection(documentId: string): Promise<DocumentProjection | null> {
+  async getProjection(documentId: string): Promise<DocumentState | null> {
     const projPath = this.getProjectionPath(documentId);
 
     try {
       const content = await fs.readFile(projPath, 'utf-8');
-      return JSON.parse(content) as DocumentProjection;
+      return JSON.parse(content) as DocumentState;
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         return null;
@@ -86,9 +97,9 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     }
   }
 
-  async getAllProjections(): Promise<DocumentProjection[]> {
-    const projections: DocumentProjection[] = [];
-    const annotationsPath = path.join(this.basePath, 'annotations');
+  async getAllProjections(): Promise<DocumentState[]> {
+    const projections: DocumentState[] = [];
+    const annotationsPath = path.join(this.basePath, 'projections', 'annotations');
 
     try {
       // Recursively walk through all shard directories
@@ -103,7 +114,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
           } else if (entry.isFile() && entry.name.endsWith('.json')) {
             try {
               const content = await fs.readFile(fullPath, 'utf-8');
-              const projection = JSON.parse(content) as DocumentProjection;
+              const projection = JSON.parse(content) as DocumentState;
               projections.push(projection);
             } catch (error) {
               console.error(`[ProjectionStorage] Failed to read projection ${fullPath}:`, error);
@@ -116,7 +127,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
       await walkDir(annotationsPath);
     } catch (error: any) {
       if (error.code === 'ENOENT') {
-        // Annotations directory doesn't exist yet
+        // Projections/annotations directory doesn't exist yet
         return [];
       }
       throw error;
@@ -124,14 +135,4 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
 
     return projections;
   }
-}
-
-// Singleton instance
-let projectionStorageInstance: ProjectionStorage | null = null;
-
-export function getProjectionStorage(): ProjectionStorage {
-  if (!projectionStorageInstance) {
-    projectionStorageInstance = new FilesystemProjectionStorage();
-  }
-  return projectionStorageInstance;
 }

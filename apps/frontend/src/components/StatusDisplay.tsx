@@ -1,14 +1,19 @@
 'use client';
 
 import React from 'react';
-import { useBackendStatus } from '@/hooks/useAPI';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 
 export function StatusDisplay() {
   const { isFullyAuthenticated, isAuthenticated, hasValidBackendToken } = useAuth();
-  const status = useBackendStatus({
-    pollingInterval: 30000, // Poll every 30 seconds
-    enabled: true,
+  const { fetchAPI } = useAuthenticatedAPI();
+
+  const status = useQuery({
+    queryKey: ['/api/status'],
+    queryFn: () => fetchAPI('/api/status'),
+    enabled: isFullyAuthenticated,
+    refetchInterval: 30000, // Poll every 30 seconds
   });
 
   const getStatusContent = () => {

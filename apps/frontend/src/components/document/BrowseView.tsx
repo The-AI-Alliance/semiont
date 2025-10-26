@@ -5,7 +5,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { remarkAnnotations } from '@/lib/remark-annotations';
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
-import type { Annotation } from '@semiont/core-types';
+import type { components } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import '@/styles/animations.css';
 
@@ -20,15 +23,28 @@ interface Props {
 // Convert Annotation[] to the simpler format needed by plugins
 function prepareAnnotations(annotations: Annotation[]) {
   return annotations
-    .filter(ann => ann.selector)
-    .map(ann => ({
-      id: ann.id,
-      exact: ann.exact,
-      offset: ann.selector!.offset,
-      length: ann.selector!.length,
-      type: ann.type as 'highlight' | 'reference',
-      referencedDocumentId: ann.referencedDocumentId
-    }));
+    .filter(ann => getTargetSelector(ann.target))
+    .map(ann => {
+      const targetSelector = getTargetSelector(ann.target);
+      const posSelector = getTextPositionSelector(targetSelector);
+      // Use W3C motivation to determine type
+      let type: 'highlight' | 'reference' | 'assessment';
+      if (ann.motivation === 'assessing') {
+        type = 'assessment';
+      } else if (isReference(ann)) {
+        type = 'reference';
+      } else {
+        type = 'highlight';
+      }
+      return {
+        id: ann.id,
+        exact: getExactText(targetSelector),
+        start: posSelector?.start ?? 0,
+        end: posSelector?.end ?? 0,
+        type,
+        source: getBodySource(ann.body)
+      };
+    });
 }
 
 export function BrowseView({

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import type { DetectionProgress } from '@/hooks/useDetectionProgress';
 
 interface DetectionProgressWidgetProps {
@@ -9,13 +10,9 @@ interface DetectionProgressWidgetProps {
 }
 
 export function DetectionProgressWidget({ progress, onCancel }: DetectionProgressWidgetProps) {
-  if (!progress) return null;
+  const t = useTranslations('DetectionProgressWidget');
 
-  console.log('[DetectionProgressWidget] Rendering with:', {
-    completedEntityTypes: progress.completedEntityTypes,
-    currentEntityType: progress.currentEntityType,
-    status: progress.status
-  });
+  if (!progress) return null;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-2 border-blue-500 dark:border-blue-600">
@@ -23,13 +20,13 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
           <span className="text-lg animate-sparkle-infinite">✨</span>
-          Detecting Entity References
+          {t('title')}
         </h3>
         {progress.status !== 'complete' && onCancel && (
           <button
             onClick={onCancel}
             className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 text-sm"
-            title="Cancel detection"
+            title={t('cancelDetection')}
           >
             ✕
           </button>
@@ -43,7 +40,7 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
             <div key={index} className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2">
               <span className="text-green-600 dark:text-green-400">✓</span>
               <span className="font-medium">{item.entityType}:</span>
-              <span>{item.foundCount} found</span>
+              <span>{t('found', { count: item.foundCount })}</span>
             </div>
           ))}
         </div>
@@ -54,19 +51,19 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
         <p className="text-sm text-gray-600 dark:text-gray-400">
           {progress.status === 'complete' ? (
             <span className="text-green-600 dark:text-green-400 font-medium">
-              ✅ Detection complete!
+              ✅ {t('complete')}
             </span>
           ) : progress.status === 'error' ? (
             <span className="text-red-600 dark:text-red-400 font-medium">
-              ❌ {progress.message || 'Detection failed'}
+              ❌ {progress.message || t('failed')}
             </span>
           ) : progress.currentEntityType ? (
             <span className="font-medium">
-              Current: {progress.currentEntityType}
+              {t('current', { entityType: progress.currentEntityType })}
             </span>
           ) : (
             <span className="font-medium">
-              {progress.processedEntityTypes} of {progress.totalEntityTypes} entity types
+              {t('progress', { processed: progress.processedEntityTypes, total: progress.totalEntityTypes })}
             </span>
           )}
         </p>
@@ -75,7 +72,7 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
       {/* Info text */}
       {progress.status !== 'error' && progress.status !== 'complete' && (
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 italic">
-          New references appear in document's History as they're detected
+          {t('infoText')}
         </p>
       )}
     </div>

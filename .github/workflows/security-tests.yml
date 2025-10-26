@@ -275,6 +275,9 @@ jobs:
           export JWT_SECRET=test-secret-for-ci
           export NODE_ENV=ci
           export SEMIONT_ENV=ci
+          export BACKEND_URL=http://localhost:3001
+          export CORS_ORIGIN=http://localhost:3000
+          export FRONTEND_URL=http://localhost:3000
           
           # Start backend directly - workaround for semiont process spawning issue
           echo "Starting backend on port 3001..."

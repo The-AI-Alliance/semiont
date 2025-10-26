@@ -355,6 +355,7 @@ This directory contains runtime files for the backend service.
 
 Edit \`.env.local\` to configure:
 - Database connection (DATABASE_URL)
+- Backend URL (BACKEND_URL)
 - JWT secret (JWT_SECRET)
 - Port (PORT)
 - Other environment-specific settings

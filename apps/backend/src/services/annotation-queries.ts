@@ -6,77 +6,54 @@
  * - Graph queries use Layer 4 (graph database)
  */
 
-import { getProjectionStorage } from '../storage/projection-storage';
+import { createProjectionManager } from './storage-service';
 import { getGraphDatabase } from '../graph/factory';
-import type { DocumentProjection, Annotation } from '@semiont/core-types';
+import type { components } from '@semiont/api-client';
+import type { DocumentAnnotations } from '@semiont/core';
+import { getFilesystemConfig } from '../config/environment-loader';
+
+type Annotation = components['schemas']['Annotation'];
 
 export class AnnotationQueryService {
   /**
    * Get document annotations from Layer 3 (fast path)
    * Falls back to GraphDB if projection missing
    */
-  static async getDocumentAnnotations(documentId: string): Promise<DocumentProjection> {
-    const projectionStorage = getProjectionStorage();
-    const projection = await projectionStorage.getProjection(documentId);
+  static async getDocumentAnnotations(documentId: string): Promise<DocumentAnnotations> {
+    const basePath = getFilesystemConfig().path;
+    const projectionManager = createProjectionManager(basePath);
+    const stored = await projectionManager.get(documentId);
 
-    if (!projection) {
+    if (!stored) {
       throw new Error(`Document ${documentId} not found in Layer 3 projections`);
     }
 
-    return projection;
+    return stored.annotations;
   }
 
   /**
-   * Get highlights only (subset of projection)
-   * @returns Array of highlight objects from projection
+   * Get all annotations
+   * @returns Array of all annotation objects
    */
-  static async getHighlights(documentId: string): Promise<DocumentProjection['highlights']> {
-    const projection = await this.getDocumentAnnotations(documentId);
-    return projection.highlights;
+  static async getAllAnnotations(documentId: string): Promise<Annotation[]> {
+    const annotations = await this.getDocumentAnnotations(documentId);
+    return annotations.annotations;
   }
 
   /**
-   * Get references only (subset of projection)
-   * @returns Array of reference objects from projection
+   * Get document stats (version info)
+   * @returns Version and timestamp info for the annotations
    */
-  static async getReferences(documentId: string): Promise<DocumentProjection['references']> {
-    const projection = await this.getDocumentAnnotations(documentId);
-    return projection.references;
-  }
-
-  /**
-   * Get all selections (highlights + references)
-   * @returns Array of all selection objects
-   */
-  static async getAllSelections(documentId: string): Promise<Array<
-    DocumentProjection['highlights'][0] | DocumentProjection['references'][0]
-  >> {
-    const projection = await this.getDocumentAnnotations(documentId);
-    return [...projection.highlights, ...projection.references];
-  }
-
-  /**
-   * Get document metadata
-   * @returns Document metadata without content
-   */
-  static async getDocumentMetadata(documentId: string): Promise<{
-    id: string;
-    name: string;
-    entityTypes: string[];
-    archived: boolean;
+  static async getDocumentStats(documentId: string): Promise<{
+    documentId: string;
     version: number;
-    createdAt: string;
     updatedAt: string;
   }> {
-    const projection = await this.getDocumentAnnotations(documentId);
+    const annotations = await this.getDocumentAnnotations(documentId);
     return {
-      id: projection.id,
-      name: projection.name,
-      entityTypes: projection.entityTypes,
-      archived: projection.archived,
-      version: projection.version,
-      createdAt: projection.createdAt,
-      updatedAt: projection.updatedAt,
+      documentId: annotations.documentId,
+      version: annotations.version,
+      updatedAt: annotations.updatedAt,
     };
   }
 
@@ -84,41 +61,28 @@ export class AnnotationQueryService {
    * Check if document exists in Layer 3
    */
   static async documentExists(documentId: string): Promise<boolean> {
-    const projectionStorage = getProjectionStorage();
-    return await projectionStorage.projectionExists(documentId);
+    const basePath = getFilesystemConfig().path;
+    const projectionManager = createProjectionManager(basePath);
+    return await projectionManager.exists(documentId);
   }
 
   /**
-   * Get a single annotation (highlight or reference) by ID
-   * Scans Layer 3 projections to find the annotation
-   * O(n) complexity - needs annotation ID → document ID index for O(1)
+   * Get a single annotation by ID
+   * O(1) lookup using document ID to access Layer 3 projection
    */
-  static async getSelection(selectionId: string): Promise<Annotation | null> {
-    const projectionStorage = getProjectionStorage();
-    const allProjections = await projectionStorage.getAllProjections();
-
-    for (const projection of allProjections) {
-      // Check highlights
-      const annotation = projection.highlights.find((h) => h.id === selectionId) ||
-                        projection.references.find((r) => r.id === selectionId);
-      if (annotation) {
-        return annotation;
-      }
-    }
-
-    return null;
+  static async getAnnotation(annotationId: string, documentId: string): Promise<Annotation | null> {
+    const annotations = await this.getDocumentAnnotations(documentId);
+    return annotations.annotations.find(a => a.id === annotationId) || null;
   }
 
   /**
-   * List selections with optional filtering
+   * List annotations with optional filtering
    * @param filters - Optional filters like documentId
    */
-  static async listSelections(filters?: { documentId?: string }): Promise<any> {
+  static async listAnnotations(filters?: { documentId?: string }): Promise<any> {
     if (filters?.documentId) {
       // If filtering by document ID, use Layer 3 directly
-      const highlights = await this.getHighlights(filters.documentId);
-      const references = await this.getReferences(filters.documentId);
-      return [...highlights, ...references];
+      return await this.getAllAnnotations(filters.documentId);
     }
 
     // For now, fall back to graph for cross-document listing

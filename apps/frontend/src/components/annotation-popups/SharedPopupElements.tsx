@@ -41,14 +41,20 @@ export function EntityTypeBadges({ entityTypes }: EntityTypeBadgesProps) {
 
 interface PopupHeaderProps {
   title: string;
+  selectedText?: string;
   onClose: () => void;
 }
 
-export function PopupHeader({ title, onClose }: PopupHeaderProps) {
+export function PopupHeader({ title, selectedText, onClose }: PopupHeaderProps) {
   return (
     <div className="flex items-center justify-between mb-3">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
         {title}
+        {selectedText && (
+          <span className="font-normal text-base ml-1">
+            &ldquo;{selectedText}&rdquo;
+          </span>
+        )}
       </h3>
       <button
         onClick={onClose}
@@ -65,13 +71,17 @@ interface PopupContainerProps {
   position: { x: number; y: number };
   onClose: () => void;
   isOpen: boolean;
+  wide?: boolean; // Optional prop to make the popup wider
 }
 
-export function PopupContainer({ children, position, onClose, isOpen }: PopupContainerProps) {
+export function PopupContainer({ children, position, onClose, isOpen, wide = false }: PopupContainerProps) {
+  const popupWidth = wide ? 800 : 400;
+  const popupHeight = wide ? 700 : 500;
+
   const popupStyle: React.CSSProperties = {
     position: 'fixed',
-    left: `${Math.min(position.x, typeof window !== 'undefined' ? window.innerWidth - 400 : position.x)}px`,
-    top: `${Math.min(position.y, typeof window !== 'undefined' ? window.innerHeight - 500 : position.y)}px`,
+    left: `${Math.min(position.x, typeof window !== 'undefined' ? window.innerWidth - popupWidth : position.x)}px`,
+    top: `${Math.min(position.y, typeof window !== 'undefined' ? window.innerHeight - popupHeight : position.y)}px`,
   };
 
   return (
@@ -102,7 +112,9 @@ export function PopupContainer({ children, position, onClose, isOpen }: PopupCon
             leaveTo="opacity-0 scale-95"
           >
             <DialogPanel
-              className="pointer-events-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 w-96 max-h-[500px] overflow-y-auto"
+              className={`pointer-events-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 overflow-y-auto ${
+                wide ? 'w-[800px] max-h-[700px]' : 'w-96 max-h-[500px]'
+              }`}
               style={popupStyle}
             >
               {children}

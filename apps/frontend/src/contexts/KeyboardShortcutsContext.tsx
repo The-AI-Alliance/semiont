@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import { useKeyboardShortcuts, useDoubleKeyPress } from '@/hooks/useKeyboardShortcuts';
 import { GlobalSearchModal } from '@/components/modals/GlobalSearchModal';
 import { KeyboardShortcutsHelpModal } from '@/components/modals/KeyboardShortcutsHelpModal';

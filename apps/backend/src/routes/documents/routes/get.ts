@@ -1,85 +1,61 @@
-import { createRoute, z } from '@hono/zod-openapi';
-import { HTTPException } from 'hono/http-exception';
-import { getEventStore } from '../../../events/event-store';
-import { getStorageService } from '../../../storage/filesystem';
-import type { DocumentsRouterType } from '../shared';
-import { GetDocumentResponseSchema } from '../schemas';
+/**
+ * Get Document Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No validation needed (path param extracted directly)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
 
-export const getDocumentRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{id}',
-  summary: 'Get Document',
-  description: 'Get a document by ID',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetDocumentResponseSchema,
-        },
-      },
-      description: 'Document retrieved successfully',
-    },
-  },
-});
+import { HTTPException } from 'hono/http-exception';
+import { createEventStore } from '../../../services/event-store-service';
+import { EventQuery } from '../../../events/query/event-query';
+import type { DocumentsRouterType } from '../shared';
+import type { components } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../../config/environment-loader';
+
+type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
 
 export function registerGetDocument(router: DocumentsRouterType) {
-  router.openapi(getDocumentRoute, async (c) => {
-    const { id } = c.req.valid('param');
+  /**
+   * GET /api/documents/:id
+   *
+   * Get a document by ID
+   * Returns document metadata and annotations (NOT content)
+   * Requires authentication
+   */
+  router.get('/api/documents/:id', async (c) => {
+    const { id } = c.req.param();
+    const basePath = getFilesystemConfig().path;
 
     // Read from Layer 2/3: Event store builds/loads projection
-    const eventStore = await getEventStore();
-    const projection = await eventStore.projectDocument(id);
+    const eventStore = await createEventStore(basePath);
+    const query = new EventQuery(eventStore.storage);
+    const events = await query.getDocumentEvents(id);
+    const stored = await eventStore.projector.projectDocument(events, id);
 
-    if (!projection) {
+    if (!stored) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
 
-    // Read content from Layer 1: Filesystem
-    const storage = getStorageService();
-    let content: string;
-    try {
-      const contentBuffer = await storage.getDocument(id);
-      content = contentBuffer.toString('utf-8');
-    } catch (error) {
-      throw new HTTPException(404, { message: 'Document content not found in filesystem' });
-    }
+    // NOTE: Content is NOT included in this response
+    // Clients must call GET /documents/:id/content separately to get content
 
-    // Projections now store full Annotation objects - convert null to undefined for schema compatibility
-    const normalizeAnnotation = (ann: any) => ({
-      ...ann,
-      referencedDocumentId: ann.referencedDocumentId || undefined,
+    const annotations = stored.annotations.annotations;
+    const entityReferences = annotations.filter(a => {
+      if (a.motivation !== 'linking') return false;
+      const entityTypes = getEntityTypes({ body: a.body });
+      return entityTypes.length > 0;
     });
 
-    const annotations = [...projection.highlights.map(normalizeAnnotation), ...projection.references.map(normalizeAnnotation)];
-    const highlights = projection.highlights.map(normalizeAnnotation);
-    const references = projection.references.map(normalizeAnnotation);
-    const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
-
-    return c.json({
-      document: {
-        id: projection.id,
-        name: projection.name,
-        content,
-        archived: projection.archived,
-        contentType: projection.contentType,
-        entityTypes: projection.entityTypes,
-        metadata: {},
-        creationMethod: 'api',
-        contentChecksum: '',
-        createdBy: '',
-        createdAt: projection.createdAt,
-      },
+    const response: GetDocumentResponse = {
+      document: stored.document,
       annotations,
-      highlights,
-      references,
       entityReferences,
-    });
+    };
+
+    return c.json(response);
   });
 }

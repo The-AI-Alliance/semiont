@@ -1,52 +1,43 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Get Document Annotations Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No request body validation needed (GET route with only path params)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { formatAnnotation } from '../../annotations/helpers';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
+import type { components } from '@semiont/api-client';
 
-// Local schema
-const GetAnnotationsResponse = z.object({
-  annotations: z.array(z.any()),
-});
-
-// GET /api/documents/{id}/annotations
-export const getDocumentAnnotationsRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{id}/annotations',
-  summary: 'Get Document Annotations',
-  description: 'Get all annotations (both highlights and references) in a document',
-  tags: ['Documents', 'Annotations'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetAnnotationsResponse,
-        },
-      },
-      description: 'Document annotations',
-    },
-  },
-});
+type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
 export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
-  router.openapi(getDocumentAnnotationsRoute, async (c) => {
-    const { id } = c.req.valid('param');
+  /**
+   * GET /api/documents/:id/annotations
+   *
+   * Get all annotations (both highlights and references) in a document
+   * Requires authentication
+   * Uses Layer 3 projections with GraphDB fallback
+   */
+  router.get('/api/documents/:id/annotations', async (c) => {
+    const { id } = c.req.param();
 
     try {
       // Try Layer 3 first (fast path - O(1) file read)
-      const annotations = await AnnotationQueryService.getAllSelections(id);
+      const annotations = await AnnotationQueryService.getAllAnnotations(id);
 
       // Layer 3 projections have simplified format - return directly
-      return c.json({
-        annotations
-      });
+      const response: GetAnnotationsResponse = {
+        annotations,
+        total: annotations.length
+      };
+
+      return c.json(response);
     } catch (error) {
       // Fallback to GraphDB if projection missing
       console.warn(`[Annotations] Layer 3 miss for ${id}, falling back to GraphDB`);
@@ -57,12 +48,14 @@ export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
         throw new HTTPException(404, { message: 'Document not found' });
       }
 
-      const highlights = await graphDb.getHighlights(id);
-      const references = await graphDb.getReferences(id);
+      const result = await graphDb.listAnnotations({ documentId: id });
 
-      return c.json({
-        annotations: [...highlights, ...references].map(formatAnnotation)
-      });
+      const response: GetAnnotationsResponse = {
+        annotations: result.annotations,
+        total: result.total
+      };
+
+      return c.json(response);
     }
   });
 }

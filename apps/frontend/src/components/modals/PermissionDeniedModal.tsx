@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import { signIn, useSession } from 'next-auth/react';
 import { AUTH_EVENTS, onAuthEvent, type AuthEventDetail } from '@/lib/auth-events';
 

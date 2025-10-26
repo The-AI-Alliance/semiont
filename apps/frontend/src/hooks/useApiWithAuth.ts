@@ -1,8 +1,9 @@
 'use client';
 
 import { useMutation, useQueryClient, UseMutationOptions } from '@tanstack/react-query';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import { useToast } from '@/components/Toast';
 import { dispatch401Error, dispatch403Error } from '@/lib/auth-events';
 
@@ -52,7 +53,7 @@ export function useApiWithAuth<TData = any, TError = ApiError>(
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const url = new URL(route, process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
+      const url = new URL(route, NEXT_PUBLIC_API_URL);
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
           if (value !== undefined) {
