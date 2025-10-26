@@ -59,7 +59,6 @@ graph TB
     BE -->|Write Content| L1
     BE -->|Append Events| L2
     BE -->|Auth/Users| DB
-    BE -->|Upload Files| FS
 
     %% Event-driven flow
     L2 -.->|Project| L3
@@ -74,11 +73,11 @@ graph TB
     BE -->|Generate/Detect| INF
     BE -.->|Future| SEC
 
-    %% Styling
-    classDef client fill:#e1f5ff,stroke:#01579b
-    classDef app fill:#fff9c4,stroke:#f57f17
-    classDef data fill:#f3e5f5,stroke:#4a148c
-    classDef infra fill:#e8f5e9,stroke:#1b5e20
+    %% Styling - colors chosen for readability in both light and dark modes
+    classDef client fill:#d0e8f2,stroke:#2c5f7a,stroke-width:2px
+    classDef app fill:#ffd966,stroke:#8b6914,stroke-width:2px
+    classDef data fill:#dac4e8,stroke:#6b4a7a,stroke-width:2px
+    classDef infra fill:#b8dac0,stroke:#3d6644,stroke-width:2px
 
     class USER,AI client
     class FE,BE,MCP app
