@@ -14,9 +14,84 @@ Semiont transforms unstructured text into a queryable knowledge graph using W3C 
 - **Spec-First Development**: Types generated from OpenAPI specification, not the reverse
 - **Platform Agnostic**: Services run on local processes, containers, or cloud infrastructure
 
-This is a knowledge management system designed to outlive specific vendors or platforms. W3C compliance means your data exports as standard JSON-LD that any compatible system can consume.
+**For Executives**: This is a knowledge management system designed to outlive specific vendors or platforms. W3C compliance means your data exports as standard JSON-LD that any compatible system can consume.
 
-Event sourcing provides complete audit trails. The 4-layer model allows rebuilding any downstream state from the immutable event log. All services communicate via REST APIs with OpenAPI contracts.
+**For Architects**: Event sourcing provides complete audit trails. The 4-layer model allows rebuilding any downstream state from the immutable event log. All services communicate via REST APIs with OpenAPI contracts.
+
+## System Architecture
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        USER[User Browser]
+        AI[AI Agents<br/>Claude Desktop]
+    end
+
+    subgraph "Application Layer"
+        FE[Frontend<br/>Next.js]
+        BE[Backend API<br/>Hono]
+        MCP[MCP Server]
+    end
+
+    subgraph "Data Layer (4 Layers)"
+        L1[Layer 1: Content Store<br/>Binary/Text Files<br/>65K Shards]
+        L2[Layer 2: Event Store<br/>Immutable Events<br/>JSONL]
+        L3[Layer 3: Projections<br/>Materialized Views<br/>PostgreSQL + JSON]
+        L4[Layer 4: Graph<br/>Relationships<br/>Neo4j/Neptune]
+    end
+
+    subgraph "Infrastructure"
+        DB[(Database<br/>PostgreSQL<br/>Users/Auth)]
+        FS[Filesystem<br/>Uploads/Assets<br/>S3/EFS]
+        INF[Inference<br/>LLM APIs<br/>Claude/GPT]
+        SEC[Secrets<br/>Credentials<br/>Planned]
+    end
+
+    %% Client connections
+    USER -->|HTTPS| FE
+    AI -->|MCP Protocol| MCP
+
+    %% Application layer
+    FE -->|REST API| BE
+    MCP -->|REST API| BE
+
+    %% Backend to data layers (write path)
+    BE -->|Write Content| L1
+    BE -->|Append Events| L2
+    BE -->|Auth/Users| DB
+    BE -->|Upload Files| FS
+
+    %% Event-driven flow
+    L2 -.->|Project| L3
+    L3 -.->|Sync| L4
+
+    %% Backend reads
+    BE -->|Read Content| L1
+    BE -->|Query State| L3
+    BE -->|Graph Queries| L4
+
+    %% External services
+    BE -->|Generate/Detect| INF
+    BE -.->|Future| SEC
+
+    %% Styling
+    classDef client fill:#e1f5ff,stroke:#01579b
+    classDef app fill:#fff9c4,stroke:#f57f17
+    classDef data fill:#f3e5f5,stroke:#4a148c
+    classDef infra fill:#e8f5e9,stroke:#1b5e20
+
+    class USER,AI client
+    class FE,BE,MCP app
+    class L1,L2,L3,L4 data
+    class DB,FS,INF,SEC infra
+```
+
+**Key Flows**:
+
+- **Write Path**: User → Frontend → Backend → Content Store (L1) + Event Store (L2) → Projections (L3) → Graph (L4)
+- **Read Path**: User → Frontend → Backend → Projections (L3) or Graph (L4) → Response
+- **Event Sourcing**: All writes create immutable events (L2), projections (L3) rebuilt from events
+- **Graph Sync**: Graph database (L4) updated automatically via event subscriptions
 
 ## Application Services
 
