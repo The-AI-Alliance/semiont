@@ -4,25 +4,23 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AdminUsers from '../client';
-import { api } from '@/lib/api';
+import { admin } from '@/lib/api/admin';
 
 // Mock the API client
-vi.mock('@/lib/api', () => ({
-  api: {
-    admin: {
-      users: {
-        all: {
-          useQuery: vi.fn()
-        },
-        stats: {
-          useQuery: vi.fn()
-        },
-        update: {
-          useMutation: vi.fn()
-        },
-        delete: {
-          useMutation: vi.fn()
-        }
+vi.mock('@/lib/api/admin', () => ({
+  admin: {
+    users: {
+      all: {
+        useQuery: vi.fn()
+      },
+      stats: {
+        useQuery: vi.fn()
+      },
+      update: {
+        useMutation: vi.fn()
+      },
+      delete: {
+        useMutation: vi.fn()
       }
     }
   }
@@ -147,20 +145,20 @@ describe('AdminUsers Page', () => {
     };
 
     // Setup default mock implementations
-    (api.admin.users.all.useQuery as Mock).mockReturnValue({
+    (admin.users.all.useQuery as Mock).mockReturnValue({
       data: mockUsersResponse,
       isLoading: false,
       error: null
     });
 
-    (api.admin.users.stats.useQuery as Mock).mockReturnValue({
+    (admin.users.stats.useQuery as Mock).mockReturnValue({
       data: mockStatsResponse,
       isLoading: false,
       error: null
     });
 
-    (api.admin.users.update.useMutation as Mock).mockReturnValue(mockUpdateMutation);
-    (api.admin.users.delete.useMutation as Mock).mockReturnValue(mockDeleteMutation);
+    (admin.users.update.useMutation as Mock).mockReturnValue(mockUpdateMutation);
+    (admin.users.delete.useMutation as Mock).mockReturnValue(mockDeleteMutation);
 
     (window.confirm as Mock).mockReturnValue(true);
   });
@@ -213,7 +211,7 @@ describe('AdminUsers Page', () => {
 
   describe('Loading States', () => {
     it('should show loading state for stats', () => {
-      (api.admin.users.stats.useQuery as Mock).mockReturnValue({
+      (admin.users.stats.useQuery as Mock).mockReturnValue({
         data: null,
         isLoading: true,
         error: null
@@ -230,7 +228,7 @@ describe('AdminUsers Page', () => {
     });
 
     it('should show loading state for users table', () => {
-      (api.admin.users.all.useQuery as Mock).mockReturnValue({
+      (admin.users.all.useQuery as Mock).mockReturnValue({
         data: null,
         isLoading: true,
         error: null
@@ -418,7 +416,7 @@ describe('AdminUsers Page', () => {
     });
 
     it('should show empty state when no users exist', () => {
-      (api.admin.users.all.useQuery as Mock).mockReturnValue({
+      (admin.users.all.useQuery as Mock).mockReturnValue({
         data: { success: true, users: [] },
         isLoading: false,
         error: null

@@ -5,7 +5,10 @@ import '@testing-library/jest-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StubReferencePopup } from '../StubReferencePopup';
 import { useRouter } from '@/i18n/routing';
-import type { ReferenceAnnotation, TextSelection } from '@/lib/api';
+import type { components } from '@semiont/api-client';
+
+type ReferenceAnnotation = components['schemas']['Annotation'];
+type TextSelection = { exact: string; start: number; end: number };
 
 // Mock @/i18n/routing
 vi.mock('@/i18n/routing', () => ({
@@ -14,22 +17,24 @@ vi.mock('@/i18n/routing', () => ({
 
 // Mock API service
 vi.mock('@/lib/api', () => ({
-  apiService: {
-    documents: {
-      search: vi.fn(() => Promise.resolve({ documents: [] }))
+  documents: {
+    search: {
+      useQuery: vi.fn(() => ({
+        data: { documents: [] },
+        isLoading: false,
+        error: null
+      }))
     }
   },
-  api: {
-    documents: {
-      search: {
-        useQuery: vi.fn(() => ({
-          data: { documents: [] },
-          isLoading: false,
-          error: null
-        }))
-      }
+  getEntityTypes: vi.fn((annotation: any) => {
+    // Extract entity types from W3C body array
+    if (Array.isArray(annotation.body)) {
+      return annotation.body
+        .filter((item: any) => item.type === 'TextualBody' && item.purpose === 'tagging')
+        .map((item: any) => item.value);
     }
-  }
+    return [];
+  })
 }));
 
 // Helper to wrap component with QueryClientProvider
@@ -63,21 +68,27 @@ describe('StubReferencePopup', () => {
       end: 13
     } as TextSelection,
     annotation: {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
       id: 'test-annotation',
       target: {
         source: 'test-doc',
-        selector: {
-          type: 'TextPositionSelector',
-          exact: 'Selected text',
-          offset: 0,
-          length: 13,
-        },
+        selector: [
+          {
+            type: 'TextPositionSelector',
+            start: 0,
+            end: 13,
+          },
+          {
+            type: 'TextQuoteSelector',
+            exact: 'Selected text',
+          },
+        ],
       },
-      body: {
-        type: 'SpecificResource',
-        entityTypes: ['Person'],
-        source: null,
-      },
+      // Stub reference has empty body array
+      body: [],
+      // entityTypes at annotation level
+      entityTypes: ['Person'],
       motivation: 'linking',
       creator: {
         type: 'Person',

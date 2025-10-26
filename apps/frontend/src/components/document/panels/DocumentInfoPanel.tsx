@@ -3,8 +3,12 @@
 import React, { useMemo } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import type { Annotation, ReferencedBy } from '@/lib/api';
-import { formatLocaleDisplay } from '@/lib/api';
+import type { components, paths } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
+type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+type ReferencedBy = ResponseContent<paths['/api/documents/{id}/referenced-by']['get']>['referencedBy'][number];
+import { formatLocaleDisplay, getBodySource, isBodyResolved, getEntityTypes } from '@semiont/api-client';
 
 interface Props {
   highlights: Annotation[];
@@ -27,20 +31,20 @@ export function DocumentInfoPanel({
 
   // Count stub vs resolved references
   const stubCount = useMemo(
-    () => references.filter((r) => r.body.source === null || r.body.source === undefined).length,
+    () => references.filter((r) => !isBodyResolved(r.body)).length,
     [references]
   );
 
   const resolvedCount = useMemo(
-    () => references.filter((r) => r.body.source !== null && r.body.source !== undefined).length,
+    () => references.filter((r) => isBodyResolved(r.body)).length,
     [references]
   );
 
-  // Count entity types from references
+  // Count entity types from references (at annotation level)
   const entityTypesList = useMemo(() => {
     const entityTypeCounts = new Map<string, number>();
     references.forEach((ref) => {
-      const entityTypes = ref.body.entityTypes || [];
+      const entityTypes = getEntityTypes(ref);
       entityTypes.forEach((type: string) => {
         entityTypeCounts.set(type, (entityTypeCounts.get(type) || 0) + 1);
       });

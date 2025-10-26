@@ -1,688 +1,647 @@
 # Semiont Architecture
 
-This document describes the overall architecture of the Semiont platform, focusing on AWS technologies and major frameworks in use.
+Platform-agnostic architecture for the Semiont semantic knowledge platform.
 
 ## Overview
 
-Semiont is a cloud-native semantic knowledge platform built on AWS using Infrastructure as Code (CDK) with a modern microservices architecture. The platform is designed for scalability, security, and maintainability with a clean separation between data infrastructure provisioning and application deployment.
+Semiont transforms unstructured text into a queryable knowledge graph using W3C Web Annotations as the semantic layer. The architecture makes deliberate choices that prioritize longevity, interoperability, and operational simplicity.
 
-**Quick Navigation:**
-- [Data Infrastructure Components](#data-infrastructure-components) - VPC, RDS, EFS setup
-- [Application Architecture](#application-architecture) - Frontend/Backend services
-- [Authentication](#authentication-architecture) - OAuth and JWT implementation
-- [Security](#security-architecture) - Network and application security
-- [Database Management](./DATABASE.md) - PostgreSQL and migrations
-- [Graph Implementation](./GRAPH.md) - Graph database patterns
+**Core Principles:**
 
-## High-Level Architecture
+- **Event Sourcing**: Immutable event log as source of truth, enabling audit trails and temporal queries
+- **4-Layer Data Model**: Clean separation of content, events, projections, and relationships
+- **W3C Standards**: Full Web Annotation Data Model compliance ensures data portability
+- **Spec-First Development**: Types generated from OpenAPI specification, not the reverse
+- **Platform Agnostic**: Services run on local processes, containers, or cloud infrastructure
+
+**For Executives**: This is a knowledge management system designed to outlive specific vendors or platforms. W3C compliance means your data exports as standard JSON-LD that any compatible system can consume.
+
+**For Architects**: Event sourcing provides complete audit trails. The 4-layer model allows rebuilding any downstream state from the immutable event log. All services communicate via REST APIs with OpenAPI contracts.
+
+## System Architecture
 
 ```mermaid
 graph TB
-    subgraph "Internet"
-        Users[Users/Browsers]
+    subgraph "Client Layer"
+        USER[User Browser]
+        AI[AI Agents]
+        MCP[MCP Server]
     end
 
-    subgraph "AWS Edge"
-        CF[CloudFront CDN]
-        WAF[AWS WAF]
+    subgraph "Application Layer"
+        FE[Frontend]
+        BE[Backend API]
     end
 
-    subgraph "Public Subnet"
-        ALB[Application Load Balancer]
+    subgraph "Data Layer"
+        L1[Layer 1: Content Store]
+        L2[Layer 2: Event Store]
+        L3[Layer 3: Projections]
+        L4[Layer 4: Graph]
+        DB[(Database)]
+        SEC[Secrets]
     end
 
-    subgraph "Private Subnet"
-        subgraph "ECS Fargate Cluster"
-            Frontend[Frontend Service<br/>Next.js 14]
-            Backend[Backend Service<br/>Hono API]
-        end
+    subgraph "Compute"
+        INF[Inference]
+        JW[Job Worker]
     end
 
-    subgraph "Database Subnet"
-        RDS[(PostgreSQL RDS)]
-        EFS[EFS Storage]
-    end
+    %% Client connections
+    USER -->|HTTPS| FE
+    AI -->|MCP Protocol| MCP
 
-    subgraph "AWS Services"
-        SM[Secrets Manager]
-        CW[CloudWatch]
-        SNS[SNS Alerts]
-    end
+    %% Application layer
+    FE -->|REST API| BE
+    MCP -->|REST API| BE
 
-    Users --> CF
-    CF --> WAF
-    WAF --> ALB
-    ALB -->|/auth/*| Frontend
-    ALB -->|/api/*| Backend
-    ALB -->|/*| Frontend
-    Backend --> RDS
-    Backend --> EFS
-    Backend --> SM
-    Frontend --> SM
-    Backend --> CW
-    Frontend --> CW
-    CW --> SNS
+    %% Backend to data layers (write path)
+    BE -->|Write Content| L1
+    BE -->|Append Events| L2
+    BE -->|Auth/Users| DB
+    BE -.->|Future| SEC
+
+    %% Event-driven flow
+    L2 -.->|Project| L3
+    L3 -.->|Sync| L4
+
+    %% Backend reads
+    BE -->|Read Content| L1
+    BE -->|Query State| L3
+    BE -->|Graph Queries| L4
+
+    %% Compute services
+    BE -->|Generate/Detect| INF
+    BE -->|Queue Jobs| JW
+    JW -->|Emit Events| L2
+    JW -->|Use AI| INF
+
+    %% Styling - darker fills ensure text contrast in both light and dark modes
+    classDef client fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+    classDef app fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
+    classDef data fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
+    classDef compute fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
+
+    class USER,AI,MCP client
+    class FE,BE app
+    class L1,L2,L3,L4,DB,SEC data
+    class INF,JW compute
 ```
 
-## Data Infrastructure Components
+**Component Details**:
 
-### Two-Stack Architecture
+- **Frontend**: Next.js 14 web application with SSR/SSG
+- **Backend API**: Hono server implementing W3C Web Annotation Data Model
+- **MCP Server**: Model Context Protocol for AI agent integration
+- **Layer 1 (Content Store)**: Binary/text files, 65K shards, O(1) access
+- **Layer 2 (Event Store)**: Immutable JSONL event log, source of truth
+- **Layer 3 (Projections)**: Materialized views in PostgreSQL + JSON files
+- **Layer 4 (Graph)**: Neo4j/Neptune for relationship queries
+- **Database**: PostgreSQL for users and authentication
+- **Secrets**: Planned credential management integration
+- **Inference**: External LLM APIs (Anthropic Claude, OpenAI)
+- **Job Worker**: Background job processing (prototype, embedded in backend)
 
-The Semiont platform uses a **two-stack deployment model** that separates long-lived data infrastructure from frequently updated application code:
+**Key Flows**:
 
-```mermaid
-graph LR
-    subgraph "Data Stack"
-        VPC[VPC & Networking]
-        RDS2[(RDS Database)]
-        EFS2[EFS Storage]
-        SEC[Security Groups]
-        IAM[IAM Roles]
-        SM2[Secrets Manager]
-    end
+- **Write Path**: User → Frontend → Backend → Content Store (L1) + Event Store (L2) → Projections (L3) → Graph (L4)
+- **Read Path**: User → Frontend → Backend → Projections (L3) or Graph (L4) → Response
+- **Job Processing**: User → Frontend → Backend → Job Worker → Inference → Event Store (L2)
+- **Event Sourcing**: All writes create immutable events (L2), projections (L3) rebuilt from events
+- **Graph Sync**: Graph database (L4) updated automatically via event subscriptions
 
-    subgraph "Application Stack"
-        ECS[ECS Cluster]
-        SVCS[ECS Services]
-        ALB2[Load Balancer]
-        WAF2[WAF Rules]
-        CF2[CloudFront]
-        R53[Route 53]
-        CW2[CloudWatch]
-    end
+## Application Services
 
-    VPC --> ECS
-    RDS2 --> SVCS
-    EFS2 --> SVCS
-    SEC --> SVCS
-    IAM --> SVCS
-    SM2 --> SVCS
-```
+The application layer consists of server-side services that handle user requests and coordinate data operations.
 
-#### 1. Data Stack (`SemiontDataStack`)
-**Purpose**: Provisions foundational AWS data resources that rarely change
+### Frontend - Next.js Web Application
 
-**Components**:
-- **VPC with 3-tier networking**:
-  - Public subnets (ALB, NAT gateways)
-  - Private subnets (ECS tasks) 
-  - Database subnets (RDS, isolated)
-- **PostgreSQL RDS Database**:
-  - PostgreSQL 15 on t3.micro instance
-  - Encrypted storage with 7-day backup retention
-  - Multi-AZ disabled for cost optimization
-  - Isolated in database subnets
-- **EFS File System**: Encrypted persistent storage for uploads
-- **AWS Secrets Manager**: All credentials and secrets
-- **Security Groups**: Network access control
-- **IAM Roles**: Service permissions
+**Technology**: Next.js 14, TypeScript, Tailwind CSS, NextAuth.js
 
-#### 2. Application Stack (`SemiontAppStack`)  
-**Purpose**: Deploys containerized applications and associated resources
+**Responsibilities**:
 
-**Components**:
-- **ECS Fargate Cluster**: Container orchestration
-- **Dual ECS Services**: Frontend and backend containers
-- **Application Load Balancer**: Traffic routing and SSL termination
-- **WAF**: Web application firewall with rate limiting
-- **CloudFront**: CDN for static assets
-- **Route 53**: DNS management
-- **CloudWatch**: Logging and monitoring
-- **SNS/Budgets**: Alerting and cost management
+- Server-side rendering and static page generation
+- OAuth 2.0 authentication with domain restrictions
+- W3C annotation UI (highlight text, create entity tags, link documents)
+- Real-time collaboration via Server-Sent Events
+- Export annotations as JSON-LD
 
-### Benefits of Two-Stack Model
+**Key Architectural Decisions**:
 
-1. **Faster Deployments**: App stack deploys in ~5 minutes vs full data infrastructure
-2. **Lower Risk**: Database and core data infrastructure remain stable
-3. **Cost Control**: Avoid accidental deletion of expensive resources
-4. **Easier Rollbacks**: Application rollbacks don't affect data infrastructure
-5. **Environment Isolation**: Different app stacks can share data infrastructure
+- SSR for initial page loads, CSR for dynamic interactions
+- API client generated from OpenAPI spec ensures type safety
+- Authentication handled by NextAuth.js with JWT session tokens
 
-## Application Architecture
+**Documentation**: [Frontend README](../apps/frontend/README.md)
 
-### Dual-Service Model
+### Backend - API Server (BFF Pattern)
 
-The application layer consists of two separate ECS services running on Fargate:
+**Technology**: Hono, TypeScript, Prisma, PostgreSQL
 
-#### Frontend Service
-- **Framework**: Next.js 14 with App Router
-- **Language**: TypeScript
-- **UI Framework**: Tailwind CSS
-- **Authentication**: NextAuth.js with Google OAuth
-- **State Management**: React Query (@tanstack/react-query)
-- **Build**: Static generation with dynamic routes
-- **Container**: Alpine Linux with Node.js 18
+**Responsibilities**:
 
-**Key Features**:
-- Server-side rendering (SSR) and static generation (SSG)
-- OAuth authentication with domain restrictions
-- Responsive design with dark mode support
-- Type-safe API client for backend communication
+- REST API implementing W3C Web Annotation Data Model
+- Event sourcing for all document and annotation mutations
+- 4-layer data architecture (detailed below)
+- JWT validation and role-based access control
+- OpenAPI specification generation from route definitions
 
-#### Backend Service (BFF)
-- **Architecture Pattern**: Backend for Frontend (BFF) - optimized API layer for the Next.js frontend
-- **Framework**: OpenAPIHono (Hono with OpenAPI integration)
-- **Language**: TypeScript
-- **Database ORM**: Prisma with PostgreSQL (see [DATABASE.md](./DATABASE.md) for details)
-- **Authentication**: JWT tokens for API access (see [Authentication Architecture](#authentication-architecture))
-- **API**: RESTful endpoints with automatic OpenAPI documentation (accessible at `/api`)
-- **Validation**: Zod schemas for request/response validation
-- **Container**: Alpine Linux with Node.js 18
+**Key Architectural Decisions**:
 
-**Key Features**:
-- High-performance HTTP server (@hono/node-server)
-- Automatic database migrations on startup
-- JWT-based authentication middleware
-- Type-safe database queries with Prisma
-- Health check endpoints for monitoring
-- Automatic OpenAPI documentation generation
-- Request/response validation with Zod schemas
+- Hono chosen for performance and automatic OpenAPI generation
+- Event Store (Layer 2) is source of truth, not database
+- Projections (Layer 3) rebuilt from events on demand
+- Graph database (Layer 4) maintained via event subscriptions
 
-**Modular Route Architecture**:
-The backend uses a modular router pattern where each domain has its own router file:
+**Documentation**: [Backend README](../apps/backend/README.md)
 
-```
-apps/backend/src/
-├── index.ts              # Main app, mounts all routers
-├── routes/
-│   ├── health.ts        # Health check endpoints (public)
-│   ├── auth.ts          # Authentication & token endpoints
-│   ├── hello.ts         # Example endpoints (protected)
-│   ├── status.ts        # Status endpoint (protected)
-│   └── admin.ts         # Admin endpoints (protected + admin check)
-├── middleware/
-│   └── auth.ts          # JWT authentication middleware
-├── auth/
-│   ├── jwt.ts           # JWT token generation/verification
-│   └── oauth.ts         # OAuth user management
-└── openapi.ts           # OpenAPI schemas and configuration
-```
+### MCP Server - AI Integration
 
-Each router:
-- Defines its own OpenAPI route specifications with Zod schemas
-- Applies authentication middleware as needed (no central auth list)
-- Provides type-safe request/response handling
-- Automatically contributes to the OpenAPI documentation
+**Technology**: Model Context Protocol, TypeScript
 
-### Service Communication
+**Responsibilities**:
 
-```mermaid
-sequenceDiagram
-    participant Browser
-    participant CloudFront
-    participant ALB
-    participant Frontend
-    participant Backend
-    participant Database
+- Expose Semiont knowledge graph to AI systems (Claude Desktop, etc.)
+- Provide tools for document search, annotation, and graph traversal
+- Handle long-lived refresh token authentication
 
-    Browser->>CloudFront: HTTPS Request
-    CloudFront->>ALB: Forward Request
+**Key Architectural Decisions**:
 
-    alt OAuth Flow (/auth/*)
-        ALB->>Frontend: Route to NextAuth
-        Frontend->>Browser: Handle OAuth
-    else API Call (/api/*)
-        ALB->>Backend: Route to API
-        Backend->>Database: Query Data
-        Database-->>Backend: Return Data
-        Backend-->>ALB: JSON Response
-    else UI Request (/*)
-        ALB->>Frontend: Route to Next.js
-        Frontend->>Backend: API Request (if needed)
-        Backend-->>Frontend: JSON Data
-        Frontend-->>ALB: HTML/React
-    end
+- Implements Model Context Protocol for AI agent integration
+- Uses same API client as frontend for consistency
+- 30-day refresh tokens for persistent AI sessions
 
-    ALB-->>CloudFront: Response
-    CloudFront-->>Browser: Cached Response
-```
+**Documentation**: [MCP Server README](../packages/mcp-server/README.md)
 
-1. **Browser to Frontend**: Direct HTTPS connection via CloudFront/ALB
-2. **Frontend to Backend**: Simplified ALB routing with clear separation:
-   - `/auth/*` → Frontend (NextAuth.js OAuth flows)
-   - `/api/*` → Backend (All API endpoints)
-   - `/*` → Frontend (Default - UI and static assets)
-3. **Backend to Database**: Direct connection via VPC private networking
+## Data Architecture
 
-## AWS Services Used
+The 4-layer architecture separates concerns while maintaining a clear dependency hierarchy.
 
-### Compute & Containers
-- **ECS Fargate**: Serverless container platform
-- **ECR**: Container image registry (implicit via CDK)
-- **ECS Exec**: Container debugging and management
+### Layer 1: Content Store
 
-### Networking
-- **VPC**: Virtual private cloud with multi-AZ design
-- **ALB**: Application Load Balancer with SSL termination  
-- **Route 53**: DNS hosting and domain management
-- **CloudFront**: Global CDN for static assets
-- **Certificate Manager**: SSL/TLS certificates
+**Purpose**: Raw document storage (text, binary, PDFs)
 
-### Data & Storage
-- **RDS PostgreSQL**: Managed relational database
-- **Graph Database**: Multiple implementations (Neo4j, Neptune, JanusGraph, Memory) - see [Graph Implementation Guide](GRAPH.md)
-- **EFS**: Elastic File System for persistent storage
-- **Secrets Manager**: Encrypted credential storage
+**Technology**: Sharded filesystem (65,536 shards via Jump Consistent Hash)
 
-### Security
-- **WAF**: Web Application Firewall
-- **Security Groups**: Network-level firewall rules
-- **IAM**: Identity and access management
-- **VPC Flow Logs**: Network traffic monitoring (implicit)
+**Key Characteristics**:
 
-### Monitoring & Management
-- **CloudWatch**: Centralized logging and metrics
-- **CloudWatch Alarms**: Automated alerting
-- **SNS**: Notification service
-- **AWS Budgets**: Cost monitoring and alerts
+- O(1) read/write by document ID
+- Content-addressed storage (no database queries)
+- Supports streaming for large files
+- Platform-agnostic (local filesystem, EFS, S3)
 
-## Key Design Decisions
+**Why This Matters**: Storing content separately from metadata allows independent scaling. A 1GB PDF doesn't bloat your database. Content can live on cheap object storage while metadata stays in PostgreSQL.
 
-### 1. **Simplified ALB Routing Architecture**
-We use a clean 3-rule routing pattern that eliminates path conflicts:
+**Filesystem Backend**: Content Store uses the [Filesystem](./services/FILESYSTEM.md) service for physical storage (local filesystem, AWS S3, AWS EFS).
 
-```typescript
-// Priority 10: OAuth flows handled by frontend
-ListenerCondition.pathPatterns(['/auth/*'])
+**Documentation**: [CONTENT-STORE.md](./services/CONTENT-STORE.md)
 
-// Priority 20: All API calls go to backend
-ListenerCondition.pathPatterns(['/api', '/api/*'])
+### Layer 2: Event Store
 
-// Default: Everything else to frontend
-```
+**Purpose**: Immutable event log (source of truth for all changes)
 
-**Benefits**:
-- **No path conflicts**: NextAuth at `/auth/*` doesn't intercept backend `/api/auth/*` routes
-- **Clear separation**: Frontend handles OAuth, backend handles all API logic
-- **Simple mental model**: Easy to understand routing rules
-- **Independent scaling**: Frontend and backend scale separately
+**Technology**: Append-only JSONL files, sharded like Layer 1
 
-### 2. **OpenAPIHono Over Express**
-We use OpenAPIHono (Hono + OpenAPI integration) over traditional Express.js:
+**Event Types**:
 
-**Advantages**:
-- **Performance**: ~3x faster than Express
-- **Type Safety**: Built-in TypeScript support with Zod validation
-- **Small Bundle**: Minimal dependencies
-- **Modern APIs**: Web Standards compliant
-- **Automatic OpenAPI**: Route definitions generate documentation
-- **Request/Response Validation**: Automatic validation against schemas
-- **Modular Architecture**: Each domain owns its routes and auth logic
+- Document lifecycle: `document.created`, `document.archived`
+- Annotations: `annotation.added`, `annotation.removed`, `annotation.body.updated`
+- Entity types: `entitytype.added`, `entitytag.added`
 
-### 3. **Prisma ORM with PostgreSQL**
-Database layer uses Prisma with PostgreSQL:
+**Key Characteristics**:
 
-**Benefits**:
-- **Type Safety**: Generated TypeScript types
-- **Auto Migrations**: Schema evolution management
-- **Query Builder**: SQL-like syntax with type checking
-- **PostgreSQL Features**: JSON columns, full-text search, arrays
+- Events never modified or deleted (append-only)
+- Cryptographic chain integrity (each event references previous event hash)
+- Sequence numbers for ordering guarantees
+- File rotation at 10,000 events per document
 
-### 4. **NextAuth.js for Authentication**
-OAuth authentication handled by NextAuth.js:
+**Why This Matters**: Event sourcing provides a complete audit trail. You can replay events to any point in time. Projections can be rebuilt if corrupted. New projection types can be added without schema migrations.
 
-**Features**:
-- **Multiple Providers**: Google OAuth (extensible)
-- **Domain Restrictions**: Email domain-based access control
-- **Secure Sessions**: Encrypted JWT tokens
-- **Database Sessions**: User persistence in PostgreSQL
+**Documentation**: [EVENT-STORE.md](./services/EVENT-STORE.md)
 
-### 5. **Infrastructure as Code (CDK)**
-All infrastructure defined in TypeScript using AWS CDK:
+### Layer 3: Projection Store
 
-**Advantages**:
-- **Type Safety**: Compile-time validation
-- **Reusability**: Shared constructs and patterns
-- **Version Control**: All changes tracked in Git
-- **Automated Rollbacks**: CloudFormation change sets
+**Purpose**: Materialized views of current state (optimized for queries)
 
-## Authentication Architecture
+**Technology**: PostgreSQL + sharded JSON files
 
-```mermaid
-graph TD
-    subgraph "Browser"
-        User[User Login]
-        Session[Session Cookie]
-    end
+**Storage**:
 
-    subgraph "Frontend - Next.js"
-        NextAuth[NextAuth.js]
-        Pages[Protected Pages]
-    end
+- Document metadata in PostgreSQL (`documents` table)
+- Annotation collections in sharded JSON files
+- System projections (entity types) in JSON
 
-    subgraph "OAuth Provider"
-        Google[Google OAuth 2.0]
-    end
+**Key Characteristics**:
 
-    subgraph "Backend - Hono"
-        JWT[JWT Validator]
-        API[Protected APIs]
-        TokenGen[Token Generator]
-    end
+- Rebuilt from Layer 2 events (not authoritative)
+- Optimized for fast queries without event replay
+- Incremental updates for performance
+- Can be deleted and reconstructed at any time
 
-    subgraph "Database"
-        Users[(Users Table)]
-    end
+**Why This Matters**: You don't query the event log for "get document by ID"—that would be slow. Projections are the read-optimized view. If they're corrupted or you change the schema, replay events to rebuild.
 
-    User -->|1. Login| NextAuth
-    NextAuth -->|2. OAuth Flow| Google
-    Google -->|3. User Info| NextAuth
-    NextAuth -->|4. Create Session| Session
-    NextAuth -->|5. Store User| Users
+**Documentation**: [PROJECTION.md](./services/PROJECTION.md)
 
-    Pages -->|6. API Request + JWT| JWT
-    JWT -->|7. Validate| API
-    API -->|8. Response| Pages
+### Layer 4: Graph Database
 
-    subgraph "MCP Client Flow"
-        MCP[MCP Client]
-        MCP -->|Browser Auth| NextAuth
-        NextAuth -->|Get Token| TokenGen
-        TokenGen -->|Refresh Token| MCP
-    end
-```
+**Purpose**: Relationship traversal and discovery
 
-### Authentication Model
+**Technology**: Neo4j, AWS Neptune, JanusGraph, or in-memory (configurable)
 
-The platform implements a **secure-by-default** authentication model for API access:
+**Graph Model**:
 
-#### Core Principles
-- **Default Protection**: All API routes require authentication automatically
-- **Explicit Exceptions**: Public endpoints must be explicitly listed
-- **JWT Bearer Tokens**: Stateless authentication for API requests
-- **OAuth Integration**: Google OAuth 2.0 for user authentication
+- **Vertices**: Documents, Annotations, EntityTypes
+- **Edges**: `BELONGS_TO` (annotation → document), `REFERENCES` (annotation → linked document), `TAGGED_AS` (annotation → entity type)
 
-#### Authentication Flow
+**Key Characteristics**:
+
+- Built from Layer 3 projections via event subscriptions
+- Enables graph queries (backlinks, entity co-occurrence, document clusters)
+- Supports multiple implementations (Neo4j Cypher, Gremlin, in-memory)
+
+**Why This Matters**: Graph databases excel at relationship queries. "Find all documents linking to this one" is a single Cypher query. In SQL, that's multiple joins. The graph is maintained automatically via event subscriptions—no manual sync required.
+
+**Documentation**: [GRAPH.md](./services/GRAPH.md)
+
+### Database - PostgreSQL
+
+**Purpose**: User accounts, API keys, projection metadata
+
+**Technology**: PostgreSQL 15 (AWS RDS in production)
+
+**Storage**:
+
+- User authentication records
+- OAuth sessions
+- Document metadata (Layer 3 projections)
+- Annotation metadata (linked to JSON files)
+
+**Key Characteristics**:
+
+- Automatic migrations via Prisma on backend startup
+- No manual migration files (schema is source of truth)
+- Connection pooling via Prisma Client
+
+**Why This Matters**: PostgreSQL handles relational data (users, permissions) while the event store handles document content. The database is not the source of truth for annotations—it's a projection.
+
+**Documentation**: [DATABASE.md](./services/DATABASE.md)
+
+### Secrets - Credential Management
+
+**Purpose**: Future integration with secrets managers
+
+**Status**: Planned (Q1-Q4 2026)
+
+**Planned Providers**: AWS Secrets Manager, HashiCorp Vault, Azure Key Vault
+
+**Documentation**: [SECRETS.md](./services/SECRETS.md)
+
+## Compute Services
+
+### Inference - AI/ML Service
+
+**Purpose**: LLM-powered document generation and entity detection
+
+**Technology**: External APIs (Anthropic Claude, OpenAI)
+
+**Capabilities**:
+
+- Generate documents from annotated text selections
+- Detect entities in document content
+- Extract graph context for AI consumption
+- Streaming text generation
+
+**Key Characteristics**:
+
+- External service (no local hosting)
+- Configurable provider (Anthropic, OpenAI, local models)
+- Streaming support for long-running operations
+
+**Documentation**: [INFERENCE.md](./services/INFERENCE.md)
+
+### Job Worker - Background Processing
+
+**Purpose**: Asynchronous job processing for long-running AI operations
+
+**Technology**: Filesystem-based job queue, embedded worker processes
+
+**Status**: Prototype implementation (not yet a proper CLI-managed service)
+
+**Capabilities**:
+
+- Entity detection jobs (find entities in documents using AI)
+- Document generation jobs (create new documents from annotations)
+- Progress tracking with SSE streaming to clients
+- Automatic retry logic for failed jobs
+- Event emission to Event Store (Layer 2)
+
+**Key Characteristics**:
+
+- Embedded in backend process (not independently deployable)
+- Filesystem-based job queue with atomic operations
+- FIFO job processing with configurable polling
+- Graceful shutdown (waits for in-flight jobs)
+- No CLI integration or environment configuration (yet)
+
+**Why This Matters**: Long-running AI operations (entity detection across large documents, document generation) can't block HTTP requests. Job workers decouple processing from client connections—jobs continue even if the client disconnects. This is a temporary embedded implementation; future versions will be independently scalable services.
+
+**Current Limitations**: Not yet a proper service—no CLI integration, no platform abstraction, no independent deployment. Workers start automatically with the backend. This will eventually become a standalone service with Redis/SQS queue options and ECS deployment.
+
+**Documentation**: [JOB-WORKER.md](./services/JOB-WORKER.md)
+
+## Platform Abstraction
+
+Services run on different platforms depending on the deployment environment. The CLI manages platform selection and service lifecycle.
+
+### Platform Types
+
+**POSIX** - Native OS processes
+- **Use Case**: Local development
+- **Services**: Backend, Frontend, MCP
+- **Management**: Process spawning via Node.js `child_process`
+
+**Container** - Docker/Podman
+- **Use Case**: Isolated services (databases, graph)
+- **Services**: Database, Graph
+- **Management**: Container runtime via CLI
+
+**AWS** - Managed cloud services
+- **Use Case**: Production deployment
+- **Services**: ECS (backend), RDS (database), Neptune (graph), S3/EFS (storage)
+- **Management**: CloudFormation, ECS task definitions
+
+**External** - Third-party APIs
+- **Use Case**: External dependencies
+- **Services**: Inference (LLM APIs), Graph (Neo4j Aura)
+- **Management**: Health checks only (no lifecycle control)
+
+**Mock** - Test doubles
+- **Use Case**: CI/CD testing
+- **Services**: Any service (simulated behavior)
+- **Management**: Instant success responses
+
+**Key Principle**: Services declare *what* they are (service type). Environments declare *where* they run (platform type). This separation allows running the same service on different platforms without code changes.
+
+**Documentation**: [Platforms](./platforms/README.md)
+
+## API Design
+
+The Semiont API is RESTful with semantic extensions for knowledge graph operations.
+
+### Core Resources
+
+**Documents** - Markdown content with entity type tags
 
 ```
-1. User Login (Frontend)
-   ↓
-2. Google OAuth 2.0
-   ↓
-3. Backend validates OAuth token
-   ↓
-4. Backend issues JWT token
-   ↓
-5. Frontend includes JWT in API requests
-   ↓
-6. Backend validates JWT on each request
+
+POST   /api/documents
+GET    /api/documents/{id}
+PATCH  /api/documents/{id}
+DELETE /api/documents/{id}
+
 ```
 
-#### MCP Authentication Architecture
 
-The platform provides special authentication support for Model Context Protocol (MCP) clients:
+**Annotations** - W3C Web Annotations linking text to entities or documents
 
-**Frontend MCP Bridge** (`/auth/mcp-setup`):
-- Handles browser-based OAuth flow for MCP clients
-- Uses NextAuth session cookies for authentication
-- Calls backend to generate long-lived refresh tokens
-- Redirects to MCP client callback with token
-
-**Backend Token Management**:
-- `POST /api/tokens/mcp-generate`: Issues 30-day refresh tokens for MCP clients
-- `POST /api/tokens/refresh`: Exchanges refresh tokens for 1-hour access tokens
-
-**Token Lifecycle**:
-1. MCP client opens browser to `/auth/mcp-setup?callback=<url>`
-2. Frontend authenticates user via NextAuth (Google OAuth)
-3. Frontend calls backend's `/api/tokens/mcp-generate` with session token
-4. Backend generates 30-day refresh token
-5. Frontend redirects to callback URL with refresh token
-6. MCP client stores refresh token locally
-7. MCP client exchanges refresh token for access tokens as needed
-
-This architecture bridges the gap between browser-based authentication (cookies) and API-based authentication (JWT tokens), enabling secure MCP client integration.
-
-#### Public Endpoints
-
-Only these endpoints are accessible without authentication:
-- `GET /api/health` - Health check for AWS ALB monitoring
-- `GET /api` - API documentation
-- `POST /api/auth/google` - OAuth login initiation
-
-#### Protected Endpoints
-
-All other API routes automatically require:
-- Valid JWT token in Authorization header
-- Token signature verification
-- Token expiration validation
-- User existence verification
-
-#### Admin Endpoints
-
-Admin endpoints require additional authorization:
-- Valid JWT token (authentication)
-- `isAdmin: true` user attribute (authorization)
-- Returns 403 Forbidden for non-admin users
-
-### JWT Security Implementation
-
-#### Token Validation Layers
-1. **Signature Verification**: Validates token hasn't been tampered with
-2. **Payload Structure**: Runtime validation of token structure
-3. **Expiration Checking**: Ensures token hasn't expired
-4. **User Verification**: Confirms user exists and is active
-5. **Domain Validation**: Checks email domain against allowed list
-
-#### Security Features
-- **Short-lived Tokens**: 7-day expiration by default
-- **Secure Secret Management**: JWT secret stored in AWS Secrets Manager
-- **Domain Restrictions**: Email domain-based access control
-- **Automatic Middleware**: Global authentication applied to all API routes
-
-## Security Architecture
-
-### Network Security
-- **3-Tier VPC**: Public, private, and database subnets
-- **Security Groups**: Principle of least privilege
-- **Private Database**: No internet access, ECS-only connections
-- **WAF Protection**: Web Application Firewall with multiple security rules:
-  - AWS Managed Core Rule Set (common vulnerabilities)
-  - AWS Managed Known Bad Inputs protection
-  - Rate limiting (100 requests per 5-minute window per IP)
-  - Geo-blocking for high-risk countries
-  - IP reputation filtering
-  - Enhanced exclusions for file uploads to prevent false positives
-
-### Application Security  
-- **OAuth Authentication**: Google-based with domain restrictions
-- **JWT Tokens**: Secure API authentication
-- **Secure-by-Default API**: All API routes require authentication unless explicitly listed
-- **HTTPS Everywhere**: SSL termination at ALB
-- **Secret Management**: All credentials in AWS Secrets Manager
-
-### Data Security
-- **Encryption at Rest**: RDS and EFS encrypted
-- **Encryption in Transit**: HTTPS/TLS for all connections
-- **Database Isolation**: Private subnets with no internet access
-- **Backup Encryption**: Automated encrypted backups
-
-## Scalability Design
-
-```mermaid
-graph TB
-    subgraph "Auto Scaling"
-        ASG[Auto Scaling Group]
-        CPU[CPU Metric > 70%]
-        MEM[Memory Metric > 80%]
-    end
-
-    subgraph "ECS Services"
-        F1[Frontend Task 1]
-        F2[Frontend Task 2]
-        F3[Frontend Task N]
-        B1[Backend Task 1]
-        B2[Backend Task 2]
-        B3[Backend Task N]
-    end
-
-    subgraph "Load Distribution"
-        ALB3[Application Load Balancer]
-        TG_F[Frontend Target Group]
-        TG_B[Backend Target Group]
-    end
-
-    CPU --> ASG
-    MEM --> ASG
-    ASG --> F1
-    ASG --> F2
-    ASG --> F3
-    ASG --> B1
-    ASG --> B2
-    ASG --> B3
-
-    ALB3 --> TG_F
-    ALB3 --> TG_B
-    TG_F --> F1
-    TG_F --> F2
-    TG_F --> F3
-    TG_B --> B1
-    TG_B --> B2
-    TG_B --> B3
 ```
 
-### Horizontal Scaling
-- **ECS Auto Scaling**: CPU/memory-based task scaling
-  - Backend: 1-10 tasks, scales at 70% CPU or 80% memory
-  - Frontend: 1-10 tasks, scales at 70% CPU or 80% memory
-- **ALB Distribution**: Traffic spread across healthy instances
-- **Multi-AZ Database**: High availability (optional)
-- **CDN Caching**: Reduced origin load
+POST   /api/documents/{id}/annotations
+GET    /api/documents/{id}/annotations
+PATCH  /api/documents/{id}/annotations/{annotationId}
+DELETE /api/documents/{id}/annotations/{annotationId}
 
-### Deployment Resilience
-- **Circuit Breaker**: Both services configured with automatic rollback on failed deployments
-- **Rolling Deployments**: 100% minimum healthy, 200% maximum during deployments
-- **Health Check Grace Period**: 2-minute grace period for service startup
-- **Execute Command**: Enabled for debugging and maintenance access
-
-### Vertical Scaling
-- **Fargate**: Easy CPU/memory adjustments without downtime
-- **RDS Instance Types**: Seamless database instance upgrades
-- **EFS Performance**: Automatic throughput scaling
-
-### Performance Optimizations
-- **Next.js SSG**: Pre-generated static pages
-- **CloudFront CDN**: Global edge caching
-- **Database Connection Pooling**: Efficient connection management
-- **Hono Performance**: High-throughput HTTP server
-
-## Monitoring & Observability
-
-### Application Monitoring
-- **Health Checks**: `/api/health` endpoints for service status
-- **CloudWatch Logs**: Centralized log aggregation with 1-month retention
-- **Container Logging**: Both frontend and backend services stream logs to dedicated CloudWatch log group
-- **Structured Logging**: JSON-formatted log entries with service-specific prefixes
-- **Error Tracking**: Application-level error monitoring
-
-### System Monitoring
-- **ECS Service Metrics**: CPU, memory, task count
-- **ALB Metrics**: Request count, latency, error rates
-- **RDS Metrics**: Database performance and connections
-- **WAF Metrics**: Request filtering and security events
-- **Custom Dashboards**: Operational visibility
-
-### Logging Configuration
-- **CloudWatch Log Group**: Single log group (`SemiontLogGroup`) with 1-month retention
-- **Service-Specific Streams**: 
-  - Frontend: `semiont-frontend` prefix
-  - Backend: `semiont-backend` prefix
-- **Log Drivers**: AWS Logs driver for automatic CloudWatch integration
-- **ALB Access Logs**: Not currently configured (potential enhancement)
-
-### Alerting
-- **CloudWatch Alarms**: Automated threshold monitoring
-- **SNS Notifications**: Email/SMS alerts
-- **Cost Budgets**: Spending limit notifications
-- **Health Check Failures**: Service availability alerts
-
-## Development Workflow
-
-### Local Development
-
-For detailed local development instructions, see [LOCAL-DEVELOPMENT.md](./LOCAL-DEVELOPMENT.md).
-
-```bash
-# Frontend development
-cd apps/frontend && npm run dev
-
-# Backend development
-cd apps/backend && npm run dev
-
-# Database migrations
-cd apps/backend && npm run prisma:migrate
 ```
 
-For testing strategies, see [TESTING.md](./TESTING.md).
 
-### Deployment Pipeline
+**Entity Types** - Semantic classifications (Person, Organization, etc.)
 
-For complete deployment procedures, see [DEPLOYMENT.md](./DEPLOYMENT.md).
-
-```bash
-# Set default environment
-export SEMIONT_ENV=production
-
-# Deploy infrastructure (rare)
-semiont provision
-
-# Deploy application (frequent)
-semiont publish
-
-# Service management
-semiont restart  # All services
-semiont restart --service frontend  # Specific service
-semiont watch logs  # Monitor logs
 ```
 
-For configuration management, see [CONFIGURATION.md](./CONFIGURATION.md).
+GET    /api/entity-types
+POST   /api/entity-types
 
-### Management Scripts
-TypeScript-based management scripts provide:
-- **Dynamic Resource Discovery**: No hardcoded ARNs
-- **Service-Specific Operations**: Frontend/backend command targeting
-- **OAuth Management**: Interactive credential setup
-- **Database Operations**: Backup and maintenance utilities
+```
 
-## Cost Optimization
 
-### Resource Sizing
-- **t3.micro RDS**: Minimal database instance for development
-- **256 CPU / 512MB ECS**: Right-sized containers
-- **Single AZ**: Reduced NAT gateway and data transfer costs
-- **EFS Lifecycle**: Automatic transition to cheaper storage tiers
+**Graph Operations** - Relationship queries
 
-### Operational Efficiency  
-- **Fargate Spot**: Cost savings for non-critical workloads (future)
-- **CloudFront Caching**: Reduced ALB/ECS load
-- **Reserved Capacity**: Long-term cost reduction (future)
-- **Budget Alerts**: Proactive cost monitoring
+```
 
-## Future Architecture Considerations
+GET    /api/documents/{id}/backlinks
+GET    /api/documents/{id}/context
+POST   /api/annotations/{id}/generate-document
 
-### Scalability Enhancements
-- **Multi-AZ RDS**: High availability for production
-- **ECS Service Auto Scaling**: Dynamic capacity management
-- **CloudFront Edge Functions**: Global compute distribution
-- **ElastiCache**: Redis caching layer
+```
 
-### Security Enhancements
-- **AWS Config**: Compliance and configuration drift detection
-- **GuardDuty**: Threat detection and monitoring
-- **Secrets Rotation**: Automatic credential rotation
-- **VPC Flow Logs**: Network traffic analysis
 
-### Operational Improvements
-- **CI/CD Pipeline**: Automated testing and deployment
-- **Blue/Green Deployments**: Zero-downtime updates
-- **Canary Releases**: Gradual rollout strategies
-- **Distributed Tracing**: End-to-end request tracking
+### API Characteristics
+
+**RESTful Core**: Standard HTTP verbs, resource-oriented URLs, JSON payloads
+
+**W3C Extensions**: Annotations follow Web Annotation Data Model (JSON-LD compatible)
+
+**Event-Sourced Mutations**: All writes (`POST`, `PATCH`, `DELETE`) create immutable events
+
+**Streaming Support**: Long-running operations (document generation, entity detection) support SSE
+
+**Type Safety**: OpenAPI specification is source of truth—TypeScript types generated from spec
+
+### Type-Safe Client
+
+The [@semiont/api-client](../packages/api-client/) package provides a fully type-safe SDK:
+
+- Types generated from [OpenAPI specification](../specs/openapi.json)
+- Automatic request/response validation
+- Streaming support for long-running operations
+- Authentication helpers (JWT, OAuth, MCP tokens)
+
+**Working Examples**: See [/demo](../demo/) for complete TypeScript examples.
+
+**Documentation**:
+
+- [API Overview](../specs/docs/API.md) - High-level capabilities
+- [OpenAPI Specification](../specs/openapi.json) - Complete endpoint reference
+
+## Authentication & Security
+
+Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
+
+### Authentication Flow
+
+1. **User Login**: OAuth 2.0 via Google (email domain restrictions supported)
+2. **Session Token**: NextAuth.js issues JWT session token (7-day expiry)
+3. **API Requests**: Frontend includes JWT in `Authorization: Bearer <token>` header
+4. **Token Validation**: Backend validates JWT signature and expiry
+
+### Special Cases
+
+**MCP Clients**: Long-lived refresh tokens (30-day expiry) for AI agent sessions
+
+**API Keys**: Future support for programmatic access (planned)
+
+### Security Defaults
+
+- All endpoints require authentication (except `/api/health`, `/api/openapi.json`, OAuth exchange)
+- JWT tokens expire after 7 days (force re-authentication)
+- Password authentication disabled by default (OAuth only)
+- Admin role required for user management endpoints
+- HTTPS required in production (enforced by AWS ALB)
+
+**Documentation**: [AUTHENTICATION.md](./AUTHENTICATION.md), [SECURITY.md](./SECURITY.md)
+
+## Operational Concerns
+
+### Configuration Management
+
+**Environment Files**: `environments/*.json` define service configuration per deployment
+
+**Example** (`local.json`):
+```json
+{
+  "services": {
+    "backend": {
+      "platform": { "type": "posix" },
+      "command": "npm run dev",
+      "port": 4000
+    },
+    "database": {
+      "platform": { "type": "container" },
+      "image": "postgres:15-alpine",
+      "port": 5432
+    }
+  }
+}
+
+```
+
+
+**Key Principle**: Configuration is data, not code. Changing platforms (POSIX → AWS) is a config change, not a code change.
+
+**Documentation**: [CONFIGURATION.md](./CONFIGURATION.md)
+
+### Scaling Strategy
+
+**Horizontal Scaling**:
+
+- Backend API servers: Scale ECS tasks (stateless, share nothing)
+- Frontend: Serverless (Next.js on Vercel or S3+CloudFront)
+- Database: Read replicas for read-heavy workloads
+
+**Data Layer Scaling**:
+
+- Layer 1 (Content): Shard across multiple EFS volumes or S3 buckets
+- Layer 2 (Events): Sharding already built-in (65,536 shards)
+- Layer 3 (Projections): PostgreSQL read replicas
+- Layer 4 (Graph): Neptune cluster or Neo4j enterprise
+
+**Documentation**: [SCALING.md](./SCALING.md)
+
+### Maintenance & Operations
+
+**Routine Maintenance**:
+
+- Database backups (automated via AWS RDS)
+- Log rotation (CloudWatch log retention policies)
+- Certificate renewal (automated via AWS ACM)
+
+**Event Store Maintenance**:
+
+- Event file rotation (automatic at 10,000 events)
+- Projection rebuilds (on-demand via CLI)
+- Chain validation (periodic integrity checks)
+
+**Graph Database Maintenance**:
+
+- Full graph rebuild from projections (rare, event-driven)
+- Index optimization (database-specific)
+
+**Documentation**: [MAINTENANCE.md](./MAINTENANCE.md)
+
+## Design Decisions
+
+### Why Event Sourcing?
+
+**Alternative Considered**: Direct database writes (traditional CRUD)
+
+**Decision**: Event sourcing provides audit trails, temporal queries, and rebuildable state. The complexity cost is justified by the value of complete change history.
+
+**Trade-off**: Increased storage (events + projections) vs. queryability and auditability
+
+### Why W3C Web Annotations?
+
+**Alternative Considered**: Custom annotation format
+
+**Decision**: W3C compliance ensures data portability. Your annotations export as standard JSON-LD that any compatible system can import.
+
+**Trade-off**: Some W3C complexity (selectors, motivations) vs. vendor lock-in avoidance
+
+### Why 4-Layer Architecture?
+
+**Alternative Considered**: 2-layer (database + graph)
+
+**Decision**: Separating content, events, projections, and relationships allows independent scaling and evolution. Each layer optimized for its access pattern.
+
+**Trade-off**: Architectural complexity vs. operational flexibility
+
+### Why PostgreSQL + Filesystem?
+
+**Alternative Considered**: NoSQL (MongoDB, DynamoDB)
+
+**Decision**: PostgreSQL provides ACID guarantees for user accounts and metadata. Filesystem storage for content/events avoids BLOB limitations and cost.
+
+**Trade-off**: Operational complexity (two storage systems) vs. cost and scalability
+
+### Why Spec-First OpenAPI?
+
+**Alternative Considered**: Code-first API with generated docs
+
+**Decision**: OpenAPI specification is source of truth. Frontend types, backend validation, and API docs all generated from spec. Changes start with spec review.
+
+**Trade-off**: Upfront spec design effort vs. API consistency and type safety
 
 ## Related Documentation
 
-- [Deployment Guide](DEPLOYMENT.md) - Step-by-step deployment instructions
-- [Configuration Guide](CONFIGURATION.md) - Environment and secret management
-- [Database Management](DATABASE.md) - Schema migrations and backup procedures
-- [Graph Implementation Guide](GRAPH.md) - Graph database patterns and implementations
-- [OAuth Setup](OAuth.md) - Authentication configuration guide
-- [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions
+### Service Deep Dives
+
+- [Content Store](./services/CONTENT-STORE.md) - Layer 1 binary/text storage
+- [Event Store](./services/EVENT-STORE.md) - Layer 2 immutable event log
+- [Projection Store](./services/PROJECTION.md) - Layer 3 materialized views
+- [Graph Database](./services/GRAPH.md) - Layer 4 relationship traversal
+- [Database](./services/DATABASE.md) - PostgreSQL schema and migrations
+- [Filesystem](./services/FILESYSTEM.md) - File upload and storage
+- [Inference](./services/INFERENCE.md) - AI/ML integration
+- [Job Worker](./services/JOB-WORKER.md) - Background job processing (prototype)
+- [Services Overview](./services/README.md) - Complete service index
+
+### Platform Documentation
+
+- [POSIX Platform](./platforms/POSIX.md) - Native OS processes
+- [Container Platform](./platforms/Container.md) - Docker/Podman
+- [AWS Platform](./platforms/AWS.md) - Production deployment
+- [External Platform](./platforms/External.md) - Third-party APIs
+- [Mock Platform](./platforms/Mock.md) - Test doubles
+- [Platforms Overview](./platforms/README.md) - Complete platform index
+
+### Operational Documentation
+
+- [Configuration](./CONFIGURATION.md) - Environment and service configuration
+- [Security](./SECURITY.md) - Security controls and compliance
+- [Scaling](./SCALING.md) - Performance scaling and cost optimization
+- [Maintenance](./MAINTENANCE.md) - Operational maintenance procedures
+- [Authentication](./AUTHENTICATION.md) - OAuth 2.0 and JWT implementation
+
+### Development Documentation
+
+- [Frontend README](../apps/frontend/README.md) - Next.js development
+- [Backend README](../apps/backend/README.md) - Hono API development
+- [MCP Server README](../packages/mcp-server/README.md) - AI integration
+- [API Client README](../packages/api-client/README.md) - TypeScript SDK
+- [CLI README](../apps/cli/README.md) - Command-line interface
+
+---
+
+**Document Version**: 3.0
+**Last Updated**: 2025-10-25
+**Audience**: CTOs, Architects, Engineering Leaders
+**Purpose**: Architectural overview and service relationships

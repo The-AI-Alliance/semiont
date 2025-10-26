@@ -1,21 +1,111 @@
-# Performance Monitoring & Bundle Analysis
+# Performance Optimization Guide
 
-This document describes the performance monitoring and bundle analysis setup for the frontend application.
+**Last Updated**: 2025-10-25
+
+Complete guide to performance monitoring, bundle optimization, and best practices for the Semiont frontend.
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Performance Best Practices](#performance-best-practices)
+- [Tools & Configuration](#tools--configuration)
+- [Bundle Optimization](#bundle-optimization)
+- [Performance Monitoring](#performance-monitoring)
+- [CI/CD Integration](#cicd-integration)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
 
 ## Quick Start
 
 ```bash
 # Run comprehensive performance analysis
-npm run perf-check
+npm run perf               # Full performance check (bundle + Lighthouse)
+npm run perf-check         # Alias for perf
 
 # Just bundle analysis
-npm run analyze
+npm run analyze            # Generate bundle analysis report
+npm run analyze-bundle     # Custom bundle analyzer
+npm run bundle-analyzer    # Webpack bundle analyzer
 
 # Just performance monitoring
-npm run perf-monitor
+npm run perf-monitor       # Custom performance monitoring
+npm run lighthouse         # Lighthouse CI (requires running server)
+```
 
-# Lighthouse CI (requires running server)
-npm run lighthouse
+## Performance Best Practices
+
+### 1. Code Splitting
+
+Automatic with Next.js App Router - pages and components are split into separate bundles.
+
+**Manual code splitting** for large components:
+```typescript
+import dynamic from 'next/dynamic';
+
+const HeavyComponent = dynamic(() => import('@/components/HeavyComponent'), {
+  loading: () => <div>Loading...</div>,
+  ssr: false  // Skip server-side rendering if not needed
+});
+```
+
+### 2. Image Optimization
+
+Use Next.js `Image` component for automatic optimization:
+```typescript
+import Image from 'next/image';
+
+<Image
+  src="/photo.jpg"
+  width={500}
+  height={300}
+  alt="Description"
+  loading="lazy"  // Lazy load images
+  placeholder="blur"  // Show blur while loading
+/>
+```
+
+**Benefits**:
+- Automatic WebP/AVIF conversion
+- Responsive images
+- Lazy loading
+- Blur placeholder
+
+### 3. API Caching
+
+Configured with TanStack Query for optimal data fetching:
+```typescript
+const { data } = api.documents.list.useQuery({
+  staleTime: 1000 * 60 * 5,  // Cache for 5 minutes
+  cacheTime: 1000 * 60 * 30,  // Keep in cache for 30 minutes
+  refetchOnWindowFocus: false  // Don't refetch on window focus
+});
+```
+
+### 4. Error Boundaries
+
+Prevent cascading failures and improve user experience:
+```typescript
+<AsyncErrorBoundary>
+  <ExpensiveComponent />
+</AsyncErrorBoundary>
+```
+
+**Benefits**:
+- Graceful degradation
+- Prevents full page crashes
+- Better error reporting
+
+### 5. Lazy Loading
+
+Components loaded on demand:
+```typescript
+// Route-based lazy loading (automatic)
+const DashboardPage = dynamic(() => import('./dashboard/page'));
+
+// Component-based lazy loading (manual)
+const Chart = dynamic(() => import('@/components/Chart'), {
+  loading: () => <ChartSkeleton />
+});
 ```
 
 ## Tools & Configuration
@@ -179,9 +269,24 @@ ANALYZE=true npm run build
 3. Set up performance alerts
 4. Regular performance audits
 
-## Resources
+## Related Documentation
 
+### Frontend Guides
+- [Development Guide](./DEVELOPMENT.md) - Local development workflows
+- [Testing Guide](./TESTING.md) - Test structure and running tests
+- [Deployment Guide](./DEPLOYMENT.md) - Publishing and deployment
+
+### Architecture
+- [Frontend Architecture](./ARCHITECTURE.md) - High-level system design
+- [Rendering Architecture](./RENDERING-ARCHITECTURE.md) - Document rendering pipeline
+
+### External Resources
 - [Next.js Performance](https://nextjs.org/docs/advanced-features/measuring-performance)
 - [Web Vitals](https://web.dev/vitals/)
 - [Lighthouse CI](https://github.com/GoogleChrome/lighthouse-ci)
 - [Bundle Analyzer](https://github.com/webpack-contrib/webpack-bundle-analyzer)
+
+---
+
+**Last Updated**: 2025-10-25
+**Performance Target**: Lighthouse Score > 80%

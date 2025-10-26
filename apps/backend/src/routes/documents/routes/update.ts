@@ -1,130 +1,122 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Update Document Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - Validates request body with validateRequestBody middleware
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import { HTTPException } from 'hono/http-exception';
 import type { DocumentsRouterType } from '../shared';
-import {
-  UpdateDocumentRequestSchema as UpdateDocumentRequestSchema,
-  GetDocumentResponseSchema as GetDocumentResponseSchema,
-  type GetDocumentResponse,
-} from '@semiont/core';
-import { getEventStore } from '../../../events/event-store';
+import { createEventStore } from '../../../services/event-store-service';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { validateRequestBody } from '../../../middleware/validate-openapi';
+import type { components } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/api-client';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
-
-export const updateDocumentRoute = createRoute({
-  method: 'patch',
-  path: '/api/documents/{id}',
-  summary: 'Update Document',
-  description: 'Update document metadata (append-only operations - name and content are immutable)',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-    body: {
-      content: {
-        'application/json': {
-          schema: UpdateDocumentRequestSchema as any,
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetDocumentResponseSchema as any,
-        },
-      },
-      description: 'Document updated successfully',
-    },
-  },
-});
+type UpdateDocumentRequest = components['schemas']['UpdateDocumentRequest'];
+type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
 
 export function registerUpdateDocument(router: DocumentsRouterType) {
-  router.openapi(updateDocumentRoute, async (c) => {
-    const { id } = c.req.valid('param');
-    const body = c.req.valid('json');
-    const user = c.get('user');
+  /**
+   * PATCH /api/documents/:id
+   *
+   * Update document metadata (append-only operations - name and content are immutable)
+   * Requires authentication
+   * Validates request body against UpdateDocumentRequest schema
+   */
+  router.patch('/api/documents/:id',
+    validateRequestBody('UpdateDocumentRequest'),
+    async (c) => {
+      const { id } = c.req.param();
+      const body = c.get('validatedBody') as UpdateDocumentRequest;
+      const user = c.get('user');
+      const basePath = getFilesystemConfig().path;
 
-    // Check document exists using Layer 3
-    const doc = await DocumentQueryService.getDocumentMetadata(id);
-    if (!doc) {
-      throw new HTTPException(404, { message: 'Document not found' });
-    }
-
-    const eventStore = await getEventStore();
-
-    // Emit archived/unarchived events (event store updates Layer 3, graph consumer updates Layer 4)
-    if (body.archived !== undefined && body.archived !== doc.archived) {
-      if (body.archived) {
-        await eventStore.appendEvent({
-          type: 'document.archived',
-          documentId: id,
-          userId: user.id,
-          version: 1,
-          payload: {
-            reason: undefined,
-          },
-        });
-      } else {
-        await eventStore.appendEvent({
-          type: 'document.unarchived',
-          documentId: id,
-          userId: user.id,
-          version: 1,
-          payload: {},
-        });
+      // Check document exists using Layer 3
+      const doc = await DocumentQueryService.getDocumentMetadata(id);
+      if (!doc) {
+        throw new HTTPException(404, { message: 'Document not found' });
       }
-    }
 
-    // Emit entity tag change events (event store updates Layer 3, graph consumer updates Layer 4)
-    if (body.entityTypes && doc.entityTypes) {
-      const added = body.entityTypes.filter((et: string) => !doc.entityTypes.includes(et));
-      const removed = doc.entityTypes.filter((et: string) => !body.entityTypes!.includes(et));
+      const eventStore = await createEventStore(basePath);
 
-      for (const entityType of added) {
-        await eventStore.appendEvent({
-          type: 'entitytag.added',
-          documentId: id,
-          userId: user.id,
-          version: 1,
-          payload: {
-            entityType,
-          },
-        });
+      // Emit archived/unarchived events (event store updates Layer 3, graph consumer updates Layer 4)
+      if (body.archived !== undefined && body.archived !== doc.archived) {
+        if (body.archived) {
+          await eventStore.appendEvent({
+            type: 'document.archived',
+            documentId: id,
+            userId: user.id,
+            version: 1,
+            payload: {
+              reason: undefined,
+            },
+          });
+        } else {
+          await eventStore.appendEvent({
+            type: 'document.unarchived',
+            documentId: id,
+            userId: user.id,
+            version: 1,
+            payload: {},
+          });
+        }
       }
-      for (const entityType of removed) {
-        await eventStore.appendEvent({
-          type: 'entitytag.removed',
-          documentId: id,
-          userId: user.id,
-          version: 1,
-          payload: {
-            entityType,
-          },
-        });
+
+      // Emit entity tag change events (event store updates Layer 3, graph consumer updates Layer 4)
+      if (body.entityTypes && doc.entityTypes) {
+        const added = body.entityTypes.filter((et: string) => !doc.entityTypes.includes(et));
+        const removed = doc.entityTypes.filter((et: string) => !body.entityTypes!.includes(et));
+
+        for (const entityType of added) {
+          await eventStore.appendEvent({
+            type: 'entitytag.added',
+            documentId: id,
+            userId: user.id,
+            version: 1,
+            payload: {
+              entityType,
+            },
+          });
+        }
+        for (const entityType of removed) {
+          await eventStore.appendEvent({
+            type: 'entitytag.removed',
+            documentId: id,
+            userId: user.id,
+            version: 1,
+            payload: {
+              entityType,
+            },
+          });
+        }
       }
+
+      // Read annotations from Layer 3
+      const annotations = await AnnotationQueryService.getAllAnnotations(id);
+      const entityReferences = annotations.filter(a => {
+        if (a.motivation !== 'linking') return false;
+        const entityTypes = getEntityTypes({ body: a.body });
+        return entityTypes.length > 0;
+      });
+
+      // Return optimistic response (content NOT included - must be fetched separately)
+      const response: GetDocumentResponse = {
+        document: {
+          ...doc,
+          archived: body.archived !== undefined ? body.archived : doc.archived,
+          entityTypes: body.entityTypes !== undefined ? body.entityTypes : doc.entityTypes,
+        },
+        annotations,
+        entityReferences,
+      };
+
+      return c.json(response);
     }
-
-    // Read annotations from Layer 3
-    const highlights = await AnnotationQueryService.getHighlights(id);
-    const references = await AnnotationQueryService.getReferences(id);
-
-    // Return optimistic response (content NOT included - must be fetched separately)
-    const response: GetDocumentResponse = {
-      document: {
-        ...doc,
-        archived: body.archived !== undefined ? body.archived : doc.archived,
-        entityTypes: body.entityTypes !== undefined ? body.entityTypes : doc.entityTypes,
-      },
-      annotations: [...highlights, ...references],
-      highlights: highlights,
-      references: references,
-      entityReferences: references.filter(annotation => annotation.body.entityTypes.length > 0),
-    };
-
-    return c.json(response);
-  });
+  );
 }
