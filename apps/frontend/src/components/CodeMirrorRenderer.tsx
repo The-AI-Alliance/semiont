@@ -6,11 +6,11 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartme
 import { markdown } from '@codemirror/lang-markdown';
 import { annotationStyles } from '@/lib/annotation-styles';
 import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
-import { isHighlight, isReference, isResolvedReference, compareAnnotationIds, type Annotation } from '@/lib/api';
+import { isHighlight, isReference, isResolvedReference, compareAnnotationIds, getBodySource } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
 import '@/styles/animations.css';
 
-// Export W3C Annotation type for use by other components
-export type { Annotation };
+type Annotation = components['schemas']['Annotation'];
 
 export interface TextSegment {
   exact: string;
@@ -164,8 +164,9 @@ function buildWidgetDecorations(
     // For references: add resolution widget (🔗, ✨ pulsing, or ❓)
     // Use W3C helper to determine if this is a reference
     if (isReference(annotation)) {
-      const targetName = annotation.body.source
-        ? callbacks.getTargetDocumentName?.(annotation.body.source)
+      const bodySource = getBodySource(annotation.body);
+      const targetName = bodySource
+        ? callbacks.getTargetDocumentName?.(bodySource)
         : undefined;
       // Compare by ID portion (handle both URI and internal ID formats)
       const isGenerating = generatingReferenceId

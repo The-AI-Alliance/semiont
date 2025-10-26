@@ -183,8 +183,8 @@ app.get('/api', (c) => {
 
 // Serve OpenAPI JSON specification - now automatically generated
 app.get('/api/openapi.json', (c) => {
-  // Serve the static OpenAPI spec from the public directory
-  const openApiPath = path.join(__dirname, '../public/openapi.json');
+  // Serve the static OpenAPI spec from the specs directory
+  const openApiPath = path.join(__dirname, '../../../specs/openapi.json');
   const openApiContent = fs.readFileSync(openApiPath, 'utf-8');
   const openApiSpec = JSON.parse(openApiContent);
 
@@ -257,7 +257,18 @@ if (CONFIG.NODE_ENV !== 'test') {
   }, async (info) => {
     console.log(`🚀 Server ready at http://localhost:${info.port}`);
     console.log(`📡 API ready at http://localhost:${info.port}/api`);
-    
+
+    // Bootstrap entity types projection if it doesn't exist
+    try {
+      console.log('🌱 Bootstrapping entity types...');
+      const { bootstrapEntityTypes } = await import('./bootstrap/entity-types-bootstrap');
+      await bootstrapEntityTypes();
+      console.log('✅ Entity types bootstrap complete');
+    } catch (error) {
+      console.error('⚠️ Failed to bootstrap entity types:', error);
+      // Continue running even if bootstrap fails
+    }
+
     // Initialize graph database and seed tag collections
     try {
       console.log('🔧 Initializing graph database...');
