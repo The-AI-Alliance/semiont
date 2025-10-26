@@ -11,8 +11,9 @@ import { JobWorker } from './job-worker';
 import type { Job, DetectionJob } from '../types';
 import { DocumentQueryService } from '../../services/document-queries';
 import { detectAnnotationsInDocument } from '../../routes/documents/helpers';
-import { emitReferenceCreated } from '../../events/emit';
+import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
+import { getFilesystemConfig } from '../../config/environment-loader';
 
 export class DetectionWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -96,18 +97,41 @@ export class DetectionWorker extends JobWorker {
         }
 
         try {
-          await emitReferenceCreated({
+          const basePath = getFilesystemConfig().path;
+          const eventStore = await createEventStore(basePath);
+          await eventStore.appendEvent({
+            type: 'annotation.added',
             documentId: job.documentId,
             userId: job.userId,
-            referenceId,
-            exact: detected.annotation.selector.exact,
-            position: {
-              offset: detected.annotation.selector.offset,
-              length: detected.annotation.selector.length,
+            version: 1,
+            payload: {
+              annotation: {
+                '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+                'type': 'Annotation' as const,
+                id: referenceId,
+                motivation: 'linking' as const,
+                target: {
+                  source: job.documentId,
+                  selector: [
+                    {
+                      type: 'TextPositionSelector',
+                      start: detected.annotation.selector.start,
+                      end: detected.annotation.selector.end,
+                    },
+                    {
+                      type: 'TextQuoteSelector',
+                      exact: detected.annotation.selector.exact,
+                    },
+                  ],
+                },
+                body: (detected.annotation.entityTypes || []).map(et => ({
+                  type: 'TextualBody' as const,
+                  value: et,
+                  purpose: 'tagging' as const,
+                })),
+                modified: new Date().toISOString(),
+              },
             },
-
-            entityTypes: detected.annotation.entityTypes,
-            targetDocumentId: undefined, // Will be resolved later
           });
 
           totalEmitted++;

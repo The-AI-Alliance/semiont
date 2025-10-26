@@ -4,6 +4,7 @@ import React, { useRef, useCallback } from 'react';
 import { Link } from '@/i18n/routing';
 import {
   type StoredEvent,
+  type DocumentEventType,
   formatEventType,
   getEventEmoji,
   formatRelativeTime,
@@ -11,14 +12,13 @@ import {
   getEventEntityTypes,
   getDocumentCreationDetails,
   getAnnotationIdFromEvent,
-} from '@semiont/sdk';
+} from '@semiont/api-client';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 interface Props {
   event: StoredEvent;
-  references: any[];
-  highlights: any[];
+  annotations: any[]; // Unified annotations array (all types)
   allEvents: StoredEvent[];
   isRelated: boolean;
   t: TranslateFn;
@@ -29,8 +29,7 @@ interface Props {
 
 export function HistoryEvent({
   event,
-  references,
-  highlights,
+  annotations,
   allEvents,
   isRelated,
   t,
@@ -38,7 +37,7 @@ export function HistoryEvent({
   onEventClick,
   onEventHover
 }: Props) {
-  const displayContent = getEventDisplayContent(event, references, highlights, allEvents);
+  const displayContent = getEventDisplayContent(event, annotations, allEvents);
   const annotationId = getAnnotationIdFromEvent(event);
   const creationDetails = getDocumentCreationDetails(event);
   const entityTypes = getEventEntityTypes(event);
@@ -81,7 +80,7 @@ export function HistoryEvent({
   const eventWrapperProps = annotationId ? {
     type: 'button' as const,
     onClick: () => onEventClick?.(annotationId),
-    'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.event.type, t) }),
+    'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.event.type as DocumentEventType, t) }),
     className: `w-full text-left text-xs ${borderClass} pl-2 py-0.5 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset`
   } : {
     className: `text-xs ${borderClass} pl-2 py-0.5`
@@ -102,7 +101,7 @@ export function HistoryEvent({
           onMouseEnter={handleEmojiMouseEnter}
           onMouseLeave={handleEmojiMouseLeave}
         >
-          {getEventEmoji(event.event.type)}
+          {getEventEmoji(event.event.type as DocumentEventType, event.event.payload)}
         </span>
         {displayContent ? (
           displayContent.isTag ? (
@@ -120,7 +119,7 @@ export function HistoryEvent({
           )
         ) : (
           <span className="font-medium text-gray-900 dark:text-gray-100">
-            {formatEventType(event.event.type, t)}
+            {formatEventType(event.event.type as DocumentEventType, t, event.event.payload)}
           </span>
         )}
         <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-auto">
@@ -149,7 +148,7 @@ export function HistoryEvent({
           </span>
           {creationDetails.type === 'cloned' && (
             <Link
-              href={`/know/document/${encodeURIComponent(creationDetails.sourceDocId)}`}
+              href={`/know/document/${encodeURIComponent(creationDetails.sourceDocId || "")}`}
               className="text-blue-600 dark:text-blue-400 hover:underline"
               onClick={(e) => e.stopPropagation()}
             >

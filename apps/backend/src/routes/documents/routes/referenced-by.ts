@@ -1,47 +1,38 @@
-import { createRoute, z } from '@hono/zod-openapi';
+/**
+ * Referenced By Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No request body validation needed (GET route with only path params)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
 import { getGraphDatabase } from '../../../graph/factory';
-import {
-  GetReferencedByResponseSchema as GetReferencedByResponseSchema,
-  type GetReferencedByResponse,
-  getExactText,
-} from '@semiont/sdk';
+import { getExactText } from '@semiont/api-client';
+import { getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
 import type { DocumentsRouterType } from '../shared';
+import type { components } from '@semiont/api-client';
 
-
-export const getReferencedByRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/{id}/referenced-by',
-  summary: 'Get Referenced By',
-  description: 'Get documents that reference this document',
-  tags: ['Documents', 'Graph'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetReferencedByResponseSchema as any,
-        },
-      },
-      description: 'Documents that reference this document',
-    },
-  },
-});
+type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
 export function registerGetReferencedBy(router: DocumentsRouterType) {
-  router.openapi(getReferencedByRoute, async (c) => {
-    const { id } = c.req.valid('param');
+  /**
+   * GET /api/documents/:id/referenced-by
+   *
+   * Get documents that reference this document
+   * Requires authentication
+   * Returns list of documents with references to this document
+   */
+  router.get('/api/documents/:id/referenced-by', async (c) => {
+    const { id } = c.req.param();
     const graphDb = await getGraphDatabase();
 
     // Get all annotations that reference this document
     const references = await graphDb.getDocumentReferencedBy(id);
 
     // Get unique documents from the selections
-    const docIds = [...new Set(references.map(ref => ref.target.source))];
+    const docIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
     const documents = await Promise.all(docIds.map(docId => graphDb.getDocument(docId)));
 
     // Build document map for lookup
@@ -49,14 +40,16 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
 
     // Transform into ReferencedBy structure
     const referencedBy = references.map(ref => {
-      const doc = docMap.get(ref.target.source);
+      const targetSource = getTargetSource(ref.target);
+      const targetSelector = getTargetSelector(ref.target);
+      const doc = docMap.get(targetSource);
       return {
         id: ref.id,
         documentName: doc?.name || 'Untitled Document',
         target: {
-          source: ref.target.source,
+          source: targetSource,
           selector: {
-            exact: getExactText(ref.target.selector),
+            exact: targetSelector ? getExactText(targetSelector) : '',
           },
         },
       };

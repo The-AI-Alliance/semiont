@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
-import type { OpenAPIHono } from '@hono/zod-openapi';
+import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 
 type Variables = {
@@ -39,9 +39,15 @@ vi.mock('../db', () => ({
 }));
 
 describe('Main Application (index.ts)', () => {
-  let app: OpenAPIHono<{ Variables: Variables }>;
+  let app: Hono<{ Variables: Variables }>;
 
   beforeAll(async () => {
+    // Set required environment variables before importing app
+    process.env.BACKEND_URL = 'http://localhost:4000';
+    process.env.CORS_ORIGIN = 'http://localhost:3000';
+    process.env.FRONTEND_URL = 'http://localhost:3000';
+    process.env.NODE_ENV = 'test';
+
     // Import the app
     const { app: importedApp } = await import('../index');
     app = importedApp;

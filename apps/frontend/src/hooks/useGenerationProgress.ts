@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { extractAnnotationId } from '@semiont/sdk';
+import { extractAnnotationId } from '@semiont/api-client';
 
 export interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
@@ -34,8 +35,15 @@ export function useGenerationProgress({
   const startGeneration = useCallback(async (
     referenceId: string,
     documentId: string,
-    options?: { prompt?: string; title?: string }
+    options?: { prompt?: string; title?: string; language?: string }
   ) => {
+    console.log('[useGenerationProgress] startGeneration called with:', {
+      referenceId,
+      documentId,
+      options,
+      language: options?.language
+    });
+
     // Close any existing connection
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -55,10 +63,14 @@ export function useGenerationProgress({
     abortControllerRef.current = abortController;
 
     // Build SSE URL
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const apiUrl = NEXT_PUBLIC_API_URL;
     // Extract ID from URI if referenceId is a full URI (Phase 5: URI-based IDs)
     const id = extractAnnotationId(referenceId);
     const url = `${apiUrl}/api/annotations/${id}/generate-document-stream`;
+
+    const requestBody = { documentId, ...options };
+    console.log('[useGenerationProgress] Sending request to:', url);
+    console.log('[useGenerationProgress] Request body:', requestBody);
 
     try {
       await fetchEventSource(url, {
@@ -67,7 +79,7 @@ export function useGenerationProgress({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.backendToken}`
         },
-        body: JSON.stringify({ documentId, ...options }),
+        body: JSON.stringify(requestBody),
         signal: abortController.signal,
 
         onmessage(ev) {

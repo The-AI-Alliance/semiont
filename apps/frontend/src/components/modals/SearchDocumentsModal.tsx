@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
-import { api } from '@/lib/api-client';
+import { documents } from '@/lib/api/documents';
 
 interface SearchDocumentsModalProps {
   isOpen: boolean;
@@ -24,7 +24,7 @@ export function SearchDocumentsModal({ isOpen, onClose, onSelect, searchTerm = '
   }, [search]);
 
   // Use React Query for search
-  const { data: searchData, isFetching: loading } = api.documents.search.useQuery(
+  const { data: searchData, isFetching: loading } = documents.search.useQuery(
     debouncedSearch,
     10
   );

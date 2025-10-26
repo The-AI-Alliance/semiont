@@ -7,61 +7,37 @@ import {
   ListResourcesRequestSchema,
   ListPromptsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { SemiontApiClient } from '@semiont/api-client';
 
 /**
  * Semiont MCP Server
- * 
- * This MCP server provides access to the Semiont API hello endpoint.
+ *
+ * This MCP server provides access to the Semiont API.
  * It handles authentication and makes the API available to AI applications.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import fetch, { RequestInit } from 'node-fetch';
+import * as handlers from './handlers.js';
 
 // Configuration from environment variables
-const SEMIONT_ENV = process.env.SEMIONT_ENV || 'development';
-const SEMIONT_API_URL = process.env.SEMIONT_API_URL || 'http://localhost:4000';
-
-// Token management
-let accessToken: string | null = null;
-let tokenExpiry: Date | null = null;
-
-async function getAccessToken(): Promise<string> {
-  // Check if we have a valid cached token
-  if (accessToken && tokenExpiry && tokenExpiry > new Date()) {
-    return accessToken;
-  }
-  
-  // Read the refresh token from provisioned auth file
-  const authPath = path.join(os.homedir(), '.config', 'semiont', `mcp-auth-${SEMIONT_ENV}.json`);
-  
-  if (!fs.existsSync(authPath)) {
-    throw new Error(`MCP not provisioned for ${SEMIONT_ENV}. Run: semiont provision --service mcp --environment ${SEMIONT_ENV}`);
-  }
-  
-  const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
-  
-  // Exchange refresh token for access token
-  const response = await fetch(`${SEMIONT_API_URL}/api/tokens/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken: authData.refresh_token })
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Failed to refresh token: ${response.statusText}`);
-  }
-  
-  const data = await response.json() as { access_token: string };
-  accessToken = data.access_token;
-  
-  // Set expiry to 55 minutes from now (tokens typically last 1 hour)
-  tokenExpiry = new Date(Date.now() + 55 * 60 * 1000);
-  
-  return accessToken;
+if (!process.env.SEMIONT_ENV) {
+  throw new Error('SEMIONT_ENV environment variable is required');
 }
+if (!process.env.SEMIONT_API_URL) {
+  throw new Error('SEMIONT_API_URL environment variable is required');
+}
+if (!process.env.SEMIONT_ACCESS_TOKEN) {
+  throw new Error('SEMIONT_ACCESS_TOKEN environment variable is required');
+}
+
+const SEMIONT_ENV = process.env.SEMIONT_ENV;
+const SEMIONT_API_URL = process.env.SEMIONT_API_URL;
+const SEMIONT_ACCESS_TOKEN = process.env.SEMIONT_ACCESS_TOKEN;
+
+// Create the Semiont API client
+const apiClient = new SemiontApiClient({
+  baseUrl: SEMIONT_API_URL,
+  accessToken: SEMIONT_ACCESS_TOKEN,
+});
 
 // Create the MCP server
 const server = new Server(
@@ -82,19 +58,6 @@ const server = new Server(
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
-      {
-        name: 'semiont_hello',
-        description: 'Get a personalized greeting from Semiont. Returns a welcome message with optional personalization.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            name: {
-              type: 'string',
-              description: 'Optional name for personalized greeting (max 100 characters)',
-            },
-          },
-        },
-      },
       // Document Management
       {
         name: 'semiont_create_document',
@@ -200,12 +163,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'semiont_resolve_selection',
-        description: 'Resolve a selection to a document',
+        description: 'Link a selection to a document (adds SpecificResource to annotation body)',
         inputSchema: {
           type: 'object',
           properties: {
             selectionId: { type: 'string', description: 'Selection ID' },
-            documentId: { type: 'string', description: 'Target document ID' },
+            documentId: { type: 'string', description: 'Target document ID to link to' },
           },
           required: ['selectionId', 'documentId'],
         },
@@ -213,7 +176,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // Document Generation from Selections
       {
         name: 'semiont_create_document_from_selection',
-        description: 'Create a new document from a selection and resolve the selection to it',
+        description: 'Create a new document from a selection and link the selection to it',
         inputSchema: {
           type: 'object',
           properties: {
@@ -331,7 +294,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'semiont_get_document_references',
-        description: 'Get resolved references in a document',
+        description: 'Get linked references in a document',
         inputSchema: {
           type: 'object',
           properties: {
@@ -358,276 +321,61 @@ server.setRequestHandler(ListPromptsRequestSchema, async () => {
   };
 });
 
-// Helper function to make authenticated API calls
-async function callSemiontAPI(
-  path: string,
-  method: string = 'GET',
-  body?: any
-): Promise<any> {
-  const token = await getAccessToken();
-  
-  const options: RequestInit = {
-    method,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  };
-  
-  if (body && method !== 'GET') {
-    options.body = JSON.stringify(body);
-  }
-  
-  const response = await fetch(`${SEMIONT_API_URL}${path}`, options);
-  
-  if (!response.ok) {
-    if (response.status === 401) {
-      accessToken = null;
-      tokenExpiry = null;
-      throw new Error('Authentication failed. Token may have expired. Please re-provision with: semiont provision --service mcp');
-    }
-    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-  }
-  
-  return response.json();
-}
 
 // Handle tool execution
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  
+
   try {
     switch (name) {
-      case 'semiont_hello': {
-        const nameParam = args?.name as string | undefined;
-        const url = nameParam ? `/api/hello/${encodeURIComponent(nameParam)}` : '/api/hello';
-        const data = await callSemiontAPI(url);
-        return {
-          content: [{
-            type: 'text',
-            text: `${data.message}\n\nPlatform: ${data.platform}\nTimestamp: ${data.timestamp}${data.user ? `\nAuthenticated as: ${data.user}` : ''}`,
-          }],
-        };
-      }
-      
-      // Document Management
-      case 'semiont_create_document': {
-        const data = await callSemiontAPI('/api/documents', 'POST', {
-          name: args?.name,
-          content: args?.content,
-          entityTypes: args?.entityTypes || [],
-          contentType: args?.contentType || 'text/plain',
-          metadata: args?.metadata || {},
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: `Document created successfully:\nID: ${data.document.id}\nName: ${data.document.name}\nEntity Types: ${data.document.entityTypes?.join(', ') || 'None'}`,
-          }],
-        };
-      }
-      
-      case 'semiont_get_document': {
-        const data = await callSemiontAPI(`/api/documents/${args?.id}`);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(data, null, 2),
-          }],
-        };
-      }
-      
-      case 'semiont_list_documents': {
-        const params = new URLSearchParams();
-        if (args?.entityTypes) params.set('entityTypes', args.entityTypes as string);
-        if (args?.search) params.set('search', args.search as string);
-        // Default to archived: false (show only non-archived documents)
-        const archived = args?.archived ?? false;
-        params.set('archived', String(archived));
-        if (args?.limit) params.set('limit', args.limit.toString());
-        if (args?.offset) params.set('offset', args.offset.toString());
+      case 'semiont_create_document':
+        return await handlers.handleCreateDocument(apiClient, args);
 
-        const data = await callSemiontAPI(`/api/documents?${params}`);
-        return {
-          content: [{
-            type: 'text',
-            text: `Found ${data.total} documents:\n${data.documents.map((d: any) => `- ${d.name} (${d.id}) - ${d.entityTypes?.join(', ') || 'No types'}`).join('\n')}`,
-          }],
-        };
-      }
-      
-      case 'semiont_detect_selections': {
-        const data = await callSemiontAPI(`/api/documents/${args?.documentId}/detect-selections`, 'POST', {
-          types: args?.types || ['entities', 'concepts'],
-          confidence: args?.confidence || 0.7,
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: `Detected ${data.selections.length} selections:\n${data.selections.map((s: any) => `- ${s.selection.selectionData.text} (${s.selection.selectionType}) - Confidence: ${s.selection.confidence}`).join('\n')}`,
-          }],
-        };
-      }
-      
-      // Selection Management
-      case 'semiont_create_selection': {
-        const data = await callSemiontAPI('/api/annotations', 'POST', {
-          documentId: args?.documentId,
-          selectionType: args?.selectionType,
-          selectionData: args?.selectionData,
-          entityTypes: args?.entityTypes,
-          provisional: args?.provisional,
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: `Selection created:\nID: ${data.id}\nType: ${data.selectionType}\nText: ${data.selectionData?.text || 'N/A'}`,
-          }],
-        };
-      }
-      
-      case 'semiont_save_selection': {
-        const data = await callSemiontAPI(`/api/annotations/${args?.selectionId}/save`, 'PUT', {
-          metadata: args?.metadata,
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: `Selection saved as highlight:\nID: ${data.id}\nSaved: ${data.saved}`,
-          }],
-        };
-      }
-      
-      case 'semiont_resolve_selection': {
-        const data = await callSemiontAPI(`/api/annotations/${args?.selectionId}/resolve`, 'PUT', {
-          documentId: args?.documentId,
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: `Selection resolved to document:\nSelection ID: ${data.id}\nResolved to: ${data.resolvedDocumentId}`,
-          }],
-        };
-      }
-      
-      // Document Generation
-      case 'semiont_create_document_from_selection': {
-        const data = await callSemiontAPI(`/api/annotations/${args?.selectionId}/create-document`, 'POST', {
-          name: args?.name,
-          content: args?.content || '',
-          entityTypes: args?.entityTypes,
-          contentType: args?.contentType || 'text/plain',
-          metadata: args?.metadata,
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: `Document created from selection:\nDocument ID: ${data.document.id}\nDocument Name: ${data.document.name}\nSelection resolved: ${data.selection.resolvedDocumentId === data.document.id}`,
-          }],
-        };
-      }
-      
-      case 'semiont_generate_document_from_selection': {
-        const data = await callSemiontAPI(`/api/annotations/${args?.selectionId}/generate-document`, 'POST', {
-          name: args?.name,
-          entityTypes: args?.entityTypes,
-          prompt: args?.prompt,
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: `Document generated from selection:\nDocument ID: ${data.document.id}\nDocument Name: ${data.document.name}\nGenerated: ${data.generated}\nContent Preview: ${data.document.content?.substring(0, 200)}...`,
-          }],
-        };
-      }
-      
-      // Context and Analysis
-      case 'semiont_get_contextual_summary': {
-        const data = await callSemiontAPI(`/api/annotations/${args?.selectionId}/contextual-summary`, 'POST', {
-          includeRelated: args?.includeRelated,
-          maxRelated: args?.maxRelated,
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: `Contextual Summary:\n${data.summary}\n\nRelevant Fields:\n${JSON.stringify(data.relevantFields, null, 2)}`,
-          }],
-        };
-      }
-      
-      case 'semiont_get_schema_description': {
-        const data = await callSemiontAPI('/api/documents/schema-description');
-        return {
-          content: [{
-            type: 'text',
-            text: data.description,
-          }],
-        };
-      }
-      
-      case 'semiont_get_llm_context': {
-        const data = await callSemiontAPI(`/api/documents/${args?.documentId}/llm-context`, 'POST', {
-          selectionId: args?.selectionId,
-          includeReferences: args?.includeReferences,
-          includeSelections: args?.includeSelections,
-          maxReferencedDocuments: args?.maxReferencedDocuments,
-          contextWindow: args?.contextWindow,
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(data, null, 2),
-          }],
-        };
-      }
-      
-      case 'semiont_discover_context': {
-        const data = await callSemiontAPI('/api/documents/discover-context', 'POST', {
-          text: args?.text,
-          maxResults: args?.maxResults,
-          includeSelections: args?.includeSelections,
-          entityTypeFilter: args?.entityTypeFilter,
-          confidenceThreshold: args?.confidenceThreshold,
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: `Context Discovery Results:\n\nDetected Entities: ${data.query.detectedEntities.map((e: any) => e.text).join(', ')}\nDetected Topics: ${data.query.detectedTopics.join(', ')}\n\nRelevant Documents: ${data.relevantDocuments.length}\nRelevant Selections: ${data.relevantSelections.length}\nSuggested Connections: ${data.suggestedConnections.length}\n\nDetails:\n${JSON.stringify(data, null, 2)}`,
-          }],
-        };
-      }
-      
-      // Relationship Queries
-      case 'semiont_get_document_selections': {
-        const data = await callSemiontAPI(`/api/documents/${args?.documentId}/selections`);
-        return {
-          content: [{
-            type: 'text',
-            text: `Found ${data.selections.length} selections in document:\n${data.selections.map((s: any) => `- ${s.selectionData?.text || s.id} (${s.selectionType})`).join('\n')}`,
-          }],
-        };
-      }
-      
-      case 'semiont_get_document_highlights': {
-        const data = await callSemiontAPI(`/api/documents/${args?.documentId}/highlights`);
-        return {
-          content: [{
-            type: 'text',
-            text: `Found ${data.highlights.length} highlights in document:\n${data.highlights.map((h: any) => `- ${h.selectionData?.text || h.id} (saved by ${h.savedBy})`).join('\n')}`,
-          }],
-        };
-      }
-      
-      case 'semiont_get_document_references': {
-        const data = await callSemiontAPI(`/api/documents/${args?.documentId}/references`);
-        return {
-          content: [{
-            type: 'text',
-            text: `Found ${data.references.length} references in document:\n${data.references.map((r: any) => `- ${r.selectionData?.text || r.id} → ${r.resolvedDocumentId}`).join('\n')}`,
-          }],
-        };
-      }
-      
+      case 'semiont_get_document':
+        return await handlers.handleGetDocument(apiClient, args?.id as string);
+
+      case 'semiont_list_documents':
+        return await handlers.handleListDocuments(apiClient, args);
+
+      case 'semiont_detect_selections':
+        return await handlers.handleDetectAnnotations(apiClient, args);
+
+      case 'semiont_create_selection':
+        return await handlers.handleCreateAnnotation(apiClient, args);
+
+      case 'semiont_save_selection':
+        return await handlers.handleSaveAnnotation(apiClient, args);
+
+      case 'semiont_resolve_selection':
+        return await handlers.handleResolveAnnotation(apiClient, args);
+
+      case 'semiont_create_document_from_selection':
+        return await handlers.handleCreateDocumentFromAnnotation(apiClient, args);
+
+      case 'semiont_generate_document_from_selection':
+        return await handlers.handleGenerateDocumentFromAnnotation(apiClient, args);
+
+      case 'semiont_get_contextual_summary':
+        return await handlers.handleGetContextualSummary(apiClient, args);
+
+      case 'semiont_get_schema_description':
+        return await handlers.handleGetSchemaDescription(apiClient);
+
+      case 'semiont_get_llm_context':
+        return await handlers.handleGetLLMContext(apiClient, args);
+
+      case 'semiont_discover_context':
+        return await handlers.handleDiscoverContext(apiClient, args);
+
+      case 'semiont_get_document_selections':
+        return await handlers.handleGetDocumentAnnotations(apiClient, args);
+
+      case 'semiont_get_document_highlights':
+        return await handlers.handleGetDocumentHighlights(apiClient, args || {});
+
+      case 'semiont_get_document_references':
+        return await handlers.handleGetDocumentReferences(apiClient, args || {});
+
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

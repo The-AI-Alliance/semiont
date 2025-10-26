@@ -1,104 +1,109 @@
-import { createRoute } from '@hono/zod-openapi';
-import { getStorageService } from '../../../storage/filesystem';
+/**
+ * Create Document Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - Validates request body with validateRequestBody middleware
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
+import { createContentManager } from '../../../services/storage-service';
 import {
   CREATION_METHODS,
   type CreationMethod,
-  CreateDocumentRequestSchema as CreateDocumentRequestSchema,
-  CreateDocumentResponseSchema as CreateDocumentResponseSchema,
-  type Document,
-  type CreateDocumentResponse,
   calculateChecksum,
-} from '@semiont/sdk';
+} from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
-import { emitDocumentCreated } from '../../../events/emit';
+import { createEventStore } from '../../../services/event-store-service';
+import { validateRequestBody } from '../../../middleware/validate-openapi';
+import type { components } from '@semiont/api-client';
+import { userToAgent } from '../../../utils/id-generator';
+import { getFilesystemConfig } from '../../../config/environment-loader';
 
-
-export const createDocumentRoute = createRoute({
-  method: 'post',
-  path: '/api/documents',
-  summary: 'Create Document',
-  description: 'Create a new document',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: CreateDocumentRequestSchema as any,
-        },
-      },
-    },
-  },
-  responses: {
-    201: {
-      content: {
-        'application/json': {
-          schema: CreateDocumentResponseSchema as any,
-        },
-      },
-      description: 'Document created successfully',
-    },
-  },
-});
+type CreateDocumentRequest = components['schemas']['CreateDocumentRequest'];
+type CreateDocumentResponse = components['schemas']['CreateDocumentResponse'];
+type Document = components['schemas']['Document'];
 
 export function registerCreateDocument(router: DocumentsRouterType) {
-  router.openapi(createDocumentRoute, async (c) => {
-    const body = c.req.valid('json');
-    const user = c.get('user');
-    const storage = getStorageService();
+  /**
+   * POST /api/documents
+   *
+   * Create a new document
+   * Requires authentication
+   * Validates request body against CreateDocumentRequest schema
+   */
+  router.post('/api/documents',
+    validateRequestBody('CreateDocumentRequest'),
+    async (c) => {
+      const body = c.get('validatedBody') as CreateDocumentRequest;
+      const user = c.get('user');
+      const basePath = getFilesystemConfig().path;
+      const contentManager = createContentManager(basePath);
 
-    const checksum = calculateChecksum(body.content);
-    const documentId = `doc-sha256:${checksum}`;
+      const checksum = calculateChecksum(body.content);
+      const documentId = `doc-sha256:${checksum}`;
 
-    // Save to filesystem (Layer 1)
-    await storage.saveDocument(documentId, Buffer.from(body.content));
+      // Save to filesystem (Layer 1)
+      await contentManager.save(documentId, Buffer.from(body.content));
 
-    // Subscribe GraphDB consumer to new document BEFORE emitting event
-    // This ensures the consumer receives the document.created event
-    try {
-      const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
-      const consumer = await getGraphConsumer();
-      await consumer.subscribeToDocument(documentId);
-    } catch (error) {
-      console.error('[CreateDocument] Failed to subscribe GraphDB consumer:', error);
-      // Don't fail the request - consumer can catch up later
+      // Subscribe GraphDB consumer to new document BEFORE emitting event
+      // This ensures the consumer receives the document.created event
+      try {
+        const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
+        const consumer = await getGraphConsumer();
+        await consumer.subscribeToDocument(documentId);
+      } catch (error) {
+        console.error('[CreateDocument] Failed to subscribe GraphDB consumer:', error);
+        // Don't fail the request - consumer can catch up later
+      }
+
+      // Validate and use creationMethod from request body, or default to API
+      const validCreationMethods = Object.values(CREATION_METHODS) as string[];
+      const creationMethod: CreationMethod = body.creationMethod && validCreationMethods.includes(body.creationMethod)
+        ? body.creationMethod as CreationMethod
+        : CREATION_METHODS.API;
+
+      // Emit document.created event (consumer will update GraphDB)
+      const eventStore = await createEventStore(basePath);
+      await eventStore.appendEvent({
+        type: 'document.created',
+        documentId,
+        userId: user.id,
+        version: 1,
+        payload: {
+          name: body.name,
+          format: body.format,
+          contentChecksum: checksum,
+          creationMethod,
+          entityTypes: body.entityTypes,
+          language: body.language,
+          isDraft: false,
+          generatedFrom: undefined,
+          generationPrompt: undefined,
+        },
+      });
+
+      // Return optimistic response
+      const documentMetadata: Document = {
+        id: documentId,
+        name: body.name,
+        archived: false,
+        format: body.format,
+        entityTypes: body.entityTypes,
+        language: body.language,
+        creationMethod,
+        contentChecksum: checksum,
+        creator: userToAgent(user),
+        created: new Date().toISOString(),
+      };
+
+      const response: CreateDocumentResponse = {
+        document: documentMetadata,
+        annotations: [],
+      };
+
+      return c.json(response, 201);
     }
-
-    // Validate and use creationMethod from request body, or default to API
-    const validCreationMethods = Object.values(CREATION_METHODS) as string[];
-    const creationMethod: CreationMethod = body.creationMethod && validCreationMethods.includes(body.creationMethod)
-      ? body.creationMethod as CreationMethod
-      : CREATION_METHODS.API;
-
-    // Emit document.created event (consumer will update GraphDB)
-    await emitDocumentCreated({
-      documentId,
-      userId: user.id,
-      name: body.name,
-      format: body.format,
-      contentHash: checksum,
-      creationMethod,
-      entityTypes: body.entityTypes,
-    });
-
-    // Return optimistic response
-    const documentMetadata: Document = {
-      id: documentId,
-      name: body.name,
-      archived: false,
-      format: body.format,
-      entityTypes: body.entityTypes,
-      creationMethod,
-      contentChecksum: checksum,
-      creator: user.id,
-      created: new Date().toISOString(),
-    };
-
-    const response: CreateDocumentResponse = {
-      document: documentMetadata,
-      annotations: [],
-    };
-
-    return c.json(response, 201);
-  });
+  );
 }

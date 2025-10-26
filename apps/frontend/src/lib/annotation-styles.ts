@@ -3,7 +3,10 @@
  * These styles are used across the application for consistent appearance
  */
 
-import { isHighlight, isReference, type Annotation } from '@semiont/sdk';
+import { isHighlight, isReference } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
 
 export const annotationStyles = {
   // Highlight annotation style - dark yellow with dashed ring
@@ -14,6 +17,11 @@ export const annotationStyles = {
   // Reference annotation style (used for all references in AnnotateView) - dark blue with dashed ring
   reference: {
     className: "rounded px-0.5 cursor-pointer transition-all duration-200 bg-gradient-to-r from-cyan-200 to-blue-200 hover:from-cyan-300 hover:to-blue-300 text-gray-900 dark:from-blue-900/50 dark:to-cyan-900/50 dark:hover:from-blue-900/60 dark:hover:to-cyan-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-cyan-500/60 dark:outline-offset-1"
+  },
+
+  // Red squiggly underline style - for error/warning annotations
+  redUnderline: {
+    className: "red-underline cursor-pointer transition-all duration-200 hover:opacity-80"
   },
 
   // Legacy aliases for backward compatibility
@@ -27,6 +35,11 @@ export const annotationStyles = {
   // Helper function to get the appropriate style based on annotation type
   // Used by CodeMirrorRenderer (AnnotateView) - returns gradient backgrounds for all references
   getAnnotationStyle: (annotation: Partial<Annotation>) => {
+    // Check for red-underline style (W3C motivation 'assessing' for assessments/errors/warnings)
+    if (annotation.motivation === 'assessing') {
+      return annotationStyles.redUnderline.className;
+    }
+
     // Use W3C-compliant helper functions to determine annotation type
     if (isHighlight(annotation as Annotation)) {
       return annotationStyles.highlight.className;

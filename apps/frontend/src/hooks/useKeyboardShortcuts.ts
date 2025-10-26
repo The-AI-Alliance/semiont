@@ -24,6 +24,9 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
   shortcutsRef.current = shortcuts;
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    // Guard against undefined key
+    if (!event.key) return;
+
     // Get the active shortcuts
     const activeShortcuts = shortcutsRef.current.filter(s => s.enabled !== false);
 

@@ -5,16 +5,14 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '@testing-library/jest-dom'
 import AdminSecurity from '../client'
-import { api } from '@/lib/api-client'
+import { admin } from '@/lib/api/admin'
 
 // Mock the API client
-vi.mock('@/lib/api-client', () => ({
-  api: {
-    admin: {
-      oauth: {
-        config: {
-          useQuery: vi.fn()
-        }
+vi.mock('@/lib/api/admin', () => ({
+  admin: {
+    oauth: {
+      config: {
+        useQuery: vi.fn()
       }
     }
   }
@@ -64,7 +62,7 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('AdminSecurity Page', () => {
-  const mockUseQuery = api.admin.oauth.config.useQuery as MockedFunction<typeof api.admin.oauth.config.useQuery>
+  const mockUseQuery = admin.oauth.config.useQuery as MockedFunction<typeof admin.oauth.config.useQuery>
 
   beforeEach(() => {
     vi.clearAllMocks()

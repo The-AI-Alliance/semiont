@@ -5,8 +5,14 @@ import { CreateAnnotationPopup } from './annotation-popups/CreateAnnotationPopup
 import { HighlightPopup } from './annotation-popups/HighlightPopup';
 import { StubReferencePopup } from './annotation-popups/StubReferencePopup';
 import { ResolvedReferencePopup } from './annotation-popups/ResolvedReferencePopup';
-import type { Annotation, AnnotationUpdate, TextSelection, HighlightAnnotation, ReferenceAnnotation } from '@semiont/sdk';
-import { isHighlight, isReference } from '@semiont/sdk';
+import type { components } from '@semiont/api-client';
+import { isHighlight, isReference, isBodyResolved } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
+type HighlightAnnotation = components['schemas']['Annotation'];
+type ReferenceAnnotation = components['schemas']['Annotation'];
+type AnnotationUpdate = Partial<components['schemas']['Annotation']>;
+type TextSelection = { exact: string; start: number; end: number };
 
 interface AnnotationPopupProps {
   isOpen: boolean;
@@ -16,6 +22,7 @@ interface AnnotationPopupProps {
   annotation?: Annotation;
   onCreateHighlight?: () => void;
   onCreateReference?: (targetDocId?: string, entityType?: string, referenceType?: string) => void;
+  onCreateAssessment?: () => void;
   onUpdateAnnotation?: (updates: AnnotationUpdate) => void;
   onDeleteAnnotation?: () => void;
   onGenerateDocument?: (title: string, prompt?: string) => void;
@@ -31,6 +38,7 @@ export function AnnotationPopup({
   annotation,
   onCreateHighlight,
   onCreateReference,
+  onCreateAssessment,
   onUpdateAnnotation,
   onDeleteAnnotation,
   onGenerateDocument
@@ -40,7 +48,9 @@ export function AnnotationPopup({
     if (!annotation) return 'initial';
     if (isHighlight(annotation)) return 'highlight';
     if (isReference(annotation)) {
-      return annotation.body.source ? 'resolved_reference' : 'stub_reference';
+      // Body is either empty array (stub) or SpecificResource with source (resolved)
+      // Type assertion needed because TypeScript can't narrow the union properly
+      return isBodyResolved((annotation as Annotation).body) ? 'resolved_reference' : 'stub_reference';
     }
     return 'initial';
   };
@@ -61,6 +71,7 @@ export function AnnotationPopup({
           selection={selection}
           onCreateHighlight={onCreateHighlight!}
           onCreateReference={onCreateReference!}
+          onCreateAssessment={onCreateAssessment!}
         />
       );
 

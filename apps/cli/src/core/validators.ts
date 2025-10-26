@@ -4,7 +4,7 @@
  */
 
 import { ValidationResult } from './types.js';
-import { ValidationError } from '@semiont/sdk';
+import { ValidationError } from '@semiont/core';
 import { logger } from './io/logger.js';
 
 /**

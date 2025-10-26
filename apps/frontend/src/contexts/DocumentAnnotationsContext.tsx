@@ -1,10 +1,14 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { api } from '@/lib/api-client';
+import { annotations } from '@/lib/api/annotations';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { Annotation, CreateAnnotationRequest } from '@semiont/sdk';
-import { getExactText, getTextPositionSelector } from '@semiont/sdk';
+import type { components, paths } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
+type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
+type CreateAnnotationRequest = RequestContent<paths['/api/annotations']['post']>;
 
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
@@ -13,6 +17,7 @@ interface DocumentAnnotationsContextType {
   // Mutation actions (still in context for consistency)
   addHighlight: (documentId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
   addReference: (documentId: string, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
+  addAssessment: (documentId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
   deleteAnnotation: (annotationId: string, documentId: string) => Promise<void>;
   convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
@@ -29,9 +34,9 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
   // Set up mutation hooks
-  const saveHighlightMutation = api.annotations.saveAsHighlight.useMutation();
-  const createAnnotationMutation = api.annotations.create.useMutation();
-  const deleteAnnotationMutation = api.annotations.delete.useMutation();
+  const saveHighlightMutation = annotations.saveAsHighlight.useMutation();
+  const createAnnotationMutation = annotations.create.useMutation();
+  const deleteAnnotationMutation = annotations.delete.useMutation();
 
   const addHighlight = useCallback(async (
     documentId: string,
@@ -80,22 +85,48 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     try {
       // Build CreateAnnotationRequest following W3C Web Annotation format
       const createData: CreateAnnotationRequest = {
+        motivation: 'linking',
         target: {
           source: documentId,
-          selector: {
-            type: 'TextPositionSelector',
-            exact: exact,
-            offset: position.start,
-            length: position.end - position.start,
-          },
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: position.start,
+              end: position.end,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: exact,
+            },
+          ],
         },
-        body: {
-          type: 'SpecificResource',
-          source: targetDocId !== undefined ? (targetDocId || null) : null,
-          entityTypes: entityType
-            ? entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t)
-            : [],
-        },
+        // Build body array with entity tag bodies + linking body (if resolved)
+        body: (() => {
+          const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
+
+          // Add entity tag bodies (TextualBody with purpose: "tagging")
+          if (entityType) {
+            const entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
+            for (const et of entityTypes) {
+              bodyArray.push({
+                type: 'TextualBody' as const,
+                value: et,
+                purpose: 'tagging' as const,
+              });
+            }
+          }
+
+          // Add linking body (SpecificResource) if resolved
+          if (targetDocId) {
+            bodyArray.push({
+              type: 'SpecificResource' as const,
+              source: targetDocId,
+              purpose: 'linking' as const,
+            });
+          }
+
+          return bodyArray;
+        })(),
       };
 
       // Create the annotation
@@ -125,6 +156,61 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [createAnnotationMutation]);
 
+  const addAssessment = useCallback(async (
+    documentId: string,
+    exact: string,
+    position: { start: number; end: number }
+  ): Promise<string | undefined> => {
+    try {
+      // Build CreateAnnotationRequest following W3C Web Annotation format
+      // Assessment uses motivation: 'assessing'
+      const createData: CreateAnnotationRequest = {
+        motivation: 'assessing',  // W3C motivation for assessments
+        target: {
+          source: documentId,
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: position.start,
+              end: position.end,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: exact,
+            },
+          ],
+        },
+        // Empty body array (assessments don't have bodies yet)
+        body: [],
+      };
+
+      // Create the annotation
+      const result = await createAnnotationMutation.mutateAsync(createData);
+
+      // Track this as a new annotation for sparkle animation
+      let newId: string | undefined;
+      if (result.annotation?.id) {
+        newId = result.annotation.id;
+        setNewAnnotationIds(prev => new Set(prev).add(newId!));
+
+        // Clear the ID after animation completes (6 seconds for 3 iterations)
+        setTimeout(() => {
+          setNewAnnotationIds(prev => {
+            const next = new Set(prev);
+            next.delete(newId!);
+            return next;
+          });
+        }, 6000);
+      }
+
+      // Return the new ID so component can invalidate queries
+      return newId;
+    } catch (err) {
+      console.error('Failed to create assessment:', err);
+      throw err;
+    }
+  }, [createAnnotationMutation]);
+
   const deleteAnnotation = useCallback(async (annotationId: string, documentId: string) => {
     try {
       await deleteAnnotationMutation.mutateAsync({ id: annotationId, documentId });
@@ -149,20 +235,22 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       }
 
       // Delete old highlight (documentId required for Layer 3 lookup)
+      const targetSource = getTargetSource(highlight.target);
       await deleteAnnotationMutation.mutateAsync({
         id: highlightId,
-        documentId: highlight.target.source
+        documentId: targetSource
       });
 
       // Create new reference with same position
-      const posSelector = getTextPositionSelector(highlight.target.selector);
+      const targetSelector = getTargetSelector(highlight.target);
+      const posSelector = getTextPositionSelector(targetSelector);
       if (!posSelector) {
         throw new Error('Cannot convert highlight to reference: TextPositionSelector required');
       }
       await addReference(
-        highlight.target.source,
-        getExactText(highlight.target.selector),
-        { start: posSelector.offset, end: posSelector.offset + posSelector.length },
+        targetSource,
+        getExactText(targetSelector),
+        { start: posSelector.start, end: posSelector.end },
         targetDocId,
         entityType,
         referenceType
@@ -182,20 +270,22 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       }
 
       // Delete old reference (documentId required for Layer 3 lookup)
+      const targetSource = getTargetSource(reference.target);
       await deleteAnnotationMutation.mutateAsync({
         id: referenceId,
-        documentId: reference.target.source
+        documentId: targetSource
       });
 
       // Create new highlight with same position
-      const posSelector = getTextPositionSelector(reference.target.selector);
+      const targetSelector = getTargetSelector(reference.target);
+      const posSelector = getTextPositionSelector(targetSelector);
       if (!posSelector) {
         throw new Error('Cannot convert reference to highlight: TextPositionSelector required');
       }
       await addHighlight(
-        reference.target.source,
-        getExactText(reference.target.selector),
-        { start: posSelector.offset, end: posSelector.offset + posSelector.length }
+        targetSource,
+        getExactText(targetSelector),
+        { start: posSelector.start, end: posSelector.end }
       );
     } catch (err) {
       console.error('Failed to convert reference to highlight:', err);
@@ -230,6 +320,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         newAnnotationIds,
         addHighlight,
         addReference,
+        addAssessment,
         deleteAnnotation,
         convertHighlightToReference,
         convertReferenceToHighlight,

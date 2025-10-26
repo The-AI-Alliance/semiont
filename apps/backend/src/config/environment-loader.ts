@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 type GraphServiceConfig =
   | {
@@ -71,20 +72,22 @@ export function getProjectRoot(): string {
  */
 export function loadEnvironmentConfig(): EnvironmentConfig | null {
   try {
-    // Get environment name from SEMIONT_ENV or NODE_ENV
-    const envName = process.env.SEMIONT_ENV || process.env.NODE_ENV || 'local';
-    
+    // Get environment name from SEMIONT_ENV
+    // Note: SEMIONT_ENV is the deployment environment (production, staging, local, etc.)
+    // This is distinct from NODE_ENV (production, development, test)
+    const envName = process.env.SEMIONT_ENV || 'local';
+
     // Project root is either SEMIONT_ROOT or cwd
     const projectRoot = getProjectRoot();
-    
+
     // Environment file is deterministically at <project_root>/environments/<environment>.json
     const envPath = path.join(projectRoot, 'environments', `${envName}.json`);
-    
+
     if (fs.existsSync(envPath)) {
       const content = fs.readFileSync(envPath, 'utf-8');
       return JSON.parse(content);
     }
-    
+
     // No environment file found
     return null;
   } catch (error) {
@@ -125,29 +128,43 @@ export function getGraphConfig(): GraphServiceConfig {
 export function getFilesystemConfig(): {
   path: string;
 } {
+  // Allow tests to override filesystem path via environment variable
+  // This provides explicit control for integration tests
+  if (process.env.SEMIONT_TEST_FS_PATH) {
+    return { path: process.env.SEMIONT_TEST_FS_PATH };
+  }
+
+  // For test environments (SEMIONT_ENV=unit or integration), use a temporary directory
+  // This avoids requiring environment config files for tests
+  const semontEnv = process.env.SEMIONT_ENV;
+  if (semontEnv === 'unit' || semontEnv === 'integration') {
+    const tmpDir = path.join(os.tmpdir(), 'semiont-test-fs', Date.now().toString());
+    return { path: tmpDir };
+  }
+
   // Load from environment JSON
   const envConfig = loadEnvironmentConfig();
-  
+
   if (envConfig?.services?.filesystem) {
     const filesystemService = envConfig.services.filesystem;
-    
+
     if (!filesystemService.path) {
       throw new Error('Filesystem service configuration must specify a "path" field');
     }
-    
+
     let resolvedPath = filesystemService.path;
-    
+
     // If path is relative, prepend project root
     if (!path.isAbsolute(resolvedPath)) {
       const projectRoot = getProjectRoot();
       resolvedPath = path.join(projectRoot, resolvedPath);
     }
-    
+
     return {
       path: resolvedPath
     };
   }
-  
+
   // If no configuration found, error
   throw new Error('Filesystem service configuration not found. Please specify services.filesystem.path in your environment configuration.');
 }

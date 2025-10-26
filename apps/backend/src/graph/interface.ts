@@ -1,8 +1,7 @@
 // Graph database interface - all implementations must follow this contract
 
-import {
-  Document,
-  Annotation,
+import type { components } from '@semiont/api-client';
+import type {
   AnnotationCategory,
   GraphConnection,
   GraphPath,
@@ -11,7 +10,10 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
-} from '@semiont/sdk';
+} from '@semiont/core';
+
+type Document = components['schemas']['Document'];
+type Annotation = components['schemas']['Annotation'];
 
 export interface GraphDatabase {
   // Connection management
@@ -72,11 +74,8 @@ export interface GraphDatabase {
   
   // Tag Collections
   getEntityTypes(): Promise<string[]>;
-  getReferenceTypes(): Promise<string[]>;
   addEntityType(tag: string): Promise<void>;
-  addReferenceType(tag: string): Promise<void>;
   addEntityTypes(tags: string[]): Promise<void>;
-  addReferenceTypes(tags: string[]): Promise<void>;
   
   // Utility
   generateId(): string;

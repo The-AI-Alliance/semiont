@@ -1,0 +1,33 @@
+{
+  "name": "@semiont/core",
+  "version": "0.1.0",
+  "description": "Core domain types for Semiont - Document, Annotation, and Graph models",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:clean": "rm -rf dist *.tsbuildinfo && tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "types",
+    "domain",
+    "document",
+    "selection",
+    "graph",
+    "semiont"
+  ],
+  "author": "Semiont Team",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@semiont/api-client": "*"
+  }
+}

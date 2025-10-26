@@ -1,16 +1,22 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
+import { useLocale } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { api, QUERY_KEYS } from '@/lib/api-client';
+import { documents } from '@/lib/api/documents';
+import { entityTypes } from '@/lib/api/entity-types';
+import { QUERY_KEYS } from '@/lib/query-keys';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
-import type { Document as SemiontDocument } from '@/lib/api-client';
+import type { components } from '@semiont/api-client';
+
+type SemiontDocument = components['schemas']['Document'];
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -30,8 +36,9 @@ import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPane
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
+import { JsonLdPanel } from '@/components/document/panels/JsonLdPanel';
 import { Toolbar } from '@/components/Toolbar';
-import { extractAnnotationId, compareAnnotationIds } from '@semiont/sdk';
+import { extractAnnotationId, compareAnnotationIds } from '@semiont/api-client';
 
 // Loading state component
 function DocumentLoadingState() {
@@ -78,7 +85,7 @@ export default function KnowledgeDocumentPage() {
     isError,
     error,
     refetch: refetchDocument
-  } = api.documents.get.useQuery(documentId);
+  } = documents.get.useQuery(documentId);
 
   // Log error for debugging
   useEffect(() => {
@@ -119,6 +126,7 @@ function DocumentView({
 }) {
   const router = useRouter();
   const { data: session } = useSession();
+  const locale = useLocale();
   const { addDocument } = useOpenDocuments();
   const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
@@ -132,7 +140,7 @@ function DocumentView({
   useEffect(() => {
     const loadContent = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${documentId}/content`, {
+        const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/documents/${documentId}/content`, {
           headers: {
             'Authorization': `Bearer ${session?.backendToken}`,
           },
@@ -153,38 +161,40 @@ function DocumentView({
     loadContent();
   }, [documentId, session?.backendToken, showError]);
 
-  // Now that document exists, we can safely fetch dependent data
-  const { data: highlightsData, refetch: refetchHighlights } = api.documents.highlights.useQuery(documentId);
-  const { data: referencesData, refetch: refetchReferences } = api.documents.references.useQuery(documentId);
-  const highlights = highlightsData?.highlights || [];
-  const references = referencesData?.references || [];
+  // Fetch all annotations with a single request
+  const { data: annotationsData, refetch: refetchAnnotations } = documents.annotations.useQuery(documentId);
+  const annotations = annotationsData?.annotations || [];
+
+  // Filter by motivation client-side
+  type Annotation = components['schemas']['Annotation'];
+  const highlights = annotations.filter((a: Annotation) => a.motivation === 'highlighting');
+  const references = annotations.filter((a: Annotation) => a.motivation === 'linking');
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   // Using React Query's invalidateQueries is the best practice - it invalidates cache
   // and triggers automatic refetch for all components using those queries
   const debouncedInvalidateAnnotations = useDebouncedCallback(
     () => {
-      // Invalidate highlights, references, and events queries using type-safe query keys
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(documentId) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(documentId) });
+      // Invalidate annotations and events queries using type-safe query keys
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(documentId) });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     500 // Wait 500ms after last event before invalidating (batches rapid updates)
   );
-  const { data: referencedByData, isLoading: referencedByLoading } = api.documents.referencedBy.useQuery(documentId);
+  const { data: referencedByData, isLoading: referencedByLoading } = documents.referencedBy.useQuery(documentId);
   const referencedBy = referencedByData?.referencedBy || [];
 
   // Derived state
   const documentEntityTypes = document.entityTypes || [];
 
   // Get entity types for detection
-  const { data: entityTypesData } = api.entityTypes.all.useQuery();
+  const { data: entityTypesData } = entityTypes.all.useQuery();
   const allEntityTypes = entityTypesData?.entityTypes || [];
 
   // Set up mutations
-  const updateDocMutation = api.documents.update.useMutation();
-  const createDocMutation = api.documents.create.useMutation();
-  const generateCloneTokenMutation = api.documents.generateCloneToken.useMutation();
+  const updateDocMutation = documents.update.useMutation();
+  const createDocMutation = documents.create.useMutation();
+  const generateCloneTokenMutation = documents.generateCloneToken.useMutation();
 
   const [annotateMode, setAnnotateMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -333,16 +343,15 @@ function DocumentView({
   } = useDetectionProgress({
     documentId,
     onProgress: (progress) => {
-      // When an entity type completes, refetch to show new references immediately
+      // When an entity type completes, refetch to show new annotations immediately
       // Use both refetch (for immediate document view update) AND invalidate (for Annotation History)
-      refetchReferences();
+      refetchAnnotations();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     onComplete: (progress) => {
       // Don't show toast - the widget already shows completion status
       // Final refetch + invalidation when ALL entity types complete
-      refetchHighlights();
-      refetchReferences();
+      refetchAnnotations();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     onError: (error) => {
@@ -358,7 +367,7 @@ function DocumentView({
   } = useGenerationProgress({
     onComplete: (progress) => {
       // Sparkle animation was already triggered when generation started (in handleGenerateDocument)
-      // It will continue pulsing until reference.resolved event updates the cache
+      // It will continue pulsing until annotation.body.updated event updates the cache
 
       // Clear progress widget
       setTimeout(() => clearProgress(), 1000);
@@ -376,72 +385,85 @@ function DocumentView({
 
   // Handle document generation from stub reference
   const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
+    console.log('[DocumentPage] handleGenerateDocument called with:', {
+      referenceId,
+      options,
+      locale,
+      documentId
+    });
+
     // Clear CSS sparkle animation if reference was recently created
     // (it may still be in newAnnotationIds with a 6-second timer from creation)
     // We only want the widget sparkle (✨ emoji) during generation, not the CSS pulse
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const apiUrl = NEXT_PUBLIC_API_URL;
     const fullUri = referenceId.includes('/')
       ? referenceId
       : `${apiUrl}/annotations/${referenceId}`;
     clearNewAnnotationId(fullUri);
 
     // Widget sparkle (✨ emoji) will show automatically during generation via generatingReferenceId
-    startGeneration(referenceId, documentId, options);
-  }, [startGeneration, documentId, clearNewAnnotationId]);
+    // Pass language (using locale from Next.js routing) to ensure generated content is in the user's preferred language
+    const optionsWithLanguage = { ...options, language: locale };
+    console.log('[DocumentPage] Calling startGeneration with:', optionsWithLanguage);
+    startGeneration(referenceId, documentId, optionsWithLanguage);
+  }, [startGeneration, documentId, clearNewAnnotationId, locale]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useDocumentEvents({
     documentId,
     autoConnect: true,  // Document exists, safe to connect
 
-    // Highlight events - use debounced invalidation to batch rapid updates
-    onHighlightAdded: useCallback((event) => {
+    // Annotation events - use debounced invalidation to batch rapid updates
+    onAnnotationAdded: useCallback((event) => {
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
-    onHighlightRemoved: useCallback((event) => {
+    onAnnotationRemoved: useCallback((event) => {
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
-    // Reference events - use debounced invalidation to batch rapid updates
-    onReferenceCreated: useCallback((event) => {
-      debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
+    onAnnotationBodyUpdated: useCallback((event) => {
+      // Optimistically update annotations cache with body operations
+      queryClient.setQueryData(QUERY_KEYS.documents.annotations(documentId), (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          annotations: old.annotations.map((annotation: any) => {
+            // Match by ID portion (handle both URI and internal ID formats)
+            if (compareAnnotationIds(annotation.id, event.payload.annotationId)) {
+              // Apply body operations
+              let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
 
-    onReferenceResolved: useCallback((event) => {
-      // Optimistically update the reference in cache
-      queryClient.setQueryData(
-        QUERY_KEYS.documents.references(documentId),
-        (old: any) => {
-          if (!old) return old;
-          return {
-            ...old,
-            references: old.references.map((ref: any) => {
-              // Match by ID portion (handle both URI and internal ID formats)
-              if (compareAnnotationIds(ref.id, event.payload.referenceId)) {
-                return {
-                  ...ref,
-                  body: {
-                    ...ref.body,
-                    source: event.payload.targetDocumentId,
-                  },
-                };
+              for (const op of event.payload.operations || []) {
+                if (op.op === 'add') {
+                  bodyArray.push(op.item);
+                } else if (op.op === 'remove') {
+                  bodyArray = bodyArray.filter((item: any) =>
+                    JSON.stringify(item) !== JSON.stringify(op.item)
+                  );
+                } else if (op.op === 'replace') {
+                  const index = bodyArray.findIndex((item: any) =>
+                    JSON.stringify(item) === JSON.stringify(op.oldItem)
+                  );
+                  if (index !== -1) {
+                    bodyArray[index] = op.newItem;
+                  }
+                }
               }
-              return ref;
-            }),
-          };
-        }
-      );
 
-      // Widget sparkle (✨ emoji) will clear automatically when generatingReferenceId changes
+              return {
+                ...annotation,
+                body: bodyArray,
+              };
+            }
+            return annotation;
+          }),
+        };
+      });
+
       // Immediately invalidate events to update History Panel
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     }, [queryClient, documentId]),
-
-    onReferenceDeleted: useCallback((event) => {
-      console.log('[RealTime] Reference deleted:', event.payload);
-      debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
 
     // Document status events
     onDocumentArchived: useCallback((event) => {
@@ -553,7 +575,7 @@ function DocumentView({
             onThemeChange={setTheme}
             showLineNumbers={showLineNumbers}
             onLineNumbersToggle={toggleLineNumbers}
-            width="w-64"
+            width={activePanel === 'jsonld' ? 'w-[600px]' : 'w-64'}
           >
             {/* Archived Status */}
             {annotateMode && document.archived && (
@@ -603,6 +625,7 @@ function DocumentView({
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 documentEntityTypes={documentEntityTypes}
+                documentLocale={document.language}
               />
             )}
 
@@ -613,6 +636,11 @@ function DocumentView({
                 eventCount={eventCount}
                 {...(lastEvent?.timestamp && { lastEventTimestamp: lastEvent.timestamp })}
               />
+            )}
+
+            {/* JSON-LD Panel */}
+            {activePanel === 'jsonld' && (
+              <JsonLdPanel document={document} />
             )}
           </ToolbarPanels>
 

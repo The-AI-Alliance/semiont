@@ -3,7 +3,12 @@
 import React, { useMemo } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import type { Annotation, ReferencedBy } from '@semiont/sdk';
+import type { components, paths } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
+type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+type ReferencedBy = ResponseContent<paths['/api/documents/{id}/referenced-by']['get']>['referencedBy'][number];
+import { formatLocaleDisplay, getBodySource, isBodyResolved, getEntityTypes } from '@semiont/api-client';
 
 interface Props {
   highlights: Annotation[];
@@ -11,6 +16,7 @@ interface Props {
   referencedBy: ReferencedBy[];
   referencedByLoading: boolean;
   documentEntityTypes: string[];
+  documentLocale?: string | undefined;
 }
 
 export function DocumentInfoPanel({
@@ -18,26 +24,27 @@ export function DocumentInfoPanel({
   references,
   referencedBy,
   referencedByLoading,
-  documentEntityTypes
+  documentEntityTypes,
+  documentLocale
 }: Props) {
   const t = useTranslations('DocumentInfoPanel');
 
   // Count stub vs resolved references
   const stubCount = useMemo(
-    () => references.filter((r) => r.body.source === null || r.body.source === undefined).length,
+    () => references.filter((r) => !isBodyResolved(r.body)).length,
     [references]
   );
 
   const resolvedCount = useMemo(
-    () => references.filter((r) => r.body.source !== null && r.body.source !== undefined).length,
+    () => references.filter((r) => isBodyResolved(r.body)).length,
     [references]
   );
 
-  // Count entity types from references
+  // Count entity types from references (at annotation level)
   const entityTypesList = useMemo(() => {
     const entityTypeCounts = new Map<string, number>();
     references.forEach((ref) => {
-      const entityTypes = ref.body.entityTypes || [];
+      const entityTypes = getEntityTypes(ref);
       entityTypes.forEach((type: string) => {
         entityTypeCounts.set(type, (entityTypeCounts.get(type) || 0) + 1);
       });
@@ -48,6 +55,20 @@ export function DocumentInfoPanel({
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 space-y-4">
+      {/* Locale Section */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('locale')}</h3>
+        {documentLocale ? (
+          <div className="text-xs text-gray-700 dark:text-gray-300">
+            {formatLocaleDisplay(documentLocale)}
+          </div>
+        ) : (
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            {t('notSpecified')}
+          </div>
+        )}
+      </div>
+
       {/* Entity Type Tags Section */}
       {documentEntityTypes.length > 0 && (
         <div>

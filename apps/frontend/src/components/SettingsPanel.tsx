@@ -3,6 +3,7 @@
 import React, { useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { usePathname, useRouter } from '@/i18n/routing';
+import { LOCALES } from '@semiont/api-client';
 
 interface Props {
   showLineNumbers: boolean;
@@ -10,38 +11,6 @@ interface Props {
   theme: 'light' | 'dark' | 'system';
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
 }
-
-const LANGUAGES = [
-  { code: 'ar', name: 'العربية' },
-  { code: 'bn', name: 'বাংলা' },
-  { code: 'cs', name: 'Čeština' },
-  { code: 'da', name: 'Dansk' },
-  { code: 'de', name: 'Deutsch' },
-  { code: 'el', name: 'Ελληνικά' },
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Español' },
-  { code: 'fa', name: 'فارسی' },
-  { code: 'fi', name: 'Suomi' },
-  { code: 'fr', name: 'Français' },
-  { code: 'he', name: 'עברית' },
-  { code: 'hi', name: 'हिन्दी' },
-  { code: 'id', name: 'Bahasa Indonesia' },
-  { code: 'it', name: 'Italiano' },
-  { code: 'ja', name: '日本語' },
-  { code: 'ko', name: '한국어' },
-  { code: 'ms', name: 'Bahasa Melayu' },
-  { code: 'nl', name: 'Nederlands' },
-  { code: 'no', name: 'Norsk' },
-  { code: 'pl', name: 'Polski' },
-  { code: 'pt', name: 'Português' },
-  { code: 'ro', name: 'Română' },
-  { code: 'sv', name: 'Svenska' },
-  { code: 'th', name: 'ไทย' },
-  { code: 'tr', name: 'Türkçe' },
-  { code: 'uk', name: 'Українська' },
-  { code: 'vi', name: 'Tiếng Việt' },
-  { code: 'zh', name: '中文' },
-] as const;
 
 export function SettingsPanel({
   showLineNumbers,
@@ -152,9 +121,9 @@ export function SettingsPanel({
               disabled={isPending}
               className="w-full px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
             >
-              {LANGUAGES.map((lang) => (
+              {LOCALES.map((lang) => (
                 <option key={lang.code} value={lang.code}>
-                  {lang.name}
+                  {lang.nativeName}
                 </option>
               ))}
             </select>

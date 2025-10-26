@@ -1,31 +1,34 @@
-import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
-import { HealthResponseSchema } from '@semiont/sdk';
+/**
+ * Health Check Route - Spec-First Version
+ *
+ * This is a proof of concept demonstrating the new spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No Zod schemas (GET endpoint has no request body)
+ * - Types come from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
+import { Hono } from 'hono';
 import { DatabaseConnection } from '../db';
+import type { components } from '@semiont/api-client';
 
-// Define the health check route
-export const healthRoute = createRoute({
-  method: 'get',
-  path: '/api/health',
-  summary: 'Health Check',
-  description: 'Check if the API is operational and database is connected',
-  tags: ['System'],
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          // Plain SDK schemas work at runtime; cast for TypeScript compatibility
-          schema: HealthResponseSchema as any,
-        },
-      },
-      description: 'Health status of the API',
-    },
-  },
-});
+type HealthResponse = components['schemas']['HealthResponse'];
 
-// Create health router
-export const healthRouter = new OpenAPIHono();
+// Create health router with plain Hono
+export const healthRouter = new Hono();
 
-healthRouter.openapi(healthRoute, async (c) => {
+/**
+ * GET /api/health
+ *
+ * Health check endpoint - no validation needed (no request body)
+ * Response type comes from OpenAPI spec via generated types
+ */
+healthRouter.get('/api/health', async (c) => {
+  const nodeEnv = process.env.NODE_ENV;
+  if (!nodeEnv) {
+    throw new Error('NODE_ENV environment variable is required');
+  }
+
   // Check if startup script had issues (for internal monitoring)
   let startupFailed = false;
   try {
@@ -44,24 +47,27 @@ healthRouter.openapi(healthRoute, async (c) => {
 
   if (startupFailed) {
     // Return unhealthy but don't expose internal details
-    return c.json({ 
+    const response: HealthResponse = {
       status: 'offline',
       message: 'Service is experiencing issues',
       version: '0.1.0',
       timestamp: new Date().toISOString(),
       database: 'unknown',
-      environment: process.env.NODE_ENV || 'development',
-    }, 200);  // Always return 200 for health checks (ALB requirement)
+      environment: nodeEnv,
+    };
+    return c.json(response, 200);  // Always return 200 for health checks (ALB requirement)
   }
 
   const dbStatus = await DatabaseConnection.checkHealth();
-  
-  return c.json({
+
+  const response: HealthResponse = {
     status: 'operational',
     message: 'Semiont API is running',
     version: '0.1.0',
     timestamp: new Date().toISOString(),
     database: dbStatus ? 'connected' : 'disconnected',
-    environment: process.env.NODE_ENV || 'development',
-  }, 200);
+    environment: nodeEnv,
+  };
+
+  return c.json(response, 200);
 });

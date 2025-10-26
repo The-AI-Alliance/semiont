@@ -1,11 +1,18 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import { PopupContainer, PopupHeader, SelectedTextDisplay, EntityTypeBadges } from './SharedPopupElements';
+import { PopupContainer, PopupHeader, EntityTypeBadges } from './SharedPopupElements';
+import { JsonLdButton } from './JsonLdButton';
+import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
-import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@semiont/sdk';
+import { getBodySource, getEntityTypes } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
+
+type ReferenceAnnotation = components['schemas']['Annotation'];
+type AnnotationUpdate = Partial<components['schemas']['Annotation']>;
+type TextSelection = { exact: string; start: number; end: number };
 
 interface ResolvedReferencePopupProps {
   isOpen: boolean;
@@ -30,7 +37,21 @@ export function ResolvedReferencePopup({
 }: ResolvedReferencePopupProps) {
   const t = useTranslations('ResolvedReferencePopup');
   const router = useRouter();
-  const resolvedDocumentId = annotation.body.source;
+  const [showJsonLd, setShowJsonLd] = useState(false);
+  const resolvedDocumentId = getBodySource(annotation.body);
+
+  // Calculate centered position when showing JSON-LD
+  const displayPosition = useMemo(() => {
+    if (!showJsonLd || typeof window === 'undefined') return position;
+
+    const popupWidth = 800;
+    const popupHeight = 700;
+
+    return {
+      x: Math.max(0, (window.innerWidth - popupWidth) / 2),
+      y: Math.max(0, (window.innerHeight - popupHeight) / 2),
+    };
+  }, [showJsonLd, position]);
 
   const handleViewDocument = () => {
     if (resolvedDocumentId) {
@@ -54,20 +75,17 @@ export function ResolvedReferencePopup({
   };
 
   const handleUnlinkDocument = () => {
+    // Unlink converts to stub reference (empty body array)
     onUpdateAnnotation({
-      body: {
-        source: null,
-      },
+      body: [],
     });
   };
 
   const handleConvertToHighlight = () => {
+    // Convert reference to highlight
     onUpdateAnnotation({
-      body: {
-        type: 'TextualBody',
-        entityTypes: null,
-        source: null,
-      },
+      motivation: 'highlighting',
+      body: [],
     });
   };
 
@@ -77,66 +95,63 @@ export function ResolvedReferencePopup({
     };
 
   return (
-    <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-      <PopupHeader title={t('title')} onClose={onClose} />
+    <PopupContainer position={displayPosition} onClose={onClose} isOpen={isOpen} wide={showJsonLd}>
+      {showJsonLd ? (
+        <JsonLdView annotation={annotation} onBack={() => setShowJsonLd(false)} />
+      ) : (
+        <>
+          <PopupHeader title={t('title')} selectedText={selection.exact} onClose={onClose} />
 
-      <SelectedTextDisplay exact={selection.exact} />
+          {(() => {
+            const entityTypes = getEntityTypes(annotation);
+            return entityTypes.length > 0 && (
+              <EntityTypeBadges entityTypes={entityTypes.join(', ')} />
+            );
+          })()}
 
-      {annotation.body.entityTypes && annotation.body.entityTypes.length > 0 && (
-        <EntityTypeBadges entityTypes={annotation.body.entityTypes.join(', ')} />
+          {/* Primary Actions */}
+          <div className="mb-4">
+            <div className="flex gap-2">
+              <button
+                onClick={handleOpenInNewTab}
+                className={`${buttonStyles.primary.base} flex-1 justify-center`}
+              >
+                🔗 {t('openInNewTab')}
+              </button>
+              <button
+                onClick={handleCopyLinkText}
+                className={`${buttonStyles.secondary.base} px-3 flex items-center justify-center`}
+                title={t('copyLinkText')}
+              >
+                📋
+              </button>
+            </div>
+          </div>
+
+          {/* Secondary Actions */}
+          <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={handleUnlinkDocument}
+              className={`${buttonStyles.secondary.base} w-full justify-center`}
+            >
+              ⛓️‍💥 {t('unlinkDocument')}
+            </button>
+            <button
+              onClick={handleConvertToHighlight}
+              className={`${buttonStyles.secondary.base} w-full justify-center`}
+            >
+              🟡 {t('convertToHighlight')}
+            </button>
+            <button
+              onClick={handleDelete}
+              className={`${buttonStyles.danger.base} w-full justify-center`}
+            >
+              🗑️ {t('deleteReference')}
+            </button>
+            <JsonLdButton onClick={() => setShowJsonLd(true)} />
+          </div>
+        </>
       )}
-
-
-      {/* Resolved Document Info */}
-      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-        <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">
-          {t('resolvedTo')}
-        </p>
-        <p className="text-sm text-blue-700 dark:text-blue-300">
-          {documentName || resolvedDocumentId || t('document')}
-        </p>
-      </div>
-
-      {/* Primary Actions */}
-      <div className="mb-4">
-        <div className="flex gap-2">
-          <button
-            onClick={handleOpenInNewTab}
-            className={`${buttonStyles.primary.base} flex-1 justify-center`}
-          >
-            🔗 {t('openInNewTab')}
-          </button>
-          <button
-            onClick={handleCopyLinkText}
-            className={`${buttonStyles.secondary.base} px-3 flex items-center justify-center`}
-            title={t('copyLinkText')}
-          >
-            📋
-          </button>
-        </div>
-      </div>
-
-      {/* Secondary Actions */}
-      <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
-        <button
-          onClick={handleUnlinkDocument}
-          className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-        >
-          🔗 {t('unlinkDocument')}
-        </button>
-        <button
-          onClick={handleConvertToHighlight}
-          className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-        >
-          🖍 {t('convertToHighlight')}
-        </button>
-        <button
-          onClick={handleDelete}
-          className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-        >
-          🗑️ {t('deleteReference')}
-        </button>
-      </div>
     </PopupContainer>
   );
 }

@@ -20,9 +20,6 @@ export const QUERY_KEYS = {
   entityTypes: {
     all: () => ['/api/entity-types'],
   },
-  referenceTypes: {
-    all: () => ['/api/reference-types'],
-  },
   documents: {
     all: (limit?: number, archived?: boolean) => ['/api/documents', limit, archived],
     detail: (id: string) => ['/api/documents', id],
@@ -30,7 +27,6 @@ export const QUERY_KEYS = {
     search: (query: string, limit: number) => ['/api/documents/search', query, limit],
     referencedBy: (id: string) => ['/api/documents', id, 'referenced-by'],
     events: (id: string) => ['/api/documents', id, 'events'],
-    highlights: (documentId: string) => ['/api/documents/:id/highlights', documentId],
-    references: (documentId: string) => ['/api/documents/:id/references', documentId],
+    annotations: (documentId: string) => ['/api/documents', documentId, 'annotations'],
   },
 };

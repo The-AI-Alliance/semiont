@@ -1,7 +1,10 @@
 // Helper functions for document routes
-import type { Document } from '@semiont/sdk';
+import type { components } from '@semiont/api-client';
 import { extractEntities } from '../../inference/entity-extractor';
-import { getStorageService } from '../../storage/filesystem';
+import { createContentManager } from '../../services/storage-service';
+import { getFilesystemConfig } from '../../config/environment-loader';
+
+type Document = components['schemas']['Document'];
 
 // For search results ONLY - includes content preview
 export function formatSearchResult(doc: Document, contentPreview: string): Document & { content: string } {
@@ -16,12 +19,11 @@ export function formatSearchResult(doc: Document, contentPreview: string): Docum
 export interface DetectedAnnotation {
   annotation: {
     selector: {
-      offset: number;
-      length: number;
+      start: number;
+      end: number;
       exact: string;
     };
     entityTypes: string[];
-    metadata: Record<string, any>;
   };
 }
 
@@ -38,8 +40,9 @@ export async function detectAnnotationsInDocument(
   // Only process text content
   if (format === 'text/plain' || format === 'text/markdown') {
     // Load content from filesystem
-    const storage = getStorageService();
-    const contentBuffer = await storage.getDocument(documentId);
+    const basePath = getFilesystemConfig().path;
+    const contentManager = createContentManager(basePath);
+    const contentBuffer = await contentManager.get(documentId);
     const content = contentBuffer.toString('utf-8');
 
     // Use AI to extract entities
@@ -50,15 +53,11 @@ export async function detectAnnotationsInDocument(
       const annotation: DetectedAnnotation = {
         annotation: {
           selector: {
-            offset: entity.startOffset,
-            length: entity.endOffset - entity.startOffset,
+            start: entity.startOffset,
+            end: entity.endOffset,
             exact: entity.exact,
           },
           entityTypes: [entity.entityType],
-          metadata: {
-            detectionType: 'ai_extraction',
-            extractedBy: 'inference/entity-extractor',
-          },
         },
       };
       detectedAnnotations.push(annotation);

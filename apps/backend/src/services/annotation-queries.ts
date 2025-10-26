@@ -6,9 +6,13 @@
  * - Graph queries use Layer 4 (graph database)
  */
 
-import { getProjectionStorage } from '../storage/projection-storage';
+import { createProjectionManager } from './storage-service';
 import { getGraphDatabase } from '../graph/factory';
-import type { Annotation, DocumentAnnotations } from '@semiont/sdk';
+import type { components } from '@semiont/api-client';
+import type { DocumentAnnotations } from '@semiont/core';
+import { getFilesystemConfig } from '../config/environment-loader';
+
+type Annotation = components['schemas']['Annotation'];
 
 export class AnnotationQueryService {
   /**
@@ -16,8 +20,9 @@ export class AnnotationQueryService {
    * Falls back to GraphDB if projection missing
    */
   static async getDocumentAnnotations(documentId: string): Promise<DocumentAnnotations> {
-    const projectionStorage = getProjectionStorage();
-    const stored = await projectionStorage.getProjection(documentId);
+    const basePath = getFilesystemConfig().path;
+    const projectionManager = createProjectionManager(basePath);
+    const stored = await projectionManager.get(documentId);
 
     if (!stored) {
       throw new Error(`Document ${documentId} not found in Layer 3 projections`);
@@ -27,32 +32,12 @@ export class AnnotationQueryService {
   }
 
   /**
-   * Get highlights only (subset of projection)
-   * @returns Array of highlight objects from projection
-   */
-  static async getHighlights(documentId: string): Promise<DocumentAnnotations['highlights']> {
-    const annotations = await this.getDocumentAnnotations(documentId);
-    return annotations.highlights;
-  }
-
-  /**
-   * Get references only (subset of projection)
-   * @returns Array of reference objects from projection
-   */
-  static async getReferences(documentId: string): Promise<DocumentAnnotations['references']> {
-    const annotations = await this.getDocumentAnnotations(documentId);
-    return annotations.references;
-  }
-
-  /**
-   * Get all annotations (highlights + references)
+   * Get all annotations
    * @returns Array of all annotation objects
    */
-  static async getAllAnnotations(documentId: string): Promise<Array<
-    DocumentAnnotations['highlights'][0] | DocumentAnnotations['references'][0]
-  >> {
+  static async getAllAnnotations(documentId: string): Promise<Annotation[]> {
     const annotations = await this.getDocumentAnnotations(documentId);
-    return [...annotations.highlights, ...annotations.references];
+    return annotations.annotations;
   }
 
   /**
@@ -76,29 +61,18 @@ export class AnnotationQueryService {
    * Check if document exists in Layer 3
    */
   static async documentExists(documentId: string): Promise<boolean> {
-    const projectionStorage = getProjectionStorage();
-    return await projectionStorage.projectionExists(documentId);
+    const basePath = getFilesystemConfig().path;
+    const projectionManager = createProjectionManager(basePath);
+    return await projectionManager.exists(documentId);
   }
 
   /**
-   * Get a single annotation (highlight or reference) by ID
-   * Scans Layer 3 projections to find the annotation
-   * O(n) complexity - needs annotation ID → document ID index for O(1)
+   * Get a single annotation by ID
+   * O(1) lookup using document ID to access Layer 3 projection
    */
-  static async getAnnotation(annotationId: string): Promise<Annotation | null> {
-    const projectionStorage = getProjectionStorage();
-    const allProjections = await projectionStorage.getAllProjections();
-
-    for (const stored of allProjections) {
-      // Check highlights
-      const annotation = stored.annotations.highlights.find((h) => h.id === annotationId) ||
-                        stored.annotations.references.find((r) => r.id === annotationId);
-      if (annotation) {
-        return annotation;
-      }
-    }
-
-    return null;
+  static async getAnnotation(annotationId: string, documentId: string): Promise<Annotation | null> {
+    const annotations = await this.getDocumentAnnotations(documentId);
+    return annotations.annotations.find(a => a.id === annotationId) || null;
   }
 
   /**
@@ -108,9 +82,7 @@ export class AnnotationQueryService {
   static async listAnnotations(filters?: { documentId?: string }): Promise<any> {
     if (filters?.documentId) {
       // If filtering by document ID, use Layer 3 directly
-      const highlights = await this.getHighlights(filters.documentId);
-      const references = await this.getReferences(filters.documentId);
-      return [...highlights, ...references];
+      return await this.getAllAnnotations(filters.documentId);
     }
 
     // For now, fall back to graph for cross-document listing

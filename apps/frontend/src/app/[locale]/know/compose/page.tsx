@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { api } from '@/lib/api-client';
+import { documents } from '@/lib/api/documents';
+import { annotations } from '@/lib/api/annotations';
+import { entityTypes } from '@/lib/api/entity-types';
 import { buttonStyles } from '@/lib/button-styles';
-import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
@@ -21,7 +22,6 @@ function ComposeDocumentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
-  const { addDocument } = useOpenDocuments();
   const { showError, showSuccess } = useToast();
   const mode = searchParams?.get('mode');
   const tokenFromUrl = searchParams?.get('token');
@@ -31,8 +31,6 @@ function ComposeDocumentContent() {
   const sourceDocumentId = searchParams?.get('sourceDocumentId');
   const nameFromUrl = searchParams?.get('name');
   const entityTypesFromUrl = searchParams?.get('entityTypes');
-  const referenceTypeFromUrl = searchParams?.get('referenceType');
-  const shouldGenerate = searchParams?.get('generate') === 'true';
   
   const [newDocName, setNewDocName] = useState('');
   const [newDocContent, setNewDocContent] = useState('');
@@ -43,7 +41,6 @@ function ComposeDocumentContent() {
   const [cloneToken, setCloneToken] = useState<string | null>(null);
   const [archiveOriginal, setArchiveOriginal] = useState(true);
   const [isReferenceCompletion, setIsReferenceCompletion] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
 
   // Toolbar and settings state
   const { activePanel, togglePanel } = useToolbar();
@@ -51,73 +48,17 @@ function ComposeDocumentContent() {
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Fetch available entity types
-  const { data: entityTypesData } = api.entityTypes.all.useQuery();
+  const { data: entityTypesData } = entityTypes.all.useQuery();
   const availableEntityTypes = entityTypesData?.entityTypes || [];
 
   // Set up mutation hooks
-  const createDocMutation = api.documents.create.useMutation();
-  const generateDocMutation = api.annotations.generate.useMutation();
-  const resolveToDocMutation = api.annotations.resolve.useMutation();
+  const createDocMutation = documents.create.useMutation();
+  const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
 
   // Fetch cloned document data if in clone mode
-  const { data: cloneData } = api.documents.getByToken.useQuery(tokenFromUrl || '');
-  const createFromTokenMutation = api.documents.createFromToken.useMutation();
+  const { data: cloneData } = documents.getByToken.useQuery(tokenFromUrl || '');
+  const createFromTokenMutation = documents.createFromToken.useMutation();
 
-  // Generate AI content using the backend inference service
-  const generateContent = async (documentName: string, entityTypes: string[], referenceType?: string) => {
-    setIsGenerating(true);
-
-    try {
-      // Check if we have a referenceId to generate from
-      if (!referenceId) {
-        throw new Error('Cannot generate content: No reference ID provided');
-      }
-
-      // Call the backend API to generate document content
-      const requestData: { entityTypes?: string[]; prompt?: string } = {};
-      if (entityTypes.length > 0) {
-        requestData.entityTypes = entityTypes;
-      }
-      if (referenceType) {
-        requestData.prompt = `Create a document that ${referenceType} the source document.`;
-      }
-
-      const response = await generateDocMutation.mutateAsync({
-        id: referenceId,
-        data: requestData
-      });
-
-      if (!response.document) {
-        throw new Error('No document returned from generation service');
-      }
-
-      // Fetch the generated content separately
-      const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${response.document.id}/content`, {
-        headers: {
-          'Authorization': `Bearer ${session?.backendToken}`,
-        },
-      });
-
-      if (!contentResponse.ok) {
-        throw new Error('Failed to fetch generated content');
-      }
-
-      const content = await contentResponse.text();
-      setNewDocContent(content);
-      // Also update the name if the AI generated a better title
-      if (response.document.name && response.document.name !== documentName) {
-        setNewDocName(response.document.name);
-      }
-      showSuccess('Content generated using AI! You can now edit it before saving.');
-    } catch (error: any) {
-      console.error('Failed to generate content:', error);
-      // Re-throw to let caller handle navigation
-      throw error;
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-  
   // Load cloned document data if in clone mode or pre-fill reference completion data
   useEffect(() => {
     const loadInitialData = async () => {
@@ -128,22 +69,6 @@ function ComposeDocumentContent() {
         const entityTypes = entityTypesFromUrl ? entityTypesFromUrl.split(',') : [];
         if (entityTypes.length > 0) {
           setSelectedEntityTypes(entityTypes);
-        }
-
-        // Generate content if requested
-        // Wait for session to be ready before attempting generation
-        if (shouldGenerate && session?.backendToken) {
-          try {
-            // referenceTypeFromUrl can be null from searchParams, convert to undefined for API
-            const referenceType = referenceTypeFromUrl ?? undefined;
-            await generateContent(nameFromUrl, entityTypes, referenceType);
-          } catch (error) {
-            console.error('Failed to generate content:', error);
-            showError('Failed to generate content. Returning to source document.');
-            // Navigate back to the source document
-            router.push(`/know/document/${encodeURIComponent(sourceDocumentId)}`);
-            return;
-          }
         }
 
         setIsLoading(false);
@@ -187,10 +112,10 @@ function ComposeDocumentContent() {
         setIsLoading(false);
       }
     };
-    
+
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, tokenFromUrl, cloneData, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, referenceTypeFromUrl, shouldGenerate, session?.backendToken]);
+  }, [mode, tokenFromUrl, cloneData, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, session?.backendToken]);
 
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,11 +157,21 @@ function ComposeDocumentContent() {
         documentName = response.document.name || newDocName;
 
         // If this is a reference completion, update the reference to point to the new document
-        if (isReferenceCompletion && referenceId && documentId) {
+        if (isReferenceCompletion && referenceId && documentId && sourceDocumentId) {
           try {
-            await resolveToDocMutation.mutateAsync({
+            await updateAnnotationBodyMutation.mutateAsync({
               id: referenceId,
-              documentId: documentId
+              data: {
+                documentId: sourceDocumentId,
+                operations: [{
+                  op: 'add',
+                  item: {
+                    type: 'SpecificResource',
+                    source: documentId,
+                    purpose: 'linking'
+                  }
+                }]
+              }
             });
             showSuccess('Reference successfully linked to the new document');
           } catch (error) {
@@ -262,7 +197,7 @@ function ComposeDocumentContent() {
       <div className="px-4 py-8">
         <div className="flex items-center justify-center py-20">
           <p className="text-gray-600 dark:text-gray-300">
-            {isGenerating ? 'Generating content...' : 'Loading cloned document...'}
+            Loading cloned document...
           </p>
         </div>
       </div>
@@ -280,16 +215,13 @@ function ComposeDocumentContent() {
         </h1>
         {(isClone || isReferenceCompletion) && (
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            {isClone
-              ? t('subtitleClone')
-              : shouldGenerate ? t('subtitleReferenceAI') : t('subtitleReference')}
+            {isClone ? t('subtitleClone') : t('subtitleReference')}
           </p>
         )}
         {isReferenceCompletion && (
           <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
             <p className="text-sm text-blue-700 dark:text-blue-300">
               {t('linkedNoticePrefix')}
-              {shouldGenerate && t('linkedNoticeGenerated')}
             </p>
           </div>
         )}

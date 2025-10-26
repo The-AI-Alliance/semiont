@@ -1,10 +1,16 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { PopupContainer, PopupHeader, SelectedTextDisplay } from './SharedPopupElements';
+import { PopupContainer, PopupHeader } from './SharedPopupElements';
+import { JsonLdButton } from './JsonLdButton';
+import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
-import type { HighlightAnnotation, AnnotationUpdate, TextSelection } from '@semiont/sdk';
+import type { components } from '@semiont/api-client';
+
+type HighlightAnnotation = components['schemas']['Annotation'];
+type AnnotationUpdate = Partial<components['schemas']['Annotation']>;
+type TextSelection = { exact: string; start: number; end: number };
 
 interface HighlightPopupProps {
   isOpen: boolean;
@@ -21,17 +27,31 @@ export function HighlightPopup({
   onClose,
   position,
   selection,
-  annotation,  // eslint-disable-line @typescript-eslint/no-unused-vars
+  annotation,
   onUpdateAnnotation,
   onDeleteAnnotation,
 }: HighlightPopupProps) {
   const t = useTranslations('HighlightPopup');
+  const [showJsonLd, setShowJsonLd] = useState(false);
+
+  // Calculate centered position when showing JSON-LD
+  const displayPosition = useMemo(() => {
+    if (!showJsonLd || typeof window === 'undefined') return position;
+
+    const popupWidth = 800;
+    const popupHeight = 700;
+
+    return {
+      x: Math.max(0, (window.innerWidth - popupWidth) / 2),
+      y: Math.max(0, (window.innerHeight - popupHeight) / 2),
+    };
+  }, [showJsonLd, position]);
 
   const handleConvertToReference = () => {
+    // Convert to linking motivation with stub body (empty array)
     onUpdateAnnotation({
-      body: {
-        type: 'SpecificResource',
-      },
+      motivation: 'linking',
+      body: [],
     });
   };
 
@@ -41,27 +61,33 @@ export function HighlightPopup({
   };
 
   return (
-    <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-      <PopupHeader title={t('title')} onClose={onClose} />
+    <PopupContainer position={displayPosition} onClose={onClose} isOpen={isOpen} wide={showJsonLd}>
+      {showJsonLd ? (
+        <JsonLdView annotation={annotation} onBack={() => setShowJsonLd(false)} />
+      ) : (
+        <>
+          <PopupHeader title={t('title')} selectedText={selection.exact} onClose={onClose} />
 
-      <SelectedTextDisplay exact={selection.exact} />
+          {/* Actions */}
+          <div className="space-y-2">
+            <button
+              onClick={handleConvertToReference}
+              className={`${buttonStyles.primary.base} w-full justify-center`}
+            >
+              🔗 {t('convertToReference')}
+            </button>
 
-      {/* Actions */}
-      <div className="space-y-2">
-        <button
-          onClick={handleConvertToReference}
-          className={`${buttonStyles.primary.base} w-full justify-center`}
-        >
-          🔗 {t('convertToReference')}
-        </button>
+            <button
+              onClick={handleDelete}
+              className={`${buttonStyles.danger.base} w-full justify-center`}
+            >
+              🗑️ {t('deleteHighlight')}
+            </button>
 
-        <button
-          onClick={handleDelete}
-          className={`${buttonStyles.danger.base} w-full justify-center`}
-        >
-          🗑️ {t('deleteHighlight')}
-        </button>
-      </div>
+            <JsonLdButton onClick={() => setShowJsonLd(true)} />
+          </div>
+        </>
+      )}
     </PopupContainer>
   );
 }

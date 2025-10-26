@@ -376,7 +376,8 @@
     "justNow": "just now",
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
-    "daysAgo": "{count}d ago"
+    "daysAgo": "{count}d ago",
+    "annotationBodyUpdated": "Annotation Updated"
   },
   "AnnotateView": {
     "ariaLabel": "Create annotation from selected text. Press H for highlight or R for reference.",
@@ -384,11 +385,10 @@
   },
   "CreateAnnotationPopup": {
     "title": "Create Annotation",
-    "createHighlight": "Create Highlight",
+    "createHighlight": "Làm nổi",
     "entityTypesOptional": "Entity Types (Optional)",
-    "referenceTypeOptional": "Reference Type (Optional)",
-    "none": "None",
-    "createReference": "Create Reference"
+    "createReference": "Create Reference",
+    "createAssessment": "Đánh giá"
   },
   "HighlightPopup": {
     "title": "Highlight",
@@ -467,17 +467,6 @@
     "sectionTitle": "Document Classification Tags",
     "sectionDescription": "Tags that can be applied to documents for categorization",
     "inputPlaceholder": "Enter new entity tag...",
-    "adding": "Adding...",
-    "addTag": "Add Tag",
-    "errorFailedToAdd": "Failed to add tag"
-  },
-  "ModerateReferenceTags": {
-    "loading": "Loading...",
-    "pageTitle": "Reference Tags",
-    "pageDescription": "Manage semantic relationship types between documents. These tags define how documents can reference and relate to each other. Tags are append-only and cannot be deleted once created.",
-    "sectionTitle": "Document Relationship Types",
-    "sectionDescription": "Semantic relationships that can connect documents",
-    "inputPlaceholder": "Enter new reference tag...",
     "adding": "Adding...",
     "addTag": "Add Tag",
     "errorFailedToAdd": "Failed to add tag"

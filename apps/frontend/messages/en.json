@@ -312,6 +312,8 @@
     "unarchiveDescription": "Restore this document to active status"
   },
   "DocumentInfoPanel": {
+    "locale": "Locale",
+    "notSpecified": "Not specified",
     "entityTypeTags": "Entity Type Tags",
     "statistics": "Statistics",
     "highlights": "Highlights",
@@ -373,6 +375,9 @@
     "referenceDeleted": "Reference Deleted",
     "entitytagAdded": "Tag Added",
     "entitytagRemoved": "Tag Removed",
+    "assessmentAdded": "Assessment Added",
+    "assessmentRemoved": "Assessment Removed",
+    "annotationBodyUpdated": "Annotation Updated",
     "justNow": "just now",
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
@@ -383,11 +388,10 @@
     "tooltip": "Click to create highlight • Right-click for more options"
   },
   "CreateAnnotationPopup": {
-    "title": "Create Annotation",
-    "createHighlight": "Create Highlight",
+    "title": "Annotate",
+    "createHighlight": "Highlight",
+    "createAssessment": "Assess",
     "entityTypesOptional": "Entity Types (Optional)",
-    "referenceTypeOptional": "Reference Type (Optional)",
-    "none": "None",
     "createReference": "Create Reference"
   },
   "HighlightPopup": {
@@ -467,17 +471,6 @@
     "sectionTitle": "Document Classification Tags",
     "sectionDescription": "Tags that can be applied to documents for categorization",
     "inputPlaceholder": "Enter new entity tag...",
-    "adding": "Adding...",
-    "addTag": "Add Tag",
-    "errorFailedToAdd": "Failed to add tag"
-  },
-  "ModerateReferenceTags": {
-    "loading": "Loading...",
-    "pageTitle": "Reference Tags",
-    "pageDescription": "Manage semantic relationship types between documents. These tags define how documents can reference and relate to each other. Tags are append-only and cannot be deleted once created.",
-    "sectionTitle": "Document Relationship Types",
-    "sectionDescription": "Semantic relationships that can connect documents",
-    "inputPlaceholder": "Enter new reference tag...",
     "adding": "Adding...",
     "addTag": "Add Tag",
     "errorFailedToAdd": "Failed to add tag"
