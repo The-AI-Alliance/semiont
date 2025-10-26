@@ -376,7 +376,8 @@
     "justNow": "just now",
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
-    "daysAgo": "{count}d ago"
+    "daysAgo": "{count}d ago",
+    "annotationBodyUpdated": "Annotation Updated"
   },
   "AnnotateView": {
     "ariaLabel": "Create annotation from selected text. Press H for highlight or R for reference.",
@@ -386,7 +387,7 @@
     "title": "Create Annotation",
     "createHighlight": "হাইলাইট",
     "entityTypesOptional": "Entity Types (Optional)",
-    "createReference": "রেফার",
+    "createReference": "Create Reference",
     "createAssessment": "মূল্যায়ন"
   },
   "HighlightPopup": {

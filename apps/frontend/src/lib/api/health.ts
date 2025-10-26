@@ -1,7 +1,3 @@
-/**
- * Health Check API
- */
-
 import { useQuery } from '@tanstack/react-query';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
