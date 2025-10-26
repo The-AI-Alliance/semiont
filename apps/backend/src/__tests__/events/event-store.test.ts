@@ -4,6 +4,8 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { EventStore } from '../../events/event-store';
+import { EventQuery } from '../../events/query/event-query';
+import { EventValidator } from '../../events/validation/event-validator';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import { CREATION_METHODS } from '@semiont/core';
 import { promises as fs } from 'fs';
@@ -13,6 +15,8 @@ import { join } from 'path';
 describe('Event Store', () => {
   let testDir: string;
   let eventStore: EventStore;
+  let query: EventQuery;
+  let validator: EventValidator;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-${Date.now()}`);
@@ -21,12 +25,14 @@ describe('Event Store', () => {
     const projectionStorage = new FilesystemProjectionStorage(testDir);
 
     eventStore = new EventStore({
+      basePath: testDir,
       dataDir: testDir,
       enableSharding: false, // Faster without sharding
       maxEventsPerFile: 100,
     }, projectionStorage);
 
-    await eventStore.initialize();
+    query = new EventQuery(eventStore.storage);
+    validator = new EventValidator();
   });
 
   afterAll(async () => {
@@ -44,14 +50,14 @@ describe('Event Store', () => {
       payload: {
         name: 'Test',
         format: 'text/plain',
-        contentHash: 'hash1',
+        contentChecksum: 'hash1',
         creationMethod: CREATION_METHODS.API,
       },
     });
 
     expect(event1.metadata.sequenceNumber).toBe(1);
 
-    const events = await eventStore.getDocumentEvents(docId);
+    const events = await query.getDocumentEvents(docId);
     expect(events).toHaveLength(1);
     expect(events[0]?.event.type).toBe('document.created');
   });
@@ -64,21 +70,45 @@ describe('Event Store', () => {
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { name: 'Test', format: 'text/plain', contentHash: 'h1', creationMethod: CREATION_METHODS.API },
+      payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
     });
 
     const e2 = await eventStore.appendEvent({
-      type: 'highlight.added',
+      type: 'annotation.added',
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { highlightId: 'hl1', exact: 'Test', position: { offset: 0, length: 4 } },
+      payload: {
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+          'type': 'Annotation' as const,
+          id: 'hl1',
+          motivation: 'highlighting' as const,
+          target: {
+            source: docId,
+            selector: [
+              {
+                type: 'TextPositionSelector',
+                start: 0,
+                end: 4,
+              },
+              {
+                type: 'TextQuoteSelector',
+                exact: 'Test',
+              },
+            ],
+          },
+          body: [], // Empty body array (no entity tags)
+          modified: new Date().toISOString(),
+        },
+      },
     });
 
     expect(e1.metadata.prevEventHash).toBeUndefined();
     expect(e2.metadata.prevEventHash).toBe(e1.metadata.checksum);
 
-    const validation = await eventStore.validateEventChain(docId);
+    const eventsForValidation = await query.getDocumentEvents(docId);
+    const validation = validator.validateEventChain(eventsForValidation);
     expect(validation.valid).toBe(true);
   });
 
@@ -90,7 +120,7 @@ describe('Event Store', () => {
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { name: 'Doc', format: 'text/plain', contentHash: 'h1', creationMethod: CREATION_METHODS.API },
+      payload: { name: 'Doc', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
     });
 
     await eventStore.appendEvent({
@@ -101,7 +131,8 @@ describe('Event Store', () => {
       payload: { entityType: 'note' },
     });
 
-    const stored = await eventStore.projectDocument(docId);
+    const events = await query.getDocumentEvents(docId);
+    const stored = await eventStore.projector.projectDocument(events, docId);
 
     expect(stored).toBeDefined();
     expect(stored!.document.name).toBe('Doc');
