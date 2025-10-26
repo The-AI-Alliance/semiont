@@ -1,18 +1,17 @@
-/**
- * Admin API
- */
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
-import type {
-  AdminUser,
-  AdminUsersResponse,
-  AdminUserStatsResponse,
-  UpdateUserRequest,
-  OAuthConfigResponse,
-} from './types';
+import type { paths } from '@semiont/api-client';
+
+type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
+
+type AdminUser = ResponseContent<paths['/api/admin/users']['get']>['users'][number];
+type AdminUsersResponse = ResponseContent<paths['/api/admin/users']['get']>;
+type AdminUserStatsResponse = ResponseContent<paths['/api/admin/users/stats']['get']>;
+type UpdateUserRequest = RequestContent<paths['/api/admin/users/{id}']['patch']>;
+type OAuthConfigResponse = ResponseContent<paths['/api/admin/oauth/config']['get']>;
 
 export const admin = {
   users: {
