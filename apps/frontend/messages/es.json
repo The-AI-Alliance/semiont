@@ -377,6 +377,7 @@
     "entitytagRemoved": "Etiqueta Eliminada",
     "assessmentAdded": "Evaluación Agregada",
     "assessmentRemoved": "Evaluación Eliminada",
+    "annotationBodyUpdated": "Anotación Actualizada",
     "justNow": "justo ahora",
     "minutesAgo": "hace {count}m",
     "hoursAgo": "hace {count}h",
@@ -391,7 +392,7 @@
     "createHighlight": "Destacar",
     "createAssessment": "Evaluar",
     "entityTypesOptional": "Tipos de Entidad (Opcional)",
-    "createReference": "Referir"
+    "createReference": "Crear Referencia"
   },
   "HighlightPopup": {
     "title": "Destacado",

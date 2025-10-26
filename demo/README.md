@@ -35,14 +35,14 @@ The demo runs through 8 passes to demonstrate the event-sourced architecture:
 - Uses W3C Web Annotation format (TextPositionSelector with exact text, offset, length)
 - Shows Layer 2 (event log) and Layer 3 (projection) paths for each
 
-**Pass 5: Resolve References**
-- Resolves all 15 stub references to point to their target documents
-- Updates each annotation with `source: <target-document-id>`
-- Demonstrates immediate resolution (no async delays needed)
+**Pass 5: Link References to Documents**
+- Links all 15 stub references to their target documents
+- Adds SpecificResource body items via updateAnnotationBody operations
+- Demonstrates immediate updates (no async delays needed)
 
 **Pass 6: Show Document History**
 - Fetches complete event history via `/api/documents/{id}/events` API
-- Displays event breakdown by type (document.created, reference.created, reference.resolved)
+- Displays event breakdown by type (document.created, annotation.added, annotation.body.updated)
 - Shows recent events with sequence numbers and details
 
 **Pass 7: Print Results**
@@ -121,10 +121,13 @@ client.setAccessToken(ACCESS_TOKEN);
 const doc = await client.createDocument({ name, content, format, entityTypes });
 
 // Create annotations
-const annotation = await client.createAnnotation({ target, body });
+const annotation = await client.createAnnotation({ motivation, target, body });
 
-// Resolve references
-await client.resolveAnnotation(annotationId, targetDocumentId);
+// Update annotation body (link references)
+await client.updateAnnotationBody(annotationId, {
+  documentId,
+  operations: [{ op: 'add', item: { type: 'SpecificResource', source: targetDocumentId, purpose: 'linking' } }]
+});
 
 // Get event history
 const events = await client.getDocumentEvents(documentId);
@@ -233,12 +236,12 @@ The script provides detailed progress output with unicode styling:
        📁 Layer 3 (projection): /path/to/data/uploads/annotations/55/2c/doc-sha256:...
    ...
 
-🎯 PASS 5: Resolve References
+🎯 PASS 5: Link References to Documents
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   [1/15] Resolving "Part 1" → doc-sha256:a0b971089...
-       ✅ Resolved
+   [1/15] Linking "Part 1" → doc-sha256:a0b971089...
+       ✅ Linked
    ...
-   ✅ Resolved 15/15 references
+   ✅ Linked 15/15 references
 
 📜 PASS 6: Document History
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -246,14 +249,14 @@ The script provides detailed progress output with unicode styling:
 
    Event breakdown:
      • document.created: 1
-     • reference.created: 15
-     • reference.resolved: 15
+     • annotation.added: 15
+     • annotation.body.updated: 15
 
    Recent events:
-     [22] seq=22 - reference.resolved
-         → Resolved to: doc-sha256:826a907f0dcfc1110c90a49ac22fb...
-     [23] seq=23 - reference.resolved
-         → Resolved to: doc-sha256:8e9e825ebe232e54c2aa959552cf4...
+     [22] seq=22 - annotation.body.updated
+         → Linked to: doc-sha256:826a907f0dcfc1110c90a49ac22fb...
+     [23] seq=23 - annotation.body.updated
+         → Linked to: doc-sha256:8e9e825ebe232e54c2aa959552cf4...
    ...
 
 ✨ PASS 7: Results
@@ -270,7 +273,7 @@ The script provides detailed progress output with unicode styling:
 📊 Summary:
    Total chunks: 15
    Annotations created: 15
-   Annotations resolved: 15
+   Annotations linked: 15
 
 ✅ Complete!
 ════════════════════════════════════════════════════════════
@@ -294,12 +297,12 @@ The script provides detailed progress output with unicode styling:
 - **Layer 1 (Storage)**: Raw document content in `.dat` files with hash-based sharding
 - **Layer 2 (Events)**: Append-only event logs in `.jsonl` files organized by document
 - **Layer 3 (Projections)**: Consolidated JSON projections with all annotations
-- **Event Types**: document.created, reference.created, reference.resolved
+- **Event Types**: document.created, annotation.added, annotation.body.updated
 - **Synchronous Updates**: Layer 3 projections update immediately (not async)
 
 #### Annotation Lifecycle
-- **Stub References**: Create annotations with `source: null` to mark unknown targets
-- **Reference Resolution**: Update annotations to point to actual documents
+- **Stub References**: Create annotations with empty body or tagging-only TextualBody items
+- **Linking References**: Add SpecificResource to body array via updateAnnotationBody operations
 - **Annotation IDs**: Full URIs like `http://localhost:4000/annotations/xyz123`
 - **Layer 3 Matching**: API endpoints match against Layer 3 which stores full URIs
 

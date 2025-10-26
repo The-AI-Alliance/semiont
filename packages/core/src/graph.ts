@@ -2,8 +2,11 @@
  * Graph types - Models for graph connections and relationships
  */
 
-import { Document } from './document-schemas';
-import { Annotation } from './annotation-schemas';
+import type { components } from '@semiont/api-client';
+
+// Import OpenAPI types
+type Document = components['schemas']['Document'];
+type Annotation = components['schemas']['Annotation'];
 
 /**
  * Represents a connection between documents through annotations

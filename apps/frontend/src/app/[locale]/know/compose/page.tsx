@@ -5,7 +5,9 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { api } from '@/lib/api';
+import { documents } from '@/lib/api/documents';
+import { annotations } from '@/lib/api/annotations';
+import { entityTypes } from '@/lib/api/entity-types';
 import { buttonStyles } from '@/lib/button-styles';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
@@ -46,16 +48,16 @@ function ComposeDocumentContent() {
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Fetch available entity types
-  const { data: entityTypesData } = api.entityTypes.all.useQuery();
+  const { data: entityTypesData } = entityTypes.all.useQuery();
   const availableEntityTypes = entityTypesData?.entityTypes || [];
 
   // Set up mutation hooks
-  const createDocMutation = api.documents.create.useMutation();
-  const resolveToDocMutation = api.annotations.resolve.useMutation();
+  const createDocMutation = documents.create.useMutation();
+  const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
 
   // Fetch cloned document data if in clone mode
-  const { data: cloneData } = api.documents.getByToken.useQuery(tokenFromUrl || '');
-  const createFromTokenMutation = api.documents.createFromToken.useMutation();
+  const { data: cloneData } = documents.getByToken.useQuery(tokenFromUrl || '');
+  const createFromTokenMutation = documents.createFromToken.useMutation();
 
   // Load cloned document data if in clone mode or pre-fill reference completion data
   useEffect(() => {
@@ -155,11 +157,21 @@ function ComposeDocumentContent() {
         documentName = response.document.name || newDocName;
 
         // If this is a reference completion, update the reference to point to the new document
-        if (isReferenceCompletion && referenceId && documentId) {
+        if (isReferenceCompletion && referenceId && documentId && sourceDocumentId) {
           try {
-            await resolveToDocMutation.mutateAsync({
+            await updateAnnotationBodyMutation.mutateAsync({
               id: referenceId,
-              documentId: documentId
+              data: {
+                documentId: sourceDocumentId,
+                operations: [{
+                  op: 'add',
+                  item: {
+                    type: 'SpecificResource',
+                    source: documentId,
+                    purpose: 'linking'
+                  }
+                }]
+              }
             });
             showSuccess('Reference successfully linked to the new document');
           } catch (error) {

@@ -123,13 +123,3 @@ export class FilesystemStorage implements StorageService {
     return docPath;
   }
 }
-
-// Singleton instance
-let storageInstance: StorageService | null = null;
-
-export function getStorageService(): StorageService {
-  if (!storageInstance) {
-    storageInstance = new FilesystemStorage();
-  }
-  return storageInstance;
-}
