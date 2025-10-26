@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Fragment } from 'react';
+import { useTranslations } from 'next-intl';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 
 interface KeyboardShortcutsHelpModalProps {
@@ -9,82 +10,83 @@ interface KeyboardShortcutsHelpModalProps {
 }
 
 interface ShortcutGroup {
-  title: string;
+  titleKey: string;
   shortcuts: {
     keys: string[];
-    description: string;
+    descriptionKey: string;
   }[];
 }
 
 const shortcutGroups: ShortcutGroup[] = [
   {
-    title: 'Navigation',
+    titleKey: 'navigationTitle',
     shortcuts: [
-      { keys: ['⌘K', 'Ctrl K'], description: 'Open global search' },
-      { keys: ['/'], description: 'Open global search (alternative)' },
-      { keys: ['⌘N', 'Ctrl N'], description: 'Create new document' },
-      { keys: ['Esc Esc'], description: 'Close all overlays (double press)' },
-      { keys: ['?'], description: 'Show keyboard shortcuts help' },
+      { keys: ['⌘K', 'Ctrl K'], descriptionKey: 'navOpenSearch' },
+      { keys: ['/'], descriptionKey: 'navOpenSearchAlt' },
+      { keys: ['⌘N', 'Ctrl N'], descriptionKey: 'navCreateDocument' },
+      { keys: ['Esc Esc'], descriptionKey: 'navCloseOverlays' },
+      { keys: ['?'], descriptionKey: 'navShowHelp' },
     ]
   },
   {
-    title: 'Knowledge Sidebar',
+    titleKey: 'sidebarTitle',
     shortcuts: [
-      { keys: ['Click <'], description: 'Collapse sidebar' },
-      { keys: ['Click ☰'], description: 'Expand sidebar' },
-      { keys: ['Space'], description: 'Pick up document tab (when focused)' },
-      { keys: ['↑', '↓'], description: 'Move document tab (when dragging)' },
-      { keys: ['Space'], description: 'Drop document tab (when dragging)' },
-      { keys: ['Esc'], description: 'Cancel drag operation' },
+      { keys: ['Click <'], descriptionKey: 'sidebarCollapse' },
+      { keys: ['Click ☰'], descriptionKey: 'sidebarExpand' },
+      { keys: ['Space'], descriptionKey: 'sidebarPickup' },
+      { keys: ['↑', '↓'], descriptionKey: 'sidebarMove' },
+      { keys: ['Space'], descriptionKey: 'sidebarDrop' },
+      { keys: ['Esc'], descriptionKey: 'sidebarCancel' },
     ]
   },
   {
-    title: 'Document Annotations',
+    titleKey: 'annotationsTitle',
     shortcuts: [
-      { keys: ['H'], description: 'Create highlight from selection (direct)' },
-      { keys: ['R'], description: 'Open reference popup for selection' },
-      { keys: ['Delete'], description: 'Delete focused annotation' },
-      { keys: ['Tab'], description: 'Navigate through annotations' },
-      { keys: ['Shift Tab'], description: 'Navigate annotations backward' },
+      { keys: ['H'], descriptionKey: 'annotHighlight' },
+      { keys: ['R'], descriptionKey: 'annotReference' },
+      { keys: ['Delete'], descriptionKey: 'annotDelete' },
+      { keys: ['Tab'], descriptionKey: 'annotNavigate' },
+      { keys: ['Shift Tab'], descriptionKey: 'annotNavigateBack' },
     ]
   },
   {
-    title: 'Lists & Grids',
+    titleKey: 'listsTitle',
     shortcuts: [
-      { keys: ['←', '→'], description: 'Navigate entity type filters' },
-      { keys: ['↑', '↓', '←', '→'], description: 'Navigate document grid' },
-      { keys: ['Home'], description: 'Jump to first item' },
-      { keys: ['End'], description: 'Jump to last item' },
+      { keys: ['←', '→'], descriptionKey: 'listsFilterNav' },
+      { keys: ['↑', '↓', '←', '→'], descriptionKey: 'listsGridNav' },
+      { keys: ['Home'], descriptionKey: 'listsJumpFirst' },
+      { keys: ['End'], descriptionKey: 'listsJumpLast' },
     ]
   },
   {
-    title: 'In Search Modal',
+    titleKey: 'searchModalTitle',
     shortcuts: [
-      { keys: ['↑', '↓'], description: 'Navigate search results' },
-      { keys: ['Enter'], description: 'Select result' },
-      { keys: ['Esc'], description: 'Close search' },
+      { keys: ['↑', '↓'], descriptionKey: 'searchNav' },
+      { keys: ['Enter'], descriptionKey: 'searchSelect' },
+      { keys: ['Esc'], descriptionKey: 'searchClose' },
     ]
   },
   {
-    title: 'Modal Controls',
+    titleKey: 'modalTitle',
     shortcuts: [
-      { keys: ['Esc'], description: 'Close active modal' },
-      { keys: ['Tab'], description: 'Navigate forward through buttons' },
-      { keys: ['Shift Tab'], description: 'Navigate backward through buttons' },
-      { keys: ['Enter'], description: 'Activate focused button' },
-      { keys: ['Space'], description: 'Activate focused button' },
+      { keys: ['Esc'], descriptionKey: 'modalClose' },
+      { keys: ['Tab'], descriptionKey: 'modalNavForward' },
+      { keys: ['Shift Tab'], descriptionKey: 'modalNavBackward' },
+      { keys: ['Enter'], descriptionKey: 'modalActivate' },
+      { keys: ['Space'], descriptionKey: 'modalActivate' },
     ]
   },
   {
-    title: 'Accessibility',
+    titleKey: 'accessibilityTitle',
     shortcuts: [
-      { keys: ['Tab'], description: 'Navigate to skip links (when at page start)' },
-      { keys: ['Enter'], description: 'Follow skip link' },
+      { keys: ['Tab'], descriptionKey: 'a11ySkipLinks' },
+      { keys: ['Enter'], descriptionKey: 'a11yFollowLink' },
     ]
   }
 ];
 
 export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcutsHelpModalProps) {
+  const t = useTranslations('KeyboardShortcuts');
   const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
   return (
@@ -120,11 +122,11 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between">
                     <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-white">
-                      Keyboard Shortcuts
+                      {t('title')}
                     </DialogTitle>
                     <button
                       onClick={onClose}
-                      aria-label="Close dialog"
+                      aria-label={t('closeDialog')}
                       className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -138,9 +140,9 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
                 <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">
                   <div className="space-y-6">
                     {shortcutGroups.map((group) => (
-                      <div key={group.title}>
+                      <div key={group.titleKey}>
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                          {group.title}
+                          {t(group.titleKey)}
                         </h3>
                         <div className="space-y-2">
                           {group.shortcuts.map((shortcut, index) => (
@@ -149,7 +151,7 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
                               className="flex items-center justify-between py-1.5"
                             >
                               <span className="text-sm text-gray-600 dark:text-gray-400">
-                                {shortcut.description}
+                                {t(shortcut.descriptionKey)}
                               </span>
                               <div className="flex items-center gap-2">
                                 {shortcut.keys.map((key, keyIndex) => {
@@ -160,7 +162,7 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
                                   return (
                                     <React.Fragment key={keyIndex}>
                                       {keyIndex > 0 && !key.includes('⌘') && !key.includes('Ctrl') && (
-                                        <span className="text-xs text-gray-400 dark:text-gray-500">or</span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-500">{t('or')}</span>
                                       )}
                                       <kbd className="px-2 py-1 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded">
                                         {key}
@@ -179,11 +181,7 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
                   {/* Platform note */}
                   <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {isMac ? (
-                        <>Using Mac keyboard shortcuts. ⌘ is the Command key.</>
-                      ) : (
-                        <>Using Windows/Linux keyboard shortcuts. Ctrl is the Control key.</>
-                      )}
+                      {isMac ? t('macNote') : t('windowsNote')}
                     </p>
                   </div>
                 </div>
@@ -192,13 +190,20 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
                 <div className="px-6 py-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Press <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded">?</kbd> anytime to show this help
+                      {t('footerHint', { key: '?' }).split('?').map((part, i, arr) => (
+                        <React.Fragment key={i}>
+                          {part}
+                          {i < arr.length - 1 && (
+                            <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded">?</kbd>
+                          )}
+                        </React.Fragment>
+                      ))}
                     </div>
                     <button
                       onClick={onClose}
                       className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      Close
+                      {t('close')}
                     </button>
                   </div>
                 </div>

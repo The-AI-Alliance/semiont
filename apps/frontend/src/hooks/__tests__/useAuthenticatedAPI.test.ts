@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useAuthenticatedAPI } from '../useAuthenticatedAPI';
-import { APIError } from '@/lib/api-client';
+import { APIError } from '@/lib/api';
 
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
@@ -34,7 +34,8 @@ function createMockResponse(options: {
 describe('useAuthenticatedAPI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:4000';
+    // Note: NEXT_PUBLIC_API_URL is set to 'http://localhost:3001' in vitest.setup.js
+    // and cannot be changed at runtime since env.ts exports are constants
   });
 
   it('should return fetchAPI function and isAuthenticated flag', () => {
@@ -99,11 +100,11 @@ describe('useAuthenticatedAPI', () => {
 
     // Check URL (can be Request object or string)
     if (call[0] instanceof Request) {
-      expect(call[0].url).toBe('http://localhost:4000/api/test');
+      expect(call[0].url).toBe('http://localhost:3001/api/test');
       expect(call[0].headers.get('Content-Type')).toBe('application/json');
       expect(call[0].headers.get('Authorization')).toBe('Bearer test-token-123');
     } else {
-      expect(call[0]).toBe('http://localhost:4000/api/test');
+      expect(call[0]).toBe('http://localhost:3001/api/test');
       expect(call[1]?.headers?.['Content-Type']).toBe('application/json');
       expect(call[1]?.headers?.['Authorization']).toBe('Bearer test-token-123');
     }
@@ -136,12 +137,12 @@ describe('useAuthenticatedAPI', () => {
     if (!call) throw new Error('Expected fetch to be called');
 
     if (call[0] instanceof Request) {
-      expect(call[0].url).toBe('http://localhost:4000/api/test');
+      expect(call[0].url).toBe('http://localhost:3001/api/test');
       expect(call[0].headers.get('Content-Type')).toBe('text/plain');
       expect(call[0].headers.get('Authorization')).toBe('Bearer test-token');
       expect(call[0].headers.get('X-Custom-Header')).toBe('custom-value');
     } else {
-      expect(call[0]).toBe('http://localhost:4000/api/test');
+      expect(call[0]).toBe('http://localhost:3001/api/test');
       expect(call[1]?.headers?.['Content-Type']).toBe('text/plain');
       expect(call[1]?.headers?.['Authorization']).toBe('Bearer test-token');
       expect(call[1]?.headers?.['X-Custom-Header']).toBe('custom-value');
@@ -171,12 +172,12 @@ describe('useAuthenticatedAPI', () => {
     if (!call) throw new Error('Expected fetch to be called');
 
     if (call[0] instanceof Request) {
-      expect(call[0].url).toBe('http://localhost:4000/api/test');
+      expect(call[0].url).toBe('http://localhost:3001/api/test');
       expect(call[0].method).toBe('POST');
       expect(call[0].headers.get('Content-Type')).toBe('application/json');
       expect(call[0].headers.get('Authorization')).toBe('Bearer test-token');
     } else {
-      expect(call[0]).toBe('http://localhost:4000/api/test');
+      expect(call[0]).toBe('http://localhost:3001/api/test');
       expect(call[1]?.method).toBe('POST');
       expect(call[1]?.headers?.['Content-Type']).toBe('application/json');
       expect(call[1]?.headers?.['Authorization']).toBe('Bearer test-token');

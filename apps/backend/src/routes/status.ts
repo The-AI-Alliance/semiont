@@ -1,46 +1,36 @@
-import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
-import { StatusResponseSchema, ErrorResponseSchema } from '../openapi';
+/**
+ * Status Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - No request validation needed (GET endpoint)
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
+
+import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
-import { User } from '@prisma/client';
+import type { User } from '@prisma/client';
+import type { components } from '@semiont/api-client';
 
-// Define the status route
-export const statusRoute = createRoute({
-  method: 'get',
-  path: '/api/status',
-  summary: 'Get Service Status',
-  description: 'Get service status and feature availability',
-  tags: ['General'],
-  security: [{ bearerAuth: [] }],
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: StatusResponseSchema,
-        },
-      },
-      description: 'Service status information',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Unauthorized',
-    },
-  },
-});
+type StatusResponse = components['schemas']['StatusResponse'];
 
-// Create status router
-export const statusRouter = new OpenAPIHono<{ Variables: { user: User } }>();
+// Create status router with plain Hono
+export const statusRouter = new Hono<{ Variables: { user: User } }>();
 
 // Apply auth middleware
 statusRouter.use('/api/status', authMiddleware);
 
-statusRouter.openapi(statusRoute, async (c) => {
+/**
+ * GET /api/status
+ *
+ * Get service status and feature availability
+ * Requires authentication
+ */
+statusRouter.get('/api/status', async (c) => {
   const user = c.get('user');
-  
-  return c.json({
+
+  const response: StatusResponse = {
     status: 'operational',
     version: '0.1.0',
     features: {
@@ -50,5 +40,7 @@ statusRouter.openapi(statusRoute, async (c) => {
     },
     message: 'Ready to build the future of knowledge management!',
     authenticatedAs: user?.email,
-  }, 200);
+  };
+
+  return c.json(response, 200);
 });

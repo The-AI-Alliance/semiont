@@ -85,6 +85,7 @@ export function UserMenu({ }: UserMenuProps) {
         className="w-8 h-8 rounded-full hover:ring-2 hover:ring-blue-500 hover:ring-offset-2 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 overflow-hidden"
         aria-label={`User menu for ${displayName || 'user'}`}
         aria-expanded={isOpen}
+        aria-controls="user-menu-dropdown"
         aria-haspopup="true"
         id="user-menu-button"
       >
@@ -107,6 +108,7 @@ export function UserMenu({ }: UserMenuProps) {
       {/* Dropdown Menu */}
       {isOpen && (
         <div
+          id="user-menu-dropdown"
           className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
           role="menu"
           aria-orientation="vertical"

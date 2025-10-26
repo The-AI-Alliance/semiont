@@ -308,16 +308,16 @@ describe('Validation Library', () => {
       expect(() => OAuthUserSchema.parse(validUser)).not.toThrow();
     });
 
-    it('should handle null name and transform to undefined', () => {
+    it('should handle null name', () => {
       const userWithNullName = { ...validUser, name: null };
       const result = OAuthUserSchema.parse(userWithNullName);
-      expect(result.name).toBeUndefined();
+      expect(result.name).toBeNull();
     });
 
-    it('should handle null image and transform to undefined', () => {
+    it('should handle null image', () => {
       const userWithNullImage = { ...validUser, image: null };
       const result = OAuthUserSchema.parse(userWithNullImage);
-      expect(result.image).toBeUndefined();
+      expect(result.image).toBeNull();
     });
 
     it('should require mandatory fields', () => {

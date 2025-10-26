@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 interface SemiontBrandingProps {
   className?: string;
@@ -10,13 +11,14 @@ interface SemiontBrandingProps {
   compactTagline?: boolean;
 }
 
-export function SemiontBranding({ 
+export function SemiontBranding({
   className = "",
   size = 'lg',
   showTagline = true,
   animated = true,
   compactTagline = false
 }: SemiontBrandingProps) {
+  const t = useTranslations('Home');
   const sizeClasses = {
     sm: 'text-2xl sm:text-3xl md:text-4xl',
     md: 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl',
@@ -53,10 +55,10 @@ export function SemiontBranding({
 
       {/* Tagline */}
       {showTagline && (
-        <h2 
+        <h2
           className={`${compactTagline ? compactTaglineSizes[size] : taglineSizes[size]} text-cyan-600 dark:text-cyan-400 ${compactTagline ? '' : 'tracking-wide'} font-orbitron ${animated ? 'animate-in fade-in slide-in-from-bottom-2 duration-1000 ease-out delay-300' : ''}`}
         >
-          make meaning
+          {t('tagline')}
         </h2>
       )}
     </div>

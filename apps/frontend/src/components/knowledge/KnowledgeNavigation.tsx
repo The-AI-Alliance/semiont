@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/routing';
+import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import {
@@ -26,30 +27,31 @@ const TelescopeIcon = ({ className }: { className?: string }) => (
   <span className={className} style={{ fontSize: '1.25rem', lineHeight: '1' }}>🔭</span>
 );
 
-const fixedNavigation = [
-  {
-    name: 'Discover',
-    href: '/know/discover',
-    icon: TelescopeIcon,
-    description: 'Search and browse documents'
-  },
-  {
-    name: 'Compose',
-    href: '/know/compose',
-    icon: PlusIcon,
-    description: 'Compose a new document'
-  }
-];
-
 interface KnowledgeNavigationProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 }
 
 export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: KnowledgeNavigationProps) {
+  const t = useTranslations('Knowledge');
   const pathname = usePathname();
   const router = useRouter();
   const { openDocuments, removeDocument, reorderDocuments } = useOpenDocuments();
+
+  const fixedNavigation = [
+    {
+      name: t('discover'),
+      href: '/know/discover',
+      icon: TelescopeIcon,
+      description: t('searchAndBrowse')
+    },
+    {
+      name: t('compose'),
+      href: '/know/compose',
+      icon: PlusIcon,
+      description: t('composeNewDocument')
+    }
+  ];
 
   // Setup drag and drop sensors
   const sensors = useSensors(
@@ -101,13 +103,13 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
               {!isCollapsed ? (
                 <>
                   <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex-1">
-                    Knowledge
+                    {t('title')}
                   </div>
                   <button
                     onClick={onToggleCollapse}
                     className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 flex-shrink-0"
-                    title="Collapse sidebar"
-                    aria-label="Collapse sidebar"
+                    title={t('collapseSidebar')}
+                    aria-label={t('collapseSidebar')}
                   >
                     <ChevronLeftIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                   </button>
@@ -116,8 +118,8 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
                 <button
                   onClick={onToggleCollapse}
                   className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 mx-auto"
-                  title="Expand sidebar"
-                  aria-label="Expand sidebar"
+                  title={t('expandSidebar')}
+                  aria-label={t('expandSidebar')}
                 >
                   <Bars3Icon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                 </button>

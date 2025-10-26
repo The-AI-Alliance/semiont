@@ -11,7 +11,7 @@ describe('Markdown Annotations', () => {
     it('should render resolved references with blue styling', async () => {
       const markdown = `Zeus was the king of the gods.`;
       const annotations = [
-        { id: 'ann-1', exact: 'Zeus', offset: 0, length: 4, type: 'reference' as const, referencedDocumentId: 'doc-123' }
+        { id: 'ann-1', exact: 'Zeus', offset: 0, length: 4, type: 'reference' as const, source: 'doc-123' }
       ];
 
       const result = await unified()
@@ -115,7 +115,7 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
       });
 
       // Should contain both stub reference (red text) and highlight styles
-      expect(html).toContain('text-red-600'); // stub reference style (no referencedDocumentId)
+      expect(html).toContain('text-red-600'); // stub reference style (no source)
       expect(html).toContain('bg-yellow-200'); // highlight style
     });
 
@@ -209,7 +209,7 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
       expect(html).toContain('data-annotation-type="highlight"');
       expect(html).toContain('bg-yellow-200');
 
-      // ann-10 is a stub reference (fourth Zeus) - should have red text (no referencedDocumentId)
+      // ann-10 is a stub reference (fourth Zeus) - should have red text (no source)
       expect(html).toContain('data-annotation-id="ann-10"');
       expect(html).toContain('data-annotation-type="reference"');
       expect(html).toContain('text-red-600');

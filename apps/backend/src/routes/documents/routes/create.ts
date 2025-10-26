@@ -1,100 +1,109 @@
-import { createRoute } from '@hono/zod-openapi';
-import { getStorageService } from '../../../storage/filesystem';
-import { CREATION_METHODS, type CreationMethod } from '@semiont/core-types';
-import { calculateChecksum } from '@semiont/utils';
-import type { DocumentsRouterType } from '../shared';
-import { CreateDocumentRequestSchema, CreateDocumentResponseSchema } from '../schemas';
-import { emitDocumentCreated } from '../../../events/emit';
+/**
+ * Create Document Route - Spec-First Version
+ *
+ * Migrated from code-first to spec-first architecture:
+ * - Uses plain Hono (no @hono/zod-openapi)
+ * - Validates request body with validateRequestBody middleware
+ * - Types from generated OpenAPI types
+ * - OpenAPI spec is the source of truth
+ */
 
-export const createDocumentRoute = createRoute({
-  method: 'post',
-  path: '/api/documents',
-  summary: 'Create Document',
-  description: 'Create a new document',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: CreateDocumentRequestSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    201: {
-      content: {
-        'application/json': {
-          schema: CreateDocumentResponseSchema,
-        },
-      },
-      description: 'Document created successfully',
-    },
-  },
-});
+import { createContentManager } from '../../../services/storage-service';
+import {
+  CREATION_METHODS,
+  type CreationMethod,
+  calculateChecksum,
+} from '@semiont/core';
+import type { DocumentsRouterType } from '../shared';
+import { createEventStore } from '../../../services/event-store-service';
+import { validateRequestBody } from '../../../middleware/validate-openapi';
+import type { components } from '@semiont/api-client';
+import { userToAgent } from '../../../utils/id-generator';
+import { getFilesystemConfig } from '../../../config/environment-loader';
+
+type CreateDocumentRequest = components['schemas']['CreateDocumentRequest'];
+type CreateDocumentResponse = components['schemas']['CreateDocumentResponse'];
+type Document = components['schemas']['Document'];
 
 export function registerCreateDocument(router: DocumentsRouterType) {
-  router.openapi(createDocumentRoute, async (c) => {
-    const body = c.req.valid('json');
-    const user = c.get('user');
-    const storage = getStorageService();
+  /**
+   * POST /api/documents
+   *
+   * Create a new document
+   * Requires authentication
+   * Validates request body against CreateDocumentRequest schema
+   */
+  router.post('/api/documents',
+    validateRequestBody('CreateDocumentRequest'),
+    async (c) => {
+      const body = c.get('validatedBody') as CreateDocumentRequest;
+      const user = c.get('user');
+      const basePath = getFilesystemConfig().path;
+      const contentManager = createContentManager(basePath);
 
-    const checksum = calculateChecksum(body.content);
-    const documentId = `doc-sha256:${checksum}`;
+      const checksum = calculateChecksum(body.content);
+      const documentId = `doc-sha256:${checksum}`;
 
-    // Save to filesystem (Layer 1)
-    await storage.saveDocument(documentId, Buffer.from(body.content));
+      // Save to filesystem (Layer 1)
+      await contentManager.save(documentId, Buffer.from(body.content));
 
-    // Subscribe GraphDB consumer to new document BEFORE emitting event
-    // This ensures the consumer receives the document.created event
-    try {
-      const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
-      const consumer = await getGraphConsumer();
-      await consumer.subscribeToDocument(documentId);
-    } catch (error) {
-      console.error('[CreateDocument] Failed to subscribe GraphDB consumer:', error);
-      // Don't fail the request - consumer can catch up later
-    }
+      // Subscribe GraphDB consumer to new document BEFORE emitting event
+      // This ensures the consumer receives the document.created event
+      try {
+        const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
+        const consumer = await getGraphConsumer();
+        await consumer.subscribeToDocument(documentId);
+      } catch (error) {
+        console.error('[CreateDocument] Failed to subscribe GraphDB consumer:', error);
+        // Don't fail the request - consumer can catch up later
+      }
 
-    // Validate and use creationMethod from request body, or default to API
-    const validCreationMethods = Object.values(CREATION_METHODS) as string[];
-    const creationMethod: CreationMethod = body.creationMethod && validCreationMethods.includes(body.creationMethod)
-      ? body.creationMethod as CreationMethod
-      : CREATION_METHODS.API;
+      // Validate and use creationMethod from request body, or default to API
+      const validCreationMethods = Object.values(CREATION_METHODS) as string[];
+      const creationMethod: CreationMethod = body.creationMethod && validCreationMethods.includes(body.creationMethod)
+        ? body.creationMethod as CreationMethod
+        : CREATION_METHODS.API;
 
-    // Emit document.created event (consumer will update GraphDB)
-    const eventMetadata = {
-      ...(body.metadata || {}),
-      creationMethod,
-    };
-    console.log('[CreateDocument] Event metadata:', eventMetadata);
+      // Emit document.created event (consumer will update GraphDB)
+      const eventStore = await createEventStore(basePath);
+      await eventStore.appendEvent({
+        type: 'document.created',
+        documentId,
+        userId: user.id,
+        version: 1,
+        payload: {
+          name: body.name,
+          format: body.format,
+          contentChecksum: checksum,
+          creationMethod,
+          entityTypes: body.entityTypes,
+          language: body.language,
+          isDraft: false,
+          generatedFrom: undefined,
+          generationPrompt: undefined,
+        },
+      });
 
-    await emitDocumentCreated({
-      documentId,
-      userId: user.id,
-      name: body.name,
-      contentType: body.contentType || 'text/plain',
-      contentHash: checksum,
-      entityTypes: body.entityTypes || [],
-      metadata: eventMetadata,
-    });
-
-    // Return optimistic response
-    return c.json({
-      document: {
+      // Return optimistic response
+      const documentMetadata: Document = {
         id: documentId,
         name: body.name,
         archived: false,
-        contentType: body.contentType || 'text/plain',
-        metadata: body.metadata || {},
-        entityTypes: body.entityTypes || [],
+        format: body.format,
+        entityTypes: body.entityTypes,
+        language: body.language,
         creationMethod,
         contentChecksum: checksum,
-        createdBy: user.id,
-        createdAt: new Date().toISOString(),
-      },
-      annotations: [],
-    }, 201);
-  });
+        creator: userToAgent(user),
+        created: new Date().toISOString(),
+      };
+
+      const response: CreateDocumentResponse = {
+        document: documentMetadata,
+        annotations: [],
+      };
+
+      return c.json(response, 201);
+    }
+  );
 }

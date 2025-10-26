@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname } from '@/i18n/routing';
+import { Link } from '@/i18n/routing';
+import { useTranslations } from 'next-intl';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { DocumentTextIcon, XMarkIcon } from '@heroicons/react/24/outline';
@@ -20,6 +21,7 @@ interface SortableDocumentTabProps {
 }
 
 export function SortableDocumentTab({ doc, isCollapsed, onClose }: SortableDocumentTabProps) {
+  const t = useTranslations('SortableDocumentTab');
   const pathname = usePathname();
   const docHref = `/know/document/${doc.id}`;
   const isActive = pathname === docHref;
@@ -63,8 +65,8 @@ export function SortableDocumentTab({ doc, isCollapsed, onClose }: SortableDocum
             {...attributes}
             {...listeners}
             className="flex-shrink-0 -ml-1 mr-3 cursor-move"
-            title="Drag to reorder"
-            aria-label={`Drag to reorder ${doc.name}`}
+            title={t('dragToReorder')}
+            aria-label={t('dragToReorderDoc', { name: doc.name })}
             aria-describedby="drag-instructions"
             role="button"
             tabIndex={0}
@@ -102,7 +104,7 @@ export function SortableDocumentTab({ doc, isCollapsed, onClose }: SortableDocum
         <button
           onClick={(e) => onClose(doc.id, e)}
           className="ml-1 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
-          title="Close document"
+          title={t('closeDocument')}
         >
           <XMarkIcon className="h-3 w-3 text-gray-500 dark:text-gray-400" />
         </button>
