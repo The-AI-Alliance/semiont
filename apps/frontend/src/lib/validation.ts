@@ -156,15 +156,23 @@ export const OAuthUserSchema = {
       throw new Error('isModerator must be a boolean');
     }
 
-    return {
+    const result: OAuthUser = {
       id: user.id,
       email: user.email,
-      name: user.name === undefined ? null : (user.name as string | null),
-      image: user.image === undefined ? null : (user.image as string | null),
       domain: user.domain,
       isAdmin: user.isAdmin,
       isModerator: user.isModerator,
     };
+
+    // Only add optional fields if they exist
+    if (user.name !== undefined) {
+      result.name = user.name as string | null;
+    }
+    if (user.image !== undefined) {
+      result.image = user.image as string | null;
+    }
+
+    return result;
   },
 
   safeParse(data: unknown): ValidationResult<OAuthUser> {
