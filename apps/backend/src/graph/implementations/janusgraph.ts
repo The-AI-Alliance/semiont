@@ -17,7 +17,6 @@ import type {
 } from '@semiont/core';
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
-import { uriToDocumentId } from '../../lib/uri-utils';
 
 type Document = components['schemas']['Document'];
 type Annotation = components['schemas']['Annotation'];
@@ -371,7 +370,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     const vertex = this.g!
       .addV('Annotation')
       .property('id', id)
-      .property('documentId', uriToDocumentId(targetSource)) // Extract ID from URI for graph storage
+      .property('documentId', targetSource) // Store full URI
       .property('text', targetSelector ? getExactText(targetSelector) : '')
       .property('selector', JSON.stringify(targetSelector || {}))
       .property('type', bodyType)

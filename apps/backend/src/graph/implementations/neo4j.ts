@@ -18,7 +18,6 @@ import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
-import { uriToDocumentId } from '../../lib/uri-utils';
 
 type Document = components['schemas']['Document'];
 type Annotation = components['schemas']['Annotation'];
@@ -360,9 +359,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const targetSelector = getTargetSelector(input.target);
       const bodySource = getBodySource(input.body);
 
-      // Extract document IDs from URIs for graph storage
-      const documentId = uriToDocumentId(targetSource);
-
       // Extract entity types from TextualBody bodies with purpose: "tagging"
       const entityTypes = getEntityTypes(input);
 
@@ -413,9 +409,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       const params: any = {
         id,
-        documentId: documentId, // Use extracted short ID
-        fromId: documentId, // Use extracted short ID
-        toId: bodySource ? uriToDocumentId(bodySource) : null, // Extract ID from body source URI
+        documentId: targetSource, // Store full URI
+        fromId: targetSource, // Store full URI
+        toId: bodySource || null, // Store full URI
         exact: targetSelector ? getExactText(targetSelector) : '',
         selector: JSON.stringify(targetSelector || {}),
         type: 'SpecificResource',
