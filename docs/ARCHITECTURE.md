@@ -62,6 +62,7 @@ graph TB
 
     %% API calls (client-side from browser)
     USER -->|REST + JWT| BE
+    USER -->|SSE + JWT| BE
     MCP -->|REST + JWT| BE
 
     %% Backend to data (write path)
@@ -102,8 +103,8 @@ graph TB
 **Component Details**:
 
 - **OAuth Providers**: Google OAuth 2.0 for user authentication
-- **Frontend**: Next.js 14 web application with NextAuth.js (OAuth handler only, browser calls backend directly)
-- **Backend API**: Hono server with JWT validation implementing W3C Web Annotation Data Model
+- **Frontend**: Next.js 14 web application with NextAuth.js (OAuth handler only, browser calls backend directly via REST and SSE)
+- **Backend API**: Hono server with JWT validation implementing W3C Web Annotation Data Model, provides SSE streams for real-time updates
 - **MCP Server**: Model Context Protocol for AI agent integration (uses JWT refresh tokens)
 - **Content Store**: Binary/text files, 65K shards, O(1) access
 - **Event Store**: Immutable JSONL event log, source of truth
@@ -118,6 +119,8 @@ graph TB
 
 - **Authentication**: Browser → Google OAuth → Frontend Server (NextAuth.js exchanges token) → Backend (verify + generate JWT) → Database (create/update user) → JWT stored in browser session
 - **API Calls**: Browser → Backend (validate JWT) → Data layers
+- **Real-Time Updates**: Browser → Backend SSE stream (validate JWT) → Event Store subscriptions → Browser receives events
+- **Job Progress**: Browser → Backend SSE stream (validate JWT) → Job Worker polling → Browser receives progress updates
 - **Write Path**: Browser → Backend (validate JWT) → Content Store + Event Store → Projections → Graph
 - **Read Path**: Browser → Backend (validate JWT) → Projections or Graph → Response
 - **Job Processing**: Browser → Backend → Job Worker → Inference → Event Store
