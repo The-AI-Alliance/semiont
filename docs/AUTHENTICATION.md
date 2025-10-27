@@ -18,46 +18,49 @@ The authentication system has three main components:
 ## Authentication Flow Diagram
 
 ```mermaid
-graph TD
+graph TB
     subgraph "Browser"
-        User[User Login]
-        Session[Session Cookie]
+        User[User]
+        Session[Session Cookie<br/>with JWT]
     end
 
-    subgraph "Frontend - Next.js"
-        NextAuth[NextAuth.js]
-        Pages[Protected Pages]
+    subgraph "Frontend Server"
+        NextAuth[NextAuth.js<br/>OAuth Handler]
     end
 
     subgraph "OAuth Provider"
         Google[Google OAuth 2.0]
     end
 
-    subgraph "Backend - Hono"
+    subgraph "Backend API"
+        TokenGen[Token Generator]
         JWT[JWT Validator]
         API[Protected APIs]
-        TokenGen[Token Generator]
     end
 
     subgraph "Database"
         Users[(Users Table)]
     end
 
-    User -->|1. Login| NextAuth
-    NextAuth -->|2. OAuth Flow| Google
-    Google -->|3. User Info| NextAuth
-    NextAuth -->|4. Create Session| Session
-    NextAuth -->|5. Store User| Users
+    %% OAuth flow (server-side only)
+    User -.->|1. Login| NextAuth
+    NextAuth -.->|2. OAuth Flow| Google
+    Google -.->|3. OAuth Token| NextAuth
+    NextAuth -.->|4. Exchange Token| TokenGen
+    TokenGen -.->|5. JWT| NextAuth
+    TokenGen -.->|6. Create/Update User| Users
+    NextAuth -.->|7. Store JWT| Session
 
-    Pages -->|6. API Request + JWT| JWT
-    JWT -->|7. Validate| API
-    API -->|8. Response| Pages
+    %% API calls (client-side from browser)
+    User -->|8. API Request + JWT| JWT
+    JWT -->|9. Validate| API
+    API -->|10. Response| User
 
     subgraph "MCP Client Flow"
         MCP[MCP Client]
-        MCP -->|Browser Auth| NextAuth
-        NextAuth -->|Get Token| TokenGen
-        TokenGen -->|Refresh Token| MCP
+        MCP -.->|Browser Auth| NextAuth
+        NextAuth -.->|Generate Refresh Token| TokenGen
+        TokenGen -.->|30-day Refresh Token| MCP
     end
 ```
 
@@ -73,19 +76,25 @@ graph TD
 
 ### Authentication Flow
 
+**OAuth Login** (server-side, happens once):
 ```
-1. User Login (Frontend)
-   ↓
-2. Google OAuth 2.0
-   ↓
-3. Backend validates OAuth token
-   ↓
-4. Backend issues JWT token
-   ↓
-5. Frontend includes JWT in API requests
-   ↓
-6. Backend validates JWT on each request
+1. Browser → Frontend Server (NextAuth.js) → Google OAuth
+2. Google returns OAuth token → Frontend Server
+3. Frontend Server → Backend (exchange OAuth token)
+4. Backend validates with Google, generates JWT
+5. Frontend Server stores JWT in session cookie
 ```
+
+**API Calls** (client-side, every request):
+```
+Browser → Backend (with JWT from session) → Validate & Respond
+```
+
+**Key Architecture Points**:
+- **Frontend Server** only handles OAuth callback (not a proxy for API calls)
+- **Browser** calls Backend API directly using `NEXT_PUBLIC_API_URL`
+- **JWT token** stored in NextAuth session cookie, included in API requests
+- **Backend** is public-facing (accessible from browser)
 
 ## Endpoint Protection
 

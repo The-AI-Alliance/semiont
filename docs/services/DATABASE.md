@@ -1,21 +1,24 @@
 # Database Management Guide
 
-This guide explains how Semiont manages its PostgreSQL database, including schema management, migrations, and operational procedures.
+This guide explains how Semiont manages its PostgreSQL database for **user authentication**, including schema management, migrations, and operational procedures.
+
+**Important**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata is stored in the Event Store (JSONL files) and Projections (sharded JSON files) - see [ARCHITECTURE.md](../ARCHITECTURE.md).
 
 ## Overview
 
-Semiont uses PostgreSQL as its primary database, managed through AWS RDS with the following components:
+Semiont uses PostgreSQL **exclusively for user authentication**, managed through AWS RDS with the following components:
 
 - **Database Engine**: PostgreSQL 15.x on AWS RDS
-- **ORM**: Prisma for schema definition and database access
+- **ORM**: Prisma for schema definition and database access ([see schema](../../apps/backend/prisma/schema.prisma))
 - **Migration Strategy**: Automatic migrations on backend startup
 - **Connection Management**: Connection pooling via Prisma Client
+- **Scope**: User authentication ONLY - no document/annotation metadata
 
-**Event-Sourced Architecture**: Semiont uses an event-sourced architecture for annotations. The PostgreSQL database contains both:
-- **Layer 2 (Event Store)**: Immutable event log in JSONL files - source of truth for all annotation changes (see [EVENT-STORE.md](./EVENT-STORE.md))
-- **Layer 3 (Projection)**: Materialized current state - filesystem JSON files and `annotations` table in PostgreSQL - optimized for fast queries (see [PROJECTION.md](./PROJECTION.md))
+**Event-Sourced Architecture**: Semiont uses an event-sourced architecture where all document and annotation metadata flows through:
+- **Event Store**: Immutable event log in JSONL files - source of truth for all changes (see [EVENT-STORE.md](./EVENT-STORE.md))
+- **Projections**: Materialized current state in sharded JSON files on filesystem - optimized for fast queries (see [PROJECTION.md](./PROJECTION.md))
 
-See [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md), [EVENT-STORE.md](./EVENT-STORE.md), and [PROJECTION.md](./PROJECTION.md) for detailed architecture and how annotations flow through all layers.
+**PostgreSQL does NOT store document or annotation metadata** - it only stores user authentication data (users table). See [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md), [EVENT-STORE.md](./EVENT-STORE.md), and [PROJECTION.md](./PROJECTION.md) for how annotations flow through the system.
 
 ## Database Architecture
 
@@ -156,25 +159,27 @@ semiont exec --service backend "npx prisma db push --force-reset"
 
 ### Adding New Tables
 
-1. Add the new model to `schema.prisma`:
+**Note**: PostgreSQL is used ONLY for user authentication. Do NOT add document or annotation models here - those belong in the Event Store and Projections (JSON files).
+
+Example: Adding an audit log for user authentication events:
 
 ```prisma
-model Article {
+model AuditLog {
   id        String   @id @default(cuid())
-  title     String
-  content   String
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
+  userId    String
+  action    String   // 'login', 'logout', 'password_reset', etc.
+  ipAddress String?
+  userAgent String?
+  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  @@map("articles")
+  @@map("audit_logs")
 }
 
 // Update User model to include relation
 model User {
   // ... existing fields
-  articles  Article[]
+  auditLogs  AuditLog[]
 }
 ```
 

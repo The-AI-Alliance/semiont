@@ -50,56 +50,60 @@ The Semiont frontend is a Next.js 14 application using the App Router with React
 
 ### Request Routing
 
-The frontend handles three types of requests with path-based routing:
+The application handles three types of requests with path-based routing:
 
 ```mermaid
 sequenceDiagram
     participant Browser
     participant CDN
     participant LoadBalancer
-    participant Frontend
+    participant FrontendServer as Frontend Server<br/>(NextAuth Only)
     participant Backend
 
     Browser->>CDN: HTTPS Request
     CDN->>LoadBalancer: Forward Request
 
     alt OAuth Flow (/auth/*)
-        LoadBalancer->>Frontend: Route to NextAuth
-        Frontend->>Browser: Handle OAuth
-    else API Call (/api/*)
+        LoadBalancer->>FrontendServer: Route to NextAuth
+        FrontendServer->>Backend: Exchange OAuth Token
+        Backend-->>FrontendServer: JWT
+        FrontendServer->>Browser: Session Cookie with JWT
+    else API Call (/api/* from browser)
         LoadBalancer->>Backend: Route to Backend API
         Backend-->>LoadBalancer: JSON Response
         LoadBalancer-->>CDN: Response
+        CDN-->>Browser: Response
     else UI Request (/*)
-        LoadBalancer->>Frontend: Route to Next.js
-        Frontend->>Backend: API Request (if needed)
-        Backend-->>Frontend: JSON Data
-        Frontend-->>LoadBalancer: HTML/React
+        LoadBalancer->>FrontendServer: Route to Next.js
+        FrontendServer-->>LoadBalancer: HTML/React
         LoadBalancer-->>CDN: Response
+        CDN-->>Browser: HTML/React (browser then calls /api/*)
     end
-
-    CDN-->>Browser: Cached Response
 ```
 
 **Path-Based Routing:**
 
-- **`/auth/*`** → Frontend (NextAuth.js OAuth flows)
+- **`/auth/*`** → Frontend Server (NextAuth.js OAuth flows, server-side only)
   - OAuth login/callback handling
-  - Session management
-  - No backend API calls during auth
+  - Token exchange with backend
+  - Session cookie management
 
-- **`/api/*`** → Backend API (proxied through load balancer)
+- **`/api/*`** → Backend API (called directly from browser)
   - All REST API endpoints
   - WebSocket connections
   - SSE streams
+  - Browser includes JWT from session cookie
 
-- **`/*`** → Frontend (Default - Next.js App Router)
+- **`/*`** → Frontend Server (Next.js SSR/SSG)
   - Server-side rendering
   - Static pages
-  - Client-side navigation
-  - Makes `/api/*` calls to backend as needed
+  - Delivers React app to browser
+  - Browser then makes `/api/*` calls directly to backend
 
-This separation ensures clean boundaries between authentication, API, and UI concerns.
+**Key Architecture Points:**
+- Frontend server handles OAuth callback ONLY
+- Browser calls backend API directly (not proxied by frontend)
+- JWT stored in session cookie, included in browser API requests
 
 ## Authentication Architecture
 

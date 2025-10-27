@@ -1,6 +1,6 @@
 # Semiont Backend
 
-A type-safe Node.js backend API following the Backend for Frontend (BFF) pattern, providing comprehensive document management, text selection capabilities, and graph-based knowledge organization. Built with Hono framework, featuring automatic OpenAPI documentation, JWT authentication, and integration with graph databases for managing document relationships and entity references.
+A type-safe Node.js backend API providing comprehensive document management, W3C Web Annotation support, and graph-based knowledge organization. Built with Hono framework, featuring spec-first OpenAPI validation, JWT authentication, and integration with graph databases for managing document relationships and entity references.
 
 ## Quick Links
 
@@ -16,7 +16,7 @@ A type-safe Node.js backend API following the Backend for Frontend (BFF) pattern
 - **[W3C Web Annotation Implementation](../../specs/docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, projections, graph database)
 - **[API Client Package](../../packages/api-client/)** - Type-safe TypeScript client for consuming the backend API
 - **[Core Package](../../packages/core/)** - Shared types, utilities, and business logic
-- **[OpenAPI Specification](./public/openapi.json)** - Generated OpenAPI 3.0 schema
+- **[OpenAPI Specification](../../specs/openapi.json)** - Hand-written OpenAPI 3.0 schema (spec-first)
 
 ## Quick Start
 
@@ -55,14 +55,14 @@ npm run dev
 
 ## Technology Stack
 
-- **Architecture**: Backend for Frontend (BFF) pattern
+- **Architecture**: Public REST API (browser-accessible)
 - **Runtime**: Node.js with TypeScript
-- **Web Framework**: [OpenAPIHono](https://hono.dev/) - Hono with integrated OpenAPI documentation
+- **Web Framework**: [Hono](https://hono.dev/) - Fast, lightweight web framework
 - **Database**: PostgreSQL with [Prisma ORM](https://prisma.io/)
 - **Graph Database**: Neptune (AWS production) / In-memory (local development)
 - **Authentication**: JWT with OAuth 2.0 (Google)
-- **Validation**: [Zod](https://zod.dev/) for runtime type validation
-- **API Documentation**: Automatic OpenAPI/Swagger generation
+- **Validation**: [Ajv](https://ajv.js.org/) for OpenAPI schema validation
+- **API Documentation**: Hand-written OpenAPI 3.0 specification (spec-first approach)
 - **Document Processing**: Markdown parsing with wiki-link and entity detection
 - **MCP Integration**: Model Context Protocol server for AI assistant access
 
@@ -179,9 +179,9 @@ apps/backend/
 │   └── index.ts              # Main application
 ├── prisma/
 │   └── schema.prisma         # Database schema
-├── public/
-│   └── openapi.json          # Generated OpenAPI spec
 └── README.md                 # This file
+
+Note: OpenAPI specification is maintained at `../../specs/openapi.json` (project root)
 ```
 
 ## Core Design Principles
@@ -224,10 +224,11 @@ Features:
 - 📊 Schema visualization
 
 ### OpenAPI Specification
-- **Endpoint**: `/doc` - Raw OpenAPI 3.0 spec
-- **File**: [public/openapi.json](./public/openapi.json)
-- **Auto-generated** from Hono route definitions with Zod schemas
-- **Type-safe** with full TypeScript definitions
+- **Endpoint**: `/api/openapi.json` - Raw OpenAPI 3.0 spec
+- **File**: [../../specs/openapi.json](../../specs/openapi.json)
+- **Spec-first approach** - Hand-written specification, backend validates against it
+- **Type generation** - Frontend types generated from spec via `openapi-typescript`
+- **Validation** - Backend uses Ajv to validate requests against schemas
 
 ## Common Tasks
 

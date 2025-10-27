@@ -14,31 +14,35 @@ Semiont transforms unstructured text into a queryable knowledge graph using W3C 
 - **Spec-First Development**: Types generated from OpenAPI specification, not the reverse
 - **Platform Agnostic**: Services run on local processes, containers, or cloud infrastructure
 
-**For Executives**: This is a knowledge management system designed to outlive specific vendors or platforms. W3C compliance means your data exports as standard JSON-LD that any compatible system can consume.
+This is a knowledge management system designed to outlive specific vendors or platforms. W3C compliance means your data exports as standard JSON-LD that any compatible system can consume.
 
-**For Architects**: Event sourcing provides complete audit trails. The 4-layer model allows rebuilding any downstream state from the immutable event log. All services communicate via REST APIs with OpenAPI contracts.
+Event sourcing provides complete audit trails. The 4-layer model allows rebuilding any downstream state from the immutable event log. All services communicate via REST APIs with OpenAPI contracts.
 
 ## System Architecture
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
+    subgraph "Client"
         USER[User Browser]
         AI[AI Agents]
         MCP[MCP Server]
     end
 
-    subgraph "Application Layer"
-        FE[Frontend]
-        BE[Backend API]
+    subgraph "Identity"
+        OAUTH[OAuth Providers<br/>Google]
     end
 
-    subgraph "Data Layer"
-        L1[Layer 1: Content Store]
-        L2[Layer 2: Event Store]
-        L3[Layer 3: Projections]
-        L4[Layer 4: Graph]
-        DB[(Database)]
+    subgraph "Application"
+        FE[Frontend<br/>NextAuth.js]
+        BE[Backend API<br/>JWT Auth]
+    end
+
+    subgraph "Data"
+        CONTENT[Content Store]
+        EVENTS[Event Store]
+        PROJ[Projections]
+        GRAPH[Graph]
+        DB[(Database<br/>Users Only)]
         SEC[Secrets]
     end
 
@@ -51,64 +55,81 @@ graph TB
     USER -->|HTTPS| FE
     AI -->|MCP Protocol| MCP
 
-    %% Application layer
-    FE -->|REST API| BE
-    MCP -->|REST API| BE
+    %% OAuth flow (server-side only)
+    USER -.->|OAuth| OAUTH
+    OAUTH -.->|Token| FE
+    FE -.->|Exchange Token| BE
 
-    %% Backend to data layers (write path)
-    BE -->|Write Content| L1
-    BE -->|Append Events| L2
-    BE -->|Auth/Users| DB
+    %% API calls (client-side from browser)
+    USER -->|REST + JWT| BE
+    USER -->|SSE + JWT| BE
+    MCP -->|REST + JWT| BE
+
+    %% Backend to data (write path)
+    BE -->|Write Content| CONTENT
+    BE -->|Append Events| EVENTS
+    BE -->|Create/Update Users| DB
     BE -.->|Future| SEC
 
     %% Event-driven flow
-    L2 -.->|Project| L3
-    L3 -.->|Sync| L4
+    EVENTS -.->|Project| PROJ
+    PROJ -.->|Sync| GRAPH
 
     %% Backend reads
-    BE -->|Read Content| L1
-    BE -->|Query State| L3
-    BE -->|Graph Queries| L4
+    BE -->|Read Content| CONTENT
+    BE -->|Query State| PROJ
+    BE -->|Graph Queries| GRAPH
 
     %% Compute services
     BE -->|Generate/Detect| INF
     BE -->|Queue Jobs| JW
-    JW -->|Emit Events| L2
+    JW -->|Emit Events| EVENTS
     JW -->|Use AI| INF
+
+    %% SSE event flow (real-time updates back to browser)
+    EVENTS -.->|Subscribe| BE
+    BE -.->|SSE: Events| USER
 
     %% Styling - darker fills ensure text contrast in both light and dark modes
     classDef client fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+    classDef identity fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
     classDef app fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
     classDef data fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef compute fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class USER,AI,MCP client
+    class OAUTH identity
     class FE,BE app
-    class L1,L2,L3,L4,DB,SEC data
+    class CONTENT,EVENTS,PROJ,GRAPH,DB,SEC data
     class INF,JW compute
 ```
 
 **Component Details**:
 
-- **Frontend**: Next.js 14 web application with SSR/SSG
-- **Backend API**: Hono server implementing W3C Web Annotation Data Model
-- **MCP Server**: Model Context Protocol for AI agent integration
-- **Layer 1 (Content Store)**: Binary/text files, 65K shards, O(1) access
-- **Layer 2 (Event Store)**: Immutable JSONL event log, source of truth
-- **Layer 3 (Projections)**: Materialized views in PostgreSQL + JSON files
-- **Layer 4 (Graph)**: Neo4j/Neptune for relationship queries
-- **Database**: PostgreSQL for users and authentication
+- **OAuth Providers**: Google OAuth 2.0 for user authentication
+- **Frontend**: Next.js 14 web application with NextAuth.js (OAuth handler only, browser calls backend directly via REST and SSE)
+- **Backend API**: Hono server with JWT validation implementing W3C Web Annotation Data Model, provides SSE streams for real-time updates
+- **MCP Server**: Model Context Protocol for AI agent integration (uses JWT refresh tokens)
+- **Content Store**: Binary/text files, 65K shards, O(1) access
+- **Event Store**: Immutable JSONL event log, source of truth
+- **Projections**: Materialized views in sharded JSON files
+- **Graph**: Neo4j/Neptune for relationship queries
+- **Database**: PostgreSQL for user authentication ONLY (not document/annotation metadata)
 - **Secrets**: Planned credential management integration
 - **Inference**: External LLM APIs (Anthropic Claude, OpenAI)
 - **Job Worker**: Background job processing (prototype, embedded in backend)
 
 **Key Flows**:
 
-- **Write Path**: User → Frontend → Backend → Content Store (L1) + Event Store (L2) → Projections (L3) → Graph (L4)
-- **Read Path**: User → Frontend → Backend → Projections (L3) or Graph (L4) → Response
-- **Job Processing**: User → Frontend → Backend → Job Worker → Inference → Event Store (L2)
-- **Event Sourcing**: All writes create immutable events (L2), projections (L3) rebuilt from events
-- **Graph Sync**: Graph database (L4) updated automatically via event subscriptions
+- **Authentication**: Browser → Google OAuth → Frontend Server (NextAuth.js exchanges token) → Backend (verify + generate JWT) → Database (create/update user) → JWT stored in browser session
+- **API Calls**: Browser → Backend (validate JWT) → Data layers
+- **Write Path**: Browser → Backend (validate JWT) → Content Store + Event Store → Projections → Graph
+- **Read Path**: Browser → Backend (validate JWT) → Projections or Graph → Response
+- **Job Processing**: Browser → Backend → Job Worker → Inference → Event Store (emits completion events)
+- **Real-Time Events (SSE)**: Job Worker emits events → Event Store → Backend subscribes → SSE stream → Browser
+- **Job Progress (SSE)**: Browser → Backend SSE stream → Polls Job Worker filesystem queue (500ms) → Browser receives progress updates
+- **Event Sourcing**: All writes create immutable events, projections rebuilt from events
+- **Graph Sync**: Graph database updated automatically via event subscriptions
 
 ## Application Services
 
@@ -144,14 +165,16 @@ The application layer consists of server-side services that handle user requests
 - Event sourcing for all document and annotation mutations
 - 4-layer data architecture (detailed below)
 - JWT validation and role-based access control
-- OpenAPI specification generation from route definitions
+- Request validation against OpenAPI specification
 
 **Key Architectural Decisions**:
 
-- Hono chosen for performance and automatic OpenAPI generation
-- Event Store (Layer 2) is source of truth, not database
-- Projections (Layer 3) rebuilt from events on demand
-- Graph database (Layer 4) maintained via event subscriptions
+- Hono chosen for performance and lightweight routing
+- OpenAPI specification is hand-written (spec-first approach)
+- Backend validates requests against spec, not vice versa
+- Event Store is source of truth, not database
+- Projections rebuilt from events on demand
+- Graph database maintained via event subscriptions
 
 **Documentation**: [Backend README](../apps/backend/README.md)
 
@@ -177,7 +200,7 @@ The application layer consists of server-side services that handle user requests
 
 The 4-layer architecture separates concerns while maintaining a clear dependency hierarchy.
 
-### Layer 1: Content Store
+### Content Store
 
 **Purpose**: Raw document storage (text, binary, PDFs)
 
@@ -190,17 +213,17 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 - Supports streaming for large files
 - Platform-agnostic (local filesystem, EFS, S3)
 
-**Why This Matters**: Storing content separately from metadata allows independent scaling. A 1GB PDF doesn't bloat your database. Content can live on cheap object storage while metadata stays in PostgreSQL.
+**Why This Matters**: Storing content separately from metadata allows independent scaling. A 1GB PDF doesn't bloat your Event Store or Projections. Content can live on cheap object storage (S3/EFS) while metadata flows through Event Store → Projections (JSON files).
 
 **Filesystem Backend**: Content Store uses the [Filesystem](./services/FILESYSTEM.md) service for physical storage (local filesystem, AWS S3, AWS EFS).
 
 **Documentation**: [CONTENT-STORE.md](./services/CONTENT-STORE.md)
 
-### Layer 2: Event Store
+### Event Store
 
 **Purpose**: Immutable event log (source of truth for all changes)
 
-**Technology**: Append-only JSONL files, sharded like Layer 1
+**Technology**: Append-only JSONL files, sharded like Content Store
 
 **Event Types**:
 
@@ -219,30 +242,31 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Documentation**: [EVENT-STORE.md](./services/EVENT-STORE.md)
 
-### Layer 3: Projection Store
+### Projection Store
 
 **Purpose**: Materialized views of current state (optimized for queries)
 
-**Technology**: PostgreSQL + sharded JSON files
+**Technology**: Sharded JSON files (filesystem-based)
 
 **Storage**:
 
-- Document metadata in PostgreSQL (`documents` table)
-- Annotation collections in sharded JSON files
-- System projections (entity types) in JSON
+- Document projections in sharded JSON files (`data/projections/documents/`)
+- Annotation collections in sharded JSON files (`data/projections/annotations/`)
+- System projections (entity types) in JSON files (`data/projections/system/`)
 
 **Key Characteristics**:
 
-- Rebuilt from Layer 2 events (not authoritative)
+- Rebuilt from Event Store (not authoritative)
+- All metadata flows through Event Store → Projections
 - Optimized for fast queries without event replay
 - Incremental updates for performance
 - Can be deleted and reconstructed at any time
 
-**Why This Matters**: You don't query the event log for "get document by ID"—that would be slow. Projections are the read-optimized view. If they're corrupted or you change the schema, replay events to rebuild.
+**Why This Matters**: You don't query the event log for "get document by ID"—that would be slow. Projections are the read-optimized view. If they're corrupted or you change the schema, replay events to rebuild. PostgreSQL is NOT used for document/annotation metadata—all metadata is in JSON projections.
 
 **Documentation**: [PROJECTION.md](./services/PROJECTION.md)
 
-### Layer 4: Graph Database
+### Graph Database
 
 **Purpose**: Relationship traversal and discovery
 
@@ -255,7 +279,7 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Key Characteristics**:
 
-- Built from Layer 3 projections via event subscriptions
+- Built from Projections via event subscriptions
 - Enables graph queries (backlinks, entity co-occurrence, document clusters)
 - Supports multiple implementations (Neo4j Cypher, Gremlin, in-memory)
 
@@ -265,24 +289,24 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 ### Database - PostgreSQL
 
-**Purpose**: User accounts, API keys, projection metadata
+**Purpose**: User authentication only (NOT document/annotation metadata)
 
-**Technology**: PostgreSQL 15 (AWS RDS in production)
+**Technology**: PostgreSQL 15 (AWS RDS in production), Prisma ORM
 
-**Storage**:
+**Storage** ([see schema](../../apps/backend/prisma/schema.prisma)):
 
-- User authentication records
-- OAuth sessions
-- Document metadata (Layer 3 projections)
-- Annotation metadata (linked to JSON files)
+- User authentication records (`users` table)
+- OAuth provider data (Google, GitHub)
+- User roles (admin, moderator)
 
 **Key Characteristics**:
 
 - Automatic migrations via Prisma on backend startup
 - No manual migration files (schema is source of truth)
 - Connection pooling via Prisma Client
+- **Document/annotation metadata NOT stored here** - all metadata flows through Event Store → Projections
 
-**Why This Matters**: PostgreSQL handles relational data (users, permissions) while the event store handles document content. The database is not the source of truth for annotations—it's a projection.
+**Why This Matters**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata lives entirely in the Event Store and Projections (JSON files). This separation keeps the database small and focused on its core responsibility: user management.
 
 **Documentation**: [DATABASE.md](./services/DATABASE.md)
 
@@ -333,7 +357,7 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 - Document generation jobs (create new documents from annotations)
 - Progress tracking with SSE streaming to clients
 - Automatic retry logic for failed jobs
-- Event emission to Event Store (Layer 2)
+- Event emission to Event Store
 
 **Key Characteristics**:
 
@@ -530,10 +554,10 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 
 **Data Layer Scaling**:
 
-- Layer 1 (Content): Shard across multiple EFS volumes or S3 buckets
-- Layer 2 (Events): Sharding already built-in (65,536 shards)
-- Layer 3 (Projections): PostgreSQL read replicas
-- Layer 4 (Graph): Neptune cluster or Neo4j enterprise
+- Content Store: Shard across multiple EFS volumes or S3 buckets
+- Event Store: Sharding already built-in (65,536 shards)
+- Projections: PostgreSQL read replicas
+- Graph: Neptune cluster or Neo4j enterprise
 
 **Documentation**: [SCALING.md](./SCALING.md)
 
@@ -584,14 +608,6 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 
 **Trade-off**: Architectural complexity vs. operational flexibility
 
-### Why PostgreSQL + Filesystem?
-
-**Alternative Considered**: NoSQL (MongoDB, DynamoDB)
-
-**Decision**: PostgreSQL provides ACID guarantees for user accounts and metadata. Filesystem storage for content/events avoids BLOB limitations and cost.
-
-**Trade-off**: Operational complexity (two storage systems) vs. cost and scalability
-
 ### Why Spec-First OpenAPI?
 
 **Alternative Considered**: Code-first API with generated docs
@@ -604,10 +620,10 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 
 ### Service Deep Dives
 
-- [Content Store](./services/CONTENT-STORE.md) - Layer 1 binary/text storage
-- [Event Store](./services/EVENT-STORE.md) - Layer 2 immutable event log
-- [Projection Store](./services/PROJECTION.md) - Layer 3 materialized views
-- [Graph Database](./services/GRAPH.md) - Layer 4 relationship traversal
+- [Content Store](./services/CONTENT-STORE.md) - Binary/text storage
+- [Event Store](./services/EVENT-STORE.md) - Immutable event log
+- [Projection Store](./services/PROJECTION.md) - Materialized views
+- [Graph Database](./services/GRAPH.md) - Relationship traversal
 - [Database](./services/DATABASE.md) - PostgreSQL schema and migrations
 - [Filesystem](./services/FILESYSTEM.md) - File upload and storage
 - [Inference](./services/INFERENCE.md) - AI/ML integration

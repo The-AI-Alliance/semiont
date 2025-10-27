@@ -155,29 +155,29 @@ useEffect(() => {
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant Frontend
-    participant NextAuth
+    participant Browser
+    participant FrontendServer as Frontend Server<br/>(NextAuth)
+    participant OAuth as OAuth Provider<br/>(Google)
     participant Backend
-    participant OAuth
 
-    User->>Frontend: Click Sign In
-    Frontend->>NextAuth: Initiate OAuth
-    NextAuth->>OAuth: Redirect for auth
-    OAuth->>User: Consent page
-    User->>OAuth: Approve
-    OAuth->>NextAuth: Return with code
-    NextAuth->>Backend: Exchange for JWT
-    Backend->>NextAuth: Return JWT token
-    NextAuth->>Frontend: Session with backendToken
-    Frontend->>User: Authenticated UI
+    Browser->>FrontendServer: Click Sign In
+    FrontendServer->>OAuth: Redirect for auth
+    OAuth->>Browser: Consent page
+    Browser->>OAuth: Approve
+    OAuth->>FrontendServer: Return with OAuth token
+    FrontendServer->>Backend: Exchange OAuth token
+    Backend->>FrontendServer: Return JWT
+    FrontendServer->>Browser: Session cookie with JWT
+    Browser->>Browser: Authenticated UI loads
 ```
 
-## API Request Flow
+**Note**: Frontend server only involved in OAuth callback. All subsequent API calls go directly from browser to backend.
+
+## API Request Flow (Client-Side in Browser)
 
 ```mermaid
 sequenceDiagram
-    participant Component
+    participant Component as React Component<br/>(in Browser)
     participant useQuery
     participant useAuthenticatedAPI
     participant useSession
@@ -185,13 +185,15 @@ sequenceDiagram
 
     Component->>useQuery: api.documents.get.useQuery(id)
     useQuery->>useAuthenticatedAPI: fetchAPI('/api/documents/123')
-    useAuthenticatedAPI->>useSession: Read session
+    useAuthenticatedAPI->>useSession: Read session cookie
     useSession->>useAuthenticatedAPI: session.backendToken
     useAuthenticatedAPI->>Backend: GET /api/documents/123<br/>Authorization: Bearer <token>
     Backend->>useAuthenticatedAPI: Response data
     useAuthenticatedAPI->>useQuery: Parsed data
     useQuery->>Component: { data, isLoading, error }
 ```
+
+**Note**: This entire flow happens in the browser, not on the frontend server. The browser reads the JWT from the session cookie and calls the backend API directly.
 
 ## Security Features
 
