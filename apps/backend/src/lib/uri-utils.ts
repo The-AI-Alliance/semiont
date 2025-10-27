@@ -38,7 +38,7 @@ export function documentIdToURI(documentId: string): string {
 export function uriToDocumentId(uri: string): string {
   const url = new URL(uri);
   const match = url.pathname.match(/\/documents\/([^/]+)/);
-  if (!match) {
+  if (!match || !match[1]) {
     throw new Error(`Invalid document URI: ${uri}`);
   }
   return match[1];
@@ -75,7 +75,7 @@ export function annotationIdToURI(annotationId: string): string {
 export function uriToAnnotationId(uri: string): string {
   const url = new URL(uri);
   const match = url.pathname.match(/\/annotations\/([^/]+)/);
-  if (!match) {
+  if (!match || !match[1]) {
     throw new Error(`Invalid annotation URI: ${uri}`);
   }
   return match[1];
