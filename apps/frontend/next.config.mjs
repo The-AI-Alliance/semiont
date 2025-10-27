@@ -121,10 +121,6 @@ const baseConfig = {
   compress: true,
   poweredByHeader: false,
 
-  // Externalize packages to prevent webpack bundling issues
-  // This is critical for packages using Zod v4 which has known bundling issues
-  serverExternalPackages: ['zod', '@semiont/core'],
-
   experimental: {
     // Enable if needed for future features
     // optimizeCss: true, // Disabled due to critters dependency issue
