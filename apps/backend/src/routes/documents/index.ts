@@ -4,7 +4,7 @@ import type { DocumentsRouterType } from './shared';
 
 // Import registration functions for all routes
 import { registerCreateDocument } from './routes/create';
-import { registerGetDocument } from './routes/get';
+import { registerGetDocumentUri } from './routes/get-uri';
 import { registerListDocuments } from './routes/list';
 import { registerUpdateDocument } from './routes/update';
 import { registerSearchDocuments } from './routes/search';
@@ -27,8 +27,8 @@ export const documentsRouter: DocumentsRouterType = createDocumentRouter();
 // Register all routes
 registerCreateDocument(documentsRouter);
 registerListDocuments(documentsRouter);
-registerSearchDocuments(documentsRouter);  // Must be before registerGetDocument to avoid {id} matching "search"
-registerGetDocument(documentsRouter);
+registerSearchDocuments(documentsRouter);  // Must be before registerGetDocumentUri to avoid {id} matching "search"
+registerGetDocumentUri(documentsRouter);  // W3C content negotiation for /documents/:id
 registerUpdateDocument(documentsRouter);
 registerGetDocumentContent(documentsRouter);
 registerCreateDocumentFromAnnotation(documentsRouter);

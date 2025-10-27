@@ -11,7 +11,7 @@ type Document = ResponseContent<paths['/api/documents']['get']>['documents'][num
 type CreateDocumentRequest = RequestContent<paths['/api/documents']['post']>;
 type CreateDocumentResponse = paths['/api/documents']['post']['responses'][201]['content']['application/json'];
 type UpdateDocumentRequest = RequestContent<paths['/api/documents/{id}']['patch']>;
-type GetDocumentResponse = paths['/api/documents/{id}']['get']['responses'][200]['content']['application/json'];
+type GetDocumentResponse = paths['/documents/{id}']['get']['responses'][200]['content']['application/ld+json'];
 type ListDocumentsResponse = ResponseContent<paths['/api/documents']['get']>;
 type ReferencedBy = paths['/api/documents/{id}/referenced-by']['get']['responses'][200]['content']['application/json']['referencedBy'][number];
 type GetDocumentByTokenResponse = paths['/api/documents/token/{token}']['get']['responses'][200]['content']['application/json'];
@@ -42,7 +42,7 @@ export const documents = {
       const { data: session } = useSession();
       return useQuery({
         queryKey: QUERY_KEYS.documents.detail(id),
-        queryFn: () => fetchAPI<GetDocumentResponse>(`/api/documents/${id}`, {}, session?.backendToken),
+        queryFn: () => fetchAPI<GetDocumentResponse>(`/documents/${id}`, {}, session?.backendToken),
         enabled: !!session?.backendToken && !!id,
       });
     },

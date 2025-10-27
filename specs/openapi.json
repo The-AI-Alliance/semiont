@@ -2726,6 +2726,105 @@
     "parameters": {}
   },
   "paths": {
+    "/documents/{id}": {
+      "get": {
+        "summary": "Get Document by URI (W3C Content Negotiation)",
+        "description": "W3C-compliant globally resolvable document URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent). Requires authentication.",
+        "tags": [
+          "W3C URIs"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document representation (JSON-LD)",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDocumentResponse"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Redirect to frontend (for browsers)"
+          },
+          "404": {
+            "description": "Document not found"
+          }
+        }
+      }
+    },
+    "/annotations/{id}": {
+      "get": {
+        "summary": "Get Annotation by URI (W3C Content Negotiation)",
+        "description": "W3C-compliant globally resolvable annotation URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent). Requires authentication and documentId query parameter.",
+        "tags": [
+          "W3C URIs"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Annotation ID"
+          },
+          {
+            "name": "documentId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Document ID or URI containing the annotation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annotation representation (JSON-LD)",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetAnnotationResponse"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Redirect to frontend (for browsers)"
+          },
+          "400": {
+            "description": "Missing documentId parameter"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health Check",
@@ -3521,40 +3620,6 @@
       }
     },
     "/api/documents/{id}": {
-      "get": {
-        "summary": "Get Document",
-        "description": "Get a document by ID",
-        "tags": [
-          "Documents"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Document retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetDocumentResponse"
-                }
-              }
-            }
-          }
-        }
-      },
       "patch": {
         "summary": "Update Document",
         "description": "Update document metadata (append-only operations - name and content are immutable)",
@@ -4750,50 +4815,6 @@
       }
     },
     "/api/annotations/{id}": {
-      "get": {
-        "summary": "Get Annotation",
-        "description": "Get an annotation by ID (requires documentId query param for O(1) Layer 3 lookup)",
-        "tags": [
-          "Annotations"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "description": "Document ID containing the annotation"
-            },
-            "required": true,
-            "description": "Document ID containing the annotation",
-            "name": "documentId",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Annotation retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetAnnotationResponse"
-                }
-              }
-            }
-          }
-        }
-      },
       "delete": {
         "summary": "Delete Annotation",
         "description": "Delete an annotation (requires documentId in body for O(1) Layer 3 lookup)",

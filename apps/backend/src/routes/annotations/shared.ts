@@ -10,5 +10,6 @@ export type AnnotationsRouterType = Hono<{ Variables: { user: User } }>;
 export function createAnnotationRouter(): AnnotationsRouterType {
   const router = new Hono<{ Variables: { user: User } }>();
   router.use('/api/annotations/*', authMiddleware);
+  router.use('/annotations/*', authMiddleware); // W3C URI endpoints also require auth
   return router;
 }
