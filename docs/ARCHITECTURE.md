@@ -125,9 +125,9 @@ graph TB
 - **API Calls**: Browser → Backend (validate JWT) → Data layers
 - **Write Path**: Browser → Backend (validate JWT) → Content Store + Event Store → Projections → Graph
 - **Read Path**: Browser → Backend (validate JWT) → Projections or Graph → Response
-- **Job Processing**: Browser → Backend → Job Worker → Inference → Event Store (emits events)
-- **Real-Time Updates (SSE)**: Job Worker emits events → Event Store → Backend subscribes → SSE stream → Browser receives events
-- **Job Progress (SSE)**: Browser → Backend SSE stream (validate JWT) → Polls Job Worker status → Browser receives progress
+- **Job Processing**: Browser → Backend → Job Worker → Inference → Event Store (emits completion events)
+- **Real-Time Events (SSE)**: Job Worker emits events → Event Store → Backend subscribes → SSE stream → Browser
+- **Job Progress (SSE)**: Browser → Backend SSE stream → Polls Job Worker filesystem queue (500ms) → Browser receives progress updates
 - **Event Sourcing**: All writes create immutable events, projections rebuilt from events
 - **Graph Sync**: Graph database updated automatically via event subscriptions
 
