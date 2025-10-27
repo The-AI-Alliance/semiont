@@ -2726,6 +2726,95 @@
     "parameters": {}
   },
   "paths": {
+    "/documents/{id}": {
+      "get": {
+        "summary": "Get Document by URI (W3C Content Negotiation)",
+        "description": "W3C-compliant globally resolvable document URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent).",
+        "tags": [
+          "W3C URIs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document representation (JSON-LD)",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDocumentResponse"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Redirect to frontend (for browsers)"
+          },
+          "404": {
+            "description": "Document not found"
+          }
+        }
+      }
+    },
+    "/annotations/{id}": {
+      "get": {
+        "summary": "Get Annotation by URI (W3C Content Negotiation)",
+        "description": "W3C-compliant globally resolvable annotation URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent). Requires documentId query parameter.",
+        "tags": [
+          "W3C URIs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Annotation ID"
+          },
+          {
+            "name": "documentId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Document ID or URI containing the annotation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annotation representation (JSON-LD)",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetAnnotationResponse"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Redirect to frontend (for browsers)"
+          },
+          "400": {
+            "description": "Missing documentId parameter"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health Check",

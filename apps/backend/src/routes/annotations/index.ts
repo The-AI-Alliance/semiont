@@ -5,6 +5,7 @@ import { crudRouter } from './crud';
 import { operationsRouter } from './operations';
 import { createAnnotationRouter } from './shared';
 import { registerGetAnnotationHistory } from './routes/history';
+import { registerGetAnnotationUri } from './routes/get-uri';
 
 // Create main annotations router
 export const annotationsRouter = new Hono<{ Variables: { user: User } }>();
@@ -20,3 +21,8 @@ annotationsRouter.route('/', crudRouter);
 const historyRouter = createAnnotationRouter();
 registerGetAnnotationHistory(historyRouter);
 annotationsRouter.route('/', historyRouter);
+
+// Register W3C content negotiation endpoint for annotation URIs
+const uriRouter = createAnnotationRouter();
+registerGetAnnotationUri(uriRouter);
+annotationsRouter.route('/', uriRouter);
