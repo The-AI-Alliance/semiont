@@ -192,7 +192,7 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 - Supports streaming for large files
 - Platform-agnostic (local filesystem, EFS, S3)
 
-**Why This Matters**: Storing content separately from metadata allows independent scaling. A 1GB PDF doesn't bloat your database. Content can live on cheap object storage while metadata stays in PostgreSQL.
+**Why This Matters**: Storing content separately from metadata allows independent scaling. A 1GB PDF doesn't bloat your Event Store or Projections. Content can live on cheap object storage (S3/EFS) while metadata flows through Event Store → Projections (JSON files).
 
 **Filesystem Backend**: Content Store uses the [Filesystem](./services/FILESYSTEM.md) service for physical storage (local filesystem, AWS S3, AWS EFS).
 
@@ -586,14 +586,6 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 **Decision**: Separating content, events, projections, and relationships allows independent scaling and evolution. Each layer optimized for its access pattern.
 
 **Trade-off**: Architectural complexity vs. operational flexibility
-
-### Why PostgreSQL + Filesystem?
-
-**Alternative Considered**: NoSQL (MongoDB, DynamoDB)
-
-**Decision**: PostgreSQL provides ACID guarantees for user accounts and metadata. Filesystem storage for content/events avoids BLOB limitations and cost.
-
-**Trade-off**: Operational complexity (two storage systems) vs. cost and scalability
 
 ### Why Spec-First OpenAPI?
 
