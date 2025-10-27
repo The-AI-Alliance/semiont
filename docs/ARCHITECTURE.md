@@ -22,22 +22,22 @@ Semiont transforms unstructured text into a queryable knowledge graph using W3C 
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
+    subgraph "Client"
         USER[User Browser]
         AI[AI Agents]
         MCP[MCP Server]
     end
 
-    subgraph "Application Layer"
+    subgraph "Application"
         FE[Frontend]
         BE[Backend API]
     end
 
-    subgraph "Data Layer"
-        L1[Layer 1: Content Store]
-        L2[Layer 2: Event Store]
-        L3[Layer 3: Projections]
-        L4[Layer 4: Graph]
+    subgraph "Data"
+        CONTENT[Content Store]
+        EVENTS[Event Store]
+        PROJ[Projections]
+        GRAPH[Graph]
         DB[(Database)]
         SEC[Secrets]
     end
@@ -51,29 +51,29 @@ graph TB
     USER -->|HTTPS| FE
     AI -->|MCP Protocol| MCP
 
-    %% Application layer
+    %% Application
     FE -->|REST API| BE
     MCP -->|REST API| BE
 
-    %% Backend to data layers (write path)
-    BE -->|Write Content| L1
-    BE -->|Append Events| L2
+    %% Backend to data (write path)
+    BE -->|Write Content| CONTENT
+    BE -->|Append Events| EVENTS
     BE -->|Auth/Users| DB
     BE -.->|Future| SEC
 
     %% Event-driven flow
-    L2 -.->|Project| L3
-    L3 -.->|Sync| L4
+    EVENTS -.->|Project| PROJ
+    PROJ -.->|Sync| GRAPH
 
     %% Backend reads
-    BE -->|Read Content| L1
-    BE -->|Query State| L3
-    BE -->|Graph Queries| L4
+    BE -->|Read Content| CONTENT
+    BE -->|Query State| PROJ
+    BE -->|Graph Queries| GRAPH
 
     %% Compute services
     BE -->|Generate/Detect| INF
     BE -->|Queue Jobs| JW
-    JW -->|Emit Events| L2
+    JW -->|Emit Events| EVENTS
     JW -->|Use AI| INF
 
     %% Styling - darker fills ensure text contrast in both light and dark modes
@@ -84,7 +84,7 @@ graph TB
 
     class USER,AI,MCP client
     class FE,BE app
-    class L1,L2,L3,L4,DB,SEC data
+    class CONTENT,EVENTS,PROJ,GRAPH,DB,SEC data
     class INF,JW compute
 ```
 
@@ -93,10 +93,10 @@ graph TB
 - **Frontend**: Next.js 14 web application with SSR/SSG
 - **Backend API**: Hono server implementing W3C Web Annotation Data Model
 - **MCP Server**: Model Context Protocol for AI agent integration
-- **Layer 1 (Content Store)**: Binary/text files, 65K shards, O(1) access
-- **Layer 2 (Event Store)**: Immutable JSONL event log, source of truth
-- **Layer 3 (Projections)**: Materialized views in PostgreSQL + JSON files
-- **Layer 4 (Graph)**: Neo4j/Neptune for relationship queries
+- **Content Store**: Binary/text files, 65K shards, O(1) access
+- **Event Store**: Immutable JSONL event log, source of truth
+- **Projections**: Materialized views in PostgreSQL + JSON files
+- **Graph**: Neo4j/Neptune for relationship queries
 - **Database**: PostgreSQL for users and authentication
 - **Secrets**: Planned credential management integration
 - **Inference**: External LLM APIs (Anthropic Claude, OpenAI)
@@ -104,11 +104,11 @@ graph TB
 
 **Key Flows**:
 
-- **Write Path**: User → Frontend → Backend → Content Store (L1) + Event Store (L2) → Projections (L3) → Graph (L4)
-- **Read Path**: User → Frontend → Backend → Projections (L3) or Graph (L4) → Response
-- **Job Processing**: User → Frontend → Backend → Job Worker → Inference → Event Store (L2)
-- **Event Sourcing**: All writes create immutable events (L2), projections (L3) rebuilt from events
-- **Graph Sync**: Graph database (L4) updated automatically via event subscriptions
+- **Write Path**: User → Frontend → Backend → Content Store + Event Store → Projections → Graph
+- **Read Path**: User → Frontend → Backend → Projections or Graph → Response
+- **Job Processing**: User → Frontend → Backend → Job Worker → Inference → Event Store
+- **Event Sourcing**: All writes create immutable events, projections rebuilt from events
+- **Graph Sync**: Graph database updated automatically via event subscriptions
 
 ## Application Services
 
@@ -151,9 +151,9 @@ The application layer consists of server-side services that handle user requests
 - Hono chosen for performance and lightweight routing
 - OpenAPI specification is hand-written (spec-first approach)
 - Backend validates requests against spec, not vice versa
-- Event Store (Layer 2) is source of truth, not database
-- Projections (Layer 3) rebuilt from events on demand
-- Graph database (Layer 4) maintained via event subscriptions
+- Event Store is source of truth, not database
+- Projections rebuilt from events on demand
+- Graph database maintained via event subscriptions
 
 **Documentation**: [Backend README](../apps/backend/README.md)
 
@@ -179,7 +179,7 @@ The application layer consists of server-side services that handle user requests
 
 The 4-layer architecture separates concerns while maintaining a clear dependency hierarchy.
 
-### Layer 1: Content Store
+### Content Store
 
 **Purpose**: Raw document storage (text, binary, PDFs)
 
@@ -198,11 +198,11 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Documentation**: [CONTENT-STORE.md](./services/CONTENT-STORE.md)
 
-### Layer 2: Event Store
+### Event Store
 
 **Purpose**: Immutable event log (source of truth for all changes)
 
-**Technology**: Append-only JSONL files, sharded like Layer 1
+**Technology**: Append-only JSONL files, sharded like Content Store
 
 **Event Types**:
 
@@ -221,7 +221,7 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Documentation**: [EVENT-STORE.md](./services/EVENT-STORE.md)
 
-### Layer 3: Projection Store
+### Projection Store
 
 **Purpose**: Materialized views of current state (optimized for queries)
 
@@ -235,7 +235,7 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Key Characteristics**:
 
-- Rebuilt from Layer 2 events (not authoritative)
+- Rebuilt from Event Store (not authoritative)
 - Optimized for fast queries without event replay
 - Incremental updates for performance
 - Can be deleted and reconstructed at any time
@@ -244,7 +244,7 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Documentation**: [PROJECTION.md](./services/PROJECTION.md)
 
-### Layer 4: Graph Database
+### Graph Database
 
 **Purpose**: Relationship traversal and discovery
 
@@ -257,7 +257,7 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Key Characteristics**:
 
-- Built from Layer 3 projections via event subscriptions
+- Built from Projections via event subscriptions
 - Enables graph queries (backlinks, entity co-occurrence, document clusters)
 - Supports multiple implementations (Neo4j Cypher, Gremlin, in-memory)
 
@@ -275,7 +275,7 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 - User authentication records
 - OAuth sessions
-- Document metadata (Layer 3 projections)
+- Document metadata (projections)
 - Annotation metadata (linked to JSON files)
 
 **Key Characteristics**:
@@ -335,7 +335,7 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 - Document generation jobs (create new documents from annotations)
 - Progress tracking with SSE streaming to clients
 - Automatic retry logic for failed jobs
-- Event emission to Event Store (Layer 2)
+- Event emission to Event Store
 
 **Key Characteristics**:
 
@@ -532,10 +532,10 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 
 **Data Layer Scaling**:
 
-- Layer 1 (Content): Shard across multiple EFS volumes or S3 buckets
-- Layer 2 (Events): Sharding already built-in (65,536 shards)
-- Layer 3 (Projections): PostgreSQL read replicas
-- Layer 4 (Graph): Neptune cluster or Neo4j enterprise
+- Content Store: Shard across multiple EFS volumes or S3 buckets
+- Event Store: Sharding already built-in (65,536 shards)
+- Projections: PostgreSQL read replicas
+- Graph: Neptune cluster or Neo4j enterprise
 
 **Documentation**: [SCALING.md](./SCALING.md)
 
@@ -606,10 +606,10 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 
 ### Service Deep Dives
 
-- [Content Store](./services/CONTENT-STORE.md) - Layer 1 binary/text storage
-- [Event Store](./services/EVENT-STORE.md) - Layer 2 immutable event log
-- [Projection Store](./services/PROJECTION.md) - Layer 3 materialized views
-- [Graph Database](./services/GRAPH.md) - Layer 4 relationship traversal
+- [Content Store](./services/CONTENT-STORE.md) - Binary/text storage
+- [Event Store](./services/EVENT-STORE.md) - Immutable event log
+- [Projection Store](./services/PROJECTION.md) - Materialized views
+- [Graph Database](./services/GRAPH.md) - Relationship traversal
 - [Database](./services/DATABASE.md) - PostgreSQL schema and migrations
 - [Filesystem](./services/FILESYSTEM.md) - File upload and storage
 - [Inference](./services/INFERENCE.md) - AI/ML integration
