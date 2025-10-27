@@ -14,9 +14,9 @@ Semiont transforms unstructured text into a queryable knowledge graph using W3C 
 - **Spec-First Development**: Types generated from OpenAPI specification, not the reverse
 - **Platform Agnostic**: Services run on local processes, containers, or cloud infrastructure
 
-**For Executives**: This is a knowledge management system designed to outlive specific vendors or platforms. W3C compliance means your data exports as standard JSON-LD that any compatible system can consume.
+This is a knowledge management system designed to outlive specific vendors or platforms. W3C compliance means your data exports as standard JSON-LD that any compatible system can consume.
 
-**For Architects**: Event sourcing provides complete audit trails. The 4-layer model allows rebuilding any downstream state from the immutable event log. All services communicate via REST APIs with OpenAPI contracts.
+Event sourcing provides complete audit trails. The 4-layer model allows rebuilding any downstream state from the immutable event log. All services communicate via REST APIs with OpenAPI contracts.
 
 ## System Architecture
 
@@ -28,9 +28,13 @@ graph TB
         MCP[MCP Server]
     end
 
+    subgraph "Identity"
+        OAUTH[OAuth Providers<br/>Google]
+    end
+
     subgraph "Application"
-        FE[Frontend]
-        BE[Backend API]
+        FE[Frontend<br/>NextAuth.js]
+        BE[Backend API<br/>JWT Auth]
     end
 
     subgraph "Data"
@@ -38,7 +42,7 @@ graph TB
         EVENTS[Event Store]
         PROJ[Projections]
         GRAPH[Graph]
-        DB[(Database)]
+        DB[(Database<br/>Users Only)]
         SEC[Secrets]
     end
 
@@ -51,14 +55,16 @@ graph TB
     USER -->|HTTPS| FE
     AI -->|MCP Protocol| MCP
 
-    %% Application
-    FE -->|REST API| BE
-    MCP -->|REST API| BE
+    %% OAuth flow
+    USER -.->|1. OAuth| OAUTH
+    OAUTH -.->|2. Token| FE
+    FE -->|3. Exchange Token<br/>+ JWT| BE
+    MCP -->|REST + JWT| BE
 
     %% Backend to data (write path)
     BE -->|Write Content| CONTENT
     BE -->|Append Events| EVENTS
-    BE -->|Auth/Users| DB
+    BE -->|Create/Update Users| DB
     BE -.->|Future| SEC
 
     %% Event-driven flow
@@ -78,11 +84,13 @@ graph TB
 
     %% Styling - darker fills ensure text contrast in both light and dark modes
     classDef client fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+    classDef identity fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
     classDef app fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
     classDef data fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef compute fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class USER,AI,MCP client
+    class OAUTH identity
     class FE,BE app
     class CONTENT,EVENTS,PROJ,GRAPH,DB,SEC data
     class INF,JW compute
@@ -90,22 +98,24 @@ graph TB
 
 **Component Details**:
 
-- **Frontend**: Next.js 14 web application with SSR/SSG
-- **Backend API**: Hono server implementing W3C Web Annotation Data Model
-- **MCP Server**: Model Context Protocol for AI agent integration
+- **OAuth Providers**: Google OAuth 2.0 for user authentication
+- **Frontend**: Next.js 14 web application with NextAuth.js (OAuth handler, BFF pattern)
+- **Backend API**: Hono server with JWT validation implementing W3C Web Annotation Data Model
+- **MCP Server**: Model Context Protocol for AI agent integration (uses JWT refresh tokens)
 - **Content Store**: Binary/text files, 65K shards, O(1) access
 - **Event Store**: Immutable JSONL event log, source of truth
-- **Projections**: Materialized views in PostgreSQL + JSON files
+- **Projections**: Materialized views in sharded JSON files
 - **Graph**: Neo4j/Neptune for relationship queries
-- **Database**: PostgreSQL for users and authentication
+- **Database**: PostgreSQL for user authentication ONLY (not document/annotation metadata)
 - **Secrets**: Planned credential management integration
 - **Inference**: External LLM APIs (Anthropic Claude, OpenAI)
 - **Job Worker**: Background job processing (prototype, embedded in backend)
 
 **Key Flows**:
 
-- **Write Path**: User → Frontend → Backend → Content Store + Event Store → Projections → Graph
-- **Read Path**: User → Frontend → Backend → Projections or Graph → Response
+- **Authentication**: User → Google OAuth → Frontend (NextAuth.js) → Backend (verify + generate JWT) → Database (create/update user)
+- **Write Path**: User → Frontend → Backend (validate JWT) → Content Store + Event Store → Projections → Graph
+- **Read Path**: User → Frontend → Backend (validate JWT) → Projections or Graph → Response
 - **Job Processing**: User → Frontend → Backend → Job Worker → Inference → Event Store
 - **Event Sourcing**: All writes create immutable events, projections rebuilt from events
 - **Graph Sync**: Graph database updated automatically via event subscriptions
