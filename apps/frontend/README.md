@@ -51,7 +51,7 @@ npm run dev:mock
 - **Framework**: [Next.js 14](https://nextjs.org/) with App Router
 - **UI**: React 18 with TypeScript
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Authentication**: [NextAuth.js](https://next-auth.js.org/) with Google OAuth
+- **Authentication**: [NextAuth.js](https://next-auth.js.org/) with Google OAuth (server-side only, browser calls backend directly)
 - **State Management**: [TanStack Query](https://tanstack.com/query) (React Query)
 - **API Client**: Type-safe client generated from OpenAPI spec
 - **Testing**: [Vitest](https://vitest.dev/) + React Testing Library + [MSW v2](https://mswjs.io/)

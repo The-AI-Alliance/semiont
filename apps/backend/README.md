@@ -1,6 +1,6 @@
 # Semiont Backend
 
-A type-safe Node.js backend API following the Backend for Frontend (BFF) pattern, providing comprehensive document management, text selection capabilities, and graph-based knowledge organization. Built with Hono framework, featuring spec-first OpenAPI validation, JWT authentication, and integration with graph databases for managing document relationships and entity references.
+A type-safe Node.js backend API providing comprehensive document management, W3C Web Annotation support, and graph-based knowledge organization. Built with Hono framework, featuring spec-first OpenAPI validation, JWT authentication, and integration with graph databases for managing document relationships and entity references.
 
 ## Quick Links
 
@@ -55,7 +55,7 @@ npm run dev
 
 ## Technology Stack
 
-- **Architecture**: Backend for Frontend (BFF) pattern
+- **Architecture**: Public REST API (browser-accessible)
 - **Runtime**: Node.js with TypeScript
 - **Web Framework**: [Hono](https://hono.dev/) - Fast, lightweight web framework
 - **Database**: PostgreSQL with [Prisma ORM](https://prisma.io/)
