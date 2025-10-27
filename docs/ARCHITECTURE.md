@@ -56,9 +56,9 @@ graph TB
     AI -->|MCP Protocol| MCP
 
     %% OAuth flow (server-side only)
-    USER -.->|1. OAuth| OAUTH
-    OAUTH -.->|2. Token| FE
-    FE -.->|3. Exchange Token| BE
+    USER -.->|OAuth| OAUTH
+    OAUTH -.->|Token| FE
+    FE -.->|Exchange Token| BE
 
     %% API calls (client-side from browser)
     USER -->|REST + JWT| BE
