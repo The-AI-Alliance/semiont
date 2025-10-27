@@ -86,6 +86,10 @@ graph TB
     JW -->|Emit Events| EVENTS
     JW -->|Use AI| INF
 
+    %% SSE event flow (real-time updates back to browser)
+    EVENTS -.->|Subscribe| BE
+    BE -.->|SSE: Events| USER
+
     %% Styling - darker fills ensure text contrast in both light and dark modes
     classDef client fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef identity fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
@@ -119,11 +123,11 @@ graph TB
 
 - **Authentication**: Browser → Google OAuth → Frontend Server (NextAuth.js exchanges token) → Backend (verify + generate JWT) → Database (create/update user) → JWT stored in browser session
 - **API Calls**: Browser → Backend (validate JWT) → Data layers
-- **Real-Time Updates**: Browser → Backend SSE stream (validate JWT) → Event Store subscriptions → Browser receives events
-- **Job Progress**: Browser → Backend SSE stream (validate JWT) → Job Worker polling → Browser receives progress updates
 - **Write Path**: Browser → Backend (validate JWT) → Content Store + Event Store → Projections → Graph
 - **Read Path**: Browser → Backend (validate JWT) → Projections or Graph → Response
-- **Job Processing**: Browser → Backend → Job Worker → Inference → Event Store
+- **Job Processing**: Browser → Backend → Job Worker → Inference → Event Store (emits events)
+- **Real-Time Updates (SSE)**: Job Worker emits events → Event Store → Backend subscribes → SSE stream → Browser receives events
+- **Job Progress (SSE)**: Browser → Backend SSE stream (validate JWT) → Polls Job Worker status → Browser receives progress
 - **Event Sourcing**: All writes create immutable events, projections rebuilt from events
 - **Graph Sync**: Graph database updated automatically via event subscriptions
 
