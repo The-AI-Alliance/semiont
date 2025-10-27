@@ -56,6 +56,10 @@ interface EnvironmentConfig {
   [key: string]: any;
 }
 
+export interface BackendConfig {
+  publicURL: string; // Backend API URL for generating resource URIs
+}
+
 /**
  * Get the project root directory
  * Project root is either SEMIONT_ROOT or cwd
@@ -204,4 +208,19 @@ export function getInferenceConfig(): InferenceServiceConfig {
   }
 
   throw new Error('Inference service configuration not found. Please specify infererence settings in your environment configuration.');
+}
+
+/**
+ * Get backend configuration including public URL for generating URIs
+ */
+export function getBackendConfig(): BackendConfig {
+  // BACKEND_URL is the public-facing API URL for resources
+  const backendUrl = process.env.BACKEND_URL;
+  if (!backendUrl) {
+    throw new Error('BACKEND_URL environment variable is required');
+  }
+
+  return {
+    publicURL: backendUrl
+  };
 }

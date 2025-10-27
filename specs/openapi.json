@@ -2107,7 +2107,8 @@
         "properties": {
           "documentId": {
             "type": "string",
-            "description": "Document ID containing the annotation (required for O(1) Layer 3 lookup)"
+            "format": "uri",
+            "description": "Document URI containing the annotation (required for O(1) Layer 3 lookup)"
           }
         },
         "required": [

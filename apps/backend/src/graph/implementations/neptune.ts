@@ -17,6 +17,7 @@ import type {
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
+import { uriToDocumentId } from '../../lib/uri-utils';
 
 type Document = components['schemas']['Document'];
 type Annotation = components['schemas']['Annotation'];
@@ -533,11 +534,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     const bodySource = getBodySource(input.body);
     const entityTypes = getEntityTypes(input);
 
+    // Extract document IDs from URIs for graph storage
+    const documentId = uriToDocumentId(targetSource);
+
     try {
       // Create Annotation vertex
       const vertex = this.g.addV('Annotation')
         .property('id', annotation.id)
-        .property('documentId', targetSource)
+        .property('documentId', documentId) // Use extracted short ID
         .property('text', targetSelector ? getExactText(targetSelector) : '')
         .property('selector', JSON.stringify(targetSelector || {}))
         .property('type', 'SpecificResource')
@@ -555,14 +559,15 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Create edge from Annotation to Document (BELONGS_TO)
       await this.g.V(newVertex.value)
         .addE('BELONGS_TO')
-        .to(this.g.V().hasLabel('Document').has('id', targetSource))
+        .to(this.g.V().hasLabel('Document').has('id', documentId)) // Use extracted short ID
         .next();
 
       // If it's a resolved reference, create edge to target document (REFERENCES)
       if (bodySource) {
+        const bodyDocumentId = uriToDocumentId(bodySource); // Extract ID from body source URI
         await this.g.V(newVertex.value)
           .addE('REFERENCES')
-          .to(this.g.V().hasLabel('Document').has('id', bodySource))
+          .to(this.g.V().hasLabel('Document').has('id', bodyDocumentId)) // Use extracted short ID
           .next();
       }
 

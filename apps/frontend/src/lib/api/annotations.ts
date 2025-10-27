@@ -4,6 +4,7 @@ import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
 import { getTargetSource } from '@semiont/api-client';
 import type { paths } from '@semiont/api-client';
+import { NEXT_PUBLIC_API_URL } from '../env';
 
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
 
@@ -50,7 +51,7 @@ export const annotations = {
         }) => {
           const data: CreateAnnotationRequest = {
             target: {
-              source: documentId,
+              source: `${NEXT_PUBLIC_API_URL}/documents/${documentId}`, // Full URI using BACKEND_URL
               selector: [
                 {
                   type: 'TextPositionSelector',
