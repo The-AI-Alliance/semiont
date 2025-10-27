@@ -14,6 +14,7 @@ import { detectAnnotationsInDocument } from '../../routes/documents/helpers';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { getFilesystemConfig } from '../../config/environment-loader';
+import { documentIdToURI } from '../../lib/uri-utils';
 
 export class DetectionWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -111,7 +112,7 @@ export class DetectionWorker extends JobWorker {
                 id: referenceId,
                 motivation: 'linking' as const,
                 target: {
-                  source: job.documentId,
+                  source: documentIdToURI(job.documentId), // Convert to full URI
                   selector: [
                     {
                       type: 'TextPositionSelector',

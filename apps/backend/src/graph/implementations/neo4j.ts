@@ -409,9 +409,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       const params: any = {
         id,
-        documentId: targetSource,
-        fromId: targetSource,
-        toId: bodySource || null,
+        documentId: targetSource, // Store full URI
+        fromId: targetSource, // Store full URI
+        toId: bodySource || null, // Store full URI
         exact: targetSelector ? getExactText(targetSelector) : '',
         selector: JSON.stringify(targetSelector || {}),
         type: 'SpecificResource',

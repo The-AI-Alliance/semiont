@@ -537,7 +537,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Create Annotation vertex
       const vertex = this.g.addV('Annotation')
         .property('id', annotation.id)
-        .property('documentId', targetSource)
+        .property('documentId', targetSource) // Store full URI
         .property('text', targetSelector ? getExactText(targetSelector) : '')
         .property('selector', JSON.stringify(targetSelector || {}))
         .property('type', 'SpecificResource')
@@ -555,14 +555,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Create edge from Annotation to Document (BELONGS_TO)
       await this.g.V(newVertex.value)
         .addE('BELONGS_TO')
-        .to(this.g.V().hasLabel('Document').has('id', targetSource))
+        .to(this.g.V().hasLabel('Document').has('id', targetSource)) // Use full URI
         .next();
 
       // If it's a resolved reference, create edge to target document (REFERENCES)
       if (bodySource) {
         await this.g.V(newVertex.value)
           .addE('REFERENCES')
-          .to(this.g.V().hasLabel('Document').has('id', bodySource))
+          .to(this.g.V().hasLabel('Document').has('id', bodySource)) // Use full URI
           .next();
       }
 

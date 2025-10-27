@@ -370,7 +370,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     const vertex = this.g!
       .addV('Annotation')
       .property('id', id)
-      .property('documentId', targetSource)
+      .property('documentId', targetSource) // Store full URI
       .property('text', targetSelector ? getExactText(targetSelector) : '')
       .property('selector', JSON.stringify(targetSelector || {}))
       .property('type', bodyType)

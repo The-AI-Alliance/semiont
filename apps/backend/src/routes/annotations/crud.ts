@@ -28,6 +28,7 @@ import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
+import { uriToDocumentId } from '../../lib/uri-utils';
 
 import { validateRequestBody } from '../../middleware/validate-openapi';
 import { getFilesystemConfig } from '../../config/environment-loader';
@@ -90,11 +91,11 @@ crudRouter.post('/api/annotations',
     const eventStore = await createEventStore(basePath);
     const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
       type: 'annotation.added',
-      documentId: request.target.source,
+      documentId: uriToDocumentId(request.target.source), // Extract ID from URI for indexing
       userId: user.id,
       version: 1,
       payload: {
-        annotation,
+        annotation, // Annotation contains full URIs in target.source
       },
     };
     await eventStore.appendEvent(eventPayload);
@@ -140,7 +141,7 @@ crudRouter.put('/api/annotations/:id/body',
     const eventStore = await createEventStore(basePath2);
     await eventStore.appendEvent({
       type: 'annotation.body.updated',
-      documentId: getTargetSource(annotation.target),
+      documentId: uriToDocumentId(getTargetSource(annotation.target)), // Extract ID from URI
       userId: user.id,
       version: 1,
       payload: {
@@ -274,8 +275,9 @@ crudRouter.delete('/api/annotations/:id',
     const request = c.get('validatedBody') as DeleteAnnotationRequest;
     const user = c.get('user');
 
-    // O(1) lookup in Layer 3 using document ID
-    const projection = await AnnotationQueryService.getDocumentAnnotations(request.documentId);
+    // O(1) lookup in Layer 3 using document ID (extract from URI)
+    const documentId = uriToDocumentId(request.documentId);
+    const projection = await AnnotationQueryService.getDocumentAnnotations(documentId);
 
     // Find the annotation in this document's annotations
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
@@ -290,7 +292,7 @@ crudRouter.delete('/api/annotations/:id',
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',
-      documentId: request.documentId,
+      documentId: documentId, // Use extracted short ID for event indexing
       userId: user.id,
       version: 1,
       payload: {
