@@ -12,6 +12,10 @@ type Variables = {
   user: User;
 };
 
+type ErrorResponse = {
+  error: string;
+};
+
 // Mock the database before any imports to avoid connection attempts
 vi.mock('../db', () => ({
   DatabaseConnection: {
@@ -51,7 +55,7 @@ describe('W3C URI Authentication', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as ErrorResponse;
       expect(body.error).toBeDefined();
     });
 
@@ -65,7 +69,7 @@ describe('W3C URI Authentication', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as ErrorResponse;
       expect(body.error).toBeDefined();
     });
 
@@ -79,7 +83,7 @@ describe('W3C URI Authentication', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as ErrorResponse;
       expect(body.error).toBeDefined();
     });
 
@@ -93,7 +97,7 @@ describe('W3C URI Authentication', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as ErrorResponse;
       expect(body.error).toBeDefined();
     });
   });
@@ -108,7 +112,7 @@ describe('W3C URI Authentication', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as ErrorResponse;
       expect(body.error).toBeDefined();
     });
 
@@ -122,7 +126,7 @@ describe('W3C URI Authentication', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as ErrorResponse;
       expect(body.error).toBeDefined();
     });
 
@@ -136,7 +140,7 @@ describe('W3C URI Authentication', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as ErrorResponse;
       expect(body.error).toBeDefined();
     });
 
@@ -150,7 +154,7 @@ describe('W3C URI Authentication', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as ErrorResponse;
       expect(body.error).toBeDefined();
     });
   });
@@ -191,10 +195,10 @@ describe('W3C URI Authentication', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as ErrorResponse;
       // Should not say "Document not found" - only "Unauthorized"
-      expect(body.error?.toLowerCase()).not.toContain('document');
-      expect(body.error?.toLowerCase()).not.toContain('not found');
+      expect(body.error.toLowerCase()).not.toContain('document');
+      expect(body.error.toLowerCase()).not.toContain('not found');
     });
 
     it('should not leak information about annotation existence without authentication', async () => {
@@ -206,10 +210,10 @@ describe('W3C URI Authentication', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as ErrorResponse;
       // Should not say "Annotation not found" - only "Unauthorized"
-      expect(body.error?.toLowerCase()).not.toContain('annotation');
-      expect(body.error?.toLowerCase()).not.toContain('not found');
+      expect(body.error.toLowerCase()).not.toContain('annotation');
+      expect(body.error.toLowerCase()).not.toContain('not found');
     });
   });
 });
