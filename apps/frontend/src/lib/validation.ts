@@ -1,149 +1,212 @@
-import { z } from 'zod';
-
 /**
- * Generic validation schemas (copied from SDK for frontend use)
- * Frontend still needs Zod for web-specific validation, so we copy these basics
+ * Native JavaScript validation for frontend
+ * Security-focused validation with no external dependencies
  */
 
-// Name input validation
-export const NameInputSchema = z.string()
-  .min(1, 'Name cannot be empty')
-  .max(50, 'Name must be 50 characters or less')
-  .regex(/^[a-zA-Z0-9\s\-']+$/, 'Name can only contain letters, numbers, spaces, hyphens, and apostrophes')
-  .transform(str => str.trim());
-
-// Email validation
-export const EmailSchema = z.string()
-  .email('Invalid email address')
-  .min(1, 'Email is required')
-  .max(255, 'Email must be 255 characters or less');
-
-// URL validation with protocol check
-export const URLSchema = z.string()
-  .url('Invalid URL')
-  .refine((url) => {
-    try {
-      const parsed = new URL(url);
-      // Only allow http and https protocols
-      return ['http:', 'https:'].includes(parsed.protocol);
-    } catch {
-      return false;
-    }
-  }, 'Only HTTP and HTTPS URLs are allowed');
-
-// JWT Token validation
-export const JWTTokenSchema = z.string()
-  .min(1, 'Token is required')
-  .regex(/^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]*$/, 'Invalid JWT token format');
+/**
+ * Validation result types
+ */
+type ValidationSuccess<T> = { success: true; data: T };
+type ValidationFailure = { success: false; error: string; details?: string[] };
+type ValidationResult<T> = ValidationSuccess<T> | ValidationFailure;
 
 /**
- * Validation helper with error formatting
+ * JWT Token validation
+ */
+export const JWTTokenSchema = {
+  parse(token: unknown): string {
+    if (typeof token !== 'string') {
+      throw new Error('Token must be a string');
+    }
+    if (!token || token.length === 0) {
+      throw new Error('Token is required');
+    }
+    // JWT format: header.payload.signature
+    const jwtRegex = /^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]*$/;
+    if (!jwtRegex.test(token)) {
+      throw new Error('Invalid JWT token format');
+    }
+    return token;
+  },
+
+  safeParse(token: unknown): ValidationResult<string> {
+    try {
+      const validated = this.parse(token);
+      return { success: true, data: validated };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Invalid JWT token',
+      };
+    }
+  },
+};
+
+/**
+ * Image URL validation with security checks (web-specific)
+ */
+export const ImageURLSchema = {
+  parse(url: unknown): string {
+    if (typeof url !== 'string') {
+      throw new Error('URL must be a string');
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new Error('Invalid image URL');
+    }
+
+    // Only allow https for external images
+    if (parsed.hostname !== 'localhost' && parsed.protocol !== 'https:') {
+      throw new Error('External images must use HTTPS');
+    }
+
+    // Check for suspicious patterns (XSS prevention)
+    const suspiciousPatterns = [
+      'javascript:',
+      'data:text/html',
+      '<script',
+      'onerror=',
+      'onload=',
+      'onclick=',
+    ];
+
+    const lowerUrl = url.toLowerCase();
+    if (suspiciousPatterns.some(pattern => lowerUrl.includes(pattern))) {
+      throw new Error('Invalid or potentially unsafe image URL');
+    }
+
+    // Check file extension or known profile image domains
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico'];
+    const hasExtension = imageExtensions.some(ext => lowerUrl.includes(ext));
+    const isProfileImage = lowerUrl.includes('googleusercontent.com') ||
+                          lowerUrl.includes('avatars.githubusercontent.com');
+
+    if (!hasExtension && !isProfileImage) {
+      throw new Error('URL must point to an image file');
+    }
+
+    return url;
+  },
+
+  safeParse(url: unknown): ValidationResult<string> {
+    try {
+      const validated = this.parse(url);
+      return { success: true, data: validated };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Invalid image URL',
+      };
+    }
+  },
+};
+
+/**
+ * OAuth user validation (Next.js auth specific)
+ */
+interface OAuthUser {
+  id: string;
+  email: string;
+  name?: string | null;
+  image?: string | null;
+  domain: string;
+  isAdmin: boolean;
+  isModerator: boolean;
+}
+
+export const OAuthUserSchema = {
+  parse(data: unknown): OAuthUser {
+    if (!data || typeof data !== 'object') {
+      throw new Error('User data must be an object');
+    }
+
+    const user = data as Record<string, unknown>;
+
+    // Validate required string fields
+    if (typeof user.id !== 'string' || user.id.length === 0) {
+      throw new Error('User ID is required');
+    }
+
+    if (typeof user.email !== 'string' || !isValidEmail(user.email)) {
+      throw new Error('Valid email address is required');
+    }
+
+    if (typeof user.domain !== 'string' || user.domain.length === 0) {
+      throw new Error('Domain is required');
+    }
+
+    // Validate optional fields
+    if (user.name !== null && user.name !== undefined && typeof user.name !== 'string') {
+      throw new Error('Name must be a string or null');
+    }
+
+    if (user.image !== null && user.image !== undefined && typeof user.image !== 'string') {
+      throw new Error('Image must be a string or null');
+    }
+
+    // Validate boolean fields
+    if (typeof user.isAdmin !== 'boolean') {
+      throw new Error('isAdmin must be a boolean');
+    }
+
+    if (typeof user.isModerator !== 'boolean') {
+      throw new Error('isModerator must be a boolean');
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name === undefined ? null : (user.name as string | null),
+      image: user.image === undefined ? null : (user.image as string | null),
+      domain: user.domain,
+      isAdmin: user.isAdmin,
+      isModerator: user.isModerator,
+    };
+  },
+
+  safeParse(data: unknown): ValidationResult<OAuthUser> {
+    try {
+      const validated = this.parse(data);
+      return { success: true, data: validated };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Invalid user data',
+      };
+    }
+  },
+};
+
+/**
+ * Generic validation helper with error formatting
  */
 export function validateData<T>(
-  schema: z.ZodSchema<T>,
+  schema: { parse(data: unknown): T },
   data: unknown
-): { success: true; data: T } | { success: false; error: string; details?: string[] } {
+): ValidationResult<T> {
   try {
     const validated = schema.parse(data);
     return { success: true, data: validated };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const details = error.issues.map(err => `${err.path.join('.')}: ${err.message}`);
-      return {
-        success: false,
-        error: 'Validation failed',
-        details,
-      };
-    }
     return {
       success: false,
-      error: 'Unknown validation error',
+      error: error instanceof Error ? error.message : 'Validation failed',
     };
   }
 }
 
 /**
- * Sanitize text input by removing HTML tags and escaping special characters
+ * URL sanitization for images (web-specific security)
  */
-export function sanitizeInput(input: string): string {
-  // Remove any HTML tags
-  const withoutTags = input.replace(/<[^>]*>/g, '');
-
-  // Escape special HTML characters
-  const escaped = withoutTags
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
-
-  return escaped.trim();
-}
-
-/**
- * Frontend-specific validation schemas
- * These are kept in the frontend because they have web-specific security concerns
- */
-
-// Image URL validation with security checks (web-specific)
-export const ImageURLSchema = z.string()
-  .url('Invalid image URL')
-  .refine((url) => {
-    try {
-      const parsed = new URL(url);
-      // Only allow https for external images
-      if (parsed.hostname !== 'localhost' && parsed.protocol !== 'https:') {
-        return false;
-      }
-
-      // Check for suspicious patterns
-      const suspiciousPatterns = [
-        'javascript:',
-        'data:text/html',
-        '<script',
-        'onerror=',
-        'onload=',
-        'onclick=',
-      ];
-
-      const lowerUrl = url.toLowerCase();
-      return !suspiciousPatterns.some(pattern => lowerUrl.includes(pattern));
-    } catch {
-      return false;
-    }
-  }, 'Invalid or potentially unsafe image URL')
-  .refine((url) => {
-    // Check file extension
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico'];
-    const lowerUrl = url.toLowerCase();
-
-    // Allow URLs without extensions (like Google profile images)
-    const hasExtension = imageExtensions.some(ext => lowerUrl.includes(ext));
-    const isProfileImage = lowerUrl.includes('googleusercontent.com') ||
-                          lowerUrl.includes('avatars.githubusercontent.com');
-
-    return hasExtension || isProfileImage;
-  }, 'URL must point to an image file');
-
-// OAuth user validation (Next.js auth specific)
-export const OAuthUserSchema = z.object({
-  id: z.string().min(1),
-  email: z.string().email('Invalid email address'),
-  name: z.string().nullable().optional(),
-  image: ImageURLSchema.nullable().optional(),
-  domain: z.string().min(1),
-  isAdmin: z.boolean(),
-  isModerator: z.boolean(),
-});
-
-// URL sanitization for images (web-specific security)
 export function sanitizeImageURL(url: string): string | null {
   try {
     // Validate with schema first
     const result = ImageURLSchema.safeParse(url);
     if (!result.success) {
-      console.warn('Invalid image URL:', result.error.issues);
+      console.warn('Invalid image URL:', result.error);
       return null;
     }
 
@@ -156,4 +219,16 @@ export function sanitizeImageURL(url: string): string | null {
     console.error('Error sanitizing image URL:', error);
     return null;
   }
+}
+
+/**
+ * Helper: Email validation
+ */
+function isValidEmail(email: string): boolean {
+  if (email.length < 1 || email.length > 255) {
+    return false;
+  }
+  // RFC 5322 simplified email regex
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
 }

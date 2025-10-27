@@ -125,11 +125,6 @@ const baseConfig = {
     // Enable if needed for future features
     // optimizeCss: true, // Disabled due to critters dependency issue
     optimizePackageImports: ['@tanstack/react-query', 'next-auth'],
-
-    // Externalize packages to prevent webpack bundling issues
-    // This is critical for packages using Zod v4 which has known bundling issues
-    // Note: In Next.js 15+, this becomes top-level `serverExternalPackages`
-    serverComponentsExternalPackages: ['zod', '@semiont/core'],
   },
 
   // Bundle optimization

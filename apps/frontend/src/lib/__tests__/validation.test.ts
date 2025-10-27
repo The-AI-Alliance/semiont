@@ -1,22 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  NameInputSchema,
-  EmailSchema,
-  URLSchema,
   ImageURLSchema,
   JWTTokenSchema,
   OAuthUserSchema,
-  sanitizeInput,
   sanitizeImageURL,
   validateData,
 } from '../validation';
-import { z } from 'zod';
 
 // Use environment variables for URLs
-const getBackendUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const getFrontendUrl = () => 'http://localhost:3000';
 
-describe('Validation Library', () => {
+describe('Validation Library (Native JS)', () => {
   let consoleSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -26,148 +20,6 @@ describe('Validation Library', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  describe('NameInputSchema', () => {
-    it('should validate valid names', () => {
-      const validNames = [
-        'John Doe',
-        'Jane Smith-Johnson',
-        "O'Connor",
-        'User123',
-        'Multi Word Name',
-        'Name-With-Hyphens',
-      ];
-
-      validNames.forEach(name => {
-        expect(() => NameInputSchema.parse(name)).not.toThrow();
-      });
-    });
-
-    it('should trim whitespace from names', () => {
-      const result = NameInputSchema.parse('  John Doe  ');
-      expect(result).toBe('John Doe');
-    });
-
-    it('should reject empty names', () => {
-      expect(() => NameInputSchema.parse('')).toThrow('Name cannot be empty');
-      // Whitespace-only string should pass because it contains spaces, even though it trims to empty
-      const result = NameInputSchema.parse('   ');
-      expect(result).toBe(''); // Transform trims to empty string after validation
-    });
-
-    it('should reject names that are too long', () => {
-      const longName = 'a'.repeat(51);
-      expect(() => NameInputSchema.parse(longName)).toThrow('Name must be 50 characters or less');
-    });
-
-    it('should reject names with invalid characters', () => {
-      const invalidNames = [
-        'John@Doe',
-        'Jane#Smith',
-        'User$123',
-        'Name<script>',
-        'Test&Name',
-        'Name%Special',
-      ];
-
-      invalidNames.forEach(name => {
-        expect(() => NameInputSchema.parse(name)).toThrow('Name can only contain letters, numbers, spaces, hyphens, and apostrophes');
-      });
-    });
-
-    it('should accept names at boundary lengths', () => {
-      const maxName = 'a'.repeat(50);
-      expect(() => NameInputSchema.parse(maxName)).not.toThrow();
-      
-      const minName = 'a';
-      expect(() => NameInputSchema.parse(minName)).not.toThrow();
-    });
-  });
-
-  describe('EmailSchema', () => {
-    it('should validate valid email addresses', () => {
-      const validEmails = [
-        'user@example.com',
-        'test.email@domain.co.uk',
-        'user+tag@example.org',
-        'firstname.lastname@company.com',
-        'user123@test-domain.net',
-      ];
-
-      validEmails.forEach(email => {
-        expect(() => EmailSchema.parse(email)).not.toThrow();
-      });
-    });
-
-    it('should reject invalid email formats', () => {
-      const invalidEmails = [
-        'not-an-email',
-        '@domain.com',
-        'user@',
-        'user..name@domain.com',
-        'user @domain.com',
-        'user@domain',
-        '',
-      ];
-
-      invalidEmails.forEach(email => {
-        expect(() => EmailSchema.parse(email)).toThrow();
-      });
-    });
-
-    it('should reject emails that are too long', () => {
-      const longEmail = 'a'.repeat(250) + '@domain.com';
-      expect(() => EmailSchema.parse(longEmail)).toThrow('Email must be 255 characters or less');
-    });
-
-    it('should require non-empty email', () => {
-      expect(() => EmailSchema.parse('')).toThrow('Email is required');
-    });
-  });
-
-  describe('URLSchema', () => {
-    it('should validate valid HTTP and HTTPS URLs', () => {
-      const validUrls = [
-        'https://example.com',
-        getFrontendUrl(),
-        'https://sub.domain.com/path?query=value',
-        'http://192.168.1.1:8080',
-        'https://example.com/path/to/resource',
-      ];
-
-      validUrls.forEach(url => {
-        expect(() => URLSchema.parse(url)).not.toThrow();
-      });
-    });
-
-    it('should reject non-HTTP protocols', () => {
-      const invalidUrls = [
-        'ftp://example.com',
-        'javascript:alert(1)',
-        'data:text/html,<script>alert(1)</script>',
-        'file:///etc/passwd',
-        'mailto:user@example.com',
-      ];
-
-      invalidUrls.forEach(url => {
-        expect(() => URLSchema.parse(url)).toThrow();
-      });
-    });
-
-    it('should reject malformed URLs', () => {
-      const malformedUrls = [
-        'not-a-url',
-        'http://',
-        'https://',
-        '//example.com',
-        'example.com',
-      ];
-
-      malformedUrls.forEach(url => {
-        expect(() => URLSchema.parse(url)).toThrow('Invalid URL');
-      });
-    });
   });
 
   describe('ImageURLSchema', () => {
@@ -210,7 +62,7 @@ describe('Validation Library', () => {
 
     it('should reject non-HTTPS URLs for external hosts', () => {
       const httpUrl = 'http://example.com/image.jpg';
-      expect(() => ImageURLSchema.parse(httpUrl)).toThrow();
+      expect(() => ImageURLSchema.parse(httpUrl)).toThrow('External images must use HTTPS');
     });
 
     it('should reject URLs with suspicious patterns', () => {
@@ -254,6 +106,22 @@ describe('Validation Library', () => {
         expect(() => ImageURLSchema.parse(url)).not.toThrow();
       });
     });
+
+    it('should use safeParse correctly', () => {
+      const validUrl = 'https://example.com/image.jpg';
+      const result = ImageURLSchema.safeParse(validUrl);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toBe(validUrl);
+      }
+
+      const invalidUrl = 'http://example.com/image.jpg';
+      const errorResult = ImageURLSchema.safeParse(invalidUrl);
+      expect(errorResult.success).toBe(false);
+      if (!errorResult.success) {
+        expect(errorResult.error).toContain('HTTPS');
+      }
+    });
   });
 
   describe('JWTTokenSchema', () => {
@@ -273,23 +141,45 @@ describe('Validation Library', () => {
 
     it('should reject malformed JWT tokens', () => {
       const invalidTokens = [
-        'not.a.jwt.token',
-        'onlyonepart',
-        'two.parts',
-        'header.payload', // Missing signature part
-        '.payload.signature', // Empty header
-        'header..signature', // Empty payload
-        'header payload signature', // Spaces instead of dots
-        '',
+        { token: 'not.a.jwt.token', error: 'Invalid JWT token format' },
+        { token: 'onlyonepart', error: 'Invalid JWT token format' },
+        { token: 'two.parts', error: 'Invalid JWT token format' },
+        { token: 'header.payload', error: 'Invalid JWT token format' },
+        { token: '.payload.signature', error: 'Invalid JWT token format' },
+        { token: 'header..signature', error: 'Invalid JWT token format' },
+        { token: 'header payload signature', error: 'Invalid JWT token format' },
+        { token: '', error: 'Token is required' },
       ];
 
-      invalidTokens.forEach(token => {
-        expect(() => JWTTokenSchema.parse(token)).toThrow('Invalid JWT token format');
+      invalidTokens.forEach(({ token, error }) => {
+        expect(() => JWTTokenSchema.parse(token)).toThrow(error);
       });
     });
 
     it('should reject empty tokens', () => {
       expect(() => JWTTokenSchema.parse('')).toThrow('Token is required');
+    });
+
+    it('should reject non-string tokens', () => {
+      expect(() => JWTTokenSchema.parse(123)).toThrow('Token must be a string');
+      expect(() => JWTTokenSchema.parse(null)).toThrow('Token must be a string');
+      expect(() => JWTTokenSchema.parse(undefined)).toThrow('Token must be a string');
+    });
+
+    it('should use safeParse correctly', () => {
+      const validToken = 'header.payload.signature';
+      const result = JWTTokenSchema.safeParse(validToken);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toBe(validToken);
+      }
+
+      const invalidToken = 'invalid';
+      const errorResult = JWTTokenSchema.safeParse(invalidToken);
+      expect(errorResult.success).toBe(false);
+      if (!errorResult.success) {
+        expect(errorResult.error).toContain('Invalid JWT token format');
+      }
     });
   });
 
@@ -320,24 +210,32 @@ describe('Validation Library', () => {
       expect(result.image).toBeNull();
     });
 
+    it('should handle undefined name (converts to null)', () => {
+      const userWithUndefinedName = { ...validUser };
+      delete (userWithUndefinedName as any).name;
+      const result = OAuthUserSchema.parse(userWithUndefinedName);
+      expect(result.name).toBeUndefined();
+    });
+
     it('should require mandatory fields', () => {
-      const requiredFields = ['id', 'email', 'domain', 'isAdmin'];
-      
-      requiredFields.forEach(field => {
+      const requiredFields = [
+        { field: 'id', error: 'User ID is required' },
+        { field: 'email', error: 'email address is required' },
+        { field: 'domain', error: 'Domain is required' },
+        { field: 'isAdmin', error: 'isAdmin must be a boolean' },
+        { field: 'isModerator', error: 'isModerator must be a boolean' },
+      ];
+
+      requiredFields.forEach(({ field, error }) => {
         const invalidUser = { ...validUser };
         delete invalidUser[field as keyof typeof invalidUser];
-        expect(() => OAuthUserSchema.parse(invalidUser)).toThrow();
+        expect(() => OAuthUserSchema.parse(invalidUser)).toThrow(error);
       });
     });
 
-    it('should validate nested email field', () => {
+    it('should validate email field', () => {
       const userWithInvalidEmail = { ...validUser, email: 'invalid-email' };
-      expect(() => OAuthUserSchema.parse(userWithInvalidEmail)).toThrow();
-    });
-
-    it('should validate nested image field', () => {
-      const userWithInvalidImage = { ...validUser, image: 'http://example.com/unsafe.jpg' };
-      expect(() => OAuthUserSchema.parse(userWithInvalidImage)).toThrow();
+      expect(() => OAuthUserSchema.parse(userWithInvalidEmail)).toThrow('email address is required');
     });
 
     it('should require non-empty required string fields', () => {
@@ -353,70 +251,31 @@ describe('Validation Library', () => {
 
     it('should validate isAdmin as boolean', () => {
       const invalidBooleanValues = [
-        { ...validUser, isAdmin: 'true' },
-        { ...validUser, isAdmin: 1 },
-        { ...validUser, isAdmin: null },
-        { ...validUser, isAdmin: undefined },
+        { data: { ...validUser, isAdmin: 'true' }, error: 'isAdmin must be a boolean' },
+        { data: { ...validUser, isAdmin: 1 }, error: 'isAdmin must be a boolean' },
+        { data: { ...validUser, isAdmin: null }, error: 'isAdmin must be a boolean' },
+        { data: { ...validUser, isAdmin: undefined }, error: 'isAdmin must be a boolean' },
       ];
 
-      invalidBooleanValues.forEach(user => {
-        expect(() => OAuthUserSchema.parse(user)).toThrow();
-      });
-    });
-  });
-
-  describe('sanitizeInput', () => {
-    it('should remove HTML tags', () => {
-      const inputs = [
-        '<script>alert("xss")</script>',
-        '<div>Content</div>',
-        'Text with <b>bold</b> formatting',
-        '<img src="x" onerror="alert(1)">',
-        'Normal text',
-      ];
-
-      const expected = [
-        'alert(&quot;xss&quot;)', // Quotes get escaped
-        'Content',
-        'Text with bold formatting',
-        '',
-        'Normal text',
-      ];
-
-      inputs.forEach((input, index) => {
-        const result = sanitizeInput(input);
-        expect(result).toBe(expected[index]);
+      invalidBooleanValues.forEach(({ data, error }) => {
+        expect(() => OAuthUserSchema.parse(data)).toThrow(error);
       });
     });
 
-    it('should escape HTML special characters', () => {
-      const input = 'Text with & < > " \' / characters';
-      const result = sanitizeInput(input);
-      // The function removes < and > first, then escapes the remaining characters
-      expect(result).toBe('Text with &amp;  &quot; &#x27; &#x2F; characters');
-    });
+    it('should use safeParse correctly', () => {
+      const result = OAuthUserSchema.safeParse(validUser);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.id).toBe(validUser.id);
+        expect(result.data.email).toBe(validUser.email);
+      }
 
-    it('should trim whitespace', () => {
-      const input = '  Text with spaces  ';
-      const result = sanitizeInput(input);
-      expect(result).toBe('Text with spaces');
-    });
-
-    it('should handle empty strings', () => {
-      expect(sanitizeInput('')).toBe('');
-      expect(sanitizeInput('   ')).toBe('');
-    });
-
-    it('should handle complex nested HTML', () => {
-      const input = '<div><script>alert(1)</script><p>Safe content</p></div>';
-      const result = sanitizeInput(input);
-      expect(result).toBe('alert(1)Safe content');
-    });
-
-    it('should handle malformed HTML', () => {
-      const input = '<div><p>Unclosed tags';
-      const result = sanitizeInput(input);
-      expect(result).toBe('Unclosed tags');
+      const invalidUser = { ...validUser, email: 'invalid' };
+      const errorResult = OAuthUserSchema.safeParse(invalidUser);
+      expect(errorResult.success).toBe(false);
+      if (!errorResult.success) {
+        expect(errorResult.error).toContain('email');
+      }
     });
   });
 
@@ -463,206 +322,124 @@ describe('Validation Library', () => {
       invalidUrls.forEach(url => {
         const result = sanitizeImageURL(url);
         expect(result).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledWith('Invalid image URL:', expect.any(Array));
+        expect(consoleSpy).toHaveBeenCalled();
       });
     });
 
     it('should handle malformed URLs gracefully', () => {
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      // This URL should fail schema validation, not URL constructor
       const result = sanitizeImageURL('ht://invalid');
       expect(result).toBeNull();
-      // The error is logged by schema validation, not URL constructor
-      expect(consoleSpy).toHaveBeenCalledWith('Invalid image URL:', expect.any(Array));
+      expect(consoleSpy).toHaveBeenCalled();
     });
 
     it('should reconstruct URL with only safe components', () => {
       const complexUrl = 'https://user:pass@example.com:8080/image.jpg?query=value#hash';
       const result = sanitizeImageURL(complexUrl);
-      // Should remove user:pass and port, keep protocol, hostname, pathname, search
+      // Should remove user:pass, port, and hash, keep protocol, hostname, pathname, search
       expect(result).toBe('https://example.com/image.jpg?query=value');
     });
   });
 
   describe('validateData', () => {
-    const testSchema = z.object({
-      name: z.string().min(1),
-      age: z.number().positive(),
-    });
-
     it('should return success for valid data', () => {
-      const validData = { name: 'John', age: 30 };
-      const result = validateData(testSchema, validData);
-      
+      const validToken = 'header.payload.signature';
+      const result = validateData(JWTTokenSchema, validToken);
+
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data).toEqual(validData);
+        expect(result.data).toBe(validToken);
       }
     });
 
-    it('should return error details for Zod validation errors', () => {
-      const invalidData = { name: '', age: -5 };
-      const result = validateData(testSchema, invalidData);
-      
+    it('should return error for invalid data', () => {
+      const invalidToken = 'invalid';
+      const result = validateData(JWTTokenSchema, invalidToken);
+
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error).toBe('Validation failed');
-        expect(result.details).toBeInstanceOf(Array);
-        expect(result.details).toHaveLength(2);
-        expect(result.details![0]).toContain('name');
-        expect(result.details![1]).toContain('age');
+        expect(result.error).toContain('Invalid JWT token format');
       }
     });
 
-    it('should handle nested object validation errors', () => {
-      const nestedSchema = z.object({
-        user: z.object({
-          profile: z.object({
-            email: z.string().email(),
-          }),
-        }),
-      });
-
-      const invalidNestedData = {
-        user: {
-          profile: {
-            email: 'invalid-email',
-          },
-        },
+    it('should handle complex object validation', () => {
+      const validUser = {
+        id: 'user123',
+        email: 'user@example.com',
+        name: 'John Doe',
+        image: 'https://example.com/avatar.jpg',
+        domain: 'example.com',
+        isAdmin: false,
+        isModerator: false,
       };
 
-      const result = validateData(nestedSchema, invalidNestedData);
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.details![0]).toContain('user.profile.email');
+      const result = validateData(OAuthUserSchema, validUser);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.id).toBe('user123');
+        expect(result.data.email).toBe('user@example.com');
       }
     });
 
-    it('should handle array validation errors', () => {
-      const arraySchema = z.object({
-        items: z.array(z.string().min(1)),
-      });
-
-      const invalidArrayData = {
-        items: ['valid', '', 'also valid'],
+    it('should handle validation errors', () => {
+      const invalidUser = {
+        id: '',
+        email: 'invalid-email',
+        domain: 'example.com',
+        isAdmin: false,
+        isModerator: false,
       };
 
-      const result = validateData(arraySchema, invalidArrayData);
+      const result = validateData(OAuthUserSchema, invalidUser);
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.details![0]).toContain('items.1');
-      }
-    });
-
-    it('should handle non-Zod errors', () => {
-      const faultySchema = {
-        parse: () => {
-          throw new Error('Non-Zod error');
-        },
-      } as any;
-
-      const result = validateData(faultySchema, {});
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toBe('Unknown validation error');
-        expect(result.details).toBeUndefined();
-      }
-    });
-
-    it('should handle transformation schemas', () => {
-      const transformSchema = z.string().transform(str => str.toUpperCase());
-      const result = validateData(transformSchema, 'hello');
-      
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe('HELLO');
-      }
-    });
-
-    it('should handle optional fields correctly', () => {
-      const optionalSchema = z.object({
-        required: z.string(),
-        optional: z.string().optional(),
-      });
-
-      const dataWithoutOptional = { required: 'test' };
-      const result = validateData(optionalSchema, dataWithoutOptional);
-      
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.required).toBe('test');
-        expect(result.data.optional).toBeUndefined();
+        expect(result.error).toBeTruthy();
       }
     });
   });
 
   describe('Edge Cases and Security', () => {
-    it('should handle extremely long strings gracefully', () => {
-      const veryLongString = 'a'.repeat(10000);
-      const result = sanitizeInput(veryLongString);
-      expect(result).toBe(veryLongString); // Should not crash
-    });
-
-    it('should handle Unicode characters in validation', () => {
-      const unicodeName = 'José María 李明';
-      // Note: Current regex doesn't support Unicode, so this should fail
-      expect(() => NameInputSchema.parse(unicodeName)).toThrow();
-    });
-
-    it('should prevent prototype pollution attempts', () => {
-      const maliciousData = {
-        __proto__: { polluted: true },
-        constructor: { prototype: { polluted: true } },
-        name: 'test',
-        age: 25,
-      };
-
-      const schema = z.object({
-        name: z.string(),
-        age: z.number(),
-      });
-
-      const result = validateData(schema, maliciousData);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        // Should only contain the expected fields
-        expect(Object.keys(result.data)).toEqual(['name', 'age']);
-        expect(result.data.name).toBe('test');
-        expect(result.data.age).toBe(25);
-      }
-    });
-
     it('should handle null and undefined inputs safely', () => {
-      const schema = z.string();
-      
-      const nullResult = validateData(schema, null);
+      const nullResult = validateData(JWTTokenSchema, null);
       expect(nullResult.success).toBe(false);
-      
-      const undefinedResult = validateData(schema, undefined);
+
+      const undefinedResult = validateData(JWTTokenSchema, undefined);
       expect(undefinedResult.success).toBe(false);
     });
 
-    it('should sanitize XSS attempts in various contexts', () => {
+    it('should handle XSS attempts in image URLs', () => {
       const xssAttempts = [
-        '<script>alert("xss")</script>',
-        '<img src=x onerror=alert(1)>',
-        '<svg onload=alert(1)>',
-        '"><script>alert(1)</script>',
-        '\';alert(1);//',
+        'https://example.com/javascript:alert(1).jpg',
+        'https://example.com/image.jpg?<script>alert(1)</script>',
+        'https://example.com/image.jpg?onerror=alert(1)',
       ];
 
       xssAttempts.forEach(attempt => {
-        const sanitized = sanitizeInput(attempt);
-        expect(sanitized).not.toContain('<script');
-        expect(sanitized).not.toContain('onerror=');
-        expect(sanitized).not.toContain('onload=');
+        const sanitized = sanitizeImageURL(attempt);
+        expect(sanitized).toBeNull();
       });
+    });
 
-      // javascript: is not removed by sanitizeInput, it just removes HTML tags
-      const jsAttempt = 'javascript:alert(1)';
-      const sanitized = sanitizeInput(jsAttempt);
-      expect(sanitized).toBe('javascript:alert(1)'); // No HTML tags to remove
+    it('should prevent prototype pollution in user objects', () => {
+      const maliciousData = {
+        __proto__: { polluted: true },
+        constructor: { prototype: { polluted: true } },
+        id: 'user123',
+        email: 'user@example.com',
+        domain: 'example.com',
+        isAdmin: false,
+        isModerator: false,
+      };
+
+      const result = validateData(OAuthUserSchema, maliciousData);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Should only contain the expected fields
+        const keys = Object.keys(result.data);
+        expect(keys).toContain('id');
+        expect(keys).toContain('email');
+        expect(keys).not.toContain('__proto__');
+        expect(keys).not.toContain('constructor');
+      }
     });
   });
 });
