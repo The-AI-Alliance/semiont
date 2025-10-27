@@ -55,10 +55,13 @@ graph TB
     USER -->|HTTPS| FE
     AI -->|MCP Protocol| MCP
 
-    %% OAuth flow
+    %% OAuth flow (server-side only)
     USER -.->|1. OAuth| OAUTH
     OAUTH -.->|2. Token| FE
-    FE -->|3. Exchange Token<br/>+ JWT| BE
+    FE -.->|3. Exchange Token| BE
+
+    %% API calls (client-side from browser)
+    USER -->|REST + JWT| BE
     MCP -->|REST + JWT| BE
 
     %% Backend to data (write path)
@@ -99,7 +102,7 @@ graph TB
 **Component Details**:
 
 - **OAuth Providers**: Google OAuth 2.0 for user authentication
-- **Frontend**: Next.js 14 web application with NextAuth.js (OAuth handler, BFF pattern)
+- **Frontend**: Next.js 14 web application with NextAuth.js (OAuth handler only, browser calls backend directly)
 - **Backend API**: Hono server with JWT validation implementing W3C Web Annotation Data Model
 - **MCP Server**: Model Context Protocol for AI agent integration (uses JWT refresh tokens)
 - **Content Store**: Binary/text files, 65K shards, O(1) access
@@ -113,10 +116,11 @@ graph TB
 
 **Key Flows**:
 
-- **Authentication**: User → Google OAuth → Frontend (NextAuth.js) → Backend (verify + generate JWT) → Database (create/update user)
-- **Write Path**: User → Frontend → Backend (validate JWT) → Content Store + Event Store → Projections → Graph
-- **Read Path**: User → Frontend → Backend (validate JWT) → Projections or Graph → Response
-- **Job Processing**: User → Frontend → Backend → Job Worker → Inference → Event Store
+- **Authentication**: Browser → Google OAuth → Frontend Server (NextAuth.js exchanges token) → Backend (verify + generate JWT) → Database (create/update user) → JWT stored in browser session
+- **API Calls**: Browser → Backend (validate JWT) → Data layers
+- **Write Path**: Browser → Backend (validate JWT) → Content Store + Event Store → Projections → Graph
+- **Read Path**: Browser → Backend (validate JWT) → Projections or Graph → Response
+- **Job Processing**: Browser → Backend → Job Worker → Inference → Event Store
 - **Event Sourcing**: All writes create immutable events, projections rebuilt from events
 - **Graph Sync**: Graph database updated automatically via event subscriptions
 
