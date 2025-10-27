@@ -144,11 +144,13 @@ The application layer consists of server-side services that handle user requests
 - Event sourcing for all document and annotation mutations
 - 4-layer data architecture (detailed below)
 - JWT validation and role-based access control
-- OpenAPI specification generation from route definitions
+- Request validation against OpenAPI specification
 
 **Key Architectural Decisions**:
 
-- Hono chosen for performance and automatic OpenAPI generation
+- Hono chosen for performance and lightweight routing
+- OpenAPI specification is hand-written (spec-first approach)
+- Backend validates requests against spec, not vice versa
 - Event Store (Layer 2) is source of truth, not database
 - Projections (Layer 3) rebuilt from events on demand
 - Graph database (Layer 4) maintained via event subscriptions
