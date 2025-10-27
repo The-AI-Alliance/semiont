@@ -10,7 +10,6 @@
  * Routes:
  * - POST /api/annotations (create)
  * - PUT /api/annotations/:id/body (update annotation body)
- * - GET /api/annotations/:id (get single)
  * - GET /api/annotations (list)
  * - DELETE /api/annotations/:id (delete)
  */
@@ -24,10 +23,9 @@ import type {
   AnnotationAddedEvent,
   BodyOperation,
 } from '@semiont/core';
-import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
+import { getTargetSource } from '../../lib/annotation-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
-import { DocumentQueryService } from '../../services/document-queries';
 import { uriToDocumentId } from '../../lib/uri-utils';
 
 import { validateRequestBody } from '../../middleware/validate-openapi';
@@ -40,7 +38,6 @@ type CreateAnnotationResponse = components['schemas']['CreateAnnotationResponse'
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
 type UpdateAnnotationBodyResponse = components['schemas']['UpdateAnnotationBodyResponse'];
 type DeleteAnnotationRequest = components['schemas']['DeleteAnnotationRequest'];
-type GetAnnotationResponse = components['schemas']['GetAnnotationResponse'];
 type ListAnnotationsResponse = components['schemas']['ListAnnotationsResponse'];
 
 // Create router with auth middleware
@@ -191,48 +188,6 @@ crudRouter.put('/api/annotations/:id/body',
     return c.json(response);
   }
 );
-
-/**
- * GET /api/annotations/:id
- * Get an annotation by ID (requires documentId query param for O(1) Layer 3 lookup)
- */
-crudRouter.get('/api/annotations/:id', async (c) => {
-  const { id } = c.req.param();
-  const query = c.req.query();
-  const documentId = query.documentId;
-
-  if (!documentId) {
-    throw new HTTPException(400, { message: 'documentId query parameter is required' });
-  }
-
-  // O(1) lookup in Layer 3 using document ID
-  const projection = await AnnotationQueryService.getDocumentAnnotations(documentId);
-
-  // Find the annotation
-  const annotation = projection.annotations.find((a: Annotation) => a.id === id);
-
-  if (!annotation) {
-    throw new HTTPException(404, { message: 'Annotation not found in document' });
-  }
-
-  // Get document metadata
-  const document = await DocumentQueryService.getDocumentMetadata(documentId);
-
-  // If it's a linking annotation with a resolved source, get resolved document
-  let resolvedDocument = null;
-  const bodySource = getBodySource(annotation.body);
-  if (annotation.motivation === 'linking' && bodySource) {
-    resolvedDocument = await DocumentQueryService.getDocumentMetadata(bodySource);
-  }
-
-  const response: GetAnnotationResponse = {
-    annotation,
-    document,
-    resolvedDocument,
-  };
-
-  return c.json(response);
-});
 
 /**
  * GET /api/annotations

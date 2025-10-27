@@ -2729,9 +2729,14 @@
     "/documents/{id}": {
       "get": {
         "summary": "Get Document by URI (W3C Content Negotiation)",
-        "description": "W3C-compliant globally resolvable document URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent).",
+        "description": "W3C-compliant globally resolvable document URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent). Requires authentication.",
         "tags": [
           "W3C URIs"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
         ],
         "parameters": [
           {
@@ -2767,9 +2772,14 @@
     "/annotations/{id}": {
       "get": {
         "summary": "Get Annotation by URI (W3C Content Negotiation)",
-        "description": "W3C-compliant globally resolvable annotation URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent). Requires documentId query parameter.",
+        "description": "W3C-compliant globally resolvable annotation URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent). Requires authentication and documentId query parameter.",
         "tags": [
           "W3C URIs"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
         ],
         "parameters": [
           {
@@ -3610,40 +3620,6 @@
       }
     },
     "/api/documents/{id}": {
-      "get": {
-        "summary": "Get Document",
-        "description": "Get a document by ID",
-        "tags": [
-          "Documents"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Document retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetDocumentResponse"
-                }
-              }
-            }
-          }
-        }
-      },
       "patch": {
         "summary": "Update Document",
         "description": "Update document metadata (append-only operations - name and content are immutable)",
@@ -4839,50 +4815,6 @@
       }
     },
     "/api/annotations/{id}": {
-      "get": {
-        "summary": "Get Annotation",
-        "description": "Get an annotation by ID (requires documentId query param for O(1) Layer 3 lookup)",
-        "tags": [
-          "Annotations"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "description": "Document ID containing the annotation"
-            },
-            "required": true,
-            "description": "Document ID containing the annotation",
-            "name": "documentId",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Annotation retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetAnnotationResponse"
-                }
-              }
-            }
-          }
-        }
-      },
       "delete": {
         "summary": "Delete Annotation",
         "description": "Delete an annotation (requires documentId in body for O(1) Layer 3 lookup)",

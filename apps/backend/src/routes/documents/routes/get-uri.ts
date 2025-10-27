@@ -1,11 +1,12 @@
 /**
- * Get Document Route - Spec-First Version
+ * Get Document URI Route - W3C Content Negotiation
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - No validation needed (path param extracted directly)
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Handles globally resolvable document URIs with content negotiation:
+ * - Accept: application/ld+json -> returns JSON-LD representation
+ * - Accept: text/html (or browser) -> redirects to frontend viewer
+ *
+ * This implements W3C Web Annotation Data Model requirement that
+ * document URIs be globally resolvable.
  */
 
 import { HTTPException } from 'hono/http-exception';
@@ -15,19 +16,31 @@ import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
+import { prefersHtml, getFrontendUrl } from '../../../middleware/content-negotiation';
 
 type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
 
-export function registerGetDocument(router: DocumentsRouterType) {
+export function registerGetDocumentUri(router: DocumentsRouterType) {
   /**
-   * GET /api/documents/:id
+   * GET /documents/:id
    *
-   * Get a document by ID
-   * Returns document metadata and annotations (NOT content)
-   * Requires authentication
+   * W3C-compliant globally resolvable document URI
+   * Supports content negotiation:
+   * - JSON-LD for machines (default)
+   * - HTML redirect to frontend for browsers
    */
-  router.get('/api/documents/:id', async (c) => {
+  router.get('/documents/:id', async (c) => {
     const { id } = c.req.param();
+
+    // Check if client prefers HTML (browser)
+    if (prefersHtml(c)) {
+      const frontendUrl = getFrontendUrl();
+      const normalizedBase = frontendUrl.endsWith('/') ? frontendUrl.slice(0, -1) : frontendUrl;
+      const redirectUrl = `${normalizedBase}/documents/${id}`;
+      return c.redirect(redirectUrl, 302);
+    }
+
+    // Otherwise, return JSON-LD representation
     const basePath = getFilesystemConfig().path;
 
     // Read from Layer 2/3: Event store builds/loads projection
@@ -39,9 +52,6 @@ export function registerGetDocument(router: DocumentsRouterType) {
     if (!stored) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
-
-    // NOTE: Content is NOT included in this response
-    // Clients must call GET /documents/:id/content separately to get content
 
     const annotations = stored.annotations.annotations;
     const entityReferences = annotations.filter(a => {
@@ -55,6 +65,9 @@ export function registerGetDocument(router: DocumentsRouterType) {
       annotations,
       entityReferences,
     };
+
+    // Set Content-Type to JSON-LD
+    c.header('Content-Type', 'application/ld+json; charset=utf-8');
 
     return c.json(response);
   });

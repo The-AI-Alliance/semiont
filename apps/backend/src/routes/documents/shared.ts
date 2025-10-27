@@ -10,5 +10,6 @@ export type DocumentsRouterType = Hono<{ Variables: { user: User } }>;
 export function createDocumentRouter(): DocumentsRouterType {
   const router = new Hono<{ Variables: { user: User } }>();
   router.use('/api/documents/*', authMiddleware);
+  router.use('/documents/*', authMiddleware); // W3C URI endpoints also require auth
   return router;
 }
