@@ -225,22 +225,23 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Purpose**: Materialized views of current state (optimized for queries)
 
-**Technology**: PostgreSQL + sharded JSON files
+**Technology**: Sharded JSON files (filesystem-based)
 
 **Storage**:
 
-- Document metadata in PostgreSQL (`documents` table)
-- Annotation collections in sharded JSON files
-- System projections (entity types) in JSON
+- Document projections in sharded JSON files (`data/projections/documents/`)
+- Annotation collections in sharded JSON files (`data/projections/annotations/`)
+- System projections (entity types) in JSON files (`data/projections/system/`)
 
 **Key Characteristics**:
 
 - Rebuilt from Event Store (not authoritative)
+- All metadata flows through Event Store → Projections
 - Optimized for fast queries without event replay
 - Incremental updates for performance
 - Can be deleted and reconstructed at any time
 
-**Why This Matters**: You don't query the event log for "get document by ID"—that would be slow. Projections are the read-optimized view. If they're corrupted or you change the schema, replay events to rebuild.
+**Why This Matters**: You don't query the event log for "get document by ID"—that would be slow. Projections are the read-optimized view. If they're corrupted or you change the schema, replay events to rebuild. PostgreSQL is NOT used for document/annotation metadata—all metadata is in JSON projections.
 
 **Documentation**: [PROJECTION.md](./services/PROJECTION.md)
 
@@ -267,24 +268,24 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 ### Database - PostgreSQL
 
-**Purpose**: User accounts, API keys, projection metadata
+**Purpose**: User authentication only (NOT document/annotation metadata)
 
-**Technology**: PostgreSQL 15 (AWS RDS in production)
+**Technology**: PostgreSQL 15 (AWS RDS in production), Prisma ORM
 
-**Storage**:
+**Storage** ([see schema](../../apps/backend/prisma/schema.prisma)):
 
-- User authentication records
-- OAuth sessions
-- Document metadata (projections)
-- Annotation metadata (linked to JSON files)
+- User authentication records (`users` table)
+- OAuth provider data (Google, GitHub)
+- User roles (admin, moderator)
 
 **Key Characteristics**:
 
 - Automatic migrations via Prisma on backend startup
 - No manual migration files (schema is source of truth)
 - Connection pooling via Prisma Client
+- **Document/annotation metadata NOT stored here** - all metadata flows through Event Store → Projections
 
-**Why This Matters**: PostgreSQL handles relational data (users, permissions) while the event store handles document content. The database is not the source of truth for annotations—it's a projection.
+**Why This Matters**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata lives entirely in the Event Store and Projections (JSON files). This separation keeps the database small and focused on its core responsibility: user management.
 
 **Documentation**: [DATABASE.md](./services/DATABASE.md)
 
