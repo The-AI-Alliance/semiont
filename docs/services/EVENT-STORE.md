@@ -173,16 +173,30 @@ dataDir/
 ```
 
 **Sharding Details**:
-- Uses jump consistent hash for uniform distribution
+- Uses jump consistent hash for uniform distribution ([`getShardPath`](../../apps/backend/src/events/storage/event-storage.ts#L58-L72))
 - 4-hex sharding: `ab/cd/documentId/` (e.g., `00/a3/doc-123/`)
 - 65,536 shards (2^16) by default
 - System events use `'__system__'` and bypass sharding
-- File rotation at 10,000 events per file (configurable)
+- File rotation at 10,000 events per file (configurable via `maxEventsPerFile`)
+
+**File Rotation Implementation** ([`writeEvent`](../../apps/backend/src/events/storage/event-storage.ts#L178-L210)):
+- Counts events in current file: [`countEventsInFile()`](../../apps/backend/src/events/storage/event-storage.ts#L215-L236)
+- When `eventCount >= maxEventsPerFile`, creates new file: [`createNewEventFile()`](../../apps/backend/src/events/storage/event-storage.ts#L297-L308)
+- New files named sequentially: `events-000001.jsonl`, `events-000002.jsonl`, etc.
+- Each document can have multiple event files across its lifetime
+
+**Cryptographic Chain Integrity** ([`appendEvent`](../../apps/backend/src/events/storage/event-storage.ts#L135-L172)):
+- Each event stores SHA-256 hash of previous event in `metadata.prevEventHash`
+- First event has no `prevEventHash` (line 156: `prevEventHash || undefined`)
+- Subsequent events: `prevEventHash = this.getLastEventHash(documentId)` (line 150)
+- After writing: `this.setLastEventHash(documentId, metadata.checksum!)` (line 169)
+- Validated by [`EventValidator.validateEventChain()`](../../apps/backend/src/events/validation/event-validator.ts#L34-L60)
+- Tamper detection: chain breaks if any event is modified or events are reordered
 
 **Sequence Tracking**:
 - Per-document sequence numbers stored in memory
 - Initialized from last event on first access
-- Incremented atomically on each append
+- Incremented atomically on each append: [`getNextSequenceNumber()`](../../apps/backend/src/events/storage/event-storage.ts#L384-L394)
 - Used for ordering and validation
 
 ### EventProjector
@@ -502,16 +516,22 @@ Events are stored in **JSON Lines** format (one JSON object per line):
 }
 ```
 
-**EventMetadata**:
+**EventMetadata** ([source](../../packages/core/src/events.ts#L169-L175)):
 ```typescript
 {
   sequenceNumber: number,    // Per-document sequence (starts at 1)
   streamPosition: number,    // Position in file (for file rotation)
   timestamp: string,         // When stored (may differ from event.timestamp)
-  prevEventHash?: string,    // Previous event's checksum (chain integrity)
-  checksum: string           // SHA-256 of event payload
+  prevEventHash?: string,    // SHA-256 of previous event (undefined for first event)
+  checksum?: string          // SHA-256 of this event for integrity
 }
 ```
+
+**Chain Integrity Details**:
+- First event in stream: `prevEventHash` is `undefined`
+- All subsequent events: `prevEventHash` equals previous event's `checksum`
+- Validation: [`EventValidator.validateEventLink()`](../../apps/backend/src/events/validation/event-validator.ts#L76-L83) checks chain
+- Breaking the chain: modifying any event or reordering events invalidates all subsequent events
 
 ### Event Types
 
@@ -730,15 +750,37 @@ console.log('Rebuilt projection:', projection);
 ### File Rotation
 
 **Why rotate at 10,000 events?**
-- JSONL files grow indefinitely
+- JSONL files grow indefinitely without rotation
 - Large files slow down reads (must scan entire file)
 - Rotation creates time-based checkpoints
 - Enables selective reads (read last file only for recent events)
 
+**Implementation** ([`EventStorage.writeEvent`](../../apps/backend/src/events/storage/event-storage.ts#L178-L210)):
+1. Get current event files for document: [`getEventFiles()`](../../apps/backend/src/events/storage/event-storage.ts#L238-L260)
+2. Count events in latest file: [`countEventsInFile()`](../../apps/backend/src/events/storage/event-storage.ts#L215-L236)
+3. If `eventCount >= maxEventsPerFile` (default 10,000):
+   - Create new file: [`createNewEventFile()`](../../apps/backend/src/events/storage/event-storage.ts#L297-L308)
+   - New file gets incremented number: `events-000002.jsonl`, `events-000003.jsonl`, etc.
+4. Append event to target file (current or newly created)
+
+**File Naming Pattern**:
+```
+doc-abc123/
+├── events-000001.jsonl  ← First 10,000 events
+├── events-000002.jsonl  ← Next 10,000 events
+└── events-000003.jsonl  ← Most recent events
+```
+
+**Reading Rotated Files**:
+- [`getAllEvents()`](../../apps/backend/src/events/storage/event-storage.ts#L262-L295) reads ALL files in order
+- Events across files maintain sequential `sequenceNumber`
+- `prevEventHash` chain works across file boundaries
+
 **Trade-offs**:
 - Adds complexity (multiple files per document)
-- Requires tracking current file
+- Requires tracking current file and event count
 - Benefits appear with high-volume documents (100+ events)
+- Configurable via `maxEventsPerFile` config option
 
 ### Incremental Projections
 
@@ -751,6 +793,39 @@ console.log('Rebuilt projection:', projection);
 - More complex logic (apply event to existing state)
 - Requires existing projection (fallback to rebuild)
 - Small risk of drift (mitigated by validation)
+
+### Cryptographic Chain Integrity
+
+**Purpose**: Detect tampering, corruption, or unauthorized modifications to event history
+
+**How It Works** ([`EventStorage.appendEvent`](../../apps/backend/src/events/storage/event-storage.ts#L135-L172)):
+1. **First Event**: No `prevEventHash` (line 156: `prevEventHash || undefined`)
+2. **Subsequent Events**:
+   - Get previous event's checksum: `prevEventHash = this.getLastEventHash(documentId)` (line 150)
+   - Calculate current event's checksum: `checksum: sha256(completeEvent)` (line 157)
+   - Store both in metadata
+   - Update tracking: `this.setLastEventHash(documentId, metadata.checksum!)` (line 169)
+
+**Validation** ([`EventValidator.validateEventChain`](../../apps/backend/src/events/validation/event-validator.ts#L34-L60)):
+```typescript
+// For each event (except first):
+if (curr.metadata.prevEventHash !== prev.metadata.checksum) {
+  // Chain is broken - tampering detected
+}
+```
+
+**What This Detects**:
+- **Event modification**: Changing any field breaks the checksum
+- **Event deletion**: Missing event breaks the chain
+- **Event reordering**: prevEventHash won't match previous event
+- **Event insertion**: New event won't have correct prevEventHash
+
+**Hash Algorithm**: SHA-256 via [`sha256()`](../../apps/backend/src/storage/shard-utils.ts) utility
+
+**Limitations**:
+- In-memory tracking (not persisted across server restarts)
+- No protection against coordinated multi-event tampering (would require signatures)
+- Future: Add optional cryptographic signatures for federation ([`EventSignature`](../../packages/core/src/events.ts#L178-L183))
 
 ## Testing
 
