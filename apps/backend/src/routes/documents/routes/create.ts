@@ -8,11 +8,10 @@
  * - OpenAPI spec is the source of truth
  */
 
-import { createContentManager } from '../../../services/storage-service';
 import {
   CREATION_METHODS,
   type CreationMethod,
-  calculateChecksum,
+  generateUuid,
 } from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 import { createEventStore } from '../../../services/event-store-service';
@@ -20,10 +19,11 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
 import { getFilesystemConfig } from '../../../config/environment-loader';
+import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 
 type CreateDocumentRequest = components['schemas']['CreateDocumentRequest'];
 type CreateDocumentResponse = components['schemas']['CreateDocumentResponse'];
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export function registerCreateDocument(router: DocumentsRouterType) {
   /**
@@ -39,13 +39,17 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       const body = c.get('validatedBody') as CreateDocumentRequest;
       const user = c.get('user');
       const basePath = getFilesystemConfig().path;
-      const contentManager = createContentManager(basePath);
+      const repStore = new FilesystemRepresentationStore({ basePath });
 
-      const checksum = calculateChecksum(body.content);
-      const documentId = `doc-sha256:${checksum}`;
+      const documentId = generateUuid();
 
-      // Save to filesystem (Layer 1)
-      await contentManager.save(documentId, Buffer.from(body.content));
+      // Store representation (Layer 1)
+      const contentBuffer = Buffer.from(body.content);
+      const storedRep = await repStore.store(contentBuffer, {
+        mediaType: body.format,
+        language: body.language,
+        rel: 'original',
+      });
 
       // Subscribe GraphDB consumer to new document BEFORE emitting event
       // This ensures the consumer receives the document.created event
@@ -74,7 +78,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         payload: {
           name: body.name,
           format: body.format,
-          contentChecksum: checksum,
+          contentChecksum: storedRep.checksum,
           creationMethod,
           entityTypes: body.entityTypes,
           language: body.language,
@@ -84,18 +88,25 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         },
       });
 
-      // Return optimistic response
-      const documentMetadata: Document = {
-        id: documentId,
+      // Return optimistic response with W3C-compliant HTTP URI
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+      const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
+
+      const documentMetadata: ResourceDescriptor = {
+        '@context': 'https://schema.org/',
+        '@id': `${normalizedBase}/documents/${documentId}`,
         name: body.name,
         archived: false,
-        format: body.format,
-        entityTypes: body.entityTypes,
-        language: body.language,
+        entityTypes: body.entityTypes || [],
         creationMethod,
-        contentChecksum: checksum,
-        creator: userToAgent(user),
-        created: new Date().toISOString(),
+        dateCreated: new Date().toISOString(),
+        wasAttributedTo: userToAgent(user),
+        representations: [{
+          mediaType: body.format,
+          checksum: storedRep.checksum,
+          rel: 'original',
+          language: body.language,
+        }],
       };
 
       const response: CreateDocumentResponse = {

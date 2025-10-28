@@ -34,11 +34,11 @@ describe('Content Negotiation Middleware', () => {
       expect(prefersHtml(mockContext)).toBe(true);
     });
 
-    it('should return true when User-Agent indicates Mozilla browser', () => {
+    it('should return true when User-Agent indicates Mozilla browser (without JSON Accept)', () => {
       const mockContext = {
         req: {
           header: (name: string) => {
-            if (name === 'Accept') return 'application/json';
+            if (name === 'Accept') return 'text/html';
             if (name === 'User-Agent') return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)';
             return undefined;
           }
@@ -48,11 +48,11 @@ describe('Content Negotiation Middleware', () => {
       expect(prefersHtml(mockContext)).toBe(true);
     });
 
-    it('should return true when User-Agent indicates Chrome browser', () => {
+    it('should return true when User-Agent indicates Chrome browser (without JSON Accept)', () => {
       const mockContext = {
         req: {
           header: (name: string) => {
-            if (name === 'Accept') return 'application/json';
+            if (name === 'Accept') return 'text/html';
             if (name === 'User-Agent') return 'Chrome/120.0.0.0 Safari/537.36';
             return undefined;
           }
@@ -62,11 +62,11 @@ describe('Content Negotiation Middleware', () => {
       expect(prefersHtml(mockContext)).toBe(true);
     });
 
-    it('should return true when User-Agent indicates Safari browser', () => {
+    it('should return true when User-Agent indicates Safari browser (without JSON Accept)', () => {
       const mockContext = {
         req: {
           header: (name: string) => {
-            if (name === 'Accept') return 'application/json';
+            if (name === 'Accept') return 'text/html';
             if (name === 'User-Agent') return 'Safari/605.1.15';
             return undefined;
           }

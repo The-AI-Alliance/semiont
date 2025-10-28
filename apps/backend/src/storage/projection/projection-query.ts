@@ -13,6 +13,7 @@
 
 import type { DocumentState } from './projection-storage-v2';
 import type { ProjectionStorage } from './projection-storage-v2';
+import { getCreator } from '../../utils/resource-helpers';
 
 /**
  * ProjectionQuery provides query operations on projections
@@ -32,7 +33,7 @@ export class ProjectionQuery {
 
     for (const id of allIds) {
       const projection = await this.storage.get(id);
-      if (projection && projection.document.entityTypes.includes(entityType)) {
+      if (projection && projection.document.entityTypes?.includes(entityType)) {
         results.push(projection);
       }
     }
@@ -52,8 +53,11 @@ export class ProjectionQuery {
 
     for (const id of allIds) {
       const projection = await this.storage.get(id);
-      if (projection && projection.document.creator.id === userId) {
-        results.push(projection);
+      if (projection) {
+        const creator = getCreator(projection.document);
+        if (creator?.['@id'] === userId) {
+          results.push(projection);
+        }
       }
     }
 

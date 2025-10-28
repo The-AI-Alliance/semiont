@@ -2,17 +2,22 @@ import { visit } from 'unist-util-visit';
 import type { Root } from 'mdast';
 import type { VFile } from 'vfile';
 
-interface Annotation {
+/**
+ * Simplified annotation format for remark plugin.
+ * This is NOT the W3C Annotation - it's a pre-processed format with offset/length
+ * for efficient markdown text processing.
+ */
+export interface PreparedAnnotation {
   id: string;
   exact: string;
-  offset: number;
-  length: number;
+  offset: number;  // Character offset in source text (start position)
+  length: number;  // Length of annotated text (not end position!)
   type: 'highlight' | 'reference' | 'assessment';
-  source?: string;
+  source: string | null; // For references - the linked document ID (null for stubs)
 }
 
 interface RemarkAnnotationsOptions {
-  annotations: Annotation[];
+  annotations: PreparedAnnotation[];
 }
 
 export function remarkAnnotations(options: RemarkAnnotationsOptions) {

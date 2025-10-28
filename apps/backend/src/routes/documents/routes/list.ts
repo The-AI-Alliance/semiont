@@ -9,12 +9,13 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { createContentManager } from '../../../services/storage-service';
 import { formatSearchResult } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { getFilesystemConfig } from '../../../config/environment-loader';
+import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
 
 type ListDocumentsResponse = components['schemas']['ListDocumentsResponse'];
 
@@ -46,7 +47,7 @@ export function registerListDocuments(router: DocumentsRouterType) {
 
     const search = query.search;
 
-    const contentManager = createContentManager(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     // Read from Layer 3 projection storage
     let filteredDocs = await DocumentQueryService.listDocuments({
@@ -56,7 +57,7 @@ export function registerListDocuments(router: DocumentsRouterType) {
 
     // Additional filter by entity type (Layer 3 already handles search and archived)
     if (entityType) {
-      filteredDocs = filteredDocs.filter(doc => doc.entityTypes?.includes(entityType));
+      filteredDocs = filteredDocs.filter(doc => getEntityTypes(doc).includes(entityType));
     }
 
     // Paginate
@@ -69,9 +70,13 @@ export function registerListDocuments(router: DocumentsRouterType) {
       formattedDocs = await Promise.all(
         paginatedDocs.map(async (doc) => {
           try {
-            const contentBuffer = await contentManager.get(doc.id);
-            const contentPreview = contentBuffer.toString('utf-8').slice(0, 200);
-            return formatSearchResult(doc, contentPreview);
+            const primaryRep = getPrimaryRepresentation(doc);
+            if (primaryRep?.checksum && primaryRep?.mediaType) {
+              const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+              const contentPreview = contentBuffer.toString('utf-8').slice(0, 200);
+              return formatSearchResult(doc, contentPreview);
+            }
+            return formatSearchResult(doc, '');
           } catch {
             return formatSearchResult(doc, '');
           }

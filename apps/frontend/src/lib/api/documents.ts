@@ -42,7 +42,7 @@ export const documents = {
       const { data: session } = useSession();
       return useQuery({
         queryKey: QUERY_KEYS.documents.detail(id),
-        queryFn: () => fetchAPI<GetDocumentResponse>(`/documents/${id}`, {}, session?.backendToken),
+        queryFn: () => fetchAPI<GetDocumentResponse>(`/documents/${encodeURIComponent(id)}`, {}, session?.backendToken),
         enabled: !!session?.backendToken && !!id,
       });
     },

@@ -10,12 +10,13 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { createContentManager } from '../../../services/storage-service';
 import { generateDocumentSummary } from '../../../inference/factory';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
+import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../../../utils/resource-helpers';
 
 type ReferenceLLMContextResponse = components['schemas']['ReferenceLLMContextResponse'];
 
@@ -47,7 +48,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const contentManager = createContentManager(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     // Get the reference
     const reference = await graphDb.getAnnotation(referenceId);
@@ -68,7 +69,11 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     // Build source context if requested
     let sourceContext;
     if (includeSourceContext) {
-      const sourceContent = await contentManager.get(documentId);
+      const primaryRep = getPrimaryRepresentation(sourceDoc);
+      if (!primaryRep?.checksum || !primaryRep?.mediaType) {
+        throw new HTTPException(404, { message: 'Source content not found' });
+      }
+      const sourceContent = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
       const contentStr = sourceContent.toString('utf-8');
 
       const targetSelector = getTargetSelector(reference.target);
@@ -87,13 +92,16 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     // Build target context if requested and available
     let targetContext;
     if (includeTargetContext && targetDoc) {
-      const targetContent = await contentManager.get(targetDoc.id);
-      const contentStr = targetContent.toString('utf-8');
+      const targetRep = getPrimaryRepresentation(targetDoc);
+      if (targetRep?.checksum && targetRep?.mediaType) {
+        const targetContent = await repStore.retrieve(targetRep.checksum, targetRep.mediaType);
+        const contentStr = targetContent.toString('utf-8');
 
-      targetContext = {
-        content: contentStr.slice(0, contextWindow * 2),
-        summary: await generateDocumentSummary(targetDoc.name, contentStr, targetDoc.entityTypes || []),
-      };
+        targetContext = {
+          content: contentStr.slice(0, contextWindow * 2),
+          summary: await generateDocumentSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc)),
+        };
+      }
     }
 
     // TODO: Generate suggested resolution using AI

@@ -3,7 +3,7 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { remarkAnnotations } from '@/lib/remark-annotations';
+import { remarkAnnotations, type PreparedAnnotation } from '@/lib/remark-annotations';
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
 import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource } from '@semiont/api-client';
@@ -20,13 +20,17 @@ interface Props {
   onWikiLinkClick?: (pageName: string) => void;
 }
 
-// Convert Annotation[] to the simpler format needed by plugins
-function prepareAnnotations(annotations: Annotation[]) {
+/**
+ * Convert W3C Annotations to simplified format for remark plugin.
+ * Extracts position info and converts start/end to offset/length.
+ */
+function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
   return annotations
-    .filter(ann => getTargetSelector(ann.target))
     .map(ann => {
       const targetSelector = getTargetSelector(ann.target);
       const posSelector = getTextPositionSelector(targetSelector);
+      const start = posSelector?.start ?? 0;
+      const end = posSelector?.end ?? 0;
       // Use W3C motivation to determine type
       let type: 'highlight' | 'reference' | 'assessment';
       if (ann.motivation === 'assessing') {
@@ -39,8 +43,8 @@ function prepareAnnotations(annotations: Annotation[]) {
       return {
         id: ann.id,
         exact: getExactText(targetSelector),
-        start: posSelector?.start ?? 0,
-        end: posSelector?.end ?? 0,
+        offset: start,           // remark plugin expects 'offset'
+        length: end - start,      // remark plugin expects 'length', not 'end'
         type,
         source: getBodySource(ann.body)
       };

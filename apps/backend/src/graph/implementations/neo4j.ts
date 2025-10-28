@@ -18,8 +18,9 @@ import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
+import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 export class Neo4jGraphDatabase implements GraphDatabase {
@@ -160,26 +161,34 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createDocument(input: CreateDocumentInput & { id: string }): Promise<Document> {
+  async createDocument(input: CreateDocumentInput & { id: string }): Promise<ResourceDescriptor> {
     const session = this.getSession();
     try {
       const id = input.id;
       const now = new Date().toISOString();
 
-      const document: Document = {
-        id,
+      const resource: ResourceDescriptor = {
+        '@context': 'https://schema.org/',
+        '@id': id,
         name: input.name,
         entityTypes: input.entityTypes,
-        format: input.format,
+        representations: [{
+          mediaType: input.format,
+          checksum: input.contentChecksum,
+          rel: 'original',
+        }],
         archived: false,
-        created: now,
-        creator: input.creator,
+        dateCreated: now,
+        wasAttributedTo: input.creator,
         creationMethod: input.creationMethod,
-        contentChecksum: input.contentChecksum,
       };
 
-      if (input.sourceAnnotationId) document.sourceAnnotationId = input.sourceAnnotationId;
-      if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
+      if (input.sourceDocumentId) resource.sourceDocumentId = input.sourceDocumentId;
+
+      const primaryRep = getPrimaryRepresentation(resource);
+      if (!primaryRep) {
+        throw new Error('Resource must have at least one representation');
+      }
 
       const result = await session.run(
         `CREATE (d:Document {
@@ -198,16 +207,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         }) RETURN d`,
         {
           id,
-          name: document.name,
-          entityTypes: document.entityTypes,
-          format: document.format,
-          archived: document.archived,
+          name: resource.name,
+          entityTypes: resource.entityTypes,
+          format: primaryRep.mediaType,
+          archived: resource.archived,
           created: now,
-          creator: document.creator,
-          creationMethod: document.creationMethod,
-          contentChecksum: document.contentChecksum,
-          sourceAnnotationId: document.sourceAnnotationId ?? null,
-          sourceDocumentId: document.sourceDocumentId ?? null,
+          creator: JSON.stringify(resource.wasAttributedTo),
+          creationMethod: resource.creationMethod,
+          contentChecksum: primaryRep.checksum,
+          sourceAnnotationId: null,
+          sourceDocumentId: resource.sourceDocumentId ?? null,
         }
       );
 
@@ -217,7 +226,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getDocument(id: string): Promise<Document | null> {
+  async getDocument(id: string): Promise<ResourceDescriptor | null> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -232,7 +241,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async updateDocument(id: string, input: UpdateDocumentInput): Promise<Document> {
+  async updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor> {
     // Documents are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
       throw new Error('Documents are immutable. Only archiving is allowed.');
@@ -272,7 +281,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async listDocuments(filter: DocumentFilter): Promise<{ documents: Document[]; total: number }> {
+  async listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
     const session = this.getSession();
     try {
       let whereClause = '';
@@ -320,7 +329,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async searchDocuments(query: string, limit: number = 20): Promise<Document[]> {
+  async searchDocuments(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -1000,7 +1009,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
 
   // Helper methods to parse Neo4j nodes
-  private parseDocumentNode(node: any): Document {
+  private parseDocumentNode(node: any): ResourceDescriptor {
     const props = node.properties;
 
     // Validate all required fields
@@ -1014,19 +1023,25 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!props.creationMethod) throw new Error(`Document ${props.id} missing required field: creationMethod`);
     if (!props.contentChecksum) throw new Error(`Document ${props.id} missing required field: contentChecksum`);
 
-    return {
-      id: props.id,
+    const resource: ResourceDescriptor = {
+      '@context': 'https://schema.org/',
+      '@id': props.id,
       name: props.name,
       entityTypes: props.entityTypes,
-      format: props.format,
+      representations: [{
+        mediaType: props.format,
+        checksum: props.contentChecksum,
+        rel: 'original',
+      }],
       archived: props.archived,
-      created: props.created.toString(), // ISO string from DB
-      creator: props.creator,
+      dateCreated: props.created.toString(),
+      wasAttributedTo: typeof props.creator === 'string' ? JSON.parse(props.creator) : props.creator,
       creationMethod: props.creationMethod,
-      contentChecksum: props.contentChecksum,
-      sourceAnnotationId: props.sourceAnnotationId,
-      sourceDocumentId: props.sourceDocumentId,
     };
+
+    if (props.sourceDocumentId) resource.sourceDocumentId = props.sourceDocumentId;
+
+    return resource;
   }
 
   private parseAnnotationNode(node: any, entityTypes: string[] = []): Annotation {

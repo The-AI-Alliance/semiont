@@ -21,14 +21,51 @@ export function prefersHtml(c: Context): boolean {
   const acceptHeader = c.req.header('Accept') || '';
   const userAgent = c.req.header('User-Agent') || '';
 
-  // Check if Accept header explicitly includes text/html
+  // Check what content types are accepted
   const acceptsHtml = acceptHeader.includes('text/html');
+  const acceptsJson = acceptHeader.includes('application/json') || acceptHeader.includes('application/ld+json');
 
-  // Check if User-Agent indicates a browser
-  const isBrowser = userAgent.includes('Mozilla') || userAgent.includes('Chrome') || userAgent.includes('Safari');
+  // If Accept header has ONLY JSON (no HTML), definitely prefer JSON
+  // This handles fetch() API calls: fetch() sends "Accept: application/json, */*;q=0.1" or similar
+  if (acceptsJson && !acceptsHtml) {
+    return false;
+  }
 
-  // Prefer HTML if either Accept header includes it OR it's a browser
-  return acceptsHtml || isBrowser;
+  // If Accept header has both HTML and JSON, check which comes first (higher priority)
+  // e.g., "text/html,application/json;q=0.9" -> HTML has higher priority
+  // e.g., "application/json,text/html;q=0.9" -> JSON has higher priority
+  if (acceptsHtml && acceptsJson) {
+    const htmlIndex = acceptHeader.indexOf('text/html');
+    const jsonIndex = Math.min(
+      acceptHeader.indexOf('application/json') >= 0 ? acceptHeader.indexOf('application/json') : Infinity,
+      acceptHeader.indexOf('application/ld+json') >= 0 ? acceptHeader.indexOf('application/ld+json') : Infinity
+    );
+    // If HTML appears first, prefer HTML (browser navigation)
+    // If JSON appears first, prefer JSON (API call)
+    if (htmlIndex < jsonIndex) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  // Check if User-Agent indicates a browser (Mozilla, Chrome, Safari, Edge, etc.)
+  const isBrowser = /Mozilla|Chrome|Safari|Edge|Firefox|Opera/.test(userAgent);
+
+  // If User-Agent is a browser AND no Accept header specified, prefer HTML
+  // This handles direct browser navigation without explicit Accept
+  if (isBrowser && !acceptHeader && !userAgent.includes('curl')) {
+    return true;
+  }
+
+  // If User-Agent is a browser AND accepts HTML (no JSON), prefer HTML
+  // This handles direct browser navigation with HTML Accept
+  if (isBrowser && acceptsHtml && !userAgent.includes('curl')) {
+    return true;
+  }
+
+  // Default: only prefer HTML if Accept header explicitly includes text/html
+  return acceptsHtml && !acceptsJson;
 }
 
 /**

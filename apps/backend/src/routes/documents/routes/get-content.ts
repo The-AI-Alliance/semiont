@@ -9,10 +9,11 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { createContentManager } from '../../../services/storage-service';
 import { DocumentQueryService } from '../../../services/document-queries';
 import type { DocumentsRouterType } from '../shared';
 import { getFilesystemConfig } from '../../../config/environment-loader';
+import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { getPrimaryRepresentation, getPrimaryMediaType } from '../../../utils/resource-helpers';
 
 export function registerGetDocumentContent(router: DocumentsRouterType) {
   /**
@@ -25,22 +26,31 @@ export function registerGetDocumentContent(router: DocumentsRouterType) {
   router.get('/api/documents/:id/content', async (c) => {
     const { id } = c.req.param();
     const basePath = getFilesystemConfig().path;
-    const contentManager = createContentManager(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
-    // Get document metadata from Layer 3 to retrieve the format (MIME type)
-    const doc = await DocumentQueryService.getDocumentMetadata(id);
-    if (!doc) {
+    // Get document metadata from Layer 3
+    const resource = await DocumentQueryService.getDocumentMetadata(id);
+    if (!resource) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
 
-    // Read content from Layer 1 (filesystem)
-    const content = await contentManager.get(id);
+    // Get primary representation
+    const primaryRep = getPrimaryRepresentation(resource);
+    if (!primaryRep || !primaryRep.checksum || !primaryRep.mediaType) {
+      throw new HTTPException(404, { message: 'Document content not found' });
+    }
+
+    // Read content from RepresentationStore using content-addressed lookup
+    const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
     if (!content) {
       throw new HTTPException(404, { message: 'Document content not found' });
     }
 
-    // Set Content-Type header from document.format (W3C alignment)
-    c.header('Content-Type', doc.format);
+    // Set Content-Type header from representation mediaType
+    const mediaType = getPrimaryMediaType(resource);
+    if (mediaType) {
+      c.header('Content-Type', mediaType);
+    }
     return c.text(content.toString('utf-8'));
   });
 }

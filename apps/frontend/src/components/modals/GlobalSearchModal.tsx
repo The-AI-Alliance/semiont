@@ -5,6 +5,7 @@ import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/re
 import { useRouter } from '@/i18n/routing';
 import { documents } from '@/lib/api/documents';
 import { useSearchAnnouncements } from '@/components/LiveRegion';
+import { getDocumentId } from '@/lib/resource-helpers';
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -63,7 +64,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     } else if (searchData) {
       const docResults: SearchResult[] = (searchData.documents || []).map((doc: any) => ({
         type: 'document' as const,
-        id: doc.id,
+        id: getDocumentId(doc),
         name: doc.name,
         content: doc.content?.substring(0, 150)
       }));

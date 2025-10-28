@@ -6,8 +6,9 @@ import { useRouter } from '@/i18n/routing';
 import { documents } from '@/lib/api/documents';
 import { entityTypes as entityTypesAPI } from '@/lib/api/entity-types';
 import type { components } from '@semiont/api-client';
+import { getResourceId, getDocumentId } from '@/lib/resource-helpers';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useRovingTabIndex } from '@/hooks/useRovingTabIndex';
 import { useTheme } from '@/hooks/useTheme';
@@ -23,8 +24,8 @@ const DocumentCard = React.memo(({
   archivedLabel,
   createdLabel
 }: {
-  doc: Document;
-  onOpen: (doc: Document) => void;
+  doc: ResourceDescriptor;
+  onOpen: (doc: ResourceDescriptor) => void;
   tabIndex?: number;
   archivedLabel: string;
   createdLabel: string;
@@ -55,7 +56,7 @@ const DocumentCard = React.memo(({
 
     {/* Document Metadata */}
     <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-500">
-      <span>{createdLabel} {new Date(doc.created).toLocaleDateString()}</span>
+      <span>{createdLabel} {doc.dateCreated ? new Date(doc.dateCreated).toLocaleDateString() : 'N/A'}</span>
       {doc.entityTypes && doc.entityTypes.length > 0 && (
         <div className="flex gap-1">
           {doc.entityTypes.slice(0, 2).map((type) => (
@@ -146,7 +147,7 @@ export default function DiscoverPage() {
 
     if (!selectedEntityType) return baseDocuments;
 
-    return baseDocuments.filter((doc: Document) =>
+    return baseDocuments.filter((doc: ResourceDescriptor) =>
       doc.entityTypes && doc.entityTypes.includes(selectedEntityType)
     );
   }, [recentDocuments, searchDocuments, selectedEntityType, hasSearchResults]);
@@ -168,8 +169,8 @@ export default function DiscoverPage() {
     setSelectedEntityType(entityType);
   }, []);
 
-  const openDocument = useCallback((doc: Document) => {
-    router.push(`/know/document/${encodeURIComponent(doc.id)}`);
+  const openDocument = useCallback((doc: ResourceDescriptor) => {
+    router.push(`/know/document/${encodeURIComponent(getDocumentId(doc))}`);
   }, [router]);
 
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
@@ -297,9 +298,9 @@ export default function DiscoverPage() {
               role="group"
               aria-label="Document grid"
             >
-              {filteredDocuments.map((doc: Document, index: number) => (
+              {filteredDocuments.map((doc: ResourceDescriptor, index: number) => (
                 <DocumentCard
-                  key={doc.id}
+                  key={getResourceId(doc)}
                   doc={doc}
                   onOpen={openDocument}
                   tabIndex={index === 0 ? 0 : -1}

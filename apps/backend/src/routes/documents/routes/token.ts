@@ -10,11 +10,9 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { createContentManager } from '../../../services/storage-service';
-import { calculateChecksum } from '@semiont/core';
 import {
   CREATION_METHODS,
-  type CreationMethod,
+  generateUuid,
   type CreateDocumentInput,
 } from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
@@ -22,12 +20,13 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
 import { getFilesystemConfig } from '../../../config/environment-loader';
+import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { getPrimaryRepresentation, getResourceId, getEntityTypes } from '../../../utils/resource-helpers';
 
 type GetDocumentByTokenResponse = components['schemas']['GetDocumentByTokenResponse'];
 type CreateDocumentFromTokenRequest = components['schemas']['CreateDocumentFromTokenRequest'];
 type CreateDocumentFromTokenResponse = components['schemas']['CreateDocumentFromTokenResponse'];
 type CloneDocumentWithTokenResponse = components['schemas']['CloneDocumentWithTokenResponse'];
-type Document = components['schemas']['Document'];
 
 // Simple in-memory token store (replace with Redis/DB in production)
 const cloneTokens = new Map<string, { documentId: string; expiresAt: Date }>();
@@ -93,7 +92,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       }
 
       const graphDb = await getGraphDatabase();
-      const contentManager = createContentManager(basePath);
+      const repStore = new FilesystemRepresentationStore({ basePath });
 
       // Get source document
       const sourceDoc = await graphDb.getDocument(tokenData.documentId);
@@ -102,39 +101,43 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       }
 
       // Create new document
-      const checksum = calculateChecksum(body.content);
-      const document: Document = {
-        id: Math.random().toString(36).substring(2, 11),
-        name: body.name,
-        archived: false,
-        format: sourceDoc.format,
-        entityTypes: sourceDoc.entityTypes || [],
+      const documentId = generateUuid();
 
-        // Clone context
-        creationMethod: CREATION_METHODS.CLONE as CreationMethod,
-        sourceDocumentId: tokenData.documentId,
-        contentChecksum: checksum,
+      // Get source format and validate it's a supported ContentFormat
+      const primaryRep = getPrimaryRepresentation(sourceDoc);
+      const mediaType = primaryRep?.mediaType || 'text/plain';
 
-        creator: userToAgent(user),
-        created: new Date().toISOString(),
-      };
+      // Validate mediaType is a supported ContentFormat (validation at periphery)
+      const validFormats = ['text/plain', 'text/markdown'] as const;
+      const format: 'text/plain' | 'text/markdown' = validFormats.includes(mediaType as any)
+        ? (mediaType as 'text/plain' | 'text/markdown')
+        : 'text/plain';
 
-      const documentId = `doc-sha256:${checksum}`;
+      // Store representation
+      const storedRep = await repStore.store(Buffer.from(body.content), {
+        mediaType: format,
+        rel: 'original',
+      });
 
       const createInput: CreateDocumentInput & { id: string } = {
         id: documentId,
-        name: document.name,
-        entityTypes: document.entityTypes,
+        name: body.name,
+        entityTypes: getEntityTypes(sourceDoc),
         content: body.content,
-        format: document.format,
-        contentChecksum: document.contentChecksum!,
-        creator: document.creator!,
+        format,
+        contentChecksum: storedRep.checksum,
+        creator: userToAgent(user),
         creationMethod: CREATION_METHODS.CLONE,
-        sourceDocumentId: document.sourceDocumentId,
+        sourceDocumentId: getResourceId(sourceDoc),
       };
 
       const savedDoc = await graphDb.createDocument(createInput);
-      await contentManager.save(documentId, Buffer.from(body.content));
+
+      // Store representation
+      await repStore.store(Buffer.from(body.content), {
+        mediaType: format,
+        rel: 'original',
+      });
 
       // Archive original if requested
       if (body.archiveOriginal) {
@@ -147,7 +150,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       cloneTokens.delete(body.token);
 
       // Get annotations
-      const result = await graphDb.listAnnotations({ documentId: savedDoc.id });
+      const result = await graphDb.listAnnotations({ documentId: getResourceId(savedDoc) });
 
       const response: CreateDocumentFromTokenResponse = {
         document: savedDoc,
@@ -168,7 +171,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     const { id } = c.req.param();
     const basePath = getFilesystemConfig().path;
     const graphDb = await getGraphDatabase();
-    const contentManager = createContentManager(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     const sourceDoc = await graphDb.getDocument(id);
     if (!sourceDoc) {
@@ -176,8 +179,13 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     }
 
     // Check if content exists
+    const primaryRep = getPrimaryRepresentation(sourceDoc);
+    if (!primaryRep?.checksum || !primaryRep?.mediaType) {
+      throw new HTTPException(404, { message: 'Document content not found' });
+    }
+
     try {
-      await contentManager.get(id);
+      await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
     } catch {
       throw new HTTPException(404, { message: 'Document content not found' });
     }

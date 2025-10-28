@@ -10,11 +10,12 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { createContentManager } from '../../../services/storage-service';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
+import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { getResourceId, getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
 
 type DocumentLLMContextResponse = components['schemas']['DocumentLLMContextResponse'];
 
@@ -53,7 +54,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const contentManager = createContentManager(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     const mainDoc = await graphDb.getDocument(id);
     if (!mainDoc) {
@@ -61,8 +62,14 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     }
 
     // Get content for main document
-    const mainContent = includeContent ?
-      (await contentManager.get(id)).toString('utf-8') : undefined;
+    let mainContent: string | undefined;
+    if (includeContent) {
+      const primaryRep = getPrimaryRepresentation(mainDoc);
+      if (primaryRep?.checksum && primaryRep?.mediaType) {
+        const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+        mainContent = buffer.toString('utf-8');
+      }
+    }
 
     // Get related documents through graph connections
     const connections = await graphDb.getDocumentConnections(id);
@@ -74,8 +81,11 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     if (includeContent) {
       await Promise.all(limitedRelatedDocs.map(async (doc) => {
         try {
-          const content = await contentManager.get(doc.id);
-          relatedDocumentsContent[doc.id] = content.toString('utf-8');
+          const primaryRep = getPrimaryRepresentation(doc);
+          if (primaryRep?.checksum && primaryRep?.mediaType) {
+            const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+            relatedDocumentsContent[getResourceId(doc)] = buffer.toString('utf-8');
+          }
         } catch {
           // Skip documents where content can't be loaded
         }
@@ -89,29 +99,29 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     // Build graph representation
     const nodes = [
       {
-        id: mainDoc.id,
+        id: getResourceId(mainDoc),
         type: 'document',
         label: mainDoc.name,
-        metadata: { entityTypes: mainDoc.entityTypes },
+        metadata: { entityTypes: getEntityTypes(mainDoc) },
       },
       ...limitedRelatedDocs.map(doc => ({
-        id: doc.id,
+        id: getResourceId(doc),
         type: 'document',
         label: doc.name,
-        metadata: { entityTypes: doc.entityTypes },
+        metadata: { entityTypes: getEntityTypes(doc) },
       })),
     ];
 
     const edges = connections.map(conn => ({
       source: id,
-      target: conn.targetDocument.id,
+      target: getResourceId(conn.targetDocument),
       type: conn.relationshipType || 'link',
       metadata: {},
     }));
 
     // Generate summary if requested
     const summary = includeSummary && mainContent ?
-      await generateDocumentSummary(mainDoc.name, mainContent, mainDoc.entityTypes || []) : undefined;
+      await generateDocumentSummary(mainDoc.name, mainContent, getEntityTypes(mainDoc)) : undefined;
 
     // Generate reference suggestions if we have content
     const suggestedReferences = mainContent ?

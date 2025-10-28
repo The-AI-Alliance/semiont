@@ -10,10 +10,12 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { createContentManager } from '../../../services/storage-service';
 import type { components } from '@semiont/api-client';
-import type { CreateDocumentInput, CreationMethod } from '@semiont/core';
-import { CREATION_METHODS, calculateChecksum } from '@semiont/core';
+import {
+  CREATION_METHODS,
+  generateUuid,
+  type CreateDocumentInput,
+} from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -21,8 +23,8 @@ import { userToAgent } from '../../../utils/id-generator';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
-
-type Document = components['schemas']['Document'];
+import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { getResourceId } from '../../../utils/resource-helpers';
 
 type CreateFromAnnotationRequest = components['schemas']['CreateFromAnnotationRequest'];
 type CreateFromAnnotationResponse = components['schemas']['CreateFromAnnotationResponse'];
@@ -44,50 +46,40 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       const user = c.get('user');
       const basePath = getFilesystemConfig().path;
       const graphDb = await getGraphDatabase();
-      const contentManager = createContentManager(basePath);
+      const repStore = new FilesystemRepresentationStore({ basePath });
 
       const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.documentId);
       if (!annotation) {
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
 
-      const checksum = calculateChecksum(body.content);
-      const document: Document = {
-        id: Math.random().toString(36).substring(2, 11),
-        name: body.name,
-        archived: false,
-        format: body.format,
-        entityTypes: getEntityTypes(annotation),
-        creationMethod: CREATION_METHODS.REFERENCE as CreationMethod,
-        sourceAnnotationId: annotationId,
-        sourceDocumentId: getTargetSource(annotation.target),
-        contentChecksum: checksum,
-        creator: userToAgent(user),
-        created: new Date().toISOString(),
-      };
+      const documentId = generateUuid();
 
-      const documentId = `doc-sha256:${checksum}`;
+      // Store representation
+      const storedRep = await repStore.store(Buffer.from(body.content), {
+        mediaType: body.format,
+        rel: 'original',
+      });
 
       const createInput: CreateDocumentInput & { id: string } = {
         id: documentId,
-        name: document.name,
-        entityTypes: document.entityTypes,
+        name: body.name,
+        entityTypes: getEntityTypes(annotation),
         content: body.content,
-        format: document.format,
-        contentChecksum: document.contentChecksum!,
-        creator: document.creator!,
+        format: body.format,
+        contentChecksum: storedRep.checksum,
+        creator: userToAgent(user),
         creationMethod: CREATION_METHODS.REFERENCE,
-        sourceAnnotationId: document.sourceAnnotationId,
-        sourceDocumentId: document.sourceDocumentId,
+        sourceAnnotationId: annotationId,
+        sourceDocumentId: getTargetSource(annotation.target),
       };
 
       const savedDoc = await graphDb.createDocument(createInput);
-      await contentManager.save(documentId, Buffer.from(body.content));
 
       // Update the annotation to resolve to the new document
-      await graphDb.resolveReference(annotationId, savedDoc.id);
+      await graphDb.resolveReference(annotationId, getResourceId(savedDoc));
 
-      const result = await graphDb.listAnnotations({ documentId: savedDoc.id });
+      const result = await graphDb.listAnnotations({ documentId: getResourceId(savedDoc) });
 
       const response: CreateFromAnnotationResponse = {
         document: savedDoc,

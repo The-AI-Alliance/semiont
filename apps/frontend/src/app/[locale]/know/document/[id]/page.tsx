@@ -15,8 +15,9 @@ import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components } from '@semiont/api-client';
+import { getResourceId, getLanguage, getDocumentId } from '@/lib/resource-helpers';
 
-type SemiontDocument = components['schemas']['Document'];
+type SemiontDocument = components['schemas']['ResourceDescriptor'];
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -104,7 +105,7 @@ export default function KnowledgeDocumentPage() {
     return <DocumentErrorState error={error} onRetry={() => refetchDocument()} />;
   }
 
-  // Early return: Document not found
+  // Early return: ResourceDescriptor not found
   if (!docData?.document) {
     return <DocumentErrorState error={new Error('Document not found')} onRetry={() => refetchDocument()} />;
   }
@@ -140,7 +141,7 @@ function DocumentView({
   useEffect(() => {
     const loadContent = async () => {
       try {
-        const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/documents/${documentId}/content`, {
+        const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/documents/${encodeURIComponent(documentId)}/content`, {
           headers: {
             'Authorization': `Bearer ${session?.backendToken}`,
           },
@@ -252,7 +253,7 @@ function DocumentView({
             format: 'text/markdown',
             entityTypes: []
           });
-          router.push(`/know/document/${encodeURIComponent(newDoc.document.id)}`);
+          router.push(`/know/document/${encodeURIComponent(getDocumentId(newDoc.document))}`);
         }
       }
     } catch (err) {
@@ -625,7 +626,7 @@ function DocumentView({
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 documentEntityTypes={documentEntityTypes}
-                documentLocale={document.language}
+                documentLocale={getLanguage(document)}
               />
             )}
 

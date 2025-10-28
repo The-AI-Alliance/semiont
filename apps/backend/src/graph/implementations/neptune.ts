@@ -17,8 +17,9 @@ import type {
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
+import { getPrimaryRepresentation, getResourceId } from '../../utils/resource-helpers';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 // Dynamic imports for AWS SDK and Gremlin
@@ -48,10 +49,10 @@ async function loadDependencies() {
   }
 }
 
-// Helper function to convert Neptune vertex to Document
-function vertexToDocument(vertex: any): Document {
+// Helper function to convert Neptune vertex to ResourceDescriptor
+function vertexToDocument(vertex: any): ResourceDescriptor {
   const props = vertex.properties || vertex;
-  
+
   // Handle different property formats from Neptune
   const getValue = (key: string, required: boolean = false) => {
     const prop = props[key];
@@ -66,34 +67,37 @@ function vertexToDocument(vertex: any): Document {
     }
     return prop.value !== undefined ? prop.value : prop;
   };
-  
+
   // Get all required fields and validate
   const id = getValue('id', true);
   const name = getValue('name', true);
   const entityTypesRaw = getValue('entityTypes', true);
-  const format = getValue('format', true);
+  const mediaType = getValue('mediaType', true);
   const archived = getValue('archived', true);
-  const createdRaw = getValue('created', true);
+  const dateCreated = getValue('dateCreated', true);
+  const checksum = getValue('checksum', true);
+  const creatorRaw = getValue('creator', true);
 
-  const doc: Document = {
-    id,
+  const resource: ResourceDescriptor = {
+    '@context': 'https://schema.org/',
+    '@id': id,
     name,
     entityTypes: JSON.parse(entityTypesRaw),
-    format,
+    representations: [{
+      mediaType,
+      checksum,
+      rel: 'original',
+    }],
     archived: archived === 'true' || archived === true,
-    created: createdRaw, // ISO string from DB
-    creator: getValue('creator', true),
+    dateCreated,
+    wasAttributedTo: typeof creatorRaw === 'string' ? JSON.parse(creatorRaw) : creatorRaw,
     creationMethod: getValue('creationMethod', true),
-    contentChecksum: getValue('contentChecksum', true),
   };
 
-  const sourceAnnotationId = getValue('sourceAnnotationId');
-  if (sourceAnnotationId) doc.sourceAnnotationId = sourceAnnotationId;
-
   const sourceDocumentId = getValue('sourceDocumentId');
-  if (sourceDocumentId) doc.sourceDocumentId = sourceDocumentId;
+  if (sourceDocumentId) resource.sourceDocumentId = sourceDocumentId;
 
-  return doc;
+  return resource;
 }
 
 // Helper function to convert Neptune vertex to Annotation
@@ -342,55 +346,59 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
   
   
-  async createDocument(input: CreateDocumentInput): Promise<Document> {
-    const id = this.generateId();
+  async createDocument(input: CreateDocumentInput & { id: string }): Promise<ResourceDescriptor> {
     const now = new Date().toISOString();
 
-    const document: Document = {
-      id,
+    const resource: ResourceDescriptor = {
+      '@context': 'https://schema.org/',
+      '@id': input.id,
       name: input.name,
       entityTypes: input.entityTypes,
-      format: input.format,
+      representations: [{
+        mediaType: input.format,
+        checksum: input.contentChecksum,
+        rel: 'original',
+      }],
       archived: false,
-      created: now,
-      creator: input.creator,
+      dateCreated: now,
+      wasAttributedTo: input.creator,
       creationMethod: input.creationMethod,
-      contentChecksum: input.contentChecksum,
     };
-    if (input.sourceAnnotationId) document.sourceAnnotationId = input.sourceAnnotationId;
-    if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
+    if (input.sourceDocumentId) resource.sourceDocumentId = input.sourceDocumentId;
 
     // Create vertex in Neptune
     try {
-      const vertex = this.g.addV('Document')
-        .property('id', document.id)
-        .property('name', document.name)
-        .property('contentType', document.format)
-        .property('archived', document.archived)
-        .property('created', document.created)
-        .property('creator', document.creator)
-        .property('creationMethod', document.creationMethod)
-        .property('contentChecksum', document.contentChecksum)
-        .property('entityTypes', JSON.stringify(document.entityTypes));
-
-      if (document.sourceAnnotationId) {
-        vertex.property('sourceAnnotationId', document.sourceAnnotationId);
+      const primaryRep = getPrimaryRepresentation(resource);
+      if (!primaryRep) {
+        throw new Error('Resource must have at least one representation');
       }
-      if (document.sourceDocumentId) {
-        vertex.property('sourceDocumentId', document.sourceDocumentId);
+
+      const vertex = this.g.addV('Document')
+        .property('id', resource['@id'])
+        .property('name', resource.name)
+        .property('mediaType', primaryRep.mediaType)
+        .property('archived', resource.archived)
+        .property('dateCreated', resource.dateCreated)
+        .property('creator', JSON.stringify(resource.wasAttributedTo))
+        .property('creationMethod', resource.creationMethod)
+        .property('checksum', primaryRep.checksum)
+        .property('entityTypes', JSON.stringify(resource.entityTypes));
+
+      if (resource.sourceDocumentId) {
+        vertex.property('sourceDocumentId', resource.sourceDocumentId);
       }
 
       await vertex.next();
-      
-      console.log(`Created document vertex in Neptune: ${document.id}`);
-      return document;
+
+      console.log(`Created document vertex in Neptune: ${resource['@id']}`);
+      return resource;
     } catch (error) {
       console.error('Failed to create document in Neptune:', error);
       throw error;
     }
   }
   
-  async getDocument(id: string): Promise<Document | null> {
+  async getDocument(id: string): Promise<ResourceDescriptor | null> {
     try {
       const result = await this.g.V()
         .hasLabel('Document')
@@ -409,7 +417,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async updateDocument(id: string, input: UpdateDocumentInput): Promise<Document> {
+  async updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor> {
     // Documents are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
       throw new Error('Documents are immutable. Only archiving is allowed.');
@@ -450,7 +458,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async listDocuments(filter: DocumentFilter): Promise<{ documents: Document[]; total: number }> {
+  async listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
     try {
       let traversal = this.g.V().hasLabel('Document');
       
@@ -494,7 +502,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async searchDocuments(query: string, limit: number = 20): Promise<Document[]> {
+  async searchDocuments(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
     try {
       // Use Neptune's text search capabilities
       const results = await this.g.V()
@@ -938,11 +946,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
         if (targetDocResult.value) {
           const targetDoc = vertexToDocument(targetDocResult.value);
-          const existing = connectionsMap.get(targetDoc.id);
+          const targetDocId = getResourceId(targetDoc);
+          const existing = connectionsMap.get(targetDocId);
           if (existing) {
             existing.annotations.push(annotation);
           } else {
-            connectionsMap.set(targetDoc.id, {
+            connectionsMap.set(targetDocId, {
               targetDocument: targetDoc,
               annotations: [annotation],
               bidirectional: false,
@@ -1001,7 +1010,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const paths: GraphPath[] = [];
       
       for (const pathResult of results) {
-        const documents: Document[] = [];
+        const documents: ResourceDescriptor[] = [];
 
         // Process path elements (alternating vertices and edges)
         for (let i = 0; i < pathResult.objects.length; i++) {

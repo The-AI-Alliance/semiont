@@ -12,7 +12,9 @@ import { join } from 'path';
 import type { components } from '@semiont/api-client';
 import type { DocumentAnnotations } from '@semiont/core';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import { createTestResource } from '../fixtures/resource-fixtures';
+import { getResourceId } from '../../utils/resource-helpers';
 
 describe('ProjectionQuery', () => {
   let testDir: string;
@@ -47,21 +49,19 @@ describe('ProjectionQuery', () => {
     archived: boolean,
     annotationCount: number
   ): DocumentState => {
-    const document: Document = {
+    const document: ResourceDescriptor = createTestResource({
       id,
       name,
-      format: 'text/plain',
-      creationMethod: 'ui',
+      primaryMediaType: 'text/plain',
       creator: {
-        id: creator,
-        type: 'Person',
+        '@id': creator,
+        '@type': 'Person',
         name: `User ${creator}`,
       },
-      created: '2025-01-01T00:00:00.000Z',
       archived,
       entityTypes,
-      contentChecksum: 'sha256:test',
-    };
+      checksum: 'test',
+    });
 
     const annotations: DocumentAnnotations = {
       documentId: id,
@@ -103,7 +103,7 @@ describe('ProjectionQuery', () => {
       const results = await query.findByEntityType('Person');
 
       expect(results.length).toBe(4); // doc-1, doc-3, doc-5, doc-7
-      const ids = results.map(r => r.document.id);
+      const ids = results.map(r => getResourceId(r.document));
       expect(ids).toContain('doc-1');
       expect(ids).toContain('doc-3');
       expect(ids).toContain('doc-5');
@@ -114,7 +114,7 @@ describe('ProjectionQuery', () => {
       const results = await query.findByEntityType('Organization');
 
       expect(results.length).toBe(2); // doc-2, doc-6
-      const ids = results.map(r => r.document.id);
+      const ids = results.map(r => getResourceId(r.document));
       expect(ids).toContain('doc-2');
       expect(ids).toContain('doc-6');
     });
@@ -129,8 +129,8 @@ describe('ProjectionQuery', () => {
       const documentResults = await query.findByEntityType('Document');
 
       // doc-3 has both Person and Document
-      const personIds = personResults.map(r => r.document.id);
-      const documentIds = documentResults.map(r => r.document.id);
+      const personIds = personResults.map(r => getResourceId(r.document));
+      const documentIds = documentResults.map(r => getResourceId(r.document));
 
       expect(personIds).toContain('doc-3');
       expect(documentIds).toContain('doc-3');
@@ -152,7 +152,7 @@ describe('ProjectionQuery', () => {
       const aliceResults = await query.findByCreator('user-alice');
 
       expect(aliceResults.length).toBe(3); // doc-1, doc-3, doc-6
-      const ids = aliceResults.map(r => r.document.id);
+      const ids = aliceResults.map(r => getResourceId(r.document));
       expect(ids).toContain('doc-1');
       expect(ids).toContain('doc-3');
       expect(ids).toContain('doc-6');
@@ -177,7 +177,7 @@ describe('ProjectionQuery', () => {
       const results = await query.findArchived();
 
       expect(results.length).toBe(2); // doc-4, doc-7
-      const ids = results.map(r => r.document.id);
+      const ids = results.map(r => getResourceId(r.document));
       expect(ids).toContain('doc-4');
       expect(ids).toContain('doc-7');
     });
@@ -186,7 +186,7 @@ describe('ProjectionQuery', () => {
       const results = await query.findActive();
 
       expect(results.length).toBe(5); // doc-1, doc-2, doc-3, doc-5, doc-6
-      const ids = results.map(r => r.document.id);
+      const ids = results.map(r => getResourceId(r.document));
       expect(ids).toContain('doc-1');
       expect(ids).toContain('doc-2');
       expect(ids).toContain('doc-3');
@@ -199,8 +199,8 @@ describe('ProjectionQuery', () => {
       const active = await query.findActive();
 
       // Verify no overlap
-      const archivedIds = new Set(archived.map(r => r.document.id));
-      const activeIds = new Set(active.map(r => r.document.id));
+      const archivedIds = new Set(archived.map(r => getResourceId(r.document)));
+      const activeIds = new Set(active.map(r => getResourceId(r.document)));
 
       for (const id of archivedIds) {
         expect(activeIds.has(id)).toBe(false);
@@ -236,7 +236,7 @@ describe('ProjectionQuery', () => {
       const results = await query.findByAnnotationCount(5);
 
       expect(results.length).toBe(2); // doc-2 (5), doc-5 (10)
-      const ids = results.map(r => r.document.id);
+      const ids = results.map(r => getResourceId(r.document));
       expect(ids).toContain('doc-2');
       expect(ids).toContain('doc-5');
     });
@@ -245,7 +245,7 @@ describe('ProjectionQuery', () => {
       const results = await query.findByAnnotationCount(1);
 
       expect(results.length).toBe(5); // All except doc-3 and doc-6
-      const ids = results.map(r => r.document.id);
+      const ids = results.map(r => getResourceId(r.document));
       expect(ids).not.toContain('doc-3');
       expect(ids).not.toContain('doc-6');
     });
@@ -261,7 +261,7 @@ describe('ProjectionQuery', () => {
       const results = await query.searchByName('alice');
 
       expect(results.length).toBe(2); // 'Alice Document', 'Alice Report'
-      const ids = results.map(r => r.document.id);
+      const ids = results.map(r => getResourceId(r.document));
       expect(ids).toContain('doc-1');
       expect(ids).toContain('doc-3');
     });
@@ -337,10 +337,17 @@ describe('ProjectionQuery', () => {
 
     it('should search and filter by creator', async () => {
       const searchResults = await query.searchByName('Document');
-      const aliceResults = searchResults.filter(d => d.document.creator.id === 'user-alice');
+      const aliceResults = searchResults.filter(d => {
+        const creator = d.document.wasAttributedTo;
+        if (!creator) return false;
+        const creatorId = Array.isArray(creator) ? creator[0]?.['@id'] : creator['@id'];
+        return creatorId === 'user-alice';
+      });
 
       expect(aliceResults.length).toBe(1); // Only 'Alice Document'
-      expect(aliceResults[0]?.document.id).toBe('doc-1');
+      if (aliceResults[0]) {
+        expect(getResourceId(aliceResults[0].document)).toBe('doc-1');
+      }
     });
   });
 
@@ -355,7 +362,7 @@ describe('ProjectionQuery', () => {
       await storage.save('doc-empty', emptyEntityDoc);
 
       const results = await query.findByEntityType('AnyType');
-      const ids = results.map(r => r.document.id);
+      const ids = results.map(r => getResourceId(r.document));
       expect(ids).not.toContain('doc-empty');
     });
 
@@ -364,7 +371,7 @@ describe('ProjectionQuery', () => {
       await storage.save('doc-special', specialDoc);
 
       const results = await query.searchByName('Test-Document');
-      const ids = results.map(r => r.document.id);
+      const ids = results.map(r => getResourceId(r.document));
       expect(ids).toContain('doc-special');
     });
 
@@ -373,8 +380,8 @@ describe('ProjectionQuery', () => {
       const results2 = await query.findByEntityType('Person');
 
       expect(results1.length).toBe(results2.length);
-      expect(results1.map(r => r.document.id).sort()).toEqual(
-        results2.map(r => r.document.id).sort()
+      expect(results1.map(r => getResourceId(r.document)).sort()).toEqual(
+        results2.map(r => getResourceId(r.document)).sort()
       );
     });
   });

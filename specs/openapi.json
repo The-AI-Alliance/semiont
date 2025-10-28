@@ -368,7 +368,7 @@
         "type": "object",
         "properties": {
           "document": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotations": {
             "type": "array",
@@ -388,7 +388,7 @@
           "documents": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Document"
+              "$ref": "#/components/schemas/ResourceDescriptor"
             }
           },
           "total": {
@@ -412,7 +412,7 @@
         "type": "object",
         "properties": {
           "document": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotations": {
             "type": "array",
@@ -589,12 +589,12 @@
         "type": "object",
         "properties": {
           "mainDocument": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "relatedDocuments": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Document"
+              "$ref": "#/components/schemas/ResourceDescriptor"
             }
           },
           "annotations": {
@@ -701,12 +701,12 @@
             "$ref": "#/components/schemas/Annotation"
           },
           "sourceDocument": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "targetDocument": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Document"
+                "$ref": "#/components/schemas/ResourceDescriptor"
               },
               {
                 "type": "null"
@@ -835,7 +835,7 @@
           "documents": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Document"
+              "$ref": "#/components/schemas/ResourceDescriptor"
             }
           },
           "connections": {
@@ -875,7 +875,7 @@
         "type": "object",
         "properties": {
           "sourceDocument": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "expiresAt": {
             "type": "string",
@@ -899,7 +899,7 @@
             "description": "ISO 8601 timestamp when token expires"
           },
           "document": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           }
         },
         "required": [
@@ -1005,7 +1005,7 @@
             ]
           },
           "document": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           }
         },
         "required": [
@@ -1094,7 +1094,7 @@
           "targetDocument": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Document"
+                "$ref": "#/components/schemas/ResourceDescriptor"
               },
               {
                 "type": "null"
@@ -1115,7 +1115,7 @@
           "document": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Document"
+                "$ref": "#/components/schemas/ResourceDescriptor"
               },
               {
                 "type": "null"
@@ -1125,7 +1125,7 @@
           "resolvedDocument": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Document"
+                "$ref": "#/components/schemas/ResourceDescriptor"
               },
               {
                 "type": "null"
@@ -1624,7 +1624,7 @@
         "type": "object",
         "properties": {
           "document": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotation": {
             "$ref": "#/components/schemas/Annotation"
@@ -2165,16 +2165,27 @@
       },
       "Agent": {
         "type": "object",
+        "description": "Minimal Person/Organization for attribution (W3C PROV compatible)",
+        "additionalProperties": true,
         "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
+          "@id": {
             "type": "string",
-            "enum": [
-              "Person",
-              "Organization",
-              "Software"
+            "format": "uri",
+            "description": "Unique identifier for the agent"
+          },
+          "@type": {
+            "description": "Type(s) of agent (Person, Organization, Software)",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              }
             ]
           },
           "name": {
@@ -2194,43 +2205,238 @@
           }
         },
         "required": [
-          "id",
-          "type",
           "name"
         ]
       },
-      "Document": {
+      "ResourceDescriptor": {
         "type": "object",
+        "description": "Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.",
+        "required": [
+          "@context",
+          "@id",
+          "name",
+          "representations"
+        ],
+        "additionalProperties": true,
         "properties": {
-          "id": {
-            "type": "string"
+          "@context": {
+            "description": "JSON-LD context; URI, object, or array of these.",
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "@id": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical URI/URN of the resource being described."
+          },
+          "@type": {
+            "description": "Type(s) of the resource (IRIs/CURIEs via @context).",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              }
+            ]
           },
           "name": {
             "type": "string"
           },
-          "format": {
-            "$ref": "#/components/schemas/ContentFormat"
+          "description": {
+            "type": "string"
           },
-          "archived": {
-            "type": "boolean"
+          "identifier": {
+            "description": "Persistent identifiers (e.g., DOI, URN).",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "@id": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "scheme": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": true
+              }
+            ]
           },
-          "entityTypes": {
+          "about": {
+            "description": "Topics (IRIs or strings).",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              }
+            ]
+          },
+          "sameAs": {
+            "description": "Equivalent/authoritative references.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "isPartOf": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "hasPart": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "license": {
+            "type": "string",
+            "format": "uri"
+          },
+          "version": {
+            "type": "string"
+          },
+          "dateCreated": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dateModified": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "wasDerivedFrom": {
+            "description": "W3C PROV - source resources this was derived from",
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            ]
+          },
+          "wasAttributedTo": {
+            "description": "W3C PROV - agents responsible for this resource",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Agent"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Agent"
+                }
+              }
+            ]
+          },
+          "conformsTo": {
+            "description": "Profile/shape URI this resource description conforms to.",
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            ]
+          },
+          "availableFormats": {
+            "description": "Convenience set summarizing media types across representations.",
             "type": "array",
             "items": {
               "type": "string"
             }
           },
-          "language": {
-            "type": "string",
-            "description": "Language/locale code (e.g., 'en', 'es', 'fr')"
+          "representations": {
+            "description": "Managed or referenced byte-level renditions of this resource.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Representation"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Representation"
+                }
+              }
+            ]
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Application-specific: Whether this resource is archived"
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Application-specific: Entity types for this resource"
           },
           "isDraft": {
             "type": "boolean",
-            "description": "Whether this document is a draft (for AI-generated content)"
-          },
-          "generatedFrom": {
-            "type": "string",
-            "description": "ID of annotation/reference that triggered generation (for provenance)"
+            "description": "Application-specific: Whether this resource is a draft"
           },
           "creationMethod": {
             "type": "string",
@@ -2241,35 +2447,140 @@
               "reference",
               "clone",
               "generated"
-            ]
+            ],
+            "description": "Application-specific: How this resource was created"
           },
           "sourceAnnotationId": {
-            "type": "string"
+            "type": "string",
+            "description": "Application-specific: ID of annotation that triggered generation"
           },
           "sourceDocumentId": {
+            "type": "string",
+            "description": "Application-specific: ID of source document for clones/derivatives"
+          }
+        }
+      },
+      "Representation": {
+        "type": "object",
+        "description": "A specific, byte-addressable rendition of a resource (file/asset/variant).",
+        "required": [
+          "mediaType"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "@id": {
+            "type": "string",
+            "format": "uri",
+            "description": "Stable ID for this representation."
+          },
+          "@type": {
+            "description": "Type(s), e.g., schema:MediaObject.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              }
+            ]
+          },
+          "mediaType": {
+            "type": "string",
+            "description": "MIME/media type (e.g., text/markdown, image/png)."
+          },
+          "storageUri": {
+            "type": "string",
+            "description": "Where the bytes live (s3://, file://, https://, ipfs://, etc.)."
+          },
+          "filename": {
             "type": "string"
           },
-          "creator": {
-            "$ref": "#/components/schemas/Agent"
+          "byteSize": {
+            "description": "Size of the payload in bytes.",
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "checksum": {
+            "description": "Integrity hash (e.g., sha256:abcd…).",
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string",
+            "description": "Compression/transfer encoding if applicable."
+          },
+          "language": {
+            "type": "string",
+            "description": "IETF BCP 47 language tag (e.g., en, es-ES)."
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Pixels (images/video)."
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Pixels (images/video)."
+          },
+          "duration": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Seconds (audio/video)."
           },
           "created": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
-          "contentChecksum": {
-            "type": "string"
+          "modified": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "conformsTo": {
+            "description": "Profile/shape the bytes conform to (e.g., a JSON profile or SVG profile).",
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rel": {
+            "description": "Semantics of this rendition relative to the resource (e.g., original, thumbnail, preview, derived).",
+            "type": "string",
+            "enum": [
+              "original",
+              "thumbnail",
+              "preview",
+              "optimized",
+              "derived",
+              "other"
+            ]
           }
-        },
-        "required": [
-          "id",
-          "name",
-          "format",
-          "archived",
-          "entityTypes",
-          "creationMethod",
-          "creator",
-          "created",
-          "contentChecksum"
-        ]
+        }
       },
       "Annotation": {
         "type": "object",
@@ -2537,7 +2848,7 @@
         "type": "object",
         "properties": {
           "document": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotation": {
             "$ref": "#/components/schemas/Annotation"
@@ -2552,7 +2863,7 @@
         "type": "object",
         "properties": {
           "document": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotation": {
             "$ref": "#/components/schemas/Annotation"
@@ -2595,7 +2906,7 @@
         "type": "object",
         "properties": {
           "document": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotations": {
             "type": "array",
@@ -2708,7 +3019,7 @@
         "type": "object",
         "properties": {
           "document": {
-            "$ref": "#/components/schemas/Document"
+            "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotations": {
             "type": "array",

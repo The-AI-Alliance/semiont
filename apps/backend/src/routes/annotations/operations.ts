@@ -10,16 +10,17 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { createContentManager } from '../../services/storage-service';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
 import { userToAgent } from '../../utils/id-generator';
 import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getFilesystemConfig } from '../../config/environment-loader';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getTextPositionSelector } from '@semiont/api-client';
+import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 import {
   CREATION_METHODS,
-  calculateChecksum,
+  generateUuid,
   type BodyOperation,
 } from '@semiont/core';
 
@@ -32,7 +33,6 @@ import { validateRequestBody } from '../../middleware/validate-openapi';
 import { getEntityTypes } from '@semiont/api-client';
 import type { User } from '@prisma/client';
 
-type Document = components['schemas']['Document'];
 type Annotation = components['schemas']['Annotation'];
 
 type CreateDocumentFromSelectionRequest = components['schemas']['CreateDocumentFromSelectionRequest'];
@@ -107,7 +107,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
     const body = c.get('validatedBody') as CreateDocumentFromSelectionRequest;
     const user = c.get('user');
     const basePath = getFilesystemConfig().path;
-    const contentManager = createContentManager(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     if (!body.content) {
       throw new HTTPException(400, { message: 'Content is required when creating a document' });
@@ -124,11 +124,13 @@ operationsRouter.post('/api/annotations/:id/create-document',
     }
 
     // Create the new document
-    const checksum = calculateChecksum(body.content);
-    const documentId = `doc-sha256:${checksum}`;
+    const documentId = generateUuid();
 
-    // Save content to Layer 1 (filesystem)
-    await contentManager.save(documentId, Buffer.from(body.content));
+    // Store representation
+    const storedRep = await repStore.store(Buffer.from(body.content), {
+      mediaType: body.format,
+      rel: 'original',
+    });
 
     // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
     const eventStore = await createEventStore(basePath);
@@ -140,7 +142,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
       payload: {
         name: body.name,
         format: body.format,
-        contentChecksum: checksum,
+        contentChecksum: storedRep.checksum,
         creationMethod: CREATION_METHODS.API,
         entityTypes: body.entityTypes || [],
         language: undefined,  // Not provided in this flow
@@ -174,15 +176,20 @@ operationsRouter.post('/api/annotations/:id/create-document',
     // Return optimistic response - Add SpecificResource to body array
     const resolvedAnnotation = createResolvedAnnotation(annotation, documentId, user);
 
-    const documentMetadata: Document = {
-      id: documentId,
+    // Build ResourceDescriptor for response
+    const documentMetadata = {
+      '@context': 'https://schema.org/',
+      '@id': documentId,
       name: body.name,
-      format: body.format,
       entityTypes: body.entityTypes || [],
+      representations: [{
+        mediaType: body.format,
+        checksum: storedRep.checksum,
+        rel: 'original' as const,
+      }],
       creationMethod: CREATION_METHODS.API,
-      contentChecksum: checksum,
-      creator: userToAgent(user),
-      created: new Date().toISOString(),
+      wasAttributedTo: userToAgent(user),
+      dateCreated: new Date().toISOString(),
       archived: false,
     };
 
@@ -208,7 +215,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     const body = c.get('validatedBody') as GenerateDocumentFromAnnotationRequest;
     const user = c.get('user');
     const basePath = getFilesystemConfig().path;
-    const contentManager = createContentManager(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     if (!body.documentId) {
       throw new HTTPException(400, { message: 'documentId is required' });
@@ -246,11 +253,13 @@ operationsRouter.post('/api/annotations/:id/generate-document',
 
     // Create the new document
     const documentName = body.name || title;
-    const checksum = calculateChecksum(generatedContent);
-    const documentId = `doc-sha256:${checksum}`;
+    const documentId = generateUuid();
 
-    // Store generated content to Layer 1
-    await contentManager.save(documentId, Buffer.from(generatedContent));
+    // Store generated representation
+    const storedRep = await repStore.store(Buffer.from(generatedContent), {
+      mediaType: 'text/plain',
+      rel: 'original',
+    });
 
     // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
     const eventStore = await createEventStore(basePath);
@@ -262,7 +271,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
       payload: {
         name: documentName,
         format: 'text/markdown',
-        contentChecksum: checksum,
+        contentChecksum: storedRep.checksum,
         creationMethod: CREATION_METHODS.GENERATED,
         entityTypes: body.entityTypes || annotationEntityTypes,
         language: body.language,
@@ -296,17 +305,22 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     // Return optimistic response - Add SpecificResource to body array
     const resolvedAnnotation = createResolvedAnnotation(annotation, documentId, user);
 
-    const documentMetadata: Document = {
-      id: documentId,
+    // Build ResourceDescriptor for response
+    const documentMetadata = {
+      '@context': 'https://schema.org/',
+      '@id': documentId,
       name: documentName,
-      format: 'text/markdown',
       entityTypes: body.entityTypes || annotationEntityTypes,
-      language: body.language,
+      representations: [{
+        mediaType: 'text/markdown',
+        checksum: storedRep.checksum,
+        rel: 'original' as const,
+        language: body.language,
+      }],
       sourceAnnotationId: id,
       creationMethod: CREATION_METHODS.GENERATED,
-      contentChecksum: checksum,
-      creator: userToAgent(user),
-      created: new Date().toISOString(),
+      wasAttributedTo: userToAgent(user),
+      dateCreated: new Date().toISOString(),
       archived: false,
     };
 
@@ -353,7 +367,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   }
 
   const basePath = getFilesystemConfig().path;
-  const contentManager = createContentManager(basePath);
+  const repStore = new FilesystemRepresentationStore({ basePath });
 
   // Get annotation from Layer 3
   const annotation = await AnnotationQueryService.getAnnotation(id, documentId);
@@ -367,8 +381,12 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
-  // Get content from Layer 1
-  const content = await contentManager.get(getTargetSource(annotation.target));
+  // Get content from representation store
+  const primaryRep = getPrimaryRepresentation(document);
+  if (!primaryRep?.checksum || !primaryRep?.mediaType) {
+    throw new HTTPException(404, { message: 'Document content not found' });
+  }
+  const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
   const contentStr = content.toString('utf-8');
 
   // Extract context based on annotation position
@@ -382,15 +400,15 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
       after,
     },
     document: {
-      id: document.id,
+      '@context': document['@context'],
+      '@id': document['@id'],
       name: document.name,
-      format: document.format,
       entityTypes: document.entityTypes,
+      representations: document.representations,
       archived: document.archived,
       creationMethod: document.creationMethod,
-      creator: document.creator,
-      created: document.created,
-      contentChecksum: document.contentChecksum,
+      wasAttributedTo: document.wasAttributedTo,
+      dateCreated: document.dateCreated,
     },
   };
 
@@ -407,7 +425,7 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
   const basePath = getFilesystemConfig().path;
-  const contentManager = createContentManager(basePath);
+  const repStore = new FilesystemRepresentationStore({ basePath });
 
   // Require documentId query parameter
   const documentId = query.documentId;
@@ -427,8 +445,12 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
-  // Get content from Layer 1
-  const content = await contentManager.get(getTargetSource(annotation.target));
+  // Get content from representation store
+  const primaryRep = getPrimaryRepresentation(document);
+  if (!primaryRep?.checksum || !primaryRep?.mediaType) {
+    throw new HTTPException(404, { message: 'Document content not found' });
+  }
+  const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
   const contentStr = content.toString('utf-8');
 
   // Extract annotation text with context

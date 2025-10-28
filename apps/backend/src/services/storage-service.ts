@@ -9,7 +9,6 @@
  */
 
 import { ProjectionManager, type ProjectionManagerConfig } from '../storage/projection/projection-manager';
-import { ContentManager, type ContentManagerConfig } from '../storage/content/content-manager';
 
 /**
  * Create ProjectionManager
@@ -23,18 +22,4 @@ export function createProjectionManager(
   config?: Omit<ProjectionManagerConfig, 'basePath'>
 ): ProjectionManager {
   return new ProjectionManager({ ...config, basePath });
-}
-
-/**
- * Create ContentManager
- *
- * @param basePath - REQUIRED: Base filesystem path for content
- * @param config - Optional additional configuration
- * @returns New ContentManager instance
- */
-export function createContentManager(
-  basePath: string,
-  config?: Omit<ContentManagerConfig, 'basePath'>
-): ContentManager {
-  return new ContentManager({ ...config, basePath });
 }
