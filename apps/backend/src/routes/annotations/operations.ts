@@ -385,10 +385,10 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
 
   // Get content from representation store
   const primaryRep = getPrimaryRepresentation(document);
-  if (!primaryRep?.storageUri) {
+  if (!primaryRep?.checksum || !primaryRep?.mediaType) {
     throw new HTTPException(404, { message: 'Document content not found' });
   }
-  const content = await repStore.retrieve(primaryRep.storageUri);
+  const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
   const contentStr = content.toString('utf-8');
 
   // Extract context based on annotation position
@@ -449,10 +449,10 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
 
   // Get content from representation store
   const primaryRep = getPrimaryRepresentation(document);
-  if (!primaryRep?.storageUri) {
+  if (!primaryRep?.checksum || !primaryRep?.mediaType) {
     throw new HTTPException(404, { message: 'Document content not found' });
   }
-  const content = await repStore.retrieve(primaryRep.storageUri);
+  const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
   const contentStr = content.toString('utf-8');
 
   // Extract annotation text with context

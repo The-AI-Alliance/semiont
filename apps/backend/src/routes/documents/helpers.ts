@@ -44,12 +44,12 @@ export async function detectAnnotationsInDocument(
   // Only process text content
   const mediaType = primaryRep.mediaType;
   if (mediaType === 'text/plain' || mediaType === 'text/markdown') {
-    // Load content from representation store
-    if (!primaryRep.storageUri) return detectedAnnotations;
+    // Load content from representation store using content-addressed lookup
+    if (!primaryRep.checksum || !primaryRep.mediaType) return detectedAnnotations;
 
     const basePath = getFilesystemConfig().path;
     const repStore = new FilesystemRepresentationStore({ basePath });
-    const contentBuffer = await repStore.retrieve(primaryRep.storageUri);
+    const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
     const content = contentBuffer.toString('utf-8');
 
     // Use AI to extract entities

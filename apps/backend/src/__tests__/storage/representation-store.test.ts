@@ -43,37 +43,22 @@ describe('FilesystemRepresentationStore', () => {
       expect(result.mediaType).toBe('text/plain');
       expect(result.byteSize).toBe(content.length);
       expect(result['@id']).toBe(expectedChecksum);
+
+      // Verify no storageUri
+      expect(result).not.toHaveProperty('storageUri');
     });
 
-    it('should use checksum-based sharding in file path', async () => {
+    it('should use checksum-based sharding for storage', async () => {
       const content = Buffer.from('Test content for sharding');
-      const checksum = calculateChecksum(content);
-
-      // Expected sharding: first 4 hex digits -> ab/cd
-      const ab = checksum.substring(0, 2);
-      const cd = checksum.substring(2, 4);
 
       const result = await store.store(content, {
         mediaType: 'text/markdown',
         rel: 'original',
       });
 
-      // Verify file path contains sharding
-      expect(result.storageUri).toContain(`/${ab}/${cd}/`);
-      expect(result.storageUri).toContain(`rep-${checksum}.dat`);
-    });
-
-    it('should encode media type in path (/ becomes ~1)', async () => {
-      const content = Buffer.from('Image data');
-
-      const result = await store.store(content, {
-        mediaType: 'image/png',
-        rel: 'original',
-      });
-
-      // Verify media type encoding
-      expect(result.storageUri).toContain('image~1png');
-      expect(result.storageUri).not.toContain('image/png');
+      // Verify content is retrievable (proves sharding works)
+      const retrieved = await store.retrieve(result.checksum, 'text/markdown');
+      expect(retrieved.toString()).toBe(content.toString());
     });
 
     it('should be idempotent (same content = same file)', async () => {
@@ -89,15 +74,12 @@ describe('FilesystemRepresentationStore', () => {
         rel: 'original',
       });
 
-      // Same checksum, same file path
+      // Same checksum
       expect(result1.checksum).toBe(result2.checksum);
-      expect(result1.storageUri).toBe(result2.storageUri);
 
-      // Verify file was written (not just metadata)
-      const fileExists = await fs.access(result1.storageUri.replace('file://', ''))
-        .then(() => true)
-        .catch(() => false);
-      expect(fileExists).toBe(true);
+      // Verify content is retrievable
+      const retrieved = await store.retrieve(result1.checksum, 'text/plain');
+      expect(retrieved.toString()).toBe(content.toString());
     });
 
     it('should create directory structure automatically', async () => {
@@ -120,7 +102,7 @@ describe('FilesystemRepresentationStore', () => {
     });
   });
 
-  describe('retrieveByChecksum()', () => {
+  describe('retrieve()', () => {
     it('should retrieve content by raw hex checksum', async () => {
       const content = Buffer.from('Retrieve me!');
       const stored = await store.store(content, {
@@ -128,7 +110,7 @@ describe('FilesystemRepresentationStore', () => {
         rel: 'original',
       });
 
-      const retrieved = await store.retrieveByChecksum(stored.checksum, 'text/plain');
+      const retrieved = await store.retrieve(stored.checksum, 'text/plain');
 
       expect(retrieved.toString()).toBe(content.toString());
     });
@@ -137,7 +119,7 @@ describe('FilesystemRepresentationStore', () => {
       const fakeChecksum = 'a'.repeat(64); // Valid format but doesn't exist
 
       await expect(
-        store.retrieveByChecksum(fakeChecksum, 'text/plain')
+        store.retrieve(fakeChecksum, 'text/plain')
       ).rejects.toThrow(/not found/i);
     });
 
@@ -150,94 +132,25 @@ describe('FilesystemRepresentationStore', () => {
 
       // Should fail with wrong mediaType (different path)
       await expect(
-        store.retrieveByChecksum(stored.checksum, 'text/plain')
+        store.retrieve(stored.checksum, 'text/plain')
       ).rejects.toThrow(/not found/i);
 
       // Should succeed with correct mediaType
-      const retrieved = await store.retrieveByChecksum(stored.checksum, 'text/markdown');
+      const retrieved = await store.retrieve(stored.checksum, 'text/markdown');
       expect(retrieved.toString()).toBe(content.toString());
     });
 
     it('should reject invalid checksum format', async () => {
       await expect(
-        store.retrieveByChecksum('', 'text/plain')
+        store.retrieve('', 'text/plain')
       ).rejects.toThrow(/invalid checksum/i);
 
       await expect(
-        store.retrieveByChecksum('abc', 'text/plain')
+        store.retrieve('abc', 'text/plain')
       ).rejects.toThrow(/invalid checksum/i);
     });
   });
 
-  describe('retrieve() - legacy URI-based retrieval', () => {
-    it('should retrieve content by storage URI', async () => {
-      const content = Buffer.from('URI retrieval');
-      const stored = await store.store(content, {
-        mediaType: 'text/plain',
-        rel: 'original',
-      });
-
-      const retrieved = await store.retrieve(stored.storageUri);
-
-      expect(retrieved.toString()).toBe(content.toString());
-    });
-
-    it('should throw error for non-existent URI', async () => {
-      const fakeUri = `file://${testDir}/nonexistent.dat`;
-
-      await expect(
-        store.retrieve(fakeUri)
-      ).rejects.toThrow(/not found/i);
-    });
-  });
-
-  describe('delete()', () => {
-    it('should delete representation by URI', async () => {
-      const content = Buffer.from('Delete me');
-      const stored = await store.store(content, {
-        mediaType: 'text/plain',
-        rel: 'original',
-      });
-
-      await store.delete(stored.storageUri);
-
-      // Verify file is gone
-      await expect(
-        store.retrieve(stored.storageUri)
-      ).rejects.toThrow(/not found/i);
-    });
-
-    it('should not throw error if file does not exist', async () => {
-      const fakeUri = `file://${testDir}/nonexistent.dat`;
-
-      // Should not throw
-      await expect(
-        store.delete(fakeUri)
-      ).resolves.toBeUndefined();
-    });
-  });
-
-  describe('exists()', () => {
-    it('should return true for existing representation', async () => {
-      const content = Buffer.from('Exists test');
-      const stored = await store.store(content, {
-        mediaType: 'text/plain',
-        rel: 'original',
-      });
-
-      const exists = await store.exists(stored.storageUri);
-
-      expect(exists).toBe(true);
-    });
-
-    it('should return false for non-existent representation', async () => {
-      const fakeUri = `file://${testDir}/nonexistent.dat`;
-
-      const exists = await store.exists(fakeUri);
-
-      expect(exists).toBe(false);
-    });
-  });
 
   describe('Content deduplication', () => {
     it('should deduplicate identical content across different metadata', async () => {
@@ -255,12 +168,11 @@ describe('FilesystemRepresentationStore', () => {
         language: 'es',
       });
 
-      // Same checksum and file path despite different metadata
+      // Same checksum despite different metadata
       expect(stored1.checksum).toBe(stored2.checksum);
-      expect(stored1.storageUri).toBe(stored2.storageUri);
 
       // Content is retrievable
-      const retrieved = await store.retrieveByChecksum(stored1.checksum, 'text/plain');
+      const retrieved = await store.retrieve(stored1.checksum, 'text/plain');
       expect(retrieved.toString()).toBe(content.toString());
     });
   });
@@ -280,7 +192,7 @@ describe('FilesystemRepresentationStore', () => {
       expect(stored.checksum).not.toContain('sha256:');
     });
 
-    it('should reject checksums with sha256: prefix in retrieveByChecksum', async () => {
+    it('should reject checksums with sha256: prefix in retrieve', async () => {
       const content = Buffer.from('No prefix allowed');
       const stored = await store.store(content, {
         mediaType: 'text/plain',
@@ -291,7 +203,7 @@ describe('FilesystemRepresentationStore', () => {
       const oldFormatChecksum = `sha256:${stored.checksum}`;
 
       await expect(
-        store.retrieveByChecksum(oldFormatChecksum, 'text/plain')
+        store.retrieve(oldFormatChecksum, 'text/plain')
       ).rejects.toThrow();
     });
   });
@@ -309,7 +221,7 @@ describe('FilesystemRepresentationStore', () => {
       expect(stored.byteSize).toBe(2 * 1024 * 1024);
 
       // Verify retrieval
-      const retrieved = await store.retrieveByChecksum(stored.checksum, 'application/octet-stream');
+      const retrieved = await store.retrieve(stored.checksum, 'application/octet-stream');
       expect(retrieved.length).toBe(largeContent.length);
     });
   });
@@ -324,7 +236,7 @@ describe('FilesystemRepresentationStore', () => {
         rel: 'original',
       });
 
-      const retrieved = await store.retrieveByChecksum(stored.checksum, 'application/octet-stream');
+      const retrieved = await store.retrieve(stored.checksum, 'application/octet-stream');
 
       expect(retrieved).toEqual(binaryContent);
       expect(retrieved[0]).toBe(0x00);

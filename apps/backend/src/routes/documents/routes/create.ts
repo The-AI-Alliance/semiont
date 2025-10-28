@@ -105,10 +105,8 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         representations: [{
           mediaType: body.format,
           checksum: storedRep.checksum,
-          storageUri: storedRep.storageUri,
           rel: 'original',
           language: body.language,
-          byteSize: storedRep.byteSize,
         }],
       };
 

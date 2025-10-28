@@ -41,7 +41,7 @@ export function registerGetDocumentContent(router: DocumentsRouterType) {
     }
 
     // Read content from RepresentationStore using content-addressed lookup
-    const content = await repStore.retrieveByChecksum(primaryRep.checksum, primaryRep.mediaType);
+    const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
     if (!content) {
       throw new HTTPException(404, { message: 'Document content not found' });
     }

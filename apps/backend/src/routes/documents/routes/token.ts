@@ -175,12 +175,12 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
 
     // Check if content exists
     const primaryRep = getPrimaryRepresentation(sourceDoc);
-    if (!primaryRep?.storageUri) {
+    if (!primaryRep?.checksum || !primaryRep?.mediaType) {
       throw new HTTPException(404, { message: 'Document content not found' });
     }
 
     try {
-      await repStore.exists(primaryRep.storageUri);
+      await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
     } catch {
       throw new HTTPException(404, { message: 'Document content not found' });
     }

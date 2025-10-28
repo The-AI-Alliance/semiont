@@ -71,8 +71,8 @@ export function registerListDocuments(router: DocumentsRouterType) {
         paginatedDocs.map(async (doc) => {
           try {
             const primaryRep = getPrimaryRepresentation(doc);
-            if (primaryRep?.storageUri) {
-              const contentBuffer = await repStore.retrieve(primaryRep.storageUri);
+            if (primaryRep?.checksum && primaryRep?.mediaType) {
+              const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
               const contentPreview = contentBuffer.toString('utf-8').slice(0, 200);
               return formatSearchResult(doc, contentPreview);
             }

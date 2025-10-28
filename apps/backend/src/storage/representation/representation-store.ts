@@ -39,13 +39,12 @@ export interface RepresentationMetadata {
 }
 
 /**
- * Complete representation information including storage location
+ * Complete representation information
  */
 export interface StoredRepresentation extends RepresentationMetadata {
-  '@id': string;           // Representation ID
-  storageUri: string;      // Where the bytes live
+  '@id': string;           // Representation ID (same as checksum)
   byteSize: number;        // Size in bytes
-  checksum: string;        // sha256 hash
+  checksum: string;        // Raw SHA-256 hex hash
   created: string;         // ISO 8601 timestamp
 }
 
@@ -58,41 +57,18 @@ export interface RepresentationStore {
    *
    * @param content - Raw bytes to store
    * @param metadata - Representation metadata
-   * @returns Complete representation info including storageUri
+   * @returns Complete representation info with checksum
    */
   store(content: Buffer, metadata: RepresentationMetadata): Promise<StoredRepresentation>;
 
   /**
-   * Retrieve content by storage URI
-   *
-   * @param storageUri - Storage location (file://, s3://, etc.)
-   * @returns Raw bytes
-   */
-  retrieve(storageUri: string): Promise<Buffer>;
-
-  /**
-   * Retrieve content by checksum (content-addressed)
+   * Retrieve content by checksum (content-addressed lookup)
    *
    * @param checksum - Content checksum as raw hex (e.g., "5aaa0b72...")
    * @param mediaType - MIME type (e.g., "text/markdown")
    * @returns Raw bytes
    */
-  retrieveByChecksum(checksum: string, mediaType: string): Promise<Buffer>;
-
-  /**
-   * Delete representation by storage URI
-   *
-   * @param storageUri - Storage location
-   */
-  delete(storageUri: string): Promise<void>;
-
-  /**
-   * Check if representation exists
-   *
-   * @param storageUri - Storage location
-   * @returns True if exists
-   */
-  exists(storageUri: string): Promise<boolean>;
+  retrieve(checksum: string, mediaType: string): Promise<Buffer>;
 }
 
 /**
@@ -134,33 +110,16 @@ export class FilesystemRepresentationStore implements RepresentationStore {
     // Write content (idempotent - same content = same file)
     await fs.writeFile(filePath, content);
 
-    // Build storage URI (still provided for compatibility but not needed for retrieval)
-    const storageUri = `file://${path.resolve(filePath)}`;
-
     return {
       '@id': checksum, // Use checksum as the ID (content-addressed)
       ...metadata,
-      storageUri,
       byteSize: content.length,
       checksum,
       created: new Date().toISOString(),
     };
   }
 
-  async retrieve(storageUri: string): Promise<Buffer> {
-    const filePath = this.uriToPath(storageUri);
-
-    try {
-      return await fs.readFile(filePath);
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        throw new Error(`Representation not found at ${storageUri}`);
-      }
-      throw error;
-    }
-  }
-
-  async retrieveByChecksum(checksum: string, mediaType: string): Promise<Buffer> {
+  async retrieve(checksum: string, mediaType: string): Promise<Buffer> {
     const mediaTypePath = this.encodeMediaType(mediaType);
 
     if (!checksum || checksum.length < 4) {
@@ -191,30 +150,6 @@ export class FilesystemRepresentationStore implements RepresentationStore {
     }
   }
 
-  async delete(storageUri: string): Promise<void> {
-    const filePath = this.uriToPath(storageUri);
-
-    try {
-      await fs.unlink(filePath);
-    } catch (error: any) {
-      if (error.code !== 'ENOENT') {
-        throw error;
-      }
-      // Ignore if file doesn't exist
-    }
-  }
-
-  async exists(storageUri: string): Promise<boolean> {
-    const filePath = this.uriToPath(storageUri);
-
-    try {
-      await fs.access(filePath);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   /**
    * Encode media type for filesystem path
    * Replaces "/" with "~1" to avoid directory separators
@@ -224,18 +159,5 @@ export class FilesystemRepresentationStore implements RepresentationStore {
    */
   private encodeMediaType(mediaType: string): string {
     return mediaType.replace(/\//g, '~1');
-  }
-
-  /**
-   * Convert file:// URI to filesystem path
-   *
-   * @param storageUri - Storage URI
-   * @returns Filesystem path
-   */
-  private uriToPath(storageUri: string): string {
-    if (!storageUri.startsWith('file://')) {
-      throw new Error(`Unsupported storage URI scheme: ${storageUri}`);
-    }
-    return storageUri.replace('file://', '');
   }
 }

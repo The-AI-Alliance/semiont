@@ -70,10 +70,10 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     let sourceContext;
     if (includeSourceContext) {
       const primaryRep = getPrimaryRepresentation(sourceDoc);
-      if (!primaryRep?.storageUri) {
+      if (!primaryRep?.checksum || !primaryRep?.mediaType) {
         throw new HTTPException(404, { message: 'Source content not found' });
       }
-      const sourceContent = await repStore.retrieve(primaryRep.storageUri);
+      const sourceContent = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
       const contentStr = sourceContent.toString('utf-8');
 
       const targetSelector = getTargetSelector(reference.target);
@@ -93,8 +93,8 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     let targetContext;
     if (includeTargetContext && targetDoc) {
       const targetRep = getPrimaryRepresentation(targetDoc);
-      if (targetRep?.storageUri) {
-        const targetContent = await repStore.retrieve(targetRep.storageUri);
+      if (targetRep?.checksum && targetRep?.mediaType) {
+        const targetContent = await repStore.retrieve(targetRep.checksum, targetRep.mediaType);
         const contentStr = targetContent.toString('utf-8');
 
         targetContext = {

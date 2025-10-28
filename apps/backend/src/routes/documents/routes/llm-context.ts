@@ -65,8 +65,8 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     let mainContent: string | undefined;
     if (includeContent) {
       const primaryRep = getPrimaryRepresentation(mainDoc);
-      if (primaryRep?.storageUri) {
-        const buffer = await repStore.retrieve(primaryRep.storageUri);
+      if (primaryRep?.checksum && primaryRep?.mediaType) {
+        const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
         mainContent = buffer.toString('utf-8');
       }
     }
@@ -82,8 +82,8 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
       await Promise.all(limitedRelatedDocs.map(async (doc) => {
         try {
           const primaryRep = getPrimaryRepresentation(doc);
-          if (primaryRep?.storageUri) {
-            const buffer = await repStore.retrieve(primaryRep.storageUri);
+          if (primaryRep?.checksum && primaryRep?.mediaType) {
+            const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
             relatedDocumentsContent[getResourceId(doc)] = buffer.toString('utf-8');
           }
         } catch {
