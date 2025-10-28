@@ -26,7 +26,6 @@ describe('Database Module (db.ts) Integration Tests', () => {
       
       try {
         // Test development environment
-        // @ts-expect-error - NODE_ENV is read-only in types but writable at runtime in tests
         process.env.NODE_ENV = 'development';
         
         // Clear module cache to force re-import with new environment
@@ -43,7 +42,6 @@ describe('Database Module (db.ts) Integration Tests', () => {
         await expect(prisma.$queryRaw`SELECT 1`).resolves.toBeDefined();
         
       } finally {
-        // @ts-expect-error - NODE_ENV is read-only in types but writable at runtime in tests
         process.env.NODE_ENV = originalNodeEnv;
         // Clear module cache again
         try {
@@ -60,7 +58,6 @@ describe('Database Module (db.ts) Integration Tests', () => {
       
       try {
         // Test production environment
-        // @ts-expect-error - NODE_ENV is read-only in types but writable at runtime in tests
         process.env.NODE_ENV = 'production';
         
         // Clear module cache to force re-import with new environment
@@ -77,7 +74,6 @@ describe('Database Module (db.ts) Integration Tests', () => {
         await expect(prisma.$queryRaw`SELECT 1`).resolves.toBeDefined();
         
       } finally {
-        // @ts-expect-error - NODE_ENV is read-only in types but writable at runtime in tests
         process.env.NODE_ENV = originalNodeEnv;
         // Clear module cache again
         try {
