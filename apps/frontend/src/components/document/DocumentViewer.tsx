@@ -10,9 +10,10 @@ import { getExactText, getTextPositionSelector, isHighlight, isReference, getBod
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { annotations } from '@/lib/api/annotations';
+import { getResourceId } from '@/lib/resource-helpers';
 
 type Annotation = components['schemas']['Annotation'];
-type SemiontDocument = components['schemas']['Document'];
+type SemiontDocument = components['schemas']['ResourceDescriptor'];
 
 interface Props {
   document: SemiontDocument & { content: string };
@@ -169,7 +170,7 @@ export function DocumentViewer({
         // If already a highlight, do nothing
       } else {
         // Create new highlight
-        await addHighlight(document.id, selectedText, annotationPosition);
+        await addHighlight(getResourceId(document), selectedText, annotationPosition);
       }
 
       // Refetch annotations to update UI
@@ -183,7 +184,7 @@ export function DocumentViewer({
     } catch (err) {
       console.error('Failed to create highlight:', err);
     }
-  }, [annotationPosition, selectedText, editingAnnotation, document.id, addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, editingAnnotation, getResourceId(document), addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
   
   // Handle creating references - memoized
   const handleCreateReference = useCallback(async (targetDocId?: string, entityType?: string, referenceType?: string) => {
@@ -196,12 +197,12 @@ export function DocumentViewer({
           await convertHighlightToReference(highlights, (editingAnnotation as Annotation).id, targetDocId, entityType, referenceType);
         } else {
           // Update existing reference
-          await deleteAnnotation((editingAnnotation as Annotation).id, document.id);
-          await addReference(document.id, selectedText, annotationPosition, targetDocId, entityType, referenceType);
+          await deleteAnnotation((editingAnnotation as Annotation).id, getResourceId(document));
+          await addReference(getResourceId(document), selectedText, annotationPosition, targetDocId, entityType, referenceType);
         }
       } else {
         // Create new reference
-        const newId = await addReference(document.id, selectedText, annotationPosition, targetDocId, entityType, referenceType);
+        const newId = await addReference(getResourceId(document), selectedText, annotationPosition, targetDocId, entityType, referenceType);
         console.log('[DocumentViewer] Created reference:', newId);
       }
 
@@ -218,7 +219,7 @@ export function DocumentViewer({
     } catch (err) {
       console.error('Failed to create reference:', err);
     }
-  }, [annotationPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, editingAnnotation, getResourceId(document), addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
 
   // Handle creating assessments - memoized
   const handleCreateAssessment = useCallback(async () => {
@@ -226,7 +227,7 @@ export function DocumentViewer({
 
     try {
       // Create new assessment
-      await addAssessment(document.id, selectedText, annotationPosition);
+      await addAssessment(getResourceId(document), selectedText, annotationPosition);
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -239,13 +240,13 @@ export function DocumentViewer({
     } catch (err) {
       console.error('Failed to create assessment:', err);
     }
-  }, [annotationPosition, selectedText, document.id, addAssessment, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, getResourceId(document), addAssessment, onRefetchAnnotations]);
 
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
     console.log('[DocumentViewer] handleDeleteAnnotation called with id:', id);
     try {
-      await deleteAnnotation(id, document.id);
+      await deleteAnnotation(id, getResourceId(document));
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -312,13 +313,13 @@ export function DocumentViewer({
         const position = { start, end };
 
         // Directly create highlight
-        addHighlight(document.id, text, position);
+        addHighlight(getResourceId(document), text, position);
 
         // Clear annotation to remove sparkle animation
         selection.removeAllRanges();
       }
     }
-  }, [curationMode, document.id, addHighlight]);
+  }, [curationMode, getResourceId(document), addHighlight]);
 
   const handleQuickReference = useCallback(() => {
     if (!curationMode) return;
@@ -511,9 +512,9 @@ export function DocumentViewer({
                 // Converting to stub reference (empty body array)
                 if (isBodyResolved(editingAnnotation.body)) {
                   // Unlink document - convert linked reference to stub
-                  await deleteAnnotation(editingAnnotation.id, document.id);
+                  await deleteAnnotation(editingAnnotation.id, getResourceId(document));
                   const entityTypes = getEntityTypes(editingAnnotation);
-                  await addReference(document.id, selectedText, annotationPosition!, undefined, entityTypes[0]);
+                  await addReference(getResourceId(document), selectedText, annotationPosition!, undefined, entityTypes[0]);
                 }
               } else if (updates.body.type === 'SpecificResource') {
                 if (updates.body.source) {
@@ -521,7 +522,7 @@ export function DocumentViewer({
                   await updateAnnotationBodyMutation.mutateAsync({
                     id: editingAnnotation.id,
                     data: {
-                      documentId: document.id,
+                      documentId: getResourceId(document),
                       operations: [{
                         op: 'add',
                         item: {

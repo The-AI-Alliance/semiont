@@ -13,6 +13,7 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
+import { getResourceId } from '@/lib/resource-helpers';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
@@ -135,11 +136,12 @@ function ComposeDocumentContent() {
           archiveOriginal: archiveOriginal
         });
 
-        if (!response.document?.id) {
+        const docId = response.document ? getResourceId(response.document) : '';
+        if (!docId) {
           throw new Error('No document ID returned from server');
         }
-        documentId = response.document.id;
-        documentName = response.document.name || newDocName;
+        documentId = docId;
+        documentName = response.document?.name || newDocName;
       } else {
         // Create a new document with entity types
         const response = await createDocMutation.mutateAsync({
@@ -150,11 +152,12 @@ function ComposeDocumentContent() {
           creationMethod: 'ui'
         });
 
-        if (!response.document?.id) {
+        const docId = response.document ? getResourceId(response.document) : '';
+        if (!docId) {
           throw new Error('No document ID returned from server');
         }
-        documentId = response.document.id;
-        documentName = response.document.name || newDocName;
+        documentId = docId;
+        documentName = response.document?.name || newDocName;
 
         // If this is a reference completion, update the reference to point to the new document
         if (isReferenceCompletion && referenceId && documentId && sourceDocumentId) {
