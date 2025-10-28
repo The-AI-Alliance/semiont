@@ -36,7 +36,7 @@ export function registerGetDocumentUri(router: DocumentsRouterType) {
     if (prefersHtml(c)) {
       const frontendUrl = getFrontendUrl();
       const normalizedBase = frontendUrl.endsWith('/') ? frontendUrl.slice(0, -1) : frontendUrl;
-      const redirectUrl = `${normalizedBase}/documents/${id}`;
+      const redirectUrl = `${normalizedBase}/know/document/${id}`;
       return c.redirect(redirectUrl, 302);
     }
 

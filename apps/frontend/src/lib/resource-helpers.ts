@@ -46,3 +46,29 @@ export function getChecksum(resource: ResourceDescriptor | undefined): string | 
 export function getLanguage(resource: ResourceDescriptor | undefined): string | undefined {
   return getPrimaryRepresentation(resource)?.language;
 }
+
+/**
+ * Extract the document ID from a ResourceDescriptor's @id
+ *
+ * For internal documents: extracts "doc-sha256:..." from "http://localhost:4000/documents/doc-sha256:..."
+ * For external documents: returns the full URI as-is
+ *
+ * This is used for routing - the frontend URL should contain only the document ID,
+ * not the full HTTP URI.
+ */
+export function getDocumentId(resource: ResourceDescriptor | undefined): string {
+  if (!resource) return '';
+
+  const fullId = resource['@id'];
+
+  // For internal documents, extract the last path segment
+  // http://localhost:4000/documents/doc-sha256:... -> doc-sha256:...
+  if (fullId.includes('/documents/')) {
+    const parts = fullId.split('/documents/');
+    const lastPart = parts[parts.length - 1];
+    return lastPart || fullId; // Fallback to fullId if split fails
+  }
+
+  // For external resources, return the full URI
+  return fullId;
+}

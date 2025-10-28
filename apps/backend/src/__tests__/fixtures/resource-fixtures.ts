@@ -20,7 +20,7 @@ export function createTestResource(overrides?: Partial<ResourceDescriptor>): Res
     name: 'Test Resource',
     representations: [{
       mediaType: 'text/markdown',
-      checksum: 'sha256:test123',
+      checksum: 'test123',
       rel: 'original',
     }],
     archived: false,
@@ -40,7 +40,7 @@ export function createTestResource(overrides?: Partial<ResourceDescriptor>): Res
 export function createTestRepresentation(overrides?: Partial<Representation>): Representation {
   return {
     mediaType: 'text/markdown',
-    checksum: 'sha256:test123',
+    checksum: 'test123',
     rel: 'original',
     ...overrides,
   };

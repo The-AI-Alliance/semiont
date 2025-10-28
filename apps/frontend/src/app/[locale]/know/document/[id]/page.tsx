@@ -15,7 +15,7 @@ import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components } from '@semiont/api-client';
-import { getResourceId, getLanguage } from '@/lib/resource-helpers';
+import { getResourceId, getLanguage, getDocumentId } from '@/lib/resource-helpers';
 
 type SemiontDocument = components['schemas']['ResourceDescriptor'];
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
@@ -141,7 +141,7 @@ function DocumentView({
   useEffect(() => {
     const loadContent = async () => {
       try {
-        const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/documents/${documentId}/content`, {
+        const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/documents/${encodeURIComponent(documentId)}/content`, {
           headers: {
             'Authorization': `Bearer ${session?.backendToken}`,
           },
@@ -253,7 +253,7 @@ function DocumentView({
             format: 'text/markdown',
             entityTypes: []
           });
-          router.push(`/know/document/${encodeURIComponent(getResourceId(newDoc.document))}`);
+          router.push(`/know/document/${encodeURIComponent(getDocumentId(newDoc.document))}`);
         }
       }
     } catch (err) {

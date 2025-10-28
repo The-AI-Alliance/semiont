@@ -19,16 +19,18 @@ import { Context } from 'hono';
  */
 export function prefersHtml(c: Context): boolean {
   const acceptHeader = c.req.header('Accept') || '';
-  const userAgent = c.req.header('User-Agent') || '';
 
   // Check if Accept header explicitly includes text/html
   const acceptsHtml = acceptHeader.includes('text/html');
 
-  // Check if User-Agent indicates a browser
-  const isBrowser = userAgent.includes('Mozilla') || userAgent.includes('Chrome') || userAgent.includes('Safari');
+  // Check if Accept header includes JSON (API request)
+  const acceptsJson = acceptHeader.includes('application/json') || acceptHeader.includes('application/ld+json');
 
-  // Prefer HTML if either Accept header includes it OR it's a browser
-  return acceptsHtml || isBrowser;
+  // Only prefer HTML if:
+  // 1. Accept header explicitly includes text/html
+  // 2. AND doesn't prefer JSON (JSON takes precedence for API calls)
+  // This ensures fetch() API calls get JSON, not redirects
+  return acceptsHtml && !acceptsJson;
 }
 
 /**

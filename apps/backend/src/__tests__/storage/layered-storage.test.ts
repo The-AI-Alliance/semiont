@@ -81,7 +81,7 @@ describe('Layered Storage', () => {
           name: 'Test Doc',
           representations: [{
             mediaType: 'text/plain',
-            checksum: 'sha256:test-checksum',
+            checksum: 'test-checksum',
             rel: 'original',
           }],
           entityTypes: ['note'],
@@ -115,7 +115,7 @@ describe('Layered Storage', () => {
           name: 'Projection Test',
           representations: [{
             mediaType: 'text/markdown',
-            checksum: 'sha256:test-checksum',
+            checksum: 'test-checksum',
             rel: 'original',
           }],
           entityTypes: ['article', 'research'],
@@ -181,7 +181,7 @@ describe('Layered Storage', () => {
           name: 'To Delete',
           representations: [{
             mediaType: 'text/plain',
-            checksum: 'sha256:test-checksum',
+            checksum: 'test-checksum',
             rel: 'original',
           }],
           entityTypes: [],

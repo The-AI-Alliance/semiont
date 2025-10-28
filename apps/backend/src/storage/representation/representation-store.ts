@@ -1,22 +1,31 @@
 /**
- * RepresentationStore - Storage for byte-level resource representations
+ * RepresentationStore - Content-addressed storage for byte-level resource representations
  *
  * Handles storage and retrieval of concrete byte-level renditions of resources.
+ * Uses content-addressed storage where the checksum IS the filename.
  * Supports multiple storage backends (filesystem, S3, IPFS, etc.)
  *
  * Storage structure (filesystem):
- * basePath/representations/{mediaType}/ab/cd/rep-{id}.dat
+ * basePath/representations/{mediaType}/{ab}/{cd}/rep-{checksum}.dat
+ *
+ * Where:
+ * - {mediaType} is MIME type with "/" encoded as "~1" (e.g., "text~1markdown")
+ * - {ab}/{cd} are first 4 hex digits of checksum for sharding
+ * - {checksum} is the raw SHA-256 hex hash (e.g., "5aaa0b72abc123...")
  *
  * Example:
- * basePath/representations/text~1markdown/ab/cd/rep-123.dat
- * basePath/representations/image~1png/12/34/rep-456.dat
+ * For content with checksum "5aaa0b72abc123..." and mediaType "text/markdown":
+ * basePath/representations/text~1markdown/5a/aa/rep-5aaa0b72abc123....dat
+ *
+ * This design provides:
+ * - O(1) content retrieval by checksum + mediaType
+ * - Automatic deduplication (identical content = same file)
+ * - Idempotent storage operations
  */
 
 import { promises as fs } from 'fs';
-import { createHash } from 'crypto';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import { getShardPath } from '../shard-utils';
+import { calculateChecksum } from '@semiont/core';
 
 /**
  * Metadata for a representation being stored
@@ -62,6 +71,15 @@ export interface RepresentationStore {
   retrieve(storageUri: string): Promise<Buffer>;
 
   /**
+   * Retrieve content by checksum (content-addressed)
+   *
+   * @param checksum - Content checksum as raw hex (e.g., "5aaa0b72...")
+   * @param mediaType - MIME type (e.g., "text/markdown")
+   * @returns Raw bytes
+   */
+  retrieveByChecksum(checksum: string, mediaType: string): Promise<Buffer>;
+
+  /**
    * Delete representation by storage URI
    *
    * @param storageUri - Storage location
@@ -75,14 +93,6 @@ export interface RepresentationStore {
    * @returns True if exists
    */
   exists(storageUri: string): Promise<boolean>;
-
-  /**
-   * Calculate checksum for content
-   *
-   * @param content - Raw bytes
-   * @returns SHA-256 hash in format "sha256:..."
-   */
-  checksum(content: Buffer): string;
 }
 
 /**
@@ -96,35 +106,43 @@ export class FilesystemRepresentationStore implements RepresentationStore {
   }
 
   async store(content: Buffer, metadata: RepresentationMetadata): Promise<StoredRepresentation> {
-    const repId = uuidv4();
+    // Compute checksum (raw hex) - this will be used as the content address
+    const checksum = calculateChecksum(content);
     const mediaTypePath = this.encodeMediaType(metadata.mediaType);
-    const [ab, cd] = getShardPath(repId);
 
-    // Build file path: basePath/representations/{mediaType}/ab/cd/rep-{id}.dat
+    if (!checksum || checksum.length < 4) {
+      throw new Error(`Invalid checksum: ${checksum}`);
+    }
+
+    // Use first 4 hex digits for sharding: 5a/aa
+    const ab = checksum.substring(0, 2);
+    const cd = checksum.substring(2, 4);
+
+    // Build file path using raw hex checksum as filename
     const filePath = path.join(
       this.basePath,
       'representations',
       mediaTypePath,
       ab,
       cd,
-      `rep-${repId}.dat`
+      `rep-${checksum}.dat`
     );
 
     // Create directory structure programmatically
     await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-    // Write content
+    // Write content (idempotent - same content = same file)
     await fs.writeFile(filePath, content);
 
-    // Build storage URI
+    // Build storage URI (still provided for compatibility but not needed for retrieval)
     const storageUri = `file://${path.resolve(filePath)}`;
 
     return {
-      '@id': `urn:semiont:representation:${repId}`,
+      '@id': checksum, // Use checksum as the ID (content-addressed)
       ...metadata,
       storageUri,
       byteSize: content.length,
-      checksum: this.checksum(content),
+      checksum,
       created: new Date().toISOString(),
     };
   }
@@ -137,6 +155,37 @@ export class FilesystemRepresentationStore implements RepresentationStore {
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         throw new Error(`Representation not found at ${storageUri}`);
+      }
+      throw error;
+    }
+  }
+
+  async retrieveByChecksum(checksum: string, mediaType: string): Promise<Buffer> {
+    const mediaTypePath = this.encodeMediaType(mediaType);
+
+    if (!checksum || checksum.length < 4) {
+      throw new Error(`Invalid checksum: ${checksum}`);
+    }
+
+    // Use first 4 hex digits for sharding: 5a/aa
+    const ab = checksum.substring(0, 2);
+    const cd = checksum.substring(2, 4);
+
+    // Build file path from raw hex checksum
+    const filePath = path.join(
+      this.basePath,
+      'representations',
+      mediaTypePath,
+      ab,
+      cd,
+      `rep-${checksum}.dat`
+    );
+
+    try {
+      return await fs.readFile(filePath);
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`Representation not found for checksum ${checksum} with mediaType ${mediaType}`);
       }
       throw error;
     }
@@ -164,11 +213,6 @@ export class FilesystemRepresentationStore implements RepresentationStore {
     } catch {
       return false;
     }
-  }
-
-  checksum(content: Buffer): string {
-    const hash = createHash('sha256').update(content).digest('hex');
-    return `sha256:${hash}`;
   }
 
   /**

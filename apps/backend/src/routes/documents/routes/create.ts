@@ -89,10 +89,13 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         },
       });
 
-      // Return optimistic response
+      // Return optimistic response with W3C-compliant HTTP URI
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+      const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
+
       const documentMetadata: ResourceDescriptor = {
         '@context': 'https://schema.org/',
-        '@id': `urn:semiont:resource:${documentId}`,
+        '@id': `${normalizedBase}/documents/${documentId}`,
         name: body.name,
         archived: false,
         entityTypes: body.entityTypes || [],

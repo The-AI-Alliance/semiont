@@ -60,7 +60,7 @@ describe('ProjectionQuery', () => {
       },
       archived,
       entityTypes,
-      checksum: 'sha256:test',
+      checksum: 'test',
     });
 
     const annotations: DocumentAnnotations = {

@@ -37,7 +37,7 @@ describe('ProjectionStorage', () => {
       name: `Test Document ${docId}`,
       representations: [{
         mediaType: 'text/plain',
-        checksum: 'sha256:test',
+        checksum: 'test',
         rel: 'original',
       }],
       creationMethod: 'ui',

@@ -13,7 +13,7 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getResourceId } from '@/lib/resource-helpers';
+import { getResourceId, getDocumentId } from '@/lib/resource-helpers';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
@@ -85,7 +85,8 @@ function ComposeDocumentContent() {
 
           // Fetch content separately
           try {
-            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${cloneData.sourceDocument.id}/content`, {
+            const documentId = getDocumentId(cloneData.sourceDocument);
+            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${encodeURIComponent(documentId)}/content`, {
               headers: {
                 'Authorization': `Bearer ${session.backendToken}`,
               },
@@ -136,7 +137,7 @@ function ComposeDocumentContent() {
           archiveOriginal: archiveOriginal
         });
 
-        const docId = response.document ? getResourceId(response.document) : '';
+        const docId = response.document ? getDocumentId(response.document) : '';
         if (!docId) {
           throw new Error('No document ID returned from server');
         }
@@ -152,7 +153,7 @@ function ComposeDocumentContent() {
           creationMethod: 'ui'
         });
 
-        const docId = response.document ? getResourceId(response.document) : '';
+        const docId = response.document ? getDocumentId(response.document) : '';
         if (!docId) {
           throw new Error('No document ID returned from server');
         }

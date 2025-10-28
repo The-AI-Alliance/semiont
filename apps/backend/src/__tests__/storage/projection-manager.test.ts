@@ -46,7 +46,7 @@ describe('ProjectionManager', () => {
       },
       archived: false,
       entityTypes: [],
-      checksum: 'sha256:test',
+      checksum: 'test',
     });
 
     const annotations: DocumentAnnotations = {

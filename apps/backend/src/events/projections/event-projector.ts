@@ -98,10 +98,14 @@ export class EventProjector {
    * Build projection from event list (full rebuild)
    */
   private buildProjectionFromEvents(events: StoredEvent[], documentId: string): DocumentState {
+    // Build W3C-compliant HTTP URI for @id
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+    const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
+
     // Start with empty ResourceDescriptor state
     const document: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': `urn:semiont:resource:${documentId}`,
+      '@id': `${normalizedBase}/documents/${documentId}`,
       name: '',
       representations: [],
       archived: false,

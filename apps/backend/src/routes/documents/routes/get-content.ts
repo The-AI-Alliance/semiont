@@ -36,12 +36,12 @@ export function registerGetDocumentContent(router: DocumentsRouterType) {
 
     // Get primary representation
     const primaryRep = getPrimaryRepresentation(resource);
-    if (!primaryRep || !primaryRep.storageUri) {
+    if (!primaryRep || !primaryRep.checksum || !primaryRep.mediaType) {
       throw new HTTPException(404, { message: 'Document content not found' });
     }
 
-    // Read content from RepresentationStore
-    const content = await repStore.retrieve(primaryRep.storageUri);
+    // Read content from RepresentationStore using content-addressed lookup
+    const content = await repStore.retrieveByChecksum(primaryRep.checksum, primaryRep.mediaType);
     if (!content) {
       throw new HTTPException(404, { message: 'Document content not found' });
     }
