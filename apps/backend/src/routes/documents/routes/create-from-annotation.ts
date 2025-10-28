@@ -45,7 +45,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       const user = c.get('user');
       const basePath = getFilesystemConfig().path;
       const graphDb = await getGraphDatabase();
-      const repStore = new FilesystemRepresentationStore(basePath);
+      const repStore = new FilesystemRepresentationStore({ basePath });
 
       const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.documentId);
       if (!annotation) {

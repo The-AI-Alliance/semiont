@@ -26,7 +26,7 @@ export function registerGetDocumentContent(router: DocumentsRouterType) {
   router.get('/api/documents/:id/content', async (c) => {
     const { id } = c.req.param();
     const basePath = getFilesystemConfig().path;
-    const repStore = new FilesystemRepresentationStore(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     // Get document metadata from Layer 3
     const resource = await DocumentQueryService.getDocumentMetadata(id);

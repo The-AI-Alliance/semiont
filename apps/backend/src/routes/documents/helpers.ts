@@ -48,7 +48,7 @@ export async function detectAnnotationsInDocument(
     if (!primaryRep.storageUri) return detectedAnnotations;
 
     const basePath = getFilesystemConfig().path;
-    const repStore = new FilesystemRepresentationStore(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
     const contentBuffer = await repStore.retrieve(primaryRep.storageUri);
     const content = contentBuffer.toString('utf-8');
 

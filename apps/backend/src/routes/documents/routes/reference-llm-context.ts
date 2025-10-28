@@ -48,7 +48,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const repStore = new FilesystemRepresentationStore(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     // Get the reference
     const reference = await graphDb.getAnnotation(referenceId);

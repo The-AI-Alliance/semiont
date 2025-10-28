@@ -54,7 +54,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const repStore = new FilesystemRepresentationStore(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     const mainDoc = await graphDb.getDocument(id);
     if (!mainDoc) {

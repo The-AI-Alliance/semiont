@@ -39,7 +39,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       const body = c.get('validatedBody') as CreateDocumentRequest;
       const user = c.get('user');
       const basePath = getFilesystemConfig().path;
-      const repStore = new FilesystemRepresentationStore(basePath);
+      const repStore = new FilesystemRepresentationStore({ basePath });
 
       const checksum = calculateChecksum(body.content);
       const documentId = `doc-sha256:${checksum}`;

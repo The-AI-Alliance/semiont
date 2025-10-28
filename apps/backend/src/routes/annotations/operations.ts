@@ -108,7 +108,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
     const body = c.get('validatedBody') as CreateDocumentFromSelectionRequest;
     const user = c.get('user');
     const basePath = getFilesystemConfig().path;
-    const repStore = new FilesystemRepresentationStore(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     if (!body.content) {
       throw new HTTPException(400, { message: 'Content is required when creating a document' });
@@ -212,7 +212,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     const body = c.get('validatedBody') as GenerateDocumentFromAnnotationRequest;
     const user = c.get('user');
     const basePath = getFilesystemConfig().path;
-    const repStore = new FilesystemRepresentationStore(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     if (!body.documentId) {
       throw new HTTPException(400, { message: 'documentId is required' });
@@ -360,7 +360,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   }
 
   const basePath = getFilesystemConfig().path;
-  const repStore = new FilesystemRepresentationStore(basePath);
+  const repStore = new FilesystemRepresentationStore({ basePath });
 
   // Get annotation from Layer 3
   const annotation = await AnnotationQueryService.getAnnotation(id, documentId);
@@ -418,7 +418,7 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
   const basePath = getFilesystemConfig().path;
-  const repStore = new FilesystemRepresentationStore(basePath);
+  const repStore = new FilesystemRepresentationStore({ basePath });
 
   // Require documentId query parameter
   const documentId = query.documentId;

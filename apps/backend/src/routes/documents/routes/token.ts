@@ -94,7 +94,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       }
 
       const graphDb = await getGraphDatabase();
-      const repStore = new FilesystemRepresentationStore(basePath);
+      const repStore = new FilesystemRepresentationStore({ basePath });
 
       // Get source document
       const sourceDoc = await graphDb.getDocument(tokenData.documentId);
@@ -162,7 +162,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     const { id } = c.req.param();
     const basePath = getFilesystemConfig().path;
     const graphDb = await getGraphDatabase();
-    const repStore = new FilesystemRepresentationStore(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     const sourceDoc = await graphDb.getDocument(id);
     if (!sourceDoc) {

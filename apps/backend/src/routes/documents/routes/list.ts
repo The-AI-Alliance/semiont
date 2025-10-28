@@ -47,7 +47,7 @@ export function registerListDocuments(router: DocumentsRouterType) {
 
     const search = query.search;
 
-    const repStore = new FilesystemRepresentationStore(basePath);
+    const repStore = new FilesystemRepresentationStore({ basePath });
 
     // Read from Layer 3 projection storage
     let filteredDocs = await DocumentQueryService.listDocuments({
