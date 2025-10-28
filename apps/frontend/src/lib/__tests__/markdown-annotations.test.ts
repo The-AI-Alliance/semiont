@@ -35,7 +35,7 @@ describe('Markdown Annotations', () => {
     it('should render stub references with red styling', async () => {
       const markdown = `Athena was the goddess of wisdom.`;
       const annotations = [
-        { id: 'ann-2', exact: 'Athena', offset: 0, length: 6, type: 'reference' as const }
+        { id: 'ann-2', exact: 'Athena', offset: 0, length: 6, type: 'reference' as const, source: null }
       ];
 
       const result = await unified()
@@ -76,17 +76,17 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
     }
 
     const annotations = [
-      { id: 'ann-1', exact: 'Ouranos', offset: findOffset(markdown, 'Ouranos', 1), length: 7, type: 'reference' as const },
-      { id: 'ann-2', exact: 'Gaia', offset: findOffset(markdown, 'Gaia', 1), length: 4, type: 'reference' as const },
-      { id: 'ann-3', exact: 'Cronos', offset: findOffset(markdown, 'Cronos', 1), length: 6, type: 'reference' as const },
-      { id: 'ann-4', exact: 'Ouranos', offset: findOffset(markdown, 'Ouranos', 2), length: 7, type: 'reference' as const },
-      { id: 'ann-5', exact: 'Zeus', offset: findOffset(markdown, 'Zeus', 1), length: 4, type: 'reference' as const },
-      { id: 'ann-6', exact: 'Cronos', offset: findOffset(markdown, 'Cronos', 2), length: 6, type: 'reference' as const },
-      { id: 'ann-7', exact: 'Zeus', offset: findOffset(markdown, 'Zeus', 2), length: 4, type: 'reference' as const },
-      { id: 'ann-8', exact: 'Prometheus', offset: findOffset(markdown, 'Prometheus', 1), length: 10, type: 'reference' as const },
-      { id: 'ann-9', exact: 'Zeus', offset: findOffset(markdown, 'Zeus', 3), length: 4, type: 'highlight' as const },
-      { id: 'ann-10', exact: 'Zeus', offset: findOffset(markdown, 'Zeus', 4), length: 4, type: 'reference' as const },
-      { id: 'ann-11', exact: 'Prometheus', offset: findOffset(markdown, 'Prometheus', 2), length: 10, type: 'reference' as const },
+      { id: 'ann-1', exact: 'Ouranos', offset: findOffset(markdown, 'Ouranos', 1), length: 7, type: 'reference' as const, source: null },
+      { id: 'ann-2', exact: 'Gaia', offset: findOffset(markdown, 'Gaia', 1), length: 4, type: 'reference' as const, source: null },
+      { id: 'ann-3', exact: 'Cronos', offset: findOffset(markdown, 'Cronos', 1), length: 6, type: 'reference' as const, source: null },
+      { id: 'ann-4', exact: 'Ouranos', offset: findOffset(markdown, 'Ouranos', 2), length: 7, type: 'reference' as const, source: null },
+      { id: 'ann-5', exact: 'Zeus', offset: findOffset(markdown, 'Zeus', 1), length: 4, type: 'reference' as const, source: null },
+      { id: 'ann-6', exact: 'Cronos', offset: findOffset(markdown, 'Cronos', 2), length: 6, type: 'reference' as const, source: null },
+      { id: 'ann-7', exact: 'Zeus', offset: findOffset(markdown, 'Zeus', 2), length: 4, type: 'reference' as const, source: null },
+      { id: 'ann-8', exact: 'Prometheus', offset: findOffset(markdown, 'Prometheus', 1), length: 10, type: 'reference' as const, source: null },
+      { id: 'ann-9', exact: 'Zeus', offset: findOffset(markdown, 'Zeus', 3), length: 4, type: 'highlight' as const, source: null },
+      { id: 'ann-10', exact: 'Zeus', offset: findOffset(markdown, 'Zeus', 4), length: 4, type: 'reference' as const, source: null },
+      { id: 'ann-11', exact: 'Prometheus', offset: findOffset(markdown, 'Prometheus', 2), length: 10, type: 'reference' as const, source: null },
     ];
 
     it('should have correct offsets for all annotations', () => {
@@ -224,7 +224,7 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
       // "Zeus" appears at offset 10 in source (after "The god **")
       // The text node in AST has position 10-14, even though parent <strong> is at 8-16
       const annotations = [
-        { id: 'ann-1', exact: 'Zeus', offset: 10, length: 4, type: 'reference' as const }
+        { id: 'ann-1', exact: 'Zeus', offset: 10, length: 4, type: 'reference' as const, source: null }
       ];
 
       const result = await unified()
@@ -248,7 +248,7 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
 
       // "Athena" appears at offset 13 in source (after "The goddess *")
       const annotations = [
-        { id: 'ann-1', exact: 'Athena', offset: 13, length: 6, type: 'reference' as const }
+        { id: 'ann-1', exact: 'Athena', offset: 13, length: 6, type: 'reference' as const, source: null }
       ];
 
       const result = await unified()
@@ -270,7 +270,7 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
 
       // "Zeus" appears at offset 12 in source (after "Read about [")
       const annotations = [
-        { id: 'ann-1', exact: 'Zeus', offset: 12, length: 4, type: 'reference' as const }
+        { id: 'ann-1', exact: 'Zeus', offset: 12, length: 4, type: 'reference' as const, source: null }
       ];
 
       const result = await unified()
@@ -296,7 +296,7 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
       // We want to annotate from 'Z' (12) through 'a' (29), which is "Zeus and Hera" rendered
       // But this crosses element boundaries in a complex way - may not be fully supported
       const annotations = [
-        { id: 'ann-1', exact: 'Zeus and Hera', offset: 12, length: 18, type: 'highlight' as const }
+        { id: 'ann-1', exact: 'Zeus and Hera', offset: 12, length: 18, type: 'highlight' as const, source: null }
       ];
 
       const result = await unified()
@@ -321,9 +321,9 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
       // Annotate "the king" (inside italic) - starts at position 11 (after _)
       // Annotate "Olympus" (inside link) - starts at position 29 (after [)
       const annotations = [
-        { id: 'ann-1', exact: 'Zeus', offset: 2, length: 4, type: 'reference' as const },
-        { id: 'ann-2', exact: 'the king', offset: 11, length: 8, type: 'highlight' as const },
-        { id: 'ann-3', exact: 'Olympus', offset: 29, length: 7, type: 'reference' as const },
+        { id: 'ann-1', exact: 'Zeus', offset: 2, length: 4, type: 'reference' as const, source: null },
+        { id: 'ann-2', exact: 'the king', offset: 11, length: 8, type: 'highlight' as const, source: null },
+        { id: 'ann-3', exact: 'Olympus', offset: 29, length: 7, type: 'reference' as const, source: null },
       ];
 
       const result = await unified()
