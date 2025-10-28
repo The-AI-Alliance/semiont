@@ -20,7 +20,7 @@ import { FilesystemRepresentationStore } from '../../storage/representation/repr
 import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 import {
   CREATION_METHODS,
-  calculateChecksum,
+  generateUuid,
   type BodyOperation,
 } from '@semiont/core';
 
@@ -124,11 +124,10 @@ operationsRouter.post('/api/annotations/:id/create-document',
     }
 
     // Create the new document
-    const checksum = calculateChecksum(body.content);
-    const documentId = `doc-sha256:${checksum}`;
+    const documentId = generateUuid();
 
     // Store representation
-    await repStore.store(Buffer.from(body.content), {
+    const storedRep = await repStore.store(Buffer.from(body.content), {
       mediaType: body.format,
       rel: 'original',
     });
@@ -143,7 +142,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
       payload: {
         name: body.name,
         format: body.format,
-        contentChecksum: checksum,
+        contentChecksum: storedRep.checksum,
         creationMethod: CREATION_METHODS.API,
         entityTypes: body.entityTypes || [],
         language: undefined,  // Not provided in this flow
@@ -185,7 +184,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
       entityTypes: body.entityTypes || [],
       representations: [{
         mediaType: body.format,
-        checksum,
+        checksum: storedRep.checksum,
         rel: 'original' as const,
       }],
       creationMethod: CREATION_METHODS.API,
@@ -254,11 +253,10 @@ operationsRouter.post('/api/annotations/:id/generate-document',
 
     // Create the new document
     const documentName = body.name || title;
-    const checksum = calculateChecksum(generatedContent);
-    const documentId = `doc-sha256:${checksum}`;
+    const documentId = generateUuid();
 
     // Store generated representation
-    await repStore.store(Buffer.from(generatedContent), {
+    const storedRep = await repStore.store(Buffer.from(generatedContent), {
       mediaType: 'text/plain',
       rel: 'original',
     });
@@ -273,7 +271,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
       payload: {
         name: documentName,
         format: 'text/markdown',
-        contentChecksum: checksum,
+        contentChecksum: storedRep.checksum,
         creationMethod: CREATION_METHODS.GENERATED,
         entityTypes: body.entityTypes || annotationEntityTypes,
         language: body.language,
@@ -315,7 +313,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
       entityTypes: body.entityTypes || annotationEntityTypes,
       representations: [{
         mediaType: 'text/markdown',
-        checksum,
+        checksum: storedRep.checksum,
         rel: 'original' as const,
         language: body.language,
       }],

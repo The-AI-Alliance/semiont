@@ -11,8 +11,11 @@
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import type { components } from '@semiont/api-client';
-import type { CreateDocumentInput } from '@semiont/core';
-import { CREATION_METHODS, calculateChecksum } from '@semiont/core';
+import {
+  CREATION_METHODS,
+  generateUuid,
+  type CreateDocumentInput,
+} from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -50,8 +53,13 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
 
-      const checksum = calculateChecksum(body.content);
-      const documentId = `doc-sha256:${checksum}`;
+      const documentId = generateUuid();
+
+      // Store representation
+      const storedRep = await repStore.store(Buffer.from(body.content), {
+        mediaType: body.format,
+        rel: 'original',
+      });
 
       const createInput: CreateDocumentInput & { id: string } = {
         id: documentId,
@@ -59,7 +67,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
         entityTypes: getEntityTypes(annotation),
         content: body.content,
         format: body.format,
-        contentChecksum: checksum,
+        contentChecksum: storedRep.checksum,
         creator: userToAgent(user),
         creationMethod: CREATION_METHODS.REFERENCE,
         sourceAnnotationId: annotationId,
@@ -67,12 +75,6 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       };
 
       const savedDoc = await graphDb.createDocument(createInput);
-
-      // Store representation
-      await repStore.store(Buffer.from(body.content), {
-        mediaType: body.format,
-        rel: 'original',
-      });
 
       // Update the annotation to resolve to the new document
       await graphDb.resolveReference(annotationId, getResourceId(savedDoc));

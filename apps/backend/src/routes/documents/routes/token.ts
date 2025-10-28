@@ -10,9 +10,9 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { calculateChecksum } from '@semiont/core';
 import {
   CREATION_METHODS,
+  generateUuid,
   type CreateDocumentInput,
 } from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
@@ -101,8 +101,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       }
 
       // Create new document
-      const checksum = calculateChecksum(body.content);
-      const documentId = `doc-sha256:${checksum}`;
+      const documentId = generateUuid();
 
       // Get source format and validate it's a supported ContentFormat
       const primaryRep = getPrimaryRepresentation(sourceDoc);
@@ -114,13 +113,19 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
         ? (mediaType as 'text/plain' | 'text/markdown')
         : 'text/plain';
 
+      // Store representation
+      const storedRep = await repStore.store(Buffer.from(body.content), {
+        mediaType: format,
+        rel: 'original',
+      });
+
       const createInput: CreateDocumentInput & { id: string } = {
         id: documentId,
         name: body.name,
         entityTypes: getEntityTypes(sourceDoc),
         content: body.content,
         format,
-        contentChecksum: checksum,
+        contentChecksum: storedRep.checksum,
         creator: userToAgent(user),
         creationMethod: CREATION_METHODS.CLONE,
         sourceDocumentId: getResourceId(sourceDoc),

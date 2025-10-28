@@ -11,7 +11,7 @@
 import {
   CREATION_METHODS,
   type CreationMethod,
-  calculateChecksum,
+  generateUuid,
 } from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 import { createEventStore } from '../../../services/event-store-service';
@@ -41,8 +41,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       const basePath = getFilesystemConfig().path;
       const repStore = new FilesystemRepresentationStore({ basePath });
 
-      const checksum = calculateChecksum(body.content);
-      const documentId = `doc-sha256:${checksum}`;
+      const documentId = generateUuid();
 
       // Store representation (Layer 1)
       const contentBuffer = Buffer.from(body.content);
@@ -79,7 +78,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         payload: {
           name: body.name,
           format: body.format,
-          contentChecksum: checksum,
+          contentChecksum: storedRep.checksum,
           creationMethod,
           entityTypes: body.entityTypes,
           language: body.language,

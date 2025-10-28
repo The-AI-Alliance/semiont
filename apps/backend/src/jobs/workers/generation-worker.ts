@@ -14,7 +14,11 @@ import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
 import { getTargetSelector } from '../../lib/annotation-utils';
-import { CREATION_METHODS, calculateChecksum, type BodyOperation } from '@semiont/core';
+import {
+  CREATION_METHODS,
+  generateUuid,
+  type BodyOperation,
+} from '@semiont/core';
 import { getExactText, compareAnnotationIds } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
 
@@ -105,9 +109,8 @@ export class GenerationWorker extends JobWorker {
     };
     await this.updateJobProgress(job);
 
-    // Calculate checksum and document ID
-    const checksum = calculateChecksum(generatedContent.content);
-    const documentId = `doc-sha256:${checksum}`;
+    // Generate document ID
+    const documentId = generateUuid();
 
     // Update progress: creating
     job.progress = {
@@ -119,7 +122,7 @@ export class GenerationWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Save content to RepresentationStore
-    await repStore.store(Buffer.from(generatedContent.content), {
+    const storedRep = await repStore.store(Buffer.from(generatedContent.content), {
       mediaType: 'text/markdown',
       rel: 'original',
     });
@@ -135,7 +138,7 @@ export class GenerationWorker extends JobWorker {
       payload: {
         name: documentName,
         format: 'text/markdown',
-        contentChecksum: checksum,
+        contentChecksum: storedRep.checksum,
         creationMethod: CREATION_METHODS.GENERATED,
         entityTypes: job.entityTypes || annotationEntityTypes,
         language: job.language,
