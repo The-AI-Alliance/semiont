@@ -19,6 +19,15 @@ import { Context } from 'hono';
  */
 export function prefersHtml(c: Context): boolean {
   const acceptHeader = c.req.header('Accept') || '';
+  const userAgent = c.req.header('User-Agent') || '';
+
+  // Check if User-Agent indicates a browser (Mozilla, Chrome, Safari, Edge, etc.)
+  const isBrowser = /Mozilla|Chrome|Safari|Edge|Firefox|Opera/.test(userAgent);
+
+  // If User-Agent is a browser, prefer HTML (browsers should get HTML redirects)
+  if (isBrowser && !userAgent.includes('curl')) {
+    return true;
+  }
 
   // Check if Accept header explicitly includes text/html
   const acceptsHtml = acceptHeader.includes('text/html');
