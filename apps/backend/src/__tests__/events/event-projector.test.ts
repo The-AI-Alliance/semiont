@@ -73,9 +73,9 @@ describe('EventProjector', () => {
       const projection = await projector.projectDocument(events, 'doc1');
 
       expect(projection).not.toBeNull();
-      expect(projection!.document.id).toBe('doc1');
+      expect(projection!.document['@id']).toContain('doc1'); // @id is HTTP URI containing doc1
       expect(projection!.document.name).toBe('Test Document');
-      expect(projection!.document.format).toBe('text/markdown');
+      expect(projection!.document.representations?.[0]?.mediaType).toBe('text/markdown');
       expect(projection!.document.entityTypes).toEqual(['note']);
       expect(projection!.document.archived).toBe(false);
       expect(projection!.annotations.version).toBe(1);
