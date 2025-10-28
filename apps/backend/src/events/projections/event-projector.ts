@@ -14,6 +14,8 @@ import * as path from 'path';
 import { didToAgent } from '../../utils/id-generator';
 import type { components } from '@semiont/api-client';
 import { compareAnnotationIds } from '@semiont/api-client';
+
+type Representation = components['schemas']['Representation'];
 import type {
   DocumentEvent,
   StoredEvent,
@@ -142,12 +144,14 @@ export class EventProjector {
 
         // Create representation from format and checksum
         if (!document.representations) document.representations = [];
-        document.representations.push({
+        const reps = Array.isArray(document.representations) ? document.representations : [document.representations];
+        reps.push({
           mediaType: event.payload.format,
           checksum: event.payload.contentChecksum,
           rel: 'original',
           language: event.payload.language,
-        });
+        } as Representation);
+        document.representations = reps;
 
         // First-class fields
         document.isDraft = event.payload.isDraft;
@@ -164,12 +168,14 @@ export class EventProjector {
 
         // Create representation from format and checksum
         if (!document.representations) document.representations = [];
-        document.representations.push({
+        const reps2 = Array.isArray(document.representations) ? document.representations : [document.representations];
+        reps2.push({
           mediaType: event.payload.format,
           checksum: event.payload.contentChecksum,
           rel: 'original',
           language: event.payload.language,
-        });
+        } as Representation);
+        document.representations = reps2;
         break;
 
       case 'document.archived':

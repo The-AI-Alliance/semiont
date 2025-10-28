@@ -227,7 +227,7 @@ export class GraphDBConsumer {
         const doc = await graphDb.getDocument(event.documentId);
         if (doc) {
           await graphDb.updateDocument(event.documentId, {
-            entityTypes: [...doc.entityTypes, event.payload.entityType],
+            entityTypes: [...(doc.entityTypes || []), event.payload.entityType],
           });
         }
         break;
@@ -237,7 +237,7 @@ export class GraphDBConsumer {
         const doc2 = await graphDb.getDocument(event.documentId);
         if (doc2) {
           await graphDb.updateDocument(event.documentId, {
-            entityTypes: doc2.entityTypes.filter(t => t !== event.payload.entityType),
+            entityTypes: (doc2.entityTypes || []).filter(t => t !== event.payload.entityType),
           });
         }
         break;

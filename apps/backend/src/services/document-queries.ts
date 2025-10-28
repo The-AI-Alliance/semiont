@@ -10,7 +10,6 @@
 import { getFilesystemConfig } from '../config/environment-loader';
 import { createProjectionManager } from './storage-service';
 import type { components } from '@semiont/api-client';
-import type { CreationMethod } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 

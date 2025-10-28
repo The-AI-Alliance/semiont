@@ -345,7 +345,9 @@ describe('ProjectionQuery', () => {
       });
 
       expect(aliceResults.length).toBe(1); // Only 'Alice Document'
-      expect(getResourceId(aliceResults[0]?.document)).toBe('doc-1');
+      if (aliceResults[0]) {
+        expect(getResourceId(aliceResults[0].document)).toBe('doc-1');
+      }
     });
   });
 
