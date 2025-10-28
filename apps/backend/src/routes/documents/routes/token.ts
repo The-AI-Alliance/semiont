@@ -13,7 +13,6 @@ import { getGraphDatabase } from '../../../graph/factory';
 import { calculateChecksum } from '@semiont/core';
 import {
   CREATION_METHODS,
-  type CreationMethod,
   type CreateDocumentInput,
 } from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
@@ -28,7 +27,6 @@ type GetDocumentByTokenResponse = components['schemas']['GetDocumentByTokenRespo
 type CreateDocumentFromTokenRequest = components['schemas']['CreateDocumentFromTokenRequest'];
 type CreateDocumentFromTokenResponse = components['schemas']['CreateDocumentFromTokenResponse'];
 type CloneDocumentWithTokenResponse = components['schemas']['CloneDocumentWithTokenResponse'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 // Simple in-memory token store (replace with Redis/DB in production)
 const cloneTokens = new Map<string, { documentId: string; expiresAt: Date }>();
@@ -106,9 +104,15 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       const checksum = calculateChecksum(body.content);
       const documentId = `doc-sha256:${checksum}`;
 
-      // Get source format
+      // Get source format and validate it's a supported ContentFormat
       const primaryRep = getPrimaryRepresentation(sourceDoc);
-      const format = primaryRep?.mediaType || 'text/plain';
+      const mediaType = primaryRep?.mediaType || 'text/plain';
+
+      // Validate mediaType is a supported ContentFormat (validation at periphery)
+      const validFormats = ['text/plain', 'text/markdown'] as const;
+      const format: 'text/plain' | 'text/markdown' = validFormats.includes(mediaType as any)
+        ? (mediaType as 'text/plain' | 'text/markdown')
+        : 'text/plain';
 
       const createInput: CreateDocumentInput & { id: string } = {
         id: documentId,

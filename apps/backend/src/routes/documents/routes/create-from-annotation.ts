@@ -11,7 +11,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import type { components } from '@semiont/api-client';
-import type { CreateDocumentInput, CreationMethod } from '@semiont/core';
+import type { CreateDocumentInput } from '@semiont/core';
 import { CREATION_METHODS, calculateChecksum } from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
@@ -22,8 +22,6 @@ import { getEntityTypes } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getResourceId } from '../../../utils/resource-helpers';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 type CreateFromAnnotationRequest = components['schemas']['CreateFromAnnotationRequest'];
 type CreateFromAnnotationResponse = components['schemas']['CreateFromAnnotationResponse'];

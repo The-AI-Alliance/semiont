@@ -17,7 +17,7 @@ import { getFilesystemConfig } from '../../config/environment-loader';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getTextPositionSelector } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { getPrimaryRepresentation, getResourceId } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 import {
   CREATION_METHODS,
   calculateChecksum,
@@ -33,7 +33,6 @@ import { validateRequestBody } from '../../middleware/validate-openapi';
 import { getEntityTypes } from '@semiont/api-client';
 import type { User } from '@prisma/client';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 type CreateDocumentFromSelectionRequest = components['schemas']['CreateDocumentFromSelectionRequest'];
@@ -178,15 +177,20 @@ operationsRouter.post('/api/annotations/:id/create-document',
     // Return optimistic response - Add SpecificResource to body array
     const resolvedAnnotation = createResolvedAnnotation(annotation, documentId, user);
 
-    const documentMetadata: Document = {
-      id: documentId,
+    // Build ResourceDescriptor for response
+    const documentMetadata = {
+      '@context': 'https://schema.org/',
+      '@id': documentId,
       name: body.name,
-      format: body.format,
       entityTypes: body.entityTypes || [],
+      representations: [{
+        mediaType: body.format,
+        checksum,
+        rel: 'original' as const,
+      }],
       creationMethod: CREATION_METHODS.API,
-      contentChecksum: checksum,
-      creator: userToAgent(user),
-      created: new Date().toISOString(),
+      wasAttributedTo: userToAgent(user),
+      dateCreated: new Date().toISOString(),
       archived: false,
     };
 
@@ -303,17 +307,22 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     // Return optimistic response - Add SpecificResource to body array
     const resolvedAnnotation = createResolvedAnnotation(annotation, documentId, user);
 
-    const documentMetadata: Document = {
-      id: documentId,
+    // Build ResourceDescriptor for response
+    const documentMetadata = {
+      '@context': 'https://schema.org/',
+      '@id': documentId,
       name: documentName,
-      format: 'text/markdown',
       entityTypes: body.entityTypes || annotationEntityTypes,
-      language: body.language,
+      representations: [{
+        mediaType: 'text/markdown',
+        checksum,
+        rel: 'original' as const,
+        language: body.language,
+      }],
       sourceAnnotationId: id,
       creationMethod: CREATION_METHODS.GENERATED,
-      contentChecksum: checksum,
-      creator: userToAgent(user),
-      created: new Date().toISOString(),
+      wasAttributedTo: userToAgent(user),
+      dateCreated: new Date().toISOString(),
       archived: false,
     };
 
@@ -393,15 +402,15 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
       after,
     },
     document: {
-      id: document.id,
+      '@context': document['@context'],
+      '@id': document['@id'],
       name: document.name,
-      format: document.format,
       entityTypes: document.entityTypes,
+      representations: document.representations,
       archived: document.archived,
       creationMethod: document.creationMethod,
-      creator: document.creator,
-      created: document.created,
-      contentChecksum: document.contentChecksum,
+      wasAttributedTo: document.wasAttributedTo,
+      dateCreated: document.dateCreated,
     },
   };
 

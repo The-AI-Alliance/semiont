@@ -70,8 +70,8 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
 
       // Emit entity tag change events (event store updates Layer 3, graph consumer updates Layer 4)
       if (body.entityTypes && doc.entityTypes) {
-        const added = body.entityTypes.filter((et: string) => !doc.entityTypes.includes(et));
-        const removed = doc.entityTypes.filter((et: string) => !body.entityTypes!.includes(et));
+        const added = body.entityTypes.filter((et: string) => !(doc.entityTypes || []).includes(et));
+        const removed = (doc.entityTypes || []).filter((et: string) => !body.entityTypes!.includes(et));
 
         for (const entityType of added) {
           await eventStore.appendEvent({

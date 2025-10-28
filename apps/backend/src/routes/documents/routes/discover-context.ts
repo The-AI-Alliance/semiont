@@ -37,7 +37,7 @@ export function registerDiscoverContext(router: DocumentsRouterType) {
         documents: connectedDocs,
         connections: connections.map(conn => ({
           fromId: id,
-          toId: conn.targetDocument.id,
+          toId: conn.targetDocument['@id'],
           type: conn.relationshipType || 'link',
           metadata: {},
         })),
