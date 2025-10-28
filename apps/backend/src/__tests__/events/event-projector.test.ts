@@ -13,6 +13,7 @@ import type { StoredEvent, DocumentEvent } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 
 describe('EventProjector', () => {
   let testDir: string;
@@ -75,7 +76,8 @@ describe('EventProjector', () => {
       expect(projection).not.toBeNull();
       expect(projection!.document['@id']).toContain('doc1'); // @id is HTTP URI containing doc1
       expect(projection!.document.name).toBe('Test Document');
-      expect(projection!.document.representations?.[0]?.mediaType).toBe('text/markdown');
+      const primaryRep = getPrimaryRepresentation(projection!.document);
+      expect(primaryRep?.mediaType).toBe('text/markdown');
       expect(projection!.document.entityTypes).toEqual(['note']);
       expect(projection!.document.archived).toBe(false);
       expect(projection!.annotations.version).toBe(1);
