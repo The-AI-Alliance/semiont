@@ -10,13 +10,14 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { createContentManager } from '../../services/storage-service';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
 import { userToAgent } from '../../utils/id-generator';
 import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getFilesystemConfig } from '../../config/environment-loader';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getTextPositionSelector } from '@semiont/api-client';
+import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { getPrimaryRepresentation, getResourceId } from '../../utils/resource-helpers';
 import {
   CREATION_METHODS,
   calculateChecksum,
@@ -32,7 +33,7 @@ import { validateRequestBody } from '../../middleware/validate-openapi';
 import { getEntityTypes } from '@semiont/api-client';
 import type { User } from '@prisma/client';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 type CreateDocumentFromSelectionRequest = components['schemas']['CreateDocumentFromSelectionRequest'];
@@ -107,7 +108,7 @@ operationsRouter.post('/api/annotations/:id/create-document',
     const body = c.get('validatedBody') as CreateDocumentFromSelectionRequest;
     const user = c.get('user');
     const basePath = getFilesystemConfig().path;
-    const contentManager = createContentManager(basePath);
+    const repStore = new FilesystemRepresentationStore(basePath);
 
     if (!body.content) {
       throw new HTTPException(400, { message: 'Content is required when creating a document' });
@@ -127,8 +128,11 @@ operationsRouter.post('/api/annotations/:id/create-document',
     const checksum = calculateChecksum(body.content);
     const documentId = `doc-sha256:${checksum}`;
 
-    // Save content to Layer 1 (filesystem)
-    await contentManager.save(documentId, Buffer.from(body.content));
+    // Store representation
+    await repStore.store(Buffer.from(body.content), {
+      mediaType: body.format,
+      rel: 'original',
+    });
 
     // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
     const eventStore = await createEventStore(basePath);
@@ -208,7 +212,7 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     const body = c.get('validatedBody') as GenerateDocumentFromAnnotationRequest;
     const user = c.get('user');
     const basePath = getFilesystemConfig().path;
-    const contentManager = createContentManager(basePath);
+    const repStore = new FilesystemRepresentationStore(basePath);
 
     if (!body.documentId) {
       throw new HTTPException(400, { message: 'documentId is required' });
@@ -249,8 +253,11 @@ operationsRouter.post('/api/annotations/:id/generate-document',
     const checksum = calculateChecksum(generatedContent);
     const documentId = `doc-sha256:${checksum}`;
 
-    // Store generated content to Layer 1
-    await contentManager.save(documentId, Buffer.from(generatedContent));
+    // Store generated representation
+    await repStore.store(Buffer.from(generatedContent), {
+      mediaType: 'text/plain',
+      rel: 'original',
+    });
 
     // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
     const eventStore = await createEventStore(basePath);
@@ -353,7 +360,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   }
 
   const basePath = getFilesystemConfig().path;
-  const contentManager = createContentManager(basePath);
+  const repStore = new FilesystemRepresentationStore(basePath);
 
   // Get annotation from Layer 3
   const annotation = await AnnotationQueryService.getAnnotation(id, documentId);
@@ -367,8 +374,12 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
-  // Get content from Layer 1
-  const content = await contentManager.get(getTargetSource(annotation.target));
+  // Get content from representation store
+  const primaryRep = getPrimaryRepresentation(document);
+  if (!primaryRep?.storageUri) {
+    throw new HTTPException(404, { message: 'Document content not found' });
+  }
+  const content = await repStore.retrieve(primaryRep.storageUri);
   const contentStr = content.toString('utf-8');
 
   // Extract context based on annotation position
@@ -407,7 +418,7 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
   const basePath = getFilesystemConfig().path;
-  const contentManager = createContentManager(basePath);
+  const repStore = new FilesystemRepresentationStore(basePath);
 
   // Require documentId query parameter
   const documentId = query.documentId;
@@ -427,8 +438,12 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
-  // Get content from Layer 1
-  const content = await contentManager.get(getTargetSource(annotation.target));
+  // Get content from representation store
+  const primaryRep = getPrimaryRepresentation(document);
+  if (!primaryRep?.storageUri) {
+    throw new HTTPException(404, { message: 'Document content not found' });
+  }
+  const content = await repStore.retrieve(primaryRep.storageUri);
   const contentStr = content.toString('utf-8');
 
   // Extract annotation text with context

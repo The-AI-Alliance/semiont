@@ -8,10 +8,9 @@ import { ProjectionStorage, type DocumentState } from '../../storage/projection/
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import type { components } from '@semiont/api-client';
 import type { DocumentAnnotations } from '@semiont/core';
-
-type Document = components['schemas']['Document'];
+import { createTestResource } from '../fixtures/resource-fixtures';
+import { getResourceId } from '../../utils/resource-helpers';
 
 describe('ProjectionStorage', () => {
   let testDir: string;
@@ -33,21 +32,22 @@ describe('ProjectionStorage', () => {
 
   // Helper to create test document state
   const createTestDocumentState = (docId: string): DocumentState => {
-    const document: Document = {
-      id: docId,
+    const document = createTestResource({
+      '@id': `urn:semiont:resource:${docId}`,
       name: `Test Document ${docId}`,
-      format: 'text/plain',
+      representations: [{
+        mediaType: 'text/plain',
+        checksum: 'sha256:test',
+        rel: 'original',
+      }],
       creationMethod: 'ui',
-      creator: {
-        id: 'user-123',
-        type: 'Person',
+      wasAttributedTo: {
         name: 'Test User',
       },
-      created: '2025-01-01T00:00:00.000Z',
+      dateCreated: '2025-01-01T00:00:00.000Z',
       archived: false,
       entityTypes: [],
-      contentChecksum: 'sha256:test',
-    };
+    });
 
     const annotations: DocumentAnnotations = {
       documentId: docId,
@@ -80,7 +80,7 @@ describe('ProjectionStorage', () => {
       // Verify projection was saved
       const loaded = await storage.get(docId);
       expect(loaded).not.toBeNull();
-      expect(loaded?.document.id).toBe(docId);
+      expect(getResourceId(loaded!.document)).toBe(docId);
     });
 
     it('should overwrite existing projection', async () => {
@@ -142,7 +142,7 @@ describe('ProjectionStorage', () => {
 
       const loaded = await storage.get(docId);
       expect(loaded).not.toBeNull();
-      expect(loaded?.document.id).toBe(docId);
+      expect(getResourceId(loaded!.document)).toBe(docId);
       expect(loaded?.annotations.documentId).toBe(docId);
     });
 
@@ -165,7 +165,7 @@ describe('ProjectionStorage', () => {
         await storage.save(docId, state);
 
         const loaded = await storage.get(docId);
-        expect(loaded?.document.id).toBe(docId);
+        expect(getResourceId(loaded!.document)).toBe(docId);
       }
     });
 
@@ -226,7 +226,7 @@ describe('ProjectionStorage', () => {
       await storage.save(docId, state);
 
       const loaded = await storage.get(docId);
-      expect(loaded?.document.id).toBe(docId);
+      expect(getResourceId(loaded!.document)).toBe(docId);
     });
   });
 
@@ -292,7 +292,7 @@ describe('ProjectionStorage', () => {
       const allProjections = await storage3.getAll();
       expect(allProjections).toHaveLength(2);
 
-      const ids = allProjections.map(p => p.document.id);
+      const ids = allProjections.map(p => getResourceId(p.document));
       expect(ids).toContain('doc-a');
       expect(ids).toContain('doc-b');
     });
@@ -387,7 +387,7 @@ describe('ProjectionStorage', () => {
 
       // Should still be retrievable (same shard)
       const loaded = await storage.get(docId);
-      expect(loaded?.document.id).toBe(docId);
+      expect(getResourceId(loaded!.document)).toBe(docId);
     });
   });
 

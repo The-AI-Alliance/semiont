@@ -11,7 +11,9 @@ import { join } from 'path';
 import type { components } from '@semiont/api-client';
 import type { DocumentAnnotations } from '@semiont/core';
 
-type Document = components['schemas']['Document'];
+import { createTestResource } from '../fixtures/resource-fixtures';
+import { getResourceId } from '../../utils/resource-helpers';
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 describe('ProjectionManager', () => {
   let testDir: string;
@@ -33,21 +35,19 @@ describe('ProjectionManager', () => {
 
   // Helper to create test document state
   const createTestState = (docId: string): DocumentState => {
-    const document: Document = {
+    const document: ResourceDescriptor = createTestResource({
       id: docId,
       name: `Test Document ${docId}`,
-      format: 'text/plain',
-      creationMethod: 'api',
+      primaryMediaType: 'text/plain',
       creator: {
-        id: 'user-test',
-        type: 'Person',
+        '@id': 'user-test',
+        '@type': 'Person',
         name: 'Test User',
       },
-      created: '2025-01-01T00:00:00.000Z',
       archived: false,
       entityTypes: [],
-      contentChecksum: 'sha256:test',
-    };
+      checksum: 'sha256:test',
+    });
 
     const annotations: DocumentAnnotations = {
       documentId: docId,
@@ -96,7 +96,7 @@ describe('ProjectionManager', () => {
 
       // Verify via direct storage access
       const loaded = await manager.storage.get(docId);
-      expect(loaded?.document.id).toBe(docId);
+      expect(loaded ? getResourceId(loaded.document) : null).toBe(docId);
     });
 
     it('should handle multiple saves', async () => {
@@ -121,7 +121,7 @@ describe('ProjectionManager', () => {
 
       const loaded = await manager.get(docId);
       expect(loaded).not.toBeNull();
-      expect(loaded?.document.id).toBe(docId);
+      expect(loaded ? getResourceId(loaded.document) : null).toBe(docId);
     });
 
     it('should return null for non-existent projection', async () => {
@@ -138,7 +138,7 @@ describe('ProjectionManager', () => {
       const viaManager = await manager.get(docId);
       const viaStorage = await manager.storage.get(docId);
 
-      expect(viaManager?.document.id).toBe(viaStorage?.document.id);
+      expect(viaManager ? getResourceId(viaManager.document) : null).toBe(viaStorage ? getResourceId(viaStorage.document) : null);
     });
   });
 
@@ -200,7 +200,7 @@ describe('ProjectionManager', () => {
       const all = await manager2.getAll();
       expect(all.length).toBe(3);
 
-      const ids = all.map(s => s.document.id);
+      const ids = all.map(s => getResourceId(s.document));
       expect(ids).toContain('doc-bulk-1');
       expect(ids).toContain('doc-bulk-2');
       expect(ids).toContain('doc-bulk-3');
@@ -276,7 +276,7 @@ describe('ProjectionManager', () => {
 
       const results = await manager4.query.findByEntityType('Person');
       expect(results.length).toBe(1);
-      expect(results[0]?.document.id).toBe('doc-query-1');
+      expect(results[0] ? getResourceId(results[0].document) : null).toBe('doc-query-1');
     });
   });
 
@@ -298,7 +298,7 @@ describe('ProjectionManager', () => {
       await manager.save(docId, state);
 
       const loaded = await manager.getProjection(docId);
-      expect(loaded?.document.id).toBe(docId);
+      expect(loaded ? getResourceId(loaded.document) : null).toBe(docId);
     });
 
     it('should support deprecated deleteProjection method', async () => {
@@ -354,7 +354,7 @@ describe('ProjectionManager', () => {
       ]);
 
       const loaded = await manager.get(docId);
-      expect(loaded?.document.id).toBe(docId);
+      expect(loaded ? getResourceId(loaded.document) : null).toBe(docId);
     });
   });
 
@@ -368,7 +368,7 @@ describe('ProjectionManager', () => {
 
       // Verify via direct storage access
       const fromStorage = await manager.storage.get(docId);
-      expect(fromStorage?.document.id).toBe(docId);
+      expect(fromStorage ? getResourceId(fromStorage.document) : null).toBe(docId);
 
       // Delete via manager
       await manager.delete(docId);

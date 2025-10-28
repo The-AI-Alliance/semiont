@@ -114,18 +114,8 @@ const createMockGraphDB = (): GraphDatabase => ({
   clearDatabase: vi.fn().mockResolvedValue(undefined),
 });
 
-// Mock content manager
-vi.mock('../../services/storage-service', () => ({
-  createContentManager: () => ({
-    get: vi.fn().mockResolvedValue(Buffer.from('test content')),
-    save: vi.fn().mockResolvedValue('path/to/file'),
-    delete: vi.fn().mockResolvedValue(undefined),
-    exists: vi.fn().mockResolvedValue(true),
-    createReadStream: vi.fn(),
-    createWriteStream: vi.fn(),
-    saveStream: vi.fn().mockResolvedValue('path/to/file'),
-  }),
-}));
+// Note: GraphDB consumer no longer accesses content/representations directly
+// Content is stored separately in RepresentationStore
 
 describe('GraphDBConsumer', () => {
   let consumer: GraphDBConsumer;
@@ -178,7 +168,7 @@ describe('GraphDBConsumer', () => {
         id: 'doc-123',
         name: 'Test Document',
         entityTypes: ['entity1', 'entity2'],
-        content: 'test content',
+        content: '', // Content stored separately in RepresentationStore
         format: 'text/plain',
         contentChecksum: 'hash123',
         creator: {
@@ -221,7 +211,7 @@ describe('GraphDBConsumer', () => {
         id: 'doc-123',
         name: 'Test Document',
         entityTypes: [],
-        content: 'test content',
+        content: '', // Content stored separately in RepresentationStore
         format: 'text/plain',
         contentChecksum: 'hash123',
         creator: {
@@ -269,7 +259,7 @@ describe('GraphDBConsumer', () => {
         id: 'doc-456',
         name: 'Cloned Document',
         entityTypes: ['entity1'],
-        content: 'test content',
+        content: '', // Content stored separately in RepresentationStore
         format: 'text/plain',
         contentChecksum: 'hash456',
         creator: {

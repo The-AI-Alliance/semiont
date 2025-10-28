@@ -18,7 +18,7 @@ import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 // Dynamic imports for AWS SDK and Gremlin

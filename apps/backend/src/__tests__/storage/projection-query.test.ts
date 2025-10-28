@@ -12,7 +12,9 @@ import { join } from 'path';
 import type { components } from '@semiont/api-client';
 import type { DocumentAnnotations } from '@semiont/core';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import { createTestResource } from '../fixtures/resource-fixtures';
+import { getResourceId } from '../../utils/resource-helpers';
 
 describe('ProjectionQuery', () => {
   let testDir: string;
@@ -47,21 +49,19 @@ describe('ProjectionQuery', () => {
     archived: boolean,
     annotationCount: number
   ): DocumentState => {
-    const document: Document = {
+    const document: ResourceDescriptor = createTestResource({
       id,
       name,
-      format: 'text/plain',
-      creationMethod: 'ui',
+      primaryMediaType: 'text/plain',
       creator: {
-        id: creator,
-        type: 'Person',
+        '@id': creator,
+        '@type': 'Person',
         name: `User ${creator}`,
       },
-      created: '2025-01-01T00:00:00.000Z',
       archived,
       entityTypes,
-      contentChecksum: 'sha256:test',
-    };
+      checksum: 'sha256:test',
+    });
 
     const annotations: DocumentAnnotations = {
       documentId: id,
@@ -337,10 +337,15 @@ describe('ProjectionQuery', () => {
 
     it('should search and filter by creator', async () => {
       const searchResults = await query.searchByName('Document');
-      const aliceResults = searchResults.filter(d => d.document.creator.id === 'user-alice');
+      const aliceResults = searchResults.filter(d => {
+        const creator = d.document.wasAttributedTo;
+        if (!creator) return false;
+        const creatorId = Array.isArray(creator) ? creator[0]?.['@id'] : creator['@id'];
+        return creatorId === 'user-alice';
+      });
 
       expect(aliceResults.length).toBe(1); // Only 'Alice Document'
-      expect(aliceResults[0]?.document.id).toBe('doc-1');
+      expect(getResourceId(aliceResults[0]?.document)).toBe('doc-1');
     });
   });
 

@@ -12,7 +12,7 @@ import { createProjectionManager } from './storage-service';
 import type { components } from '@semiont/api-client';
 import type { CreationMethod } from '@semiont/core';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export interface ListDocumentsFilters {
   search?: string;
@@ -23,7 +23,7 @@ export class DocumentQueryService {
   /**
    * Get document metadata from Layer 3 projection
    */
-  static async getDocumentMetadata(documentId: string): Promise<Document | null> {
+  static async getDocumentMetadata(documentId: string): Promise<ResourceDescriptor | null> {
     const config = getFilesystemConfig();
     const basePath = config.path;
 
@@ -37,27 +37,13 @@ export class DocumentQueryService {
       return null;
     }
 
-    const doc = state.document;
-    return {
-      id: doc.id,
-      name: doc.name,
-      format: doc.format,
-      contentChecksum: doc.contentChecksum,
-      entityTypes: doc.entityTypes,
-      archived: doc.archived,
-      created: doc.created,
-      creationMethod: doc.creationMethod as CreationMethod,
-      sourceAnnotationId: doc.sourceAnnotationId,
-      sourceDocumentId: doc.sourceDocumentId,
-      creator: doc.creator,
-      language: doc.language,
-    };
+    return state.document;
   }
 
   /**
    * List all documents by scanning Layer 3 projection files
    */
-  static async listDocuments(filters?: ListDocumentsFilters): Promise<Document[]> {
+  static async listDocuments(filters?: ListDocumentsFilters): Promise<ResourceDescriptor[]> {
     const config = getFilesystemConfig();
     const basePath = config.path;
 
@@ -67,7 +53,7 @@ export class DocumentQueryService {
     });
 
     const allStates = await projectionManager.getAll();
-    const documents: Document[] = [];
+    const documents: ResourceDescriptor[] = [];
 
     for (const state of allStates) {
       const doc = state.document;
@@ -84,24 +70,15 @@ export class DocumentQueryService {
         }
       }
 
-      documents.push({
-        id: doc.id,
-        name: doc.name,
-        format: doc.format,
-        contentChecksum: doc.contentChecksum,
-        entityTypes: doc.entityTypes,
-        archived: doc.archived,
-        created: doc.created,
-        creationMethod: doc.creationMethod as CreationMethod,
-        sourceAnnotationId: doc.sourceAnnotationId,
-        sourceDocumentId: doc.sourceDocumentId,
-        creator: doc.creator,
-        language: doc.language,
-      });
+      documents.push(doc);
     }
 
     // Sort by creation date (newest first)
-    documents.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+    documents.sort((a, b) => {
+      const aTime = a.dateCreated ? new Date(a.dateCreated).getTime() : 0;
+      const bTime = b.dateCreated ? new Date(b.dateCreated).getTime() : 0;
+      return bTime - aTime;
+    });
 
     return documents;
   }

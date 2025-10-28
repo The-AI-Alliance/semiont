@@ -19,7 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 export class Neo4jGraphDatabase implements GraphDatabase {

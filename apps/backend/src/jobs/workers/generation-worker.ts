@@ -9,7 +9,7 @@
 
 import { JobWorker } from './job-worker';
 import type { Job, GenerationJob } from '../types';
-import { createContentManager } from '../../services/storage-service';
+import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
@@ -42,7 +42,7 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] Processing generation for reference ${job.referenceId} (job: ${job.id})`);
 
     const basePath = getFilesystemConfig().path;
-    const contentManager = createContentManager(basePath);
+    const repStore = new FilesystemRepresentationStore(basePath);
 
     // Update progress: fetching
     job.progress = {
@@ -118,9 +118,12 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] 💾 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
-    // Save content to Layer 1 (filesystem)
-    await contentManager.save(documentId, Buffer.from(generatedContent.content));
-    console.log(`[GenerationWorker] ✅ Saved document to filesystem: ${documentId}`);
+    // Save content to RepresentationStore
+    await repStore.store(Buffer.from(generatedContent.content), {
+      mediaType: 'text/markdown',
+      rel: 'original',
+    });
+    console.log(`[GenerationWorker] ✅ Saved document representation to filesystem: ${documentId}`);
 
     // Emit document.created event
     const eventStore = await createEventStore(basePath);

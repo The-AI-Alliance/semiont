@@ -16,8 +16,9 @@ import type {
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
+import { getResourceId, getEntityTypes as getResourceEntityTypes } from '../../utils/resource-helpers';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 // Simple in-memory storage using Maps
@@ -27,7 +28,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
   
   // In-memory storage using Maps
-  private documents: Map<string, Document> = new Map();
+  private documents: Map<string, ResourceDescriptor> = new Map();
   private annotations: Map<string, Annotation> = new Map();
   
   constructor(config: any = {}) {
@@ -50,20 +51,24 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return this.connected;
   }
   
-  async createDocument(input: CreateDocumentInput): Promise<Document> {
+  async createDocument(input: CreateDocumentInput): Promise<ResourceDescriptor> {
     const id = this.generateId();
     const now = new Date().toISOString();
 
-    const document: Document = {
-      id,
+    const document: ResourceDescriptor = {
+      '@context': 'https://schema.org/',
+      '@id': `urn:semiont:resource:${id}`,
       name: input.name,
       entityTypes: input.entityTypes,
-      format: input.format,
       archived: false,  // New documents are not archived by default
       creationMethod: input.creationMethod,
-      contentChecksum: input.contentChecksum,
-      created: now,
-      creator: input.creator,
+      dateCreated: now,
+      wasAttributedTo: input.creator,
+      representations: [{
+        mediaType: input.format,
+        checksum: input.contentChecksum,
+        rel: 'original',
+      }],
     };
 
     // Provenance tracking fields
@@ -87,16 +92,16 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return document;
   }
   
-  async getDocument(id: string): Promise<Document | null> {
+  async getDocument(id: string): Promise<ResourceDescriptor | null> {
     // Simply retrieve from map
     // const result = await this.client.submit(`
     //   g.V().hasLabel('Document').has('id', id).valueMap(true)
     // `, { id });
-    
+
     return this.documents.get(id) || null;
   }
-  
-  async updateDocument(id: string, input: UpdateDocumentInput): Promise<Document> {
+
+  async updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor> {
     // Documents are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
       throw new Error('Documents are immutable. Only archiving is allowed.');
@@ -127,36 +132,36 @@ export class MemoryGraphDatabase implements GraphDatabase {
     }
   }
   
-  async listDocuments(filter: DocumentFilter): Promise<{ documents: Document[]; total: number }> {
+  async listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
     let docs = Array.from(this.documents.values());
-    
+
     if (filter.entityTypes && filter.entityTypes.length > 0) {
-      docs = docs.filter(doc => 
-        doc.entityTypes.some(type => filter.entityTypes!.includes(type))
+      docs = docs.filter(doc =>
+        doc.entityTypes && doc.entityTypes.some((type: string) => filter.entityTypes!.includes(type))
       );
     }
-    
+
     if (filter.search) {
       const searchLower = filter.search.toLowerCase();
       docs = docs.filter(doc =>
         doc.name.toLowerCase().includes(searchLower)
       );
     }
-    
+
     const total = docs.length;
     const offset = filter.offset || 0;
     const limit = filter.limit || 20;
     docs = docs.slice(offset, offset + limit);
-    
+
     return { documents: docs, total };
   }
-  
-  async searchDocuments(query: string, limit: number = 20): Promise<Document[]> {
+
+  async searchDocuments(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
     // Simple text search in memory
     // const results = await this.client.submit(`
     //   g.V().has('Document', 'name', textContains(query)).limit(limit).valueMap(true)
     // `, { query, limit });
-    
+
     const searchLower = query.toLowerCase();
     const results = Array.from(this.documents.values())
       .filter(doc => doc.name.toLowerCase().includes(searchLower))
@@ -340,43 +345,44 @@ export class MemoryGraphDatabase implements GraphDatabase {
     //     .by(valueMap(true))
     //     .limit(10)
     // `, { fromDocumentId, toDocumentId, maxDepth });
-    
+
     // Using BFS implementation for stub
     const visited = new Set<string>();
-    const queue: { docId: string; path: Document[]; sels: Annotation[] }[] = [];
+    const queue: { docId: string; path: ResourceDescriptor[]; sels: Annotation[] }[] = [];
     const fromDoc = await this.getDocument(fromDocumentId);
-    
+
     if (!fromDoc) return [];
-    
+
     queue.push({ docId: fromDocumentId, path: [fromDoc], sels: [] });
     visited.add(fromDocumentId);
-    
+
     const paths: GraphPath[] = [];
-    
+
     while (queue.length > 0 && paths.length < 10) {
       const { docId, path, sels } = queue.shift()!;
-      
+
       if (path.length > maxDepth) continue;
-      
+
       if (docId === toDocumentId) {
         paths.push({ documents: path, annotations: sels });
         continue;
       }
-      
+
       const connections = await this.getDocumentConnections(docId);
-      
+
       for (const conn of connections) {
-        if (!visited.has(conn.targetDocument.id)) {
-          visited.add(conn.targetDocument.id);
+        const targetId = getResourceId(conn.targetDocument);
+        if (!visited.has(targetId)) {
+          visited.add(targetId);
           queue.push({
-            docId: conn.targetDocument.id,
+            docId: targetId,
             path: [...path, conn.targetDocument],
             sels: [...sels, ...conn.annotations],
           });
         }
       }
     }
-    
+
     return paths;
   }
   
@@ -387,11 +393,12 @@ export class MemoryGraphDatabase implements GraphDatabase {
     //     .values('entityTypes').unfold()
     //     .groupCount()
     // `);
-    
+
     const typeCounts = new Map<string, number>();
-    
+
     for (const doc of this.documents.values()) {
-      for (const type of doc.entityTypes) {
+      const types = getResourceEntityTypes(doc);
+      for (const type of types) {
         typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
       }
     }

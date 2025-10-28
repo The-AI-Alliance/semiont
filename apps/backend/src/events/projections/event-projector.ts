@@ -22,7 +22,7 @@ import type {
 import { findBodyItem } from '@semiont/core';
 import type { ProjectionStorage, DocumentState } from '../../storage/projection-storage';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export interface ProjectorConfig {
   basePath: string;
@@ -96,21 +96,15 @@ export class EventProjector {
    * Build projection from event list (full rebuild)
    */
   private buildProjectionFromEvents(events: StoredEvent[], documentId: string): DocumentState {
-    // Start with empty document state
-    const document: Document = {
-      id: documentId,
+    // Start with empty ResourceDescriptor state
+    const document: ResourceDescriptor = {
+      '@context': 'https://schema.org/',
+      '@id': `urn:semiont:resource:${documentId}`,
       name: '',
-      format: 'text/markdown',
-      contentChecksum: documentId.replace('doc-sha256:', ''),
-      entityTypes: [],
+      representations: [],
       archived: false,
-      created: '',
+      entityTypes: [],
       creationMethod: 'api',
-      creator: {
-        id: '',
-        type: 'Person',
-        name: '',
-      },
     };
 
     // Start with empty annotations
@@ -135,37 +129,47 @@ export class EventProjector {
   }
 
   /**
-   * Apply an event to Document state (metadata only)
+   * Apply an event to ResourceDescriptor state (metadata only)
    */
-  private applyEventToDocument(document: Document, event: DocumentEvent): void {
+  private applyEventToDocument(document: ResourceDescriptor, event: DocumentEvent): void {
     switch (event.type) {
       case 'document.created':
         document.name = event.payload.name;
-        document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
-        document.created = event.timestamp;
+        document.dateCreated = event.timestamp;
         document.creationMethod = event.payload.creationMethod || 'api';
-        document.creator = didToAgent(event.userId);
-        document.contentChecksum = event.payload.contentChecksum;
+        document.wasAttributedTo = didToAgent(event.userId);
+
+        // Create representation from format and checksum
+        if (!document.representations) document.representations = [];
+        document.representations.push({
+          mediaType: event.payload.format,
+          checksum: event.payload.contentChecksum,
+          rel: 'original',
+          language: event.payload.language,
+        });
 
         // First-class fields
-        document.language = event.payload.language;
         document.isDraft = event.payload.isDraft;
-        document.generatedFrom = event.payload.generatedFrom;
+        document.wasDerivedFrom = event.payload.generatedFrom;
         break;
 
       case 'document.cloned':
         document.name = event.payload.name;
-        document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
-        document.created = event.timestamp;
+        document.dateCreated = event.timestamp;
         document.creationMethod = 'clone';
         document.sourceDocumentId = event.payload.parentDocumentId;
-        document.creator = didToAgent(event.userId);
-        document.contentChecksum = event.payload.contentChecksum;
+        document.wasAttributedTo = didToAgent(event.userId);
 
-        // First-class fields
-        document.language = event.payload.language;
+        // Create representation from format and checksum
+        if (!document.representations) document.representations = [];
+        document.representations.push({
+          mediaType: event.payload.format,
+          checksum: event.payload.contentChecksum,
+          rel: 'original',
+          language: event.payload.language,
+        });
         break;
 
       case 'document.archived':
@@ -177,15 +181,18 @@ export class EventProjector {
         break;
 
       case 'entitytag.added':
+        if (!document.entityTypes) document.entityTypes = [];
         if (!document.entityTypes.includes(event.payload.entityType)) {
           document.entityTypes.push(event.payload.entityType);
         }
         break;
 
       case 'entitytag.removed':
-        document.entityTypes = document.entityTypes.filter(
-          t => t !== event.payload.entityType
-        );
+        if (document.entityTypes) {
+          document.entityTypes = document.entityTypes.filter(
+            (t: string) => t !== event.payload.entityType
+          );
+        }
         break;
 
       // Annotation events don't affect document metadata

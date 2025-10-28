@@ -1,10 +1,10 @@
 /**
  * Layer 3: Projection Storage
  *
- * Stores materialized views of document state and annotations
+ * Stores materialized views of resource state and annotations
  * Built from Layer 2 event streams, can be rebuilt at any time
  *
- * Stores both Document metadata and DocumentAnnotations, but keeps them logically separate
+ * Stores both ResourceDescriptor metadata and DocumentAnnotations, but keeps them logically separate
  */
 
 import { promises as fs } from 'fs';
@@ -14,11 +14,11 @@ import { getFilesystemConfig } from '../config/environment-loader';
 import type { components } from '@semiont/api-client';
 import type { DocumentAnnotations } from '@semiont/core';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-// Complete state for a document in Layer 3 (metadata + annotations)
+// Complete state for a resource in Layer 3 (metadata + annotations)
 export interface DocumentState {
-  document: Document;
+  document: ResourceDescriptor;
   annotations: DocumentAnnotations;
 }
 
@@ -45,7 +45,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
   private getProjectionPath(documentId: string): string {
     // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
     const [ab, cd] = getShardPath(documentId);
-    return path.join(this.basePath, 'projections', 'annotations', ab, cd, `${documentId}.json`);
+    return path.join(this.basePath, 'projections', 'resources', ab, cd, `${documentId}.json`);
   }
 
   async saveProjection(documentId: string, projection: DocumentState): Promise<void> {
@@ -99,7 +99,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
 
   async getAllProjections(): Promise<DocumentState[]> {
     const projections: DocumentState[] = [];
-    const annotationsPath = path.join(this.basePath, 'projections', 'annotations');
+    const annotationsPath = path.join(this.basePath, 'projections', 'resources');
 
     try {
       // Recursively walk through all shard directories

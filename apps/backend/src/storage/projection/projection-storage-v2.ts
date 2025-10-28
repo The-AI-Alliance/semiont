@@ -20,11 +20,11 @@ import type { components } from '@semiont/api-client';
 import type { DocumentAnnotations } from '@semiont/core';
 import { PathBuilder } from '../shared/path-builder';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 // Complete state for a document in Layer 3 (metadata + annotations)
 export interface DocumentState {
-  document: Document;
+  document: ResourceDescriptor;
   annotations: DocumentAnnotations;
 }
 

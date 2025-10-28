@@ -1,13 +1,14 @@
 // Helper functions for document routes
 import type { components } from '@semiont/api-client';
 import { extractEntities } from '../../inference/entity-extractor';
-import { createContentManager } from '../../services/storage-service';
 import { getFilesystemConfig } from '../../config/environment-loader';
+import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 // For search results ONLY - includes content preview
-export function formatSearchResult(doc: Document, contentPreview: string): Document & { content: string } {
+export function formatSearchResult(doc: ResourceDescriptor, contentPreview: string): ResourceDescriptor & { content: string } {
   return {
     ...doc,
     content: contentPreview,
@@ -29,20 +30,26 @@ export interface DetectedAnnotation {
 
 // Implementation for detecting entity references in document using AI
 export async function detectAnnotationsInDocument(
-  documentId: string,
-  format: string,
+  resource: ResourceDescriptor,
   entityTypes: string[]
 ): Promise<DetectedAnnotation[]> {
   console.log(`Detecting entities of types: ${entityTypes.join(', ')}`);
 
   const detectedAnnotations: DetectedAnnotation[] = [];
 
+  // Get primary representation
+  const primaryRep = getPrimaryRepresentation(resource);
+  if (!primaryRep) return detectedAnnotations;
+
   // Only process text content
-  if (format === 'text/plain' || format === 'text/markdown') {
-    // Load content from filesystem
+  const mediaType = primaryRep.mediaType;
+  if (mediaType === 'text/plain' || mediaType === 'text/markdown') {
+    // Load content from representation store
+    if (!primaryRep.storageUri) return detectedAnnotations;
+
     const basePath = getFilesystemConfig().path;
-    const contentManager = createContentManager(basePath);
-    const contentBuffer = await contentManager.get(documentId);
+    const repStore = new FilesystemRepresentationStore(basePath);
+    const contentBuffer = await repStore.retrieve(primaryRep.storageUri);
     const content = contentBuffer.toString('utf-8');
 
     // Use AI to extract entities

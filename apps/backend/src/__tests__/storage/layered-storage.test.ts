@@ -12,6 +12,7 @@ import { CREATION_METHODS } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { createTestResource } from '../fixtures/resource-fixtures';
 
 describe('Layered Storage', () => {
   let testDir: string;
@@ -75,22 +76,22 @@ describe('Layered Storage', () => {
     it('should use 4-hex sharding for projections', async () => {
       const docId = 'doc-sha256:xyz789';
       const stored = {
-        document: {
-          id: docId,
+        document: createTestResource({
+          '@id': `urn:semiont:resource:${docId}`,
           name: 'Test Doc',
-          format: 'text/plain' as const,
-          metadata: {},
+          representations: [{
+            mediaType: 'text/plain',
+            checksum: 'sha256:test-checksum',
+            rel: 'original',
+          }],
           entityTypes: ['note'],
           archived: false,
-          created: new Date().toISOString(),
-          contentChecksum: "test-checksum",
-          creationMethod: 'api' as const,
-          creator: {
-            id: 'did:web:test.com:users:test',
-            type: 'Person' as const,
+          dateCreated: new Date().toISOString(),
+          creationMethod: 'api',
+          wasAttributedTo: {
             name: 'Test User',
           },
-        },
+        }),
         annotations: {
           documentId: docId,
           annotations: [],
@@ -109,22 +110,22 @@ describe('Layered Storage', () => {
     it('should save and retrieve projections', async () => {
       const docId = 'doc-sha256:proj1';
       const stored = {
-        document: {
-          id: docId,
+        document: createTestResource({
+          '@id': `urn:semiont:resource:${docId}`,
           name: 'Projection Test',
-          format: 'text/markdown' as const,
-          metadata: {},
+          representations: [{
+            mediaType: 'text/markdown',
+            checksum: 'sha256:test-checksum',
+            rel: 'original',
+          }],
           entityTypes: ['article', 'research'],
           archived: false,
-          created: '2025-01-01T00:00:00Z',
-          contentChecksum: "test-checksum",
-          creationMethod: 'api' as const,
-          creator: {
-            id: 'did:web:test.com:users:test',
-            type: 'Person' as const,
+          dateCreated: '2025-01-01T00:00:00Z',
+          creationMethod: 'api',
+          wasAttributedTo: {
             name: 'Test User',
           },
-        },
+        }),
         annotations: {
           documentId: docId,
           annotations: [
@@ -175,22 +176,22 @@ describe('Layered Storage', () => {
     it('should delete projections', async () => {
       const docId = 'doc-sha256:delete-me';
       const stored = {
-        document: {
-          id: docId,
+        document: createTestResource({
+          '@id': `urn:semiont:resource:${docId}`,
           name: 'To Delete',
-          format: 'text/plain' as const,
-          metadata: {},
+          representations: [{
+            mediaType: 'text/plain',
+            checksum: 'sha256:test-checksum',
+            rel: 'original',
+          }],
           entityTypes: [],
           archived: false,
-          created: new Date().toISOString(),
-          contentChecksum: "test-checksum",
-          creationMethod: 'api' as const,
-          creator: {
-            id: 'did:web:test.com:users:test',
-            type: 'Person' as const,
+          dateCreated: new Date().toISOString(),
+          creationMethod: 'api',
+          wasAttributedTo: {
             name: 'Test User',
           },
-        },
+        }),
         annotations: {
           documentId: docId,
           annotations: [],

@@ -18,7 +18,7 @@ import type {
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 const traversal = gremlin.process.AnonymousTraversalSource.traversal;

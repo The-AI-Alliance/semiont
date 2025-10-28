@@ -12,7 +12,7 @@ import type {
   CreateAnnotationInternal,
 } from '@semiont/core';
 
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 export interface GraphDatabase {
@@ -23,12 +23,12 @@ export interface GraphDatabase {
 
   // Document operations
   // Note: id is required because GraphDB is Layer 4 (downstream of Layer 1 which generates content-addressed IDs)
-  createDocument(input: CreateDocumentInput & { id: string }): Promise<Document>;
-  getDocument(id: string): Promise<Document | null>;
-  updateDocument(id: string, input: UpdateDocumentInput): Promise<Document>;
+  createDocument(input: CreateDocumentInput & { id: string }): Promise<ResourceDescriptor>;
+  getDocument(id: string): Promise<ResourceDescriptor | null>;
+  updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor>;
   deleteDocument(id: string): Promise<void>;
-  listDocuments(filter: DocumentFilter): Promise<{ documents: Document[]; total: number }>;
-  searchDocuments(query: string, limit?: number): Promise<Document[]>;
+  listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }>;
+  searchDocuments(query: string, limit?: number): Promise<ResourceDescriptor[]>;
   
   // Annotation operations
   createAnnotation(input: CreateAnnotationInternal): Promise<Annotation>;

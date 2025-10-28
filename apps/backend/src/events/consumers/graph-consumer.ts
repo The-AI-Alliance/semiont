@@ -7,7 +7,6 @@
 
 import { createEventStore, createEventQuery } from '../../services/event-store-service';
 import { getGraphDatabase } from '../../graph/factory';
-import { createContentManager } from '../../services/storage-service';
 import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { components } from '@semiont/api-client';
@@ -120,14 +119,11 @@ export class GraphDBConsumer {
     switch (event.type) {
       case 'document.created': {
         if (!event.documentId) throw new Error('document.created requires documentId');
-        const basePath = getFilesystemConfig().path;
-        const contentManager = createContentManager(basePath);
-        const content = await contentManager.get(event.documentId);
         await graphDb.createDocument({
           id: event.documentId,
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
-          content: content.toString('utf-8'),
+          content: '', // Content stored separately in RepresentationStore
           format: event.payload.format,
           contentChecksum: event.payload.contentChecksum,
           creator: didToAgent(event.userId),
@@ -138,14 +134,11 @@ export class GraphDBConsumer {
 
       case 'document.cloned': {
         if (!event.documentId) throw new Error('document.cloned requires documentId');
-        const basePath = getFilesystemConfig().path;
-        const contentManager = createContentManager(basePath);
-        const content = await contentManager.get(event.documentId);
         await graphDb.createDocument({
           id: event.documentId,
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
-          content: content.toString('utf-8'),
+          content: '', // Content stored separately in RepresentationStore
           format: event.payload.format,
           contentChecksum: event.payload.contentChecksum,
           creator: didToAgent(event.userId),
