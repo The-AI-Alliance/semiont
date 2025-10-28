@@ -16,7 +16,7 @@ import type {
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
-import { getResourceId, getEntityTypes as getResourceEntityTypes } from '../../utils/resource-helpers';
+import { getResourceId, getEntityTypes as getResourceEntityTypes, getPrimaryRepresentation } from '../../utils/resource-helpers';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -420,12 +420,15 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }> {
     const entityTypes: Record<string, number> = {};
     const contentTypes: Record<string, number> = {};
-    
+
     for (const doc of this.documents.values()) {
-      for (const type of doc.entityTypes) {
+      for (const type of doc.entityTypes || []) {
         entityTypes[type] = (entityTypes[type] || 0) + 1;
       }
-      contentTypes[doc.format] = (contentTypes[doc.format] || 0) + 1;
+      const primaryRep = getPrimaryRepresentation(doc);
+      if (primaryRep?.mediaType) {
+        contentTypes[primaryRep.mediaType] = (contentTypes[primaryRep.mediaType] || 0) + 1;
+      }
     }
     
     const annotations = Array.from(this.annotations.values());

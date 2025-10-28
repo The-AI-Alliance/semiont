@@ -5,6 +5,7 @@ import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
 import { getEntityTypes, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
+import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -90,32 +91,46 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   // Helper function to convert vertex to Document
-  private vertexToDocument(vertex: any): Document {
+  private vertexToDocument(vertex: any): ResourceDescriptor {
     const props = vertex.properties || {};
     const id = this.getPropertyValue(props, 'id');
 
     // Validate required fields
-    const creator = this.getPropertyValue(props, 'creator');
+    const creatorRaw = this.getPropertyValue(props, 'creator');
     const creationMethod = this.getPropertyValue(props, 'creationMethod');
     const contentChecksum = this.getPropertyValue(props, 'contentChecksum');
+    const mediaType = this.getPropertyValue(props, 'contentType');
 
-    if (!creator) throw new Error(`Document ${id} missing required field: creator`);
+    if (!creatorRaw) throw new Error(`Document ${id} missing required field: creator`);
     if (!creationMethod) throw new Error(`Document ${id} missing required field: creationMethod`);
     if (!contentChecksum) throw new Error(`Document ${id} missing required field: contentChecksum`);
+    if (!mediaType) throw new Error(`Document ${id} missing required field: contentType`);
 
-    return {
-      id,
+    const creator = typeof creatorRaw === 'string' ? JSON.parse(creatorRaw) : creatorRaw;
+
+    const resource: ResourceDescriptor = {
+      '@context': 'https://schema.org/',
+      '@id': id,
       name: this.getPropertyValue(props, 'name'),
       entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
-      format: this.getPropertyValue(props, 'contentType'),
+      representations: [{
+        mediaType,
+        checksum: contentChecksum,
+        rel: 'original',
+      }],
       archived: this.getPropertyValue(props, 'archived') === 'true',
-      creator,
-      created: this.getPropertyValue(props, 'created'), // ISO string from DB
+      dateCreated: this.getPropertyValue(props, 'created'),
+      wasAttributedTo: creator,
       creationMethod,
-      contentChecksum,
-      sourceAnnotationId: this.getPropertyValue(props, 'sourceAnnotationId'),
-      sourceDocumentId: this.getPropertyValue(props, 'sourceDocumentId'),
     };
+
+    const sourceAnnotationId = this.getPropertyValue(props, 'sourceAnnotationId');
+    const sourceDocumentId = this.getPropertyValue(props, 'sourceDocumentId');
+
+    if (sourceAnnotationId) resource.sourceAnnotationId = sourceAnnotationId;
+    if (sourceDocumentId) resource.sourceDocumentId = sourceDocumentId;
+
+    return resource;
   }
   
   // Helper to get property value from Gremlin vertex properties
@@ -217,23 +232,37 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotation;
   }
   
-  async createDocument(input: CreateDocumentInput): Promise<Document> {
+  async createDocument(input: CreateDocumentInput): Promise<ResourceDescriptor> {
     const id = this.generateId();
     const now = new Date().toISOString();
 
-    const document: Document = {
-      id,
+    const resource: ResourceDescriptor = {
+      '@context': 'https://schema.org/',
+      '@id': id,
       name: input.name,
       entityTypes: input.entityTypes,
-      format: input.format,
+      representations: [{
+        mediaType: input.format,
+        checksum: input.contentChecksum,
+        rel: 'original',
+      }],
       archived: false,
-      created: now,
-      creator: input.creator,
+      dateCreated: now,
+      wasAttributedTo: input.creator,
       creationMethod: input.creationMethod,
-      contentChecksum: input.contentChecksum,
-      sourceAnnotationId: input.sourceAnnotationId,
-      sourceDocumentId: input.sourceDocumentId,
     };
+
+    if (input.sourceAnnotationId) {
+      resource.sourceAnnotationId = input.sourceAnnotationId;
+    }
+    if (input.sourceDocumentId) {
+      resource.sourceDocumentId = input.sourceDocumentId;
+    }
+
+    const primaryRep = getPrimaryRepresentation(resource);
+    if (!primaryRep) {
+      throw new Error('Resource must have at least one representation');
+    }
 
     // Create vertex in JanusGraph
     const vertex = this.g!
@@ -241,12 +270,12 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('id', id)
       .property('name', input.name)
       .property('entityTypes', JSON.stringify(input.entityTypes))
-      .property('contentType', input.format)
+      .property('contentType', primaryRep.mediaType)
       .property('archived', false)
       .property('created', now)
-      .property('creator', input.creator)
+      .property('creator', JSON.stringify(input.creator))
       .property('creationMethod', input.creationMethod)
-      .property('contentChecksum', input.contentChecksum);
+      .property('contentChecksum', primaryRep.checksum);
 
     if (input.sourceAnnotationId) {
       vertex.property('sourceAnnotationId', input.sourceAnnotationId);
@@ -258,10 +287,10 @@ export class JanusGraphDatabase implements GraphDatabase {
     await vertex.next();
 
     console.log('Created document vertex in JanusGraph:', id);
-    return document;
+    return resource;
   }
   
-  async getDocument(id: string): Promise<Document | null> {
+  async getDocument(id: string): Promise<ResourceDescriptor | null> {
     const vertices = await this.g!
       .V()
       .has('Document', 'id', id)
@@ -274,7 +303,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return this.vertexToDocument(vertices[0] as any);
   }
   
-  async updateDocument(id: string, input: UpdateDocumentInput): Promise<Document> {
+  async updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor> {
     // Documents are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
       throw new Error('Documents are immutable. Only archiving is allowed.');
@@ -305,7 +334,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     console.log('Deleted document from JanusGraph:', id);
   }
   
-  async listDocuments(filter: DocumentFilter): Promise<{ documents: Document[]; total: number }> {
+  async listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
     let traversalQuery = this.g!.V().hasLabel('Document');
 
     // Apply filters
@@ -321,7 +350,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     // Apply entity type filtering after retrieval since JanusGraph stores as JSON
     if (filter.entityTypes && filter.entityTypes.length > 0) {
       documents = documents.filter(doc =>
-        filter.entityTypes!.some(type => doc.entityTypes.includes(type))
+        filter.entityTypes!.some(type => doc.entityTypes?.includes(type))
       );
     }
 
@@ -335,7 +364,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     };
   }
   
-  async searchDocuments(query: string, limit?: number): Promise<Document[]> {
+  async searchDocuments(query: string, limit?: number): Promise<ResourceDescriptor[]> {
     const result = await this.listDocuments({ search: query, limit: limit || 10 });
     return result.documents;
   }
@@ -709,7 +738,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     const stats = new Map<string, number>();
 
     for (const doc of documents) {
-      for (const type of doc.entityTypes) {
+      for (const type of doc.entityTypes || []) {
         stats.set(type, (stats.get(type) || 0) + 1);
       }
     }
@@ -726,10 +755,13 @@ export class JanusGraphDatabase implements GraphDatabase {
     const documents = docs.map((v: any) => this.vertexToDocument(v));
 
     for (const doc of documents) {
-      for (const type of doc.entityTypes) {
+      for (const type of doc.entityTypes || []) {
         entityTypes[type] = (entityTypes[type] || 0) + 1;
       }
-      contentTypes[doc.format] = (contentTypes[doc.format] || 0) + 1;
+      const primaryRep = getPrimaryRepresentation(doc);
+      if (primaryRep?.mediaType) {
+        contentTypes[primaryRep.mediaType] = (contentTypes[primaryRep.mediaType] || 0) + 1;
+      }
     }
 
     // Get all annotations
