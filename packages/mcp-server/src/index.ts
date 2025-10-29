@@ -58,15 +58,15 @@ const server = new Server(
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
-      // Document Management
+      // Resource Management
       {
-        name: 'semiont_create_document',
-        description: 'Create a new document in the knowledge graph',
+        name: 'semiont_create_resource',
+        description: 'Create a new resource in the knowledge graph',
         inputSchema: {
           type: 'object',
           properties: {
-            name: { type: 'string', description: 'Document name' },
-            content: { type: 'string', description: 'Document content' },
+            name: { type: 'string', description: 'Resource name' },
+            content: { type: 'string', description: 'Resource content' },
             entityTypes: { 
               type: 'array', 
               items: { type: 'string' },
@@ -79,25 +79,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: 'semiont_get_document',
-        description: 'Get a document by ID with its selections',
+        name: 'semiont_get_resource',
+        description: 'Get a resource by ID with its selections',
         inputSchema: {
           type: 'object',
           properties: {
-            id: { type: 'string', description: 'Document ID' },
+            id: { type: 'string', description: 'Resource ID' },
           },
           required: ['id'],
         },
       },
       {
-        name: 'semiont_list_documents',
-        description: 'List and search documents',
+        name: 'semiont_list_resources',
+        description: 'List and search resources',
         inputSchema: {
           type: 'object',
           properties: {
             entityTypes: { type: 'string', description: 'Comma-separated entity types to filter' },
             search: { type: 'string', description: 'Search query' },
-            archived: { type: 'boolean', description: 'Filter by archived status (default: false - shows only non-archived documents)' },
+            archived: { type: 'boolean', description: 'Filter by archived status (default: false - shows only non-archived resources)' },
             limit: { type: 'number', description: 'Maximum results (default: 20)' },
             offset: { type: 'number', description: 'Offset for pagination (default: 0)' },
           },
@@ -105,11 +105,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'semiont_detect_selections',
-        description: 'Detect selections (entities, references) in a document',
+        description: 'Detect selections (entities, references) in a resource',
         inputSchema: {
           type: 'object',
           properties: {
-            documentId: { type: 'string', description: 'Document ID' },
+            resourceId: { type: 'string', description: 'Resource ID' },
             types: { 
               type: 'array',
               items: { type: 'string' },
@@ -117,17 +117,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             confidence: { type: 'number', description: 'Minimum confidence (0-1, default: 0.7)' },
           },
-          required: ['documentId'],
+          required: ['resourceId'],
         },
       },
       // Selection Management
       {
         name: 'semiont_create_selection',
-        description: 'Create a new selection in a document',
+        description: 'Create a new selection in a resource',
         inputSchema: {
           type: 'object',
           properties: {
-            documentId: { type: 'string', description: 'Document ID' },
+            resourceId: { type: 'string', description: 'Resource ID' },
             selectionType: { type: 'string', description: 'Selection type (e.g., text_span)' },
             selectionData: { 
               type: 'object',
@@ -146,7 +146,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             provisional: { type: 'boolean', description: 'Is this provisional?' },
           },
-          required: ['documentId', 'selectionType', 'selectionData'],
+          required: ['resourceId', 'selectionType', 'selectionData'],
         },
       },
       {
@@ -163,30 +163,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'semiont_resolve_selection',
-        description: 'Link a selection to a document (adds SpecificResource to annotation body)',
+        description: 'Link a selection to a resource (adds SpecificResource to annotation body)',
         inputSchema: {
           type: 'object',
           properties: {
             selectionId: { type: 'string', description: 'Selection ID' },
-            documentId: { type: 'string', description: 'Target document ID to link to' },
+            resourceId: { type: 'string', description: 'Target resource ID to link to' },
           },
-          required: ['selectionId', 'documentId'],
+          required: ['selectionId', 'resourceId'],
         },
       },
-      // Document Generation from Selections
+      // Resource Generation from Selections
       {
-        name: 'semiont_create_document_from_selection',
-        description: 'Create a new document from a selection and link the selection to it',
+        name: 'semiont_create_resource_from_selection',
+        description: 'Create a new resource from a selection and link the selection to it',
         inputSchema: {
           type: 'object',
           properties: {
             selectionId: { type: 'string', description: 'Selection ID' },
-            name: { type: 'string', description: 'Document name' },
-            content: { type: 'string', description: 'Document content' },
+            name: { type: 'string', description: 'Resource name' },
+            content: { type: 'string', description: 'Resource content' },
             entityTypes: { 
               type: 'array',
               items: { type: 'string' },
-              description: 'Entity types for the new document' 
+              description: 'Entity types for the new resource' 
             },
             contentType: { type: 'string', description: 'Content type (default: text/plain)' },
             metadata: { type: 'object', description: 'Additional metadata' },
@@ -195,17 +195,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: 'semiont_generate_document_from_selection',
-        description: 'Generate a document with AI-generated content from a selection',
+        name: 'semiont_generate_resource_from_selection',
+        description: 'Generate a resource with AI-generated content from a selection',
         inputSchema: {
           type: 'object',
           properties: {
             selectionId: { type: 'string', description: 'Selection ID' },
-            name: { type: 'string', description: 'Document name (optional)' },
+            name: { type: 'string', description: 'Resource name (optional)' },
             entityTypes: { 
               type: 'array',
               items: { type: 'string' },
-              description: 'Entity types for the new document' 
+              description: 'Entity types for the new resource' 
             },
             prompt: { type: 'string', description: 'AI generation prompt' },
           },
@@ -220,8 +220,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: 'object',
           properties: {
             selectionId: { type: 'string', description: 'Selection ID' },
-            includeRelated: { type: 'boolean', description: 'Include related documents' },
-            maxRelated: { type: 'number', description: 'Max related documents' },
+            includeRelated: { type: 'boolean', description: 'Include related resources' },
+            maxRelated: { type: 'number', description: 'Max related resources' },
           },
           required: ['selectionId'],
         },
@@ -236,18 +236,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'semiont_get_llm_context',
-        description: 'Get LLM-suitable context for a document and optional selection',
+        description: 'Get LLM-suitable context for a resource and optional selection',
         inputSchema: {
           type: 'object',
           properties: {
-            documentId: { type: 'string', description: 'Document ID' },
+            resourceId: { type: 'string', description: 'Resource ID' },
             selectionId: { type: 'string', description: 'Optional selection ID' },
             includeReferences: { type: 'boolean', description: 'Include references (default: true)' },
             includeSelections: { type: 'boolean', description: 'Include selections (default: true)' },
-            maxReferencedDocuments: { type: 'number', description: 'Max referenced docs (default: 5)' },
+            maxReferencedResources: { type: 'number', description: 'Max referenced docs (default: 5)' },
             contextWindow: { type: 'number', description: 'Context window size (default: 1000)' },
           },
-          required: ['documentId'],
+          required: ['resourceId'],
         },
       },
       {
@@ -271,36 +271,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       // Relationship Queries
       {
-        name: 'semiont_get_document_selections',
-        description: 'Get all selections in a document',
+        name: 'semiont_get_resource_selections',
+        description: 'Get all selections in a resource',
         inputSchema: {
           type: 'object',
           properties: {
-            documentId: { type: 'string', description: 'Document ID' },
+            resourceId: { type: 'string', description: 'Resource ID' },
           },
-          required: ['documentId'],
+          required: ['resourceId'],
         },
       },
       {
-        name: 'semiont_get_document_highlights',
-        description: 'Get saved highlights in a document',
+        name: 'semiont_get_resource_highlights',
+        description: 'Get saved highlights in a resource',
         inputSchema: {
           type: 'object',
           properties: {
-            documentId: { type: 'string', description: 'Document ID' },
+            resourceId: { type: 'string', description: 'Resource ID' },
           },
-          required: ['documentId'],
+          required: ['resourceId'],
         },
       },
       {
-        name: 'semiont_get_document_references',
-        description: 'Get linked references in a document',
+        name: 'semiont_get_resource_references',
+        description: 'Get linked references in a resource',
         inputSchema: {
           type: 'object',
           properties: {
-            documentId: { type: 'string', description: 'Document ID' },
+            resourceId: { type: 'string', description: 'Resource ID' },
           },
-          required: ['documentId'],
+          required: ['resourceId'],
         },
       },
     ],
@@ -328,14 +328,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
-      case 'semiont_create_document':
-        return await handlers.handleCreateDocument(apiClient, args);
+      case 'semiont_create_resource':
+        return await handlers.handleCreateResource(apiClient, args);
 
-      case 'semiont_get_document':
-        return await handlers.handleGetDocument(apiClient, args?.id as string);
+      case 'semiont_get_resource':
+        return await handlers.handleGetResource(apiClient, args?.id as string);
 
-      case 'semiont_list_documents':
-        return await handlers.handleListDocuments(apiClient, args);
+      case 'semiont_list_resources':
+        return await handlers.handleListResources(apiClient, args);
 
       case 'semiont_detect_selections':
         return await handlers.handleDetectAnnotations(apiClient, args);
@@ -349,11 +349,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'semiont_resolve_selection':
         return await handlers.handleResolveAnnotation(apiClient, args);
 
-      case 'semiont_create_document_from_selection':
-        return await handlers.handleCreateDocumentFromAnnotation(apiClient, args);
+      case 'semiont_create_resource_from_selection':
+        return await handlers.handleCreateResourceFromAnnotation(apiClient, args);
 
-      case 'semiont_generate_document_from_selection':
-        return await handlers.handleGenerateDocumentFromAnnotation(apiClient, args);
+      case 'semiont_generate_resource_from_selection':
+        return await handlers.handleGenerateResourceFromAnnotation(apiClient, args);
 
       case 'semiont_get_contextual_summary':
         return await handlers.handleGetContextualSummary(apiClient, args);
@@ -367,14 +367,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'semiont_discover_context':
         return await handlers.handleDiscoverContext(apiClient, args);
 
-      case 'semiont_get_document_selections':
-        return await handlers.handleGetDocumentAnnotations(apiClient, args);
+      case 'semiont_get_resource_selections':
+        return await handlers.handleGetResourceAnnotations(apiClient, args);
 
-      case 'semiont_get_document_highlights':
-        return await handlers.handleGetDocumentHighlights(apiClient, args || {});
+      case 'semiont_get_resource_highlights':
+        return await handlers.handleGetResourceHighlights(apiClient, args || {});
 
-      case 'semiont_get_document_references':
-        return await handlers.handleGetDocumentReferences(apiClient, args || {});
+      case 'semiont_get_resource_references':
+        return await handlers.handleGetResourceReferences(apiClient, args || {});
 
       default:
         throw new Error(`Unknown tool: ${name}`);

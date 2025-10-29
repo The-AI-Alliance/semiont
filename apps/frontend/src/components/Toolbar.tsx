@@ -66,9 +66,9 @@ export function Toolbar<T extends string = string>({
           <button
             onClick={() => onPanelToggle('document' as T)}
             className={buttonClass('document')}
-            aria-label={t('document')}
+            aria-label={t('resource')}
             aria-pressed={activePanel === 'document'}
-            title={t('document')}
+            title={t('resource')}
           >
             <span className="text-xl" aria-hidden="true">📄</span>
           </button>
@@ -101,9 +101,9 @@ export function Toolbar<T extends string = string>({
           <button
             onClick={() => onPanelToggle('info' as T)}
             className={buttonClass('info')}
-            aria-label={t('documentInfo')}
+            aria-label={t('resourceInfo')}
             aria-pressed={activePanel === 'info'}
-            title={t('documentInfo')}
+            title={t('resourceInfo')}
           >
             <span className="text-xl" aria-hidden="true">ℹ️</span>
           </button>

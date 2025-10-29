@@ -45,9 +45,9 @@ describe('W3C URI Authentication', () => {
     app = importedApp;
   });
 
-  describe('GET /documents/:id', () => {
+  describe('GET /resources/:id', () => {
     it('should reject unauthenticated requests with 401', async () => {
-      const res = await app.request('/documents/doc-test-123', {
+      const res = await app.request('/resources/doc-test-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -60,7 +60,7 @@ describe('W3C URI Authentication', () => {
     });
 
     it('should reject requests with invalid token with 401', async () => {
-      const res = await app.request('/documents/doc-test-123', {
+      const res = await app.request('/resources/doc-test-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -74,7 +74,7 @@ describe('W3C URI Authentication', () => {
     });
 
     it('should reject requests with malformed Authorization header with 401', async () => {
-      const res = await app.request('/documents/doc-test-123', {
+      const res = await app.request('/resources/doc-test-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -88,7 +88,7 @@ describe('W3C URI Authentication', () => {
     });
 
     it('should reject requests without Bearer prefix with 401', async () => {
-      const res = await app.request('/documents/doc-test-123', {
+      const res = await app.request('/resources/doc-test-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -104,7 +104,7 @@ describe('W3C URI Authentication', () => {
 
   describe('GET /annotations/:id', () => {
     it('should reject unauthenticated requests with 401', async () => {
-      const res = await app.request('/annotations/anno-test-123?documentId=doc-123', {
+      const res = await app.request('/annotations/anno-test-123?resourceId=doc-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -117,7 +117,7 @@ describe('W3C URI Authentication', () => {
     });
 
     it('should reject requests with invalid token with 401', async () => {
-      const res = await app.request('/annotations/anno-test-123?documentId=doc-123', {
+      const res = await app.request('/annotations/anno-test-123?resourceId=doc-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -131,7 +131,7 @@ describe('W3C URI Authentication', () => {
     });
 
     it('should reject requests with malformed Authorization header with 401', async () => {
-      const res = await app.request('/annotations/anno-test-123?documentId=doc-123', {
+      const res = await app.request('/annotations/anno-test-123?resourceId=doc-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -145,7 +145,7 @@ describe('W3C URI Authentication', () => {
     });
 
     it('should reject requests without Bearer prefix with 401', async () => {
-      const res = await app.request('/annotations/anno-test-123?documentId=doc-123', {
+      const res = await app.request('/annotations/anno-test-123?resourceId=doc-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -161,7 +161,7 @@ describe('W3C URI Authentication', () => {
 
   describe('Content Negotiation with Authentication', () => {
     it('should reject HTML requests without authentication', async () => {
-      const res = await app.request('/documents/doc-test-123', {
+      const res = await app.request('/resources/doc-test-123', {
         method: 'GET',
         headers: {
           'Accept': 'text/html',
@@ -173,7 +173,7 @@ describe('W3C URI Authentication', () => {
     });
 
     it('should reject JSON-LD requests without authentication', async () => {
-      const res = await app.request('/documents/doc-test-123', {
+      const res = await app.request('/resources/doc-test-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/ld+json',
@@ -186,8 +186,8 @@ describe('W3C URI Authentication', () => {
   });
 
   describe('Security Headers', () => {
-    it('should not leak information about document existence without authentication', async () => {
-      const res = await app.request('/documents/doc-test-123', {
+    it('should not leak information about resource existence without authentication', async () => {
+      const res = await app.request('/resources/doc-test-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -196,13 +196,13 @@ describe('W3C URI Authentication', () => {
 
       expect(res.status).toBe(401);
       const body = await res.json() as ErrorResponse;
-      // Should not say "Document not found" - only "Unauthorized"
-      expect(body.error.toLowerCase()).not.toContain('document');
+      // Should not say "Resource not found" - only "Unauthorized"
+      expect(body.error.toLowerCase()).not.toContain('resource');
       expect(body.error.toLowerCase()).not.toContain('not found');
     });
 
     it('should not leak information about annotation existence without authentication', async () => {
-      const res = await app.request('/annotations/anno-test-123?documentId=doc-123', {
+      const res = await app.request('/annotations/anno-test-123?resourceId=doc-123', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',

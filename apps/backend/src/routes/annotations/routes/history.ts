@@ -20,32 +20,32 @@ type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryR
 
 export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
   /**
-   * GET /api/documents/:documentId/annotations/:annotationId/history
+   * GET /api/resources/:resourceId/annotations/:annotationId/history
    *
    * Get full event history for a specific annotation (highlight or reference)
    * Requires authentication
    * Returns annotation events sorted by sequence number
    */
-  router.get('/api/documents/:documentId/annotations/:annotationId/history', async (c) => {
-    const { documentId, annotationId } = c.req.param();
+  router.get('/api/resources/:resourceId/annotations/:annotationId/history', async (c) => {
+    const { resourceId, annotationId } = c.req.param();
 
     // Verify annotation exists using Layer 3 (not GraphDB)
-    const annotation = await AnnotationQueryService.getAnnotation(annotationId, documentId);
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId, resourceId);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
-    if (getTargetSource(annotation.target) !== documentId) {
-      throw new HTTPException(404, { message: 'Annotation does not belong to this document' });
+    if (getTargetSource(annotation.target) !== resourceId) {
+      throw new HTTPException(404, { message: 'Annotation does not belong to this resource' });
     }
 
     const basePath = getFilesystemConfig().path;
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
 
-    // Get all events for this document
+    // Get all events for this resource
     const allEvents = await query.queryEvents({
-      documentId,
+      resourceId,
     });
 
     // Filter events related to this annotation
@@ -66,7 +66,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       type: stored.event.type,
       timestamp: stored.event.timestamp,
       userId: stored.event.userId,
-      documentId: stored.event.documentId!, // Annotation events always have documentId
+      resourceId: stored.event.resourceId!, // Map internal resourceId to API resourceId
       payload: stored.event.payload,
       metadata: {
         sequenceNumber: stored.metadata.sequenceNumber,
@@ -82,7 +82,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       events,
       total: events.length,
       annotationId,
-      documentId,
+      resourceId: resourceId, // Map internal resourceId to API resourceId
     };
 
     return c.json(response);

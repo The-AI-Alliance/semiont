@@ -43,8 +43,8 @@ describe('Event Store', () => {
     const docId = 'doc-test1';
 
     const event1 = await eventStore.appendEvent({
-      type: 'document.created',
-      documentId: docId,
+      type: 'resource.created',
+      resourceId: docId,
       userId: 'user1',
       version: 1,
       payload: {
@@ -57,17 +57,17 @@ describe('Event Store', () => {
 
     expect(event1.metadata.sequenceNumber).toBe(1);
 
-    const events = await query.getDocumentEvents(docId);
+    const events = await query.getResourceEvents(docId);
     expect(events).toHaveLength(1);
-    expect(events[0]?.event.type).toBe('document.created');
+    expect(events[0]?.event.type).toBe('resource.created');
   });
 
   it('should create event chain with prevEventHash', async () => {
     const docId = 'doc-test2';
 
     const e1 = await eventStore.appendEvent({
-      type: 'document.created',
-      documentId: docId,
+      type: 'resource.created',
+      resourceId: docId,
       userId: 'user1',
       version: 1,
       payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
@@ -75,7 +75,7 @@ describe('Event Store', () => {
 
     const e2 = await eventStore.appendEvent({
       type: 'annotation.added',
-      documentId: docId,
+      resourceId: docId,
       userId: 'user1',
       version: 1,
       payload: {
@@ -107,7 +107,7 @@ describe('Event Store', () => {
     expect(e1.metadata.prevEventHash).toBeUndefined();
     expect(e2.metadata.prevEventHash).toBe(e1.metadata.checksum);
 
-    const eventsForValidation = await query.getDocumentEvents(docId);
+    const eventsForValidation = await query.getResourceEvents(docId);
     const validation = validator.validateEventChain(eventsForValidation);
     expect(validation.valid).toBe(true);
   });
@@ -116,8 +116,8 @@ describe('Event Store', () => {
     const docId = 'doc-test3';
 
     await eventStore.appendEvent({
-      type: 'document.created',
-      documentId: docId,
+      type: 'resource.created',
+      resourceId: docId,
       userId: 'user1',
       version: 1,
       payload: { name: 'Doc', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
@@ -125,19 +125,19 @@ describe('Event Store', () => {
 
     await eventStore.appendEvent({
       type: 'entitytag.added',
-      documentId: docId,
+      resourceId: docId,
       userId: 'user1',
       version: 1,
       payload: { entityType: 'note' },
     });
 
-    const events = await query.getDocumentEvents(docId);
-    const stored = await eventStore.projector.projectDocument(events, docId);
+    const events = await query.getResourceEvents(docId);
+    const stored = await eventStore.projector.projectResource(events, docId);
 
     expect(stored).toBeDefined();
-    expect(stored!.document.name).toBe('Doc');
+    expect(stored!.resource.name).toBe('Doc');
     // Note: content is NOT in projections - must be loaded from filesystem separately
-    expect(stored!.document.entityTypes).toContain('note');
+    expect(stored!.resource.entityTypes).toContain('note');
     expect(stored!.annotations.version).toBe(2);
   });
 });

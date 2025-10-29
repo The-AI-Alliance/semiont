@@ -1,7 +1,7 @@
 /**
  * Event Projector - Projection Management
  *
- * Builds document state (Layer 3) from events (Layer 2):
+ * Builds resource state (Layer 3) from events (Layer 2):
  * - Full projection rebuild from scratch
  * - Incremental projection updates
  * - System-level projections (entity types)
@@ -17,12 +17,12 @@ import { compareAnnotationIds } from '@semiont/api-client';
 
 type Representation = components['schemas']['Representation'];
 import type {
-  DocumentEvent,
+  ResourceEvent,
   StoredEvent,
-  DocumentAnnotations,
+  ResourceAnnotations,
 } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
-import type { ProjectionStorage, DocumentState } from '../../storage/projection-storage';
+import type { ProjectionStorage, ResourceState } from '../../storage/projection-storage';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -40,12 +40,12 @@ export class EventProjector {
   ) {}
 
   /**
-   * Build document projection from events
+   * Build resource projection from events
    * Loads from Layer 3 if exists, otherwise rebuilds from Layer 2 events
    */
-  async projectDocument(events: StoredEvent[], documentId: string): Promise<DocumentState | null> {
+  async projectResource(events: StoredEvent[], resourceId: string): Promise<ResourceState | null> {
     // Try to load existing projection from Layer 3
-    const existing = await this.projectionStorage.getProjection(documentId);
+    const existing = await this.projectionStorage.getProjection(resourceId);
     if (existing) {
       return existing;
     }
@@ -53,10 +53,10 @@ export class EventProjector {
     // No projection exists - rebuild from Layer 2 events
     if (events.length === 0) return null;
 
-    const projection = this.buildProjectionFromEvents(events, documentId);
+    const projection = this.buildProjectionFromEvents(events, resourceId);
 
     // Save rebuilt projection to Layer 3
-    await this.projectionStorage.saveProjection(documentId, projection);
+    await this.projectionStorage.saveProjection(resourceId, projection);
 
     return projection;
   }
@@ -66,46 +66,46 @@ export class EventProjector {
    * Falls back to full rebuild if projection doesn't exist
    */
   async updateProjectionIncremental(
-    documentId: string,
-    event: DocumentEvent,
+    resourceId: string,
+    event: ResourceEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
-    console.log(`[EventProjector] Updating projection for ${documentId} with event ${event.type}`);
+    console.log(`[EventProjector] Updating projection for ${resourceId} with event ${event.type}`);
 
     // Try to load existing projection
-    let projection = await this.projectionStorage.getProjection(documentId);
+    let projection = await this.projectionStorage.getProjection(resourceId);
 
     if (!projection) {
       // No projection exists - do full rebuild from all events
       console.log(`[EventProjector] No projection found, rebuilding from scratch`);
       const events = await getAllEvents();
-      projection = this.buildProjectionFromEvents(events, documentId);
+      projection = this.buildProjectionFromEvents(events, resourceId);
     } else {
       // Apply single event incrementally to existing projection
       console.log(`[EventProjector] Applying event incrementally to existing projection (version ${projection.annotations.version})`);
-      this.applyEventToDocument(projection.document, event);
+      this.applyEventToResource(projection.resource, event);
       this.applyEventToAnnotations(projection.annotations, event);
       projection.annotations.version++;
       projection.annotations.updatedAt = event.timestamp;
     }
 
     // Save updated projection
-    await this.projectionStorage.saveProjection(documentId, projection);
+    await this.projectionStorage.saveProjection(resourceId, projection);
     console.log(`[EventProjector] Projection saved (version ${projection.annotations.version}, ${projection.annotations.annotations.length} annotations)`);
   }
 
   /**
    * Build projection from event list (full rebuild)
    */
-  private buildProjectionFromEvents(events: StoredEvent[], documentId: string): DocumentState {
+  private buildProjectionFromEvents(events: StoredEvent[], resourceId: string): ResourceState {
     // Build W3C-compliant HTTP URI for @id
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
     const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
 
     // Start with empty ResourceDescriptor state
-    const document: ResourceDescriptor = {
+    const resource: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': `${normalizedBase}/documents/${documentId}`,
+      '@id': `${normalizedBase}/resources/${resourceId}`,
       name: '',
       representations: [],
       archived: false,
@@ -114,8 +114,8 @@ export class EventProjector {
     };
 
     // Start with empty annotations
-    const annotations: DocumentAnnotations = {
-      documentId,
+    const annotations: ResourceAnnotations = {
+      resourceId,
       annotations: [],
       version: 0,
       updatedAt: '',
@@ -125,102 +125,102 @@ export class EventProjector {
     events.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
     for (const storedEvent of events) {
-      this.applyEventToDocument(document, storedEvent.event);
+      this.applyEventToResource(resource, storedEvent.event);
       this.applyEventToAnnotations(annotations, storedEvent.event);
       annotations.version++;
       annotations.updatedAt = storedEvent.event.timestamp;
     }
 
-    return { document, annotations };
+    return { resource, annotations };
   }
 
   /**
    * Apply an event to ResourceDescriptor state (metadata only)
    */
-  private applyEventToDocument(document: ResourceDescriptor, event: DocumentEvent): void {
+  private applyEventToResource(resource: ResourceDescriptor, event: ResourceEvent): void {
     switch (event.type) {
-      case 'document.created':
-        document.name = event.payload.name;
-        document.entityTypes = event.payload.entityTypes || [];
-        document.dateCreated = event.timestamp;
-        document.creationMethod = event.payload.creationMethod || 'api';
-        document.wasAttributedTo = didToAgent(event.userId);
+      case 'resource.created':
+        resource.name = event.payload.name;
+        resource.entityTypes = event.payload.entityTypes || [];
+        resource.dateCreated = event.timestamp;
+        resource.creationMethod = event.payload.creationMethod || 'api';
+        resource.wasAttributedTo = didToAgent(event.userId);
 
         // Create representation from format and checksum
-        if (!document.representations) document.representations = [];
-        const reps = Array.isArray(document.representations) ? document.representations : [document.representations];
+        if (!resource.representations) resource.representations = [];
+        const reps = Array.isArray(resource.representations) ? resource.representations : [resource.representations];
         reps.push({
           mediaType: event.payload.format,
           checksum: event.payload.contentChecksum,
           rel: 'original',
           language: event.payload.language,
         } as Representation);
-        document.representations = reps;
+        resource.representations = reps;
 
         // First-class fields
-        document.isDraft = event.payload.isDraft;
-        document.wasDerivedFrom = event.payload.generatedFrom;
+        resource.isDraft = event.payload.isDraft;
+        resource.wasDerivedFrom = event.payload.generatedFrom;
         break;
 
-      case 'document.cloned':
-        document.name = event.payload.name;
-        document.entityTypes = event.payload.entityTypes || [];
-        document.dateCreated = event.timestamp;
-        document.creationMethod = 'clone';
-        document.sourceDocumentId = event.payload.parentDocumentId;
-        document.wasAttributedTo = didToAgent(event.userId);
+      case 'resource.cloned':
+        resource.name = event.payload.name;
+        resource.entityTypes = event.payload.entityTypes || [];
+        resource.dateCreated = event.timestamp;
+        resource.creationMethod = 'clone';
+        resource.sourceResourceId = event.payload.parentResourceId;
+        resource.wasAttributedTo = didToAgent(event.userId);
 
         // Create representation from format and checksum
-        if (!document.representations) document.representations = [];
-        const reps2 = Array.isArray(document.representations) ? document.representations : [document.representations];
+        if (!resource.representations) resource.representations = [];
+        const reps2 = Array.isArray(resource.representations) ? resource.representations : [resource.representations];
         reps2.push({
           mediaType: event.payload.format,
           checksum: event.payload.contentChecksum,
           rel: 'original',
           language: event.payload.language,
         } as Representation);
-        document.representations = reps2;
+        resource.representations = reps2;
         break;
 
-      case 'document.archived':
-        document.archived = true;
+      case 'resource.archived':
+        resource.archived = true;
         break;
 
-      case 'document.unarchived':
-        document.archived = false;
+      case 'resource.unarchived':
+        resource.archived = false;
         break;
 
       case 'entitytag.added':
-        if (!document.entityTypes) document.entityTypes = [];
-        if (!document.entityTypes.includes(event.payload.entityType)) {
-          document.entityTypes.push(event.payload.entityType);
+        if (!resource.entityTypes) resource.entityTypes = [];
+        if (!resource.entityTypes.includes(event.payload.entityType)) {
+          resource.entityTypes.push(event.payload.entityType);
         }
         break;
 
       case 'entitytag.removed':
-        if (document.entityTypes) {
-          document.entityTypes = document.entityTypes.filter(
+        if (resource.entityTypes) {
+          resource.entityTypes = resource.entityTypes.filter(
             (t: string) => t !== event.payload.entityType
           );
         }
         break;
 
-      // Annotation events don't affect document metadata
+      // Annotation events don't affect resource metadata
       case 'annotation.added':
       case 'annotation.removed':
       case 'annotation.body.updated':
         break;
 
-      // System events don't affect document metadata
+      // System events don't affect resource metadata
       case 'entitytype.added':
         break;
     }
   }
 
   /**
-   * Apply an event to DocumentAnnotations (annotation collections only)
+   * Apply an event to ResourceAnnotations (annotation collections only)
    */
-  private applyEventToAnnotations(annotations: DocumentAnnotations, event: DocumentEvent): void {
+  private applyEventToAnnotations(annotations: ResourceAnnotations, event: ResourceEvent): void {
     switch (event.type) {
       case 'annotation.added':
         // Event payload contains Omit<Annotation, 'creator' | 'created'> (includes @context and type)
@@ -277,11 +277,11 @@ export class EventProjector {
         }
         break;
 
-      // Document metadata events don't affect annotations
-      case 'document.created':
-      case 'document.cloned':
-      case 'document.archived':
-      case 'document.unarchived':
+      // Resource metadata events don't affect annotations
+      case 'resource.created':
+      case 'resource.cloned':
+      case 'resource.archived':
+      case 'resource.unarchived':
       case 'entitytag.added':
       case 'entitytag.removed':
         break;

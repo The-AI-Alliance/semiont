@@ -15,8 +15,8 @@
  * const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
  * await client.authenticateLocal('user@example.com', '123456');
  *
- * const doc = await client.createDocument({
- *   name: 'My Document',
+ * const doc = await client.createResource({
+ *   name: 'My Resource',
  *   content: 'Hello World',
  *   format: 'text/plain',
  *   entityTypes: ['example']

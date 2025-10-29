@@ -156,9 +156,8 @@ Types not in the OpenAPI spec:
 
 ```typescript
 import type {
-  CreateDocumentInput,
   UpdateDocumentInput,
-  DocumentFilter,
+  ResourceFilter,
   CreateAnnotationInternal,
   AnnotationCategory,
   GoogleAuthRequest,

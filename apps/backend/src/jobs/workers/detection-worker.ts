@@ -1,7 +1,7 @@
 /**
  * Detection Worker
  *
- * Processes detection jobs: runs AI inference to find entities in documents
+ * Processes detection jobs: runs AI inference to find entities in resources
  * and emits reference.created events for each detected entity.
  *
  * This worker is INDEPENDENT of HTTP clients - it just processes jobs and emits events.
@@ -9,12 +9,12 @@
 
 import { JobWorker } from './job-worker';
 import type { Job, DetectionJob } from '../types';
-import { DocumentQueryService } from '../../services/document-queries';
-import { detectAnnotationsInDocument } from '../../routes/documents/helpers';
+import { ResourceQueryService } from '../../services/resource-queries';
+import { detectAnnotationsInResource } from '../../routes/resources/helpers';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { getFilesystemConfig } from '../../config/environment-loader';
-import { documentIdToURI } from '../../lib/uri-utils';
+import { resourceIdToURI } from '../../lib/uri-utils';
 
 export class DetectionWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -34,14 +34,14 @@ export class DetectionWorker extends JobWorker {
   }
 
   private async processDetectionJob(job: DetectionJob): Promise<void> {
-    console.log(`[DetectionWorker] Processing detection for document ${job.documentId} (job: ${job.id})`);
+    console.log(`[DetectionWorker] Processing detection for resource ${job.resourceId} (job: ${job.id})`);
     console.log(`[DetectionWorker] 🔍 Entity types: ${job.entityTypes.join(', ')}`);
 
-    // Fetch document content
-    const document = await DocumentQueryService.getDocumentMetadata(job.documentId);
+    // Fetch resource content
+    const resource = await ResourceQueryService.getResourceMetadata(job.resourceId);
 
-    if (!document) {
-      throw new Error(`Document ${job.documentId} not found`);
+    if (!resource) {
+      throw new Error(`Resource ${job.resourceId} not found`);
     }
 
     let totalFound = 0;
@@ -67,8 +67,8 @@ export class DetectionWorker extends JobWorker {
       await this.updateJobProgress(job);
 
       // Detect entities using AI (loads content from filesystem internally)
-      const detectedAnnotations = await detectAnnotationsInDocument(
-        document,
+      const detectedAnnotations = await detectAnnotationsInResource(
+        resource,
         [entityType]
       );
 
@@ -101,7 +101,7 @@ export class DetectionWorker extends JobWorker {
           const eventStore = await createEventStore(basePath);
           await eventStore.appendEvent({
             type: 'annotation.added',
-            documentId: job.documentId,
+            resourceId: job.resourceId,
             userId: job.userId,
             version: 1,
             payload: {
@@ -111,7 +111,7 @@ export class DetectionWorker extends JobWorker {
                 id: referenceId,
                 motivation: 'linking' as const,
                 target: {
-                  source: documentIdToURI(job.documentId), // Convert to full URI
+                  source: resourceIdToURI(job.resourceId), // Convert to full URI
                   selector: [
                     {
                       type: 'TextPositionSelector',

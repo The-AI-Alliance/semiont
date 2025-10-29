@@ -1,9 +1,9 @@
 /**
- * Document creation methods - How documents are created in the system
+ * Resource creation methods - How resources are created in the system
  */
 
 /**
- * Enumeration of all possible document creation methods
+ * Enumeration of all possible resource creation methods
  */
 export const CREATION_METHODS = {
   API: 'api',
@@ -15,6 +15,6 @@ export const CREATION_METHODS = {
 } as const;
 
 /**
- * Type for document creation methods
+ * Type for resource creation methods
  */
 export type CreationMethod = typeof CREATION_METHODS[keyof typeof CREATION_METHODS];

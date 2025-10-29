@@ -1,8 +1,8 @@
 import React from 'react';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
 import { Footer } from '@/components/Footer';
-import { OpenDocumentsProvider } from '@/contexts/OpenDocumentsContext';
-import { DocumentAnnotationsProvider } from '@/contexts/DocumentAnnotationsContext';
+import { OpenResourcesProvider } from '@/contexts/OpenResourcesContext';
+import { ResourceAnnotationsProvider } from '@/contexts/ResourceAnnotationsContext';
 
 export default function KnowledgeLayout({
   children,
@@ -10,8 +10,8 @@ export default function KnowledgeLayout({
   children: React.ReactNode;
 }) {
   return (
-    <OpenDocumentsProvider>
-      <DocumentAnnotationsProvider>
+    <OpenResourcesProvider>
+      <ResourceAnnotationsProvider>
         <div className="h-screen bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
           <div className="flex flex-1 overflow-hidden">
             <KnowledgeSidebarWrapper />
@@ -23,7 +23,7 @@ export default function KnowledgeLayout({
           </div>
           <Footer />
         </div>
-      </DocumentAnnotationsProvider>
-    </OpenDocumentsProvider>
+      </ResourceAnnotationsProvider>
+    </OpenResourcesProvider>
   );
 }

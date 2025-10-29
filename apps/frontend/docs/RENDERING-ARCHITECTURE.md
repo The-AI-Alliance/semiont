@@ -60,7 +60,7 @@ Document Page (/know/document/[id]/page.tsx)
 
 ### AnnotateView
 
-**Location**: `/src/components/document/AnnotateView.tsx`
+**Location**: `/src/components/resource/AnnotateView.tsx`
 
 **Role**: Production component for curation mode, handling document editing and annotation creation.
 
@@ -79,7 +79,7 @@ Document Page (/know/document/[id]/page.tsx)
 
 ### BrowseView
 
-**Location**: `/src/components/document/BrowseView.tsx`
+**Location**: `/src/components/resource/BrowseView.tsx`
 
 **Role**: Production component for browse mode (read-only document viewing).
 
@@ -237,7 +237,7 @@ Progress widgets use:
 
 ### AnnotationHistory
 
-**Location**: `/src/components/document/AnnotationHistory.tsx`
+**Location**: `/src/components/resource/AnnotationHistory.tsx`
 
 **Role**: Displays append-only event log for document changes (highlights, references, metadata updates).
 

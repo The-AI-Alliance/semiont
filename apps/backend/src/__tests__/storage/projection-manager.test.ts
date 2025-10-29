@@ -4,12 +4,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ProjectionManager, type DocumentState } from '../../storage/projection/projection-manager';
+import { ProjectionManager, type ResourceState } from '../../storage/projection/projection-manager';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { components } from '@semiont/api-client';
-import type { DocumentAnnotations } from '@semiont/core';
+import type { ResourceAnnotations } from '@semiont/core';
 
 import { createTestResource } from '../fixtures/resource-fixtures';
 import { getResourceId } from '../../utils/resource-helpers';
@@ -33,11 +33,11 @@ describe('ProjectionManager', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  // Helper to create test document state
-  const createTestState = (docId: string): DocumentState => {
-    const document: ResourceDescriptor = createTestResource({
+  // Helper to create test resource state
+  const createTestState = (docId: string): ResourceState => {
+    const resource: ResourceDescriptor = createTestResource({
       id: docId,
-      name: `Test Document ${docId}`,
+      name: `Test Resource ${docId}`,
       primaryMediaType: 'text/plain',
       creator: {
         '@id': 'user-test',
@@ -49,14 +49,14 @@ describe('ProjectionManager', () => {
       checksum: 'test',
     });
 
-    const annotations: DocumentAnnotations = {
-      documentId: docId,
+    const annotations: ResourceAnnotations = {
+      resourceId: docId,
       version: 1,
       updatedAt: '2025-01-01T00:00:00.000Z',
       annotations: [],
     };
 
-    return { document, annotations };
+    return { resource, annotations };
   };
 
   describe('Module Initialization', () => {
@@ -96,7 +96,7 @@ describe('ProjectionManager', () => {
 
       // Verify via direct storage access
       const loaded = await manager.storage.get(docId);
-      expect(loaded ? getResourceId(loaded.document) : null).toBe(docId);
+      expect(loaded ? getResourceId(loaded.resource) : null).toBe(docId);
     });
 
     it('should handle multiple saves', async () => {
@@ -121,7 +121,7 @@ describe('ProjectionManager', () => {
 
       const loaded = await manager.get(docId);
       expect(loaded).not.toBeNull();
-      expect(loaded ? getResourceId(loaded.document) : null).toBe(docId);
+      expect(loaded ? getResourceId(loaded.resource) : null).toBe(docId);
     });
 
     it('should return null for non-existent projection', async () => {
@@ -138,7 +138,7 @@ describe('ProjectionManager', () => {
       const viaManager = await manager.get(docId);
       const viaStorage = await manager.storage.get(docId);
 
-      expect(viaManager ? getResourceId(viaManager.document) : null).toBe(viaStorage ? getResourceId(viaStorage.document) : null);
+      expect(viaManager ? getResourceId(viaManager.resource) : null).toBe(viaStorage ? getResourceId(viaStorage.resource) : null);
     });
   });
 
@@ -200,13 +200,13 @@ describe('ProjectionManager', () => {
       const all = await manager2.getAll();
       expect(all.length).toBe(3);
 
-      const ids = all.map(s => getResourceId(s.document));
+      const ids = all.map(s => getResourceId(s.resource));
       expect(ids).toContain('doc-bulk-1');
       expect(ids).toContain('doc-bulk-2');
       expect(ids).toContain('doc-bulk-3');
     });
 
-    it('should get all document IDs', async () => {
+    it('should get all resource IDs', async () => {
       const manager3 = new ProjectionManager({
         basePath: testDir,
         subNamespace: 'ids-test',
@@ -217,7 +217,7 @@ describe('ProjectionManager', () => {
         await manager3.save(docId, createTestState(docId));
       }
 
-      const allIds = await manager3.getAllDocumentIds();
+      const allIds = await manager3.getAllResourceIds();
       expect(allIds.length).toBe(2);
       expect(allIds).toContain('doc-id-1');
       expect(allIds).toContain('doc-id-2');
@@ -271,12 +271,12 @@ describe('ProjectionManager', () => {
       });
 
       const state = createTestState('doc-query-1');
-      state.document.entityTypes = ['Person'];
+      state.resource.entityTypes = ['Person'];
       await manager4.save('doc-query-1', state);
 
       const results = await manager4.query.findByEntityType('Person');
       expect(results.length).toBe(1);
-      expect(results[0] ? getResourceId(results[0].document) : null).toBe('doc-query-1');
+      expect(results[0] ? getResourceId(results[0].resource) : null).toBe('doc-query-1');
     });
   });
 
@@ -298,7 +298,7 @@ describe('ProjectionManager', () => {
       await manager.save(docId, state);
 
       const loaded = await manager.getProjection(docId);
-      expect(loaded ? getResourceId(loaded.document) : null).toBe(docId);
+      expect(loaded ? getResourceId(loaded.resource) : null).toBe(docId);
     });
 
     it('should support deprecated deleteProjection method', async () => {
@@ -354,7 +354,7 @@ describe('ProjectionManager', () => {
       ]);
 
       const loaded = await manager.get(docId);
-      expect(loaded ? getResourceId(loaded.document) : null).toBe(docId);
+      expect(loaded ? getResourceId(loaded.resource) : null).toBe(docId);
     });
   });
 
@@ -368,7 +368,7 @@ describe('ProjectionManager', () => {
 
       // Verify via direct storage access
       const fromStorage = await manager.storage.get(docId);
-      expect(fromStorage ? getResourceId(fromStorage.document) : null).toBe(docId);
+      expect(fromStorage ? getResourceId(fromStorage.resource) : null).toBe(docId);
 
       // Delete via manager
       await manager.delete(docId);

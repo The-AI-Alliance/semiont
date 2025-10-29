@@ -59,7 +59,7 @@ export async function bootstrapEntityTypes(): Promise<void> {
     console.log(`[EntityTypesBootstrap] Emitting entitytype.added for: ${entityType}`);
     await eventStore.appendEvent({
       type: 'entitytype.added',
-      // documentId: undefined - system-level event
+      // resourceId: undefined - system-level event
       userId: SYSTEM_USER_ID,
       version: 1,
       payload: {

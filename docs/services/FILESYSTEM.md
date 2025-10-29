@@ -20,11 +20,11 @@ The Filesystem service provides persistent storage for user-uploaded files, docu
 
 The filesystem integrates with Semiont's 4-layer architecture:
 
-**Layer 1 (Content Store)**:
+**Layer 1 (RepresentationStore)**:
 - Raw document binary/text files
 - Sharded storage (65,536 shards via Jump Consistent Hash)
 - Content-addressed with document IDs
-- See [CONTENT-STORE.md](./CONTENT-STORE.md) for details
+- See [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) for details
 
 **Upload Directory**:
 - Separate from content store
@@ -118,7 +118,7 @@ documents/shards/a3/4f/doc-a34f8901.dat  # Document binary
 documents/shards/b2/1c/doc-b21c7623.txt  # Text content
 ```
 
-See [CONTENT-STORE.md](./CONTENT-STORE.md) for complete details.
+See [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) for complete details.
 
 ### 3. Temporary File Management
 
@@ -180,9 +180,9 @@ For production content store:
 
 ## Integration Points
 
-### Content Store Integration
+### RepresentationStore Integration
 
-The filesystem service works with Layer 1 (Content Store):
+The filesystem service works with Layer 1 (RepresentationStore):
 
 **Content Manager**: [apps/backend/src/storage/content/content-manager.ts](../../apps/backend/src/storage/content/content-manager.ts)
 - Handles document binary storage
@@ -311,7 +311,7 @@ npm run cleanup:orphans
 
 ## Related Documentation
 
-- [CONTENT-STORE.md](./CONTENT-STORE.md) - Layer 1 content storage details
+- [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) - Layer 1 content storage details
 - [Backend README](../../apps/backend/README.md) - API implementation
 - [CLI Service Implementation](../../apps/cli/src/services/filesystem-service.ts) - CLI integration
 - [AWS Deployment](../platforms/AWS.md) - S3 and EFS setup

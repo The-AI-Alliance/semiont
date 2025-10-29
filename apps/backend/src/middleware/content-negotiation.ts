@@ -1,10 +1,10 @@
 /**
  * Content Negotiation Middleware
  *
- * Handles W3C-compliant content negotiation for document and annotation URIs.
+ * Handles W3C-compliant content negotiation for resource and annotation URIs.
  *
  * Per W3C Web Annotation Data Model:
- * - Document/Annotation URIs MUST be globally resolvable
+ * - Resource/Annotation URIs MUST be globally resolvable
  * - When Accept: application/ld+json -> return JSON-LD representation
  * - When Accept: text/html -> redirect to frontend viewer
  * - Default to JSON-LD for API clients

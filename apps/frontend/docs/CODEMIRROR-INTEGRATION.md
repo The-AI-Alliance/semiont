@@ -290,7 +290,7 @@ case 'ATXHeading1': {
 
 ### AnnotateView
 
-**Location**: `/src/components/document/AnnotateView.tsx`
+**Location**: `/src/components/resource/AnnotateView.tsx`
 
 Uses CodeMirrorRenderer for curation mode with:
 - Text selection handling for creating annotations
@@ -313,7 +313,7 @@ const end = start + text.length;
 
 ### BrowseView
 
-**Location**: `/src/components/document/BrowseView.tsx`
+**Location**: `/src/components/resource/BrowseView.tsx`
 
 **Note**: BrowseView does **NOT** use CodeMirrorRenderer. It uses ReactMarkdown instead for a clean, prose-style reading experience. See [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for details.
 

@@ -27,12 +27,12 @@ export function generateAnnotationId(): string {
 }
 
 /**
- * Generate a unique ID for documents
+ * Generate a unique ID for resources
  *
- * NOTE: For documents, we use content-addressable IDs (doc-sha256:...) which
+ * NOTE: For resources, we use content-addressable IDs (doc-sha256:...) which
  * are generated via calculateChecksum(). This function is for future use cases
- * where we might need non-content-addressable document IDs.
+ * where we might need non-content-addressable resource IDs.
  */
-export function generateDocumentId(): string {
+export function generateResourceId(): string {
   return `doc-${nanoid(21)}`;
 }

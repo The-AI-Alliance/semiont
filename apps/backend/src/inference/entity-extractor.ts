@@ -91,7 +91,7 @@ Example output:
 
     // Check if response was truncated - this is an ERROR condition
     if (response.stop_reason === 'max_tokens') {
-      const errorMsg = `AI response truncated: Found ${entities.length} entities but response hit max_tokens limit. Increase max_tokens or reduce document size.`;
+      const errorMsg = `AI response truncated: Found ${entities.length} entities but response hit max_tokens limit. Increase max_tokens or reduce resource size.`;
       console.error(`❌ ${errorMsg}`);
       throw new Error(errorMsg);
     }
@@ -122,15 +122,15 @@ Example output:
         const contextAfter = exact.substring(endOffset, contextEnd);
         console.log(`  Context: "...${contextBefore}[${extractedText}]${contextAfter}..."`);
 
-        console.log(`  Searching for exact match in document...`);
+        console.log(`  Searching for exact match in resource...`);
         const index = exact.indexOf(entity.exact);
         if (index !== -1) {
           console.log(`  ✅ Found at offset ${index} (diff: ${index - startOffset})`);
           startOffset = index;
           endOffset = index + entity.exact.length;
         } else {
-          console.log(`  ❌ Cannot find "${entity.exact}" anywhere in document`);
-          console.log(`  Document starts with: "${exact.substring(0, 200)}..."`);
+          console.log(`  ❌ Cannot find "${entity.exact}" anywhere in resource`);
+          console.log(`  Resource starts with: "${exact.substring(0, 200)}..."`);
           // If we still can't find it, skip this entity
           return null;
         }

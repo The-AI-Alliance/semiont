@@ -1,7 +1,7 @@
 /**
  * ProjectionStorage - Layer 3 Projection File I/O
  *
- * Handles ONLY file operations for document projections:
+ * Handles ONLY file operations for resource projections:
  * - Save projection to disk (JSON format)
  * - Load projection from disk
  * - Delete projection
@@ -17,30 +17,30 @@
 
 import { promises as fs } from 'fs';
 import type { components } from '@semiont/api-client';
-import type { DocumentAnnotations } from '@semiont/core';
+import type { ResourceAnnotations } from '@semiont/core';
 import { PathBuilder } from '../shared/path-builder';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-// Complete state for a document in Layer 3 (metadata + annotations)
-export interface DocumentState {
-  document: ResourceDescriptor;
-  annotations: DocumentAnnotations;
+// Complete state for a resource in Layer 3 (metadata + annotations)
+export interface ResourceState {
+  resource: ResourceDescriptor;
+  annotations: ResourceAnnotations;
 }
 
 export interface ProjectionStorageConfig {
   basePath: string;
-  subNamespace?: string;  // 'documents', '__system__', etc.
+  subNamespace?: string;  // 'resources', '__system__', etc.
 }
 
 /**
- * ProjectionStorage handles file I/O for document projections
+ * ProjectionStorage handles file I/O for resource projections
  *
  * Storage structure:
  * basePath/projections/{subNamespace}/ab/cd/doc-123.json
  *
  * Example:
- * - Document: /data/projections/documents/00/a3/doc-abc123.json
+ * - Resource: /data/projections/resources/00/a3/doc-abc123.json
  * - System: /data/projections/__system__/entity-types.json
  */
 export class ProjectionStorage {
@@ -50,18 +50,18 @@ export class ProjectionStorage {
     this.pathBuilder = new PathBuilder({
       basePath: config.basePath,
       namespace: 'projections',
-      subNamespace: config.subNamespace || 'documents',
+      subNamespace: config.subNamespace || 'resources',
     });
   }
 
   /**
    * Save projection to disk
    *
-   * @param documentId - Document identifier
-   * @param projection - Complete document state (metadata + annotations)
+   * @param resourceId - Resource identifier
+   * @param projection - Complete resource state (metadata + annotations)
    */
-  async save(documentId: string, projection: DocumentState): Promise<void> {
-    const filePath = this.pathBuilder.buildPath(documentId, '.json');
+  async save(resourceId: string, projection: ResourceState): Promise<void> {
+    const filePath = this.pathBuilder.buildPath(resourceId, '.json');
     await this.pathBuilder.ensureDirectory(filePath);
 
     // Write with pretty formatting for human readability
@@ -71,15 +71,15 @@ export class ProjectionStorage {
   /**
    * Load projection from disk
    *
-   * @param documentId - Document identifier
-   * @returns Document state or null if not found
+   * @param resourceId - Resource identifier
+   * @returns Resource state or null if not found
    */
-  async get(documentId: string): Promise<DocumentState | null> {
-    const filePath = this.pathBuilder.buildPath(documentId, '.json');
+  async get(resourceId: string): Promise<ResourceState | null> {
+    const filePath = this.pathBuilder.buildPath(resourceId, '.json');
 
     try {
       const content = await fs.readFile(filePath, 'utf-8');
-      return JSON.parse(content) as DocumentState;
+      return JSON.parse(content) as ResourceState;
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         return null;
@@ -91,10 +91,10 @@ export class ProjectionStorage {
   /**
    * Delete projection from disk
    *
-   * @param documentId - Document identifier
+   * @param resourceId - Resource identifier
    */
-  async delete(documentId: string): Promise<void> {
-    const filePath = this.pathBuilder.buildPath(documentId, '.json');
+  async delete(resourceId: string): Promise<void> {
+    const filePath = this.pathBuilder.buildPath(resourceId, '.json');
 
     try {
       await fs.unlink(filePath);
@@ -109,11 +109,11 @@ export class ProjectionStorage {
   /**
    * Check if projection exists
    *
-   * @param documentId - Document identifier
+   * @param resourceId - Resource identifier
    * @returns True if projection file exists
    */
-  async exists(documentId: string): Promise<boolean> {
-    const filePath = this.pathBuilder.buildPath(documentId, '.json');
+  async exists(resourceId: string): Promise<boolean> {
+    const filePath = this.pathBuilder.buildPath(resourceId, '.json');
 
     try {
       await fs.access(filePath);
@@ -124,24 +124,24 @@ export class ProjectionStorage {
   }
 
   /**
-   * Get all document IDs that have projections
+   * Get all resource IDs that have projections
    *
-   * @returns Array of document IDs
+   * @returns Array of resource IDs
    */
-  async getAllDocumentIds(): Promise<string[]> {
-    return this.pathBuilder.scanForDocuments('.json');
+  async getAllResourceIds(): Promise<string[]> {
+    return this.pathBuilder.scanForResources('.json');
   }
 
   /**
    * Get all projections (expensive - loads all from disk)
    *
-   * @returns Array of all document states
+   * @returns Array of all resource states
    */
-  async getAll(): Promise<DocumentState[]> {
-    const documentIds = await this.getAllDocumentIds();
-    const projections: DocumentState[] = [];
+  async getAll(): Promise<ResourceState[]> {
+    const resourceIds = await this.getAllResourceIds();
+    const projections: ResourceState[] = [];
 
-    for (const id of documentIds) {
+    for (const id of resourceIds) {
       try {
         const projection = await this.get(id);
         if (projection) {

@@ -26,7 +26,7 @@ import type {
 import { getTargetSource } from '../../lib/annotation-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
-import { uriToDocumentId } from '../../lib/uri-utils';
+import { uriToResourceId } from '../../lib/uri-utils';
 
 import { validateRequestBody } from '../../middleware/validate-openapi';
 import { getFilesystemConfig } from '../../config/environment-loader';
@@ -45,7 +45,7 @@ export const crudRouter: AnnotationsRouterType = createAnnotationRouter();
 
 /**
  * POST /api/annotations
- * Create a new annotation/reference in a document
+ * Create a new annotation/reference in a resource
  */
 crudRouter.post('/api/annotations',
   validateRequestBody('CreateAnnotationRequest'),
@@ -88,7 +88,7 @@ crudRouter.post('/api/annotations',
     const eventStore = await createEventStore(basePath);
     const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
       type: 'annotation.added',
-      documentId: uriToDocumentId(request.target.source), // Extract ID from URI for indexing
+      resourceId: uriToResourceId(request.target.source), // Extract ID from URI for indexing
       userId: user.id,
       version: 1,
       payload: {
@@ -125,7 +125,7 @@ crudRouter.put('/api/annotations/:id/body',
     console.log(`[BODY UPDATE HANDLER] Called for annotation ${id}, operations:`, request.operations);
 
     // Get annotation from Layer 3 (event store projection)
-    const annotation = await AnnotationQueryService.getAnnotation(id, request.documentId);
+    const annotation = await AnnotationQueryService.getAnnotation(id, request.resourceId);
     console.log(`[BODY UPDATE HANDLER] Layer 3 lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
 
     if (!annotation) {
@@ -138,7 +138,7 @@ crudRouter.put('/api/annotations/:id/body',
     const eventStore = await createEventStore(basePath2);
     await eventStore.appendEvent({
       type: 'annotation.body.updated',
-      documentId: uriToDocumentId(getTargetSource(annotation.target)), // Extract ID from URI
+      resourceId: uriToResourceId(getTargetSource(annotation.target)), // Extract ID from URI
       userId: user.id,
       version: 1,
       payload: {
@@ -191,20 +191,20 @@ crudRouter.put('/api/annotations/:id/body',
 
 /**
  * GET /api/annotations
- * List all annotations for a document (requires documentId for O(1) Layer 3 lookup)
+ * List all annotations for a resource (requires resourceId for O(1) Layer 3 lookup)
  */
 crudRouter.get('/api/annotations', async (c) => {
   const query = c.req.query();
-  const documentId = query.documentId;
+  const resourceId = query.resourceId;
   const offset = Number(query.offset) || 0;
   const limit = Number(query.limit) || 50;
 
-  if (!documentId) {
-    throw new HTTPException(400, { message: 'documentId query parameter is required' });
+  if (!resourceId) {
+    throw new HTTPException(400, { message: 'resourceId query parameter is required' });
   }
 
-  // O(1) lookup in Layer 3 using document ID
-  const projection = await AnnotationQueryService.getDocumentAnnotations(documentId);
+  // O(1) lookup in Layer 3 using resource ID
+  const projection = await AnnotationQueryService.getResourceAnnotations(resourceId);
 
   // Apply pagination to all annotations
   const paginatedAnnotations = projection.annotations.slice(offset, offset + limit);
@@ -221,7 +221,7 @@ crudRouter.get('/api/annotations', async (c) => {
 
 /**
  * DELETE /api/annotations/:id
- * Delete an annotation (requires documentId in body for O(1) Layer 3 lookup)
+ * Delete an annotation (requires resourceId in body for O(1) Layer 3 lookup)
  */
 crudRouter.delete('/api/annotations/:id',
   validateRequestBody('DeleteAnnotationRequest'),
@@ -230,15 +230,15 @@ crudRouter.delete('/api/annotations/:id',
     const request = c.get('validatedBody') as DeleteAnnotationRequest;
     const user = c.get('user');
 
-    // O(1) lookup in Layer 3 using document ID (extract from URI)
-    const documentId = uriToDocumentId(request.documentId);
-    const projection = await AnnotationQueryService.getDocumentAnnotations(documentId);
+    // O(1) lookup in Layer 3 using resource ID (extract from URI)
+    const resourceId = uriToResourceId(request.resourceId);
+    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId);
 
-    // Find the annotation in this document's annotations
+    // Find the annotation in this resource's annotations
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
 
     if (!annotation) {
-      throw new HTTPException(404, { message: 'Annotation not found in document' });
+      throw new HTTPException(404, { message: 'Annotation not found in resource' });
     }
 
     // Emit unified annotation.removed event (consumer will delete from GraphDB and update Layer 3)
@@ -247,7 +247,7 @@ crudRouter.delete('/api/annotations/:id',
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',
-      documentId: documentId, // Use extracted short ID for event indexing
+      resourceId, // Use extracted short ID for event indexing
       userId: user.id,
       version: 1,
       payload: {

@@ -13,9 +13,9 @@ import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-import { DocumentQueryService } from '../../../services/document-queries';
+import { ResourceQueryService } from '../../../services/resource-queries';
 import { getBodySource } from '../../../lib/annotation-utils';
-import { uriToDocumentId } from '../../../lib/uri-utils';
+import { uriToResourceId } from '../../../lib/uri-utils';
 import { prefersHtml, getFrontendUrl } from '../../../middleware/content-negotiation';
 
 type Annotation = components['schemas']['Annotation'];
@@ -30,62 +30,62 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
    * - JSON-LD for machines (default)
    * - HTML redirect to frontend for browsers
    *
-   * Requires documentId query parameter for O(1) Layer 3 lookup
+   * Requires resourceId query parameter for O(1) Layer 3 lookup
    */
   router.get('/annotations/:id', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
-    const documentUriOrId = query.documentId;
+    const resourceUriOrId = query.resourceId;
 
-    if (!documentUriOrId) {
-      throw new HTTPException(400, { message: 'documentId query parameter is required' });
+    if (!resourceUriOrId) {
+      throw new HTTPException(400, { message: 'resourceId query parameter is required' });
     }
 
-    // Extract document ID from URI if provided as full URI
-    let documentId: string;
+    // Extract resource ID from URI if provided as full URI
+    let resourceId: string;
     try {
-      documentId = documentUriOrId.includes('://')
-        ? uriToDocumentId(documentUriOrId)
-        : documentUriOrId;
+      resourceId = resourceUriOrId.includes('://')
+        ? uriToResourceId(resourceUriOrId)
+        : resourceUriOrId;
     } catch (error) {
-      throw new HTTPException(400, { message: 'Invalid documentId parameter' });
+      throw new HTTPException(400, { message: 'Invalid resourceId parameter' });
     }
 
     // Check if client prefers HTML (browser)
     if (prefersHtml(c)) {
       const frontendUrl = getFrontendUrl();
       const normalizedBase = frontendUrl.endsWith('/') ? frontendUrl.slice(0, -1) : frontendUrl;
-      const redirectUrl = `${normalizedBase}/annotations/${id}?documentId=${documentId}`;
+      const redirectUrl = `${normalizedBase}/annotations/${id}?resourceId=${resourceId}`;
       return c.redirect(redirectUrl, 302);
     }
 
     // Otherwise, return JSON-LD representation
-    // O(1) lookup in Layer 3 using document ID
-    const projection = await AnnotationQueryService.getDocumentAnnotations(documentId);
+    // O(1) lookup in Layer 3 using resource ID
+    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId);
 
     // Find the annotation
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
 
     if (!annotation) {
-      throw new HTTPException(404, { message: 'Annotation not found in document' });
+      throw new HTTPException(404, { message: 'Annotation not found in resource' });
     }
 
-    // Get document metadata
-    const document = await DocumentQueryService.getDocumentMetadata(documentId);
+    // Get resource metadata
+    const resource = await ResourceQueryService.getResourceMetadata(resourceId);
 
-    // If it's a linking annotation with a resolved source, get resolved document
-    let resolvedDocument = null;
+    // If it's a linking annotation with a resolved source, get resolved resource
+    let resolvedResource = null;
     const bodySource = getBodySource(annotation.body);
     if (annotation.motivation === 'linking' && bodySource) {
       // Extract ID from body source URI if needed
-      const bodyDocId = bodySource.includes('://') ? uriToDocumentId(bodySource) : bodySource;
-      resolvedDocument = await DocumentQueryService.getDocumentMetadata(bodyDocId);
+      const bodyDocId = bodySource.includes('://') ? uriToResourceId(bodySource) : bodySource;
+      resolvedResource = await ResourceQueryService.getResourceMetadata(bodyDocId);
     }
 
     const response: GetAnnotationResponse = {
       annotation,
-      document,
-      resolvedDocument,
+      resource,
+      resolvedResource,
     };
 
     // Set Content-Type to JSON-LD

@@ -13,17 +13,17 @@ import { getShardPath } from '../shard-utils';
 
 export interface PathBuilderConfig {
   basePath: string;
-  namespace: string;       // 'projections', 'documents', etc.
-  subNamespace?: string;   // 'documents', '__system__', etc.
+  namespace: string;       // 'projections', 'resources', etc.
+  subNamespace?: string;   // 'resources', '__system__', etc.
 }
 
 /**
  * PathBuilder constructs sharded file paths for storage
  *
  * Example paths:
- * - Projections: basePath/projections/documents/ab/cd/doc-123.json
+ * - Projections: basePath/projections/resources/ab/cd/doc-123.json
  * - System projections: basePath/projections/__system__/entity-types.json
- * - Content: basePath/documents/ab/cd/doc-123.dat
+ * - Content: basePath/resources/ab/cd/doc-123.dat
  */
 export class PathBuilder {
   private basePath: string;
@@ -37,20 +37,20 @@ export class PathBuilder {
   }
 
   /**
-   * Build sharded path for a document
+   * Build sharded path for a resource
    *
-   * @param documentId - Document identifier
+   * @param resourceId - Resource identifier
    * @param extension - File extension (e.g., '.json', '.dat')
    * @returns Full file path with sharding
    */
-  buildPath(documentId: string, extension: string): string {
-    const [ab, cd] = getShardPath(documentId);
+  buildPath(resourceId: string, extension: string): string {
+    const [ab, cd] = getShardPath(resourceId);
 
     const parts = [this.basePath, this.namespace];
     if (this.subNamespace) {
       parts.push(this.subNamespace);
     }
-    parts.push(ab, cd, `${documentId}${extension}`);
+    parts.push(ab, cd, `${resourceId}${extension}`);
 
     return path.join(...parts);
   }
@@ -93,13 +93,13 @@ export class PathBuilder {
   }
 
   /**
-   * Scan for all document IDs in storage
+   * Scan for all resource IDs in storage
    *
    * @param extension - File extension to filter by
-   * @returns Array of document IDs
+   * @returns Array of resource IDs
    */
-  async scanForDocuments(extension: string): Promise<string[]> {
-    const documentIds: string[] = [];
+  async scanForResources(extension: string): Promise<string[]> {
+    const resourceIds: string[] = [];
     const rootPath = this.getRootPath();
 
     try {
@@ -112,9 +112,9 @@ export class PathBuilder {
           if (entry.isDirectory()) {
             await walkDir(fullPath);
           } else if (entry.isFile() && entry.name.endsWith(extension)) {
-            // Extract document ID from filename
-            const documentId = entry.name.slice(0, -extension.length);
-            documentIds.push(documentId);
+            // Extract resource ID from filename
+            const resourceId = entry.name.slice(0, -extension.length);
+            resourceIds.push(resourceId);
           }
         }
       };
@@ -128,7 +128,7 @@ export class PathBuilder {
       throw error;
     }
 
-    return documentIds;
+    return resourceIds;
   }
 
   /**

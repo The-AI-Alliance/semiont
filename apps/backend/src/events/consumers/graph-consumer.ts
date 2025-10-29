@@ -1,6 +1,6 @@
 /**
  * GraphDB Consumer
- * Subscribes to document events and updates GraphDB accordingly
+ * Subscribes to resource events and updates GraphDB accordingly
  *
  * Makes GraphDB a projection of Layer 2 events (single source of truth)
  */
@@ -10,11 +10,12 @@ import { getGraphDatabase } from '../../graph/factory';
 import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { components } from '@semiont/api-client';
-import type { DocumentEvent, StoredEvent } from '@semiont/core';
+import type { ResourceEvent, StoredEvent } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
 import { getFilesystemConfig } from '../../config/environment-loader';
 
 type Annotation = components['schemas']['Annotation'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class GraphDBConsumer {
   private graphDb: GraphDatabase | null = null;
@@ -34,7 +35,7 @@ export class GraphDBConsumer {
   }
 
   /**
-   * Subscribe to global system-level events (no documentId)
+   * Subscribe to global system-level events (no resourceId)
    * This allows the consumer to react to events like entitytype.added
    */
   private async subscribeToGlobalEvents() {
@@ -57,53 +58,53 @@ export class GraphDBConsumer {
   }
 
   /**
-   * Subscribe to events for a document
+   * Subscribe to events for a resource
    * Apply each event to GraphDB
    */
-  async subscribeToDocument(documentId: string) {
+  async subscribeToResource(resourceId: string) {
     this.ensureInitialized();
     const basePath = getFilesystemConfig().path;
     const eventStore = await createEventStore(basePath);
 
-    const subscription = eventStore.subscriptions.subscribe(documentId, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent) => {
       await this.processEvent(storedEvent);
     });
 
-    this.subscriptions.set(documentId, subscription);
-    console.log(`[GraphDBConsumer] Subscribed to ${documentId}`);
+    this.subscriptions.set(resourceId, subscription);
+    console.log(`[GraphDBConsumer] Subscribed to ${resourceId}`);
   }
 
   /**
-   * Process event with ordering guarantee (sequential per document)
+   * Process event with ordering guarantee (sequential per resource)
    */
   protected async processEvent(storedEvent: StoredEvent): Promise<void> {
-    const { documentId } = storedEvent.event;
+    const { resourceId } = storedEvent.event;
 
-    // ⚠️ BRITTLE: System-level events (entitytype.added) have no documentId
+    // ⚠️ BRITTLE: System-level events (entitytype.added) have no resourceId
     // Process these immediately without ordering guarantees
-    if (!documentId) {
+    if (!resourceId) {
       await this.applyEventToGraph(storedEvent);
       return;
     }
 
-    // Wait for previous event on this document to complete
-    const previousProcessing = this.processing.get(documentId);
+    // Wait for previous event on this resource to complete
+    const previousProcessing = this.processing.get(resourceId);
     if (previousProcessing) {
       await previousProcessing;
     }
 
     // Create new processing promise
     const processingPromise = this.applyEventToGraph(storedEvent);
-    this.processing.set(documentId, processingPromise);
+    this.processing.set(resourceId, processingPromise);
 
     try {
       await processingPromise;
-      this.lastProcessed.set(documentId, storedEvent.metadata.sequenceNumber);
+      this.lastProcessed.set(resourceId, storedEvent.metadata.sequenceNumber);
     } catch (error) {
       console.error(`[GraphDBConsumer] Failed to process event:`, error);
       throw error;
     } finally {
-      this.processing.delete(documentId);
+      this.processing.delete(resourceId);
     }
   }
 
@@ -117,46 +118,58 @@ export class GraphDBConsumer {
     console.log(`[GraphDBConsumer] Applying ${event.type} to GraphDB (seq=${storedEvent.metadata.sequenceNumber})`);
 
     switch (event.type) {
-      case 'document.created': {
-        if (!event.documentId) throw new Error('document.created requires documentId');
-        await graphDb.createDocument({
-          id: event.documentId,
+      case 'resource.created': {
+        if (!event.resourceId) throw new Error('resource.created requires resourceId');
+        const resource: ResourceDescriptor = {
+          '@context': 'https://schema.org/',
+          '@id': `http://localhost:4000/resources/${event.resourceId}`,
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
-          content: '', // Content stored separately in RepresentationStore
-          format: event.payload.format,
-          contentChecksum: event.payload.contentChecksum,
-          creator: didToAgent(event.userId),
+          representations: [{
+            mediaType: event.payload.format,
+            checksum: event.payload.contentChecksum,
+            rel: 'original',
+          }],
+          archived: false,
+          dateCreated: new Date().toISOString(),
+          wasAttributedTo: didToAgent(event.userId),
           creationMethod: 'api',
-        });
+        };
+        await graphDb.createResource(resource);
         break;
       }
 
-      case 'document.cloned': {
-        if (!event.documentId) throw new Error('document.cloned requires documentId');
-        await graphDb.createDocument({
-          id: event.documentId,
+      case 'resource.cloned': {
+        if (!event.resourceId) throw new Error('resource.cloned requires resourceId');
+        const resource: ResourceDescriptor = {
+          '@context': 'https://schema.org/',
+          '@id': `http://localhost:4000/resources/${event.resourceId}`,
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
-          content: '', // Content stored separately in RepresentationStore
-          format: event.payload.format,
-          contentChecksum: event.payload.contentChecksum,
-          creator: didToAgent(event.userId),
+          representations: [{
+            mediaType: event.payload.format,
+            checksum: event.payload.contentChecksum,
+            rel: 'original',
+          }],
+          archived: false,
+          dateCreated: new Date().toISOString(),
+          wasAttributedTo: didToAgent(event.userId),
           creationMethod: 'clone',
-        });
+        };
+        await graphDb.createResource(resource);
         break;
       }
 
-      case 'document.archived':
-        if (!event.documentId) throw new Error('document.archived requires documentId');
-        await graphDb.updateDocument(event.documentId, {
+      case 'resource.archived':
+        if (!event.resourceId) throw new Error('resource.archived requires resourceId');
+        await graphDb.updateResource(event.resourceId, {
           archived: true,
         });
         break;
 
-      case 'document.unarchived':
-        if (!event.documentId) throw new Error('document.unarchived requires documentId');
-        await graphDb.updateDocument(event.documentId, {
+      case 'resource.unarchived':
+        if (!event.resourceId) throw new Error('resource.unarchived requires resourceId');
+        await graphDb.updateResource(event.resourceId, {
           archived: false,
         });
         break;
@@ -223,64 +236,64 @@ export class GraphDBConsumer {
         break;
 
       case 'entitytag.added':
-        if (!event.documentId) throw new Error('entitytag.added requires documentId');
-        const doc = await graphDb.getDocument(event.documentId);
+        if (!event.resourceId) throw new Error('entitytag.added requires resourceId');
+        const doc = await graphDb.getResource(event.resourceId);
         if (doc) {
-          await graphDb.updateDocument(event.documentId, {
+          await graphDb.updateResource(event.resourceId, {
             entityTypes: [...(doc.entityTypes || []), event.payload.entityType],
           });
         }
         break;
 
       case 'entitytag.removed':
-        if (!event.documentId) throw new Error('entitytag.removed requires documentId');
-        const doc2 = await graphDb.getDocument(event.documentId);
+        if (!event.resourceId) throw new Error('entitytag.removed requires resourceId');
+        const doc2 = await graphDb.getResource(event.resourceId);
         if (doc2) {
-          await graphDb.updateDocument(event.documentId, {
+          await graphDb.updateResource(event.resourceId, {
             entityTypes: (doc2.entityTypes || []).filter(t => t !== event.payload.entityType),
           });
         }
         break;
 
       case 'entitytype.added':
-        // ⚠️ BRITTLE: Event routing depends on absence of documentId
+        // ⚠️ BRITTLE: Event routing depends on absence of resourceId
         // This handler is called for system-level events (global entity type collection)
         // TODO: Design cleaner event routing with explicit projection targets
         await graphDb.addEntityType(event.payload.entityType);
         break;
 
       default:
-        console.warn(`[GraphDBConsumer] Unknown event type: ${(event as DocumentEvent).type}`);
+        console.warn(`[GraphDBConsumer] Unknown event type: ${(event as ResourceEvent).type}`);
     }
   }
 
   /**
-   * Rebuild entire document from events
+   * Rebuild entire resource from events
    * Useful for recovery or initial sync
    */
-  async rebuildDocument(documentId: string): Promise<void> {
+  async rebuildResource(resourceId: string): Promise<void> {
     const graphDb = this.ensureInitialized();
-    console.log(`[GraphDBConsumer] Rebuilding document ${documentId} from events`);
+    console.log(`[GraphDBConsumer] Rebuilding resource ${resourceId} from events`);
 
     // Delete existing data
     try {
-      await graphDb.deleteDocument(documentId);
+      await graphDb.deleteResource(resourceId);
     } catch (error) {
-      // Document might not exist yet
-      console.log(`[GraphDBConsumer] No existing document to delete: ${documentId}`);
+      // Resource might not exist yet
+      console.log(`[GraphDBConsumer] No existing resource to delete: ${resourceId}`);
     }
 
     // Replay all events
     const basePath = getFilesystemConfig().path;
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
-    const events = await query.getDocumentEvents(documentId);
+    const events = await query.getResourceEvents(resourceId);
 
     for (const storedEvent of events) {
       await this.applyEventToGraph(storedEvent);
     }
 
-    console.log(`[GraphDBConsumer] Rebuilt ${documentId} from ${events.length} events`);
+    console.log(`[GraphDBConsumer] Rebuilt ${resourceId} from ${events.length} events`);
   }
 
   /**
@@ -294,15 +307,15 @@ export class GraphDBConsumer {
     // Clear database
     await graphDb.clearDatabase();
 
-    // Get all document IDs by scanning event shards
+    // Get all resource IDs by scanning event shards
     const basePath = getFilesystemConfig().path;
     const eventStore = await createEventStore(basePath);
-    const allDocumentIds = await eventStore.storage.getAllDocumentIds();
+    const allResourceIds = await eventStore.storage.getAllResourceIds();
 
-    console.log(`[GraphDBConsumer] Found ${allDocumentIds.length} documents to rebuild`);
+    console.log(`[GraphDBConsumer] Found ${allResourceIds.length} resources to rebuild`);
 
-    for (const documentId of allDocumentIds) {
-      await this.rebuildDocument(documentId);
+    for (const resourceId of allResourceIds) {
+      await this.rebuildResource(resourceId);
     }
 
     console.log('[GraphDBConsumer] Rebuild complete');
@@ -324,26 +337,26 @@ export class GraphDBConsumer {
   }
 
   /**
-   * Unsubscribe from document
+   * Unsubscribe from resource
    */
-  async unsubscribeFromDocument(documentId: string): Promise<void> {
-    const subscription = this.subscriptions.get(documentId);
+  async unsubscribeFromResource(resourceId: string): Promise<void> {
+    const subscription = this.subscriptions.get(resourceId);
     if (subscription) {
       subscription.unsubscribe();
-      this.subscriptions.delete(documentId);
-      console.log(`[GraphDBConsumer] Unsubscribed from ${documentId}`);
+      this.subscriptions.delete(resourceId);
+      console.log(`[GraphDBConsumer] Unsubscribed from ${resourceId}`);
     }
   }
 
   /**
-   * Unsubscribe from all documents
+   * Unsubscribe from all resources
    */
   async unsubscribeAll(): Promise<void> {
-    for (const [_documentId, subscription] of this.subscriptions) {
+    for (const [_resourceId, subscription] of this.subscriptions) {
       subscription.unsubscribe();
     }
     this.subscriptions.clear();
-    console.log('[GraphDBConsumer] Unsubscribed from all documents');
+    console.log('[GraphDBConsumer] Unsubscribed from all resources');
   }
 
   /**
@@ -379,7 +392,7 @@ export async function getGraphConsumer(): Promise<GraphDBConsumer> {
 }
 
 /**
- * Start consumer for existing documents
+ * Start consumer for existing resources
  * Called on app initialization
  */
 export async function startGraphConsumer(): Promise<void> {
@@ -387,14 +400,14 @@ export async function startGraphConsumer(): Promise<void> {
   const basePath = getFilesystemConfig().path;
   const eventStore = await createEventStore(basePath);
 
-  // Get all existing document IDs
-  const allDocumentIds = await eventStore.storage.getAllDocumentIds();
+  // Get all existing resource IDs
+  const allResourceIds = await eventStore.storage.getAllResourceIds();
 
-  console.log(`[GraphDBConsumer] Starting consumer for ${allDocumentIds.length} documents`);
+  console.log(`[GraphDBConsumer] Starting consumer for ${allResourceIds.length} resources`);
 
-  // Subscribe to each document
-  for (const documentId of allDocumentIds) {
-    await consumer.subscribeToDocument(documentId);
+  // Subscribe to each resource
+  for (const resourceId of allResourceIds) {
+    await consumer.subscribeToResource(resourceId);
   }
 
   console.log('[GraphDBConsumer] Consumer started');

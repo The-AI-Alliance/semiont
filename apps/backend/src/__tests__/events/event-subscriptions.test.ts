@@ -1,14 +1,14 @@
 /**
  * EventSubscriptions Tests - Real-time pub/sub
  *
- * Tests document-scoped and global subscriptions, fire-and-forget, and cleanup
+ * Tests resource-scoped and global subscriptions, fire-and-forget, and cleanup
  *
  * @see docs/EVENT-STORE.md#eventsubscriptions
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventSubscriptions } from '../../events/subscriptions/event-subscriptions';
-import type { StoredEvent, DocumentEvent } from '@semiont/core';
+import type { StoredEvent, ResourceEvent } from '@semiont/core';
 
 describe('EventSubscriptions', () => {
   let subscriptions: EventSubscriptions;
@@ -18,17 +18,17 @@ describe('EventSubscriptions', () => {
   });
 
   // Helper to create StoredEvent
-  function createStoredEvent(type: DocumentEvent['type'], documentId?: string): StoredEvent {
+  function createStoredEvent(type: ResourceEvent['type'], resourceId?: string): StoredEvent {
     return {
       event: {
         id: 'event-1',
         type,
         userId: 'user1',
-        documentId,
+        resourceId,
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {} as any,
-      } as DocumentEvent,
+      } as ResourceEvent,
       metadata: {
         sequenceNumber: 1,
         streamPosition: 0,
@@ -38,17 +38,17 @@ describe('EventSubscriptions', () => {
     };
   }
 
-  describe('Document Subscriptions', () => {
-    it('should subscribe to document events', () => {
+  describe('Resource Subscriptions', () => {
+    it('should subscribe to resource events', () => {
       const callback = vi.fn();
       const sub = subscriptions.subscribe('doc1', callback);
 
-      expect(sub.documentId).toBe('doc1');
+      expect(sub.resourceId).toBe('doc1');
       expect(sub.callback).toBe(callback);
       expect(sub.unsubscribe).toBeTypeOf('function');
     });
 
-    it('should notify document subscribers', async () => {
+    it('should notify resource subscribers', async () => {
       const callback = vi.fn();
       subscriptions.subscribe('doc1', callback);
 
@@ -62,7 +62,7 @@ describe('EventSubscriptions', () => {
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
-    it('should support multiple subscribers for same document', async () => {
+    it('should support multiple subscribers for same resource', async () => {
       const callback1 = vi.fn();
       const callback2 = vi.fn();
       const callback3 = vi.fn();
@@ -81,7 +81,7 @@ describe('EventSubscriptions', () => {
       expect(callback3).toHaveBeenCalledWith(event);
     });
 
-    it('should not notify subscribers of other documents', async () => {
+    it('should not notify subscribers of other resources', async () => {
       const callback1 = vi.fn();
       const callback2 = vi.fn();
 
@@ -97,7 +97,7 @@ describe('EventSubscriptions', () => {
       expect(callback2).not.toHaveBeenCalled();
     });
 
-    it('should unsubscribe from document events', async () => {
+    it('should unsubscribe from resource events', async () => {
       const callback = vi.fn();
       const sub = subscriptions.subscribe('doc1', callback);
 
@@ -121,7 +121,7 @@ describe('EventSubscriptions', () => {
       expect(subscriptions.getSubscriptionCount('doc1')).toBe(0);
     });
 
-    it('should get subscription count for document', () => {
+    it('should get subscription count for resource', () => {
       subscriptions.subscribe('doc1', vi.fn());
       subscriptions.subscribe('doc1', vi.fn());
       subscriptions.subscribe('doc2', vi.fn());
@@ -145,7 +145,7 @@ describe('EventSubscriptions', () => {
       const callback = vi.fn();
       const sub = subscriptions.subscribeGlobal(callback);
 
-      expect(sub.documentId).toBe('__global__');
+      expect(sub.resourceId).toBe('__global__');
       expect(sub.callback).toBe(callback);
       expect(sub.unsubscribe).toBeTypeOf('function');
     });
@@ -203,14 +203,14 @@ describe('EventSubscriptions', () => {
       expect(subscriptions.getGlobalSubscriptionCount()).toBe(2);
     });
 
-    it('should not affect document subscriptions', async () => {
+    it('should not affect resource subscriptions', async () => {
       const docCallback = vi.fn();
       const globalCallback = vi.fn();
 
       subscriptions.subscribe('doc1', docCallback);
       subscriptions.subscribeGlobal(globalCallback);
 
-      // Notify document subscribers
+      // Notify resource subscribers
       const docEvent = createStoredEvent('annotation.added', 'doc1');
       await subscriptions.notifySubscribers('doc1', docEvent);
 

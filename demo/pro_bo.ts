@@ -119,7 +119,7 @@ async function uploadChunks(chunks: ChunkInfo[], client: SemiontApiClient): Prom
       entityTypes: ['literature', 'ancient-greek-drama'],
     };
 
-    const response = await client.createDocument(request);
+    const response = await client.createResource(request);
     documentIds.push(response.document.id);
     printSuccess(response.document.id, 7);
     printFilesystemPath('Layer 1', getLayer1Path(response.document.id, DATA_DIR));
@@ -168,7 +168,7 @@ async function createTableOfContents(
     entityTypes: ['literature', 'ancient-greek-drama', 'table-of-contents'],
   };
 
-  const response = await client.createDocument(request);
+  const response = await client.createResource(request);
   printSuccess(`Created ToC: ${response.document.id}`);
   printFilesystemPath('Layer 1', getLayer1Path(response.document.id, DATA_DIR));
 

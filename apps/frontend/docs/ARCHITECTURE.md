@@ -361,7 +361,7 @@ User action (e.g., click save)
 
 ```
 Component mounts
-    └── useDocumentEvents hook connects to SSE
+    └── useResourceEvents hook connects to SSE
         └── EventSource with Bearer token auth
             └── Backend sends events
                 └── Event handler refetches queries
@@ -414,7 +414,7 @@ apps/frontend/src/
 │   ├── document/          # Document-specific components
 │   │   ├── AnnotateView.tsx      # Curation mode (uses CodeMirrorRenderer)
 │   │   ├── BrowseView.tsx        # Browse mode (uses ReactMarkdown)
-│   │   ├── DocumentViewer.tsx    # Main document component
+│   │   ├── ResourceViewer.tsx    # Main resource component
 │   │   └── AnnotationHistory.tsx # Event log panel
 │   ├── CodeMirrorRenderer.tsx    # Editor-based renderer (for AnnotateView)
 │   ├── modals/            # Modal dialogs
@@ -426,7 +426,7 @@ apps/frontend/src/
 │   └── KeyboardShortcutsContext.tsx
 ├── hooks/                 # Custom React hooks
 │   ├── useAuthenticatedAPI.ts
-│   ├── useDocumentEvents.ts
+│   ├── useResourceEvents.ts
 │   └── ...
 ├── lib/                   # Utility libraries
 │   ├── api-client.ts      # API client with React Query

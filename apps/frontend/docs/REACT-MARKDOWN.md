@@ -134,7 +134,7 @@ export function rehypeRenderAnnotations() {
 
 ### Component Integration
 
-[BrowseView.tsx](../../src/components/document/BrowseView.tsx):
+[BrowseView.tsx](../../src/components/resource/BrowseView.tsx):
 
 ```typescript
 <ReactMarkdown

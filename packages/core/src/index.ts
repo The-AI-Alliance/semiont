@@ -24,12 +24,12 @@ export type {
 // Event types
 export type {
   BaseEvent,
-  DocumentEvent,
-  DocumentEventType,
-  DocumentCreatedEvent,
-  DocumentClonedEvent,
-  DocumentArchivedEvent,
-  DocumentUnarchivedEvent,
+  ResourceEvent,
+  ResourceEventType,
+  ResourceCreatedEvent,
+  ResourceClonedEvent,
+  ResourceArchivedEvent,
+  ResourceUnarchivedEvent,
   AnnotationAddedEvent,
   AnnotationRemovedEvent,
   AnnotationBodyUpdatedEvent,
@@ -41,18 +41,18 @@ export type {
   EventSignature,
   StoredEvent,
   EventQuery,
-  DocumentAnnotations,
+  ResourceAnnotations,
 } from './events';
 export {
-  isDocumentEvent,
+  isResourceEvent,
   getEventType,
 } from './events';
 
 // Backend-specific annotation utilities
 export { bodyItemsMatch, findBodyItem } from './annotation-utils';
 
-// Document types
-export type { CreateDocumentInput, UpdateDocumentInput, DocumentFilter } from './document-types';
+// Resource types
+export type { UpdateResourceInput, ResourceFilter } from './resource-types';
 
 // Annotation types
 export type { AnnotationCategory, CreateAnnotationInternal } from './annotation-types';

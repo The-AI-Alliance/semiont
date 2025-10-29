@@ -7,13 +7,13 @@
  *
  * Usage:
  *   npm run rebuild-projections              # Rebuild all projections
- *   npm run rebuild-projections <documentId> # Rebuild specific document
+ *   npm run rebuild-projections <resourceId> # Rebuild specific resource
  */
 
 import { createEventStore, createEventQuery, createEventValidator } from '../services/event-store-service';
 import { getFilesystemConfig } from '../config/environment-loader';
 
-async function rebuildProjections(documentId?: string) {
+async function rebuildProjections(resourceId?: string) {
   console.log('🔄 Rebuilding annotation projections from events...\n');
 
   const config = getFilesystemConfig();
@@ -21,13 +21,13 @@ async function rebuildProjections(documentId?: string) {
   const query = createEventQuery(eventStore);
   const validator = createEventValidator();
 
-  if (documentId) {
-    // Rebuild single document
-    console.log(`📄 Rebuilding projection for document: ${documentId}`);
+  if (resourceId) {
+    // Rebuild single resource
+    console.log(`📄 Rebuilding projection for resource: ${resourceId}`);
 
-    const events = await query.getDocumentEvents(documentId);
+    const events = await query.getResourceEvents(resourceId);
     if (events.length === 0) {
-      console.error(`❌ No events found for document: ${documentId}`);
+      console.error(`❌ No events found for resource: ${resourceId}`);
       process.exit(1);
     }
 
@@ -43,18 +43,18 @@ async function rebuildProjections(documentId?: string) {
     console.log(`   ✅ Event chain valid`);
 
     // Rebuild projection
-    const stored = await eventStore.projector.projectDocument(events, documentId);
+    const stored = await eventStore.projector.projectResource(events, resourceId);
     if (!stored) {
       console.error(`❌ Failed to build projection`);
       process.exit(1);
     }
 
     console.log(`   ✅ Projection rebuilt:`);
-    console.log(`      - Name: ${stored.document.name}`);
+    console.log(`      - Name: ${stored.resource.name}`);
     console.log(`      - Annotations: ${stored.annotations.annotations.length}`);
-    console.log(`      - Entity Types: ${stored.document.entityTypes?.join(', ') || 'none'}`);
+    console.log(`      - Entity Types: ${stored.resource.entityTypes?.join(', ') || 'none'}`);
     console.log(`      - Version: ${stored.annotations.version}`);
-    console.log(`      - Archived: ${stored.document.archived}`);
+    console.log(`      - Archived: ${stored.resource.archived}`);
 
   } else {
     // Rebuild all projections
@@ -65,18 +65,18 @@ async function rebuildProjections(documentId?: string) {
     // For now, show usage message
     console.log(`   To rebuild all projections, you need to:`);
     console.log(`   1. Scan all event shards in ${config.path}/events/shards/`);
-    console.log(`   2. For each document found, call eventStore.projector.projectDocument(documentId)`);
+    console.log(`   2. For each resource found, call eventStore.projector.projectResource(resourceId)`);
     console.log(`   3. Projections are automatically saved to Layer 3\n`);
-    console.log(`   For now, rebuild individual documents by ID.`);
+    console.log(`   For now, rebuild individual resources by ID.`);
   }
 
   console.log(`\n✅ Done!`);
 }
 
 // Parse command line arguments
-const documentId = process.argv[2];
+const resourceId = process.argv[2];
 
-rebuildProjections(documentId)
+rebuildProjections(resourceId)
   .catch(err => {
     console.error(`\n❌ Error:`, err.message);
     process.exit(1);

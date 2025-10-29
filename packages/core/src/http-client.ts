@@ -18,7 +18,7 @@ export interface HttpClientConfig {
 /**
  * Fetch helper with authentication and error handling
  *
- * @param endpoint - API endpoint (e.g., '/api/documents')
+ * @param endpoint - API endpoint (e.g., '/api/resources')
  * @param options - Standard fetch options
  * @param token - Optional authentication token
  * @returns Typed response data

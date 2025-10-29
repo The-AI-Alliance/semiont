@@ -84,12 +84,12 @@ entityTypesRouter.post('/api/entity-types',
 
     const body = c.get('validatedBody') as AddEntityTypeRequest;
 
-    // Emit event (no documentId for system-level events)
+    // Emit event (no resourceId for system-level events)
     const basePath = getFilesystemConfig().path;
     const eventStore = await createEventStore(basePath);
     await eventStore.appendEvent({
       type: 'entitytype.added',
-      // documentId: undefined - system-level event
+      // resourceId: undefined - system-level event
       userId: user.id,
       version: 1,
       payload: {
@@ -123,11 +123,11 @@ entityTypesRouter.post('/api/entity-types/bulk',
     const basePath2 = getFilesystemConfig().path;
     const eventStore = await createEventStore(basePath2);
 
-    // Emit one event per entity type (no documentId)
+    // Emit one event per entity type (no resourceId)
     for (const tag of body.tags) {
       await eventStore.appendEvent({
         type: 'entitytype.added',
-        // documentId: undefined - system-level event
+        // resourceId: undefined - system-level event
         userId: user.id,
         version: 1,
         payload: {

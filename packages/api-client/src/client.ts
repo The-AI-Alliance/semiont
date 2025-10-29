@@ -138,56 +138,56 @@ export class SemiontApiClient {
   // DOCUMENTS
   // ============================================================================
 
-  async createDocument(
-    data: RequestContent<paths['/api/documents']['post']>
-  ): Promise<ResponseContent<paths['/api/documents']['post']>> {
-    return this.http.post('api/documents', { json: data }).json();
+  async createResource(
+    data: RequestContent<paths['/api/resources']['post']>
+  ): Promise<ResponseContent<paths['/api/resources']['post']>> {
+    return this.http.post('api/resources', { json: data }).json();
   }
 
-  async getDocument(id: string): Promise<ResponseContent<paths['/api/documents/{id}']['get']>> {
-    return this.http.get(`api/documents/${id}`).json();
+  async getResource(id: string): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
+    return this.http.get(`resources/${id}`).json();
   }
 
-  async listDocuments(params?: {
+  async listResources(params?: {
     limit?: number;
     archived?: boolean;
-  }): Promise<ResponseContent<paths['/api/documents']['get']>> {
+  }): Promise<ResponseContent<paths['/api/resources']['get']>> {
     const searchParams = new URLSearchParams();
     if (params?.limit) searchParams.append('limit', params.limit.toString());
     if (params?.archived !== undefined) searchParams.append('archived', params.archived.toString());
 
-    return this.http.get('api/documents', { searchParams }).json();
+    return this.http.get('api/resources', { searchParams }).json();
   }
 
-  async updateDocument(
+  async updateResource(
     id: string,
-    data: RequestContent<paths['/api/documents/{id}']['patch']>
-  ): Promise<ResponseContent<paths['/api/documents/{id}']['patch']>> {
-    return this.http.patch(`api/documents/${id}`, { json: data }).json();
+    data: RequestContent<paths['/resources/{id}']['patch']>
+  ): Promise<ResponseContent<paths['/resources/{id}']['patch']>> {
+    return this.http.patch(`resources/${id}`, { json: data }).json();
   }
 
-  async deleteDocument(id: string): Promise<void> {
-    await this.http.delete(`api/documents/${id}`);
+  async deleteResource(id: string): Promise<void> {
+    await this.http.delete(`api/resources/${id}`);
   }
 
-  async searchDocuments(query: string, limit: number = 10): Promise<{ documents: any[] }> {
-    return this.http.get('api/documents/search', {
+  async searchResources(query: string, limit: number = 10): Promise<{ resources: any[] }> {
+    return this.http.get('api/resources/search', {
       searchParams: { q: query, limit: limit.toString() },
     }).json();
   }
 
-  async getDocumentEvents(id: string): Promise<{ events: any[] }> {
-    return this.http.get(`api/documents/${id}/events`).json();
+  async getResourceEvents(id: string): Promise<{ events: any[] }> {
+    return this.http.get(`api/resources/${id}/events`).json();
   }
 
-  async getDocumentAnnotations(
+  async getResourceAnnotations(
     id: string
-  ): Promise<ResponseContent<paths['/api/documents/{id}/annotations']['get']>> {
-    return this.http.get(`api/documents/${id}/annotations`).json();
+  ): Promise<ResponseContent<paths['/api/resources/{id}/annotations']['get']>> {
+    return this.http.get(`api/resources/${id}/annotations`).json();
   }
 
-  async getDocumentReferencedBy(id: string): Promise<{ referencedBy: any[] }> {
-    return this.http.get(`api/documents/${id}/referenced-by`).json();
+  async getResourceReferencedBy(id: string): Promise<{ referencedBy: any[] }> {
+    return this.http.get(`api/resources/${id}/referenced-by`).json();
   }
 
   // ============================================================================
@@ -205,19 +205,19 @@ export class SemiontApiClient {
   }
 
   async listAnnotations(params?: {
-    documentId?: string;
+    resourceId?: string;
     motivation?: string;
   }): Promise<ResponseContent<paths['/api/annotations']['get']>> {
     const searchParams = new URLSearchParams();
-    if (params?.documentId) searchParams.append('documentId', params.documentId);
+    if (params?.resourceId) searchParams.append('resourceId', params.resourceId);
     if (params?.motivation) searchParams.append('motivation', params.motivation);
 
     return this.http.get('api/annotations', { searchParams }).json();
   }
 
-  async deleteAnnotation(id: string, documentId: string): Promise<void> {
+  async deleteAnnotation(id: string, resourceId: string): Promise<void> {
     await this.http.delete(`api/annotations/${id}`, {
-      searchParams: { documentId },
+      searchParams: { resourceId },
     });
   }
 
@@ -230,11 +230,11 @@ export class SemiontApiClient {
     }).json();
   }
 
-  async generateDocumentFromAnnotation(
+  async generateResourceFromAnnotation(
     id: string,
-    data: RequestContent<paths['/api/annotations/{id}/generate-document']['post']>
-  ): Promise<ResponseContent<paths['/api/annotations/{id}/generate-document']['post']>> {
-    return this.http.post(`api/annotations/${id}/generate-document`, { json: data }).json();
+    data: RequestContent<paths['/api/annotations/{id}/generate-resource']['post']>
+  ): Promise<ResponseContent<paths['/api/annotations/{id}/generate-resource']['post']>> {
+    return this.http.post(`api/annotations/${id}/generate-resource`, { json: data }).json();
   }
 
   // ============================================================================

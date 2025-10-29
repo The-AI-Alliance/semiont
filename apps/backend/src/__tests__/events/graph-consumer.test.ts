@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GraphDBConsumer } from '../../events/consumers/graph-consumer';
-import type { StoredEvent, DocumentEvent, DocumentCreatedEvent, DocumentClonedEvent } from '@semiont/core';
+import type { StoredEvent, ResourceEvent, ResourceCreatedEvent, ResourceClonedEvent } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 import type { GraphDatabase } from '../../graph/interface';
 
@@ -14,7 +14,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   disconnect: vi.fn().mockResolvedValue(undefined),
   isConnected: vi.fn().mockReturnValue(true),
 
-  createDocument: vi.fn().mockResolvedValue({
+  createResource: vi.fn().mockResolvedValue({
     id: 'doc-123',
     name: 'Test Doc',
     entityTypes: [],
@@ -28,25 +28,25 @@ const createMockGraphDB = (): GraphDatabase => ({
     },
     created: new Date(),
   }),
-  getDocument: vi.fn().mockResolvedValue({
+  getResource: vi.fn().mockResolvedValue({
     id: 'doc-123',
     name: 'Test Doc',
     entityTypes: ['entity1'],
     archived: false,
   }),
-  updateDocument: vi.fn().mockResolvedValue({
+  updateResource: vi.fn().mockResolvedValue({
     id: 'doc-123',
     name: 'Test Doc',
     entityTypes: ['entity1'],
     archived: true,
   }),
-  deleteDocument: vi.fn().mockResolvedValue(undefined),
-  listDocuments: vi.fn().mockResolvedValue({ documents: [], total: 0 }),
-  searchDocuments: vi.fn().mockResolvedValue([]),
+  deleteResource: vi.fn().mockResolvedValue(undefined),
+  listResources: vi.fn().mockResolvedValue({ resources: [], total: 0 }),
+  searchResources: vi.fn().mockResolvedValue([]),
 
   createAnnotation: vi.fn().mockResolvedValue({
     id: 'sel-123',
-    documentId: 'doc-123',
+    resourceId: 'doc-123',
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'TextualBody',
@@ -57,7 +57,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   getAnnotation: vi.fn().mockResolvedValue(null),
   updateAnnotation: vi.fn().mockResolvedValue({
     id: 'sel-123',
-    documentId: 'doc-123',
+    resourceId: 'doc-123',
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'SpecificResource',
@@ -72,7 +72,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   getHighlights: vi.fn().mockResolvedValue([]),
   resolveReference: vi.fn().mockResolvedValue({
     id: 'sel-123',
-    documentId: 'doc-123',
+    resourceId: 'doc-123',
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'SpecificResource',
@@ -84,15 +84,15 @@ const createMockGraphDB = (): GraphDatabase => ({
   getReferences: vi.fn().mockResolvedValue([]),
   getEntityReferences: vi.fn().mockResolvedValue([]),
 
-  getDocumentAnnotations: vi.fn().mockResolvedValue([]),
-  getDocumentReferencedBy: vi.fn().mockResolvedValue([]),
+  getResourceAnnotations: vi.fn().mockResolvedValue([]),
+  getResourceReferencedBy: vi.fn().mockResolvedValue([]),
 
-  getDocumentConnections: vi.fn().mockResolvedValue([]),
+  getResourceConnections: vi.fn().mockResolvedValue([]),
   findPath: vi.fn().mockResolvedValue([]),
 
   getEntityTypeStats: vi.fn().mockResolvedValue([]),
   getStats: vi.fn().mockResolvedValue({
-    documentCount: 0,
+    resourceCount: 0,
     selectionCount: 0,
     highlightCount: 0,
     referenceCount: 0,
@@ -133,17 +133,17 @@ describe('GraphDBConsumer', () => {
     await consumer.shutdown();
   });
 
-  describe('document.created event', () => {
-    it('should create document in GraphDB', async () => {
-      const event: DocumentCreatedEvent = {
+  describe('resource.created event', () => {
+    it('should create resource in GraphDB', async () => {
+      const event: ResourceCreatedEvent = {
         id: 'evt-1',
-        type: 'document.created',
-        documentId: 'doc-123',
+        type: 'resource.created',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          name: 'Test Document',
+          name: 'Test Resource',
           format: 'text/plain',
           contentChecksum: 'hash123',
           creationMethod: CREATION_METHODS.API,
@@ -164,14 +164,19 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
-        id: 'doc-123',
-        name: 'Test Document',
+      expect(mockGraphDB.createResource).toHaveBeenCalledWith({
+        '@context': 'https://schema.org/',
+        '@id': 'http://localhost:4000/resources/doc-123',
+        name: 'Test Resource',
         entityTypes: ['entity1', 'entity2'],
-        content: '', // Content stored separately in RepresentationStore
-        format: 'text/plain',
-        contentChecksum: 'hash123',
-        creator: {
+        representations: [{
+          mediaType: 'text/plain',
+          checksum: 'hash123',
+          rel: 'original',
+        }],
+        archived: false,
+        dateCreated: expect.any(String),
+        wasAttributedTo: {
           id: 'user1',
           type: 'Person',
           name: 'user1',
@@ -181,15 +186,15 @@ describe('GraphDBConsumer', () => {
     });
 
     it('should handle missing optional fields', async () => {
-      const event: DocumentEvent = {
+      const event: ResourceEvent = {
         id: 'evt-1',
-        type: 'document.created',
-        documentId: 'doc-123',
+        type: 'resource.created',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          name: 'Test Document',
+          name: 'Test Resource',
           format: 'text/plain',
           contentChecksum: 'hash123',
           creationMethod: CREATION_METHODS.API,
@@ -207,14 +212,19 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
-        id: 'doc-123',
-        name: 'Test Document',
+      expect(mockGraphDB.createResource).toHaveBeenCalledWith({
+        '@context': 'https://schema.org/',
+        '@id': 'http://localhost:4000/resources/doc-123',
+        name: 'Test Resource',
         entityTypes: [],
-        content: '', // Content stored separately in RepresentationStore
-        format: 'text/plain',
-        contentChecksum: 'hash123',
-        creator: {
+        representations: [{
+          mediaType: 'text/plain',
+          checksum: 'hash123',
+          rel: 'original',
+        }],
+        archived: false,
+        dateCreated: expect.any(String),
+        wasAttributedTo: {
           id: 'user1',
           type: 'Person',
           name: 'user1',
@@ -224,20 +234,20 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('document.cloned event', () => {
-    it('should create cloned document in GraphDB', async () => {
-      const event: DocumentClonedEvent = {
+  describe('resource.cloned event', () => {
+    it('should create cloned resource in GraphDB', async () => {
+      const event: ResourceClonedEvent = {
         id: 'evt-2',
-        type: 'document.cloned',
-        documentId: 'doc-456',
+        type: 'resource.cloned',
+        resourceId: 'doc-456',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          name: 'Cloned Document',
+          name: 'Cloned Resource',
           format: 'text/plain',
           contentChecksum: 'hash456',
-          parentDocumentId: 'doc-123',
+          parentResourceId: 'doc-123',
           creationMethod: CREATION_METHODS.CLONE,
           entityTypes: ['entity1'],
           language: 'en',
@@ -255,14 +265,19 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
-        id: 'doc-456',
-        name: 'Cloned Document',
+      expect(mockGraphDB.createResource).toHaveBeenCalledWith({
+        '@context': 'https://schema.org/',
+        '@id': 'http://localhost:4000/resources/doc-456',
+        name: 'Cloned Resource',
         entityTypes: ['entity1'],
-        content: '', // Content stored separately in RepresentationStore
-        format: 'text/plain',
-        contentChecksum: 'hash456',
-        creator: {
+        representations: [{
+          mediaType: 'text/plain',
+          checksum: 'hash456',
+          rel: 'original',
+        }],
+        archived: false,
+        dateCreated: expect.any(String),
+        wasAttributedTo: {
           id: 'user1',
           type: 'Person',
           name: 'user1',
@@ -272,12 +287,12 @@ describe('GraphDBConsumer', () => {
     });
   });
 
-  describe('document.archived event', () => {
-    it('should archive document in GraphDB', async () => {
-      const event: DocumentEvent = {
+  describe('resource.archived event', () => {
+    it('should archive resource in GraphDB', async () => {
+      const event: ResourceEvent = {
         id: 'evt-3',
-        type: 'document.archived',
-        documentId: 'doc-123',
+        type: 'resource.archived',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
@@ -295,18 +310,18 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.updateDocument).toHaveBeenCalledWith('doc-123', {
+      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('doc-123', {
         archived: true,
       });
     });
   });
 
-  describe('document.unarchived event', () => {
-    it('should unarchive document in GraphDB', async () => {
-      const event: DocumentEvent = {
+  describe('resource.unarchived event', () => {
+    it('should unarchive resource in GraphDB', async () => {
+      const event: ResourceEvent = {
         id: 'evt-4',
-        type: 'document.unarchived',
-        documentId: 'doc-123',
+        type: 'resource.unarchived',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
@@ -324,7 +339,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.updateDocument).toHaveBeenCalledWith('doc-123', {
+      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('doc-123', {
         archived: false,
       });
     });
@@ -332,10 +347,10 @@ describe('GraphDBConsumer', () => {
 
   describe('annotation.added event (highlighting)', () => {
     it('should create highlighting annotation with entity tags in GraphDB', async () => {
-      const event: DocumentEvent = {
+      const event: ResourceEvent = {
         id: 'evt-5',
         type: 'annotation.added',
-        documentId: 'doc-123',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
@@ -411,10 +426,10 @@ describe('GraphDBConsumer', () => {
 
   describe('annotation.removed event', () => {
     it('should delete annotation from GraphDB', async () => {
-      const event: DocumentEvent = {
+      const event: ResourceEvent = {
         id: 'evt-6',
         type: 'annotation.removed',
-        documentId: 'doc-123',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
@@ -440,10 +455,10 @@ describe('GraphDBConsumer', () => {
 
   describe('annotation.added event (linking)', () => {
     it('should create resolved linking annotation with entity tags in GraphDB', async () => {
-      const event: DocumentEvent = {
+      const event: ResourceEvent = {
         id: 'evt-7',
         type: 'annotation.added',
-        documentId: 'doc-123',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
@@ -519,10 +534,10 @@ describe('GraphDBConsumer', () => {
     });
 
     it('should create stub linking annotation with entity tags', async () => {
-      const event: DocumentEvent = {
+      const event: ResourceEvent = {
         id: 'evt-8',
         type: 'annotation.added',
-        documentId: 'doc-123',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
@@ -612,10 +627,10 @@ describe('GraphDBConsumer', () => {
         created: new Date().toISOString(),
       });
 
-      const event: DocumentEvent = {
+      const event: ResourceEvent = {
         id: 'evt-9',
         type: 'annotation.body.updated',
-        documentId: 'doc-123',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
@@ -655,10 +670,10 @@ describe('GraphDBConsumer', () => {
 
   describe('annotation.removed event (linking)', () => {
     it('should delete linking annotation from GraphDB', async () => {
-      const event: DocumentEvent = {
+      const event: ResourceEvent = {
         id: 'evt-10',
         type: 'annotation.removed',
-        documentId: 'doc-123',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
@@ -683,11 +698,11 @@ describe('GraphDBConsumer', () => {
   });
 
   describe('entitytag.added event', () => {
-    it('should add entity tag to document', async () => {
-      const event: DocumentEvent = {
+    it('should add entity tag to resource', async () => {
+      const event: ResourceEvent = {
         id: 'evt-11',
         type: 'entitytag.added',
-        documentId: 'doc-123',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
@@ -707,19 +722,19 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.getDocument).toHaveBeenCalledWith('doc-123');
-      expect(mockGraphDB.updateDocument).toHaveBeenCalledWith('doc-123', {
+      expect(mockGraphDB.getResource).toHaveBeenCalledWith('doc-123');
+      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('doc-123', {
         entityTypes: ['entity1', 'NewEntity'],
       });
     });
   });
 
   describe('entitytag.removed event', () => {
-    it('should remove entity tag from document', async () => {
-      const event: DocumentEvent = {
+    it('should remove entity tag from resource', async () => {
+      const event: ResourceEvent = {
         id: 'evt-12',
         type: 'entitytag.removed',
-        documentId: 'doc-123',
+        resourceId: 'doc-123',
         userId: 'user1',
         timestamp: new Date().toISOString(),
         version: 1,
@@ -739,8 +754,8 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.getDocument).toHaveBeenCalledWith('doc-123');
-      expect(mockGraphDB.updateDocument).toHaveBeenCalledWith('doc-123', {
+      expect(mockGraphDB.getResource).toHaveBeenCalledWith('doc-123');
+      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('doc-123', {
         entityTypes: [],
       });
     });

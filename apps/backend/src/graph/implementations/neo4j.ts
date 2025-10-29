@@ -9,16 +9,15 @@ import type {
   GraphConnection,
   GraphPath,
   EntityTypeStats,
-  DocumentFilter,
-  CreateDocumentInput,
-  UpdateDocumentInput,
+  ResourceFilter,
+  UpdateResourceInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
-import { getPrimaryRepresentation } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation, getResourceId } from '../../utils/resource-helpers';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -122,7 +121,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       // Create constraints for unique IDs
       const constraints = [
-        'CREATE CONSTRAINT doc_id IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE',
+        'CREATE CONSTRAINT doc_id IF NOT EXISTS FOR (d:Resource) REQUIRE d.id IS UNIQUE',
         'CREATE CONSTRAINT sel_id IF NOT EXISTS FOR (s:Annotation) REQUIRE s.id IS UNIQUE',
         'CREATE CONSTRAINT tag_id IF NOT EXISTS FOR (t:TagCollection) REQUIRE t.type IS UNIQUE'
       ];
@@ -140,10 +139,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       // Create indexes for common queries
       const indexes = [
-        'CREATE INDEX doc_name IF NOT EXISTS FOR (d:Document) ON (d.name)',
-        'CREATE INDEX doc_entity_types IF NOT EXISTS FOR (d:Document) ON (d.entityTypes)',
-        'CREATE INDEX sel_doc_id IF NOT EXISTS FOR (s:Annotation) ON (s.documentId)',
-        'CREATE INDEX sel_resolved_id IF NOT EXISTS FOR (s:Annotation) ON (s.resolvedDocumentId)'
+        'CREATE INDEX doc_name IF NOT EXISTS FOR (d:Resource) ON (d.name)',
+        'CREATE INDEX doc_entity_types IF NOT EXISTS FOR (d:Resource) ON (d.entityTypes)',
+        'CREATE INDEX sel_doc_id IF NOT EXISTS FOR (s:Annotation) ON (s.resourceId)',
+        'CREATE INDEX sel_resolved_id IF NOT EXISTS FOR (s:Annotation) ON (s.resolvedResourceId)'
       ];
 
       for (const index of indexes) {
@@ -161,37 +160,17 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createDocument(input: CreateDocumentInput & { id: string }): Promise<ResourceDescriptor> {
+  async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
     const session = this.getSession();
     try {
-      const id = input.id;
-      const now = new Date().toISOString();
-
-      const resource: ResourceDescriptor = {
-        '@context': 'https://schema.org/',
-        '@id': id,
-        name: input.name,
-        entityTypes: input.entityTypes,
-        representations: [{
-          mediaType: input.format,
-          checksum: input.contentChecksum,
-          rel: 'original',
-        }],
-        archived: false,
-        dateCreated: now,
-        wasAttributedTo: input.creator,
-        creationMethod: input.creationMethod,
-      };
-
-      if (input.sourceDocumentId) resource.sourceDocumentId = input.sourceDocumentId;
-
+      const id = getResourceId(resource);
       const primaryRep = getPrimaryRepresentation(resource);
       if (!primaryRep) {
         throw new Error('Resource must have at least one representation');
       }
 
       const result = await session.run(
-        `CREATE (d:Document {
+        `CREATE (d:Resource {
           id: $id,
           name: $name,
           entityTypes: $entityTypes,
@@ -203,75 +182,75 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           creationMethod: $creationMethod,
           contentChecksum: $contentChecksum,
           sourceAnnotationId: $sourceAnnotationId,
-          sourceDocumentId: $sourceDocumentId
+          sourceResourceId: $sourceResourceId
         }) RETURN d`,
         {
           id,
           name: resource.name,
           entityTypes: resource.entityTypes,
           format: primaryRep.mediaType,
-          archived: resource.archived,
-          created: now,
+          archived: resource.archived || false,
+          created: resource.dateCreated,
           creator: JSON.stringify(resource.wasAttributedTo),
           creationMethod: resource.creationMethod,
           contentChecksum: primaryRep.checksum,
-          sourceAnnotationId: null,
-          sourceDocumentId: resource.sourceDocumentId ?? null,
+          sourceAnnotationId: resource.sourceAnnotationId ?? null,
+          sourceResourceId: resource.sourceResourceId ?? null,
         }
       );
 
-      return this.parseDocumentNode(result.records[0]!.get('d'));
+      return this.parseResourceNode(result.records[0]!.get('d'));
     } finally {
       await session.close();
     }
   }
 
-  async getDocument(id: string): Promise<ResourceDescriptor | null> {
+  async getResource(id: string): Promise<ResourceDescriptor | null> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        'MATCH (d:Document {id: $id}) RETURN d',
+        'MATCH (d:Resource {id: $id}) RETURN d',
         { id }
       );
 
       if (result.records.length === 0) return null;
-      return this.parseDocumentNode(result.records[0]!.get('d'));
+      return this.parseResourceNode(result.records[0]!.get('d'));
     } finally {
       await session.close();
     }
   }
 
-  async updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor> {
-    // Documents are immutable - only archiving is allowed
+  async updateResource(id: string, input: UpdateResourceInput): Promise<ResourceDescriptor> {
+    // Resources are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
-      throw new Error('Documents are immutable. Only archiving is allowed.');
+      throw new Error('Resources are immutable. Only archiving is allowed.');
     }
 
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (d:Document {id: $id})
+        `MATCH (d:Resource {id: $id})
          SET d.archived = $archived
          RETURN d`,
         { id, archived: input.archived }
       );
 
       if (result.records.length === 0) {
-        throw new Error('Document not found');
+        throw new Error('Resource not found');
       }
 
-      return this.parseDocumentNode(result.records[0]!.get('d'));
+      return this.parseResourceNode(result.records[0]!.get('d'));
     } finally {
       await session.close();
     }
   }
 
-  async deleteDocument(id: string): Promise<void> {
+  async deleteResource(id: string): Promise<void> {
     const session = this.getSession();
     try {
-      // Delete document and all its annotations
+      // Delete resource and all its annotations
       await session.run(
-        `MATCH (d:Document {id: $id})
+        `MATCH (d:Resource {id: $id})
          OPTIONAL MATCH (a:Annotation)-[:BELONGS_TO|:REFERENCES]->(d)
          DETACH DELETE d, a`,
         { id }
@@ -281,7 +260,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
+  async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
     const session = this.getSession();
     try {
       let whereClause = '';
@@ -304,7 +283,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       // Get total count
       const countResult = await session.run(
-        `MATCH (d:Document) ${whereClause} RETURN count(d) as total`,
+        `MATCH (d:Resource) ${whereClause} RETURN count(d) as total`,
         params
       );
       const total = countResult.records[0]!.get('total').toNumber();
@@ -314,26 +293,26 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       params.limit = neo4j.int(filter.limit || 20);
 
       const result = await session.run(
-        `MATCH (d:Document) ${whereClause}
+        `MATCH (d:Resource) ${whereClause}
          RETURN d
          ORDER BY d.updatedAt DESC
          SKIP $skip LIMIT $limit`,
         params
       );
 
-      const documents = result.records.map(record => this.parseDocumentNode(record.get('d')));
+      const resources = result.records.map(record => this.parseResourceNode(record.get('d')));
 
-      return { documents, total };
+      return { resources, total };
     } finally {
       await session.close();
     }
   }
 
-  async searchDocuments(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
+  async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (d:Document)
+        `MATCH (d:Resource)
          WHERE toLower(d.name) CONTAINS toLower($query)
          RETURN d
          ORDER BY d.updatedAt DESC
@@ -341,7 +320,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         { query, limit: neo4j.int(limit) }
       );
 
-      return result.records.map(record => this.parseDocumentNode(record.get('d')));
+      return result.records.map(record => this.parseResourceNode(record.get('d')));
     } finally {
       await session.close();
     }
@@ -374,12 +353,12 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Create the annotation node and relationships
       let cypher: string;
       if (bodySource) {
-        // Resolved reference with target document
-        cypher = `MATCH (from:Document {id: $fromId})
-           MATCH (to:Document {id: $toId})
+        // Resolved reference with target resource
+        cypher = `MATCH (from:Resource {id: $fromId})
+           MATCH (to:Resource {id: $toId})
            CREATE (a:Annotation {
              id: $id,
-             documentId: $documentId,
+             resourceId: $resourceId,
              exact: $exact,
              selector: $selector,
              type: $type,
@@ -397,10 +376,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            RETURN a`;
       } else {
         // Stub reference (unresolved)
-        cypher = `MATCH (d:Document {id: $documentId})
+        cypher = `MATCH (d:Resource {id: $resourceId})
            CREATE (a:Annotation {
              id: $id,
-             documentId: $documentId,
+             resourceId: $resourceId,
              exact: $exact,
              selector: $selector,
              type: $type,
@@ -418,7 +397,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       const params: any = {
         id,
-        documentId: targetSource, // Store full URI
+        resourceId: targetSource, // Store full URI
         fromId: targetSource, // Store full URI
         toId: bodySource || null, // Store full URI
         exact: targetSelector ? getExactText(targetSelector) : '',
@@ -434,7 +413,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const result = await session.run(cypher, params);
 
       if (result.records.length === 0) {
-        throw new Error(`Failed to create annotation: Document ${targetSource} not found in graph database`);
+        throw new Error(`Failed to create annotation: Resource ${targetSource} not found in graph database`);
       }
 
       return this.parseAnnotationNode(result.records[0]!.get('a'), entityTypes);
@@ -516,15 +495,15 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
+  async listAnnotations(filter: { resourceId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     const session = this.getSession();
     try {
       const conditions: string[] = [];
       const params: any = {};
 
-      if (filter.documentId) {
-        conditions.push('a.documentId = $documentId');
-        params.documentId = filter.documentId;
+      if (filter.resourceId) {
+        conditions.push('a.resourceId = $resourceId');
+        params.resourceId = filter.resourceId;
       }
 
       if (filter.type) {
@@ -553,16 +532,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getHighlights(documentId: string): Promise<Annotation[]> {
+  async getHighlights(resourceId: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (a:Annotation {documentId: $documentId})
+        `MATCH (a:Annotation {resourceId: $resourceId})
          WHERE a.annotationCategory = 'highlight'
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes
          ORDER BY a.created DESC`,
-        { documentId }
+        { resourceId }
       );
 
       return result.records.map(record =>
@@ -576,24 +555,24 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async resolveReference(annotationId: string, source: string): Promise<Annotation> {
     const session = this.getSession();
     try {
-      // Get the target document's name
+      // Get the target resource's name
       const docResult = await session.run(
-        'MATCH (d:Document {id: $id}) RETURN d.name as name',
+        'MATCH (d:Resource {id: $id}) RETURN d.name as name',
         { id: source }
       );
-      const documentName = docResult.records[0]?.get('name');
+      const resourceName = docResult.records[0]?.get('name');
 
       // Update annotation and create REFERENCES relationship
       const result = await session.run(
         `MATCH (a:Annotation {id: $annotationId})
-         MATCH (to:Document {id: $source})
+         MATCH (to:Resource {id: $source})
          SET a.source = $source,
-             a.resolvedDocumentName = $documentName,
+             a.resolvedResourceName = $resourceName,
              a.resolvedAt = datetime()
          MERGE (a)-[:REFERENCES]->(to)
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes`,
-        { annotationId, source, documentName }
+        { annotationId, source, resourceName }
       );
 
       if (result.records.length === 0) {
@@ -609,16 +588,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getReferences(documentId: string): Promise<Annotation[]> {
+  async getReferences(resourceId: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (a:Annotation {documentId: $documentId})
+        `MATCH (a:Annotation {resourceId: $resourceId})
          WHERE a.annotationCategory IN ['stub_reference', 'resolved_reference']
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes
          ORDER BY a.created DESC`,
-        { documentId }
+        { resourceId }
       );
 
       return result.records.map(record =>
@@ -629,13 +608,13 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]> {
+  async getEntityReferences(resourceId: string, entityTypes?: string[]): Promise<Annotation[]> {
     const session = this.getSession();
     try {
-      let cypher = `MATCH (a:Annotation {documentId: $documentId})
+      let cypher = `MATCH (a:Annotation {resourceId: $resourceId})
                     WHERE a.source IS NOT NULL`;
 
-      const params: any = { documentId };
+      const params: any = { resourceId };
 
       if (entityTypes && entityTypes.length > 0) {
         cypher += `
@@ -659,15 +638,15 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
+  async getResourceAnnotations(resourceId: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (a:Annotation {documentId: $documentId})
+        `MATCH (a:Annotation {resourceId: $resourceId})
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes
          ORDER BY a.created DESC`,
-        { documentId }
+        { resourceId }
       );
 
       return result.records.map(record =>
@@ -678,15 +657,15 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getDocumentReferencedBy(documentId: string): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceId: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (a:Annotation)-[:REFERENCES]->(d:Document {id: $documentId})
+        `MATCH (a:Annotation)-[:REFERENCES]->(d:Resource {id: $resourceId})
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes
          ORDER BY a.created DESC`,
-        { documentId }
+        { resourceId }
       );
 
       return result.records.map(record =>
@@ -697,23 +676,23 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getDocumentConnections(documentId: string): Promise<GraphConnection[]> {
+  async getResourceConnections(resourceId: string): Promise<GraphConnection[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (d:Document {id: $documentId})
-         OPTIONAL MATCH (d)<-[:BELONGS_TO]-(a1:Annotation)-[:REFERENCES]->(other:Document)
+        `MATCH (d:Resource {id: $resourceId})
+         OPTIONAL MATCH (d)<-[:BELONGS_TO]-(a1:Annotation)-[:REFERENCES]->(other:Resource)
          OPTIONAL MATCH (other)<-[:BELONGS_TO]-(a2:Annotation)-[:REFERENCES]->(d)
          WITH other, COLLECT(DISTINCT a1) as outgoing, COLLECT(DISTINCT a2) as incoming
          WHERE other IS NOT NULL
          RETURN other, outgoing, incoming`,
-        { documentId }
+        { resourceId }
       );
 
       const connections: GraphConnection[] = [];
 
       for (const record of result.records) {
-        const targetDocument = this.parseDocumentNode(record.get('other'));
+        const targetResource = this.parseResourceNode(record.get('other'));
 
         // Fetch entity types for outgoing annotations
         const outgoingNodes = record.get('outgoing');
@@ -754,7 +733,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         }
 
         connections.push({
-          targetDocument,
+          targetResource,
           annotations: outgoing,
           bidirectional: incoming.length > 0
         });
@@ -766,21 +745,21 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async findPath(fromDocumentId: string, toDocumentId: string, maxDepth: number = 5): Promise<GraphPath[]> {
+  async findPath(fromResourceId: string, toResourceId: string, maxDepth: number = 5): Promise<GraphPath[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH path = shortestPath((from:Document {id: $fromId})-[:REFERENCES*..${maxDepth}]-(to:Document {id: $toId}))
+        `MATCH path = shortestPath((from:Resource {id: $fromId})-[:REFERENCES*..${maxDepth}]-(to:Resource {id: $toId}))
          WITH path, nodes(path) as docs, relationships(path) as rels
          RETURN docs, rels
          LIMIT 10`,
-        { fromId: fromDocumentId, toId: toDocumentId }
+        { fromId: fromResourceId, toId: toResourceId }
       );
 
       const paths: GraphPath[] = [];
 
       for (const record of result.records) {
-        const docs = record.get('docs').map((node: any) => this.parseDocumentNode(node));
+        const docs = record.get('docs').map((node: any) => this.parseResourceNode(node));
         const rels = record.get('rels');
 
         // Get annotation details for the relationships
@@ -803,7 +782,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         }
 
         paths.push({
-          documents: docs,
+          resources: docs,
           annotations: annotations
         });
       }
@@ -818,7 +797,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (d:Document)
+        `MATCH (d:Resource)
          UNWIND d.entityTypes AS type
          RETURN type, count(*) AS count
          ORDER BY count DESC`
@@ -834,7 +813,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
 
   async getStats(): Promise<{
-    documentCount: number;
+    resourceCount: number;
     annotationCount: number;
     highlightCount: number;
     referenceCount: number;
@@ -844,32 +823,32 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }> {
     const session = this.getSession();
     try {
-      // Get document count
-      const docCountResult = await session.run('MATCH (d:Document) RETURN count(d) as count');
-      const documentCount = docCountResult.records[0]!.get('count').toNumber();
+      // Get resource count
+      const docCountResult = await session.run('MATCH (d:Resource) RETURN count(d) as count');
+      const resourceCount = docCountResult.records[0]!.get('count').toNumber();
 
       // Get annotation counts
       const selCountResult = await session.run('MATCH (a:Annotation) RETURN count(a) as count');
       const annotationCount = selCountResult.records[0]!.get('count').toNumber();
 
       const highlightCountResult = await session.run(
-        'MATCH (a:Annotation) WHERE a.resolvedDocumentId IS NULL RETURN count(a) as count'
+        'MATCH (a:Annotation) WHERE a.resolvedResourceId IS NULL RETURN count(a) as count'
       );
       const highlightCount = highlightCountResult.records[0]!.get('count').toNumber();
 
       const referenceCountResult = await session.run(
-        'MATCH (a:Annotation) WHERE a.resolvedDocumentId IS NOT NULL RETURN count(a) as count'
+        'MATCH (a:Annotation) WHERE a.resolvedResourceId IS NOT NULL RETURN count(a) as count'
       );
       const referenceCount = referenceCountResult.records[0]!.get('count').toNumber();
 
       const entityRefCountResult = await session.run(
-        'MATCH (a:Annotation) WHERE a.resolvedDocumentId IS NOT NULL AND size(a.entityTypes) > 0 RETURN count(a) as count'
+        'MATCH (a:Annotation) WHERE a.resolvedResourceId IS NOT NULL AND size(a.entityTypes) > 0 RETURN count(a) as count'
       );
       const entityReferenceCount = entityRefCountResult.records[0]!.get('count').toNumber();
 
       // Get entity type stats
       const entityTypeResult = await session.run(
-        `MATCH (d:Document)
+        `MATCH (d:Resource)
          UNWIND d.entityTypes AS type
          RETURN type, count(*) AS count`
       );
@@ -881,7 +860,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       // Get content type stats
       const contentTypeResult = await session.run(
-        `MATCH (d:Document)
+        `MATCH (d:Resource)
          RETURN d.format as type, count(*) AS count`
       );
 
@@ -891,7 +870,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       });
 
       return {
-        documentCount,
+        resourceCount,
         annotationCount,
         highlightCount,
         referenceCount,
@@ -920,8 +899,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async detectAnnotations(_documentId: string): Promise<Annotation[]> {
-    // This would use AI/ML to detect annotations in a document
+  async detectAnnotations(_resourceId: string): Promise<Annotation[]> {
+    // This would use AI/ML to detect annotations in a resource
     // For now, return empty array as a placeholder
     return [];
   }
@@ -1009,19 +988,19 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
 
   // Helper methods to parse Neo4j nodes
-  private parseDocumentNode(node: any): ResourceDescriptor {
+  private parseResourceNode(node: any): ResourceDescriptor {
     const props = node.properties;
 
     // Validate all required fields
-    if (!props.id) throw new Error('Document missing required field: id');
-    if (!props.name) throw new Error(`Document ${props.id} missing required field: name`);
-    if (!props.entityTypes) throw new Error(`Document ${props.id} missing required field: entityTypes`);
-    if (!props.format) throw new Error(`Document ${props.id} missing required field: contentType`);
-    if (props.archived === undefined || props.archived === null) throw new Error(`Document ${props.id} missing required field: archived`);
-    if (!props.created) throw new Error(`Document ${props.id} missing required field: created`);
-    if (!props.creator) throw new Error(`Document ${props.id} missing required field: creator`);
-    if (!props.creationMethod) throw new Error(`Document ${props.id} missing required field: creationMethod`);
-    if (!props.contentChecksum) throw new Error(`Document ${props.id} missing required field: contentChecksum`);
+    if (!props.id) throw new Error('Resource missing required field: id');
+    if (!props.name) throw new Error(`Resource ${props.id} missing required field: name`);
+    if (!props.entityTypes) throw new Error(`Resource ${props.id} missing required field: entityTypes`);
+    if (!props.format) throw new Error(`Resource ${props.id} missing required field: contentType`);
+    if (props.archived === undefined || props.archived === null) throw new Error(`Resource ${props.id} missing required field: archived`);
+    if (!props.created) throw new Error(`Resource ${props.id} missing required field: created`);
+    if (!props.creator) throw new Error(`Resource ${props.id} missing required field: creator`);
+    if (!props.creationMethod) throw new Error(`Resource ${props.id} missing required field: creationMethod`);
+    if (!props.contentChecksum) throw new Error(`Resource ${props.id} missing required field: contentChecksum`);
 
     const resource: ResourceDescriptor = {
       '@context': 'https://schema.org/',
@@ -1039,7 +1018,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       creationMethod: props.creationMethod,
     };
 
-    if (props.sourceDocumentId) resource.sourceDocumentId = props.sourceDocumentId;
+    if (props.sourceResourceId) resource.sourceResourceId = props.sourceResourceId;
 
     return resource;
   }
@@ -1049,7 +1028,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
     // Validate required fields
     if (!props.id) throw new Error('Annotation missing required field: id');
-    if (!props.documentId) throw new Error(`Annotation ${props.id} missing required field: documentId`);
+    if (!props.resourceId) throw new Error(`Annotation ${props.id} missing required field: resourceId`);
     if (!props.exact) throw new Error(`Annotation ${props.id} missing required field: text`);
     if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
     if (!props.selector) throw new Error(`Annotation ${props.id} missing required field: selector`);
@@ -1089,7 +1068,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       id: props.id,
       motivation: props.motivation,
       target: {
-        source: props.documentId,
+        source: props.resourceId,
         selector: JSON.parse(props.selector),
       },
       body: bodyArray as Annotation['body'],

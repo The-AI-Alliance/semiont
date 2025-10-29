@@ -1,4 +1,4 @@
-// Create route definitions for OpenAPI documentation
+// Create route definitions for OpenAPI resourceation
 // Routes are now defined in separate files under src/routes/
 // This keeps the route definitions close to their implementations
 

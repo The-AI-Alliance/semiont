@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { documents } from '@/lib/api/documents';
+import { resources } from '@/lib/api/resources';
 import { annotations } from '@/lib/api/annotations';
 import { entityTypes } from '@/lib/api/entity-types';
 import { buttonStyles } from '@/lib/button-styles';
@@ -13,7 +13,7 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getResourceId, getDocumentId } from '@/lib/resource-helpers';
+import { getResourceId, getDocumentId, getPrimaryMediaType } from '@/lib/resource-helpers';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
@@ -53,12 +53,12 @@ function ComposeDocumentContent() {
   const availableEntityTypes = entityTypesData?.entityTypes || [];
 
   // Set up mutation hooks
-  const createDocMutation = documents.create.useMutation();
+  const createDocMutation = resources.create.useMutation();
   const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
 
   // Fetch cloned document data if in clone mode
-  const { data: cloneData } = documents.getByToken.useQuery(tokenFromUrl || '');
-  const createFromTokenMutation = documents.createFromToken.useMutation();
+  const { data: cloneData } = resources.getByToken.useQuery(tokenFromUrl || '');
+  const createFromTokenMutation = resources.createFromToken.useMutation();
 
   // Load cloned document data if in clone mode or pre-fill reference completion data
   useEffect(() => {
@@ -78,17 +78,21 @@ function ComposeDocumentContent() {
       
       // Handle clone mode - data loaded via React Query
       if (mode === 'clone' && cloneData) {
-        if (cloneData.sourceDocument && session?.backendToken) {
+        if (cloneData.sourceResource && session?.backendToken) {
           setIsClone(true);
           setCloneToken(tokenFromUrl || null);
-          setNewDocName(cloneData.sourceDocument.name);
+          setNewDocName(cloneData.sourceResource.name);
 
-          // Fetch content separately
+          // Fetch representation separately
           try {
-            const documentId = getDocumentId(cloneData.sourceDocument);
-            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${encodeURIComponent(documentId)}/content`, {
+            const documentId = getResourceId(cloneData.sourceResource);
+            // Get the primary representation's mediaType from the source document
+            const mediaType = getPrimaryMediaType(cloneData.sourceResource) || 'text/plain';
+
+            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/documents/${encodeURIComponent(documentId)}`, {
               headers: {
                 'Authorization': `Bearer ${session.backendToken}`,
+                'Accept': mediaType,
               },
             });
 
@@ -96,11 +100,11 @@ function ComposeDocumentContent() {
               const content = await contentResponse.text();
               setNewDocContent(content);
             } else {
-              showError('Failed to load document content');
+              showError('Failed to load document representation');
             }
           } catch (error) {
-            console.error('Failed to fetch content:', error);
-            showError('Failed to load document content');
+            console.error('Failed to fetch representation:', error);
+            showError('Failed to load document representation');
           }
         } else {
           showError('Invalid or expired clone token');
@@ -137,12 +141,12 @@ function ComposeDocumentContent() {
           archiveOriginal: archiveOriginal
         });
 
-        const docId = response.document ? getDocumentId(response.document) : '';
+        const docId = response.resource ? getResourceId(response.resource) : '';
         if (!docId) {
           throw new Error('No document ID returned from server');
         }
         documentId = docId;
-        documentName = response.document?.name || newDocName;
+        documentName = response.resource?.name || newDocName;
       } else {
         // Create a new document with entity types
         const response = await createDocMutation.mutateAsync({
@@ -153,12 +157,12 @@ function ComposeDocumentContent() {
           creationMethod: 'ui'
         });
 
-        const docId = response.document ? getDocumentId(response.document) : '';
+        const docId = response.resource ? getResourceId(response.resource) : '';
         if (!docId) {
           throw new Error('No document ID returned from server');
         }
         documentId = docId;
-        documentName = response.document?.name || newDocName;
+        documentName = response.resource?.name || newDocName;
 
         // If this is a reference completion, update the reference to point to the new document
         if (isReferenceCompletion && referenceId && documentId && sourceDocumentId) {
@@ -166,7 +170,7 @@ function ComposeDocumentContent() {
             await updateAnnotationBodyMutation.mutateAsync({
               id: referenceId,
               data: {
-                documentId: sourceDocumentId,
+                resourceId: sourceDocumentId,
                 operations: [{
                   op: 'add',
                   item: {
@@ -185,9 +189,9 @@ function ComposeDocumentContent() {
           }
         }
       }
-      
+
       // Navigate to the new document (will add to tabs on page load)
-      router.push(`/know/document/${encodeURIComponent(documentId)}`);
+      router.push(`/know/resource/${encodeURIComponent(documentId)}`);
     } catch (error) {
       console.error('Failed to save document:', error);
       showError('Failed to save document. Please try again.');
@@ -236,14 +240,14 @@ function ComposeDocumentContent() {
         <form onSubmit={handleSaveDocument} className="space-y-6">
           <div>
             <label htmlFor="docName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('documentName')}
+              {t('resourceName')}
             </label>
             <input
               id="docName"
               type="text"
               value={newDocName}
               onChange={(e) => setNewDocName(e.target.value)}
-              placeholder={t('documentNamePlaceholder')}
+              placeholder={t('resourceNamePlaceholder')}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
               disabled={isCreating}
@@ -327,7 +331,7 @@ function ComposeDocumentContent() {
           {/* Content editor */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {isClone ? t('documentContent') : t('content')}
+              {isClone ? t('resourceContent') : t('content')}
             </label>
             <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
               <CodeMirrorRenderer
@@ -373,7 +377,7 @@ function ComposeDocumentContent() {
             >
               {isCreating
                 ? (isClone ? t('saving') : isReferenceCompletion ? t('creatingAndLinking') : t('creating'))
-                : (isClone ? t('saveClonedDocument') : isReferenceCompletion ? t('createAndLinkDocument') : t('createDocument'))}
+                : (isClone ? t('saveClonedResource') : isReferenceCompletion ? t('createAndLinkResource') : t('createResource'))}
             </button>
           </div>
         </form>

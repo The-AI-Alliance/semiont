@@ -1,4 +1,4 @@
-// Filesystem storage for document content
+// Filesystem storage for resource content
 import * as fs from 'fs/promises';
 import { mkdirSync } from 'fs';
 import * as path from 'path';
@@ -8,11 +8,11 @@ import { getFilesystemConfig } from '../config/environment-loader';
 import { getShardPath } from './shard-utils';
 
 export interface StorageService {
-  saveDocument(documentId: string, content: string | Buffer): Promise<string>;
-  getDocument(documentId: string): Promise<Buffer>;
-  deleteDocument(documentId: string): Promise<void>;
-  documentExists(documentId: string): Promise<boolean>;
-  getDocumentPath(documentId: string): string;
+  saveResource(resourceId: string, content: string | Buffer): Promise<string>;
+  getResource(resourceId: string): Promise<Buffer>;
+  deleteResource(resourceId: string): Promise<void>;
+  resourceExists(resourceId: string): Promise<boolean>;
+  getResourcePath(resourceId: string): string;
 }
 
 export class FilesystemStorage implements StorageService {
@@ -31,16 +31,16 @@ export class FilesystemStorage implements StorageService {
     await fs.mkdir(this.basePath, { recursive: true });
   }
   
-  getDocumentPath(documentId: string): string {
+  getResourcePath(resourceId: string): string {
     // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
-    const [ab, cd] = getShardPath(documentId);
-    return path.join(this.basePath, 'documents', ab, cd, `${documentId}.dat`);
+    const [ab, cd] = getShardPath(resourceId);
+    return path.join(this.basePath, 'resources', ab, cd, `${resourceId}.dat`);
   }
   
-  async saveDocument(documentId: string, content: string | Buffer): Promise<string> {
+  async saveResource(resourceId: string, content: string | Buffer): Promise<string> {
     await this.ensureDirectoryExists();
     
-    const docPath = this.getDocumentPath(documentId);
+    const docPath = this.getResourcePath(resourceId);
     const docDir = path.dirname(docPath);
     
     // Ensure shard directory exists
@@ -56,21 +56,21 @@ export class FilesystemStorage implements StorageService {
     return docPath;
   }
   
-  async getDocument(documentId: string): Promise<Buffer> {
-    const docPath = this.getDocumentPath(documentId);
+  async getResource(resourceId: string): Promise<Buffer> {
+    const docPath = this.getResourcePath(resourceId);
     
     try {
       return await fs.readFile(docPath);
     } catch (error: any) {
       if (error.code === 'ENOENT') {
-        throw new Error(`Document ${documentId} not found in storage`);
+        throw new Error(`Resource ${resourceId} not found in storage`);
       }
       throw error;
     }
   }
   
-  async deleteDocument(documentId: string): Promise<void> {
-    const docPath = this.getDocumentPath(documentId);
+  async deleteResource(resourceId: string): Promise<void> {
+    const docPath = this.getResourcePath(resourceId);
     
     try {
       await fs.unlink(docPath);
@@ -82,8 +82,8 @@ export class FilesystemStorage implements StorageService {
     }
   }
   
-  async documentExists(documentId: string): Promise<boolean> {
-    const docPath = this.getDocumentPath(documentId);
+  async resourceExists(resourceId: string): Promise<boolean> {
+    const docPath = this.getResourcePath(resourceId);
     
     try {
       await fs.access(docPath);
@@ -93,14 +93,14 @@ export class FilesystemStorage implements StorageService {
     }
   }
   
-  // Stream methods for large documents
-  createReadStream(documentId: string) {
-    const docPath = this.getDocumentPath(documentId);
+  // Stream methods for large resources
+  createReadStream(resourceId: string) {
+    const docPath = this.getResourcePath(resourceId);
     return createReadStream(docPath);
   }
   
-  createWriteStream(documentId: string) {
-    const docPath = this.getDocumentPath(documentId);
+  createWriteStream(resourceId: string) {
+    const docPath = this.getResourcePath(resourceId);
     const docDir = path.dirname(docPath);
     
     // Ensure directory exists synchronously for stream creation
@@ -109,10 +109,10 @@ export class FilesystemStorage implements StorageService {
     return createWriteStream(docPath);
   }
   
-  async saveDocumentStream(documentId: string, stream: NodeJS.ReadableStream): Promise<string> {
+  async saveResourceStream(resourceId: string, stream: NodeJS.ReadableStream): Promise<string> {
     await this.ensureDirectoryExists();
     
-    const docPath = this.getDocumentPath(documentId);
+    const docPath = this.getResourcePath(resourceId);
     const docDir = path.dirname(docPath);
     
     await fs.mkdir(docDir, { recursive: true });
