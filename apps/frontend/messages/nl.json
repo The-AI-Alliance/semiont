@@ -286,7 +286,7 @@
     "creating": "Creating...",
     "saveClonedDocument": "Save Cloned Document",
     "createAndLinkDocument": "Create & Link Document",
-    "createDocument": "Create Document",
+    "createResource": "Create Resource",
     "loading": "Loading..."
   },
   "Toolbar": {
