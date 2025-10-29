@@ -10,8 +10,8 @@ export interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
   referenceId: string;
   documentName?: string;
-  documentId?: string;
-  sourceDocumentId?: string;
+  resourceId?: string;
+  sourceResourceId?: string;
   percentage: number;
   message?: string;
 }
@@ -34,12 +34,12 @@ export function useGenerationProgress({
 
   const startGeneration = useCallback(async (
     referenceId: string,
-    documentId: string,
+    resourceId: string,
     options?: { prompt?: string; title?: string; language?: string }
   ) => {
     console.log('[useGenerationProgress] startGeneration called with:', {
       referenceId,
-      documentId,
+      resourceId,
       options,
       language: options?.language
     });
@@ -66,9 +66,9 @@ export function useGenerationProgress({
     const apiUrl = NEXT_PUBLIC_API_URL;
     // Extract ID from URI if referenceId is a full URI (Phase 5: URI-based IDs)
     const id = extractAnnotationId(referenceId);
-    const url = `${apiUrl}/api/annotations/${id}/generate-document-stream`;
+    const url = `${apiUrl}/api/annotations/${id}/generate-resource-stream`;
 
-    const requestBody = { documentId, ...options };
+    const requestBody = { resourceId, ...options };
     console.log('[useGenerationProgress] Sending request to:', url);
     console.log('[useGenerationProgress] Request body:', requestBody);
 
@@ -122,7 +122,7 @@ export function useGenerationProgress({
       if (!abortController.signal.aborted) {
         console.error('Failed to start generation:', error);
         setIsGenerating(false);
-        onError?.('Failed to start document generation');
+        onError?.('Failed to start resource generation');
       }
     }
   }, [onComplete, onError, onProgress, session]);

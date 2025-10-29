@@ -7,7 +7,7 @@ import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 
 export interface DetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
-  documentId: string;
+  resourceId: string;
   currentEntityType?: string;
   totalEntityTypes: number;
   processedEntityTypes: number;
@@ -17,14 +17,14 @@ export interface DetectionProgress {
 }
 
 interface UseDetectionProgressOptions {
-  documentId: string;
+  resourceId: string;
   onComplete?: (progress: DetectionProgress) => void;
   onError?: (error: string) => void;
   onProgress?: (progress: DetectionProgress) => void;
 }
 
 export function useDetectionProgress({
-  documentId,
+  resourceId,
   onComplete,
   onError,
   onProgress
@@ -56,7 +56,7 @@ export function useDetectionProgress({
     abortControllerRef.current = abortController;
 
     // Build SSE URL
-    const url = `${NEXT_PUBLIC_API_URL}/api/documents/${documentId}/detect-annotations-stream`;
+    const url = `${NEXT_PUBLIC_API_URL}/api/resources/${resourceId}/detect-annotations-stream`;
 
     try {
       await fetchEventSource(url, {
@@ -131,7 +131,7 @@ export function useDetectionProgress({
         onError?.('Failed to start detection');
       }
     }
-  }, [documentId, onComplete, onError, onProgress, session]);
+  }, [resourceId, onComplete, onError, onProgress, session]);
 
   const cancelDetection = useCallback(() => {
     if (abortControllerRef.current) {

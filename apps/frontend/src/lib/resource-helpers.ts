@@ -9,10 +9,28 @@ type Representation = components['schemas']['Representation'];
 
 /**
  * Get the resource ID from @id property
+ *
+ * For internal resources: extracts UUID from "http://localhost:4000/resources/{uuid}"
+ * For external resources: returns undefined
+ *
+ * This is used for routing - the frontend URL should contain only the resource ID,
+ * not the full HTTP URI.
  */
-export function getResourceId(resource: ResourceDescriptor | undefined): string {
-  if (!resource) return '';
-  return resource['@id'];
+export function getResourceId(resource: ResourceDescriptor | undefined): string | undefined {
+  if (!resource) return undefined;
+
+  const fullId = resource['@id'];
+
+  // For internal resources, extract the last path segment
+  // http://localhost:4000/resources/{uuid} -> {uuid}
+  if (fullId.includes('/resources/')) {
+    const parts = fullId.split('/resources/');
+    const lastPart = parts[parts.length - 1];
+    return lastPart || undefined;
+  }
+
+  // For external resources, cannot extract ID
+  return undefined;
 }
 
 /**
@@ -45,30 +63,4 @@ export function getChecksum(resource: ResourceDescriptor | undefined): string | 
  */
 export function getLanguage(resource: ResourceDescriptor | undefined): string | undefined {
   return getPrimaryRepresentation(resource)?.language;
-}
-
-/**
- * Extract the document ID from a ResourceDescriptor's @id
- *
- * For internal documents: extracts "doc-sha256:..." from "http://localhost:4000/documents/doc-sha256:..."
- * For external documents: returns the full URI as-is
- *
- * This is used for routing - the frontend URL should contain only the document ID,
- * not the full HTTP URI.
- */
-export function getDocumentId(resource: ResourceDescriptor | undefined): string {
-  if (!resource) return '';
-
-  const fullId = resource['@id'];
-
-  // For internal documents, extract the last path segment
-  // http://localhost:4000/documents/doc-sha256:... -> doc-sha256:...
-  if (fullId.includes('/documents/')) {
-    const parts = fullId.split('/documents/');
-    const lastPart = parts[parts.length - 1];
-    return lastPart || fullId; // Fallback to fullId if split fails
-  }
-
-  // For external resources, return the full URI
-  return fullId;
 }
