@@ -23,13 +23,13 @@ type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
 
 export function registerUpdateDocument(router: DocumentsRouterType) {
   /**
-   * PATCH /api/documents/:id
+   * PATCH /documents/:id
    *
    * Update document metadata (append-only operations - name and content are immutable)
    * Requires authentication
    * Validates request body against UpdateDocumentRequest schema
    */
-  router.patch('/api/documents/:id',
+  router.patch('/documents/:id',
     validateRequestBody('UpdateDocumentRequest'),
     async (c) => {
       const { id } = c.req.param();

@@ -144,8 +144,8 @@ export class SemiontApiClient {
     return this.http.post('api/documents', { json: data }).json();
   }
 
-  async getDocument(id: string): Promise<ResponseContent<paths['/api/documents/{id}']['get']>> {
-    return this.http.get(`api/documents/${id}`).json();
+  async getDocument(id: string): Promise<ResponseContent<paths['/documents/{id}']['get']>> {
+    return this.http.get(`documents/${id}`).json();
   }
 
   async listDocuments(params?: {
@@ -161,9 +161,9 @@ export class SemiontApiClient {
 
   async updateDocument(
     id: string,
-    data: RequestContent<paths['/api/documents/{id}']['patch']>
-  ): Promise<ResponseContent<paths['/api/documents/{id}']['patch']>> {
-    return this.http.patch(`api/documents/${id}`, { json: data }).json();
+    data: RequestContent<paths['/documents/{id}']['patch']>
+  ): Promise<ResponseContent<paths['/documents/{id}']['patch']>> {
+    return this.http.patch(`documents/${id}`, { json: data }).json();
   }
 
   async deleteDocument(id: string): Promise<void> {

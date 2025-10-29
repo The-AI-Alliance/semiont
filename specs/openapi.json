@@ -3040,7 +3040,68 @@
     "/documents/{id}": {
       "get": {
         "summary": "Get Document by URI (W3C Content Negotiation)",
-        "description": "W3C-compliant globally resolvable document URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent). Requires authentication.",
+        "description": "W3C-compliant globally resolvable document URI with content negotiation. Returns JSON-LD metadata (Accept: application/ld+json), raw representation (Accept: text/plain, text/markdown, etc.), or redirects to frontend (?view=semiont). Requires authentication.",
+        "tags": [
+          "W3C URIs"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Document ID"
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["semiont"]
+            },
+            "description": "Optional view parameter. If set to 'semiont', redirects to frontend viewer."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document metadata (JSON-LD) or raw representation",
+            "content": {
+              "application/ld+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDocumentResponse"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Redirect to frontend viewer (when ?view=semiont)"
+          },
+          "404": {
+            "description": "Document not found"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Document",
+        "description": "Update document metadata (append-only operations - name and content are immutable)",
         "tags": [
           "W3C URIs"
         ],
@@ -3060,19 +3121,25 @@
             "description": "Document ID"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Document representation (JSON-LD)",
+            "description": "Document updated successfully",
             "content": {
-              "application/ld+json": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetDocumentResponse"
                 }
               }
             }
-          },
-          "302": {
-            "description": "Redirect to frontend (for browsers)"
           },
           "404": {
             "description": "Document not found"
@@ -3923,51 +3990,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListDocumentsResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/documents/{id}": {
-      "patch": {
-        "summary": "Update Document",
-        "description": "Update document metadata (append-only operations - name and content are immutable)",
-        "tags": [
-          "Documents"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateDocumentRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Document updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetDocumentResponse"
                 }
               }
             }
