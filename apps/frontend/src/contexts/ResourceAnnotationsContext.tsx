@@ -213,7 +213,9 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
 
   const deleteAnnotation = useCallback(async (annotationId: string, resourceId: string) => {
     try {
-      await deleteAnnotationMutation.mutateAsync({ id: annotationId, resourceId });
+      // Backend expects resourceId as a full URI, not just the ID
+      const resourceUri = `${process.env.NEXT_PUBLIC_API_URL}/resources/${resourceId}`;
+      await deleteAnnotationMutation.mutateAsync({ id: annotationId, resourceId: resourceUri });
     } catch (err) {
       console.error('Failed to delete annotation:', err);
       throw err;
