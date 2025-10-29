@@ -13,15 +13,16 @@
 
 **The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.**
 
-An AI-native knowledge kernal for human/agent collaboration.
+Semiont is a standards-compliant multimedia resource management system built on the **W3C Web Annotation** model. It transforms unstructured content into interconnected semantic networks through collaborative markup, linking, and AI-powered knowledge extraction—all stored as standard, interoperable annotations.
 
-Semiont is a standards-compliant multimedia resource management system built on the **W3C Web Annotation** model. It provides robust storage and retrieval for documents, images, and other content types, combined with a flexible annotation layer for collaborative markup, linking, and semantic enrichment.
+**AI-Native Enhancements:**
 
-AI-native enhancements include: **(1) Entity Detection** - automatically identify people, places, concepts, and other entities in your content; **(2) Entity Resolution** - link detected entities to specific resources or external knowledge bases; **(3) Context Retrieval** - extract relevant semantic context from the knowledge graph for LLM consumption; and **(4) Contextualized Resource Generation** - create new documents aligned with your existing knowledge graph.
+- **Entity Detection** - Automatically identify people, places, concepts, and other entities
+- **Entity Resolution** - Link detected entities to specific resources or external knowledge bases
+- **Context Retrieval** - Extract semantic context from the knowledge graph for LLM consumption
+- **Contextualized Generation** - Create new resources aligned with your existing knowledge
 
 Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructure with your data for true **sovereign AI**.
-
-Built on the **W3C Web Annotation** standard, Semiont automatically extracts knowledge graphs from unstructured content, enabling collaborative annotation, linking, and reasoning over resources. It transforms text into interconnected semantic networks with entity recognition, relationship extraction, and contextual understanding—all stored as standard, interoperable annotations.
 
 ## 📁 File Layout
 
