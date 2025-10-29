@@ -32,8 +32,8 @@ Semiont's architecture consists of multiple services that work together to provi
 
 ### Data Layer Services (4-Layer Architecture)
 
-**Layer 1: Content Store** - Binary/text document storage
-- **Documentation**: [CONTENT-STORE.md](./CONTENT-STORE.md)
+**Layer 1: RepresentationStore** - Binary/text document storage
+- **Documentation**: [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md)
 - **Implementation**: [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/)
 - **Storage**: Sharded filesystem (65,536 shards)
 
@@ -97,7 +97,7 @@ Semiont's architecture consists of multiple services that work together to provi
 | **Frontend** | Application | [apps/frontend/README.md](../../apps/frontend/README.md) | [apps/frontend/](../../apps/frontend/) |
 | **Backend** | Application | [apps/backend/README.md](../../apps/backend/README.md) | [apps/backend/](../../apps/backend/) |
 | **MCP Server** | Application | [packages/mcp-server/README.md](../../packages/mcp-server/README.md) | [packages/mcp-server/](../../packages/mcp-server/) |
-| **Content Store** | Data Layer 1 | [CONTENT-STORE.md](./CONTENT-STORE.md) | [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/) |
+| **RepresentationStore** | Data Layer 1 | [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) | [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/) |
 | **Event Store** | Data Layer 2 | [EVENT-STORE.md](./EVENT-STORE.md) | [apps/backend/src/events/](../../apps/backend/src/events/) |
 | **Projection Store** | Data Layer 3 | [PROJECTION.md](./PROJECTION.md) | [apps/backend/src/storage/projection/](../../apps/backend/src/storage/projection/) |
 | **Graph Database** | Data Layer 4 | [GRAPH.md](./GRAPH.md) | [apps/backend/src/graph/](../../apps/backend/src/graph/) |
@@ -188,7 +188,7 @@ Layer 3: Projection Store (Materialized Views)
            ↑
 Layer 2: Event Store (Immutable Event Log)
            ↑
-Layer 1: Content Store (Binary/Text Files)
+Layer 1: RepresentationStore (Binary/Text Files)
 ```
 
 **Benefits**:

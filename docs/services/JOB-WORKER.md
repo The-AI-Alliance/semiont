@@ -124,7 +124,7 @@ abstract class JobWorker {
 **Worker Implementation**: [apps/backend/src/jobs/workers/detection-worker.ts](../../apps/backend/src/jobs/workers/detection-worker.ts)
 
 **Processing Flow**:
-1. Fetch document content from Content Store (Layer 1)
+1. Fetch document content from RepresentationStore (Layer 1)
 2. For each entity type:
    - Call AI inference to detect entities
    - Update progress with current entity type
@@ -183,7 +183,7 @@ abstract class JobWorker {
 **Processing Flow**:
 1. **Fetching Stage**: Fetch source annotation and document metadata (25% progress)
 2. **Generating Stage**: Call AI inference to generate document content (50% progress)
-3. **Creating Stage**: Save generated content to Content Store (Layer 1), emit `document.created` event to Event Store (Layer 2) (75% progress)
+3. **Creating Stage**: Save generated content to RepresentationStore (Layer 1), emit `document.created` event to Event Store (Layer 2) (75% progress)
 4. **Linking Stage**: Emit `annotation.body.updated` event to link reference annotation to new document (100% progress)
 5. Return `documentId` and `documentName` in job result
 

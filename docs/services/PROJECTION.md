@@ -2,9 +2,9 @@
 
 ## Overview
 
-Semiont's Projection Storage is a **Layer 3** component that provides materialized views of document state and annotations. It stores the current state of documents built from Layer 2 event streams, optimized for fast read access without requiring event replay.
+Semiont's Projection Storage is a **Layer 3** component that provides materialized views of resource state and annotations. It stores the current state of resources built from Layer 2 event streams, optimized for fast read access without requiring event replay.
 
-**Architecture Position**: Projection Storage sits between Layer 2 (Event Store) and Layer 4 (Graph Database). Layer 1 stores raw document content, Layer 2 records events, Layer 3 materializes current state, and Layer 4 handles relationships. See [CONTENT-STORE.md](./CONTENT-STORE.md), [EVENT-STORE.md](./EVENT-STORE.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [GRAPH.md](./GRAPH.md) for complete layer details.
+**Architecture Position**: Projection Storage sits between Layer 2 (Event Store) and Layer 4 (Graph Database). Layer 1 stores representations (content), Layer 2 records events, Layer 3 materializes current state as projections, and Layer 4 handles relationships. See [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md), [EVENT-STORE.md](./EVENT-STORE.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [GRAPH.md](./GRAPH.md) for complete layer details.
 
 **Quick Navigation:**
 - [Core Design Principles](#core-design-principles) - Why this architecture works
@@ -26,9 +26,7 @@ The Projection Storage architecture applies Single Responsibility Principle acro
 | [ProjectionStorage](#projectionstorage) | 176 | File I/O for projections (JSON format) |
 | [ProjectionQuery](#projectionquery) | 183 | Query operations (filter, search, aggregate) |
 | [ProjectionManager](#projectionmanager) | 154 | **Coordinate storage and queries** |
-| [ContentStorage](#contentstorage) | 125 | File I/O for document content (binary/text) |
-| [ContentStreaming](#contentstreaming) | 98 | Stream operations for large files |
-| [ContentManager](#contentmanager) | 87 | **Coordinate content operations** |
+| RepresentationStore | - | W3C-compliant representation storage |
 
 **Why This Matters:**
 - Each module has **one reason to change**
@@ -141,7 +139,7 @@ manager.query.searchByName('alice');
 
 **Location**: [apps/backend/src/storage/projection/projection-storage-v2.ts](../apps/backend/src/storage/projection/projection-storage-v2.ts)
 
-**Purpose**: Physical storage of document projections in JSON files.
+**Purpose**: Physical storage of resource projections in JSON files.
 
 **Size**: 176 lines
 
@@ -173,10 +171,10 @@ basePath/
     └── ...
 ```
 
-**Document State Format**:
+**Resource State Format**:
 ```typescript
-interface DocumentState {
-  document: Document;      // Metadata from @semiont/core
+interface ResourceState {
+  resource: ResourceDescriptor;  // W3C-compliant resource metadata
   annotations: DocumentAnnotations;  // W3C annotations
 }
 ```
@@ -213,7 +211,7 @@ const data = await storage.getSystem<Config>('config.json');
 
 **Location**: [apps/backend/src/storage/projection/projection-query.ts](../apps/backend/src/storage/projection/projection-query.ts)
 
-**Purpose**: Query operations on document projections.
+**Purpose**: Query operations on resource projections.
 
 **Size**: 183 lines
 
@@ -318,101 +316,57 @@ const ids = await builder.scanForDocuments('.json');
 
 **Tests**: 13 tests in [path-builder.test.ts](../apps/backend/src/__tests__/storage/path-builder.test.ts)
 
-### ContentManager
+### RepresentationStore
 
-**Location**: [apps/backend/src/storage/content/content-manager.ts](../apps/backend/src/storage/content/content-manager.ts)
+**Location**: [apps/backend/src/storage/representation/representation-store.ts](../apps/backend/src/storage/representation/representation-store.ts)
 
-**Purpose**: Orchestrates content storage and streaming operations.
-
-**Size**: 87 lines
+**Purpose**: W3C-compliant storage of document representations (content).
 
 **Responsibilities**:
-- Coordinate ContentStorage and ContentStreaming
-- Provide unified API for content operations
-- Handle both regular and streaming operations
+- Store document content with W3C metadata
+- Support multiple representations per document
+- Handle checksums and media types
+- Efficient retrieval operations
 
 **Usage**:
 ```typescript
-const manager = createContentManager({
+const repStore = new FilesystemRepresentationStore({
   basePath: '/data'
 });
 
-// Save content (binary or text)
-await manager.save(documentId, Buffer.from('content'));
-await manager.save(documentId, 'text content');
+// Store representation (returns checksum)
+const contentBuffer = Buffer.from('content');
+const storedRep = await repStore.store(contentBuffer, {
+  mediaType: 'text/plain',
+  language: 'en',
+  rel: 'original'
+});
 
-// Get content (returns Buffer)
-const content = await manager.get(documentId);
+// Get representation
+const content = await repStore.get(storedRep.checksum);
 
-// Delete content
-await manager.delete(documentId);
+// Delete representation
+await repStore.delete(storedRep.checksum);
 
 // Check existence
-const exists = await manager.exists(documentId);
-
-// Streaming (for large files)
-const readStream = manager.createReadStream(documentId);
-const writeStream = manager.createWriteStream(documentId);
-await manager.saveStream(documentId, sourceStream);
+const exists = await repStore.exists(storedRep.checksum);
 ```
-
-### ContentStorage
-
-**Location**: [apps/backend/src/storage/content/content-storage.ts](../apps/backend/src/storage/content/content-storage.ts)
-
-**Purpose**: Physical storage of document content (binary/text).
-
-**Size**: 125 lines
-
-**Responsibilities**:
-- Write content to disk (.dat files)
-- Read content from disk
-- Handle both string and Buffer types
-- Use PathBuilder for sharded paths
 
 **Storage Structure**:
 ```
 basePath/
-└── documents/
+└── representations/
     ├── 00/
     │   ├── a3/
-    │   │   └── doc-sha256:abc123.dat
+    │   │   └── sha256-abc123def.dat
     │   └── f7/
-    │       └── doc-sha256:def456.dat
+    │       └── sha256-def456abc.dat
     └── ff/
         └── cd/
-            └── doc-sha256:xyz789.dat
+            └── sha256-xyz789fed.dat
 ```
 
-### ContentStreaming
-
-**Location**: [apps/backend/src/storage/content/content-streaming.ts](../apps/backend/src/storage/content/content-streaming.ts)
-
-**Purpose**: Stream operations for large document content.
-
-**Size**: 98 lines
-
-**Responsibilities**:
-- Create read streams
-- Create write streams
-- Handle streaming uploads
-- Ensure directories exist for streams
-
-**Usage**:
-```typescript
-const streaming = new ContentStreaming(contentStorage);
-
-// Read large file as stream
-const readStream = streaming.createReadStream(documentId);
-readStream.pipe(response);
-
-// Write large file from stream
-const writeStream = streaming.createWriteStream(documentId);
-request.pipe(writeStream);
-
-// Stream-to-stream copy
-await streaming.saveStream(documentId, sourceStream);
-```
+See [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) for complete details.
 
 ## Data Flow
 
@@ -421,7 +375,7 @@ await streaming.saveStream(documentId, sourceStream);
 ```
 Layer 2: EventStore
   └─ EventProjector.projectDocument()
-      └─ builds DocumentState from events
+      └─ builds ResourceState from events
           └─ Layer 3: ProjectionManager.save()
               └─ ProjectionStorage.save()
                   └─ PathBuilder.buildPath()
@@ -442,21 +396,19 @@ Layer 1: API Route
                           └─ Return matches
 ```
 
-### Content Flow
+### Content Flow (Layer 1: RepresentationStore)
 
 ```
 Layer 1: API Route (upload)
-  └─ Layer 3: ContentManager.save()
-      └─ ContentStorage.save()
-          └─ PathBuilder.buildPath()
-              └─ Write .dat file to disk
+  └─ Layer 1: RepresentationStore.store()
+      └─ Calculate checksum
+          └─ Write content to sharded path
+              └─ Return StoredRepresentation with checksum
 
 Layer 1: API Route (download)
-  └─ Layer 3: ContentManager.get()
-      └─ ContentStorage.get()
-          └─ PathBuilder.buildPath()
-              └─ Read .dat file from disk
-                  └─ Return Buffer
+  └─ Layer 1: RepresentationStore.get(checksum)
+      └─ Read from sharded path
+          └─ Return Buffer
 ```
 
 ## Storage Format
@@ -553,7 +505,8 @@ const withAnnotations = activeDocs.filter(d => d.annotations.annotations.length 
 ### Initialize Managers
 
 ```typescript
-import { createProjectionManager, createContentManager } from './services/storage-service';
+import { createProjectionManager } from './services/storage-service';
+import { FilesystemRepresentationStore } from './storage/representation/representation-store';
 
 // Projection manager (metadata + annotations)
 const projectionManager = createProjectionManager({
@@ -561,8 +514,8 @@ const projectionManager = createProjectionManager({
   subNamespace: 'documents'
 });
 
-// Content manager (binary/text content)
-const contentManager = createContentManager({
+// Representation store (W3C-compliant content storage)
+const repStore = new FilesystemRepresentationStore({
   basePath: '/data'
 });
 ```
@@ -570,8 +523,13 @@ const contentManager = createContentManager({
 ### Save Document (Full)
 
 ```typescript
-// 1. Save content (Layer 3 - Content)
-await contentManager.save(documentId, content);
+// 1. Store representation (Layer 1)
+const contentBuffer = Buffer.from(content);
+const storedRep = await repStore.store(contentBuffer, {
+  mediaType: 'text/plain',
+  language: 'en',
+  rel: 'original'
+});
 
 // 2. Emit event (Layer 2)
 const eventStore = await createEventStore();
@@ -579,7 +537,12 @@ await eventStore.appendEvent({
   type: 'document.created',
   documentId,
   userId: user.id,
-  payload: { name, format, creationMethod }
+  payload: {
+    name,
+    format,
+    contentChecksum: storedRep.checksum,
+    creationMethod
+  }
 });
 
 // 3. EventProjector updates Layer 3 projection automatically
@@ -608,10 +571,13 @@ const annotated = await projectionManager.query.findByAnnotationCount(10);
 // 1. Get metadata + annotations (Layer 3 - Projection)
 const state = await projectionManager.get(documentId);
 
-// 2. Get content (Layer 3 - Content)
-const content = await contentManager.get(documentId);
+// 2. Get content checksum from document metadata
+const checksum = state.document.representations[0]?.checksum;
 
-// 3. Return to client
+// 3. Retrieve content by checksum (Layer 1)
+const content = await repStore.get(checksum);
+
+// 4. Return to client
 return {
   ...state.document,
   content: content.toString('utf-8')
@@ -621,13 +587,19 @@ return {
 ### Delete Document
 
 ```typescript
-// 1. Delete content
-await contentManager.delete(documentId);
+// 1. Get document to find checksum
+const state = await projectionManager.get(documentId);
+const checksum = state.document.representations[0]?.checksum;
 
-// 2. Delete projection
+// 2. Delete representation
+if (checksum) {
+  await repStore.delete(checksum);
+}
+
+// 3. Delete projection
 await projectionManager.delete(documentId);
 
-// 3. Emit event (optional - for audit trail)
+// 4. Emit event (optional - for audit trail)
 await eventStore.appendEvent({
   type: 'document.deleted',
   documentId,
@@ -638,20 +610,20 @@ await eventStore.appendEvent({
 
 ## Factory Functions
 
-All Layer 3 modules use factory functions (NO singletons):
+Layer 3 uses factory functions (NO singletons), Layer 1 uses direct instantiation:
 
 ```typescript
-// Projection management
+// Projection management (Layer 3)
 import { createProjectionManager } from './services/storage-service';
 const manager = createProjectionManager(config);
-
-// Content management
-import { createContentManager } from './services/storage-service';
-const manager = createContentManager(config);
 
 // Or instantiate directly
 import { ProjectionManager } from './storage/projection/projection-manager';
 const manager = new ProjectionManager(config);
+
+// Representation storage (Layer 1)
+import { FilesystemRepresentationStore } from './storage/representation/representation-store';
+const repStore = new FilesystemRepresentationStore(config);
 ```
 
 ## Testing
@@ -766,13 +738,17 @@ await projectionManager.save(documentId, state);
 Check both layers:
 
 ```typescript
-// Check if projection exists
+// Check if projection exists (Layer 3)
 const hasProjection = await projectionManager.exists(documentId);
 
-// Check if content exists
-const hasContent = await contentManager.exists(documentId);
+// Get checksum from projection
+const state = await projectionManager.get(documentId);
+const checksum = state?.document.representations[0]?.checksum;
 
-console.log({ hasProjection, hasContent });
+// Check if representation exists (Layer 1)
+const hasContent = checksum ? await repStore.exists(checksum) : false;
+
+console.log({ hasProjection, hasContent, checksum });
 ```
 
 ### Slow Queries
@@ -794,4 +770,4 @@ See inline documentation in:
 - [ProjectionManager](../apps/backend/src/storage/projection/projection-manager.ts)
 - [ProjectionStorage](../apps/backend/src/storage/projection/projection-storage-v2.ts)
 - [ProjectionQuery](../apps/backend/src/storage/projection/projection-query.ts)
-- [ContentManager](../apps/backend/src/storage/content/content-manager.ts)
+- [RepresentationStore](../apps/backend/src/storage/representation/representation-store.ts)
