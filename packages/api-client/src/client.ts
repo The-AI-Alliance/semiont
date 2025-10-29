@@ -139,19 +139,19 @@ export class SemiontApiClient {
   // ============================================================================
 
   async createResource(
-    data: RequestContent<paths['/api/documents']['post']>
-  ): Promise<ResponseContent<paths['/api/documents']['post']>> {
+    data: RequestContent<paths['/api/resources']['post']>
+  ): Promise<ResponseContent<paths['/api/resources']['post']>> {
     return this.http.post('api/documents', { json: data }).json();
   }
 
-  async getDocument(id: string): Promise<ResponseContent<paths['/documents/{id}']['get']>> {
-    return this.http.get(`documents/${id}`).json();
+  async getDocument(id: string): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
+    return this.http.get(`resources/${id}`).json();
   }
 
   async listDocuments(params?: {
     limit?: number;
     archived?: boolean;
-  }): Promise<ResponseContent<paths['/api/documents']['get']>> {
+  }): Promise<ResponseContent<paths['/api/resources']['get']>> {
     const searchParams = new URLSearchParams();
     if (params?.limit) searchParams.append('limit', params.limit.toString());
     if (params?.archived !== undefined) searchParams.append('archived', params.archived.toString());
@@ -161,13 +161,13 @@ export class SemiontApiClient {
 
   async updateDocument(
     id: string,
-    data: RequestContent<paths['/documents/{id}']['patch']>
-  ): Promise<ResponseContent<paths['/documents/{id}']['patch']>> {
-    return this.http.patch(`documents/${id}`, { json: data }).json();
+    data: RequestContent<paths['/resources/{id}']['patch']>
+  ): Promise<ResponseContent<paths['/resources/{id}']['patch']>> {
+    return this.http.patch(`resources/${id}`, { json: data }).json();
   }
 
   async deleteDocument(id: string): Promise<void> {
-    await this.http.delete(`api/documents/${id}`);
+    await this.http.delete(`api/resources/${id}`);
   }
 
   async searchDocuments(query: string, limit: number = 10): Promise<{ documents: any[] }> {
@@ -177,17 +177,17 @@ export class SemiontApiClient {
   }
 
   async getDocumentEvents(id: string): Promise<{ events: any[] }> {
-    return this.http.get(`api/documents/${id}/events`).json();
+    return this.http.get(`api/resources/${id}/events`).json();
   }
 
   async getDocumentAnnotations(
     id: string
-  ): Promise<ResponseContent<paths['/api/documents/{id}/annotations']['get']>> {
-    return this.http.get(`api/documents/${id}/annotations`).json();
+  ): Promise<ResponseContent<paths['/api/resources/{id}/annotations']['get']>> {
+    return this.http.get(`api/resources/${id}/annotations`).json();
   }
 
   async getDocumentReferencedBy(id: string): Promise<{ referencedBy: any[] }> {
-    return this.http.get(`api/documents/${id}/referenced-by`).json();
+    return this.http.get(`api/resources/${id}/referenced-by`).json();
   }
 
   // ============================================================================
@@ -232,8 +232,8 @@ export class SemiontApiClient {
 
   async generateDocumentFromAnnotation(
     id: string,
-    data: RequestContent<paths['/api/annotations/{id}/generate-document']['post']>
-  ): Promise<ResponseContent<paths['/api/annotations/{id}/generate-document']['post']>> {
+    data: RequestContent<paths['/api/annotations/{id}/generate-resource']['post']>
+  ): Promise<ResponseContent<paths['/api/annotations/{id}/generate-resource']['post']>> {
     return this.http.post(`api/annotations/${id}/generate-document`, { json: data }).json();
   }
 

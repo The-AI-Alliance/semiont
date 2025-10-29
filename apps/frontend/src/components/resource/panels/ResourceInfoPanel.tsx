@@ -7,7 +7,7 @@ import type { components, paths } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
-type ReferencedBy = ResponseContent<paths['/api/documents/{id}/referenced-by']['get']>['referencedBy'][number];
+type ReferencedBy = ResponseContent<paths['/api/resources/{id}/referenced-by']['get']>['referencedBy'][number];
 import { formatLocaleDisplay, getBodySource, isBodyResolved, getEntityTypes } from '@semiont/api-client';
 
 interface Props {
@@ -158,7 +158,7 @@ export function ResourceInfoPanel({
                     href={`/know/resource/${encodeURIComponent(ref.target.source)}`}
                     className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
                   >
-                    {ref.documentName || t('untitledResource')}
+                    {ref.resourceName || t('untitledResource')}
                   </Link>
                   <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
                     "{ref.target.selector?.exact || t('noText')}"

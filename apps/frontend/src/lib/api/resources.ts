@@ -7,18 +7,18 @@ import type { paths } from '@semiont/api-client';
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : T extends { responses: { 201: { content: { 'application/json': infer R } } } } ? R : never;
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
 
-type Document = ResponseContent<paths['/api/documents']['get']>['documents'][number];
-type CreateResourceRequest = RequestContent<paths['/api/documents']['post']>;
-type CreateResourceResponse = paths['/api/documents']['post']['responses'][201]['content']['application/json'];
-type UpdateResourceRequest = RequestContent<paths['/documents/{id}']['patch']>;
-type GetResourceResponse = paths['/documents/{id}']['get']['responses'][200]['content']['application/ld+json'];
-type ListResourcesResponse = ResponseContent<paths['/api/documents']['get']>;
-type ReferencedBy = paths['/api/documents/{id}/referenced-by']['get']['responses'][200]['content']['application/json']['referencedBy'][number];
-type GetResourceByTokenResponse = paths['/api/documents/token/{token}']['get']['responses'][200]['content']['application/json'];
-type CreateResourceFromTokenRequest = RequestContent<paths['/api/documents/create-from-token']['post']>;
-type CreateResourceFromTokenResponse = paths['/api/documents/create-from-token']['post']['responses'][201]['content']['application/json'];
-type CloneResourceWithTokenResponse = paths['/api/documents/{id}/clone-with-token']['post']['responses'][200]['content']['application/json'];
-type GetAnnotationsResponse = paths['/api/documents/{id}/annotations']['get']['responses'][200]['content']['application/json'];
+type Document = ResponseContent<paths['/api/resources']['get']>['resources'][number];
+type CreateResourceRequest = RequestContent<paths['/api/resources']['post']>;
+type CreateResourceResponse = paths['/api/resources']['post']['responses'][201]['content']['application/json'];
+type UpdateResourceRequest = RequestContent<paths['/resources/{id}']['patch']>;
+type GetResourceResponse = paths['/resources/{id}']['get']['responses'][200]['content']['application/ld+json'];
+type ListResourcesResponse = ResponseContent<paths['/api/resources']['get']>;
+type ReferencedBy = paths['/api/resources/{id}/referenced-by']['get']['responses'][200]['content']['application/json']['referencedBy'][number];
+type GetResourceByTokenResponse = paths['/api/resources/token/{token}']['get']['responses'][200]['content']['application/json'];
+type CreateResourceFromTokenRequest = RequestContent<paths['/api/resources/create-from-token']['post']>;
+type CreateResourceFromTokenResponse = paths['/api/resources/create-from-token']['post']['responses'][201]['content']['application/json'];
+type CloneResourceWithTokenResponse = paths['/api/resources/{id}/clone-with-token']['post']['responses'][200]['content']['application/json'];
+type GetAnnotationsResponse = paths['/api/resources/{id}/annotations']['get']['responses'][200]['content']['application/json'];
 
 export const resources = {
   list: {
@@ -31,7 +31,7 @@ export const resources = {
 
       return useQuery({
         queryKey: QUERY_KEYS.documents.all(limit, archived),
-        queryFn: () => fetchAPI<ListResourcesResponse>(`/api/documents${queryString}`, {}, session?.backendToken),
+        queryFn: () => fetchAPI<ListResourcesResponse>(`/api/resources${queryString}`, {}, session?.backendToken),
         enabled: !!session?.backendToken && !!session?.user?.isAdmin,
       });
     },
@@ -42,7 +42,7 @@ export const resources = {
       const { data: session } = useSession();
       return useQuery({
         queryKey: QUERY_KEYS.documents.detail(id),
-        queryFn: () => fetchAPI<GetResourceResponse>(`/documents/${encodeURIComponent(id)}`, {}, session?.backendToken),
+        queryFn: () => fetchAPI<GetResourceResponse>(`/resources/${encodeURIComponent(id)}`, {}, session?.backendToken),
         enabled: !!session?.backendToken && !!id,
       });
     },
@@ -55,7 +55,7 @@ export const resources = {
 
       return useMutation({
         mutationFn: (data: CreateResourceRequest) =>
-          fetchAPI<CreateResourceResponse>('/api/documents', {
+          fetchAPI<CreateResourceResponse>('/api/resources', {
             method: 'POST',
             body: JSON.stringify(data),
           }, session?.backendToken),
@@ -73,7 +73,7 @@ export const resources = {
 
       return useMutation({
         mutationFn: ({ id, data }: { id: string; data: UpdateResourceRequest }) =>
-          fetchAPI<Document>(`/documents/${id}`, {
+          fetchAPI<Document>(`/resources/${id}`, {
             method: 'PATCH',
             body: JSON.stringify(data),
           }, session?.backendToken),
@@ -90,8 +90,8 @@ export const resources = {
       const { data: session } = useSession();
       return useQuery({
         queryKey: QUERY_KEYS.documents.search(query, limit),
-        queryFn: () => fetchAPI<{ documents: Document[] }>(
-          `/api/documents/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+        queryFn: () => fetchAPI<ListResourcesResponse>(
+          `/api/resources/search?q=${encodeURIComponent(query)}&limit=${limit}`,
           {},
           session?.backendToken
         ),
@@ -106,7 +106,7 @@ export const resources = {
       return useQuery({
         queryKey: QUERY_KEYS.documents.referencedBy(id),
         queryFn: () => fetchAPI<{ referencedBy: ReferencedBy[] }>(
-          `/api/documents/${id}/referenced-by`,
+          `/api/resources/${id}/referenced-by`,
           {},
           session?.backendToken
         ),
@@ -121,7 +121,7 @@ export const resources = {
 
       return useMutation({
         mutationFn: (id: string) =>
-          fetchAPI<CloneResourceWithTokenResponse>(`/api/documents/${id}/clone-with-token`, {
+          fetchAPI<CloneResourceWithTokenResponse>(`/api/resources/${id}/clone-with-token`, {
             method: 'POST',
           }, session?.backendToken),
       });
@@ -134,7 +134,7 @@ export const resources = {
       return useQuery({
         queryKey: QUERY_KEYS.documents.byToken(token),
         queryFn: () => fetchAPI<GetResourceByTokenResponse>(
-          `/api/documents/token/${token}`,
+          `/api/resources/token/${token}`,
           {},
           session?.backendToken
         ),
@@ -150,7 +150,7 @@ export const resources = {
 
       return useMutation({
         mutationFn: (data: CreateResourceFromTokenRequest) =>
-          fetchAPI<CreateResourceFromTokenResponse>(`/api/documents/create-from-token`, {
+          fetchAPI<CreateResourceFromTokenResponse>(`/api/resources/create-from-token`, {
             method: 'POST',
             body: JSON.stringify(data),
           }, session?.backendToken),
@@ -167,7 +167,7 @@ export const resources = {
       return useQuery({
         queryKey: QUERY_KEYS.documents.events(id),
         queryFn: () => fetchAPI<{ events: any[] }>(
-          `/api/documents/${id}/events`,
+          `/api/resources/${id}/events`,
           {},
           session?.backendToken
         ),
@@ -182,7 +182,7 @@ export const resources = {
       return useQuery({
         queryKey: QUERY_KEYS.documents.annotations(documentId),
         queryFn: () => fetchAPI<GetAnnotationsResponse>(
-          `/api/documents/${documentId}/annotations`,
+          `/api/resources/${documentId}/annotations`,
           {},
           session?.backendToken
         ),

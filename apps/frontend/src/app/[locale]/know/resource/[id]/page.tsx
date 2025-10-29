@@ -106,11 +106,11 @@ export default function KnowledgeDocumentPage() {
   }
 
   // Early return: ResourceDescriptor not found
-  if (!docData?.document) {
+  if (!docData?.resource) {
     return <DocumentErrorState error={new Error('Document not found')} onRetry={() => refetchDocument()} />;
   }
 
-  const resource = docData.document;
+  const resource = docData.resource;
 
   return <DocumentView resource={resource} documentId={documentId} refetchDocument={refetchDocument} />;
 }
@@ -245,9 +245,9 @@ function DocumentView({
       // Search for the document using authenticated API
       const response = await fetchAPI(`/api/documents/search?q=${encodeURIComponent(pageName)}&limit=1`) as any;
 
-      if (response.documents?.length > 0 && response.documents[0]) {
+      if (response.resources?.length > 0 && response.resources[0]) {
         // Document found - navigate to it
-        router.push(`/know/resource/${encodeURIComponent(response.documents[0].id)}`);
+        router.push(`/know/resource/${encodeURIComponent(response.resources[0].id)}`);
       } else {
         // Document not found - offer to create it
         if (confirm(`Document "${pageName}" not found. Would you like to create it?`)) {
@@ -257,7 +257,7 @@ function DocumentView({
             format: 'text/markdown',
             entityTypes: []
           });
-          router.push(`/know/resource/${encodeURIComponent(getDocumentId(newDoc.document))}`);
+          router.push(`/know/resource/${encodeURIComponent(getResourceId(newDoc.resource))}`);
         }
       }
     } catch (err) {

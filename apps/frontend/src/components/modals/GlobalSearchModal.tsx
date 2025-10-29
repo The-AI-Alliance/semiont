@@ -62,7 +62,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     if (loading) {
       announceSearching();
     } else if (searchData) {
-      const docResults: SearchResult[] = (searchData.documents || []).map((resource: any) => ({
+      const docResults: SearchResult[] = (searchData.resources || []).map((resource: any) => ({
         type: 'document' as const,
         id: getResourceId(resource),
         name: resource.name,

@@ -9,7 +9,7 @@ import type { paths, components } from '../types';
 import { getExactText, compareAnnotationIds, getTargetSelector } from './annotations';
 
 // Extract StoredEvent type from events endpoint response
-type EventsResponse = paths['/api/documents/{id}/events']['get']['responses'][200]['content']['application/json'];
+type EventsResponse = paths['/api/resources/{id}/events']['get']['responses'][200]['content']['application/json'];
 export type StoredEvent = EventsResponse['events'][number];
 export type DocumentEvent = StoredEvent['event'];
 export type EventMetadata = StoredEvent['metadata'];

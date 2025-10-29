@@ -522,7 +522,7 @@ export function ResourceViewer({
                   await updateAnnotationBodyMutation.mutateAsync({
                     id: editingAnnotation.id,
                     data: {
-                      documentId: getResourceId(resource),
+                      resourceId: getResourceId(resource),
                       operations: [{
                         op: 'add',
                         item: {

@@ -78,16 +78,16 @@ function ComposeDocumentContent() {
       
       // Handle clone mode - data loaded via React Query
       if (mode === 'clone' && cloneData) {
-        if (cloneData.sourceDocument && session?.backendToken) {
+        if (cloneData.sourceResource && session?.backendToken) {
           setIsClone(true);
           setCloneToken(tokenFromUrl || null);
-          setNewDocName(cloneData.sourceDocument.name);
+          setNewDocName(cloneData.sourceResource.name);
 
           // Fetch representation separately
           try {
-            const documentId = getDocumentId(cloneData.sourceDocument);
+            const documentId = getResourceId(cloneData.sourceResource);
             // Get the primary representation's mediaType from the source document
-            const mediaType = getPrimaryMediaType(cloneData.sourceDocument) || 'text/plain';
+            const mediaType = getPrimaryMediaType(cloneData.sourceResource) || 'text/plain';
 
             const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/documents/${encodeURIComponent(documentId)}`, {
               headers: {
@@ -141,12 +141,12 @@ function ComposeDocumentContent() {
           archiveOriginal: archiveOriginal
         });
 
-        const docId = response.document ? getDocumentId(response.document) : '';
+        const docId = response.resource ? getResourceId(response.resource) : '';
         if (!docId) {
           throw new Error('No document ID returned from server');
         }
         documentId = docId;
-        documentName = response.document?.name || newDocName;
+        documentName = response.resource?.name || newDocName;
       } else {
         // Create a new document with entity types
         const response = await createDocMutation.mutateAsync({
@@ -157,12 +157,12 @@ function ComposeDocumentContent() {
           creationMethod: 'ui'
         });
 
-        const docId = response.document ? getDocumentId(response.document) : '';
+        const docId = response.resource ? getResourceId(response.resource) : '';
         if (!docId) {
           throw new Error('No document ID returned from server');
         }
         documentId = docId;
-        documentName = response.document?.name || newDocName;
+        documentName = response.resource?.name || newDocName;
 
         // If this is a reference completion, update the reference to point to the new document
         if (isReferenceCompletion && referenceId && documentId && sourceDocumentId) {
@@ -170,7 +170,7 @@ function ComposeDocumentContent() {
             await updateAnnotationBodyMutation.mutateAsync({
               id: referenceId,
               data: {
-                documentId: sourceDocumentId,
+                resourceId: sourceDocumentId,
                 operations: [{
                   op: 'add',
                   item: {

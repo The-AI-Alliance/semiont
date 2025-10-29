@@ -10,10 +10,10 @@ type RequestContent<T> = T extends { requestBody?: { content: { 'application/jso
 
 type CreateAnnotationRequest = RequestContent<paths['/api/annotations']['post']>;
 type CreateAnnotationResponse = paths['/api/annotations']['post']['responses'][201]['content']['application/json'];
-type DeleteAnnotationRequest = { documentId: string };
+type DeleteAnnotationRequest = { resourceId: string };
 type DeleteAnnotationResponse = { success: boolean };
-type GenerateDocumentFromAnnotationRequest = RequestContent<paths['/api/annotations/{id}/generate-document']['post']>;
-type GenerateDocumentFromAnnotationResponse = paths['/api/annotations/{id}/generate-document']['post']['responses'][201]['content']['application/json'];
+type GenerateResourceFromAnnotationRequest = RequestContent<paths['/api/annotations/{id}/generate-resource']['post']>;
+type GenerateResourceFromAnnotationResponse = paths['/api/annotations/{id}/generate-resource']['post']['responses'][201]['content']['application/json'];
 type UpdateAnnotationBodyRequest = RequestContent<paths['/api/annotations/{id}/body']['put']>;
 type UpdateAnnotationBodyResponse = paths['/api/annotations/{id}/body']['put']['responses'][200]['content']['application/json'];
 
@@ -30,9 +30,9 @@ export const annotations = {
             body: JSON.stringify(data),
           }, session?.backendToken),
         onSuccess: (response) => {
-          const documentId = getTargetSource(response.annotation.target);
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(documentId) });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(documentId) });
+          const resourceId = getTargetSource(response.annotation.target);
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(resourceId) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(resourceId) });
         },
       });
     },
@@ -44,14 +44,14 @@ export const annotations = {
       const queryClient = useQueryClient();
 
       return useMutation({
-        mutationFn: ({ documentId, exact, position }: {
-          documentId: string;
+        mutationFn: ({ resourceId, exact, position }: {
+          resourceId: string;
           exact: string;
           position: { start: number; end: number };
         }) => {
           const data: CreateAnnotationRequest = {
             target: {
-              source: `${NEXT_PUBLIC_API_URL}/documents/${documentId}`, // Full URI using BACKEND_URL
+              source: `${NEXT_PUBLIC_API_URL}/resources/${resourceId}`, // Full URI using BACKEND_URL
               selector: [
                 {
                   type: 'TextPositionSelector',
@@ -75,9 +75,9 @@ export const annotations = {
           }, session?.backendToken);
         },
         onSuccess: (response) => {
-          const documentId = getTargetSource(response.annotation.target);
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(documentId) });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(documentId) });
+          const resourceId = getTargetSource(response.annotation.target);
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(resourceId) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(resourceId) });
         },
       });
     },
@@ -89,8 +89,8 @@ export const annotations = {
       const queryClient = useQueryClient();
 
       return useMutation({
-        mutationFn: ({ id, documentId }: { id: string } & DeleteAnnotationRequest) => {
-          const body: DeleteAnnotationRequest = { documentId };
+        mutationFn: ({ id, resourceId }: { id: string } & DeleteAnnotationRequest) => {
+          const body: DeleteAnnotationRequest = { resourceId };
           // URL-encode the annotation ID since it's a full URI with slashes and colons
           const encodedId = encodeURIComponent(id);
           return fetchAPI<DeleteAnnotationResponse>(`/api/annotations/${encodedId}`, {
@@ -99,8 +99,8 @@ export const annotations = {
           }, session?.backendToken);
         },
         onSuccess: (_, variables) => {
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.documentId) });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(variables.documentId) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.resourceId) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(variables.resourceId) });
         },
       });
     },
@@ -111,10 +111,10 @@ export const annotations = {
       const { data: session } = useSession();
 
       return useMutation({
-        mutationFn: ({ id, data }: { id: string; data: GenerateDocumentFromAnnotationRequest }) => {
+        mutationFn: ({ id, data }: { id: string; data: GenerateResourceFromAnnotationRequest }) => {
           // URL-encode the annotation ID since it's a full URI with slashes and colons
           const encodedId = encodeURIComponent(id);
-          return fetchAPI<GenerateDocumentFromAnnotationResponse>(`/api/annotations/${encodedId}/generate-document`, {
+          return fetchAPI<GenerateResourceFromAnnotationResponse>(`/api/annotations/${encodedId}/generate-resource`, {
             method: 'POST',
             body: JSON.stringify(data),
           }, session?.backendToken);
@@ -145,10 +145,10 @@ export const annotations = {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(targetSource) });
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(targetSource) });
           }
-          // Also invalidate the document specified in the request
-          if (variables.data.documentId) {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.data.documentId) });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.referencedBy(variables.data.documentId) });
+          // Also invalidate the resource specified in the request
+          if (variables.data.resourceId) {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.data.resourceId) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.referencedBy(variables.data.resourceId) });
           }
         },
       });

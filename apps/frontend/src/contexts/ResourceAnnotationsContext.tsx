@@ -15,10 +15,10 @@ interface ResourceAnnotationsContextType {
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
   // Mutation actions (still in context for consistency)
-  addHighlight: (documentId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
-  addReference: (documentId: string, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
-  addAssessment: (documentId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
-  deleteAnnotation: (annotationId: string, documentId: string) => Promise<void>;
+  addHighlight: (resourceId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  addReference: (resourceId: string, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
+  addAssessment: (resourceId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  deleteAnnotation: (annotationId: string, resourceId: string) => Promise<void>;
   convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
 
@@ -39,13 +39,13 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const deleteAnnotationMutation = annotations.delete.useMutation();
 
   const addHighlight = useCallback(async (
-    documentId: string,
+    resourceId: string,
     exact: string,
     position: { start: number; end: number }
   ): Promise<string | undefined> => {
     try {
       const result = await saveHighlightMutation.mutateAsync({
-        documentId,
+        resourceId,
         exact,
         position
       });
@@ -75,7 +75,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   }, [saveHighlightMutation]);
 
   const addReference = useCallback(async (
-    documentId: string,
+    resourceId: string,
     exact: string,
     position: { start: number; end: number },
     targetDocId?: string,
@@ -87,7 +87,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       const createData: CreateAnnotationRequest = {
         motivation: 'linking',
         target: {
-          source: documentId,
+          source: resourceId,
           selector: [
             {
               type: 'TextPositionSelector',
@@ -157,7 +157,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   }, [createAnnotationMutation]);
 
   const addAssessment = useCallback(async (
-    documentId: string,
+    resourceId: string,
     exact: string,
     position: { start: number; end: number }
   ): Promise<string | undefined> => {
@@ -167,7 +167,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       const createData: CreateAnnotationRequest = {
         motivation: 'assessing',  // W3C motivation for assessments
         target: {
-          source: documentId,
+          source: resourceId,
           selector: [
             {
               type: 'TextPositionSelector',
@@ -211,9 +211,9 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [createAnnotationMutation]);
 
-  const deleteAnnotation = useCallback(async (annotationId: string, documentId: string) => {
+  const deleteAnnotation = useCallback(async (annotationId: string, resourceId: string) => {
     try {
-      await deleteAnnotationMutation.mutateAsync({ id: annotationId, documentId });
+      await deleteAnnotationMutation.mutateAsync({ id: annotationId, resourceId });
     } catch (err) {
       console.error('Failed to delete annotation:', err);
       throw err;
@@ -238,7 +238,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       const targetSource = getTargetSource(highlight.target);
       await deleteAnnotationMutation.mutateAsync({
         id: highlightId,
-        documentId: targetSource
+        resourceId: targetSource
       });
 
       // Create new reference with same position
@@ -273,7 +273,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       const targetSource = getTargetSource(reference.target);
       await deleteAnnotationMutation.mutateAsync({
         id: referenceId,
-        documentId: targetSource
+        resourceId: targetSource
       });
 
       // Create new highlight with same position

@@ -130,8 +130,8 @@ export default function DiscoverPage() {
   );
 
   // Extract data from React Query responses
-  const recentDocuments = recentDocsData?.documents || [];
-  const searchDocuments = searchData?.documents || [];
+  const recentDocuments = recentDocsData?.resources || [];
+  const searchDocuments = searchData?.resources || [];
   const entityTypes = entityTypesData?.entityTypes || [];
 
   const hasSearchQuery = searchQuery.trim() !== '';
