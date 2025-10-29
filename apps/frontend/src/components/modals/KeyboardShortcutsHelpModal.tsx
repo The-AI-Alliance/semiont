@@ -23,7 +23,7 @@ const shortcutGroups: ShortcutGroup[] = [
     shortcuts: [
       { keys: ['⌘K', 'Ctrl K'], descriptionKey: 'navOpenSearch' },
       { keys: ['/'], descriptionKey: 'navOpenSearchAlt' },
-      { keys: ['⌘N', 'Ctrl N'], descriptionKey: 'navCreateDocument' },
+      { keys: ['⌘N', 'Ctrl N'], descriptionKey: 'navCreateResource' },
       { keys: ['Esc Esc'], descriptionKey: 'navCloseOverlays' },
       { keys: ['?'], descriptionKey: 'navShowHelp' },
     ]
