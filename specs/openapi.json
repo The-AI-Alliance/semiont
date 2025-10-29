@@ -353,7 +353,7 @@
           "sourceAnnotationId": {
             "type": "string"
           },
-          "sourceDocumentId": {
+          "sourceResourceId": {
             "type": "string"
           }
         },
@@ -364,10 +364,10 @@
           "entityTypes"
         ]
       },
-      "CreateDocumentResponse": {
+      "CreateResourceResponse": {
         "type": "object",
         "properties": {
-          "document": {
+          "resource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotations": {
@@ -378,14 +378,14 @@
           }
         },
         "required": [
-          "document",
+          "resource",
           "annotations"
         ]
       },
-      "ListDocumentsResponse": {
+      "ListResourcesResponse": {
         "type": "object",
         "properties": {
-          "documents": {
+          "resources": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ResourceDescriptor"
@@ -402,7 +402,7 @@
           }
         },
         "required": [
-          "documents",
+          "resources",
           "total",
           "offset",
           "limit"
@@ -411,7 +411,7 @@
       "GetResourceResponse": {
         "type": "object",
         "properties": {
-          "document": {
+          "resource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotations": {
@@ -419,18 +419,18 @@
             "items": {
               "$ref": "#/components/schemas/Annotation"
             },
-            "description": "All annotations for the document (highlights, references, assessments, etc.)"
+            "description": "All annotations for the resource (highlights, references, assessments, etc.)"
           },
           "entityReferences": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Annotation"
             },
-            "description": "Annotations that reference this document from other documents"
+            "description": "Annotations that reference this resource from other resources"
           }
         },
         "required": [
-          "document",
+          "resource",
           "annotations",
           "entityReferences"
         ]
@@ -546,16 +546,16 @@
           }
         }
       },
-      "GenerateDocumentRequest": {
+      "GenerateResourceRequest": {
         "type": "object",
         "properties": {
-          "documentId": {
+          "resourceId": {
             "type": "string",
-            "description": "Document ID containing the annotation"
+            "description": "Resource ID containing the annotation"
           },
           "title": {
             "type": "string",
-            "description": "Custom title for generated document"
+            "description": "Custom title for generated resource"
           },
           "prompt": {
             "type": "string",
@@ -567,7 +567,7 @@
           }
         },
         "required": [
-          "documentId"
+          "resourceId"
         ]
       },
       "ErrorResponse": {
@@ -585,13 +585,13 @@
           "error"
         ]
       },
-      "DocumentLLMContextResponse": {
+      "ResourceLLMContextResponse": {
         "type": "object",
         "properties": {
-          "mainDocument": {
+          "mainResource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
-          "relatedDocuments": {
+          "relatedResources": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ResourceDescriptor"
@@ -675,21 +675,21 @@
               "type": "string"
             }
           },
-          "mainDocumentContent": {
+          "mainResourceContent": {
             "type": "string",
-            "description": "The content of the main document (included if includeContent=true)"
+            "description": "The content of the main resource (included if includeContent=true)"
           },
-          "relatedDocumentsContent": {
+          "relatedResourcesContent": {
             "type": "object",
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Map of document IDs to their content (included if includeContent=true)"
+            "description": "Map of resource IDs to their content (included if includeContent=true)"
           }
         },
         "required": [
-          "mainDocument",
-          "relatedDocuments",
+          "mainResource",
+          "relatedResources",
           "annotations",
           "graph"
         ]
@@ -700,10 +700,10 @@
           "reference": {
             "$ref": "#/components/schemas/Annotation"
           },
-          "sourceDocument": {
+          "sourceResource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
-          "targetDocument": {
+          "targetResource": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ResourceDescriptor"
@@ -749,10 +749,10 @@
           "suggestedResolution": {
             "type": "object",
             "properties": {
-              "documentId": {
+              "resourceId": {
                 "type": "string"
               },
-              "documentName": {
+              "resourceName": {
                 "type": "string"
               },
               "confidence": {
@@ -763,8 +763,8 @@
               }
             },
             "required": [
-              "documentId",
-              "documentName",
+              "resourceId",
+              "resourceName",
               "confidence",
               "reasoning"
             ]
@@ -772,7 +772,7 @@
         },
         "required": [
           "reference",
-          "sourceDocument"
+          "sourceResource"
         ]
       },
       "GetReferencedByResponse": {
@@ -787,23 +787,23 @@
                   "type": "string",
                   "description": "Reference annotation ID"
                 },
-                "documentName": {
+                "resourceName": {
                   "type": "string",
-                  "description": "Name of document containing the reference"
+                  "description": "Name of resource containing the reference"
                 },
                 "target": {
                   "type": "object",
                   "properties": {
                     "source": {
                       "type": "string",
-                      "description": "ID of document containing the reference"
+                      "description": "ID of resource containing the reference"
                     },
                     "selector": {
                       "type": "object",
                       "properties": {
                         "exact": {
                           "type": "string",
-                          "description": "The selected text that references this document"
+                          "description": "The selected text that references this resource"
                         }
                       },
                       "required": [
@@ -819,7 +819,7 @@
               },
               "required": [
                 "id",
-                "documentName",
+                "resourceName",
                 "target"
               ]
             }
@@ -832,7 +832,7 @@
       "DiscoverContextResponse": {
         "type": "object",
         "properties": {
-          "documents": {
+          "resources": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ResourceDescriptor"
@@ -867,14 +867,14 @@
           }
         },
         "required": [
-          "documents",
+          "resources",
           "connections"
         ]
       },
-      "GetDocumentByTokenResponse": {
+      "GetResourceByTokenResponse": {
         "type": "object",
         "properties": {
-          "sourceDocument": {
+          "sourceResource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "expiresAt": {
@@ -883,11 +883,11 @@
           }
         },
         "required": [
-          "sourceDocument",
+          "sourceResource",
           "expiresAt"
         ]
       },
-      "CloneDocumentWithTokenResponse": {
+      "CloneResourceWithTokenResponse": {
         "type": "object",
         "properties": {
           "token": {
@@ -898,14 +898,14 @@
             "type": "string",
             "description": "ISO 8601 timestamp when token expires"
           },
-          "document": {
+          "resource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           }
         },
         "required": [
           "token",
           "expiresAt",
-          "document"
+          "resource"
         ]
       },
       "GetEventsResponse": {
@@ -931,7 +931,7 @@
                     "userId": {
                       "type": "string"
                     },
-                    "documentId": {
+                    "resourceId": {
                       "type": "string"
                     },
                     "payload": {}
@@ -941,7 +941,7 @@
                     "type",
                     "timestamp",
                     "userId",
-                    "documentId"
+                    "resourceId"
                   ]
                 },
                 "metadata": {
@@ -971,14 +971,14 @@
           "total": {
             "type": "number"
           },
-          "documentId": {
+          "resourceId": {
             "type": "string"
           }
         },
         "required": [
           "events",
           "total",
-          "documentId"
+          "resourceId"
         ]
       },
       "AnnotationContextResponse": {
@@ -1004,14 +1004,14 @@
               "selected"
             ]
           },
-          "document": {
+          "resource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           }
         },
         "required": [
           "annotation",
           "context",
-          "document"
+          "resource"
         ]
       },
       "ContextualSummaryResponse": {
@@ -1091,7 +1091,7 @@
           "annotation": {
             "$ref": "#/components/schemas/Annotation"
           },
-          "targetDocument": {
+          "targetResource": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ResourceDescriptor"
@@ -1112,7 +1112,7 @@
           "annotation": {
             "$ref": "#/components/schemas/Annotation"
           },
-          "document": {
+          "resource": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ResourceDescriptor"
@@ -1122,7 +1122,7 @@
               }
             ]
           },
-          "resolvedDocument": {
+          "resolvedResource": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ResourceDescriptor"
@@ -1135,11 +1135,11 @@
         },
         "required": [
           "annotation",
-          "document",
-          "resolvedDocument"
+          "resource",
+          "resolvedResource"
         ]
       },
-      "CreateDocumentFromTokenRequest": {
+      "CreateResourceFromTokenRequest": {
         "type": "object",
         "properties": {
           "token": {
@@ -1148,15 +1148,15 @@
           },
           "name": {
             "type": "string",
-            "description": "Name for the new document"
+            "description": "Name for the new resource"
           },
           "content": {
             "type": "string",
-            "description": "Content for the new document"
+            "description": "Content for the new resource"
           },
           "archiveOriginal": {
             "type": "boolean",
-            "description": "Whether to archive the original document"
+            "description": "Whether to archive the original resource"
           }
         },
         "required": [
@@ -1620,10 +1620,10 @@
           "created"
         ]
       },
-      "CreateDocumentFromAnnotationResponse": {
+      "CreateResourceFromAnnotationResponse": {
         "type": "object",
         "properties": {
-          "document": {
+          "resource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotation": {
@@ -1631,7 +1631,7 @@
           }
         },
         "required": [
-          "document",
+          "resource",
           "annotation"
         ]
       },
@@ -1655,7 +1655,7 @@
                 "userId": {
                   "type": "string"
                 },
-                "documentId": {
+                "resourceId": {
                   "type": "string"
                 },
                 "payload": {
@@ -1713,7 +1713,7 @@
                         "contentChecksum": {
                           "type": "string"
                         },
-                        "parentDocumentId": {
+                        "parentResourceId": {
                           "type": "string"
                         },
                         "creationMethod": {
@@ -1742,7 +1742,7 @@
                         "name",
                         "format",
                         "contentChecksum",
-                        "parentDocumentId",
+                        "parentResourceId",
                         "creationMethod"
                       ]
                     },
@@ -1789,14 +1789,14 @@
                           "type": "string",
                           "description": "Unified annotation ID"
                         },
-                        "targetDocumentId": {
+                        "targetResourceId": {
                           "type": "string",
                           "description": "For linking motivation"
                         }
                       },
                       "required": [
                         "annotationId",
-                        "targetDocumentId"
+                        "targetResourceId"
                       ]
                     },
                     {
@@ -1846,7 +1846,7 @@
                 "type",
                 "timestamp",
                 "userId",
-                "documentId",
+                "resourceId",
                 "payload",
                 "metadata"
               ]
@@ -1858,7 +1858,7 @@
           "annotationId": {
             "type": "string"
           },
-          "documentId": {
+          "resourceId": {
             "type": "string"
           }
         },
@@ -1866,7 +1866,7 @@
           "events",
           "total",
           "annotationId",
-          "documentId"
+          "resourceId"
         ]
       },
       "JobStatusResponse": {
@@ -1918,12 +1918,12 @@
           "created"
         ]
       },
-      "GenerateDocumentFromAnnotationRequest": {
+      "GenerateResourceFromAnnotationRequest": {
         "type": "object",
         "properties": {
-          "documentId": {
+          "resourceId": {
             "type": "string",
-            "description": "ID of the document containing the annotation"
+            "description": "ID of the resource containing the annotation"
           },
           "name": {
             "type": "string"
@@ -1942,18 +1942,18 @@
           }
         },
         "required": [
-          "documentId"
+          "resourceId"
         ]
       },
-      "GenerateDocumentStreamRequest": {
+      "GenerateResourceStreamRequest": {
         "type": "object",
         "properties": {
-          "documentId": {
+          "resourceId": {
             "type": "string"
           },
           "title": {
             "type": "string",
-            "description": "Custom title for generated document"
+            "description": "Custom title for generated resource"
           },
           "prompt": {
             "type": "string",
@@ -1965,19 +1965,19 @@
           }
         },
         "required": [
-          "documentId"
+          "resourceId"
         ]
       },
       "ResolveAnnotationRequest": {
         "type": "object",
         "properties": {
-          "documentId": {
+          "resourceId": {
             "type": "string",
-            "description": "Target document ID to resolve reference to"
+            "description": "Target resource ID to resolve reference to"
           }
         },
         "required": [
-          "documentId"
+          "resourceId"
         ]
       },
       "BodyOperationAdd": {
@@ -2063,9 +2063,9 @@
       "UpdateAnnotationBodyRequest": {
         "type": "object",
         "properties": {
-          "documentId": {
+          "resourceId": {
             "type": "string",
-            "description": "Document ID containing the annotation (required for O(1) Layer 3 lookup)"
+            "description": "Resource ID containing the annotation (required for O(1) Layer 3 lookup)"
           },
           "operations": {
             "type": "array",
@@ -2087,7 +2087,7 @@
           }
         },
         "required": [
-          "documentId",
+          "resourceId",
           "operations"
         ]
       },
@@ -2105,14 +2105,14 @@
       "DeleteAnnotationRequest": {
         "type": "object",
         "properties": {
-          "documentId": {
+          "resourceId": {
             "type": "string",
             "format": "uri",
-            "description": "Document URI containing the annotation (required for O(1) Layer 3 lookup)"
+            "description": "Resource URI containing the annotation (required for O(1) Layer 3 lookup)"
           }
         },
         "required": [
-          "documentId"
+          "resourceId"
         ]
       },
       "TextPositionSelector": {
@@ -2126,11 +2126,11 @@
           },
           "start": {
             "type": "number",
-            "description": "Character offset from document start"
+            "description": "Character offset from resource start"
           },
           "end": {
             "type": "number",
-            "description": "Character offset from document start"
+            "description": "Character offset from resource start"
           }
         },
         "required": [
@@ -2454,9 +2454,9 @@
             "type": "string",
             "description": "Application-specific: ID of annotation that triggered generation"
           },
-          "sourceDocumentId": {
+          "sourceResourceId": {
             "type": "string",
-            "description": "Application-specific: ID of source document for clones/derivatives"
+            "description": "Application-specific: ID of source resource for clones/derivatives"
           }
         }
       },
@@ -2804,12 +2804,12 @@
           "access_token"
         ]
       },
-      "CreateDocumentFromSelectionRequest": {
+      "CreateResourceFromSelectionRequest": {
         "type": "object",
         "properties": {
-          "documentId": {
+          "resourceId": {
             "type": "string",
-            "description": "ID of the document containing the annotation"
+            "description": "ID of the resource containing the annotation"
           },
           "content": {
             "type": "string"
@@ -2838,16 +2838,16 @@
           }
         },
         "required": [
-          "documentId",
+          "resourceId",
           "content",
           "name",
           "format"
         ]
       },
-      "CreateDocumentFromSelectionResponse": {
+      "CreateResourceFromSelectionResponse": {
         "type": "object",
         "properties": {
-          "document": {
+          "resource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotation": {
@@ -2855,14 +2855,14 @@
           }
         },
         "required": [
-          "document",
+          "resource",
           "annotation"
         ]
       },
-      "GenerateDocumentFromAnnotationResponse": {
+      "GenerateResourceFromAnnotationResponse": {
         "type": "object",
         "properties": {
-          "document": {
+          "resource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotation": {
@@ -2873,7 +2873,7 @@
           }
         },
         "required": [
-          "document",
+          "resource",
           "annotation",
           "generated"
         ]
@@ -2881,9 +2881,9 @@
       "CreateFromAnnotationRequest": {
         "type": "object",
         "properties": {
-          "documentId": {
+          "resourceId": {
             "type": "string",
-            "description": "ID of the document containing the annotation"
+            "description": "ID of the resource containing the annotation"
           },
           "name": {
             "type": "string"
@@ -2896,7 +2896,7 @@
           }
         },
         "required": [
-          "documentId",
+          "resourceId",
           "name",
           "content",
           "format"
@@ -2905,7 +2905,7 @@
       "CreateFromAnnotationResponse": {
         "type": "object",
         "properties": {
-          "document": {
+          "resource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotations": {
@@ -2916,7 +2916,7 @@
           }
         },
         "required": [
-          "document",
+          "resource",
           "annotations"
         ]
       },
@@ -2974,7 +2974,7 @@
           "created": {
             "type": "string"
           },
-          "documentId": {
+          "resourceId": {
             "type": "string"
           }
         },
@@ -3015,10 +3015,10 @@
           "total"
         ]
       },
-      "CreateDocumentFromTokenResponse": {
+      "CreateResourceFromTokenResponse": {
         "type": "object",
         "properties": {
-          "document": {
+          "resource": {
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "annotations": {
@@ -3029,7 +3029,7 @@
           }
         },
         "required": [
-          "document",
+          "resource",
           "annotations"
         ]
       }
@@ -3037,10 +3037,10 @@
     "parameters": {}
   },
   "paths": {
-    "/documents/{id}": {
+    "/resources/{id}": {
       "get": {
-        "summary": "Get Document by URI (W3C Content Negotiation)",
-        "description": "W3C-compliant globally resolvable document URI with content negotiation. Returns JSON-LD metadata (Accept: application/ld+json), raw representation (Accept: text/plain, text/markdown, etc.), or redirects to frontend (?view=semiont). Requires authentication.",
+        "summary": "Get Resource by URI (W3C Content Negotiation)",
+        "description": "W3C-compliant globally resolvable resource URI with content negotiation. Returns JSON-LD metadata (Accept: application/ld+json), raw representation (Accept: text/plain, text/markdown, etc.), or redirects to frontend (?view=semiont). Requires authentication.",
         "tags": [
           "W3C URIs"
         ],
@@ -3057,7 +3057,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Document ID"
+            "description": "Resource ID"
           },
           {
             "name": "view",
@@ -3072,7 +3072,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Document metadata (JSON-LD) or raw representation",
+            "description": "Resource metadata (JSON-LD) or raw representation",
             "content": {
               "application/ld+json": {
                 "schema": {
@@ -3095,13 +3095,13 @@
             "description": "Redirect to frontend viewer (when ?view=semiont)"
           },
           "404": {
-            "description": "Document not found"
+            "description": "Resource not found"
           }
         }
       },
       "patch": {
-        "summary": "Update Document",
-        "description": "Update document metadata (append-only operations - name and content are immutable)",
+        "summary": "Update Resource",
+        "description": "Update resource metadata (append-only operations - name and content are immutable)",
         "tags": [
           "W3C URIs"
         ],
@@ -3118,7 +3118,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Document ID"
+            "description": "Resource ID"
           }
         ],
         "requestBody": {
@@ -3132,7 +3132,7 @@
         },
         "responses": {
           "200": {
-            "description": "Document updated successfully",
+            "description": "Resource updated successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -3142,7 +3142,7 @@
             }
           },
           "404": {
-            "description": "Document not found"
+            "description": "Resource not found"
           }
         }
       }
@@ -3150,7 +3150,7 @@
     "/annotations/{id}": {
       "get": {
         "summary": "Get Annotation by URI (W3C Content Negotiation)",
-        "description": "W3C-compliant globally resolvable annotation URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent). Requires authentication and documentId query parameter.",
+        "description": "W3C-compliant globally resolvable annotation URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent). Requires authentication and resourceId query parameter.",
         "tags": [
           "W3C URIs"
         ],
@@ -3170,14 +3170,14 @@
             "description": "Annotation ID"
           },
           {
-            "name": "documentId",
+            "name": "resourceId",
             "in": "query",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uri"
             },
-            "description": "Document ID or URI containing the annotation"
+            "description": "Resource ID or URI containing the annotation"
           }
         ],
         "responses": {
@@ -3195,7 +3195,7 @@
             "description": "Redirect to frontend (for browsers)"
           },
           "400": {
-            "description": "Missing documentId parameter"
+            "description": "Missing resourceId parameter"
           },
           "404": {
             "description": "Annotation not found"
@@ -3823,12 +3823,12 @@
         }
       }
     },
-    "/api/documents": {
+    "/api/resources": {
       "post": {
-        "summary": "Create Document",
-        "description": "Create a new document",
+        "summary": "Create Resource",
+        "description": "Create a new resource",
         "tags": [
-          "Documents"
+          "Resources"
         ],
         "security": [
           {
@@ -3846,11 +3846,11 @@
         },
         "responses": {
           "201": {
-            "description": "Document created successfully",
+            "description": "Resource created successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateDocumentResponse"
+                  "$ref": "#/components/schemas/CreateResourceResponse"
                 }
               }
             }
@@ -3858,10 +3858,10 @@
         }
       },
       "get": {
-        "summary": "List Documents",
-        "description": "List all documents with optional filters",
+        "summary": "List Resources",
+        "description": "List all resources with optional filters",
         "tags": [
-          "Documents"
+          "Resources"
         ],
         "security": [
           {
@@ -3936,11 +3936,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Documents listed successfully",
+            "description": "Resources listed successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ListDocumentsResponse"
+                  "$ref": "#/components/schemas/ListResourcesResponse"
                 }
               }
             }
@@ -3948,12 +3948,12 @@
         }
       }
     },
-    "/api/documents/search": {
+    "/api/resources/search": {
       "get": {
-        "summary": "Search Documents",
-        "description": "Search documents by name",
+        "summary": "Search Resources",
+        "description": "Search resources by name",
         "tags": [
-          "Documents"
+          "Resources"
         ],
         "security": [
           {
@@ -3989,7 +3989,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ListDocumentsResponse"
+                  "$ref": "#/components/schemas/ListResourcesResponse"
                 }
               }
             }
@@ -3997,12 +3997,12 @@
         }
       }
     },
-    "/api/documents/from-annotation/{annotationId}": {
+    "/api/resources/from-annotation/{annotationId}": {
       "post": {
-        "summary": "Create Document from Annotation",
-        "description": "Create a new document from an annotation/reference",
+        "summary": "Create Resource from Annotation",
+        "description": "Create a new resource from an annotation/reference",
         "tags": [
-          "Documents"
+          "Resources"
         ],
         "security": [
           {
@@ -4023,18 +4023,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GenerateDocumentFromAnnotationRequest"
+                "$ref": "#/components/schemas/GenerateResourceFromAnnotationRequest"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Document created from annotation",
+            "description": "Resource created from annotation",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateDocumentResponse"
+                  "$ref": "#/components/schemas/CreateResourceResponse"
                 }
               }
             }
@@ -4042,12 +4042,12 @@
         }
       }
     },
-    "/api/documents/{id}/detect-annotations-stream": {
+    "/api/resources/{id}/detect-annotations-stream": {
       "post": {
         "summary": "Detect Annotations with Progress (SSE)",
         "description": "Stream real-time entity detection progress via Server-Sent Events",
         "tags": [
-          "Documents",
+          "Resources",
           "Annotations",
           "Real-time"
         ],
@@ -4090,17 +4090,17 @@
             "description": "Authentication required"
           },
           "404": {
-            "description": "Document not found"
+            "description": "Resource not found"
           }
         }
       }
     },
-    "/api/documents/{id}/detect-entities": {
+    "/api/resources/{id}/detect-entities": {
       "post": {
         "summary": "Detect Entities (Job)",
-        "description": "Create an async entity detection job. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/documents/{id}/detect-annotations-stream instead.",
+        "description": "Create an async entity detection job. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/resources/{id}/detect-annotations-stream instead.",
         "tags": [
-          "Documents",
+          "Resources",
           "Annotations",
           "Jobs"
         ],
@@ -4143,17 +4143,17 @@
             "description": "Authentication required"
           },
           "404": {
-            "description": "Document not found"
+            "description": "Resource not found"
           }
         }
       }
     },
-    "/api/documents/{id}/llm-context": {
+    "/api/resources/{id}/llm-context": {
       "get": {
-        "summary": "Get Document LLM Context",
-        "description": "Get document with full context for LLM processing",
+        "summary": "Get Resource LLM Context",
+        "description": "Get resource with full context for LLM processing",
         "tags": [
-          "Documents",
+          "Resources",
           "AI"
         ],
         "security": [
@@ -4189,7 +4189,7 @@
               "default": 10
             },
             "required": false,
-            "name": "maxDocuments",
+            "name": "maxResources",
             "in": "query"
           },
           {
@@ -4249,7 +4249,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentLLMContextResponse"
+                  "$ref": "#/components/schemas/ResourceLLMContextResponse"
                 }
               }
             }
@@ -4257,12 +4257,12 @@
         }
       }
     },
-    "/api/documents/{documentId}/references/{referenceId}/llm-context": {
+    "/api/resources/{resourceId}/references/{referenceId}/llm-context": {
       "get": {
         "summary": "Get Reference LLM Context",
         "description": "Get reference with full context for LLM processing",
         "tags": [
-          "Documents",
+          "Resources",
           "AI"
         ],
         "security": [
@@ -4276,7 +4276,7 @@
               "type": "string"
             },
             "required": true,
-            "name": "documentId",
+            "name": "resourceId",
             "in": "path"
           },
           {
@@ -4363,12 +4363,12 @@
         }
       }
     },
-    "/api/documents/{id}/referenced-by": {
+    "/api/resources/{id}/referenced-by": {
       "get": {
         "summary": "Get Referenced By",
-        "description": "Get documents that reference this document",
+        "description": "Get resources that reference this resource",
         "tags": [
-          "Documents",
+          "Resources",
           "Graph"
         ],
         "security": [
@@ -4388,7 +4388,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Documents that reference this document",
+            "description": "Resources that reference this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -4400,12 +4400,12 @@
         }
       }
     },
-    "/api/documents/{id}/discover-context": {
+    "/api/resources/{id}/discover-context": {
       "post": {
         "summary": "Discover Context",
-        "description": "Discover related documents and concepts",
+        "description": "Discover related resources and concepts",
         "tags": [
-          "Documents",
+          "Resources",
           "Graph"
         ],
         "security": [
@@ -4446,12 +4446,12 @@
         }
       }
     },
-    "/api/documents/token/{token}": {
+    "/api/resources/token/{token}": {
       "get": {
-        "summary": "Get Document by Clone Token",
-        "description": "Retrieve a document using a clone token",
+        "summary": "Get Resource by Clone Token",
+        "description": "Retrieve a resource using a clone token",
         "tags": [
-          "Documents"
+          "Resources"
         ],
         "security": [
           {
@@ -4470,11 +4470,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Document retrieved successfully",
+            "description": "Resource retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetDocumentByTokenResponse"
+                  "$ref": "#/components/schemas/GetResourceByTokenResponse"
                 }
               }
             }
@@ -4482,12 +4482,12 @@
         }
       }
     },
-    "/api/documents/create-from-token": {
+    "/api/resources/create-from-token": {
       "post": {
-        "summary": "Create Document from Clone Token",
-        "description": "Create a new document using a clone token",
+        "summary": "Create Resource from Clone Token",
+        "description": "Create a new resource using a clone token",
         "tags": [
-          "Documents"
+          "Resources"
         ],
         "security": [
           {
@@ -4498,18 +4498,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateDocumentFromTokenRequest"
+                "$ref": "#/components/schemas/CreateResourceFromTokenRequest"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Document created successfully",
+            "description": "Resource created successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateDocumentResponse"
+                  "$ref": "#/components/schemas/CreateResourceResponse"
                 }
               }
             }
@@ -4517,12 +4517,12 @@
         }
       }
     },
-    "/api/documents/{id}/clone-with-token": {
+    "/api/resources/{id}/clone-with-token": {
       "post": {
-        "summary": "Clone Document with Token",
-        "description": "Generate a temporary token for cloning a document",
+        "summary": "Clone Resource with Token",
+        "description": "Generate a temporary token for cloning a resource",
         "tags": [
-          "Documents"
+          "Resources"
         ],
         "security": [
           {
@@ -4545,7 +4545,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CloneDocumentWithTokenResponse"
+                  "$ref": "#/components/schemas/CloneResourceWithTokenResponse"
                 }
               }
             }
@@ -4553,12 +4553,12 @@
         }
       }
     },
-    "/api/documents/{id}/annotations": {
+    "/api/resources/{id}/annotations": {
       "get": {
-        "summary": "Get Document Annotations",
-        "description": "Get all annotations (both highlights and references) in a document",
+        "summary": "Get Resource Annotations",
+        "description": "Get all annotations (both highlights and references) in a resource",
         "tags": [
-          "Documents",
+          "Resources",
           "Annotations"
         ],
         "security": [
@@ -4578,11 +4578,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Document annotations",
+            "description": "Resource annotations",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateDocumentResponse"
+                  "$ref": "#/components/schemas/CreateResourceResponse"
                 }
               }
             }
@@ -4590,12 +4590,12 @@
         }
       }
     },
-    "/api/documents/{id}/events": {
+    "/api/resources/{id}/events": {
       "get": {
-        "summary": "Get Document Event History",
-        "description": "Get full event history for a document with optional filtering",
+        "summary": "Get Resource Event History",
+        "description": "Get full event history for a resource with optional filtering",
         "tags": [
-          "Documents",
+          "Resources",
           "Events"
         ],
         "security": [
@@ -4616,10 +4616,10 @@
             "schema": {
               "type": "string",
               "enum": [
-                "document.created",
-                "document.cloned",
-                "document.archived",
-                "document.unarchived",
+                "resource.created",
+                "resource.cloned",
+                "resource.archived",
+                "resource.unarchived",
                 "annotation.added",
                 "annotation.removed",
                 "annotation.body.updated",
@@ -4666,12 +4666,12 @@
         }
       }
     },
-    "/api/documents/{id}/events/stream": {
+    "/api/resources/{id}/events/stream": {
       "get": {
-        "summary": "Subscribe to Document Events (SSE)",
-        "description": "Open a Server-Sent Events stream to receive real-time document events",
+        "summary": "Subscribe to Resource Events (SSE)",
+        "description": "Open a Server-Sent Events stream to receive real-time resource events",
         "tags": [
-          "Documents",
+          "Resources",
           "Events",
           "Real-time"
         ],
@@ -4704,10 +4704,10 @@
         }
       }
     },
-    "/api/annotations/{id}/create-document": {
+    "/api/annotations/{id}/create-resource": {
       "post": {
-        "summary": "Create Document from Annotation",
-        "description": "Create a new document from an annotation and resolve the annotation to it",
+        "summary": "Create Resource from Annotation",
+        "description": "Create a new resource from an annotation and resolve the annotation to it",
         "tags": [
           "Selections"
         ],
@@ -4737,11 +4737,11 @@
         },
         "responses": {
           "201": {
-            "description": "Document created and annotation resolved",
+            "description": "Resource created and annotation resolved",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateDocumentFromAnnotationResponse"
+                  "$ref": "#/components/schemas/CreateResourceFromAnnotationResponse"
                 }
               }
             }
@@ -4749,13 +4749,13 @@
         }
       }
     },
-    "/api/annotations/{id}/generate-document": {
+    "/api/annotations/{id}/generate-resource": {
       "post": {
-        "summary": "Generate Document (Job)",
-        "description": "Create an async document generation job from an annotation. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/annotations/{id}/generate-document-stream instead.",
+        "summary": "Generate Resource (Job)",
+        "description": "Create an async resource generation job from an annotation. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/annotations/{id}/generate-resource-stream instead.",
         "tags": [
           "Selections",
-          "Documents",
+          "Resources",
           "Jobs",
           "AI"
         ],
@@ -4780,7 +4780,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GenerateDocumentRequest"
+                "$ref": "#/components/schemas/GenerateResourceRequest"
               }
             }
           }
@@ -4905,13 +4905,13 @@
         }
       }
     },
-    "/api/annotations/{id}/generate-document-stream": {
+    "/api/annotations/{id}/generate-resource-stream": {
       "post": {
-        "summary": "Generate Document from Reference (SSE)",
-        "description": "Stream real-time document generation progress via Server-Sent Events",
+        "summary": "Generate Resource from Reference (SSE)",
+        "description": "Stream real-time resource generation progress via Server-Sent Events",
         "tags": [
           "Selections",
-          "Documents",
+          "Resources",
           "Real-time",
           "AI"
         ],
@@ -4936,7 +4936,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GenerateDocumentRequest"
+                "$ref": "#/components/schemas/GenerateResourceRequest"
               }
             }
           }
@@ -4964,7 +4964,7 @@
     "/api/annotations": {
       "post": {
         "summary": "Create Annotation",
-        "description": "Create a new annotation/reference in a document",
+        "description": "Create a new annotation/reference in a resource",
         "tags": [
           "Annotations"
         ],
@@ -4997,7 +4997,7 @@
       },
       "get": {
         "summary": "List Annotations",
-        "description": "List all annotations for a document (requires documentId for O(1) Layer 3 lookup)",
+        "description": "List all annotations for a resource (requires resourceId for O(1) Layer 3 lookup)",
         "tags": [
           "Annotations"
         ],
@@ -5010,11 +5010,11 @@
           {
             "schema": {
               "type": "string",
-              "description": "Document ID to list annotations for"
+              "description": "Resource ID to list annotations for"
             },
             "required": true,
-            "description": "Document ID to list annotations for",
-            "name": "documentId",
+            "description": "Resource ID to list annotations for",
+            "name": "resourceId",
             "in": "query"
           },
           {
@@ -5104,7 +5104,7 @@
     "/api/annotations/{id}": {
       "delete": {
         "summary": "Delete Annotation",
-        "description": "Delete an annotation (requires documentId in body for O(1) Layer 3 lookup)",
+        "description": "Delete an annotation (requires resourceId in body for O(1) Layer 3 lookup)",
         "tags": [
           "Annotations"
         ],
@@ -5142,7 +5142,7 @@
         }
       }
     },
-    "/api/documents/{documentId}/annotations/{annotationId}/history": {
+    "/api/resources/{resourceId}/annotations/{annotationId}/history": {
       "get": {
         "summary": "Get Annotation History",
         "description": "Get full event history for a specific annotation (highlight or reference)",
@@ -5161,7 +5161,7 @@
               "type": "string"
             },
             "required": true,
-            "name": "documentId",
+            "name": "resourceId",
             "in": "path"
           },
           {
