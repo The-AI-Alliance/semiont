@@ -22,7 +22,7 @@ import { FilesystemRepresentationStore } from '../../../storage/representation/r
 import { getPrimaryRepresentation, getPrimaryMediaType } from '../../../utils/resource-helpers';
 import { DocumentQueryService } from '../../../services/document-queries';
 
-type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
 export function registerGetDocumentUri(router: DocumentsRouterType) {
   /**
@@ -98,7 +98,7 @@ export function registerGetDocumentUri(router: DocumentsRouterType) {
       return entityTypes.length > 0;
     });
 
-    const response: GetDocumentResponse = {
+    const response: GetResourceResponse = {
       document: stored.document,
       annotations,
       entityReferences,

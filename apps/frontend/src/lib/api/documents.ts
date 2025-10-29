@@ -10,8 +10,8 @@ type RequestContent<T> = T extends { requestBody?: { content: { 'application/jso
 type Document = ResponseContent<paths['/api/documents']['get']>['documents'][number];
 type CreateResourceRequest = RequestContent<paths['/api/documents']['post']>;
 type CreateDocumentResponse = paths['/api/documents']['post']['responses'][201]['content']['application/json'];
-type UpdateDocumentRequest = RequestContent<paths['/documents/{id}']['patch']>;
-type GetDocumentResponse = paths['/documents/{id}']['get']['responses'][200]['content']['application/ld+json'];
+type UpdateResourceRequest = RequestContent<paths['/documents/{id}']['patch']>;
+type GetResourceResponse = paths['/documents/{id}']['get']['responses'][200]['content']['application/ld+json'];
 type ListDocumentsResponse = ResponseContent<paths['/api/documents']['get']>;
 type ReferencedBy = paths['/api/documents/{id}/referenced-by']['get']['responses'][200]['content']['application/json']['referencedBy'][number];
 type GetDocumentByTokenResponse = paths['/api/documents/token/{token}']['get']['responses'][200]['content']['application/json'];
@@ -42,7 +42,7 @@ export const documents = {
       const { data: session } = useSession();
       return useQuery({
         queryKey: QUERY_KEYS.documents.detail(id),
-        queryFn: () => fetchAPI<GetDocumentResponse>(`/documents/${encodeURIComponent(id)}`, {}, session?.backendToken),
+        queryFn: () => fetchAPI<GetResourceResponse>(`/documents/${encodeURIComponent(id)}`, {}, session?.backendToken),
         enabled: !!session?.backendToken && !!id,
       });
     },
@@ -72,7 +72,7 @@ export const documents = {
       const queryClient = useQueryClient();
 
       return useMutation({
-        mutationFn: ({ id, data }: { id: string; data: UpdateDocumentRequest }) =>
+        mutationFn: ({ id, data }: { id: string; data: UpdateResourceRequest }) =>
           fetchAPI<Document>(`/documents/${id}`, {
             method: 'PATCH',
             body: JSON.stringify(data),

@@ -408,7 +408,7 @@
           "limit"
         ]
       },
-      "GetDocumentResponse": {
+      "GetResourceResponse": {
         "type": "object",
         "properties": {
           "document": {
@@ -514,7 +514,7 @@
           "tags"
         ]
       },
-      "UpdateDocumentRequest": {
+      "UpdateResourceRequest": {
         "type": "object",
         "properties": {
           "entityTypes": {
@@ -3076,7 +3076,7 @@
             "content": {
               "application/ld+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetDocumentResponse"
+                  "$ref": "#/components/schemas/GetResourceResponse"
                 }
               },
               "text/plain": {
@@ -3125,7 +3125,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateDocumentRequest"
+                "$ref": "#/components/schemas/UpdateResourceRequest"
               }
             }
           }
@@ -3136,7 +3136,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetDocumentResponse"
+                  "$ref": "#/components/schemas/GetResourceResponse"
                 }
               }
             }

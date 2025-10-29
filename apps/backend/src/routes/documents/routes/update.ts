@@ -18,8 +18,8 @@ import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 
-type UpdateDocumentRequest = components['schemas']['UpdateDocumentRequest'];
-type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
+type UpdateResourceRequest = components['schemas']['UpdateResourceRequest'];
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
 export function registerUpdateDocument(router: DocumentsRouterType) {
   /**
@@ -27,13 +27,13 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
    *
    * Update document metadata (append-only operations - name and content are immutable)
    * Requires authentication
-   * Validates request body against UpdateDocumentRequest schema
+   * Validates request body against UpdateResourceRequest schema
    */
   router.patch('/documents/:id',
-    validateRequestBody('UpdateDocumentRequest'),
+    validateRequestBody('UpdateResourceRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const body = c.get('validatedBody') as UpdateDocumentRequest;
+      const body = c.get('validatedBody') as UpdateResourceRequest;
       const user = c.get('user');
       const basePath = getFilesystemConfig().path;
 
@@ -106,7 +106,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       });
 
       // Return optimistic response (content NOT included - must be fetched separately)
-      const response: GetDocumentResponse = {
+      const response: GetResourceResponse = {
         document: {
           ...doc,
           archived: body.archived !== undefined ? body.archived : doc.archived,
