@@ -1,4 +1,4 @@
-# Semiont - Semantic Knowledge Platform
+# Semiont - Semantic Knowledge Kernel
 
 [![Development Status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/The-AI-Alliance/semiont)
 [![API Stability](https://img.shields.io/badge/API-unstable-red.svg)](https://github.com/The-AI-Alliance/semiont)
@@ -13,9 +13,15 @@
 
 **The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.**
 
-An AI-native knowledge base for human/agent collaboration. Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructure with your data for true **sovereign AI**.
+An AI-native knowledge kernal for human/agent collaboration.
 
-Built on the **W3C Web Annotation** standard, Semiont automatically extracts knowledge graphs from unstructured content, enabling collaborative annotation, linking, and reasoning over documents. It transforms text into interconnected semantic networks with entity recognition, relationship extraction, and contextual understanding—all stored as standard, interoperable annotations.
+Semiont is a standards-compliant multimedia resource management system built on the **W3C Web Annotation** model. It provides robust storage and retrieval for documents, images, and other content types, combined with a flexible annotation layer for collaborative markup, linking, and semantic enrichment.
+
+AI-native enhancements include: **(1) Entity Detection** - automatically identify people, places, concepts, and other entities in your content; **(2) Entity Resolution** - link detected entities to specific resources or external knowledge bases; **(3) Context Retrieval** - extract relevant semantic context from the knowledge graph for LLM consumption; and **(4) Contextualized Resource Generation** - create new documents aligned with your existing knowledge graph.
+
+Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructure with your data for true **sovereign AI**.
+
+Built on the **W3C Web Annotation** standard, Semiont automatically extracts knowledge graphs from unstructured content, enabling collaborative annotation, linking, and reasoning over resources. It transforms text into interconnected semantic networks with entity recognition, relationship extraction, and contextual understanding—all stored as standard, interoperable annotations.
 
 ## 📁 File Layout
 
@@ -52,8 +58,8 @@ const client = new SemiontApiClient({
 });
 
 await client.authenticateLocal('user@example.com', '123456');
-const doc = await client.createDocument({
-  name: 'My Document',
+const resource = await client.createResource({
+  name: 'My Resource',
   content: 'Hello World',
   format: 'text/plain',
   entityTypes: ['example']
@@ -80,7 +86,7 @@ const doc = await client.createDocument({
 The **[demo/](demo/)** directory contains example scripts showing how to use the SDK:
 
 - **Prometheus Bound Demo** - Complete workflow demonstrating:
-  - Document upload and chunking
+  - Resource upload and chunking
   - Table of contents generation
   - Annotation creation and resolution
   - Event history tracking
