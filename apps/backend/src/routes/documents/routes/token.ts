@@ -137,7 +137,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
         sourceDocumentId: getResourceId(sourceDoc),
       };
 
-      const savedDoc = await graphDb.createDocument(document);
+      const savedDoc = await graphDb.createResource(document);
 
       // Store representation
       await repStore.store(Buffer.from(body.content), {

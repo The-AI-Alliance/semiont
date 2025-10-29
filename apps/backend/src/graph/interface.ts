@@ -22,7 +22,7 @@ export interface GraphDatabase {
 
   // Document operations
   // Accepts W3C ResourceDescriptor directly - GraphDB stores W3C compliant documents
-  createDocument(document: ResourceDescriptor): Promise<ResourceDescriptor>;
+  createResource(document: ResourceDescriptor): Promise<ResourceDescriptor>;
   getDocument(id: string): Promise<ResourceDescriptor | null>;
   updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor>;
   deleteDocument(id: string): Promise<void>;

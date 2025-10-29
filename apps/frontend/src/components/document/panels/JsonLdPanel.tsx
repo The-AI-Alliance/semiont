@@ -13,10 +13,10 @@ import type { components } from '@semiont/api-client';
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 
 interface Props {
-  document: SemiontResource;
+  resource: SemiontResource;
 }
 
-export function JsonLdPanel({ document: semiontDocument }: Props) {
+export function JsonLdPanel({ resource: semiontResource }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const { showLineNumbers } = useLineNumbers();
@@ -28,8 +28,8 @@ export function JsonLdPanel({ document: semiontDocument }: Props) {
     // Check if dark mode is active
     const isDarkMode = document.documentElement?.classList.contains('dark') ?? false;
 
-    // Convert document to JSON-LD format
-    const jsonLdContent = JSON.stringify(semiontDocument, null, 2);
+    // Convert resource to JSON-LD format
+    const jsonLdContent = JSON.stringify(semiontResource, null, 2);
 
     const extensions = [
       json(),
@@ -66,11 +66,11 @@ export function JsonLdPanel({ document: semiontDocument }: Props) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [semiontDocument, showLineNumbers]);
+  }, [semiontResource, showLineNumbers]);
 
   const handleCopyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(semiontDocument, null, 2));
+      await navigator.clipboard.writeText(JSON.stringify(semiontResource, null, 2));
     } catch (err) {
       console.error('Failed to copy JSON-LD:', err);
     }

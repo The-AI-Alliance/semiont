@@ -8,7 +8,7 @@ import { registerGetDocumentUri } from './routes/get-uri';
 import { registerListDocuments } from './routes/list';
 import { registerUpdateDocument } from './routes/update';
 import { registerSearchDocuments } from './routes/search';
-import { registerGetDocumentContent } from './routes/get-content';
+import { registerGetDocumentRepresentation } from './routes/get-representation';
 import { registerCreateDocumentFromAnnotation } from './routes/create-from-annotation';
 import { registerDetectAnnotationsStream } from './routes/detect-annotations-stream';
 import { registerDetectEntities } from './routes/detect-entities';
@@ -30,7 +30,7 @@ registerListDocuments(documentsRouter);
 registerSearchDocuments(documentsRouter);  // Must be before registerGetDocumentUri to avoid {id} matching "search"
 registerGetDocumentUri(documentsRouter);  // W3C content negotiation for /documents/:id
 registerUpdateDocument(documentsRouter);
-registerGetDocumentContent(documentsRouter);
+registerGetDocumentRepresentation(documentsRouter);
 registerCreateDocumentFromAnnotation(documentsRouter);
 registerDetectAnnotationsStream(documentsRouter);
 registerDetectEntities(documentsRouter);

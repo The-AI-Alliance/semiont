@@ -5,7 +5,7 @@
 import { SemiontApiClient, getExactText, getBodySource } from '@semiont/api-client';
 
 export async function handleCreateDocument(client: SemiontApiClient, args: any) {
-  const data = await client.createDocument({
+  const data = await client.createResource({
     name: args?.name,
     content: args?.content,
     format: args?.contentType || 'text/plain',

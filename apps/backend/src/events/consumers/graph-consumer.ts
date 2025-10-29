@@ -135,7 +135,7 @@ export class GraphDBConsumer {
           wasAttributedTo: didToAgent(event.userId),
           creationMethod: 'api',
         };
-        await graphDb.createDocument(document);
+        await graphDb.createResource(document);
         break;
       }
 
@@ -156,7 +156,7 @@ export class GraphDBConsumer {
           wasAttributedTo: didToAgent(event.userId),
           creationMethod: 'clone',
         };
-        await graphDb.createDocument(document);
+        await graphDb.createResource(document);
         break;
       }
 

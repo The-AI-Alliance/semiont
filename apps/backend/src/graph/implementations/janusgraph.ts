@@ -231,7 +231,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotation;
   }
 
-  async createDocument(document: ResourceDescriptor): Promise<ResourceDescriptor> {
+  async createResource(document: ResourceDescriptor): Promise<ResourceDescriptor> {
     const id = getResourceId(document);
     const primaryRep = getPrimaryRepresentation(document);
     if (!primaryRep) {

@@ -14,7 +14,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   disconnect: vi.fn().mockResolvedValue(undefined),
   isConnected: vi.fn().mockReturnValue(true),
 
-  createDocument: vi.fn().mockResolvedValue({
+  createResource: vi.fn().mockResolvedValue({
     id: 'doc-123',
     name: 'Test Doc',
     entityTypes: [],
@@ -164,7 +164,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
+      expect(mockGraphDB.createResource).toHaveBeenCalledWith({
         '@context': 'https://schema.org/',
         '@id': 'http://localhost:4000/documents/doc-123',
         name: 'Test Document',
@@ -212,7 +212,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
+      expect(mockGraphDB.createResource).toHaveBeenCalledWith({
         '@context': 'https://schema.org/',
         '@id': 'http://localhost:4000/documents/doc-123',
         name: 'Test Document',
@@ -265,7 +265,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
+      expect(mockGraphDB.createResource).toHaveBeenCalledWith({
         '@context': 'https://schema.org/',
         '@id': 'http://localhost:4000/documents/doc-456',
         name: 'Cloned Document',

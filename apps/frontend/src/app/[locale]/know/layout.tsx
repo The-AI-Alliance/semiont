@@ -1,7 +1,7 @@
 import React from 'react';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
 import { Footer } from '@/components/Footer';
-import { OpenDocumentsProvider } from '@/contexts/OpenDocumentsContext';
+import { OpenResourcesProvider } from '@/contexts/OpenDocumentsContext';
 import { DocumentAnnotationsProvider } from '@/contexts/DocumentAnnotationsContext';
 
 export default function KnowledgeLayout({
@@ -10,7 +10,7 @@ export default function KnowledgeLayout({
   children: React.ReactNode;
 }) {
   return (
-    <OpenDocumentsProvider>
+    <OpenResourcesProvider>
       <DocumentAnnotationsProvider>
         <div className="h-screen bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
           <div className="flex flex-1 overflow-hidden">
@@ -24,6 +24,6 @@ export default function KnowledgeLayout({
           <Footer />
         </div>
       </DocumentAnnotationsProvider>
-    </OpenDocumentsProvider>
+    </OpenResourcesProvider>
   );
 }

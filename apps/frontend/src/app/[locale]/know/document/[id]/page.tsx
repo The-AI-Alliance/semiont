@@ -18,7 +18,7 @@ import type { components } from '@semiont/api-client';
 import { getResourceId, getLanguage, getDocumentId } from '@/lib/resource-helpers';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
-import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
+import { useOpenResources } from '@/contexts/OpenDocumentsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useToast } from '@/components/Toast';
@@ -110,25 +110,25 @@ export default function KnowledgeDocumentPage() {
     return <DocumentErrorState error={new Error('Document not found')} onRetry={() => refetchDocument()} />;
   }
 
-  const document = docData.document;
+  const resource = docData.document;
 
-  return <DocumentView document={document} documentId={documentId} refetchDocument={refetchDocument} />;
+  return <DocumentView resource={resource} documentId={documentId} refetchDocument={refetchDocument} />;
 }
 
-// Main document view - document is guaranteed to exist
+// Main document view - resource is guaranteed to exist
 function DocumentView({
-  document,
+  resource,
   documentId,
   refetchDocument
 }: {
-  document: SemiontResource;
+  resource: SemiontResource;
   documentId: string;
   refetchDocument: () => Promise<unknown>;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
   const locale = useLocale();
-  const { addDocument } = useOpenDocuments();
+  const { addResource } = useOpenResources();
   const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
   const { fetchAPI } = useAuthenticatedAPI();
@@ -141,7 +141,7 @@ function DocumentView({
   useEffect(() => {
     const loadContent = async () => {
       try {
-        const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/documents/${encodeURIComponent(documentId)}/content`, {
+        const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/documents/${encodeURIComponent(documentId)}/representation`, {
           headers: {
             'Authorization': `Bearer ${session?.backendToken}`,
           },
@@ -150,11 +150,11 @@ function DocumentView({
           const text = await response.text();
           setContent(text);
         } else {
-          showError('Failed to load document content');
+          showError('Failed to load document representation');
         }
       } catch (error) {
-        console.error('Failed to fetch content:', error);
-        showError('Failed to load document content');
+        console.error('Failed to fetch representation:', error);
+        showError('Failed to load document representation');
       } finally {
         setContentLoading(false);
       }
@@ -186,7 +186,7 @@ function DocumentView({
   const referencedBy = referencedByData?.referencedBy || [];
 
   // Derived state
-  const documentEntityTypes = document.entityTypes || [];
+  const documentEntityTypes = resource.entityTypes || [];
 
   // Get entity types for detection
   const { data: entityTypesData } = entityTypes.all.useQuery();
@@ -227,13 +227,13 @@ function DocumentView({
     await refetchDocument();
   }, [refetchDocument]);
 
-  // Add document to open tabs when it loads
+  // Add resource to open tabs when it loads
   useEffect(() => {
-    if (document && documentId) {
-      addDocument(documentId, document.name);
+    if (resource && documentId) {
+      addResource(documentId, resource.name);
       localStorage.setItem('lastViewedDocumentId', documentId);
     }
-  }, [document, documentId, addDocument]);
+  }, [resource, documentId, addResource]);
 
   // Handle wiki link clicks - memoized
   const handleWikiLinkClick = useCallback(async (pageName: string) => {
@@ -279,7 +279,7 @@ function DocumentView({
 
   // Handle archive toggle - memoized
   const handleArchive = useCallback(async () => {
-    if (!document) return;
+    if (!resource) return;
 
     try {
       await updateDocMutation.mutateAsync({
@@ -292,10 +292,10 @@ function DocumentView({
       console.error('Failed to archive document:', err);
       showError('Failed to archive document');
     }
-  }, [document, documentId, updateDocMutation, loadDocument, showSuccess, showError]);
+  }, [resource, documentId, updateDocMutation, loadDocument, showSuccess, showError]);
 
   const handleUnarchive = useCallback(async () => {
-    if (!document) return;
+    if (!resource) return;
 
     try {
       await updateDocMutation.mutateAsync({
@@ -308,7 +308,7 @@ function DocumentView({
       console.error('Failed to unarchive document:', err);
       showError('Failed to unarchive document');
     }
-  }, [document, documentId, updateDocMutation, loadDocument, showSuccess, showError]);
+  }, [resource, documentId, updateDocMutation, loadDocument, showSuccess, showError]);
 
   const handleClone = useCallback(async () => {
     try {
@@ -515,7 +515,7 @@ function DocumentView({
           <div className="flex-none bg-white dark:bg-gray-800 shadow-sm rounded-t-lg">
             <div className="px-6 py-2 flex items-center justify-between gap-4">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {document.name}
+                {resource.name}
               </h2>
             </div>
           </div>
@@ -544,7 +544,7 @@ function DocumentView({
                 </div>
               ) : (
                 <DocumentViewer
-                  document={{ ...document, content }}
+                  resource={{ ...resource, content }}
                 highlights={highlights}
                 references={references}
                 onRefetchAnnotations={() => {
@@ -579,7 +579,7 @@ function DocumentView({
             width={activePanel === 'jsonld' ? 'w-[600px]' : 'w-64'}
           >
             {/* Archived Status */}
-            {annotateMode && document.archived && (
+            {annotateMode && resource.archived && (
               <div className="bg-gray-100 dark:bg-gray-700 rounded-lg shadow-sm p-3 mb-3">
                 <div className="text-gray-600 dark:text-gray-400 text-sm font-medium text-center">
                   📦 Archived
@@ -590,7 +590,7 @@ function DocumentView({
             {/* Document Panel */}
             {activePanel === 'document' && (
               <DocumentPanel
-                isArchived={document.archived ?? false}
+                isArchived={resource.archived ?? false}
                 onArchive={handleArchive}
                 onUnarchive={handleUnarchive}
                 onClone={handleClone}
@@ -598,7 +598,7 @@ function DocumentView({
             )}
 
             {/* Detect Panel */}
-            {activePanel === 'detect' && !document.archived && (
+            {activePanel === 'detect' && !resource.archived && (
               <DetectPanel
                 allEntityTypes={allEntityTypes}
                 isDetecting={isDetecting}
@@ -626,7 +626,7 @@ function DocumentView({
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 documentEntityTypes={documentEntityTypes}
-                documentLocale={getLanguage(document)}
+                documentLocale={getLanguage(resource)}
               />
             )}
 
@@ -641,7 +641,7 @@ function DocumentView({
 
             {/* JSON-LD Panel */}
             {activePanel === 'jsonld' && (
-              <JsonLdPanel document={document} />
+              <JsonLdPanel resource={resource} />
             )}
           </ToolbarPanels>
 
@@ -650,7 +650,7 @@ function DocumentView({
             context="document"
             activePanel={activePanel}
             annotateMode={annotateMode}
-            isArchived={document.archived ?? false}
+            isArchived={resource.archived ?? false}
             onPanelToggle={togglePanel}
             onAnnotateModeToggle={handleAnnotateModeToggle}
           />

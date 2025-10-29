@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
-import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
+import { useOpenResources } from '@/contexts/OpenDocumentsContext';
 import {
   DndContext,
   closestCenter,
@@ -36,7 +36,7 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
   const t = useTranslations('Knowledge');
   const pathname = usePathname();
   const router = useRouter();
-  const { openDocuments, removeDocument, reorderDocuments } = useOpenDocuments();
+  const { openResources, removeResource, reorderResources } = useOpenResources();
 
   const fixedNavigation = [
     {
@@ -70,7 +70,7 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
     e.preventDefault();
     e.stopPropagation();
 
-    removeDocument(docId);
+    removeResource(docId);
 
     // If we're closing the currently viewed document, navigate to Discover
     if (pathname === `/know/document/${docId}`) {
@@ -83,9 +83,9 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      const oldIndex = openDocuments.findIndex((doc) => doc.id === active.id);
-      const newIndex = openDocuments.findIndex((doc) => doc.id === over.id);
-      reorderDocuments(oldIndex, newIndex);
+      const oldIndex = openResources.findIndex((resource) => resource.id === active.id);
+      const newIndex = openResources.findIndex((resource) => resource.id === over.id);
+      reorderResources(oldIndex, newIndex);
     }
   };
 
@@ -162,10 +162,10 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
             {/* Document tabs with drag and drop */}
             {isCollapsed ? (
               // When collapsed, dragging is disabled - just render simple tabs
-              openDocuments.map((doc) => (
+              openResources.map((resource) => (
                 <SortableDocumentTab
-                  key={doc.id}
-                  doc={doc}
+                  key={resource.id}
+                  doc={resource}
                   isCollapsed={isCollapsed}
                   onClose={closeDocument}
                 />
@@ -178,13 +178,13 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
-                  items={openDocuments.map((doc) => doc.id)}
+                  items={openResources.map((resource) => resource.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  {openDocuments.map((doc) => (
+                  {openResources.map((resource) => (
                     <SortableDocumentTab
-                      key={doc.id}
-                      doc={doc}
+                      key={resource.id}
+                      doc={resource}
                       isCollapsed={isCollapsed}
                       onClose={closeDocument}
                     />

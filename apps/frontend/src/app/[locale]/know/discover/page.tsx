@@ -9,7 +9,7 @@ import type { components } from '@semiont/api-client';
 import { getResourceId, getDocumentId } from '@/lib/resource-helpers';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
+import { useOpenResources } from '@/contexts/OpenDocumentsContext';
 import { useRovingTabIndex } from '@/hooks/useRovingTabIndex';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
@@ -100,7 +100,7 @@ function useDebounce<T>(value: T, delay: number): T {
 export default function DiscoverPage() {
   const t = useTranslations('Discover');
   const router = useRouter();
-  const { addDocument } = useOpenDocuments();
+  const { addResource } = useOpenResources();
 
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');

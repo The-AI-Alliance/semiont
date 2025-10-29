@@ -160,7 +160,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createDocument(document: ResourceDescriptor): Promise<ResourceDescriptor> {
+  async createResource(document: ResourceDescriptor): Promise<ResourceDescriptor> {
     const session = this.getSession();
     try {
       const id = getResourceId(document);

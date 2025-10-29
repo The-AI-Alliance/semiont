@@ -83,10 +83,10 @@ function ComposeDocumentContent() {
           setCloneToken(tokenFromUrl || null);
           setNewDocName(cloneData.sourceDocument.name);
 
-          // Fetch content separately
+          // Fetch representation separately
           try {
             const documentId = getDocumentId(cloneData.sourceDocument);
-            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${encodeURIComponent(documentId)}/content`, {
+            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${encodeURIComponent(documentId)}/representation`, {
               headers: {
                 'Authorization': `Bearer ${session.backendToken}`,
               },
@@ -96,11 +96,11 @@ function ComposeDocumentContent() {
               const content = await contentResponse.text();
               setNewDocContent(content);
             } else {
-              showError('Failed to load document content');
+              showError('Failed to load document representation');
             }
           } catch (error) {
-            console.error('Failed to fetch content:', error);
-            showError('Failed to load document content');
+            console.error('Failed to fetch representation:', error);
+            showError('Failed to load document representation');
           }
         } else {
           showError('Invalid or expired clone token');
@@ -373,7 +373,7 @@ function ComposeDocumentContent() {
             >
               {isCreating
                 ? (isClone ? t('saving') : isReferenceCompletion ? t('creatingAndLinking') : t('creating'))
-                : (isClone ? t('saveClonedDocument') : isReferenceCompletion ? t('createAndLinkDocument') : t('createDocument'))}
+                : (isClone ? t('saveClonedDocument') : isReferenceCompletion ? t('createAndLinkDocument') : t('createResource'))}
             </button>
           </div>
         </form>

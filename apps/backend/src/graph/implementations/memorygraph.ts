@@ -50,7 +50,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return this.connected;
   }
 
-  async createDocument(document: ResourceDescriptor): Promise<ResourceDescriptor> {
+  async createResource(document: ResourceDescriptor): Promise<ResourceDescriptor> {
     const id = getResourceId(document);
 
     // Simply add to in-memory map

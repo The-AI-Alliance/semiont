@@ -80,7 +80,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
         sourceDocumentId: getTargetSource(annotation.target),
       };
 
-      const savedDoc = await graphDb.createDocument(document);
+      const savedDoc = await graphDb.createResource(document);
 
       // Update the annotation to resolve to the new document
       await graphDb.resolveReference(annotationId, getResourceId(savedDoc));

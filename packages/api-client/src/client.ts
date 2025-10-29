@@ -138,7 +138,7 @@ export class SemiontApiClient {
   // DOCUMENTS
   // ============================================================================
 
-  async createDocument(
+  async createResource(
     data: RequestContent<paths['/api/documents']['post']>
   ): Promise<ResponseContent<paths['/api/documents']['post']>> {
     return this.http.post('api/documents', { json: data }).json();
