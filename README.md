@@ -1,4 +1,4 @@
-# Semiont - Semantic Knowledge Platform
+# Semiont - Semantic Knowledge Kernel
 
 [![Development Status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/The-AI-Alliance/semiont)
 [![API Stability](https://img.shields.io/badge/API-unstable-red.svg)](https://github.com/The-AI-Alliance/semiont)
@@ -13,9 +13,16 @@
 
 **The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.**
 
-An AI-native knowledge base for human/agent collaboration. Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructure with your data for true **sovereign AI**.
+Semiont is a standards-compliant multimedia resource management system built on the **W3C Web Annotation** model. It transforms unstructured content into interconnected semantic networks through collaborative markup, linking, and AI-powered knowledge extraction—all stored as standard, interoperable annotations.
 
-Built on the **W3C Web Annotation** standard, Semiont automatically extracts knowledge graphs from unstructured content, enabling collaborative annotation, linking, and reasoning over documents. It transforms text into interconnected semantic networks with entity recognition, relationship extraction, and contextual understanding—all stored as standard, interoperable annotations.
+**AI-Native Enhancements:**
+
+- **Entity Detection** - Automatically identify people, places, concepts, and other entities
+- **Entity Resolution** - Link detected entities to specific resources or external knowledge bases
+- **Context Retrieval** - Extract semantic context from the knowledge graph for LLM consumption
+- **Contextualized Generation** - Create new resources aligned with your existing knowledge
+
+Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructure with your data for true **sovereign AI**.
 
 ## 📁 File Layout
 
@@ -52,8 +59,8 @@ const client = new SemiontApiClient({
 });
 
 await client.authenticateLocal('user@example.com', '123456');
-const doc = await client.createDocument({
-  name: 'My Document',
+const resource = await client.createResource({
+  name: 'My Resource',
   content: 'Hello World',
   format: 'text/plain',
   entityTypes: ['example']
@@ -80,7 +87,7 @@ const doc = await client.createDocument({
 The **[demo/](demo/)** directory contains example scripts showing how to use the SDK:
 
 - **Prometheus Bound Demo** - Complete workflow demonstrating:
-  - Document upload and chunking
+  - Resource upload and chunking
   - Table of contents generation
   - Annotation creation and resolution
   - Event history tracking
