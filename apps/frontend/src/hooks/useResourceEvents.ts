@@ -126,7 +126,7 @@ export function useResourceEvents({
   ]);
 
   const connect = useCallback(async () => {
-    console.log(`[ResourceEvents] Attempting to connect to document ${resourceId} events stream`);
+    console.log(`[ResourceEvents] Attempting to connect to resource ${resourceId} events stream`);
 
     // Close any existing connection
     if (abortControllerRef.current) {
@@ -148,7 +148,7 @@ export function useResourceEvents({
       return;
     }
 
-    console.log(`[ResourceEvents] Connecting to SSE stream for document ${resourceId}`);
+    console.log(`[ResourceEvents] Connecting to SSE stream for resource ${resourceId}`);
     setStatus('connecting');
 
     // Create new abort controller
@@ -157,7 +157,7 @@ export function useResourceEvents({
 
     // Build SSE URL
     const apiUrl = NEXT_PUBLIC_API_URL;
-    const url = `${apiUrl}/api/documents/${resourceId}/events/stream`;
+    const url = `${apiUrl}/api/resources/${resourceId}/events/stream`;
 
     try {
       await fetchEventSource(url, {
@@ -169,7 +169,7 @@ export function useResourceEvents({
 
         async onopen(response) {
           if (response.ok) {
-            console.log(`[ResourceEvents] Successfully connected to document ${resourceId} events stream`);
+            console.log(`[ResourceEvents] Successfully connected to resource ${resourceId} events stream`);
             setStatus('connected');
             reconnectAttemptsRef.current = 0; // Reset reconnect counter
           } else {

@@ -87,10 +87,10 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
         ) {
           return;
         }
-        // Navigate to new document page
-        router.push('/know/documents/new');
+        // Navigate to compose page to create new resource
+        router.push('/know/compose');
       },
-      description: 'Create new document'
+      description: 'Create new resource'
     },
     {
       key: '/',

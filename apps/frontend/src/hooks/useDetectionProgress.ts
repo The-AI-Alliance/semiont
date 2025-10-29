@@ -56,7 +56,7 @@ export function useDetectionProgress({
     abortControllerRef.current = abortController;
 
     // Build SSE URL
-    const url = `${NEXT_PUBLIC_API_URL}/api/documents/${resourceId}/detect-annotations-stream`;
+    const url = `${NEXT_PUBLIC_API_URL}/api/resources/${resourceId}/detect-annotations-stream`;
 
     try {
       await fetchEventSource(url, {

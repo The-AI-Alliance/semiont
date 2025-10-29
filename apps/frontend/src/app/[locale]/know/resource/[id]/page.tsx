@@ -144,7 +144,7 @@ function ResourceView({
         // Get the primary representation's mediaType from the resource
         const mediaType = getPrimaryMediaType(resource) || 'text/plain';
 
-        const response = await fetch(`${NEXT_PUBLIC_API_URL}/documents/${encodeURIComponent(resourceId)}`, {
+        const response = await fetch(`${NEXT_PUBLIC_API_URL}/resources/${encodeURIComponent(resourceId)}`, {
           headers: {
             'Authorization': `Bearer ${session?.backendToken}`,
             'Accept': mediaType,
@@ -154,11 +154,11 @@ function ResourceView({
           const text = await response.text();
           setContent(text);
         } else {
-          showError('Failed to load document representation');
+          showError('Failed to load resource representation');
         }
       } catch (error) {
         console.error('Failed to fetch representation:', error);
-        showError('Failed to load document representation');
+        showError('Failed to load resource representation');
       } finally {
         setContentLoading(false);
       }
@@ -242,15 +242,15 @@ function ResourceView({
   // Handle wiki link clicks - memoized
   const handleWikiLinkClick = useCallback(async (pageName: string) => {
     try {
-      // Search for the document using authenticated API
-      const response = await fetchAPI(`/api/documents/search?q=${encodeURIComponent(pageName)}&limit=1`) as any;
+      // Search for the resource using authenticated API
+      const response = await fetchAPI(`/api/resources/search?q=${encodeURIComponent(pageName)}&limit=1`) as any;
 
       if (response.resources?.length > 0 && response.resources[0]) {
-        // Document found - navigate to it
+        // Resource found - navigate to it
         router.push(`/know/resource/${encodeURIComponent(response.resources[0].id)}`);
       } else {
-        // Document not found - offer to create it
-        if (confirm(`Document "${pageName}" not found. Would you like to create it?`)) {
+        // Resource not found - offer to create it
+        if (confirm(`Resource "${pageName}" not found. Would you like to create it?`)) {
           const newDoc = await createDocMutation.mutateAsync({
             name: pageName,
             content: `# ${pageName}\n\nThis page was created from a wiki link.`,
