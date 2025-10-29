@@ -21,4 +21,4 @@ export const handleGetContextualSummary = createStubHandler('contextual-summary'
 export const handleGetSchemaDescription = createStubHandler('schema-description');
 export const handleGetLLMContext = createStubHandler('llm-context');
 export const handleDiscoverContext = createStubHandler('discover-context');
-export const handleGetDocumentSelections = createStubHandler('document-selections');
+export const handleGetResourceSelections = createStubHandler('resource-selections');

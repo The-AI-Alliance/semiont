@@ -1,7 +1,7 @@
 /**
  * Event Utilities
  *
- * Pure TypeScript utilities for working with document events.
+ * Pure TypeScript utilities for working with resource events.
  * No React dependencies - safe to use in any JavaScript environment.
  */
 
@@ -11,16 +11,16 @@ import { getExactText, compareAnnotationIds, getTargetSelector } from './annotat
 // Extract StoredEvent type from events endpoint response
 type EventsResponse = paths['/api/resources/{id}/events']['get']['responses'][200]['content']['application/json'];
 export type StoredEvent = EventsResponse['events'][number];
-export type DocumentEvent = StoredEvent['event'];
+export type ResourceEvent = StoredEvent['event'];
 export type EventMetadata = StoredEvent['metadata'];
 type Annotation = components['schemas']['Annotation'];
 
 // Event types
-export type DocumentEventType =
-  | 'document.created'
-  | 'document.cloned'
-  | 'document.archived'
-  | 'document.unarchived'
+export type ResourceEventType =
+  | 'resource.created'
+  | 'resource.cloned'
+  | 'resource.archived'
+  | 'resource.unarchived'
   | 'annotation.added'
   | 'annotation.removed'
   | 'annotation.body.updated'
@@ -66,14 +66,14 @@ export function isEventRelatedToAnnotation(event: StoredEvent, annotationId: str
 }
 
 /**
- * Type guard to check if event is a document event
+ * Type guard to check if event is a resource event
  */
-export function isDocumentEvent(event: any): event is StoredEvent {
+export function isResourceEvent(event: any): event is StoredEvent {
   return event &&
     typeof event.event === 'object' &&
     typeof event.event.id === 'string' &&
     typeof event.event.timestamp === 'string' &&
-    typeof event.event.documentId === 'string' &&
+    typeof event.event.resourceId === 'string' &&
     typeof event.event.type === 'string' &&
     typeof event.metadata === 'object' &&
     typeof event.metadata.sequenceNumber === 'number';
@@ -86,16 +86,16 @@ export function isDocumentEvent(event: any): event is StoredEvent {
 /**
  * Format event type for display with i18n support
  */
-export function formatEventType(type: DocumentEventType, t: TranslateFn, payload?: any): string {
+export function formatEventType(type: ResourceEventType, t: TranslateFn, payload?: any): string {
   switch (type) {
-    case 'document.created':
-      return t('documentCreated');
-    case 'document.cloned':
-      return t('documentCloned');
-    case 'document.archived':
-      return t('documentArchived');
-    case 'document.unarchived':
-      return t('documentUnarchived');
+    case 'resource.created':
+      return t('resourceCreated');
+    case 'resource.cloned':
+      return t('resourceCloned');
+    case 'resource.archived':
+      return t('resourceArchived');
+    case 'resource.unarchived':
+      return t('resourceUnarchived');
 
     case 'annotation.added': {
       const motivation = payload?.annotation?.motivation;
@@ -128,12 +128,12 @@ export function formatEventType(type: DocumentEventType, t: TranslateFn, payload
  * Get emoji for event type
  * For unified annotation events, pass the payload to determine motivation
  */
-export function getEventEmoji(type: DocumentEventType, payload?: any): string {
+export function getEventEmoji(type: ResourceEventType, payload?: any): string {
   switch (type) {
-    case 'document.created':
-    case 'document.cloned':
-    case 'document.archived':
-    case 'document.unarchived':
+    case 'resource.created':
+    case 'resource.cloned':
+    case 'resource.archived':
+    case 'resource.unarchived':
       return '📄';
 
     case 'annotation.added': {
@@ -202,8 +202,8 @@ export function getEventDisplayContent(
 
   // Use type discriminators instead of runtime typeof checks
   switch (eventData.type) {
-    case 'document.created':
-    case 'document.cloned': {
+    case 'resource.created':
+    case 'resource.cloned': {
       return { exact: payload.name, isQuoted: false, isTag: false };
     }
 
@@ -289,25 +289,25 @@ export function getEventEntityTypes(event: StoredEvent): string[] {
 }
 
 /**
- * Document creation details
+ * Resource creation details
  */
-export interface DocumentCreationDetails {
+export interface ResourceCreationDetails {
   type: 'created' | 'cloned';
   method: string;
   userId?: string;
-  sourceDocId?: string; // For cloned documents
-  parentDocumentId?: string;
+  sourceDocId?: string; // For cloned resources
+  parentResourceId?: string;
   metadata?: Record<string, any>;
 }
 
 /**
- * Get document creation details from event
+ * Get resource creation details from event
  */
-export function getDocumentCreationDetails(event: StoredEvent): DocumentCreationDetails | null {
+export function getResourceCreationDetails(event: StoredEvent): ResourceCreationDetails | null {
   const eventData = event.event;
   const payload = eventData.payload as any;
 
-  if (eventData.type === 'document.created') {
+  if (eventData.type === 'resource.created') {
     return {
       type: 'created',
       method: payload.creationMethod || 'unknown',
@@ -316,13 +316,13 @@ export function getDocumentCreationDetails(event: StoredEvent): DocumentCreation
     };
   }
 
-  if (eventData.type === 'document.cloned') {
+  if (eventData.type === 'resource.cloned') {
     return {
       type: 'cloned',
       method: payload.creationMethod || 'clone',
       userId: eventData.userId,
-      sourceDocId: payload.parentDocumentId,
-      parentDocumentId: payload.parentDocumentId,
+      sourceDocId: payload.parentResourceId,
+      parentResourceId: payload.parentResourceId,
       metadata: payload.metadata,
     };
   }

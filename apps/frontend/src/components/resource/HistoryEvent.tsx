@@ -4,13 +4,13 @@ import React, { useRef, useCallback } from 'react';
 import { Link } from '@/i18n/routing';
 import {
   type StoredEvent,
-  type DocumentEventType,
+  type ResourceEventType,
   formatEventType,
   getEventEmoji,
   formatRelativeTime,
   getEventDisplayContent,
   getEventEntityTypes,
-  getDocumentCreationDetails,
+  getResourceCreationDetails,
   getAnnotationIdFromEvent,
 } from '@semiont/api-client';
 
@@ -39,7 +39,7 @@ export function HistoryEvent({
 }: Props) {
   const displayContent = getEventDisplayContent(event, annotations, allEvents);
   const annotationId = getAnnotationIdFromEvent(event);
-  const creationDetails = getDocumentCreationDetails(event);
+  const creationDetails = getResourceCreationDetails(event);
   const entityTypes = getEventEntityTypes(event);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -80,7 +80,7 @@ export function HistoryEvent({
   const eventWrapperProps = annotationId ? {
     type: 'button' as const,
     onClick: () => onEventClick?.(annotationId),
-    'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.event.type as DocumentEventType, t) }),
+    'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.event.type as ResourceEventType, t) }),
     className: `w-full text-left text-xs ${borderClass} pl-2 py-0.5 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset`
   } : {
     className: `text-xs ${borderClass} pl-2 py-0.5`
@@ -101,7 +101,7 @@ export function HistoryEvent({
           onMouseEnter={handleEmojiMouseEnter}
           onMouseLeave={handleEmojiMouseLeave}
         >
-          {getEventEmoji(event.event.type as DocumentEventType, event.event.payload)}
+          {getEventEmoji(event.event.type as ResourceEventType, event.event.payload)}
         </span>
         {displayContent ? (
           displayContent.isTag ? (
@@ -119,7 +119,7 @@ export function HistoryEvent({
           )
         ) : (
           <span className="font-medium text-gray-900 dark:text-gray-100">
-            {formatEventType(event.event.type as DocumentEventType, t, event.event.payload)}
+            {formatEventType(event.event.type as ResourceEventType, t, event.event.payload)}
           </span>
         )}
         <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-auto">
