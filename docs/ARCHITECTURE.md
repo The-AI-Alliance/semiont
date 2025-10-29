@@ -38,7 +38,7 @@ graph TB
     end
 
     subgraph "Data"
-        CONTENT[Content Store]
+        REP[RepresentationStore]
         EVENTS[Event Store]
         PROJ[Projections]
         GRAPH[Graph]
@@ -66,7 +66,7 @@ graph TB
     MCP -->|REST + JWT| BE
 
     %% Backend to data (write path)
-    BE -->|Write Content| CONTENT
+    BE -->|Store Representations| REP
     BE -->|Append Events| EVENTS
     BE -->|Create/Update Users| DB
     BE -.->|Future| SEC
@@ -76,7 +76,7 @@ graph TB
     PROJ -.->|Sync| GRAPH
 
     %% Backend reads
-    BE -->|Read Content| CONTENT
+    BE -->|Get by Checksum| REP
     BE -->|Query State| PROJ
     BE -->|Graph Queries| GRAPH
 
@@ -100,7 +100,7 @@ graph TB
     class USER,AI,MCP client
     class OAUTH identity
     class FE,BE app
-    class CONTENT,EVENTS,PROJ,GRAPH,DB,SEC data
+    class REP,EVENTS,PROJ,GRAPH,DB,SEC data
     class INF,JW compute
 ```
 
@@ -110,7 +110,7 @@ graph TB
 - **Frontend**: Next.js 14 web application with NextAuth.js (OAuth handler only, browser calls backend directly via REST and SSE)
 - **Backend API**: Hono server with JWT validation implementing W3C Web Annotation Data Model, provides SSE streams for real-time updates
 - **MCP Server**: Model Context Protocol for AI agent integration (uses JWT refresh tokens)
-- **Content Store**: Binary/text files, 65K shards, O(1) access
+- **RepresentationStore**: Content-addressed storage, W3C compliant, checksum-based
 - **Event Store**: Immutable JSONL event log, source of truth
 - **Projections**: Materialized views in sharded JSON files
 - **Graph**: Neo4j/Neptune for relationship queries
@@ -123,8 +123,8 @@ graph TB
 
 - **Authentication**: Browser → Google OAuth → Frontend Server (NextAuth.js exchanges token) → Backend (verify + generate JWT) → Database (create/update user) → JWT stored in browser session
 - **API Calls**: Browser → Backend (validate JWT) → Data layers
-- **Write Path**: Browser → Backend (validate JWT) → Content Store + Event Store → Projections → Graph
-- **Read Path**: Browser → Backend (validate JWT) → Projections or Graph → Response
+- **Write Path**: Browser → Backend (validate JWT) → RepresentationStore + Event Store → Projections → Graph
+- **Read Path**: Browser → Backend (validate JWT) → Projections or Graph → RepresentationStore → Response
 - **Job Processing**: Browser → Backend → Job Worker → Inference → Event Store (emits completion events)
 - **Real-Time Events (SSE)**: Job Worker emits events → Event Store → Backend subscribes → SSE stream → Browser
 - **Job Progress (SSE)**: Browser → Backend SSE stream → Polls Job Worker filesystem queue (500ms) → Browser receives progress updates
@@ -200,34 +200,36 @@ The application layer consists of server-side services that handle user requests
 
 The 4-layer architecture separates concerns while maintaining a clear dependency hierarchy.
 
-### Content Store
+### RepresentationStore (Layer 1)
 
-**Purpose**: Raw document storage (text, binary, PDFs)
+**Purpose**: W3C-compliant storage of document representations (content)
 
-**Technology**: Sharded filesystem (65,536 shards via Jump Consistent Hash)
+**Technology**: Content-addressed filesystem storage (SHA-256 checksums)
 
 **Key Characteristics**:
 
-- O(1) read/write by document ID
-- Content-addressed storage (no database queries)
-- Supports streaming for large files
-- Platform-agnostic (local filesystem, EFS, S3)
+- Content-addressed: Files stored by checksum, not document ID
+- W3C compliant: Implements W3C representation metadata model
+- Deduplication: Identical content stored once
+- Integrity verification: Built-in checksum validation
+- Sharded storage: 4-hex sharding for scalability
+- Platform-agnostic: (local filesystem, EFS, S3)
 
-**Why This Matters**: Storing content separately from metadata allows independent scaling. A 1GB PDF doesn't bloat your Event Store or Projections. Content can live on cheap object storage (S3/EFS) while metadata flows through Event Store → Projections (JSON files).
+**Why This Matters**: Content-addressed storage enables automatic deduplication (100 documents with identical content = 1 file) and integrity verification. Storing by checksum rather than document ID aligns with W3C standards where resources can have multiple representations. Content is completely separate from metadata—a 1GB PDF doesn't bloat Event Store or Projections.
 
-**Filesystem Backend**: Content Store uses the [Filesystem](./services/FILESYSTEM.md) service for physical storage (local filesystem, AWS S3, AWS EFS).
+**Filesystem Backend**: RepresentationStore uses the [Filesystem](./services/FILESYSTEM.md) service for physical storage (local filesystem, AWS S3, AWS EFS).
 
-**Documentation**: [CONTENT-STORE.md](./services/CONTENT-STORE.md)
+**Documentation**: [REPRESENTATION-STORE.md](./services/REPRESENTATION-STORE.md)
 
 ### Event Store
 
 **Purpose**: Immutable event log (source of truth for all changes)
 
-**Technology**: Append-only JSONL files, sharded like Content Store
+**Technology**: Append-only JSONL files, sharded filesystem storage
 
 **Event Types**:
 
-- Document lifecycle: `document.created`, `document.archived`
+- Resource lifecycle: `document.created`, `document.archived`
 - Annotations: `annotation.added`, `annotation.removed`, `annotation.body.updated`
 - Entity types: `entitytype.added`, `entitytag.added`
 
@@ -554,9 +556,9 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 
 **Data Layer Scaling**:
 
-- Content Store: Shard across multiple EFS volumes or S3 buckets
+- RepresentationStore: Content-addressed storage deduplicates automatically, shard across EFS volumes or S3 buckets
 - Event Store: Sharding already built-in (65,536 shards)
-- Projections: PostgreSQL read replicas
+- Projections: Filesystem-based JSON files (sharded)
 - Graph: Neptune cluster or Neo4j enterprise
 
 **Documentation**: [SCALING.md](./SCALING.md)
@@ -620,7 +622,7 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 
 ### Service Deep Dives
 
-- [Content Store](./services/CONTENT-STORE.md) - Binary/text storage
+- [RepresentationStore](./services/REPRESENTATION-STORE.md) - W3C-compliant content storage
 - [Event Store](./services/EVENT-STORE.md) - Immutable event log
 - [Projection Store](./services/PROJECTION.md) - Materialized views
 - [Graph Database](./services/GRAPH.md) - Relationship traversal
