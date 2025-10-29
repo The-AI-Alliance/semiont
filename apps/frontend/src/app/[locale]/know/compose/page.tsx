@@ -13,7 +13,7 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getResourceId, getDocumentId } from '@/lib/resource-helpers';
+import { getResourceId, getDocumentId, getPrimaryMediaType } from '@/lib/resource-helpers';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
@@ -86,9 +86,13 @@ function ComposeDocumentContent() {
           // Fetch representation separately
           try {
             const documentId = getDocumentId(cloneData.sourceDocument);
-            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${encodeURIComponent(documentId)}/representation`, {
+            // Get the primary representation's mediaType from the source document
+            const mediaType = getPrimaryMediaType(cloneData.sourceDocument) || 'text/plain';
+
+            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/documents/${encodeURIComponent(documentId)}`, {
               headers: {
                 'Authorization': `Bearer ${session.backendToken}`,
+                'Accept': mediaType,
               },
             });
 

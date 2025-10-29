@@ -3975,52 +3975,6 @@
         }
       }
     },
-    "/api/documents/{id}/representation": {
-      "get": {
-        "summary": "Get Document Representation",
-        "description": "Get primary representation of a resource with correct MIME type from resource metadata",
-        "tags": [
-          "Documents"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Document representation with MIME type from resource metadata",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "text/markdown": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "application/pdf": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/documents/from-annotation/{annotationId}": {
       "post": {
         "summary": "Create Document from Annotation",

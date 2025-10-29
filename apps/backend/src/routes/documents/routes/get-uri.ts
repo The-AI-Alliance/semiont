@@ -1,8 +1,9 @@
 /**
  * Get Document URI Route - W3C Content Negotiation
  *
- * Handles globally resolvable document URIs with content negotiation:
- * - Accept: application/ld+json -> returns JSON-LD representation (default)
+ * Single endpoint for all document representations via content negotiation:
+ * - Accept: application/ld+json -> returns JSON-LD metadata (default)
+ * - Accept: text/plain, text/markdown, etc. -> returns raw representation
  * - ?view=semiont -> redirects to Semiont frontend viewer
  *
  * This implements W3C Web Annotation Data Model requirement that
@@ -17,6 +18,9 @@ import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
+import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { getPrimaryRepresentation, getPrimaryMediaType } from '../../../utils/resource-helpers';
+import { DocumentQueryService } from '../../../services/document-queries';
 
 type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
 
@@ -24,9 +28,9 @@ export function registerGetDocumentUri(router: DocumentsRouterType) {
   /**
    * GET /documents/:id
    *
-   * W3C-compliant globally resolvable document URI
-   * Supports content negotiation:
-   * - JSON-LD for machines (default)
+   * W3C-compliant globally resolvable document URI with full content negotiation:
+   * - Accept: application/ld+json -> JSON-LD metadata (default)
+   * - Accept: text/plain, text/markdown, etc. -> raw representation
    * - ?view=semiont -> 302 redirect to Semiont frontend viewer
    */
   router.get('/documents/:id', async (c) => {
@@ -41,8 +45,41 @@ export function registerGetDocumentUri(router: DocumentsRouterType) {
       return c.redirect(redirectUrl, 302);
     }
 
-    // Otherwise, return JSON-LD representation
+    // Check Accept header for content negotiation
+    const acceptHeader = c.req.header('Accept') || 'application/ld+json';
     const basePath = getFilesystemConfig().path;
+
+    // If requesting raw representation (text/plain, text/markdown, etc.)
+    if (acceptHeader.includes('text/') || acceptHeader.includes('application/pdf')) {
+      const repStore = new FilesystemRepresentationStore({ basePath });
+
+      // Get document metadata from Layer 3
+      const resource = await DocumentQueryService.getDocumentMetadata(id);
+      if (!resource) {
+        throw new HTTPException(404, { message: 'Document not found' });
+      }
+
+      // Get primary representation
+      const primaryRep = getPrimaryRepresentation(resource);
+      if (!primaryRep || !primaryRep.checksum || !primaryRep.mediaType) {
+        throw new HTTPException(404, { message: 'Document representation not found' });
+      }
+
+      // Read representation from RepresentationStore using content-addressed lookup
+      const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+      if (!content) {
+        throw new HTTPException(404, { message: 'Document representation not found' });
+      }
+
+      // Set Content-Type header from representation mediaType
+      const mediaType = getPrimaryMediaType(resource);
+      if (mediaType) {
+        c.header('Content-Type', mediaType);
+      }
+      return c.text(content.toString('utf-8'));
+    }
+
+    // Otherwise, return JSON-LD metadata (default)
 
     // Read from Layer 2/3: Event store builds/loads projection
     const eventStore = await createEventStore(basePath);

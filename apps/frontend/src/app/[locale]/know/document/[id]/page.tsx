@@ -15,7 +15,7 @@ import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components } from '@semiont/api-client';
-import { getResourceId, getLanguage, getDocumentId } from '@/lib/resource-helpers';
+import { getResourceId, getLanguage, getDocumentId, getPrimaryMediaType } from '@/lib/resource-helpers';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 import { useOpenResources } from '@/contexts/OpenDocumentsContext';
@@ -141,9 +141,13 @@ function DocumentView({
   useEffect(() => {
     const loadContent = async () => {
       try {
-        const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/documents/${encodeURIComponent(documentId)}/representation`, {
+        // Get the primary representation's mediaType from the resource
+        const mediaType = getPrimaryMediaType(resource) || 'text/plain';
+
+        const response = await fetch(`${NEXT_PUBLIC_API_URL}/documents/${encodeURIComponent(documentId)}`, {
           headers: {
             'Authorization': `Bearer ${session?.backendToken}`,
+            'Accept': mediaType,
           },
         });
         if (response.ok) {
@@ -160,7 +164,7 @@ function DocumentView({
       }
     };
     loadContent();
-  }, [documentId, session?.backendToken, showError]);
+  }, [documentId, resource, session?.backendToken, showError]);
 
   // Fetch all annotations with a single request
   const { data: annotationsData, refetch: refetchAnnotations } = documents.annotations.useQuery(documentId);
