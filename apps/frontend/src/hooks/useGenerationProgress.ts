@@ -66,7 +66,7 @@ export function useGenerationProgress({
     const apiUrl = NEXT_PUBLIC_API_URL;
     // Extract ID from URI if referenceId is a full URI (Phase 5: URI-based IDs)
     const id = extractAnnotationId(referenceId);
-    const url = `${apiUrl}/api/annotations/${id}/generate-document-stream`;
+    const url = `${apiUrl}/api/annotations/${id}/generate-resource-stream`;
 
     const requestBody = { resourceId, ...options };
     console.log('[useGenerationProgress] Sending request to:', url);
