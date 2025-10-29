@@ -9,7 +9,7 @@ import type {
   GraphConnection,
   GraphPath,
   EntityTypeStats,
-  DocumentFilter,
+  ResourceFilter,
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
@@ -110,7 +110,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     }
   }
   
-  async listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
+  async listDocuments(filter: ResourceFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
     let docs = Array.from(this.documents.values());
 
     if (filter.entityTypes && filter.entityTypes.length > 0) {

@@ -9,7 +9,7 @@ import type {
   GraphConnection,
   GraphPath,
   EntityTypeStats,
-  DocumentFilter,
+  ResourceFilter,
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
@@ -260,7 +260,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
+  async listDocuments(filter: ResourceFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
     const session = this.getSession();
     try {
       let whereClause = '';

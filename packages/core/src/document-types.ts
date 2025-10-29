@@ -1,5 +1,5 @@
 /**
- * Document input/output types
+ * Resource input/output types
  */
 
 export interface UpdateDocumentInput {
@@ -8,7 +8,7 @@ export interface UpdateDocumentInput {
   archived?: boolean;
 }
 
-export interface DocumentFilter {
+export interface ResourceFilter {
   entityTypes?: string[];
   search?: string;
   limit?: number;

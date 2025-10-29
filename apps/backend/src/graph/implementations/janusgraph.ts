@@ -11,7 +11,7 @@ import type {
   GraphConnection,
   GraphPath,
   EntityTypeStats,
-  DocumentFilter,
+  ResourceFilter,
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
@@ -308,7 +308,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     console.log('Deleted document from JanusGraph:', id);
   }
   
-  async listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
+  async listDocuments(filter: ResourceFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
     let traversalQuery = this.g!.V().hasLabel('Document');
 
     // Apply filters

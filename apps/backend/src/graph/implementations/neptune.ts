@@ -9,7 +9,7 @@ import type {
   GraphConnection,
   GraphPath,
   EntityTypeStats,
-  DocumentFilter,
+  ResourceFilter,
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
@@ -438,7 +438,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
+  async listDocuments(filter: ResourceFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
     try {
       let traversal = this.g.V().hasLabel('Document');
       

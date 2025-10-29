@@ -6,7 +6,7 @@ import type {
   GraphConnection,
   GraphPath,
   EntityTypeStats,
-  DocumentFilter,
+  ResourceFilter,
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
@@ -26,7 +26,7 @@ export interface GraphDatabase {
   getDocument(id: string): Promise<ResourceDescriptor | null>;
   updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor>;
   deleteDocument(id: string): Promise<void>;
-  listDocuments(filter: DocumentFilter): Promise<{ documents: ResourceDescriptor[]; total: number }>;
+  listDocuments(filter: ResourceFilter): Promise<{ documents: ResourceDescriptor[]; total: number }>;
   searchDocuments(query: string, limit?: number): Promise<ResourceDescriptor[]>;
   
   // Annotation operations
