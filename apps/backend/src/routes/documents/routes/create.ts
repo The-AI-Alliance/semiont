@@ -21,7 +21,7 @@ import { userToAgent } from '../../../utils/id-generator';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 
-type CreateDocumentRequest = components['schemas']['CreateDocumentRequest'];
+type CreateResourceRequest = components['schemas']['CreateResourceRequest'];
 type CreateDocumentResponse = components['schemas']['CreateDocumentResponse'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -31,12 +31,12 @@ export function registerCreateDocument(router: DocumentsRouterType) {
    *
    * Create a new document
    * Requires authentication
-   * Validates request body against CreateDocumentRequest schema
+   * Validates request body against CreateResourceRequest schema
    */
   router.post('/api/documents',
-    validateRequestBody('CreateDocumentRequest'),
+    validateRequestBody('CreateResourceRequest'),
     async (c) => {
-      const body = c.get('validatedBody') as CreateDocumentRequest;
+      const body = c.get('validatedBody') as CreateResourceRequest;
       const user = c.get('user');
       const basePath = getFilesystemConfig().path;
       const repStore = new FilesystemRepresentationStore({ basePath });

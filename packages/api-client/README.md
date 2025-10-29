@@ -498,7 +498,7 @@ The package exports TypeScript types from the OpenAPI specification:
 import type { paths } from '@semiont/api-client';
 
 // Access specific endpoint types
-type CreateDocumentRequest = paths['/api/documents']['post']['requestBody']['content']['application/json'];
+type CreateResourceRequest = paths['/api/documents']['post']['requestBody']['content']['application/json'];
 type CreateDocumentResponse = paths['/api/documents']['post']['responses']['200']['content']['application/json'];
 ```
 

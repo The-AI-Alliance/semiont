@@ -8,7 +8,7 @@ type ResponseContent<T> = T extends { responses: { 200: { content: { 'applicatio
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
 
 type Document = ResponseContent<paths['/api/documents']['get']>['documents'][number];
-type CreateDocumentRequest = RequestContent<paths['/api/documents']['post']>;
+type CreateResourceRequest = RequestContent<paths['/api/documents']['post']>;
 type CreateDocumentResponse = paths['/api/documents']['post']['responses'][201]['content']['application/json'];
 type UpdateDocumentRequest = RequestContent<paths['/api/documents/{id}']['patch']>;
 type GetDocumentResponse = paths['/documents/{id}']['get']['responses'][200]['content']['application/ld+json'];
@@ -54,7 +54,7 @@ export const documents = {
       const queryClient = useQueryClient();
 
       return useMutation({
-        mutationFn: (data: CreateDocumentRequest) =>
+        mutationFn: (data: CreateResourceRequest) =>
           fetchAPI<CreateDocumentResponse>('/api/documents', {
             method: 'POST',
             body: JSON.stringify(data),

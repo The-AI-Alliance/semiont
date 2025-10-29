@@ -324,7 +324,7 @@
           "message"
         ]
       },
-      "CreateDocumentRequest": {
+      "CreateResourceRequest": {
         "type": "object",
         "properties": {
           "name": {
@@ -3772,7 +3772,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateDocumentRequest"
+                "$ref": "#/components/schemas/CreateResourceRequest"
               }
             }
           }
@@ -4754,7 +4754,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateDocumentRequest"
+                "$ref": "#/components/schemas/CreateResourceRequest"
               }
             }
           }
