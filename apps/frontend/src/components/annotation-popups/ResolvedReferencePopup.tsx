@@ -55,14 +55,14 @@ export function ResolvedReferencePopup({
 
   const handleViewDocument = () => {
     if (resolvedDocumentId) {
-      router.push(`/know/document/${encodeURIComponent(resolvedDocumentId)}`);
+      router.push(`/know/resource/${encodeURIComponent(resolvedDocumentId)}`);
       onClose();
     }
   };
 
   const handleOpenInNewTab = () => {
     if (resolvedDocumentId) {
-      window.open(`/know/document/${encodeURIComponent(resolvedDocumentId)}`, '_blank');
+      window.open(`/know/resource/${encodeURIComponent(resolvedDocumentId)}`, '_blank');
     }
   };
 

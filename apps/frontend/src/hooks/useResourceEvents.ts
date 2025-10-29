@@ -27,7 +27,7 @@ export interface DocumentEvent {
  */
 export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
-interface UseDocumentEventsOptions {
+interface UseResourceEventsOptions {
   documentId: string;
   onEvent?: (event: DocumentEvent) => void;
   onAnnotationAdded?: (event: DocumentEvent) => void;
@@ -49,7 +49,7 @@ interface UseDocumentEventsOptions {
  *
  * @example
  * ```tsx
- * const { status, connect, disconnect } = useDocumentEvents({
+ * const { status, connect, disconnect } = useResourceEvents({
  *   documentId: 'doc-123',
  *   onAnnotationAdded: (event) => {
  *     console.log('New annotation:', event.payload);
@@ -62,7 +62,7 @@ interface UseDocumentEventsOptions {
  * });
  * ```
  */
-export function useDocumentEvents({
+export function useResourceEvents({
   documentId,
   onEvent,
   onAnnotationAdded,
@@ -74,7 +74,7 @@ export function useDocumentEvents({
   onDocumentUnarchived,
   onError,
   autoConnect = true,
-}: UseDocumentEventsOptions) {
+}: UseResourceEventsOptions) {
   const { data: session, status: sessionStatus } = useSession();
   const [status, setStatus] = useState<StreamStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<DocumentEvent | null>(null);

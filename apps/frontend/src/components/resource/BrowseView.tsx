@@ -9,7 +9,7 @@ import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
-import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import '@/styles/animations.css';
 
 interface Props {
@@ -57,7 +57,7 @@ export function BrowseView({
   references,
   onAnnotationClick
 }: Props) {
-  const { newAnnotationIds } = useDocumentAnnotations();
+  const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const allAnnotations = useMemo(() =>

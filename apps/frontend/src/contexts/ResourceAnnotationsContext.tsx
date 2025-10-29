@@ -10,7 +10,7 @@ type Annotation = components['schemas']['Annotation'];
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
 type CreateAnnotationRequest = RequestContent<paths['/api/annotations']['post']>;
 
-interface DocumentAnnotationsContextType {
+interface ResourceAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
@@ -27,9 +27,9 @@ interface DocumentAnnotationsContextType {
   triggerSparkleAnimation: (annotationId: string) => void;
 }
 
-const DocumentAnnotationsContext = createContext<DocumentAnnotationsContextType | undefined>(undefined);
+const ResourceAnnotationsContext = createContext<ResourceAnnotationsContextType | undefined>(undefined);
 
-export function DocumentAnnotationsProvider({ children }: { children: React.ReactNode }) {
+export function ResourceAnnotationsProvider({ children }: { children: React.ReactNode }) {
   // UI state only - no data management
   const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
@@ -315,7 +315,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   }, []);
 
   return (
-    <DocumentAnnotationsContext.Provider
+    <ResourceAnnotationsContext.Provider
       value={{
         newAnnotationIds,
         addHighlight,
@@ -329,14 +329,14 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       }}
     >
       {children}
-    </DocumentAnnotationsContext.Provider>
+    </ResourceAnnotationsContext.Provider>
   );
 }
 
-export function useDocumentAnnotations() {
-  const context = useContext(DocumentAnnotationsContext);
+export function useResourceAnnotations() {
+  const context = useContext(ResourceAnnotationsContext);
   if (!context) {
-    throw new Error('useDocumentAnnotations must be used within DocumentAnnotationsProvider');
+    throw new Error('useResourceAnnotations must be used within ResourceAnnotationsProvider');
   }
   return context;
 }

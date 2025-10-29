@@ -147,7 +147,7 @@ useEffect(() => {
 ```
 
 **Hooks:**
-- `useDocumentEvents` - Real-time document change notifications
+- `useResourceEvents` - Real-time document change notifications
 - `useGenerationProgress` - AI generation progress
 - `useDetectionProgress` - Entity detection progress
 

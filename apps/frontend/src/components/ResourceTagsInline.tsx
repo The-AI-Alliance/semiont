@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-interface DocumentTagsInlineProps {
+interface ResourceTagsInlineProps {
   documentId: string;
   tags: string[];
   isEditing: boolean;
@@ -10,13 +10,13 @@ interface DocumentTagsInlineProps {
   disabled?: boolean;
 }
 
-export function DocumentTagsInline({
+export function ResourceTagsInline({
   documentId,
   tags,
   isEditing,
   onUpdate,
   disabled = false
-}: DocumentTagsInlineProps) {
+}: ResourceTagsInlineProps) {
   // If no tags, don't show anything
   if (tags.length === 0) {
     return null;

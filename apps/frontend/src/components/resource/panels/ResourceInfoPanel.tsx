@@ -19,7 +19,7 @@ interface Props {
   documentLocale?: string | undefined;
 }
 
-export function DocumentInfoPanel({
+export function ResourceInfoPanel({
   highlights,
   references,
   referencedBy,
@@ -155,7 +155,7 @@ export function DocumentInfoPanel({
               {referencedBy.map((ref) => (
                 <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
                   <Link
-                    href={`/know/document/${encodeURIComponent(ref.target.source)}`}
+                    href={`/know/resource/${encodeURIComponent(ref.target.source)}`}
                     className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
                   >
                     {ref.documentName || t('untitledDocument')}

@@ -16,7 +16,7 @@ Inline widgets enhance the **AnnotateView** document curation experience by addi
 
 - **Widget Classes**: `/src/lib/codemirror-widgets.ts`
 - **Integration**: `/src/components/CodeMirrorRenderer.tsx`
-- **Consumer**: `/src/components/document/AnnotateView.tsx`
+- **Consumer**: `/src/components/resource/AnnotateView.tsx`
 
 ### Widget Types
 

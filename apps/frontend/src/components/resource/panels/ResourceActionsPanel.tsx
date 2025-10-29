@@ -11,7 +11,7 @@ interface Props {
   onClone: () => void;
 }
 
-export function DocumentPanel({
+export function ResourceActionsPanel({
   isArchived,
   onArchive,
   onUnarchive,

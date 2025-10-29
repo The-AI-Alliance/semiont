@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
-import { useOpenResources } from '@/contexts/OpenDocumentsContext';
+import { useOpenResources } from '@/contexts/OpenResourcesContext';
 import {
   DndContext,
   closestCenter,
@@ -20,7 +20,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { SortableDocumentTab } from './SortableDocumentTab';
+import { SortableResourceTab } from './SortableResourceTab';
 
 // Custom telescope icon component
 const TelescopeIcon = ({ className }: { className?: string }) => (
@@ -73,7 +73,7 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
     removeResource(docId);
 
     // If we're closing the currently viewed document, navigate to Discover
-    if (pathname === `/know/document/${docId}`) {
+    if (pathname === `/know/resource/${docId}`) {
       router.push('/know/discover');
     }
   };
@@ -163,7 +163,7 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
             {isCollapsed ? (
               // When collapsed, dragging is disabled - just render simple tabs
               openResources.map((resource) => (
-                <SortableDocumentTab
+                <SortableResourceTab
                   key={resource.id}
                   doc={resource}
                   isCollapsed={isCollapsed}
@@ -182,7 +182,7 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
                   strategy={verticalListSortingStrategy}
                 >
                   {openResources.map((resource) => (
-                    <SortableDocumentTab
+                    <SortableResourceTab
                       key={resource.id}
                       doc={resource}
                       isCollapsed={isCollapsed}

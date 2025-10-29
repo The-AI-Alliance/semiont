@@ -10,34 +10,34 @@ import { useSession } from 'next-auth/react';
 import { documents } from '@/lib/api/documents';
 import { entityTypes } from '@/lib/api/entity-types';
 import { QUERY_KEYS } from '@/lib/query-keys';
-import { DocumentViewer } from '@/components/document/DocumentViewer';
-import { DocumentTagsInline } from '@/components/DocumentTagsInline';
+import { ResourceViewer } from '@/components/resource/ResourceViewer';
+import { ResourceTagsInline } from '@/components/ResourceTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components } from '@semiont/api-client';
 import { getResourceId, getLanguage, getDocumentId, getPrimaryMediaType } from '@/lib/resource-helpers';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
-import { useOpenResources } from '@/contexts/OpenDocumentsContext';
-import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import { useOpenResources } from '@/contexts/OpenResourcesContext';
+import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useToast } from '@/components/Toast';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import { useDetectionProgress } from '@/hooks/useDetectionProgress';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { useGenerationProgress } from '@/hooks/useGenerationProgress';
-import { AnnotationHistory } from '@/components/document/AnnotationHistory';
+import { AnnotationHistory } from '@/components/resource/AnnotationHistory';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { useDocumentEvents } from '@/hooks/useDocumentEvents';
+import { useResourceEvents } from '@/hooks/useResourceEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
-import { DetectPanel } from '@/components/document/panels/DetectPanel';
-import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPanel';
+import { DetectPanel } from '@/components/resource/panels/DetectPanel';
+import { ResourceInfoPanel } from '@/components/resource/panels/ResourceInfoPanel';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
-import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
-import { JsonLdPanel } from '@/components/document/panels/JsonLdPanel';
+import { CollaborationPanel } from '@/components/resource/panels/CollaborationPanel';
+import { ResourceActionsPanel } from '@/components/resource/panels/ResourceActionsPanel';
+import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { extractAnnotationId, compareAnnotationIds } from '@semiont/api-client';
 
@@ -129,7 +129,7 @@ function DocumentView({
   const { data: session } = useSession();
   const locale = useLocale();
   const { addResource } = useOpenResources();
-  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
+  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight } = useResourceAnnotations();
   const { showError, showSuccess } = useToast();
   const { fetchAPI } = useAuthenticatedAPI();
   const queryClient = useQueryClient();
@@ -247,7 +247,7 @@ function DocumentView({
 
       if (response.documents?.length > 0 && response.documents[0]) {
         // Document found - navigate to it
-        router.push(`/know/document/${encodeURIComponent(response.documents[0].id)}`);
+        router.push(`/know/resource/${encodeURIComponent(response.documents[0].id)}`);
       } else {
         // Document not found - offer to create it
         if (confirm(`Document "${pageName}" not found. Would you like to create it?`)) {
@@ -257,7 +257,7 @@ function DocumentView({
             format: 'text/markdown',
             entityTypes: []
           });
-          router.push(`/know/document/${encodeURIComponent(getDocumentId(newDoc.document))}`);
+          router.push(`/know/resource/${encodeURIComponent(getDocumentId(newDoc.document))}`);
         }
       }
     } catch (err) {
@@ -414,7 +414,7 @@ function DocumentView({
   }, [startGeneration, documentId, clearNewAnnotationId, locale]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
-  const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useDocumentEvents({
+  const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useResourceEvents({
     documentId,
     autoConnect: true,  // Document exists, safe to connect
 
@@ -547,7 +547,7 @@ function DocumentView({
                   Loading document content...
                 </div>
               ) : (
-                <DocumentViewer
+                <ResourceViewer
                   resource={{ ...resource, content }}
                 highlights={highlights}
                 references={references}
@@ -593,7 +593,7 @@ function DocumentView({
 
             {/* Document Panel */}
             {activePanel === 'document' && (
-              <DocumentPanel
+              <ResourceActionsPanel
                 isArchived={resource.archived ?? false}
                 onArchive={handleArchive}
                 onUnarchive={handleUnarchive}
@@ -624,7 +624,7 @@ function DocumentView({
 
             {/* Document Info Panel */}
             {activePanel === 'info' && (
-              <DocumentInfoPanel
+              <ResourceInfoPanel
                 highlights={highlights}
                 references={references}
                 referencedBy={referencedBy}

@@ -40,12 +40,12 @@ interface ToolbarPanelsProps {
  *   theme={theme}
  *   onThemeChange={setTheme}
  *   showLineNumbers={showLineNumbers}
- *   onLineNumbersToggle={handleLineNumbersToggle}
+*   onLineNumbersToggle={handleLineNumbersToggle}
  * >
- *   {activePanel === 'document' && <DocumentPanel ... />}
- *   {activePanel === 'detect' && <DetectPanel ... />}
+ *   {activePanel === 'document' && <ResourceActionsPanel ... />}
+*   {activePanel === 'detect' && <DetectPanel ... />}
  *   {activePanel === 'history' && <AnnotationHistory ... />}
- *   {activePanel === 'info' && <DocumentInfoPanel ... />}
+ *   {activePanel === 'info' && <ResourceInfoPanel ... />}
  *   {activePanel === 'collaboration' && <CollaborationPanel ... />}
  * </ToolbarPanels>
  */

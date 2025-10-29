@@ -14,16 +14,16 @@ interface OpenDocument {
   openedAt: number;
 }
 
-interface SortableDocumentTabProps {
+interface SortableResourceTabProps {
   doc: OpenDocument;
   isCollapsed: boolean;
   onClose: (id: string, e: React.MouseEvent) => void;
 }
 
-export function SortableDocumentTab({ doc, isCollapsed, onClose }: SortableDocumentTabProps) {
+export function SortableResourceTab({ doc, isCollapsed, onClose }: SortableResourceTabProps) {
   const t = useTranslations('SortableDocumentTab');
   const pathname = usePathname();
-  const docHref = `/know/document/${doc.id}`;
+  const docHref = `/know/resource/${doc.id}`;
   const isActive = pathname === docHref;
 
   const {

@@ -39,7 +39,7 @@ This document describes the frontend UI patterns, component architecture, and us
 ### Component Hierarchy
 
 ```
-DocumentViewer (Container)
+ResourceViewer (Container)
 ├── AnnotateView / BrowseView (Display Layer)
 │   ├── Text Segments with Annotations
 │   └── Selection Detection & Sparkle UI

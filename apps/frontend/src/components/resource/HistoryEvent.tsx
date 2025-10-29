@@ -148,7 +148,7 @@ export function HistoryEvent({
           </span>
           {creationDetails.type === 'cloned' && (
             <Link
-              href={`/know/document/${encodeURIComponent(creationDetails.sourceDocId || "")}`}
+              href={`/know/resource/${encodeURIComponent(creationDetails.sourceDocId || "")}`}
               className="text-blue-600 dark:text-blue-400 hover:underline"
               onClick={(e) => e.stopPropagation()}
             >

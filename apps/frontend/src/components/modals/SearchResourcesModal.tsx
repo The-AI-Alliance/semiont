@@ -4,14 +4,14 @@ import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
 import { documents } from '@/lib/api/documents';
 
-interface SearchDocumentsModalProps {
+interface SearchResourcesModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (documentId: string) => void;
   searchTerm?: string;
 }
 
-export function SearchDocumentsModal({ isOpen, onClose, onSelect, searchTerm = '' }: SearchDocumentsModalProps) {
+export function SearchResourcesModal({ isOpen, onClose, onSelect, searchTerm = '' }: SearchResourcesModalProps) {
   const [search, setSearch] = useState(searchTerm);
   const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
 

@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader, EntityTypeBadges } from './SharedPopupElements';
-import { SearchDocumentsModal } from '../modals/SearchDocumentsModal';
+import { SearchResourcesModal } from '../modals/SearchResourcesModal';
 import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
@@ -174,7 +174,7 @@ export function StubReferencePopup({
       </PopupContainer>
 
       {/* Search Modal */}
-      <SearchDocumentsModal
+      <SearchResourcesModal
         isOpen={showSearchModal}
         onClose={() => setShowSearchModal(false)}
         onSelect={handleSelectDocument}

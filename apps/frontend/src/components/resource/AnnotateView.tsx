@@ -6,7 +6,7 @@ import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
-import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
 import '@/styles/animations.css';
@@ -118,7 +118,7 @@ export function AnnotateView({
   showLineNumbers = false
 }: Props) {
   const t = useTranslations('AnnotateView');
-  const { newAnnotationIds } = useDocumentAnnotations();
+  const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
   const [annotationState, setSelectionState] = useState<{
     exact: string;

@@ -97,7 +97,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   const navigateToResult = (result: SearchResult) => {
     onClose();
     if (result.type === 'document') {
-      router.push(`/know/document/${encodeURIComponent(result.id)}`);
+      router.push(`/know/resource/${encodeURIComponent(result.id)}`);
     } else {
       router.push(`/know/entity/${result.id}`);
     }

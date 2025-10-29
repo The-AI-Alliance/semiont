@@ -50,10 +50,10 @@ describe('Document Page Scrolling Layout', () => {
 
   it('should have overflow-y-auto only on the actual scrolling container', () => {
     // Only ONE element in the chain should have overflow-y-auto
-    // That element should be the document content area that wraps DocumentViewer
+    // That element should be the document content area that wraps ResourceViewer
     const scrollingContainerRules = {
       className: 'overflow-y-auto min-h-0 flex-1',
-      description: 'Document content area that wraps ErrorBoundary and DocumentViewer'
+      description: 'Document content area that wraps ErrorBoundary and ResourceViewer'
     };
 
     expect(scrollingContainerRules.className).toContain('overflow-y-auto');

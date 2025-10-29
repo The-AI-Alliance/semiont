@@ -189,9 +189,9 @@ function ComposeDocumentContent() {
           }
         }
       }
-      
+
       // Navigate to the new document (will add to tabs on page load)
-      router.push(`/know/document/${encodeURIComponent(documentId)}`);
+      router.push(`/know/resource/${encodeURIComponent(documentId)}`);
     } catch (error) {
       console.error('Failed to save document:', error);
       showError('Failed to save document. Please try again.');

@@ -7,7 +7,7 @@ import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
 import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes } from '@semiont/api-client';
-import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { annotations } from '@/lib/api/annotations';
 import { getResourceId } from '@/lib/resource-helpers';
@@ -30,7 +30,7 @@ interface Props {
   showLineNumbers?: boolean;
 }
 
-export function DocumentViewer({
+export function ResourceViewer({
   resource,
   highlights,
   references,
@@ -56,7 +56,7 @@ export function DocumentViewer({
     deleteAnnotation,
     convertHighlightToReference,
     convertReferenceToHighlight
-  } = useDocumentAnnotations();
+  } = useResourceAnnotations();
 
   // API mutations
   const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
@@ -92,7 +92,7 @@ export function DocumentViewer({
     if (isReference(annotation) && isBodyResolved(annotation.body)) {
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        router.push(`/know/document/${encodeURIComponent(bodySource)}`);
+        router.push(`/know/resource/${encodeURIComponent(bodySource)}`);
       }
       return;
     }

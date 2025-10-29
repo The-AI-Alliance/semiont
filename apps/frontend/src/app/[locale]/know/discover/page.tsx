@@ -9,7 +9,7 @@ import type { components } from '@semiont/api-client';
 import { getResourceId, getDocumentId } from '@/lib/resource-helpers';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-import { useOpenResources } from '@/contexts/OpenDocumentsContext';
+import { useOpenResources } from '@/contexts/OpenResourcesContext';
 import { useRovingTabIndex } from '@/hooks/useRovingTabIndex';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
@@ -170,7 +170,7 @@ export default function DiscoverPage() {
   }, []);
 
   const openDocument = useCallback((doc: ResourceDescriptor) => {
-    router.push(`/know/document/${encodeURIComponent(getDocumentId(doc))}`);
+    router.push(`/know/resource/${encodeURIComponent(getDocumentId(doc))}`);
   }, [router]);
 
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
