@@ -10,10 +10,10 @@ import { jsonLightTheme, jsonLightHighlightStyle } from '@/lib/codemirror-json-t
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 import type { components } from '@semiont/api-client';
 
-type SemiontDocument = components['schemas']['ResourceDescriptor'];
+type SemiontResource = components['schemas']['ResourceDescriptor'];
 
 interface Props {
-  document: SemiontDocument;
+  document: SemiontResource;
 }
 
 export function JsonLdPanel({ document: semiontDocument }: Props) {

@@ -13,10 +13,10 @@ import { annotations } from '@/lib/api/annotations';
 import { getResourceId } from '@/lib/resource-helpers';
 
 type Annotation = components['schemas']['Annotation'];
-type SemiontDocument = components['schemas']['ResourceDescriptor'];
+type SemiontResource = components['schemas']['ResourceDescriptor'];
 
 interface Props {
-  document: SemiontDocument & { content: string };
+  document: SemiontResource & { content: string };
   highlights: Annotation[];
   references: Annotation[];
   onRefetchAnnotations?: () => void;

@@ -17,7 +17,7 @@ import { buttonStyles } from '@/lib/button-styles';
 import type { components } from '@semiont/api-client';
 import { getResourceId, getLanguage, getDocumentId } from '@/lib/resource-helpers';
 
-type SemiontDocument = components['schemas']['ResourceDescriptor'];
+type SemiontResource = components['schemas']['ResourceDescriptor'];
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -121,7 +121,7 @@ function DocumentView({
   documentId,
   refetchDocument
 }: {
-  document: SemiontDocument;
+  document: SemiontResource;
   documentId: string;
   refetchDocument: () => Promise<unknown>;
 }) {
