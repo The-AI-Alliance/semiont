@@ -275,8 +275,8 @@ describe('ProjectionQuery', () => {
 
     it('should handle case-insensitive search', async () => {
       const lowerResults = await query.searchByName('resource');
-      const upperResults = await query.searchByName('DOCUMENT');
-      const mixedResults = await query.searchByName('DoCuMeNt');
+      const upperResults = await query.searchByName('RESOURCE');
+      const mixedResults = await query.searchByName('ReSoUrCe');
 
       expect(lowerResults.length).toBe(upperResults.length);
       expect(lowerResults.length).toBe(mixedResults.length);
