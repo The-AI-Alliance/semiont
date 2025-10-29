@@ -5,14 +5,13 @@ import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
 import { getEntityTypes, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
-import { getPrimaryRepresentation } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation, getResourceId } from '../../utils/resource-helpers';
 import type {
   AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
@@ -231,63 +230,38 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     return annotation;
   }
-  
-  async createDocument(input: CreateDocumentInput): Promise<ResourceDescriptor> {
-    const id = this.generateId();
-    const now = new Date().toISOString();
 
-    const resource: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': id,
-      name: input.name,
-      entityTypes: input.entityTypes,
-      representations: [{
-        mediaType: input.format,
-        checksum: input.contentChecksum,
-        rel: 'original',
-      }],
-      archived: false,
-      dateCreated: now,
-      wasAttributedTo: input.creator,
-      creationMethod: input.creationMethod,
-    };
-
-    if (input.sourceAnnotationId) {
-      resource.sourceAnnotationId = input.sourceAnnotationId;
-    }
-    if (input.sourceDocumentId) {
-      resource.sourceDocumentId = input.sourceDocumentId;
-    }
-
-    const primaryRep = getPrimaryRepresentation(resource);
+  async createDocument(document: ResourceDescriptor): Promise<ResourceDescriptor> {
+    const id = getResourceId(document);
+    const primaryRep = getPrimaryRepresentation(document);
     if (!primaryRep) {
       throw new Error('Resource must have at least one representation');
     }
 
-    // Create vertex in JanusGraph
+    // Create vertex in JanusGraph using fields from ResourceDescriptor
     const vertex = this.g!
       .addV('Document')
       .property('id', id)
-      .property('name', input.name)
-      .property('entityTypes', JSON.stringify(input.entityTypes))
+      .property('name', document.name)
+      .property('entityTypes', JSON.stringify(document.entityTypes))
       .property('contentType', primaryRep.mediaType)
-      .property('archived', false)
-      .property('created', now)
-      .property('creator', JSON.stringify(input.creator))
-      .property('creationMethod', input.creationMethod)
+      .property('archived', document.archived || false)
+      .property('created', document.dateCreated)
+      .property('creator', JSON.stringify(document.wasAttributedTo))
+      .property('creationMethod', document.creationMethod)
       .property('contentChecksum', primaryRep.checksum);
 
-    if (input.sourceAnnotationId) {
-      vertex.property('sourceAnnotationId', input.sourceAnnotationId);
+    if (document.sourceAnnotationId) {
+      vertex.property('sourceAnnotationId', document.sourceAnnotationId);
     }
-    if (input.sourceDocumentId) {
-      vertex.property('sourceDocumentId', input.sourceDocumentId);
+    if (document.sourceDocumentId) {
+      vertex.property('sourceDocumentId', document.sourceDocumentId);
     }
 
     await vertex.next();
 
     console.log('Created document vertex in JanusGraph:', id);
-    return resource;
+    return document;
   }
   
   async getDocument(id: string): Promise<ResourceDescriptor | null> {

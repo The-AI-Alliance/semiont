@@ -13,12 +13,13 @@ import { getGraphDatabase } from '../../../graph/factory';
 import {
   CREATION_METHODS,
   generateUuid,
-  type CreateDocumentInput,
 } from '@semiont/core';
 import type { DocumentsRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
+
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getResourceId, getEntityTypes } from '../../../utils/resource-helpers';
@@ -119,19 +120,24 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
         rel: 'original',
       });
 
-      const createInput: CreateDocumentInput & { id: string } = {
-        id: documentId,
+      const document: ResourceDescriptor = {
+        '@context': 'https://schema.org/',
+        '@id': `http://localhost:4000/documents/${documentId}`,
         name: body.name,
         entityTypes: getEntityTypes(sourceDoc),
-        content: body.content,
-        format,
-        contentChecksum: storedRep.checksum,
-        creator: userToAgent(user),
+        representations: [{
+          mediaType: format,
+          checksum: storedRep.checksum,
+          rel: 'original',
+        }],
+        archived: false,
+        dateCreated: new Date().toISOString(),
+        wasAttributedTo: userToAgent(user),
         creationMethod: CREATION_METHODS.CLONE,
         sourceDocumentId: getResourceId(sourceDoc),
       };
 
-      const savedDoc = await graphDb.createDocument(createInput);
+      const savedDoc = await graphDb.createDocument(document);
 
       // Store representation
       await repStore.store(Buffer.from(body.content), {

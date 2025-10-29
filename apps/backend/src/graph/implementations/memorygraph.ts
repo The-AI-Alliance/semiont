@@ -10,7 +10,6 @@ import type {
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
@@ -50,31 +49,10 @@ export class MemoryGraphDatabase implements GraphDatabase {
   isConnected(): boolean {
     return this.connected;
   }
-  
-  async createDocument(input: CreateDocumentInput): Promise<ResourceDescriptor> {
-    const id = this.generateId();
-    const now = new Date().toISOString();
 
-    const document: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': `urn:semiont:resource:${id}`,
-      name: input.name,
-      entityTypes: input.entityTypes,
-      archived: false,  // New documents are not archived by default
-      creationMethod: input.creationMethod,
-      dateCreated: now,
-      wasAttributedTo: input.creator,
-      representations: [{
-        mediaType: input.format,
-        checksum: input.contentChecksum,
-        rel: 'original',
-      }],
-    };
+  async createDocument(document: ResourceDescriptor): Promise<ResourceDescriptor> {
+    const id = getResourceId(document);
 
-    // Provenance tracking fields
-    if (input.sourceAnnotationId) document.sourceAnnotationId = input.sourceAnnotationId;
-    if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
-    
     // Simply add to in-memory map
     // await this.client.submit(`
     //   graph.tx().rollback()
@@ -87,7 +65,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     //     .property('updatedAt', updatedAt)
     //   graph.tx().commit()
     // `, { id, name, entityTypes, ... });
-    
+
     this.documents.set(id, document);
     return document;
   }

@@ -15,6 +15,7 @@ import { findBodyItem } from '@semiont/core';
 import { getFilesystemConfig } from '../../config/environment-loader';
 
 type Annotation = components['schemas']['Annotation'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class GraphDBConsumer {
   private graphDb: GraphDatabase | null = null;
@@ -119,31 +120,43 @@ export class GraphDBConsumer {
     switch (event.type) {
       case 'document.created': {
         if (!event.documentId) throw new Error('document.created requires documentId');
-        await graphDb.createDocument({
-          id: event.documentId,
+        const document: ResourceDescriptor = {
+          '@context': 'https://schema.org/',
+          '@id': `http://localhost:4000/documents/${event.documentId}`,
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
-          content: '', // Content stored separately in RepresentationStore
-          format: event.payload.format,
-          contentChecksum: event.payload.contentChecksum,
-          creator: didToAgent(event.userId),
+          representations: [{
+            mediaType: event.payload.format,
+            checksum: event.payload.contentChecksum,
+            rel: 'original',
+          }],
+          archived: false,
+          dateCreated: new Date().toISOString(),
+          wasAttributedTo: didToAgent(event.userId),
           creationMethod: 'api',
-        });
+        };
+        await graphDb.createDocument(document);
         break;
       }
 
       case 'document.cloned': {
         if (!event.documentId) throw new Error('document.cloned requires documentId');
-        await graphDb.createDocument({
-          id: event.documentId,
+        const document: ResourceDescriptor = {
+          '@context': 'https://schema.org/',
+          '@id': `http://localhost:4000/documents/${event.documentId}`,
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
-          content: '', // Content stored separately in RepresentationStore
-          format: event.payload.format,
-          contentChecksum: event.payload.contentChecksum,
-          creator: didToAgent(event.userId),
+          representations: [{
+            mediaType: event.payload.format,
+            checksum: event.payload.contentChecksum,
+            rel: 'original',
+          }],
+          archived: false,
+          dateCreated: new Date().toISOString(),
+          wasAttributedTo: didToAgent(event.userId),
           creationMethod: 'clone',
-        });
+        };
+        await graphDb.createDocument(document);
         break;
       }
 

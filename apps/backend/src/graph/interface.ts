@@ -7,7 +7,6 @@ import type {
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
@@ -22,8 +21,8 @@ export interface GraphDatabase {
   isConnected(): boolean;
 
   // Document operations
-  // Note: id is required because GraphDB is Layer 4 (downstream of Layer 1 which generates content-addressed IDs)
-  createDocument(input: CreateDocumentInput & { id: string }): Promise<ResourceDescriptor>;
+  // Accepts W3C ResourceDescriptor directly - GraphDB stores W3C compliant documents
+  createDocument(document: ResourceDescriptor): Promise<ResourceDescriptor>;
   getDocument(id: string): Promise<ResourceDescriptor | null>;
   updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor>;
   deleteDocument(id: string): Promise<void>;

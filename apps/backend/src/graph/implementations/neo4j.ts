@@ -10,7 +10,6 @@ import type {
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
@@ -18,7 +17,7 @@ import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
-import { getPrimaryRepresentation } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation, getResourceId } from '../../utils/resource-helpers';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -161,31 +160,11 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createDocument(input: CreateDocumentInput & { id: string }): Promise<ResourceDescriptor> {
+  async createDocument(document: ResourceDescriptor): Promise<ResourceDescriptor> {
     const session = this.getSession();
     try {
-      const id = input.id;
-      const now = new Date().toISOString();
-
-      const resource: ResourceDescriptor = {
-        '@context': 'https://schema.org/',
-        '@id': id,
-        name: input.name,
-        entityTypes: input.entityTypes,
-        representations: [{
-          mediaType: input.format,
-          checksum: input.contentChecksum,
-          rel: 'original',
-        }],
-        archived: false,
-        dateCreated: now,
-        wasAttributedTo: input.creator,
-        creationMethod: input.creationMethod,
-      };
-
-      if (input.sourceDocumentId) resource.sourceDocumentId = input.sourceDocumentId;
-
-      const primaryRep = getPrimaryRepresentation(resource);
+      const id = getResourceId(document);
+      const primaryRep = getPrimaryRepresentation(document);
       if (!primaryRep) {
         throw new Error('Resource must have at least one representation');
       }
@@ -207,16 +186,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         }) RETURN d`,
         {
           id,
-          name: resource.name,
-          entityTypes: resource.entityTypes,
+          name: document.name,
+          entityTypes: document.entityTypes,
           format: primaryRep.mediaType,
-          archived: resource.archived,
-          created: now,
-          creator: JSON.stringify(resource.wasAttributedTo),
-          creationMethod: resource.creationMethod,
+          archived: document.archived || false,
+          created: document.dateCreated,
+          creator: JSON.stringify(document.wasAttributedTo),
+          creationMethod: document.creationMethod,
           contentChecksum: primaryRep.checksum,
-          sourceAnnotationId: null,
-          sourceDocumentId: resource.sourceDocumentId ?? null,
+          sourceAnnotationId: document.sourceAnnotationId ?? null,
+          sourceDocumentId: document.sourceDocumentId ?? null,
         }
       );
 

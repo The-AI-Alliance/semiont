@@ -52,7 +52,7 @@ export {
 export { bodyItemsMatch, findBodyItem } from './annotation-utils';
 
 // Document types
-export type { CreateDocumentInput, UpdateDocumentInput, DocumentFilter } from './document-types';
+export type { UpdateDocumentInput, DocumentFilter } from './document-types';
 
 // Annotation types
 export type { AnnotationCategory, CreateAnnotationInternal } from './annotation-types';

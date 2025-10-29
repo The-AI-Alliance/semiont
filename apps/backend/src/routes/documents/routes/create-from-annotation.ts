@@ -14,8 +14,9 @@ import type { components } from '@semiont/api-client';
 import {
   CREATION_METHODS,
   generateUuid,
-  type CreateDocumentInput,
 } from '@semiont/core';
+
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -61,20 +62,25 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
         rel: 'original',
       });
 
-      const createInput: CreateDocumentInput & { id: string } = {
-        id: documentId,
+      const document: ResourceDescriptor = {
+        '@context': 'https://schema.org/',
+        '@id': `http://localhost:4000/documents/${documentId}`,
         name: body.name,
         entityTypes: getEntityTypes(annotation),
-        content: body.content,
-        format: body.format,
-        contentChecksum: storedRep.checksum,
-        creator: userToAgent(user),
+        representations: [{
+          mediaType: body.format,
+          checksum: storedRep.checksum,
+          rel: 'original',
+        }],
+        archived: false,
+        dateCreated: new Date().toISOString(),
+        wasAttributedTo: userToAgent(user),
         creationMethod: CREATION_METHODS.REFERENCE,
         sourceAnnotationId: annotationId,
         sourceDocumentId: getTargetSource(annotation.target),
       };
 
-      const savedDoc = await graphDb.createDocument(createInput);
+      const savedDoc = await graphDb.createDocument(document);
 
       // Update the annotation to resolve to the new document
       await graphDb.resolveReference(annotationId, getResourceId(savedDoc));

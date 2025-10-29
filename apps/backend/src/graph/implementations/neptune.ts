@@ -10,7 +10,6 @@ import type {
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
@@ -344,54 +343,35 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   isConnected(): boolean {
     return this.connected;
   }
-  
-  
-  async createDocument(input: CreateDocumentInput & { id: string }): Promise<ResourceDescriptor> {
-    const now = new Date().toISOString();
 
-    const resource: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': input.id,
-      name: input.name,
-      entityTypes: input.entityTypes,
-      representations: [{
-        mediaType: input.format,
-        checksum: input.contentChecksum,
-        rel: 'original',
-      }],
-      archived: false,
-      dateCreated: now,
-      wasAttributedTo: input.creator,
-      creationMethod: input.creationMethod,
-    };
-    if (input.sourceDocumentId) resource.sourceDocumentId = input.sourceDocumentId;
+  async createDocument(document: ResourceDescriptor): Promise<ResourceDescriptor> {
+    const id = getResourceId(document);
+    const primaryRep = getPrimaryRepresentation(document);
+    if (!primaryRep) {
+      throw new Error('Resource must have at least one representation');
+    }
 
     // Create vertex in Neptune
     try {
-      const primaryRep = getPrimaryRepresentation(resource);
-      if (!primaryRep) {
-        throw new Error('Resource must have at least one representation');
-      }
-
       const vertex = this.g.addV('Document')
-        .property('id', resource['@id'])
-        .property('name', resource.name)
+        .property('id', id)
+        .property('name', document.name)
         .property('mediaType', primaryRep.mediaType)
-        .property('archived', resource.archived)
-        .property('dateCreated', resource.dateCreated)
-        .property('creator', JSON.stringify(resource.wasAttributedTo))
-        .property('creationMethod', resource.creationMethod)
+        .property('archived', document.archived || false)
+        .property('dateCreated', document.dateCreated)
+        .property('creator', JSON.stringify(document.wasAttributedTo))
+        .property('creationMethod', document.creationMethod)
         .property('checksum', primaryRep.checksum)
-        .property('entityTypes', JSON.stringify(resource.entityTypes));
+        .property('entityTypes', JSON.stringify(document.entityTypes));
 
-      if (resource.sourceDocumentId) {
-        vertex.property('sourceDocumentId', resource.sourceDocumentId);
+      if (document.sourceDocumentId) {
+        vertex.property('sourceDocumentId', document.sourceDocumentId);
       }
 
       await vertex.next();
 
-      console.log(`Created document vertex in Neptune: ${resource['@id']}`);
-      return resource;
+      console.log(`Created document vertex in Neptune: ${id}`);
+      return document;
     } catch (error) {
       console.error('Failed to create document in Neptune:', error);
       throw error;

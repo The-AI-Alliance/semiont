@@ -165,13 +165,18 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
-        id: 'doc-123',
+        '@context': 'https://schema.org/',
+        '@id': 'http://localhost:4000/documents/doc-123',
         name: 'Test Document',
         entityTypes: ['entity1', 'entity2'],
-        content: '', // Content stored separately in RepresentationStore
-        format: 'text/plain',
-        contentChecksum: 'hash123',
-        creator: {
+        representations: [{
+          mediaType: 'text/plain',
+          checksum: 'hash123',
+          rel: 'original',
+        }],
+        archived: false,
+        dateCreated: expect.any(String),
+        wasAttributedTo: {
           id: 'user1',
           type: 'Person',
           name: 'user1',
@@ -208,13 +213,18 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
-        id: 'doc-123',
+        '@context': 'https://schema.org/',
+        '@id': 'http://localhost:4000/documents/doc-123',
         name: 'Test Document',
         entityTypes: [],
-        content: '', // Content stored separately in RepresentationStore
-        format: 'text/plain',
-        contentChecksum: 'hash123',
-        creator: {
+        representations: [{
+          mediaType: 'text/plain',
+          checksum: 'hash123',
+          rel: 'original',
+        }],
+        archived: false,
+        dateCreated: expect.any(String),
+        wasAttributedTo: {
           id: 'user1',
           type: 'Person',
           name: 'user1',
@@ -256,13 +266,18 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
-        id: 'doc-456',
+        '@context': 'https://schema.org/',
+        '@id': 'http://localhost:4000/documents/doc-456',
         name: 'Cloned Document',
         entityTypes: ['entity1'],
-        content: '', // Content stored separately in RepresentationStore
-        format: 'text/plain',
-        contentChecksum: 'hash456',
-        creator: {
+        representations: [{
+          mediaType: 'text/plain',
+          checksum: 'hash456',
+          rel: 'original',
+        }],
+        archived: false,
+        dateCreated: expect.any(String),
+        wasAttributedTo: {
           id: 'user1',
           type: 'Person',
           name: 'user1',
