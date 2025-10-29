@@ -5,7 +5,7 @@ import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/re
 import { useRouter } from '@/i18n/routing';
 import { resources } from '@/lib/api/resources';
 import { useSearchAnnouncements } from '@/components/LiveRegion';
-import { getDocumentId } from '@/lib/resource-helpers';
+import { getResourceId } from '@/lib/resource-helpers';
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -62,11 +62,11 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     if (loading) {
       announceSearching();
     } else if (searchData) {
-      const docResults: SearchResult[] = (searchData.documents || []).map((doc: any) => ({
+      const docResults: SearchResult[] = (searchData.documents || []).map((resource: any) => ({
         type: 'document' as const,
-        id: getDocumentId(doc),
-        name: doc.name,
-        content: doc.content?.substring(0, 150)
+        id: getResourceId(resource),
+        name: resource.name,
+        content: resource.content?.substring(0, 150)
       }));
 
       // Search entities - Currently entities API may not be available

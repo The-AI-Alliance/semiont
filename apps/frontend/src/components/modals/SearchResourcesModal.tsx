@@ -30,10 +30,10 @@ export function SearchResourcesModal({ isOpen, onClose, onSelect, searchTerm = '
   );
 
   // Extract results from search data
-  const results = searchData?.documents?.map((doc: any) => ({
-    id: doc.id,
-    name: doc.name,
-    content: doc.content
+  const results = searchData?.documents?.map((resource: any) => ({
+    id: resource.id,
+    name: resource.name,
+    content: resource.content
   })) || [];
 
   // Update search term when modal opens
@@ -116,21 +116,21 @@ export function SearchResourcesModal({ isOpen, onClose, onSelect, searchTerm = '
 
                   {!loading && results.length > 0 && (
                     <div className="space-y-2">
-                      {results.map((doc: any) => (
+                      {results.map((resource: any) => (
                         <div
-                          key={doc.id}
+                          key={resource.id}
                           className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
                           onClick={() => {
-                            onSelect(doc.id);
+                            onSelect(resource.id);
                             onClose();
                           }}
                         >
                           <h4 className="font-medium text-gray-900 dark:text-white mb-1">
-                            {doc.name}
+                            {resource.name}
                           </h4>
-                          {doc.content && (
+                          {resource.content && (
                             <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                              {doc.content.substring(0, 150)}...
+                              {resource.content.substring(0, 150)}...
                             </p>
                           )}
                         </div>
