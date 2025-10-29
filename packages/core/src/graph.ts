@@ -12,7 +12,7 @@ type Annotation = components['schemas']['Annotation'];
  * Represents a connection between resources through annotations
  */
 export interface GraphConnection {
-  targetDocument: ResourceDescriptor;
+  targetResource: ResourceDescriptor;
   annotations: Annotation[];
   relationshipType?: string;
   bidirectional: boolean;
@@ -22,7 +22,7 @@ export interface GraphConnection {
  * Represents a path through the graph
  */
 export interface GraphPath {
-  documents: ResourceDescriptor[];
+  resources: ResourceDescriptor[];
   annotations: Annotation[];
 }
 

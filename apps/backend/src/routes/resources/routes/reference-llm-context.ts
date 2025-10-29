@@ -10,9 +10,9 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { generateDocumentSummary } from '../../../inference/factory';
+import { generateResourceSummary } from '../../../inference/factory';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
@@ -20,20 +20,20 @@ import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } fr
 
 type ReferenceLLMContextResponse = components['schemas']['ReferenceLLMContextResponse'];
 
-export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
+export function registerGetReferenceLLMContext(router: ResourcesRouterType) {
   /**
-   * GET /api/documents/:documentId/references/:referenceId/llm-context
+   * GET /api/resources/:resourceId/references/:referenceId/llm-context
    *
    * Get reference with full context for LLM processing
-   * Includes source context (text around reference), target context (referenced document), and metadata
+   * Includes source context (text around reference), target context (referenced resource), and metadata
    *
    * Query parameters:
    * - includeSourceContext: true/false (default: true)
    * - includeTargetContext: true/false (default: true)
    * - contextWindow: 100-5000 (default: 1000) - characters before/after selection
    */
-  router.get('/api/documents/:documentId/references/:referenceId/llm-context', async (c) => {
-    const { documentId, referenceId } = c.req.param();
+  router.get('/api/resources/:resourceId/references/:referenceId/llm-context', async (c) => {
+    const { resourceId, referenceId } = c.req.param();
     const query = c.req.query();
     const basePath = getFilesystemConfig().path;
 
@@ -52,19 +52,19 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
 
     // Get the reference
     const reference = await graphDb.getAnnotation(referenceId);
-    if (!reference || getTargetSource(reference.target) !== documentId) {
+    if (!reference || getTargetSource(reference.target) !== resourceId) {
       throw new HTTPException(404, { message: 'Reference not found' });
     }
 
-    // Get source document
-    const sourceDoc = await graphDb.getDocument(documentId);
+    // Get source resource
+    const sourceDoc = await graphDb.getResource(resourceId);
     if (!sourceDoc) {
-      throw new HTTPException(404, { message: 'Source document not found' });
+      throw new HTTPException(404, { message: 'Source resource not found' });
     }
 
-    // Get target document if reference is resolved
+    // Get target resource if reference is resolved
     const bodySource = getBodySource(reference.body);
-    const targetDoc = bodySource ? await graphDb.getDocument(bodySource) : null;
+    const targetDoc = bodySource ? await graphDb.getResource(bodySource) : null;
 
     // Build source context if requested
     let sourceContext;
@@ -99,7 +99,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
 
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),
-          summary: await generateDocumentSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc)),
+          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc)),
         };
       }
     }
@@ -109,8 +109,8 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
 
     const response: ReferenceLLMContextResponse = {
       reference,
-      sourceDocument: sourceDoc,
-      targetDocument: targetDoc,
+      sourceResource: sourceDoc,
+      targetResource: targetDoc,
       ...(sourceContext ? { sourceContext } : {}),
       ...(targetContext ? { targetContext } : {}),
       ...(suggestedResolution ? { suggestedResolution } : {}),

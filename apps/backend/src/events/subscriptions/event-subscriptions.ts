@@ -1,8 +1,8 @@
 /**
  * Event Subscriptions - Real-time Event Pub/Sub
  *
- * Manages subscriptions for both document-scoped and system-level events:
- * - Document subscriptions: notifications for a specific document's events
+ * Manages subscriptions for both resource-scoped and system-level events:
+ * - Resource subscriptions: notifications for a specific resource's events
  * - Global subscriptions: notifications for all system-level events
  * - Fire-and-forget notification pattern (non-blocking)
  * - Automatic cleanup of empty subscription sets
@@ -18,51 +18,51 @@ import type { StoredEvent } from '@semiont/core';
 export type EventCallback = (event: StoredEvent) => void | Promise<void>;
 
 export interface EventSubscription {
-  documentId: string;
+  resourceId: string;
   callback: EventCallback;
   unsubscribe: () => void;
 }
 
 /**
  * EventSubscriptions manages real-time event pub/sub
- * Supports both document-scoped and global subscriptions
+ * Supports both resource-scoped and global subscriptions
  */
 export class EventSubscriptions {
-  // Per-document subscriptions: documentId -> Set of callbacks
+  // Per-resource subscriptions: resourceId -> Set of callbacks
   private subscriptions: Map<string, Set<EventCallback>> = new Map();
-  // Global subscriptions for system-level events (no documentId)
+  // Global subscriptions for system-level events (no resourceId)
   private globalSubscriptions: Set<EventCallback> = new Set();
 
   /**
-   * Subscribe to events for a specific document
+   * Subscribe to events for a specific resource
    * Returns an EventSubscription with unsubscribe function
    */
-  subscribe(documentId: string, callback: EventCallback): EventSubscription {
-    if (!this.subscriptions.has(documentId)) {
-      this.subscriptions.set(documentId, new Set());
+  subscribe(resourceId: string, callback: EventCallback): EventSubscription {
+    if (!this.subscriptions.has(resourceId)) {
+      this.subscriptions.set(resourceId, new Set());
     }
 
-    const callbacks = this.subscriptions.get(documentId)!;
+    const callbacks = this.subscriptions.get(resourceId)!;
     callbacks.add(callback);
 
-    console.log(`[EventSubscriptions] Subscription added for document ${documentId} (total: ${callbacks.size} subscribers)`);
+    console.log(`[EventSubscriptions] Subscription added for resource ${resourceId} (total: ${callbacks.size} subscribers)`);
 
     return {
-      documentId,
+      resourceId,
       callback,
       unsubscribe: () => {
         callbacks.delete(callback);
-        console.log(`[EventSubscriptions] Subscription removed for document ${documentId} (remaining: ${callbacks.size} subscribers)`);
+        console.log(`[EventSubscriptions] Subscription removed for resource ${resourceId} (remaining: ${callbacks.size} subscribers)`);
         if (callbacks.size === 0) {
-          this.subscriptions.delete(documentId);
-          console.log(`[EventSubscriptions] No more subscribers for document ${documentId}, removed from subscriptions map`);
+          this.subscriptions.delete(resourceId);
+          console.log(`[EventSubscriptions] No more subscribers for resource ${resourceId}, removed from subscriptions map`);
         }
       }
     };
   }
 
   /**
-   * Subscribe to all system-level events (no documentId)
+   * Subscribe to all system-level events (no resourceId)
    * Returns an EventSubscription with unsubscribe function
    *
    * Use this for consumers that need to react to global events like:
@@ -75,7 +75,7 @@ export class EventSubscriptions {
     console.log(`[EventSubscriptions] Global subscription added (total: ${this.globalSubscriptions.size} subscribers)`);
 
     return {
-      documentId: '__global__',  // Special marker for global subscriptions
+      resourceId: '__global__',  // Special marker for global subscriptions
       callback,
       unsubscribe: () => {
         this.globalSubscriptions.delete(callback);
@@ -85,16 +85,16 @@ export class EventSubscriptions {
   }
 
   /**
-   * Notify all subscribers for a document when a new event is appended
+   * Notify all subscribers for a resource when a new event is appended
    */
-  async notifySubscribers(documentId: string, event: StoredEvent): Promise<void> {
-    const callbacks = this.subscriptions.get(documentId);
+  async notifySubscribers(resourceId: string, event: StoredEvent): Promise<void> {
+    const callbacks = this.subscriptions.get(resourceId);
     if (!callbacks || callbacks.size === 0) {
-      console.log(`[EventSubscriptions] Event ${event.event.type} for document ${documentId} - no subscribers to notify`);
+      console.log(`[EventSubscriptions] Event ${event.event.type} for resource ${resourceId} - no subscribers to notify`);
       return;
     }
 
-    console.log(`[EventSubscriptions] Notifying ${callbacks.size} subscriber(s) of event ${event.event.type} for document ${documentId}`);
+    console.log(`[EventSubscriptions] Notifying ${callbacks.size} subscriber(s) of event ${event.event.type} for resource ${resourceId}`);
 
     // Call all callbacks without waiting - fire and forget
     // Each callback handles its own errors and cleanup
@@ -105,7 +105,7 @@ export class EventSubscriptions {
           console.log(`[EventSubscriptions] Subscriber #${index + 1} successfully notified of ${event.event.type}`);
         })
         .catch((error: unknown) => {
-          console.error(`[EventSubscriptions] Error in subscriber #${index + 1} for document ${documentId}, event ${event.event.type}:`, error);
+          console.error(`[EventSubscriptions] Error in subscriber #${index + 1} for resource ${resourceId}, event ${event.event.type}:`, error);
         });
     });
   }
@@ -136,14 +136,14 @@ export class EventSubscriptions {
   }
 
   /**
-   * Get subscription count for a document (useful for debugging)
+   * Get subscription count for a resource (useful for debugging)
    */
-  getSubscriptionCount(documentId: string): number {
-    return this.subscriptions.get(documentId)?.size || 0;
+  getSubscriptionCount(resourceId: string): number {
+    return this.subscriptions.get(resourceId)?.size || 0;
   }
 
   /**
-   * Get total number of active subscriptions across all documents
+   * Get total number of active subscriptions across all resources
    */
   getTotalSubscriptions(): number {
     let total = 0;

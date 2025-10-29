@@ -11,8 +11,8 @@
 
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
-import type { DocumentsRouterType } from '../shared';
-import { DocumentQueryService } from '../../../services/document-queries';
+import type { ResourcesRouterType } from '../shared';
+import { ResourceQueryService } from '../../../services/resource-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { DetectionJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
@@ -23,7 +23,7 @@ type DetectAnnotationsStreamRequest = components['schemas']['DetectAnnotationsSt
 
 interface DetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
-  documentId: string;
+  resourceId: string;
   currentEntityType?: string;
   totalEntityTypes: number;
   processedEntityTypes: number;
@@ -31,23 +31,23 @@ interface DetectionProgress {
   foundCount?: number;
 }
 
-export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
+export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
   /**
-   * POST /api/documents/:id/detect-annotations-stream
+   * POST /api/resources/:id/detect-annotations-stream
    *
    * Stream real-time entity detection progress via Server-Sent Events
    * Requires authentication
    * Validates request body against DetectAnnotationsStreamRequest schema
    * Returns SSE stream with progress updates
    */
-  router.post('/api/documents/:id/detect-annotations-stream',
+  router.post('/api/resources/:id/detect-annotations-stream',
     validateRequestBody('DetectAnnotationsStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as DetectAnnotationsStreamRequest;
       const { entityTypes } = body;
 
-      console.log(`[DetectAnnotations] Starting detection for document ${id} with entity types:`, entityTypes);
+      console.log(`[DetectAnnotations] Starting detection for resource ${id} with entity types:`, entityTypes);
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -55,10 +55,10 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      // Validate document exists using Layer 3
-      const document = await DocumentQueryService.getDocumentMetadata(id);
-      if (!document) {
-        throw new HTTPException(404, { message: 'Document not found in Layer 3 projections - document may need to be recreated' });
+      // Validate resource exists using Layer 3
+      const resource = await ResourceQueryService.getResourceMetadata(id);
+      if (!resource) {
+        throw new HTTPException(404, { message: 'Resource not found in Layer 3 projections - resource may need to be recreated' });
       }
 
       // Create a detection job (this decouples event emission from HTTP client)
@@ -68,7 +68,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
         type: 'detection',
         status: 'pending',
         userId: user.id,
-        documentId: id,
+        resourceId: id,
         entityTypes,
         created: new Date().toISOString(),
         retryCount: 0,
@@ -76,7 +76,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectAnnotations] Created job ${job.id} for document ${id}`);
+      console.log(`[DetectAnnotations] Created job ${job.id} for resource ${id}`);
 
       // Stream the job's progress to the client
       return streamSSE(c, async (stream) => {
@@ -85,7 +85,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
           await stream.writeSSE({
             data: JSON.stringify({
               status: 'started',
-              documentId: id,
+              resourceId: id,
               totalEntityTypes: entityTypes.length,
               processedEntityTypes: 0,
               message: 'Starting entity detection...'
@@ -120,7 +120,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
                     await stream.writeSSE({
                       data: JSON.stringify({
                         status: 'scanning',
-                        documentId: id,
+                        resourceId: id,
                         currentEntityType: progress.currentEntityType,
                         totalEntityTypes: progress.totalEntityTypes,
                         processedEntityTypes: progress.processedEntityTypes,
@@ -149,7 +149,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
               await stream.writeSSE({
                 data: JSON.stringify({
                   status: 'complete',
-                  documentId: id,
+                  resourceId: id,
                   totalEntityTypes: entityTypes.length,
                   processedEntityTypes: entityTypes.length,
                   message: result
@@ -166,7 +166,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
               await stream.writeSSE({
                 data: JSON.stringify({
                   status: 'error',
-                  documentId: id,
+                  resourceId: id,
                   totalEntityTypes: entityTypes.length,
                   processedEntityTypes: 0,
                   message: currentJob.error || 'Detection failed'
@@ -187,7 +187,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
             await stream.writeSSE({
               data: JSON.stringify({
                 status: 'error',
-                documentId: id,
+                resourceId: id,
                 totalEntityTypes: entityTypes.length,
                 processedEntityTypes: 0,
                 message: error instanceof Error ? error.message : 'Detection failed'

@@ -12,9 +12,9 @@ export const annotationsRouter = new Hono<{ Variables: { user: User } }>();
 
 // Mount all sub-routers
 // IMPORTANT: operationsRouter must come BEFORE crudRouter so that specific routes
-// like /api/annotations/{id}/generate-document-stream are registered before the
+// like /api/annotations/{id}/generate-resource-stream are registered before the
 // catch-all /api/annotations/{id} route
-annotationsRouter.route('/', operationsRouter); // operationsRouter already includes generate-document-stream
+annotationsRouter.route('/', operationsRouter); // operationsRouter already includes generate-resource-stream
 annotationsRouter.route('/', crudRouter);
 
 // Register annotation history endpoint

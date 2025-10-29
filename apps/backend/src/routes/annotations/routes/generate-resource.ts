@@ -1,5 +1,5 @@
 /**
- * Generate Document Route - Spec-First Version
+ * Generate Resource Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -7,9 +7,9 @@
  * - Types from generated OpenAPI types
  * - OpenAPI spec is the source of truth
  *
- * Non-SSE endpoint for creating document generation jobs
+ * Non-SSE endpoint for creating resource generation jobs
  * For real-time progress updates, use the SSE equivalent:
- * POST /api/annotations/{id}/generate-document-stream
+ * POST /api/annotations/{id}/generate-resource-stream
  */
 
 import { HTTPException } from 'hono/http-exception';
@@ -23,28 +23,28 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
 
-type GenerateDocumentRequest = components['schemas']['GenerateDocumentRequest'];
+type GenerateResourceRequest = components['schemas']['GenerateResourceRequest'];
 type CreateJobResponse = components['schemas']['CreateJobResponse'];
 
-export function registerGenerateDocument(router: AnnotationsRouterType) {
+export function registerGenerateResource(router: AnnotationsRouterType) {
   /**
-   * POST /api/annotations/:id/generate-document
+   * POST /api/annotations/:id/generate-resource
    *
-   * Create an async document generation job from an annotation.
+   * Create an async resource generation job from an annotation.
    * Use GET /api/jobs/{jobId} to poll status.
-   * For real-time updates, use POST /api/annotations/{id}/generate-document-stream instead.
+   * For real-time updates, use POST /api/annotations/{id}/generate-resource-stream instead.
    *
    * Requires authentication
-   * Validates request body against GenerateDocumentRequest schema
+   * Validates request body against GenerateResourceRequest schema
    * Returns 201 with job details
    */
-  router.post('/api/annotations/:id/generate-document',
-    validateRequestBody('GenerateDocumentRequest'),
+  router.post('/api/annotations/:id/generate-resource',
+    validateRequestBody('GenerateResourceRequest'),
     async (c) => {
       const { id: annotationId } = c.req.param();
-      const body = c.get('validatedBody') as GenerateDocumentRequest;
+      const body = c.get('validatedBody') as GenerateResourceRequest;
 
-      console.log(`[GenerateDocument] Creating generation job for annotation ${annotationId} in document ${body.documentId}`);
+      console.log(`[GenerateResource] Creating generation job for annotation ${annotationId} in resource ${body.resourceId}`);
 
       const user = c.get('user');
       if (!user) {
@@ -52,13 +52,13 @@ export function registerGenerateDocument(router: AnnotationsRouterType) {
       }
 
       // Validate annotation exists using Layer 3
-      const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
+      const projection = await AnnotationQueryService.getResourceAnnotations(body.resourceId);
       const annotation = projection.annotations.find((a: any) =>
         compareAnnotationIds(a.id, annotationId) && a.motivation === 'linking'
       );
 
       if (!annotation) {
-        throw new HTTPException(404, { message: `Annotation ${annotationId} not found in document ${body.documentId}` });
+        throw new HTTPException(404, { message: `Annotation ${annotationId} not found in resource ${body.resourceId}` });
       }
 
       // Create a generation job
@@ -69,7 +69,7 @@ export function registerGenerateDocument(router: AnnotationsRouterType) {
         status: 'pending',
         userId: user.id,
         referenceId: annotationId,
-        sourceDocumentId: body.documentId,
+        sourceResourceId: body.resourceId,
         title: body.title,
         prompt: body.prompt,
         language: body.language,
@@ -80,7 +80,7 @@ export function registerGenerateDocument(router: AnnotationsRouterType) {
       };
 
       await jobQueue.createJob(job);
-      console.log(`[GenerateDocument] Created job ${job.id} for annotation ${annotationId}`);
+      console.log(`[GenerateResource] Created job ${job.id} for annotation ${annotationId}`);
 
       const response: CreateJobResponse = {
         jobId: job.id,

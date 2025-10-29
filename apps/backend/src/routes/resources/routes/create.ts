@@ -1,5 +1,5 @@
 /**
- * Create Document Route - Spec-First Version
+ * Create Resource Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -13,7 +13,7 @@ import {
   type CreationMethod,
   generateUuid,
 } from '@semiont/core';
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import { createEventStore } from '../../../services/event-store-service';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
@@ -22,18 +22,18 @@ import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 
 type CreateResourceRequest = components['schemas']['CreateResourceRequest'];
-type CreateDocumentResponse = components['schemas']['CreateDocumentResponse'];
+type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-export function registerCreateDocument(router: DocumentsRouterType) {
+export function registerCreateResource(router: ResourcesRouterType) {
   /**
-   * POST /api/documents
+   * POST /api/resources
    *
-   * Create a new document
+   * Create a new resource
    * Requires authentication
    * Validates request body against CreateResourceRequest schema
    */
-  router.post('/api/documents',
+  router.post('/api/resources',
     validateRequestBody('CreateResourceRequest'),
     async (c) => {
       const body = c.get('validatedBody') as CreateResourceRequest;
@@ -41,7 +41,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       const basePath = getFilesystemConfig().path;
       const repStore = new FilesystemRepresentationStore({ basePath });
 
-      const documentId = generateUuid();
+      const resourceId = generateUuid();
 
       // Store representation (Layer 1)
       const contentBuffer = Buffer.from(body.content);
@@ -51,14 +51,14 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         rel: 'original',
       });
 
-      // Subscribe GraphDB consumer to new document BEFORE emitting event
-      // This ensures the consumer receives the document.created event
+      // Subscribe GraphDB consumer to new resource BEFORE emitting event
+      // This ensures the consumer receives the resource.created event
       try {
         const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
         const consumer = await getGraphConsumer();
-        await consumer.subscribeToDocument(documentId);
+        await consumer.subscribeToResource(resourceId);
       } catch (error) {
-        console.error('[CreateDocument] Failed to subscribe GraphDB consumer:', error);
+        console.error('[CreateResource] Failed to subscribe GraphDB consumer:', error);
         // Don't fail the request - consumer can catch up later
       }
 
@@ -68,11 +68,11 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         ? body.creationMethod as CreationMethod
         : CREATION_METHODS.API;
 
-      // Emit document.created event (consumer will update GraphDB)
+      // Emit resource.created event (consumer will update GraphDB)
       const eventStore = await createEventStore(basePath);
       await eventStore.appendEvent({
-        type: 'document.created',
-        documentId,
+        type: 'resource.created',
+        resourceId,
         userId: user.id,
         version: 1,
         payload: {
@@ -92,9 +92,9 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
       const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
 
-      const documentMetadata: ResourceDescriptor = {
+      const resourceMetadata: ResourceDescriptor = {
         '@context': 'https://schema.org/',
-        '@id': `${normalizedBase}/documents/${documentId}`,
+        '@id': `${normalizedBase}/resources/${resourceId}`,
         name: body.name,
         archived: false,
         entityTypes: body.entityTypes || [],
@@ -109,8 +109,8 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         }],
       };
 
-      const response: CreateDocumentResponse = {
-        document: documentMetadata,
+      const response: CreateResourceResponse = {
+        resource: resourceMetadata,
         annotations: [],
       };
 

@@ -1,4 +1,4 @@
-// Helper functions for document routes
+// Helper functions for resource routes
 import type { components } from '@semiont/api-client';
 import { extractEntities } from '../../inference/entity-extractor';
 import { getFilesystemConfig } from '../../config/environment-loader';
@@ -28,8 +28,8 @@ export interface DetectedAnnotation {
   };
 }
 
-// Implementation for detecting entity references in document using AI
-export async function detectAnnotationsInDocument(
+// Implementation for detecting entity references in resource using AI
+export async function detectAnnotationsInResource(
   resource: ResourceDescriptor,
   entityTypes: string[]
 ): Promise<DetectedAnnotation[]> {

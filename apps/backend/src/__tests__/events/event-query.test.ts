@@ -33,9 +33,9 @@ describe('EventQuery', () => {
 
     // Create test events for doc1
     await storage.appendEvent({
-      type: 'document.created',
+      type: 'resource.created',
       userId: 'user1',
-      documentId: 'doc1',
+      resourceId: 'doc1',
       version: 1,
       payload: { name: 'Doc1', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
     }, 'doc1');
@@ -43,7 +43,7 @@ describe('EventQuery', () => {
     await storage.appendEvent({
       type: 'annotation.added',
       userId: 'user1',
-      documentId: 'doc1',
+      resourceId: 'doc1',
       version: 1,
       payload: {},
     }, 'doc1');
@@ -51,7 +51,7 @@ describe('EventQuery', () => {
     await storage.appendEvent({
       type: 'annotation.added',
       userId: 'user2',
-      documentId: 'doc1',
+      resourceId: 'doc1',
       version: 1,
       payload: {},
     }, 'doc1');
@@ -59,7 +59,7 @@ describe('EventQuery', () => {
     await storage.appendEvent({
       type: 'annotation.removed',
       userId: 'user1',
-      documentId: 'doc1',
+      resourceId: 'doc1',
       version: 1,
       payload: {},
     }, 'doc1');
@@ -67,16 +67,16 @@ describe('EventQuery', () => {
     await storage.appendEvent({
       type: 'entitytag.added',
       userId: 'user2',
-      documentId: 'doc1',
+      resourceId: 'doc1',
       version: 1,
       payload: {},
     }, 'doc1');
 
     // Create events for doc2
     await storage.appendEvent({
-      type: 'document.created',
+      type: 'resource.created',
       userId: 'user1',
-      documentId: 'doc2',
+      resourceId: 'doc2',
       version: 1,
       payload: { name: 'Doc2', format: 'text/plain' as const, contentChecksum: 'checksum2', creationMethod: 'api' as const },
     }, 'doc2');
@@ -87,16 +87,16 @@ describe('EventQuery', () => {
   });
 
   describe('Basic Queries', () => {
-    it('should get all events for document', async () => {
-      const events = await query.getDocumentEvents('doc1');
+    it('should get all events for resource', async () => {
+      const events = await query.getResourceEvents('doc1');
 
       expect(events).toHaveLength(5);
-      expect(events[0]?.event.type).toBe('document.created');
+      expect(events[0]?.event.type).toBe('resource.created');
       expect(events[4]?.event.type).toBe('entitytag.added');
     });
 
-    it('should return empty array for nonexistent document', async () => {
-      const events = await query.getDocumentEvents('doc-nonexistent');
+    it('should return empty array for nonexistent resource', async () => {
+      const events = await query.getResourceEvents('doc-nonexistent');
 
       expect(events).toEqual([]);
     });
@@ -107,7 +107,7 @@ describe('EventQuery', () => {
       expect(count).toBe(5);
     });
 
-    it('should check if document has events', async () => {
+    it('should check if resource has events', async () => {
       const hasEvents1 = await query.hasEvents('doc1');
       const hasEvents2 = await query.hasEvents('doc-nonexistent');
 
@@ -123,7 +123,7 @@ describe('EventQuery', () => {
       expect(latest?.metadata.sequenceNumber).toBe(5);
     });
 
-    it('should return null for latest event of empty document', async () => {
+    it('should return null for latest event of empty resource', async () => {
       const latest = await query.getLatestEvent('doc-nonexistent');
 
       expect(latest).toBeNull();
@@ -133,7 +133,7 @@ describe('EventQuery', () => {
   describe('Filter by User', () => {
     it('should filter events by userId', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         userId: 'user1',
       });
 
@@ -145,7 +145,7 @@ describe('EventQuery', () => {
 
     it('should filter events by different userId', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         userId: 'user2',
       });
 
@@ -157,7 +157,7 @@ describe('EventQuery', () => {
 
     it('should return empty for nonexistent user', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         userId: 'user-nonexistent',
       });
 
@@ -168,7 +168,7 @@ describe('EventQuery', () => {
   describe('Filter by Event Types', () => {
     it('should filter by single event type', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         eventTypes: ['annotation.added'],
       });
 
@@ -180,7 +180,7 @@ describe('EventQuery', () => {
 
     it('should filter by multiple event types', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         eventTypes: ['annotation.added', 'annotation.removed'],
       });
 
@@ -192,7 +192,7 @@ describe('EventQuery', () => {
 
     it('should return empty for nonexistent event type', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         eventTypes: ['nonexistent.type' as any],
       });
 
@@ -201,7 +201,7 @@ describe('EventQuery', () => {
 
     it('should return all events for empty eventTypes array', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         eventTypes: [],
       });
 
@@ -212,13 +212,13 @@ describe('EventQuery', () => {
   describe('Filter by Timestamp', () => {
     it('should filter by fromTimestamp', async () => {
       // Get all events first
-      const allEvents = await query.getDocumentEvents('doc1');
+      const allEvents = await query.getResourceEvents('doc1');
 
       // Use 3rd event's timestamp as cutoff
       const cutoff = allEvents[2]?.event.timestamp!;
 
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         fromTimestamp: cutoff,
       });
 
@@ -230,13 +230,13 @@ describe('EventQuery', () => {
     });
 
     it('should filter by toTimestamp', async () => {
-      const allEvents = await query.getDocumentEvents('doc1');
+      const allEvents = await query.getResourceEvents('doc1');
 
       // Use 2nd event's timestamp as cutoff (sequence 2)
       const cutoff = allEvents[1]?.event.timestamp!;
 
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         toTimestamp: cutoff,
       });
 
@@ -255,13 +255,13 @@ describe('EventQuery', () => {
     });
 
     it('should filter by timestamp range', async () => {
-      const allEvents = await query.getDocumentEvents('doc1');
+      const allEvents = await query.getResourceEvents('doc1');
 
       const from = allEvents[1]?.event.timestamp!;
       const to = allEvents[3]?.event.timestamp!;
 
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         fromTimestamp: from,
         toTimestamp: to,
       });
@@ -276,7 +276,7 @@ describe('EventQuery', () => {
 
     it('should return empty for impossible timestamp range', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         fromTimestamp: '2099-01-01T00:00:00Z',
         toTimestamp: '2099-12-31T23:59:59Z',
       });
@@ -288,7 +288,7 @@ describe('EventQuery', () => {
   describe('Filter by Sequence Number', () => {
     it('should filter by fromSequence', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         fromSequence: 3,
       });
 
@@ -299,7 +299,7 @@ describe('EventQuery', () => {
 
     it('should filter by fromSequence = 1 (all events)', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         fromSequence: 1,
       });
 
@@ -308,7 +308,7 @@ describe('EventQuery', () => {
 
     it('should return empty for fromSequence beyond max', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         fromSequence: 999,
       });
 
@@ -319,7 +319,7 @@ describe('EventQuery', () => {
   describe('Limit Results', () => {
     it('should limit results to specified count', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         limit: 2,
       });
 
@@ -330,17 +330,17 @@ describe('EventQuery', () => {
 
     it('should limit results to 1', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         limit: 1,
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0]?.event.type).toBe('document.created');
+      expect(events[0]?.event.type).toBe('resource.created');
     });
 
     it('should handle limit larger than result set', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         limit: 100,
       });
 
@@ -349,7 +349,7 @@ describe('EventQuery', () => {
 
     it('should ignore zero limit', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         limit: 0,
       });
 
@@ -358,7 +358,7 @@ describe('EventQuery', () => {
 
     it('should ignore negative limit', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         limit: -1,
       });
 
@@ -369,7 +369,7 @@ describe('EventQuery', () => {
   describe('Combined Filters', () => {
     it('should combine userId + eventTypes', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         userId: 'user1',
         eventTypes: ['annotation.added'],
       });
@@ -381,7 +381,7 @@ describe('EventQuery', () => {
 
     it('should combine userId + limit', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         userId: 'user1',
         limit: 2,
       });
@@ -394,7 +394,7 @@ describe('EventQuery', () => {
 
     it('should combine eventTypes + fromSequence + limit', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         eventTypes: ['annotation.added', 'annotation.removed'],
         fromSequence: 2,
         limit: 2,
@@ -408,10 +408,10 @@ describe('EventQuery', () => {
     });
 
     it('should combine all filters', async () => {
-      const allEvents = await query.getDocumentEvents('doc1');
+      const allEvents = await query.getResourceEvents('doc1');
 
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         userId: 'user1',
         eventTypes: ['annotation.added', 'annotation.removed'],
         fromTimestamp: allEvents[0]?.event.timestamp!,
@@ -428,18 +428,18 @@ describe('EventQuery', () => {
   });
 
   describe('Edge Cases', () => {
-    it('should require documentId', async () => {
-      await expect(query.queryEvents({} as any)).rejects.toThrow('documentId is required');
+    it('should require resourceId', async () => {
+      await expect(query.queryEvents({} as any)).rejects.toThrow('resourceId is required');
     });
 
-    it('should handle document with only document.created', async () => {
-      const events = await query.getDocumentEvents('doc2');
+    it('should handle resource with only resource.created', async () => {
+      const events = await query.getResourceEvents('doc2');
 
       expect(events).toHaveLength(1);
-      expect(events[0]?.event.type).toBe('document.created');
+      expect(events[0]?.event.type).toBe('resource.created');
     });
 
-    it('should handle getLastEvent for document with one file', async () => {
+    it('should handle getLastEvent for resource with one file', async () => {
       const files = await storage.getEventFiles('doc1');
       const last = await query.getLastEvent('doc1', files[0]!);
 
@@ -455,7 +455,7 @@ describe('EventQuery', () => {
 
     it('should handle filters that match no events', async () => {
       const events = await query.queryEvents({
-        documentId: 'doc1',
+        resourceId: 'doc1',
         userId: 'user-nonexistent',
         eventTypes: ['nonexistent.type' as any],
         fromSequence: 999,
@@ -473,7 +473,7 @@ describe('EventQuery', () => {
         await storage.appendEvent({
           type: 'annotation.added',
           userId: 'user1',
-          documentId: 'doc-perf',
+          resourceId: 'doc-perf',
           version: 1,
           payload: {
             annotation: {
@@ -489,7 +489,7 @@ describe('EventQuery', () => {
       }
 
       const start = Date.now();
-      const events = await query.getDocumentEvents('doc-perf');
+      const events = await query.getResourceEvents('doc-perf');
       const duration = Date.now() - start;
 
       expect(events).toHaveLength(100);
@@ -502,7 +502,7 @@ describe('EventQuery', () => {
         await storage.appendEvent({
           type: i % 2 === 0 ? 'annotation.added' : 'annotation.removed',
           userId: i % 3 === 0 ? 'user1' : 'user2',
-          documentId: 'doc-filter',
+          resourceId: 'doc-filter',
           version: 1,
           payload: i % 2 === 0
             ? {
@@ -521,7 +521,7 @@ describe('EventQuery', () => {
 
       const start = Date.now();
       const events = await query.queryEvents({
-        documentId: 'doc-filter',
+        resourceId: 'doc-filter',
         userId: 'user1',
         eventTypes: ['annotation.added'],
         limit: 10,

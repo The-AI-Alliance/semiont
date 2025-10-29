@@ -13,7 +13,7 @@ type Agent = components['schemas']['Agent'];
  */
 export function createTestResource(overrides?: Partial<ResourceDescriptor & { id?: string; creator?: any }>): ResourceDescriptor {
   // Support both @id and id for test convenience
-  const id = overrides?.['@id'] || (overrides?.id ? `http://localhost:4000/documents/${overrides.id}` : `urn:semiont:resource:test-${Date.now()}`);
+  const id = overrides?.['@id'] || (overrides?.id ? `http://localhost:4000/resources/${overrides.id}` : `urn:semiont:resource:test-${Date.now()}`);
 
   // Support creator as alias for wasAttributedTo
   const wasAttributedTo = overrides?.wasAttributedTo || overrides?.creator || {

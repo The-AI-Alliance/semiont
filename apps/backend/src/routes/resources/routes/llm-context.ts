@@ -1,5 +1,5 @@
 /**
- * Document LLM Context Route - Spec-First Version
+ * Resource LLM Context Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -10,36 +10,36 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { generateDocumentSummary, generateReferenceSuggestions } from '../../../inference/factory';
-import type { DocumentsRouterType } from '../shared';
+import { generateResourceSummary, generateReferenceSuggestions } from '../../../inference/factory';
+import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getResourceId, getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
 
-type DocumentLLMContextResponse = components['schemas']['DocumentLLMContextResponse'];
+type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
 
-export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
+export function registerGetResourceLLMContext(router: ResourcesRouterType) {
   /**
-   * GET /api/documents/:id/llm-context
+   * GET /api/resources/:id/llm-context
    *
-   * Get document with full context for LLM processing
-   * Includes related documents, annotations, graph representation, and optional summary
+   * Get resource with full context for LLM processing
+   * Includes related resources, annotations, graph representation, and optional summary
    *
    * Query parameters:
    * - depth: 1-3 (default: 2)
-   * - maxDocuments: 1-20 (default: 10)
+   * - maxResources: 1-20 (default: 10)
    * - includeContent: true/false (default: true)
    * - includeSummary: true/false (default: false)
    */
-  router.get('/api/documents/:id/llm-context', async (c) => {
+  router.get('/api/resources/:id/llm-context', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
     const basePath = getFilesystemConfig().path;
 
     // Parse and validate query parameters
     const depth = query.depth ? Number(query.depth) : 2;
-    const maxDocuments = query.maxDocuments ? Number(query.maxDocuments) : 10;
+    const maxResources = query.maxResources ? Number(query.maxResources) : 10;
     const includeContent = query.includeContent === 'false' ? false : true;
     const includeSummary = query.includeSummary === 'true' ? true : false;
 
@@ -48,20 +48,20 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "depth" must be between 1 and 3' });
     }
 
-    // Validate maxDocuments range
-    if (maxDocuments < 1 || maxDocuments > 20) {
-      throw new HTTPException(400, { message: 'Query parameter "maxDocuments" must be between 1 and 20' });
+    // Validate maxResources range
+    if (maxResources < 1 || maxResources > 20) {
+      throw new HTTPException(400, { message: 'Query parameter "maxResources" must be between 1 and 20' });
     }
 
     const graphDb = await getGraphDatabase();
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    const mainDoc = await graphDb.getDocument(id);
+    const mainDoc = await graphDb.getResource(id);
     if (!mainDoc) {
-      throw new HTTPException(404, { message: 'Document not found' });
+      throw new HTTPException(404, { message: 'Resource not found' });
     }
 
-    // Get content for main document
+    // Get content for main resource
     let mainContent: string | undefined;
     if (includeContent) {
       const primaryRep = getPrimaryRepresentation(mainDoc);
@@ -71,42 +71,42 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
       }
     }
 
-    // Get related documents through graph connections
-    const connections = await graphDb.getDocumentConnections(id);
-    const relatedDocs = connections.map(conn => conn.targetDocument);
-    const limitedRelatedDocs = relatedDocs.slice(0, maxDocuments - 1);
+    // Get related resources through graph connections
+    const connections = await graphDb.getResourceConnections(id);
+    const relatedDocs = connections.map(conn => conn.targetResource);
+    const limitedRelatedDocs = relatedDocs.slice(0, maxResources - 1);
 
-    // Get content for related documents if requested
-    const relatedDocumentsContent: { [id: string]: string } = {};
+    // Get content for related resources if requested
+    const relatedResourcesContent: { [id: string]: string } = {};
     if (includeContent) {
       await Promise.all(limitedRelatedDocs.map(async (doc) => {
         try {
           const primaryRep = getPrimaryRepresentation(doc);
           if (primaryRep?.checksum && primaryRep?.mediaType) {
             const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-            relatedDocumentsContent[getResourceId(doc)] = buffer.toString('utf-8');
+            relatedResourcesContent[getResourceId(doc)] = buffer.toString('utf-8');
           }
         } catch {
-          // Skip documents where content can't be loaded
+          // Skip resources where content can't be loaded
         }
       }));
     }
 
-    // Get all annotations for the main document
-    const result = await graphDb.listAnnotations({ documentId: id });
+    // Get all annotations for the main resource
+    const result = await graphDb.listAnnotations({ resourceId: id });
     const annotations = result.annotations;
 
     // Build graph representation
     const nodes = [
       {
         id: getResourceId(mainDoc),
-        type: 'document',
+        type: 'resource',
         label: mainDoc.name,
         metadata: { entityTypes: getEntityTypes(mainDoc) },
       },
       ...limitedRelatedDocs.map(doc => ({
         id: getResourceId(doc),
-        type: 'document',
+        type: 'resource',
         label: doc.name,
         metadata: { entityTypes: getEntityTypes(doc) },
       })),
@@ -114,26 +114,26 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
 
     const edges = connections.map(conn => ({
       source: id,
-      target: getResourceId(conn.targetDocument),
+      target: getResourceId(conn.targetResource),
       type: conn.relationshipType || 'link',
       metadata: {},
     }));
 
     // Generate summary if requested
     const summary = includeSummary && mainContent ?
-      await generateDocumentSummary(mainDoc.name, mainContent, getEntityTypes(mainDoc)) : undefined;
+      await generateResourceSummary(mainDoc.name, mainContent, getEntityTypes(mainDoc)) : undefined;
 
     // Generate reference suggestions if we have content
     const suggestedReferences = mainContent ?
       await generateReferenceSuggestions(mainContent) : undefined;
 
-    const response: DocumentLLMContextResponse = {
-      mainDocument: mainDoc,
-      relatedDocuments: limitedRelatedDocs,
+    const response: ResourceLLMContextResponse = {
+      mainResource: mainDoc,
+      relatedResources: limitedRelatedDocs,
       annotations,
       graph: { nodes, edges },
-      ...(mainContent ? { mainDocumentContent: mainContent } : {}),
-      ...(Object.keys(relatedDocumentsContent).length > 0 ? { relatedDocumentsContent } : {}),
+      ...(mainContent ? { mainResourceContent: mainContent } : {}),
+      ...(Object.keys(relatedResourcesContent).length > 0 ? { relatedResourcesContent } : {}),
       ...(summary ? { summary } : {}),
       ...(suggestedReferences ? { suggestedReferences } : {}),
     };

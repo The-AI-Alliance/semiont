@@ -87,7 +87,7 @@ describe('Main Application (index.ts)', () => {
     });
   });
 
-  describe('API Documentation', () => {
+  describe('API Resourceation', () => {
     it('should redirect API root to docs for browser requests', async () => {
       const response = await app.request('http://localhost/api', {
         headers: { 
@@ -96,7 +96,7 @@ describe('Main Application (index.ts)', () => {
         },
       });
 
-      // API documentation is now public and redirects to /api/docs
+      // API resourceation is now public and redirects to /api/docs
       expect(response.status).toBe(302);
       expect(response.headers.get('location')).toBe('/api/docs');
     });
@@ -106,7 +106,7 @@ describe('Main Application (index.ts)', () => {
         headers: { 'Accept': 'application/json' },
       });
 
-      // API documentation is public and redirects to OpenAPI spec
+      // API resourceation is public and redirects to OpenAPI spec
       expect(response.status).toBe(302);
       expect(response.headers.get('location')).toBe('/api/openapi.json');
     });
@@ -177,7 +177,7 @@ describe('Main Application (index.ts)', () => {
     });
 
     it('should have public endpoints defined', () => {
-      // This is more of a documentation test to ensure we know what endpoints
+      // This is more of a resourceation test to ensure we know what endpoints
       // are supposed to be public
       const publicEndpoints = [
         '/api/health',

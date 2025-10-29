@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventProjector } from '../../events/projections/event-projector';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
-import type { StoredEvent, DocumentEvent } from '@semiont/core';
+import type { StoredEvent, ResourceEvent } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -33,14 +33,14 @@ describe('EventProjector', () => {
   });
 
   // Helper to create StoredEvent
-  function createStoredEvent(event: Omit<DocumentEvent, 'id' | 'timestamp' | 'version' | 'userId'> & { userId?: string }, sequenceNumber: number): StoredEvent {
-    const fullEvent: DocumentEvent = {
+  function createStoredEvent(event: Omit<ResourceEvent, 'id' | 'timestamp' | 'version' | 'userId'> & { userId?: string }, sequenceNumber: number): StoredEvent {
+    const fullEvent: ResourceEvent = {
       id: `event-${sequenceNumber}`,
       userId: event.userId || 'user1',
       timestamp: new Date().toISOString(),
       version: 1,
       ...event,
-    } as DocumentEvent;
+    } as ResourceEvent;
 
     return {
       event: fullEvent,
@@ -55,14 +55,14 @@ describe('EventProjector', () => {
   }
 
   describe('Full Projection Rebuild', () => {
-    it('should build projection from document.created event', async () => {
+    it('should build projection from resource.created event', async () => {
       const events = [
         createStoredEvent({
-          type: 'document.created',
-          documentId: 'doc1',
+          type: 'resource.created',
+          resourceId: 'doc1',
           userId: 'user1',
           payload: {
-            name: 'Test Document',
+            name: 'Test Resource',
             format: 'text/markdown',
             contentChecksum: 'hash123',
             creationMethod: 'api',
@@ -71,63 +71,63 @@ describe('EventProjector', () => {
         }, 1),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
       expect(projection).not.toBeNull();
-      expect(projection!.document['@id']).toContain('doc1'); // @id is HTTP URI containing doc1
-      expect(projection!.document.name).toBe('Test Document');
-      const primaryRep = getPrimaryRepresentation(projection!.document);
+      expect(projection!.resource['@id']).toContain('doc1'); // @id is HTTP URI containing doc1
+      expect(projection!.resource.name).toBe('Test Resource');
+      const primaryRep = getPrimaryRepresentation(projection!.resource);
       expect(primaryRep?.mediaType).toBe('text/markdown');
-      expect(projection!.document.entityTypes).toEqual(['note']);
-      expect(projection!.document.archived).toBe(false);
+      expect(projection!.resource.entityTypes).toEqual(['note']);
+      expect(projection!.resource.archived).toBe(false);
       expect(projection!.annotations.version).toBe(1);
       expect(projection!.annotations.annotations).toHaveLength(0);
     });
 
-    it('should apply document.archived event', async () => {
+    it('should apply resource.archived event', async () => {
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'document.archived',
+          type: 'resource.archived',
           payload: {},
         }, 2),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
-      expect(projection!.document.archived).toBe(true);
+      expect(projection!.resource.archived).toBe(true);
       expect(projection!.annotations.version).toBe(2);
     });
 
-    it('should apply document.unarchived event', async () => {
+    it('should apply resource.unarchived event', async () => {
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'document.archived',
+          type: 'resource.archived',
           payload: {},
         }, 2),
         createStoredEvent({
-          type: 'document.unarchived',
+          type: 'resource.unarchived',
           payload: {},
         }, 3),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
-      expect(projection!.document.archived).toBe(false);
+      expect(projection!.resource.archived).toBe(false);
       expect(projection!.annotations.version).toBe(3);
     });
 
     it('should apply entitytag.added event', async () => {
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
         }, 1),
         createStoredEvent({
@@ -140,16 +140,16 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
-      expect(projection!.document.entityTypes).toEqual(['Person', 'Organization']);
+      expect(projection!.resource.entityTypes).toEqual(['Person', 'Organization']);
       expect(projection!.annotations.version).toBe(3);
     });
 
     it('should apply entitytag.removed event', async () => {
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: ['Person', 'Organization'] },
         }, 1),
         createStoredEvent({
@@ -158,9 +158,9 @@ describe('EventProjector', () => {
         }, 2),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
-      expect(projection!.document.entityTypes).toEqual(['Organization']);
+      expect(projection!.resource.entityTypes).toEqual(['Organization']);
       expect(projection!.annotations.version).toBe(2);
     });
 
@@ -190,7 +190,7 @@ describe('EventProjector', () => {
 
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
@@ -199,7 +199,7 @@ describe('EventProjector', () => {
         }, 2),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
       expect(projection!.annotations.annotations).toHaveLength(1);
       expect(projection!.annotations.annotations[0]?.id).toBe('anno1');
@@ -221,7 +221,7 @@ describe('EventProjector', () => {
 
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
@@ -234,7 +234,7 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
       expect(projection!.annotations.annotations).toHaveLength(0);
       expect(projection!.annotations.version).toBe(3);
@@ -253,7 +253,7 @@ describe('EventProjector', () => {
 
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
@@ -271,7 +271,7 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
       const body = projection!.annotations.annotations[0]?.body;
       expect(Array.isArray(body) ? body : []).toHaveLength(1);
@@ -300,7 +300,7 @@ describe('EventProjector', () => {
 
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
@@ -318,7 +318,7 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
       const body = projection!.annotations.annotations[0]?.body;
       expect(Array.isArray(body) ? body : []).toHaveLength(1);
@@ -344,7 +344,7 @@ describe('EventProjector', () => {
 
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
@@ -366,7 +366,7 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
       const body = projection!.annotations.annotations[0]?.body;
       expect(Array.isArray(body) ? body : []).toHaveLength(1);
@@ -380,7 +380,7 @@ describe('EventProjector', () => {
     it('should handle multiple annotations', async () => {
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
@@ -413,14 +413,14 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
       expect(projection!.annotations.annotations).toHaveLength(2);
       expect(projection!.annotations.version).toBe(3);
     });
 
     it('should return null for empty event list', async () => {
-      const projection = await projector.projectDocument([], 'doc1');
+      const projection = await projector.projectResource([], 'doc1');
       expect(projection).toBeNull();
     });
   });
@@ -429,7 +429,7 @@ describe('EventProjector', () => {
     it('should perform full rebuild when no projection exists', async () => {
       const events = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
       ];
@@ -444,7 +444,7 @@ describe('EventProjector', () => {
 
       const projection = await projectionStorage.getProjection('doc1');
       expect(projection).not.toBeNull();
-      expect(projection!.document.name).toBe('Test');
+      expect(projection!.resource.name).toBe('Test');
       expect(projection!.annotations.version).toBe(1);
     });
 
@@ -452,13 +452,13 @@ describe('EventProjector', () => {
       // Create initial projection
       const initialEvents = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
         }, 1),
       ];
 
-      await projector.projectDocument(initialEvents, 'doc1');
-      await projectionStorage.saveProjection('doc1', (await projector.projectDocument(initialEvents, 'doc1'))!);
+      await projector.projectResource(initialEvents, 'doc1');
+      await projectionStorage.saveProjection('doc1', (await projector.projectResource(initialEvents, 'doc1'))!);
 
       // Apply incremental update
       const newEvent = createStoredEvent({
@@ -473,26 +473,26 @@ describe('EventProjector', () => {
       );
 
       const projection = await projectionStorage.getProjection('doc1');
-      expect(projection!.document.entityTypes).toContain('Person');
+      expect(projection!.resource.entityTypes).toContain('Person');
       expect(projection!.annotations.version).toBe(2);
     });
 
     it('should increment version on each update', async () => {
       const initialEvents = [
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
         }, 1),
       ];
 
-      await projector.projectDocument(initialEvents, 'doc1');
-      await projectionStorage.saveProjection('doc1', (await projector.projectDocument(initialEvents, 'doc1'))!);
+      await projector.projectResource(initialEvents, 'doc1');
+      await projectionStorage.saveProjection('doc1', (await projector.projectResource(initialEvents, 'doc1'))!);
 
       // Apply 3 incremental updates
       const events = [
         createStoredEvent({ type: 'entitytag.added', payload: { entityType: 'Person' } }, 2),
         createStoredEvent({ type: 'entitytag.added', payload: { entityType: 'Organization' } }, 3),
-        createStoredEvent({ type: 'document.archived', payload: {} }, 4),
+        createStoredEvent({ type: 'resource.archived', payload: {} }, 4),
       ];
 
       for (const event of events) {
@@ -565,15 +565,15 @@ describe('EventProjector', () => {
           },
         }, 2),
         createStoredEvent({
-          type: 'document.created',
+          type: 'resource.created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
       ];
 
-      const projection = await projector.projectDocument(events, 'doc1');
+      const projection = await projector.projectResource(events, 'doc1');
 
-      // Should apply document.created first (sequence 1), then annotation.added (sequence 2)
-      expect(projection!.document.name).toBe('Test');
+      // Should apply resource.created first (sequence 1), then annotation.added (sequence 2)
+      expect(projection!.resource.name).toBe('Test');
       expect(projection!.annotations.annotations).toHaveLength(1);
       expect(projection!.annotations.version).toBe(2);
     });

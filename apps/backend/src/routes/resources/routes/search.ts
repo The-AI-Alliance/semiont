@@ -1,5 +1,5 @@
 /**
- * Search Documents Route - Spec-First Version
+ * Search Resources Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -9,21 +9,21 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import type { DocumentsRouterType } from '../shared';
-import { DocumentQueryService } from '../../../services/document-queries';
+import type { ResourcesRouterType } from '../shared';
+import { ResourceQueryService } from '../../../services/resource-queries';
 import type { components } from '@semiont/api-client';
 
-type ListDocumentsResponse = components['schemas']['ListDocumentsResponse'];
+type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
 
-export function registerSearchDocuments(router: DocumentsRouterType) {
+export function registerSearchResources(router: ResourcesRouterType) {
   /**
-   * GET /api/documents/search
+   * GET /api/resources/search
    *
-   * Search documents by name
+   * Search resources by name
    * Query params: q (required), limit (optional, default 10)
    * Requires authentication
    */
-  router.get('/api/documents/search', async (c) => {
+  router.get('/api/resources/search', async (c) => {
     const query = c.req.query();
     const q = query.q;
     const limit = Number(query.limit) || 10;
@@ -34,15 +34,15 @@ export function registerSearchDocuments(router: DocumentsRouterType) {
     }
 
     // Search using Layer 3 projection storage
-    const matchingDocs = await DocumentQueryService.listDocuments({
+    const matchingDocs = await ResourceQueryService.listResources({
       search: q,
     });
 
     // Limit results
     const limitedDocs = matchingDocs.slice(0, limit);
 
-    const response: ListDocumentsResponse = {
-      documents: limitedDocs,
+    const response: ListResourcesResponse = {
+      resources: limitedDocs,
       total: limitedDocs.length,
       offset: 0,
       limit,

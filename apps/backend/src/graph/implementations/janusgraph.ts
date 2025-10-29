@@ -12,7 +12,7 @@ import type {
   GraphPath,
   EntityTypeStats,
   ResourceFilter,
-  UpdateDocumentInput,
+  UpdateResourceInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
 import { getExactText } from '@semiont/api-client';
@@ -89,8 +89,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     console.log('Schema initialization would happen here in production');
   }
   
-  // Helper function to convert vertex to Document
-  private vertexToDocument(vertex: any): ResourceDescriptor {
+  // Helper function to convert vertex to Resource
+  private vertexToResource(vertex: any): ResourceDescriptor {
     const props = vertex.properties || {};
     const id = this.getPropertyValue(props, 'id');
 
@@ -100,10 +100,10 @@ export class JanusGraphDatabase implements GraphDatabase {
     const contentChecksum = this.getPropertyValue(props, 'contentChecksum');
     const mediaType = this.getPropertyValue(props, 'contentType');
 
-    if (!creatorRaw) throw new Error(`Document ${id} missing required field: creator`);
-    if (!creationMethod) throw new Error(`Document ${id} missing required field: creationMethod`);
-    if (!contentChecksum) throw new Error(`Document ${id} missing required field: contentChecksum`);
-    if (!mediaType) throw new Error(`Document ${id} missing required field: contentType`);
+    if (!creatorRaw) throw new Error(`Resource ${id} missing required field: creator`);
+    if (!creationMethod) throw new Error(`Resource ${id} missing required field: creationMethod`);
+    if (!contentChecksum) throw new Error(`Resource ${id} missing required field: contentChecksum`);
+    if (!mediaType) throw new Error(`Resource ${id} missing required field: contentType`);
 
     const creator = typeof creatorRaw === 'string' ? JSON.parse(creatorRaw) : creatorRaw;
 
@@ -124,10 +124,10 @@ export class JanusGraphDatabase implements GraphDatabase {
     };
 
     const sourceAnnotationId = this.getPropertyValue(props, 'sourceAnnotationId');
-    const sourceDocumentId = this.getPropertyValue(props, 'sourceDocumentId');
+    const sourceResourceId = this.getPropertyValue(props, 'sourceResourceId');
 
     if (sourceAnnotationId) resource.sourceAnnotationId = sourceAnnotationId;
-    if (sourceDocumentId) resource.sourceDocumentId = sourceDocumentId;
+    if (sourceResourceId) resource.sourceResourceId = sourceResourceId;
 
     return resource;
   }
@@ -205,7 +205,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       id: this.getPropertyValue(props, 'id'),
       motivation,
       target: {
-        source: this.getPropertyValue(props, 'documentId'),
+        source: this.getPropertyValue(props, 'resourceId'),
         selector: JSON.parse(this.getPropertyValue(props, 'selector') || '{}'),
       },
       body: bodyArray,
@@ -231,85 +231,85 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotation;
   }
 
-  async createResource(document: ResourceDescriptor): Promise<ResourceDescriptor> {
-    const id = getResourceId(document);
-    const primaryRep = getPrimaryRepresentation(document);
+  async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
+    const id = getResourceId(resource);
+    const primaryRep = getPrimaryRepresentation(resource);
     if (!primaryRep) {
       throw new Error('Resource must have at least one representation');
     }
 
     // Create vertex in JanusGraph using fields from ResourceDescriptor
     const vertex = this.g!
-      .addV('Document')
+      .addV('Resource')
       .property('id', id)
-      .property('name', document.name)
-      .property('entityTypes', JSON.stringify(document.entityTypes))
+      .property('name', resource.name)
+      .property('entityTypes', JSON.stringify(resource.entityTypes))
       .property('contentType', primaryRep.mediaType)
-      .property('archived', document.archived || false)
-      .property('created', document.dateCreated)
-      .property('creator', JSON.stringify(document.wasAttributedTo))
-      .property('creationMethod', document.creationMethod)
+      .property('archived', resource.archived || false)
+      .property('created', resource.dateCreated)
+      .property('creator', JSON.stringify(resource.wasAttributedTo))
+      .property('creationMethod', resource.creationMethod)
       .property('contentChecksum', primaryRep.checksum);
 
-    if (document.sourceAnnotationId) {
-      vertex.property('sourceAnnotationId', document.sourceAnnotationId);
+    if (resource.sourceAnnotationId) {
+      vertex.property('sourceAnnotationId', resource.sourceAnnotationId);
     }
-    if (document.sourceDocumentId) {
-      vertex.property('sourceDocumentId', document.sourceDocumentId);
+    if (resource.sourceResourceId) {
+      vertex.property('sourceResourceId', resource.sourceResourceId);
     }
 
     await vertex.next();
 
-    console.log('Created document vertex in JanusGraph:', id);
-    return document;
+    console.log('Created resource vertex in JanusGraph:', id);
+    return resource;
   }
   
-  async getDocument(id: string): Promise<ResourceDescriptor | null> {
+  async getResource(id: string): Promise<ResourceDescriptor | null> {
     const vertices = await this.g!
       .V()
-      .has('Document', 'id', id)
+      .has('Resource', 'id', id)
       .toList();
 
     if (vertices.length === 0) {
       return null;
     }
 
-    return this.vertexToDocument(vertices[0] as any);
+    return this.vertexToResource(vertices[0] as any);
   }
   
-  async updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor> {
-    // Documents are immutable - only archiving is allowed
+  async updateResource(id: string, input: UpdateResourceInput): Promise<ResourceDescriptor> {
+    // Resources are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
-      throw new Error('Documents are immutable. Only archiving is allowed.');
+      throw new Error('Resources are immutable. Only archiving is allowed.');
     }
 
     await this.g!
       .V()
-      .has('Document', 'id', id)
+      .has('Resource', 'id', id)
       .property('archived', input.archived)
       .next();
 
-    const updatedDocument = await this.getDocument(id);
-    if (!updatedDocument) {
-      throw new Error('Document not found');
+    const updatedResource = await this.getResource(id);
+    if (!updatedResource) {
+      throw new Error('Resource not found');
     }
 
-    return updatedDocument;
+    return updatedResource;
   }
   
-  async deleteDocument(id: string): Promise<void> {
+  async deleteResource(id: string): Promise<void> {
     // Delete the vertex and all its edges
     await this.g!
       .V()
-      .has('Document', 'id', id)
+      .has('Resource', 'id', id)
       .drop()
       .next();
 
-    console.log('Deleted document from JanusGraph:', id);
+    console.log('Deleted resource from JanusGraph:', id);
   }
   
-  async listDocuments(filter: ResourceFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
-    let traversalQuery = this.g!.V().hasLabel('Document');
+  async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
+    let traversalQuery = this.g!.V().hasLabel('Resource');
 
     // Apply filters
     if (filter.search) {
@@ -319,28 +319,28 @@ export class JanusGraphDatabase implements GraphDatabase {
     }
 
     const docs = await traversalQuery.toList();
-    let documents = docs.map((v: any) => this.vertexToDocument(v));
+    let resources = docs.map((v: any) => this.vertexToResource(v));
 
     // Apply entity type filtering after retrieval since JanusGraph stores as JSON
     if (filter.entityTypes && filter.entityTypes.length > 0) {
-      documents = documents.filter(doc =>
+      resources = resources.filter(doc =>
         filter.entityTypes!.some(type => doc.entityTypes?.includes(type))
       );
     }
 
-    const total = documents.length;
+    const total = resources.length;
     const offset = filter.offset || 0;
     const limit = filter.limit || 50;
 
     return {
-      documents: documents.slice(offset, offset + limit),
+      resources: resources.slice(offset, offset + limit),
       total
     };
   }
   
-  async searchDocuments(query: string, limit?: number): Promise<ResourceDescriptor[]> {
-    const result = await this.listDocuments({ search: query, limit: limit || 10 });
-    return result.documents;
+  async searchResources(query: string, limit?: number): Promise<ResourceDescriptor[]> {
+    const result = await this.listResources({ search: query, limit: limit || 10 });
+    return result.resources;
   }
   
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
@@ -373,7 +373,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     const vertex = this.g!
       .addV('Annotation')
       .property('id', id)
-      .property('documentId', targetSource) // Store full URI
+      .property('resourceId', targetSource) // Store full URI
       .property('text', targetSelector ? getExactText(targetSelector) : '')
       .property('selector', JSON.stringify(targetSelector || {}))
       .property('type', bodyType)
@@ -387,19 +387,19 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     const annVertex = await vertex.next();
 
-    // Create edge from annotation to document (BELONGS_TO)
+    // Create edge from annotation to resource (BELONGS_TO)
     await this.g!
       .V(annVertex.value)
       .addE('BELONGS_TO')
-      .to(this.g!.V().has('Document', 'id', targetSource))
+      .to(this.g!.V().has('Resource', 'id', targetSource))
       .next();
 
-    // If it's a resolved reference, create edge to target document
+    // If it's a resolved reference, create edge to target resource
     if (bodySource) {
       await this.g!
         .V(annVertex.value)
         .addE('REFERENCES')
-        .to(this.g!.V().has('Document', 'id', bodySource))
+        .to(this.g!.V().has('Resource', 'id', bodySource))
         .next();
     }
 
@@ -552,12 +552,12 @@ export class JanusGraphDatabase implements GraphDatabase {
     console.log('Deleted annotation from JanusGraph:', id);
   }
   
-  async listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
+  async listAnnotations(filter: { resourceId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     let traversalQuery = this.g!.V().hasLabel('Annotation');
 
     // Apply filters
-    if (filter.documentId) {
-      traversalQuery = traversalQuery.has('documentId', filter.documentId);
+    if (filter.resourceId) {
+      traversalQuery = traversalQuery.has('resourceId', filter.resourceId);
     }
 
     if (filter.type) {
@@ -574,9 +574,9 @@ export class JanusGraphDatabase implements GraphDatabase {
     };
   }
 
-  async getHighlights(documentId: string): Promise<Annotation[]> {
+  async getHighlights(resourceId: string): Promise<Annotation[]> {
     const { annotations } = await this.listAnnotations({
-      documentId,
+      resourceId,
       type: 'highlight'
     });
     return annotations;
@@ -598,12 +598,12 @@ export class JanusGraphDatabase implements GraphDatabase {
       ],
     });
 
-    // Create edge from annotation to target document
+    // Create edge from annotation to target resource
     await this.g!
       .V()
       .has('Annotation', 'id', annotationId)
       .addE('REFERENCES')
-      .to(this.g!.V().has('Document', 'id', source))
+      .to(this.g!.V().has('Resource', 'id', source))
       .next();
 
     const updatedAnnotation = await this.getAnnotation(annotationId);
@@ -614,17 +614,17 @@ export class JanusGraphDatabase implements GraphDatabase {
     return updatedAnnotation;
   }
 
-  async getReferences(documentId: string): Promise<Annotation[]> {
+  async getReferences(resourceId: string): Promise<Annotation[]> {
     const { annotations } = await this.listAnnotations({
-      documentId,
+      resourceId,
       type: 'reference'
     });
     return annotations;
   }
 
-  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]> {
+  async getEntityReferences(resourceId: string, entityTypes?: string[]): Promise<Annotation[]> {
     const { annotations } = await this.listAnnotations({
-      documentId,
+      resourceId,
       type: 'reference'
     });
 
@@ -639,27 +639,27 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotations.filter(ann => getEntityTypes(ann).length > 0);
   }
 
-  async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
-    const { annotations } = await this.listAnnotations({ documentId });
+  async getResourceAnnotations(resourceId: string): Promise<Annotation[]> {
+    const { annotations } = await this.listAnnotations({ resourceId });
     return annotations;
   }
 
-  async getDocumentReferencedBy(documentId: string): Promise<Annotation[]> {
-    // Find annotations that reference this document
+  async getResourceReferencedBy(resourceId: string): Promise<Annotation[]> {
+    // Find annotations that reference this resource
     const vertices = await this.g!
       .V()
       .hasLabel('Annotation')
-      .has('source', documentId)
+      .has('source', resourceId)
       .toList();
 
     return await this.fetchAnnotationsWithEntityTypes(vertices);
   }
   
-  async getDocumentConnections(documentId: string): Promise<GraphConnection[]> {
-    // Use Gremlin to find connected documents
+  async getResourceConnections(resourceId: string): Promise<GraphConnection[]> {
+    // Use Gremlin to find connected resources
     const paths = await this.g!
       .V()
-      .has('Document', 'id', documentId)
+      .has('Resource', 'id', resourceId)
       .inE('BELONGS_TO')
       .outV()
       .outE('REFERENCES')
@@ -673,20 +673,20 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     // For now, also build connections from references
     const connections: GraphConnection[] = [];
-    const refs = await this.getReferences(documentId);
+    const refs = await this.getReferences(resourceId);
 
     for (const ref of refs) {
       // Extract source from body using helper
       const bodySource = getBodySource(ref.body);
       if (bodySource) {
-        const targetDoc = await this.getDocument(bodySource);
+        const targetDoc = await this.getResource(bodySource);
         if (targetDoc) {
-          const existing = connections.find(c => c.targetDocument.id === targetDoc.id);
+          const existing = connections.find(c => c.targetResource.id === targetDoc.id);
           if (existing) {
             existing.annotations.push(ref);
           } else {
             connections.push({
-              targetDocument: targetDoc,
+              targetResource: targetDoc,
               annotations: [ref],
               relationshipType: undefined,
               bidirectional: false,
@@ -699,19 +699,19 @@ export class JanusGraphDatabase implements GraphDatabase {
     return connections;
   }
   
-  async findPath(_fromDocumentId: string, _toDocumentId: string, _maxDepth?: number): Promise<GraphPath[]> {
+  async findPath(_fromResourceId: string, _toResourceId: string, _maxDepth?: number): Promise<GraphPath[]> {
     // TODO: Implement real graph traversal with JanusGraph
     // For now, return empty array
     return [];
   }
   
   async getEntityTypeStats(): Promise<EntityTypeStats[]> {
-    const docs = await this.g!.V().hasLabel('Document').toList();
-    const documents = docs.map((v: any) => this.vertexToDocument(v));
+    const docs = await this.g!.V().hasLabel('Resource').toList();
+    const resources = docs.map((v: any) => this.vertexToResource(v));
 
     const stats = new Map<string, number>();
 
-    for (const doc of documents) {
+    for (const doc of resources) {
       for (const type of doc.entityTypes || []) {
         stats.set(type, (stats.get(type) || 0) + 1);
       }
@@ -724,11 +724,11 @@ export class JanusGraphDatabase implements GraphDatabase {
     const entityTypes: Record<string, number> = {};
     const contentTypes: Record<string, number> = {};
 
-    // Get all documents
-    const docs = await this.g!.V().hasLabel('Document').toList();
-    const documents = docs.map((v: any) => this.vertexToDocument(v));
+    // Get all resources
+    const docs = await this.g!.V().hasLabel('Resource').toList();
+    const resources = docs.map((v: any) => this.vertexToResource(v));
 
-    for (const doc of documents) {
+    for (const doc of resources) {
       for (const type of doc.entityTypes || []) {
         entityTypes[type] = (entityTypes[type] || 0) + 1;
       }
@@ -747,7 +747,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     const entityReferences = references.filter(a => getEntityTypes(a).length > 0);
 
     return {
-      documentCount: documents.length,
+      resourceCount: resources.length,
       annotationCount: annotations.length,
       highlightCount: highlights.length,
       referenceCount: references.length,
@@ -773,8 +773,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async detectAnnotations(_documentId: string): Promise<Annotation[]> {
-    // Auto-detection would analyze document content
+  async detectAnnotations(_resourceId: string): Promise<Annotation[]> {
+    // Auto-detection would analyze resource content
     return [];
   }
   

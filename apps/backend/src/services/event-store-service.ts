@@ -26,9 +26,9 @@ export async function createEventStore(
   config?: Omit<EventStorageConfig, 'basePath' | 'dataDir'>
 ): Promise<EventStore> {
   // Create ProjectionManager (Layer 3)
-  // Structure: <basePath>/projections/documents/...
+  // Structure: <basePath>/projections/resources/...
   const projectionManager = createProjectionManager(basePath, {
-    subNamespace: 'documents',
+    subNamespace: 'resources',
   });
 
   // Determine data directory for events (Layer 2)

@@ -7,7 +7,7 @@ import type {
   GraphPath,
   EntityTypeStats,
   ResourceFilter,
-  UpdateDocumentInput,
+  UpdateResourceInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
 
@@ -20,42 +20,42 @@ export interface GraphDatabase {
   disconnect(): Promise<void>;
   isConnected(): boolean;
 
-  // Document operations
-  // Accepts W3C ResourceDescriptor directly - GraphDB stores W3C compliant documents
-  createResource(document: ResourceDescriptor): Promise<ResourceDescriptor>;
-  getDocument(id: string): Promise<ResourceDescriptor | null>;
-  updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor>;
-  deleteDocument(id: string): Promise<void>;
-  listDocuments(filter: ResourceFilter): Promise<{ documents: ResourceDescriptor[]; total: number }>;
-  searchDocuments(query: string, limit?: number): Promise<ResourceDescriptor[]>;
+  // Resource operations
+  // Accepts W3C ResourceDescriptor directly - GraphDB stores W3C compliant resources
+  createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor>;
+  getResource(id: string): Promise<ResourceDescriptor | null>;
+  updateResource(id: string, input: UpdateResourceInput): Promise<ResourceDescriptor>;
+  deleteResource(id: string): Promise<void>;
+  listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }>;
+  searchResources(query: string, limit?: number): Promise<ResourceDescriptor[]>;
   
   // Annotation operations
   createAnnotation(input: CreateAnnotationInternal): Promise<Annotation>;
   getAnnotation(id: string): Promise<Annotation | null>;
   updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation>;
   deleteAnnotation(id: string): Promise<void>;
-  listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }>;
+  listAnnotations(filter: { resourceId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }>;
 
   // Highlight operations
-  getHighlights(documentId: string): Promise<Annotation[]>;
+  getHighlights(resourceId: string): Promise<Annotation[]>;
 
   // Reference operations
   resolveReference(annotationId: string, source: string): Promise<Annotation>;
-  getReferences(documentId: string): Promise<Annotation[]>;
-  getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]>;
+  getReferences(resourceId: string): Promise<Annotation[]>;
+  getEntityReferences(resourceId: string, entityTypes?: string[]): Promise<Annotation[]>;
 
   // Relationship queries
-  getDocumentAnnotations(documentId: string): Promise<Annotation[]>;
-  getDocumentReferencedBy(documentId: string): Promise<Annotation[]>;
+  getResourceAnnotations(resourceId: string): Promise<Annotation[]>;
+  getResourceReferencedBy(resourceId: string): Promise<Annotation[]>;
   
   // Graph traversal
-  getDocumentConnections(documentId: string): Promise<GraphConnection[]>;
-  findPath(fromDocumentId: string, toDocumentId: string, maxDepth?: number): Promise<GraphPath[]>;
+  getResourceConnections(resourceId: string): Promise<GraphConnection[]>;
+  findPath(fromResourceId: string, toResourceId: string, maxDepth?: number): Promise<GraphPath[]>;
   
   // Analytics
   getEntityTypeStats(): Promise<EntityTypeStats[]>;
   getStats(): Promise<{
-    documentCount: number;
+    resourceCount: number;
     annotationCount: number;
     highlightCount: number;
     referenceCount: number;
@@ -69,7 +69,7 @@ export interface GraphDatabase {
   resolveReferences(inputs: { annotationId: string; source: string }[]): Promise<Annotation[]>;
 
   // Auto-detection
-  detectAnnotations(documentId: string): Promise<Annotation[]>;
+  detectAnnotations(resourceId: string): Promise<Annotation[]>;
   
   // Tag Collections
   getEntityTypes(): Promise<string[]>;

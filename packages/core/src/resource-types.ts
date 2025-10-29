@@ -2,7 +2,7 @@
  * Resource input/output types
  */
 
-export interface UpdateDocumentInput {
+export interface UpdateResourceInput {
   name?: string;
   entityTypes?: string[];
   archived?: boolean;

@@ -86,15 +86,15 @@ export async function generateText(
 }
 
 /**
- * Generate document content using inference
+ * Generate resource content using inference
  */
-export async function generateDocumentFromTopic(
+export async function generateResourceFromTopic(
   topic: string,
   entityTypes: string[],
   userPrompt?: string,
   locale?: string
 ): Promise<{ title: string; content: string }> {
-  console.log('generateDocumentFromTopic called with:', {
+  console.log('generateResourceFromTopic called with:', {
     topic: topic.substring(0, 100),
     entityTypes,
     hasUserPrompt: !!userPrompt,
@@ -107,11 +107,11 @@ export async function generateDocumentFromTopic(
 
   // Determine language instruction
   const languageInstruction = locale && locale !== 'en'
-    ? `\n\nIMPORTANT: Write the entire document in ${getLanguageName(locale)}. Both the title and all content must be in ${getLanguageName(locale)}.`
+    ? `\n\nIMPORTANT: Write the entire resource in ${getLanguageName(locale)}. Both the title and all content must be in ${getLanguageName(locale)}.`
     : '';
 
   // Provider-agnostic base requirements
-  const basePrompt = `Generate a concise, informative document about "${topic}".
+  const basePrompt = `Generate a concise, informative resource about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
 ${userPrompt ? `Additional context: ${userPrompt}` : ''}${languageInstruction}
 
@@ -241,10 +241,10 @@ CONTENT:
 }
 
 /**
- * Generate an intelligent summary for a document
+ * Generate an intelligent summary for a resource
  */
-export async function generateDocumentSummary(
-  documentName: string,
+export async function generateResourceSummary(
+  resourceName: string,
   content: string,
   entityTypes: string[]
 ): Promise<string> {
@@ -253,13 +253,13 @@ export async function generateDocumentSummary(
     ? content.substring(0, 2000) + '...'
     : content;
 
-  const prompt = `Create a brief, intelligent summary of this document titled "${documentName}".
+  const prompt = `Create a brief, intelligent summary of this resource titled "${resourceName}".
 ${entityTypes.length > 0 ? `Key entity types: ${entityTypes.join(', ')}` : ''}
 
-Document content:
+Resource content:
 ${truncatedContent}
 
-Write a 2-3 sentence summary that captures the key points and would help someone understand what this document contains.`;
+Write a 2-3 sentence summary that captures the key points and would help someone understand what this resource contains.`;
 
   return await generateText(prompt, 150, 0.5);
 }

@@ -9,9 +9,9 @@
 
 import type {
   StoredEvent,
-  DocumentEventType,
-  DocumentCreatedEvent,
-  DocumentClonedEvent,
+  ResourceEventType,
+  ResourceCreatedEvent,
+  ResourceClonedEvent,
   AnnotationAddedEvent,
   AnnotationRemovedEvent,
   AnnotationBodyUpdatedEvent,
@@ -29,17 +29,17 @@ type Motivation = components['schemas']['Motivation'];
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 // Format event type for display
-export function formatEventType(type: DocumentEventType, t: TranslateFn): string {
+export function formatEventType(type: ResourceEventType, t: TranslateFn): string {
   // Using a switch for exhaustive checking - TypeScript will error if we miss a case
   switch (type) {
-    case 'document.created':
-      return t('documentCreated');
-    case 'document.cloned':
-      return t('documentCloned');
-    case 'document.archived':
-      return t('documentArchived');
-    case 'document.unarchived':
-      return t('documentUnarchived');
+    case 'resource.created':
+      return t('resourceCreated');
+    case 'resource.cloned':
+      return t('resourceCloned');
+    case 'resource.archived':
+      return t('resourceArchived');
+    case 'resource.unarchived':
+      return t('resourceUnarchived');
     case 'annotation.added':
       return t('annotationAdded');
     case 'annotation.removed':
@@ -80,13 +80,13 @@ function getMotivationEmoji(motivation: Motivation): string {
 }
 
 // Get emoji for event type
-export function getEventEmoji(type: DocumentEventType, event?: StoredEvent): string {
+export function getEventEmoji(type: ResourceEventType, event?: StoredEvent): string {
   // Using a switch for exhaustive checking - TypeScript will error if we miss a case
   switch (type) {
-    case 'document.created':
-    case 'document.cloned':
-    case 'document.archived':
-    case 'document.unarchived':
+    case 'resource.created':
+    case 'resource.cloned':
+    case 'resource.archived':
+    case 'resource.unarchived':
       return '📄';
     case 'annotation.added':
       if (event) {
@@ -144,9 +144,9 @@ export function getEventDisplayContent(
 
   // Use type discriminators instead of runtime typeof checks
   switch (eventData.type) {
-    case 'document.created':
-    case 'document.cloned': {
-      const payload = eventData.payload as DocumentCreatedEvent['payload'] | DocumentClonedEvent['payload'];
+    case 'resource.created':
+    case 'resource.cloned': {
+      const payload = eventData.payload as ResourceCreatedEvent['payload'] | ResourceClonedEvent['payload'];
       return { exact: payload.name, isQuoted: false, isTag: false };
     }
 
@@ -232,28 +232,28 @@ function formatUserId(userId: string): string {
   return userId.substring(0, 8);
 }
 
-// Document creation details - discriminated by event type
-type DocumentCreatedDetails = {
+// Resource creation details - discriminated by event type
+type ResourceCreatedDetails = {
   type: 'created';
   userId: string;
   method: CreationMethod;
 };
 
-type DocumentClonedDetails = {
+type ResourceClonedDetails = {
   type: 'cloned';
   userId: string;
   method: CreationMethod;
   sourceDocId: string;
 };
 
-export type DocumentCreationDetails = DocumentCreatedDetails | DocumentClonedDetails;
+export type ResourceCreationDetails = ResourceCreatedDetails | ResourceClonedDetails;
 
-// Extract additional metadata for document creation events
-export function getDocumentCreationDetails(event: StoredEvent): DocumentCreationDetails | null {
+// Extract additional metadata for resource creation events
+export function getResourceCreationDetails(event: StoredEvent): ResourceCreationDetails | null {
   const eventData = event.event;
 
-  if (eventData.type === 'document.created') {
-    const payload = eventData.payload as DocumentCreatedEvent['payload'];
+  if (eventData.type === 'resource.created') {
+    const payload = eventData.payload as ResourceCreatedEvent['payload'];
 
     return {
       type: 'created',
@@ -262,14 +262,14 @@ export function getDocumentCreationDetails(event: StoredEvent): DocumentCreation
     };
   }
 
-  if (eventData.type === 'document.cloned') {
-    const payload = eventData.payload as DocumentClonedEvent['payload'];
+  if (eventData.type === 'resource.cloned') {
+    const payload = eventData.payload as ResourceClonedEvent['payload'];
 
     return {
       type: 'cloned',
       userId: formatUserId(eventData.userId),
       method: payload.creationMethod,
-      sourceDocId: payload.parentDocumentId,
+      sourceDocId: payload.parentResourceId,
     };
   }
 

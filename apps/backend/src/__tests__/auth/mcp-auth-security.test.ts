@@ -49,7 +49,7 @@ describe('MCP Authentication security', () => {
 
   describe('/api/auth/mcp-setup Security', () => {
     it('security: should require authentication for MCP setup endpoint', async () => {
-      // This test documents that the endpoint MUST have authMiddleware
+      // This test resources that the endpoint MUST have authMiddleware
       // The actual implementation has authMiddleware, so unauthorized access returns 401
       expect(true).toBe(true); // Placeholder - actual test would make HTTP request
     });
@@ -147,7 +147,7 @@ describe('MCP Authentication security', () => {
     });
 
     it('security: should reject access tokens used as refresh tokens', () => {
-      // This test documents that access and refresh tokens are differentiated by expiration time
+      // This test resources that access and refresh tokens are differentiated by expiration time
       // Access tokens: short-lived (1 hour)
       // Refresh tokens: long-lived (30 days)
       const accessToken = JWTService.generateToken({
@@ -211,7 +211,7 @@ describe('MCP Authentication security', () => {
     });
 
     it('security: should limit refresh token usage rate', () => {
-      // This documents that the implementation should have rate limiting
+      // This resources that the implementation should have rate limiting
       // to prevent refresh token abuse
       const maxRefreshesPerMinute = 10; // Reasonable limit
       
@@ -322,7 +322,7 @@ describe('MCP Authentication security', () => {
     });
 
     it('security: should separate refresh and access token permissions', () => {
-      // Document the separation of refresh and access tokens by expiration time
+      // Resource the separation of refresh and access tokens by expiration time
       // Refresh tokens: long-lived (30 days), used only to get new access tokens
       // Access tokens: short-lived (1 hour), used for API calls
       
@@ -358,7 +358,7 @@ describe('MCP Authentication security', () => {
     });
 
     it('security: should have reasonable token expiration times', () => {
-      // Document expected expiration times for security
+      // Resource expected expiration times for security
       const refreshTokenExpiry = 30 * 24 * 60 * 60; // 30 days in seconds
       const accessTokenExpiry = 60 * 60; // 1 hour in seconds
       
@@ -376,7 +376,7 @@ describe('MCP Authentication security', () => {
     it('security: should validate OAuth state parameter to prevent CSRF', () => {
       // The MCP setup flow should include state validation
       // This is handled by the OAuth provider (Google, GitHub, etc.)
-      // but we should document the requirement
+      // but we should resource the requirement
       expect(true).toBe(true); // Placeholder - actual OAuth flow includes state
     });
 
@@ -393,7 +393,7 @@ describe('MCP Authentication security', () => {
     });
 
     it('security: should store tokens securely on client side', () => {
-      // Document that tokens should be stored securely
+      // Resource that tokens should be stored securely
       // - Refresh tokens in encrypted config files
       // - Access tokens in memory only
       // - Never in plain text files or logs
@@ -406,10 +406,10 @@ describe('MCP Authentication security', () => {
       const insecureLocations = [
         '/tmp/token.txt',
         './token.json',
-        'localStorage' // For CLI, not applicable but good to document
+        'localStorage' // For CLI, not applicable but good to resource
       ];
       
-      // This documents the security requirement
+      // This resources the security requirement
       expect(secureStorageLocations.length).toBeGreaterThan(0);
       expect(insecureLocations).toBeDefined(); // Should be avoided
     });

@@ -1,5 +1,5 @@
 /**
- * List Documents Route - Spec-First Version
+ * List Resources Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -10,24 +10,24 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { formatSearchResult } from '../helpers';
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { DocumentQueryService } from '../../../services/document-queries';
+import { ResourceQueryService } from '../../../services/resource-queries';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
 
-type ListDocumentsResponse = components['schemas']['ListDocumentsResponse'];
+type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
 
-export function registerListDocuments(router: DocumentsRouterType) {
+export function registerListResources(router: ResourcesRouterType) {
   /**
-   * GET /api/documents
+   * GET /api/resources
    *
-   * List all documents with optional filters
+   * List all resources with optional filters
    * Query params: offset, limit, entityType, archived, search
    * Requires authentication
    */
-  router.get('/api/documents', async (c) => {
+  router.get('/api/resources', async (c) => {
     // Parse query parameters with defaults and coercion
     const query = c.req.query();
     const basePath = getFilesystemConfig().path;
@@ -50,7 +50,7 @@ export function registerListDocuments(router: DocumentsRouterType) {
     const repStore = new FilesystemRepresentationStore({ basePath });
 
     // Read from Layer 3 projection storage
-    let filteredDocs = await DocumentQueryService.listDocuments({
+    let filteredDocs = await ResourceQueryService.listResources({
       search,
       archived,
     });
@@ -86,8 +86,8 @@ export function registerListDocuments(router: DocumentsRouterType) {
       formattedDocs = paginatedDocs;
     }
 
-    const response: ListDocumentsResponse = {
-      documents: formattedDocs,
+    const response: ListResourcesResponse = {
+      resources: formattedDocs,
       total: filteredDocs.length,
       offset,
       limit,

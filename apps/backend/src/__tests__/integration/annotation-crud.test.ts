@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { components } from '@semiont/api-client';
-import type { DocumentCreatedEvent } from '@semiont/core';
+import type { ResourceCreatedEvent } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
@@ -29,29 +29,29 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     // This ensures all services (AnnotationQueryService, etc.) use the SAME path
     process.env.SEMIONT_TEST_FS_PATH = testBasePath;
 
-    // Create test documents in event store with explicit path
+    // Create test resources in event store with explicit path
     const eventStore = await createEventStore(testBasePath);
 
-    const docEvent1: Omit<DocumentCreatedEvent, 'id' | 'timestamp'> = {
-      type: 'document.created',
-      documentId: testDocId,
+    const docEvent1: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
+      type: 'resource.created',
+      resourceId: testDocId,
       userId: 'test-user',
       version: 1,
       payload: {
-        name: 'Test Document for CRUD',
+        name: 'Test Resource for CRUD',
         format: 'text/plain',
         contentChecksum: 'test-checksum-1',
         creationMethod: CREATION_METHODS.API,
       },
     };
 
-    const docEvent2: Omit<DocumentCreatedEvent, 'id' | 'timestamp'> = {
-      type: 'document.created',
-      documentId: testDocId2,
+    const docEvent2: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
+      type: 'resource.created',
+      resourceId: testDocId2,
       userId: 'test-user',
       version: 1,
       payload: {
-        name: 'Test Target Document',
+        name: 'Test Target Resource',
         format: 'text/plain',
         contentChecksum: 'test-checksum-2',
         creationMethod: CREATION_METHODS.API,
@@ -105,7 +105,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       await eventStore.appendEvent({
         type: 'annotation.added',
-        documentId: testDocId,
+        resourceId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: { annotation },
@@ -160,7 +160,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       await eventStore.appendEvent({
         type: 'annotation.added',
-        documentId: testDocId,
+        resourceId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: { annotation },
@@ -231,7 +231,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       await eventStore.appendEvent({
         type: 'annotation.added',
-        documentId: testDocId,
+        resourceId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: { annotation: stubAnnotation },
@@ -243,7 +243,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Resolve annotation (add SpecificResource)
       await eventStore.appendEvent({
         type: 'annotation.body.updated',
-        documentId: testDocId,
+        resourceId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: {
@@ -325,7 +325,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       await eventStore.appendEvent({
         type: 'annotation.added',
-        documentId: testDocId,
+        resourceId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: { annotation: stubAnnotation },
@@ -336,7 +336,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Resolve
       await eventStore.appendEvent({
         type: 'annotation.body.updated',
-        documentId: testDocId,
+        resourceId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: {
@@ -447,7 +447,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       await eventStore.appendEvent({
         type: 'annotation.added',
-        documentId: testDocId,
+        resourceId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: { annotation },
@@ -462,7 +462,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Delete
       await eventStore.appendEvent({
         type: 'annotation.removed',
-        documentId: testDocId,
+        resourceId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: {
@@ -508,7 +508,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       await eventStore.appendEvent({
         type: 'annotation.added',
-        documentId: testDocId,
+        resourceId: testDocId,
         userId: 'test-user',
         version: 1,
         payload: { annotation },

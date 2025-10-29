@@ -32,7 +32,7 @@ import { createHash } from 'crypto';
  * if bucket count changes, rather than the optimal O(n/k) reshuffling that
  * Jump Consistent Hash provides.
  *
- * @param key - The key to hash (typically a document ID)
+ * @param key - The key to hash (typically a resource ID)
  * @param numBuckets - Number of shards/buckets (default: 65536 for 4-hex sharding)
  * @returns Shard number (0 to numBuckets-1)
  */
@@ -74,7 +74,7 @@ export function shardIdToPath(shardId: number): [string, string] {
 /**
  * Get 4-hex shard path for a key
  *
- * @param key - The key to hash (typically a document ID)
+ * @param key - The key to hash (typically a resource ID)
  * @param numBuckets - Number of shards (default: 65536)
  * @returns Path segments like ['ab', 'cd']
  */

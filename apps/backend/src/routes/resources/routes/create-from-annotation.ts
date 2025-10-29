@@ -1,5 +1,5 @@
 /**
- * Create Document from Annotation Route - Spec-First Version
+ * Create Resource from Annotation Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -17,7 +17,7 @@ import {
 } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import { userToAgent } from '../../../utils/id-generator';
@@ -30,16 +30,16 @@ import { getResourceId } from '../../../utils/resource-helpers';
 type CreateFromAnnotationRequest = components['schemas']['CreateFromAnnotationRequest'];
 type CreateFromAnnotationResponse = components['schemas']['CreateFromAnnotationResponse'];
 
-export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType) {
+export function registerCreateResourceFromAnnotation(router: ResourcesRouterType) {
   /**
-   * POST /api/documents/from-annotation/:annotationId
+   * POST /api/resources/from-annotation/:annotationId
    *
-   * Create a new document from an annotation/reference
+   * Create a new resource from an annotation/reference
    * Requires authentication
    * Validates request body against CreateFromAnnotationRequest schema
-   * Returns 201 with document and annotations
+   * Returns 201 with resource and annotations
    */
-  router.post('/api/documents/from-annotation/:annotationId',
+  router.post('/api/resources/from-annotation/:annotationId',
     validateRequestBody('CreateFromAnnotationRequest'),
     async (c) => {
       const { annotationId } = c.req.param();
@@ -49,12 +49,12 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       const graphDb = await getGraphDatabase();
       const repStore = new FilesystemRepresentationStore({ basePath });
 
-      const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.documentId);
+      const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.resourceId);
       if (!annotation) {
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
 
-      const documentId = generateUuid();
+      const resourceId = generateUuid();
 
       // Store representation
       const storedRep = await repStore.store(Buffer.from(body.content), {
@@ -62,9 +62,9 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
         rel: 'original',
       });
 
-      const document: ResourceDescriptor = {
+      const resource: ResourceDescriptor = {
         '@context': 'https://schema.org/',
-        '@id': `http://localhost:4000/documents/${documentId}`,
+        '@id': `http://localhost:4000/resources/${resourceId}`,
         name: body.name,
         entityTypes: getEntityTypes(annotation),
         representations: [{
@@ -77,18 +77,18 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
         wasAttributedTo: userToAgent(user),
         creationMethod: CREATION_METHODS.REFERENCE,
         sourceAnnotationId: annotationId,
-        sourceDocumentId: getTargetSource(annotation.target),
+        sourceResourceId: getTargetSource(annotation.target),
       };
 
-      const savedDoc = await graphDb.createResource(document);
+      const savedDoc = await graphDb.createResource(resource);
 
-      // Update the annotation to resolve to the new document
+      // Update the annotation to resolve to the new resource
       await graphDb.resolveReference(annotationId, getResourceId(savedDoc));
 
-      const result = await graphDb.listAnnotations({ documentId: getResourceId(savedDoc) });
+      const result = await graphDb.listAnnotations({ resourceId: getResourceId(savedDoc) });
 
       const response: CreateFromAnnotationResponse = {
-        document: savedDoc,
+        resource: savedDoc,
         annotations: result.annotations,
       };
 

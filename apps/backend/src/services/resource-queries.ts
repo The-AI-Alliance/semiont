@@ -1,7 +1,7 @@
 /**
- * Layer 3: Document Query Service
+ * Layer 3: Resource Query Service
  *
- * Reads document metadata from projection storage (Layer 3)
+ * Reads resource metadata from projection storage (Layer 3)
  * Does NOT touch the graph - graph is only for traversals
  *
  * Uses ProjectionManager as single source of truth for paths
@@ -13,49 +13,49 @@ import type { components } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-export interface ListDocumentsFilters {
+export interface ListResourcesFilters {
   search?: string;
   archived?: boolean;
 }
 
-export class DocumentQueryService {
+export class ResourceQueryService {
   /**
-   * Get document metadata from Layer 3 projection
+   * Get resource metadata from Layer 3 projection
    */
-  static async getDocumentMetadata(documentId: string): Promise<ResourceDescriptor | null> {
+  static async getResourceMetadata(resourceId: string): Promise<ResourceDescriptor | null> {
     const config = getFilesystemConfig();
     const basePath = config.path;
 
     // Use ProjectionManager to get projection (respects configured subNamespace)
     const projectionManager = createProjectionManager(basePath, {
-      subNamespace: 'documents',
+      subNamespace: 'resources',
     });
 
-    const state = await projectionManager.get(documentId);
+    const state = await projectionManager.get(resourceId);
     if (!state) {
       return null;
     }
 
-    return state.document;
+    return state.resource;
   }
 
   /**
-   * List all documents by scanning Layer 3 projection files
+   * List all resources by scanning Layer 3 projection files
    */
-  static async listDocuments(filters?: ListDocumentsFilters): Promise<ResourceDescriptor[]> {
+  static async listResources(filters?: ListResourcesFilters): Promise<ResourceDescriptor[]> {
     const config = getFilesystemConfig();
     const basePath = config.path;
 
-    // Use ProjectionManager to get all documents (respects configured subNamespace)
+    // Use ProjectionManager to get all resources (respects configured subNamespace)
     const projectionManager = createProjectionManager(basePath, {
-      subNamespace: 'documents',
+      subNamespace: 'resources',
     });
 
     const allStates = await projectionManager.getAll();
-    const documents: ResourceDescriptor[] = [];
+    const resources: ResourceDescriptor[] = [];
 
     for (const state of allStates) {
-      const doc = state.document;
+      const doc = state.resource;
 
       // Apply filters
       if (filters?.archived !== undefined && doc.archived !== filters.archived) {
@@ -69,16 +69,16 @@ export class DocumentQueryService {
         }
       }
 
-      documents.push(doc);
+      resources.push(doc);
     }
 
     // Sort by creation date (newest first)
-    documents.sort((a, b) => {
+    resources.sort((a, b) => {
       const aTime = a.dateCreated ? new Date(a.dateCreated).getTime() : 0;
       const bTime = b.dateCreated ? new Date(b.dateCreated).getTime() : 0;
       return bTime - aTime;
     });
 
-    return documents;
+    return resources;
   }
 }

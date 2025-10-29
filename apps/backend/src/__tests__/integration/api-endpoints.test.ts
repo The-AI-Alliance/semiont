@@ -302,7 +302,7 @@ describe('API Endpoints Integration Tests', () => {
       expect(data.components).toBeDefined();
     });
 
-    it('GET /api/docs should return HTML documentation', async () => {
+    it('GET /api/docs should return HTML resourceation', async () => {
       const res = await app.request('/api/docs');
       expect(res.status).toBe(200);
 

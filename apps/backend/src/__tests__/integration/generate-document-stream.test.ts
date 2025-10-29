@@ -1,5 +1,5 @@
 /**
- * Integration tests for POST /api/annotations/{id}/generate-document-stream
+ * Integration tests for POST /api/annotations/{id}/generate-resource-stream
  *
  * This endpoint creates a job and streams SSE progress updates.
  * These tests verify:
@@ -52,13 +52,13 @@ vi.mock('../../db', () => ({
 // Mock AnnotationQueryService
 vi.mock('../../services/annotation-queries', () => ({
   AnnotationQueryService: {
-    getDocumentAnnotations: vi.fn(),
+    getResourceAnnotations: vi.fn(),
   },
 }));
 
 let app: Hono<{ Variables: Variables }>;
 
-describe('POST /api/annotations/:id/generate-document-stream', () => {
+describe('POST /api/annotations/:id/generate-resource-stream', () => {
   let authToken: string;
   let testUser: User;
 
@@ -122,8 +122,8 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
 
     // Mock AnnotationQueryService to return a projection with test reference
     const { AnnotationQueryService } = await import('../../services/annotation-queries');
-    vi.mocked(AnnotationQueryService.getDocumentAnnotations).mockResolvedValue({
-      documentId: 'test-doc-id',
+    vi.mocked(AnnotationQueryService.getResourceAnnotations).mockResolvedValue({
+      resourceId: 'test-doc-id',
       version: 1,
       updatedAt: new Date().toISOString(),
       annotations: [
@@ -163,15 +163,15 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
     const countBefore = jobsBefore.length;
 
     // Make request
-    await app.request('/api/annotations/test-ref-id/generate-document-stream', {
+    await app.request('/api/annotations/test-ref-id/generate-resource-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        documentId: 'test-doc-id',
-        title: 'Test Document',
+        resourceId: 'test-doc-id',
+        title: 'Test Resource',
         language: 'en'
       }),
     });
@@ -187,21 +187,21 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
 
       const genJob = newJob as GenerationJob;
       expect(genJob.userId).toBe(testUser.id);
-      expect(genJob.sourceDocumentId).toBe('test-doc-id');
-      expect(genJob.title).toBe('Test Document');
+      expect(genJob.sourceResourceId).toBe('test-doc-id');
+      expect(genJob.title).toBe('Test Resource');
       expect(genJob.language).toBe('en');
     }
   });
 
   it('should return SSE stream with proper content-type', async () => {
-    const response = await app.request('/api/annotations/test-ref-id/generate-document-stream', {
+    const response = await app.request('/api/annotations/test-ref-id/generate-resource-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        documentId: 'test-doc-id',
+        resourceId: 'test-doc-id',
       }),
     });
 
@@ -213,41 +213,41 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
   });
 
   it('should require authentication', async () => {
-    const response = await app.request('/api/annotations/test-ref-id/generate-document-stream', {
+    const response = await app.request('/api/annotations/test-ref-id/generate-resource-stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        documentId: 'test-doc-id',
+        resourceId: 'test-doc-id',
       }),
     });
 
     expect(response.status).toBe(401);
   });
 
-  it('should validate request body has documentId', async () => {
-    const response = await app.request('/api/annotations/test-ref-id/generate-document-stream', {
+  it('should validate request body has resourceId', async () => {
+    const response = await app.request('/api/annotations/test-ref-id/generate-resource-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({}), // Missing documentId
+      body: JSON.stringify({}), // Missing resourceId
     });
 
     expect(response.status).toBe(400);
   });
 
   it('should accept optional title, prompt, and locale fields', async () => {
-    const response = await app.request('/api/annotations/test-ref-id/generate-document-stream', {
+    const response = await app.request('/api/annotations/test-ref-id/generate-resource-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        documentId: 'test-doc-id',
+        resourceId: 'test-doc-id',
         title: 'Custom Title',
         prompt: 'Custom prompt for generation',
         language: 'es',
@@ -268,7 +268,7 @@ describe('POST /api/annotations/:id/generate-document-stream', () => {
     expect(typeof jobQueue.getJob).toBe('function');
 
     // Verify the route file imports from the correct module
-    const routeModule = await import('../../routes/annotations/routes/generate-document-stream');
-    expect(routeModule.registerGenerateDocumentStream).toBeDefined();
+    const routeModule = await import('../../routes/annotations/routes/generate-resource-stream');
+    expect(routeModule.registerGenerateResourceStream).toBeDefined();
   });
 });

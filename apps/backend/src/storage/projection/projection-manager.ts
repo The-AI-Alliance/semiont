@@ -14,11 +14,11 @@
  * @see docs/EVENT-STORE.md for comparison with Layer 2 architecture
  */
 
-import type { DocumentState } from './projection-storage-v2';
+import type { ResourceState } from './projection-storage-v2';
 import { ProjectionStorage, type ProjectionStorageConfig } from './projection-storage-v2';
 import { ProjectionQuery } from './projection-query';
 
-export type { DocumentState } from './projection-storage-v2';
+export type { ResourceState } from './projection-storage-v2';
 export type { ProjectionStorageConfig as ProjectionManagerConfig };
 
 /**
@@ -39,58 +39,58 @@ export class ProjectionManager {
   /**
    * Save projection to storage
    *
-   * @param documentId - Document identifier
-   * @param projection - Complete document state
+   * @param resourceId - Resource identifier
+   * @param projection - Complete resource state
    */
-  async save(documentId: string, projection: DocumentState): Promise<void> {
-    await this.storage.save(documentId, projection);
+  async save(resourceId: string, projection: ResourceState): Promise<void> {
+    await this.storage.save(resourceId, projection);
   }
 
   /**
    * Get projection from storage
    *
-   * @param documentId - Document identifier
-   * @returns Document state or null if not found
+   * @param resourceId - Resource identifier
+   * @returns Resource state or null if not found
    */
-  async get(documentId: string): Promise<DocumentState | null> {
-    return this.storage.get(documentId);
+  async get(resourceId: string): Promise<ResourceState | null> {
+    return this.storage.get(resourceId);
   }
 
   /**
    * Delete projection from storage
    *
-   * @param documentId - Document identifier
+   * @param resourceId - Resource identifier
    */
-  async delete(documentId: string): Promise<void> {
-    await this.storage.delete(documentId);
+  async delete(resourceId: string): Promise<void> {
+    await this.storage.delete(resourceId);
   }
 
   /**
    * Check if projection exists
    *
-   * @param documentId - Document identifier
+   * @param resourceId - Resource identifier
    * @returns True if projection exists
    */
-  async exists(documentId: string): Promise<boolean> {
-    return this.storage.exists(documentId);
+  async exists(resourceId: string): Promise<boolean> {
+    return this.storage.exists(resourceId);
   }
 
   /**
    * Get all projections (expensive - loads all from disk)
    *
-   * @returns Array of all document states
+   * @returns Array of all resource states
    */
-  async getAll(): Promise<DocumentState[]> {
+  async getAll(): Promise<ResourceState[]> {
     return this.storage.getAll();
   }
 
   /**
-   * Get all document IDs
+   * Get all resource IDs
    *
-   * @returns Array of document IDs
+   * @returns Array of resource IDs
    */
-  async getAllDocumentIds(): Promise<string[]> {
-    return this.storage.getAllDocumentIds();
+  async getAllResourceIds(): Promise<string[]> {
+    return this.storage.getAllResourceIds();
   }
 
   /**
@@ -120,35 +120,35 @@ export class ProjectionManager {
   /**
    * @deprecated Use save() instead
    */
-  async saveProjection(documentId: string, projection: DocumentState): Promise<void> {
-    return this.save(documentId, projection);
+  async saveProjection(resourceId: string, projection: ResourceState): Promise<void> {
+    return this.save(resourceId, projection);
   }
 
   /**
    * @deprecated Use get() instead
    */
-  async getProjection(documentId: string): Promise<DocumentState | null> {
-    return this.get(documentId);
+  async getProjection(resourceId: string): Promise<ResourceState | null> {
+    return this.get(resourceId);
   }
 
   /**
    * @deprecated Use delete() instead
    */
-  async deleteProjection(documentId: string): Promise<void> {
-    return this.delete(documentId);
+  async deleteProjection(resourceId: string): Promise<void> {
+    return this.delete(resourceId);
   }
 
   /**
    * @deprecated Use exists() instead
    */
-  async projectionExists(documentId: string): Promise<boolean> {
-    return this.exists(documentId);
+  async projectionExists(resourceId: string): Promise<boolean> {
+    return this.exists(resourceId);
   }
 
   /**
    * @deprecated Use getAll() instead
    */
-  async getAllProjections(): Promise<DocumentState[]> {
+  async getAllProjections(): Promise<ResourceState[]> {
     return this.getAll();
   }
 }

@@ -8,11 +8,11 @@
  *
  * 82 lines. Pure coordination. Zero cruft.
  *
- * @see docs/EVENT-STORE.md for complete architecture documentation
+ * @see docs/EVENT-STORE.md for complete architecture resourceation
  */
 
 import type {
-  DocumentEvent,
+  ResourceEvent,
   StoredEvent,
 } from '@semiont/core';
 import type { ProjectionStorage } from '../storage/projection-storage';
@@ -51,15 +51,15 @@ export class EventStore {
    * Append an event to the store
    * Coordinates: storage → projection → notification
    */
-  async appendEvent(event: Omit<DocumentEvent, 'id' | 'timestamp'>): Promise<StoredEvent> {
-    // System-level events (entitytype.added) have no documentId - use __system__
-    const documentId = event.documentId || '__system__';
+  async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>): Promise<StoredEvent> {
+    // System-level events (entitytype.added) have no resourceId - use __system__
+    const resourceId = event.resourceId || '__system__';
 
     // Storage handles ALL event creation
-    const storedEvent = await this.storage.appendEvent(event, documentId);
+    const storedEvent = await this.storage.appendEvent(event, resourceId);
 
     // Update projections (Layer 3)
-    if (documentId === '__system__') {
+    if (resourceId === '__system__') {
       // System projection (entity types)
       if (storedEvent.event.type === 'entitytype.added') {
         const payload = storedEvent.event.payload as any;
@@ -68,14 +68,14 @@ export class EventStore {
       // Notify global subscribers
       await this.subscriptions.notifyGlobalSubscribers(storedEvent);
     } else {
-      // Document projection
+      // Resource projection
       await this.projector.updateProjectionIncremental(
-        documentId,
+        resourceId,
         storedEvent.event,
-        () => this.storage.getAllEvents(documentId)
+        () => this.storage.getAllEvents(resourceId)
       );
-      // Notify document subscribers
-      await this.subscriptions.notifySubscribers(documentId, storedEvent);
+      // Notify resource subscribers
+      await this.subscriptions.notifySubscribers(resourceId, storedEvent);
     }
 
     return storedEvent;

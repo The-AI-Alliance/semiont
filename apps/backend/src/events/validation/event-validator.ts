@@ -23,7 +23,7 @@ export interface ValidationResult {
  */
 export class EventValidator {
   /**
-   * Validate event chain integrity for a document's events
+   * Validate event chain integrity for a resource's events
    * Checks that each event properly links to the previous event
    */
   validateEventChain(events: StoredEvent[]): ValidationResult {

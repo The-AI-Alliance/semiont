@@ -25,11 +25,11 @@ export interface BaseJob {
 }
 
 /**
- * Detection job - finds entities in a document using AI inference
+ * Detection job - finds entities in a resource using AI inference
  */
 export interface DetectionJob extends BaseJob {
   type: 'detection';
-  documentId: string;
+  resourceId: string;
   entityTypes: string[];
   progress?: {
     totalEntityTypes: number;
@@ -46,12 +46,12 @@ export interface DetectionJob extends BaseJob {
 }
 
 /**
- * Generation job - generates a new document using AI inference
+ * Generation job - generates a new resource using AI inference
  */
 export interface GenerationJob extends BaseJob {
   type: 'generation';
   referenceId: string;
-  sourceDocumentId: string;
+  sourceResourceId: string;
   prompt?: string;
   title?: string;
   entityTypes?: string[];
@@ -62,8 +62,8 @@ export interface GenerationJob extends BaseJob {
     message?: string;
   };
   result?: {
-    documentId: string;
-    documentName: string;
+    resourceId: string;
+    resourceName: string;
   };
 }
 
@@ -76,13 +76,13 @@ export type Job = DetectionJob | GenerationJob;
  * Job creation request types (without server-generated fields)
  */
 export interface CreateDetectionJobRequest {
-  documentId: string;
+  resourceId: string;
   entityTypes: string[];
 }
 
 export interface CreateGenerationJobRequest {
   referenceId: string;
-  sourceDocumentId: string;
+  sourceResourceId: string;
   prompt?: string;
   title?: string;
   entityTypes?: string[];

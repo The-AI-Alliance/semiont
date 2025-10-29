@@ -1,5 +1,5 @@
 /**
- * Update Document Route - Spec-First Version
+ * Update Resource Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -9,9 +9,9 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import { createEventStore } from '../../../services/event-store-service';
-import { DocumentQueryService } from '../../../services/document-queries';
+import { ResourceQueryService } from '../../../services/resource-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
@@ -21,15 +21,15 @@ import { getFilesystemConfig } from '../../../config/environment-loader';
 type UpdateResourceRequest = components['schemas']['UpdateResourceRequest'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
-export function registerUpdateDocument(router: DocumentsRouterType) {
+export function registerUpdateResource(router: ResourcesRouterType) {
   /**
-   * PATCH /documents/:id
+   * PATCH /resources/:id
    *
-   * Update document metadata (append-only operations - name and content are immutable)
+   * Update resource metadata (append-only operations - name and content are immutable)
    * Requires authentication
    * Validates request body against UpdateResourceRequest schema
    */
-  router.patch('/documents/:id',
+  router.patch('/resources/:id',
     validateRequestBody('UpdateResourceRequest'),
     async (c) => {
       const { id } = c.req.param();
@@ -37,10 +37,10 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       const user = c.get('user');
       const basePath = getFilesystemConfig().path;
 
-      // Check document exists using Layer 3
-      const doc = await DocumentQueryService.getDocumentMetadata(id);
+      // Check resource exists using Layer 3
+      const doc = await ResourceQueryService.getResourceMetadata(id);
       if (!doc) {
-        throw new HTTPException(404, { message: 'Document not found' });
+        throw new HTTPException(404, { message: 'Resource not found' });
       }
 
       const eventStore = await createEventStore(basePath);
@@ -49,8 +49,8 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       if (body.archived !== undefined && body.archived !== doc.archived) {
         if (body.archived) {
           await eventStore.appendEvent({
-            type: 'document.archived',
-            documentId: id,
+            type: 'resource.archived',
+            resourceId: id,
             userId: user.id,
             version: 1,
             payload: {
@@ -59,8 +59,8 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
           });
         } else {
           await eventStore.appendEvent({
-            type: 'document.unarchived',
-            documentId: id,
+            type: 'resource.unarchived',
+            resourceId: id,
             userId: user.id,
             version: 1,
             payload: {},
@@ -76,7 +76,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         for (const entityType of added) {
           await eventStore.appendEvent({
             type: 'entitytag.added',
-            documentId: id,
+            resourceId: id,
             userId: user.id,
             version: 1,
             payload: {
@@ -87,7 +87,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         for (const entityType of removed) {
           await eventStore.appendEvent({
             type: 'entitytag.removed',
-            documentId: id,
+            resourceId: id,
             userId: user.id,
             version: 1,
             payload: {
@@ -107,7 +107,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
 
       // Return optimistic response (content NOT included - must be fetched separately)
       const response: GetResourceResponse = {
-        document: {
+        resource: {
           ...doc,
           archived: body.archived !== undefined ? body.archived : doc.archived,
           entityTypes: body.entityTypes !== undefined ? body.entityTypes : doc.entityTypes,

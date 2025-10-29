@@ -9,12 +9,12 @@
  *
  * Non-SSE endpoint for creating entity detection jobs
  * For real-time progress updates, use the SSE equivalent:
- * POST /api/documents/{id}/detect-annotations-stream
+ * POST /api/resources/{id}/detect-annotations-stream
  */
 
 import { HTTPException } from 'hono/http-exception';
-import type { DocumentsRouterType } from '../shared';
-import { DocumentQueryService } from '../../../services/document-queries';
+import type { ResourcesRouterType } from '../shared';
+import { ResourceQueryService } from '../../../services/resource-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { DetectionJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
@@ -24,36 +24,36 @@ import type { components } from '@semiont/api-client';
 type DetectEntitiesRequest = components['schemas']['DetectEntitiesRequest'];
 type CreateJobResponse = components['schemas']['CreateJobResponse'];
 
-export function registerDetectEntities(router: DocumentsRouterType) {
+export function registerDetectEntities(router: ResourcesRouterType) {
   /**
-   * POST /api/documents/:id/detect-entities
+   * POST /api/resources/:id/detect-entities
    *
    * Create an async entity detection job.
    * Use GET /api/jobs/{jobId} to poll status.
-   * For real-time updates, use POST /api/documents/{id}/detect-annotations-stream instead.
+   * For real-time updates, use POST /api/resources/{id}/detect-annotations-stream instead.
    *
    * Requires authentication
    * Validates request body against DetectEntitiesRequest schema
    * Returns 201 with job details
    */
-  router.post('/api/documents/:id/detect-entities',
+  router.post('/api/resources/:id/detect-entities',
     validateRequestBody('DetectEntitiesRequest'),
     async (c) => {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as DetectEntitiesRequest;
       const { entityTypes } = body;
 
-      console.log(`[DetectEntities] Creating detection job for document ${id} with entity types:`, entityTypes);
+      console.log(`[DetectEntities] Creating detection job for resource ${id} with entity types:`, entityTypes);
 
       const user = c.get('user');
       if (!user) {
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      // Validate document exists using Layer 3
-      const document = await DocumentQueryService.getDocumentMetadata(id);
-      if (!document) {
-        throw new HTTPException(404, { message: 'Document not found' });
+      // Validate resource exists using Layer 3
+      const resource = await ResourceQueryService.getResourceMetadata(id);
+      if (!resource) {
+        throw new HTTPException(404, { message: 'Resource not found' });
       }
 
       // Create a detection job
@@ -63,7 +63,7 @@ export function registerDetectEntities(router: DocumentsRouterType) {
         type: 'detection',
         status: 'pending',
         userId: user.id,
-        documentId: id,
+        resourceId: id,
         entityTypes,
         created: new Date().toISOString(),
         retryCount: 0,
@@ -71,7 +71,7 @@ export function registerDetectEntities(router: DocumentsRouterType) {
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectEntities] Created job ${job.id} for document ${id}`);
+      console.log(`[DetectEntities] Created job ${job.id} for resource ${id}`);
 
       const response: CreateJobResponse = {
         jobId: job.id,

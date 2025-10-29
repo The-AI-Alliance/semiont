@@ -1,5 +1,5 @@
 /**
- * Simple unit tests for API documentation endpoint
+ * Simple unit tests for API resourceation endpoint
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -15,13 +15,13 @@ interface ApiDocResponse {
   };
 }
 
-describe('API Documentation Endpoint Unit Tests', () => {
+describe('API Resourceation Endpoint Unit Tests', () => {
   let app: Hono;
 
   beforeEach(() => {
     app = new Hono();
     
-    // Add the API documentation endpoint
+    // Add the API resourceation endpoint
     app.get('/api', (c) => {
       const acceptHeader = c.req.header('Accept') || '';
       const userAgent = c.req.header('User-Agent') || '';
@@ -39,8 +39,8 @@ describe('API Documentation Endpoint Unit Tests', () => {
         endpoints: {
           public: {
             "GET /api": {
-              description: "This API documentation",
-              response: "API documentation object"
+              description: "This API resourceation",
+              response: "API resourceation object"
             }
           }
         }
@@ -48,7 +48,7 @@ describe('API Documentation Endpoint Unit Tests', () => {
     });
   });
 
-  it('should return JSON documentation for API clients', async () => {
+  it('should return JSON resourceation for API clients', async () => {
     const req = new Request('http://localhost/api', {
       headers: { 'Accept': 'application/json' }
     });
@@ -64,7 +64,7 @@ describe('API Documentation Endpoint Unit Tests', () => {
     expect(data.endpoints.public).toBeDefined();
   });
 
-  it('should return HTML documentation for browser requests', async () => {
+  it('should return HTML resourceation for browser requests', async () => {
     const req = new Request('http://localhost/api', {
       headers: { 
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -113,7 +113,7 @@ describe('API Documentation Endpoint Unit Tests', () => {
     const res = await app.fetch(req);
     const data = await res.json() as ApiDocResponse;
     
-    // Verify structure of documentation
+    // Verify structure of resourceation
     expect(data).toHaveProperty('name');
     expect(data).toHaveProperty('version');
     expect(data).toHaveProperty('description');

@@ -1,5 +1,5 @@
 /**
- * Document Events Route - Spec-First Version
+ * Resource Events Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -8,7 +8,7 @@
  * - OpenAPI spec is the source of truth
  */
 
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import type { EventQuery, StoredEvent } from '@semiont/core';
 import type { components } from '@semiont/api-client';
@@ -18,10 +18,10 @@ import { getFilesystemConfig } from '../../../config/environment-loader';
 type GetEventsResponse = components['schemas']['GetEventsResponse'];
 
 const eventTypes = [
-  'document.created',
-  'document.cloned',
-  'document.archived',
-  'document.unarchived',
+  'resource.created',
+  'resource.cloned',
+  'resource.archived',
+  'resource.unarchived',
   'annotation.added',
   'annotation.removed',
   'annotation.body.updated',
@@ -34,11 +34,11 @@ function isValidEventType(type: string): type is typeof eventTypes[number] {
   return eventTypes.includes(type as any);
 }
 
-export function registerGetEvents(router: DocumentsRouterType) {
+export function registerGetEvents(router: ResourcesRouterType) {
   /**
-   * GET /api/documents/:id/events
+   * GET /api/resources/:id/events
    *
-   * Get full event history for a document with optional filtering
+   * Get full event history for a resource with optional filtering
    * Requires authentication
    *
    * Query parameters:
@@ -46,7 +46,7 @@ export function registerGetEvents(router: DocumentsRouterType) {
    * - userId: User ID filter (optional)
    * - limit: Maximum number of events (1-1000, default: 100)
    */
-  router.get('/api/documents/:id/events', async (c) => {
+  router.get('/api/resources/:id/events', async (c) => {
     const { id } = c.req.param();
     const queryParams = c.req.query();
     const basePath = getFilesystemConfig().path;
@@ -72,7 +72,7 @@ export function registerGetEvents(router: DocumentsRouterType) {
     // Build query filters - type is validated by this point
     const validatedType = type && isValidEventType(type) ? type : undefined;
     const filters: EventQuery = {
-      documentId: id,
+      resourceId: id,
       ...(validatedType && { eventTypes: [validatedType] }),
     };
 
@@ -91,7 +91,7 @@ export function registerGetEvents(router: DocumentsRouterType) {
       const emptyResponse: GetEventsResponse = {
         events: [],
         total: 0,
-        documentId: id,
+        resourceId: id,
       };
       return c.json(emptyResponse);
     }
@@ -100,29 +100,29 @@ export function registerGetEvents(router: DocumentsRouterType) {
     const events = storedEvents.map(stored => {
       // Validate required top-level properties
       if (!stored.event) {
-        throw new Error(`Event missing 'event' property for document ${id}`);
+        throw new Error(`Event missing 'event' property for resource ${id}`);
       }
       if (!stored.metadata) {
-        throw new Error(`Event missing 'metadata' property for document ${id}`);
+        throw new Error(`Event missing 'metadata' property for resource ${id}`);
       }
 
       // Validate required event properties
       const { event, metadata } = stored;
-      if (!event.id || !event.type || !event.timestamp || !event.userId || !event.documentId) {
-        throw new Error(`Event ${event.id || 'unknown'} for document ${id} is missing required properties: ${JSON.stringify({ id: event.id, type: event.type, timestamp: event.timestamp, userId: event.userId, documentId: event.documentId })}`);
+      if (!event.id || !event.type || !event.timestamp || !event.userId || !event.resourceId) {
+        throw new Error(`Event ${event.id || 'unknown'} for resource ${id} is missing required properties: ${JSON.stringify({ id: event.id, type: event.type, timestamp: event.timestamp, userId: event.userId, resourceId: event.resourceId })}`);
       }
       if (metadata.sequenceNumber === undefined) {
-        throw new Error(`Event ${event.id} for document ${id} is missing metadata.sequenceNumber`);
+        throw new Error(`Event ${event.id} for resource ${id} is missing metadata.sequenceNumber`);
       }
 
-      // Return nested structure matching StoredEvent interface
+      // Return nested structure matching StoredEvent interface - map internal resourceId to API resourceId
       return {
         event: {
           id: event.id,
           type: event.type,
           timestamp: event.timestamp,
           userId: event.userId,
-          documentId: event.documentId,
+          resourceId: event.resourceId, // Map internal resourceId to API resourceId
           payload: event.payload,
         },
         metadata: {
@@ -136,7 +136,7 @@ export function registerGetEvents(router: DocumentsRouterType) {
     const response: GetEventsResponse = {
       events,
       total: events.length,
-      documentId: id,
+      resourceId: id,
     };
 
     return c.json(response);

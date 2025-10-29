@@ -22,16 +22,16 @@ describe('PathBuilder', () => {
   });
 
   describe('Path Construction', () => {
-    it('should build sharded path for documents', () => {
+    it('should build sharded path for resources', () => {
       const builder = new PathBuilder({
         basePath: testDir,
-        namespace: 'documents',
+        namespace: 'resources',
       });
       const docId = 'doc-sha256:abc123def456';
       const path = builder.buildPath(docId, '.dat');
 
-      // Should match pattern: testDir/documents/ab/cd/doc-sha256:abc123def456.dat
-      expect(path).toContain('documents');
+      // Should match pattern: testDir/resources/ab/cd/doc-sha256:abc123def456.dat
+      expect(path).toContain('resources');
       expect(path).toMatch(/\/[0-9a-f]{2}\/[0-9a-f]{2}\//);
       expect(path).toContain('doc-sha256:abc123def456.dat');
     });
@@ -55,7 +55,7 @@ describe('PathBuilder', () => {
     it('should handle different extensions', () => {
       const builder = new PathBuilder({
         basePath: testDir,
-        namespace: 'documents',
+        namespace: 'resources',
       });
       const docId = 'doc-sha256:test123';
 
@@ -68,10 +68,10 @@ describe('PathBuilder', () => {
       expect(txtPath).toMatch(/\.txt$/);
     });
 
-    it('should use consistent sharding for same document ID', () => {
+    it('should use consistent sharding for same resource ID', () => {
       const builder = new PathBuilder({
         basePath: testDir,
-        namespace: 'documents',
+        namespace: 'resources',
       });
       const docId = 'doc-sha256:consistent123';
 
@@ -81,11 +81,11 @@ describe('PathBuilder', () => {
       expect(path1).toBe(path2);
     });
 
-    it('should distribute documents across shards', () => {
-      const builder = new PathBuilder({ basePath: testDir, namespace: 'documents' });
+    it('should distribute resources across shards', () => {
+      const builder = new PathBuilder({ basePath: testDir, namespace: 'resources' });
       const shards = new Set<string>();
 
-      // Generate 100 document IDs and check their shard distribution
+      // Generate 100 resource IDs and check their shard distribution
       for (let i = 0; i < 100; i++) {
         const docId = `doc-sha256:test${i}`;
         const path = builder.buildPath(docId, '.dat');
@@ -128,11 +128,11 @@ describe('PathBuilder', () => {
     });
   });
 
-  describe('Document Scanning', () => {
-    it('should scan and find all documents with extension', async () => {
+  describe('Resource Scanning', () => {
+    it('should scan and find all resources with extension', async () => {
       const builder = new PathBuilder({ basePath: testDir, namespace: 'scan-test' });
 
-      // Create test documents
+      // Create test resources
       const docIds = ['doc-1', 'doc-2', 'doc-3'];
       for (const docId of docIds) {
         const filePath = builder.buildPath(docId, '.json');
@@ -140,8 +140,8 @@ describe('PathBuilder', () => {
         await fs.writeFile(filePath, JSON.stringify({ id: docId }));
       }
 
-      // Scan for documents
-      const found = await builder.scanForDocuments('.json');
+      // Scan for resources
+      const found = await builder.scanForResources('.json');
 
       expect(found).toHaveLength(3);
       expect(found).toContain('doc-1');
@@ -152,7 +152,7 @@ describe('PathBuilder', () => {
     it('should filter by extension when scanning', async () => {
       const builder = new PathBuilder({ basePath: testDir, namespace: 'filter-test' });
 
-      // Create documents with different extensions
+      // Create resources with different extensions
       const doc1Path = builder.buildPath('doc-json', '.json');
       const doc2Path = builder.buildPath('doc-dat', '.dat');
 
@@ -162,19 +162,19 @@ describe('PathBuilder', () => {
       await fs.writeFile(doc2Path, 'data');
 
       // Scan only for .json files
-      const jsonDocs = await builder.scanForDocuments('.json');
+      const jsonDocs = await builder.scanForResources('.json');
       expect(jsonDocs).toHaveLength(1);
       expect(jsonDocs).toContain('doc-json');
 
       // Scan only for .dat files
-      const datDocs = await builder.scanForDocuments('.dat');
+      const datDocs = await builder.scanForResources('.dat');
       expect(datDocs).toHaveLength(1);
       expect(datDocs).toContain('doc-dat');
     });
 
     it('should return empty array when directory does not exist', async () => {
       const builder = new PathBuilder({ basePath: testDir, namespace: 'non-existent' });
-      const docs = await builder.scanForDocuments('.json');
+      const docs = await builder.scanForResources('.json');
 
       expect(docs).toEqual([]);
     });
@@ -182,14 +182,14 @@ describe('PathBuilder', () => {
     it('should handle scanning with subnamespace', async () => {
       const builder = new PathBuilder({ basePath: testDir, namespace: 'with-sub', subNamespace: 'namespace' });
 
-      // Create test document
+      // Create test resource
       const docId = 'doc-sub-test';
       const filePath = builder.buildPath(docId, '.json');
       await builder.ensureDirectory(filePath);
       await fs.writeFile(filePath, '{}');
 
-      // Scan for documents
-      const found = await builder.scanForDocuments('.json');
+      // Scan for resources
+      const found = await builder.scanForResources('.json');
 
       expect(found).toContain('doc-sub-test');
     });
@@ -197,9 +197,9 @@ describe('PathBuilder', () => {
 
   describe('Sharding Consistency', () => {
     it('should use jump consistent hash for sharding', () => {
-      const builder = new PathBuilder({ basePath: testDir, namespace: 'documents' });
+      const builder = new PathBuilder({ basePath: testDir, namespace: 'resources' });
 
-      // These document IDs should map to specific shards consistently
+      // These resource IDs should map to specific shards consistently
       const testCases = [
         { id: 'doc-sha256:abc', expectedShard: /\/[0-9a-f]{2}\/[0-9a-f]{2}\// },
         { id: 'doc-sha256:def', expectedShard: /\/[0-9a-f]{2}\/[0-9a-f]{2}\// },
@@ -216,8 +216,8 @@ describe('PathBuilder', () => {
       }
     });
 
-    it('should handle different document ID formats', () => {
-      const builder = new PathBuilder({ basePath: testDir, namespace: 'documents' });
+    it('should handle different resource ID formats', () => {
+      const builder = new PathBuilder({ basePath: testDir, namespace: 'resources' });
 
       const formats = [
         'doc-sha256:abc123',

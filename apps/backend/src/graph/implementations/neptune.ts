@@ -10,7 +10,7 @@ import type {
   GraphPath,
   EntityTypeStats,
   ResourceFilter,
-  UpdateDocumentInput,
+  UpdateResourceInput,
   CreateAnnotationInternal,
 } from '@semiont/core';
 import { getExactText } from '@semiont/api-client';
@@ -49,7 +49,7 @@ async function loadDependencies() {
 }
 
 // Helper function to convert Neptune vertex to ResourceDescriptor
-function vertexToDocument(vertex: any): ResourceDescriptor {
+function vertexToResource(vertex: any): ResourceDescriptor {
   const props = vertex.properties || vertex;
 
   // Handle different property formats from Neptune
@@ -57,7 +57,7 @@ function vertexToDocument(vertex: any): ResourceDescriptor {
     const prop = props[key];
     if (!prop) {
       if (required) {
-        throw new Error(`Document ${vertex.id || 'unknown'} missing required field: ${key}`);
+        throw new Error(`Resource ${vertex.id || 'unknown'} missing required field: ${key}`);
       }
       return undefined;
     }
@@ -93,8 +93,8 @@ function vertexToDocument(vertex: any): ResourceDescriptor {
     creationMethod: getValue('creationMethod', true),
   };
 
-  const sourceDocumentId = getValue('sourceDocumentId');
-  if (sourceDocumentId) resource.sourceDocumentId = sourceDocumentId;
+  const sourceResourceId = getValue('sourceResourceId');
+  if (sourceResourceId) resource.sourceResourceId = sourceResourceId;
 
   return resource;
 }
@@ -121,7 +121,7 @@ function vertexToAnnotation(vertex: any, entityTypes: string[] = []): Annotation
 
   // Get required fields
   const id = getValue('id', true);
-  const documentId = getValue('documentId', true);
+  const resourceId = getValue('resourceId', true);
   const selectorRaw = getValue('selector', true);
   const creatorRaw = getValue('creator', true);
   const createdRaw = getValue('created', true);
@@ -162,7 +162,7 @@ function vertexToAnnotation(vertex: any, entityTypes: string[] = []): Annotation
     id,
     motivation,
     target: {
-      source: documentId,
+      source: resourceId,
       selector: JSON.parse(selectorRaw),
     },
     body: bodyArray,
@@ -344,44 +344,44 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     return this.connected;
   }
 
-  async createResource(document: ResourceDescriptor): Promise<ResourceDescriptor> {
-    const id = getResourceId(document);
-    const primaryRep = getPrimaryRepresentation(document);
+  async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
+    const id = getResourceId(resource);
+    const primaryRep = getPrimaryRepresentation(resource);
     if (!primaryRep) {
       throw new Error('Resource must have at least one representation');
     }
 
     // Create vertex in Neptune
     try {
-      const vertex = this.g.addV('Document')
+      const vertex = this.g.addV('Resource')
         .property('id', id)
-        .property('name', document.name)
+        .property('name', resource.name)
         .property('mediaType', primaryRep.mediaType)
-        .property('archived', document.archived || false)
-        .property('dateCreated', document.dateCreated)
-        .property('creator', JSON.stringify(document.wasAttributedTo))
-        .property('creationMethod', document.creationMethod)
+        .property('archived', resource.archived || false)
+        .property('dateCreated', resource.dateCreated)
+        .property('creator', JSON.stringify(resource.wasAttributedTo))
+        .property('creationMethod', resource.creationMethod)
         .property('checksum', primaryRep.checksum)
-        .property('entityTypes', JSON.stringify(document.entityTypes));
+        .property('entityTypes', JSON.stringify(resource.entityTypes));
 
-      if (document.sourceDocumentId) {
-        vertex.property('sourceDocumentId', document.sourceDocumentId);
+      if (resource.sourceResourceId) {
+        vertex.property('sourceResourceId', resource.sourceResourceId);
       }
 
       await vertex.next();
 
-      console.log(`Created document vertex in Neptune: ${id}`);
-      return document;
+      console.log(`Created resource vertex in Neptune: ${id}`);
+      return resource;
     } catch (error) {
-      console.error('Failed to create document in Neptune:', error);
+      console.error('Failed to create resource in Neptune:', error);
       throw error;
     }
   }
   
-  async getDocument(id: string): Promise<ResourceDescriptor | null> {
+  async getResource(id: string): Promise<ResourceDescriptor | null> {
     try {
       const result = await this.g.V()
-        .hasLabel('Document')
+        .hasLabel('Resource')
         .has('id', id)
         .elementMap()
         .next();
@@ -390,57 +390,57 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         return null;
       }
       
-      return vertexToDocument(result.value);
+      return vertexToResource(result.value);
     } catch (error) {
-      console.error('Failed to get document from Neptune:', error);
+      console.error('Failed to get resource from Neptune:', error);
       throw error;
     }
   }
   
-  async updateDocument(id: string, input: UpdateDocumentInput): Promise<ResourceDescriptor> {
-    // Documents are immutable - only archiving is allowed
+  async updateResource(id: string, input: UpdateResourceInput): Promise<ResourceDescriptor> {
+    // Resources are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
-      throw new Error('Documents are immutable. Only archiving is allowed.');
+      throw new Error('Resources are immutable. Only archiving is allowed.');
     }
 
     try {
       const result = await this.g.V()
-        .hasLabel('Document')
+        .hasLabel('Resource')
         .has('id', id)
         .property('archived', input.archived)
         .elementMap()
         .next();
 
       if (!result.value) {
-        throw new Error('Document not found');
+        throw new Error('Resource not found');
       }
 
-      return vertexToDocument(result.value);
+      return vertexToResource(result.value);
     } catch (error) {
-      console.error('Failed to update document in Neptune:', error);
+      console.error('Failed to update resource in Neptune:', error);
       throw error;
     }
   }
   
-  async deleteDocument(id: string): Promise<void> {
+  async deleteResource(id: string): Promise<void> {
     try {
-      // Delete the document vertex and all connected edges
+      // Delete the resource vertex and all connected edges
       await this.g.V()
-        .hasLabel('Document')
+        .hasLabel('Resource')
         .has('id', id)
         .drop()
         .iterate();
       
-      console.log(`Deleted document from Neptune: ${id}`);
+      console.log(`Deleted resource from Neptune: ${id}`);
     } catch (error) {
-      console.error('Failed to delete document from Neptune:', error);
+      console.error('Failed to delete resource from Neptune:', error);
       throw error;
     }
   }
   
-  async listDocuments(filter: ResourceFilter): Promise<{ documents: ResourceDescriptor[]; total: number }> {
+  async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
     try {
-      let traversal = this.g.V().hasLabel('Document');
+      let traversal = this.g.V().hasLabel('Resource');
       
       // Apply filters
       if (filter.entityTypes && filter.entityTypes.length > 0) {
@@ -455,7 +455,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
       
       if (filter.search) {
-        // Case-insensitive search in document name
+        // Case-insensitive search in resource name
         traversal = traversal.has('name', TextP.containing(filter.search));
       }
       
@@ -473,29 +473,29 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .elementMap()
         .toList();
       
-      const documents = results.map(vertexToDocument);
+      const resources = results.map(vertexToResource);
       
-      return { documents, total };
+      return { resources, total };
     } catch (error) {
-      console.error('Failed to list documents from Neptune:', error);
+      console.error('Failed to list resources from Neptune:', error);
       throw error;
     }
   }
   
-  async searchDocuments(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
+  async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
     try {
       // Use Neptune's text search capabilities
       const results = await this.g.V()
-        .hasLabel('Document')
+        .hasLabel('Resource')
         .has('name', TextP.containing(query))
         .order().by('created', order.desc)
         .limit(limit)
         .elementMap()
         .toList();
       
-      return results.map(vertexToDocument);
+      return results.map(vertexToResource);
     } catch (error) {
-      console.error('Failed to search documents in Neptune:', error);
+      console.error('Failed to search resources in Neptune:', error);
       throw error;
     }
   }
@@ -525,7 +525,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Create Annotation vertex
       const vertex = this.g.addV('Annotation')
         .property('id', annotation.id)
-        .property('documentId', targetSource) // Store full URI
+        .property('resourceId', targetSource) // Store full URI
         .property('text', targetSelector ? getExactText(targetSelector) : '')
         .property('selector', JSON.stringify(targetSelector || {}))
         .property('type', 'SpecificResource')
@@ -540,17 +540,17 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       const newVertex = await vertex.next();
 
-      // Create edge from Annotation to Document (BELONGS_TO)
+      // Create edge from Annotation to Resource (BELONGS_TO)
       await this.g.V(newVertex.value)
         .addE('BELONGS_TO')
-        .to(this.g.V().hasLabel('Document').has('id', targetSource)) // Use full URI
+        .to(this.g.V().hasLabel('Resource').has('id', targetSource)) // Use full URI
         .next();
 
-      // If it's a resolved reference, create edge to target document (REFERENCES)
+      // If it's a resolved reference, create edge to target resource (REFERENCES)
       if (bodySource) {
         await this.g.V(newVertex.value)
           .addE('REFERENCES')
-          .to(this.g.V().hasLabel('Document').has('id', bodySource)) // Use full URI
+          .to(this.g.V().hasLabel('Resource').has('id', bodySource)) // Use full URI
           .next();
       }
 
@@ -712,13 +712,13 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
+  async listAnnotations(filter: { resourceId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     try {
       let traversal = this.g.V().hasLabel('Annotation');
 
       // Apply filters
-      if (filter.documentId) {
-        traversal = traversal.has('documentId', filter.documentId);
+      if (filter.resourceId) {
+        traversal = traversal.has('resourceId', filter.resourceId);
       }
 
       if (filter.type) {
@@ -737,12 +737,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
   
   
-  async getHighlights(documentId: string): Promise<Annotation[]> {
+  async getHighlights(resourceId: string): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')
-        .has('documentId', documentId)
-        .hasNot('resolvedDocumentId')
+        .has('resourceId', resourceId)
+        .hasNot('resolvedResourceId')
         .elementMap()
         .toList();
 
@@ -755,20 +755,20 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   async resolveReference(annotationId: string, source: string): Promise<Annotation> {
     try {
-      // Get target document name
+      // Get target resource name
       const targetDocResult = await this.g.V()
-        .hasLabel('Document')
+        .hasLabel('Resource')
         .has('id', source)
         .elementMap()
         .next();
-      const targetDoc = targetDocResult.value ? vertexToDocument(targetDocResult.value) : null;
+      const targetDoc = targetDocResult.value ? vertexToResource(targetDocResult.value) : null;
 
       // Update the existing Annotation vertex
       const traversal = this.g.V()
         .hasLabel('Annotation')
         .has('id', annotationId)
         .property('source', source)
-        .property('resolvedDocumentName', targetDoc?.name)
+        .property('resolvedResourceName', targetDoc?.name)
         .property('resolvedAt', new Date().toISOString());
 
       const result = await traversal.elementMap().next();
@@ -777,7 +777,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         throw new Error('Annotation not found');
       }
 
-      // Create REFERENCES edge to the resolved document
+      // Create REFERENCES edge to the resolved resource
       const annVertex = await this.g.V()
         .hasLabel('Annotation')
         .has('id', annotationId)
@@ -785,7 +785,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       await this.g.V(annVertex.value)
         .addE('REFERENCES')
-        .to(this.g.V().hasLabel('Document').has('id', source))
+        .to(this.g.V().hasLabel('Resource').has('id', source))
         .next();
 
       // Fetch entity types from TAGGED_AS relationships
@@ -806,12 +806,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getReferences(documentId: string): Promise<Annotation[]> {
+  async getReferences(resourceId: string): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')
-        .has('documentId', documentId)
-        .has('resolvedDocumentId')
+        .has('resourceId', resourceId)
+        .has('resolvedResourceId')
         .elementMap()
         .toList();
 
@@ -822,12 +822,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]> {
+  async getEntityReferences(resourceId: string, entityTypes?: string[]): Promise<Annotation[]> {
     try {
       let traversal = this.g.V()
         .hasLabel('Annotation')
-        .has('documentId', documentId)
-        .has('resolvedDocumentId')
+        .has('resourceId', resourceId)
+        .has('resolvedResourceId')
         .has('entityTypes');
       
       if (entityTypes && entityTypes.length > 0) {
@@ -849,50 +849,50 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
+  async getResourceAnnotations(resourceId: string): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')
-        .has('documentId', documentId)
+        .has('resourceId', resourceId)
         .elementMap()
         .toList();
 
       return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
-      console.error('Failed to get document annotations from Neptune:', error);
+      console.error('Failed to get resource annotations from Neptune:', error);
       throw error;
     }
   }
   
-  async getDocumentReferencedBy(documentId: string): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceId: string): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')
-        .has('resolvedDocumentId', documentId)
+        .has('resolvedResourceId', resourceId)
         .elementMap()
         .toList();
 
       return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
-      console.error('Failed to get document referenced by from Neptune:', error);
+      console.error('Failed to get resource referenced by from Neptune:', error);
       throw error;
     }
   }
   
-  async getDocumentConnections(documentId: string): Promise<GraphConnection[]> {
+  async getResourceConnections(resourceId: string): Promise<GraphConnection[]> {
     try {
-      // Get all annotations from this document that reference other documents
+      // Get all annotations from this resource that reference other resources
       const outgoingAnnotations = await this.g.V()
         .hasLabel('Annotation')
-        .has('documentId', documentId)
+        .has('resourceId', resourceId)
         .has('source')
         .elementMap()
         .toList();
 
-      // Get all annotations that reference this document
+      // Get all annotations that reference this resource
       const incomingAnnotations = await this.g.V()
         .hasLabel('Annotation')
-        .has('source', documentId)
+        .has('source', resourceId)
         .elementMap()
         .toList();
 
@@ -917,22 +917,22 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         const targetDocId = getBodySource(annotation.body);
         if (!targetDocId) continue; // Skip stubs
 
-        // Get the target document
+        // Get the target resource
         const targetDocResult = await this.g.V()
-          .hasLabel('Document')
+          .hasLabel('Resource')
           .has('id', targetDocId)
           .elementMap()
           .next();
 
         if (targetDocResult.value) {
-          const targetDoc = vertexToDocument(targetDocResult.value);
+          const targetDoc = vertexToResource(targetDocResult.value);
           const targetDocId = getResourceId(targetDoc);
           const existing = connectionsMap.get(targetDocId);
           if (existing) {
             existing.annotations.push(annotation);
           } else {
             connectionsMap.set(targetDocId, {
-              targetDocument: targetDoc,
+              targetResource: targetDoc,
               annotations: [annotation],
               bidirectional: false,
             });
@@ -964,24 +964,24 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return Array.from(connectionsMap.values());
     } catch (error) {
-      console.error('Failed to get document connections from Neptune:', error);
+      console.error('Failed to get resource connections from Neptune:', error);
       throw error;
     }
   }
   
-  async findPath(fromDocumentId: string, toDocumentId: string, maxDepth: number = 5): Promise<GraphPath[]> {
+  async findPath(fromResourceId: string, toResourceId: string, maxDepth: number = 5): Promise<GraphPath[]> {
     try {
       // Use Neptune's optimized path queries
       const results = await this.g.V()
-        .hasLabel('Document')
-        .has('id', fromDocumentId)
+        .hasLabel('Resource')
+        .has('id', fromResourceId)
         .repeat(
           process.statics.both('REFERENCES')
             .simplePath()
         )
         .times(maxDepth)
         .emit()
-        .has('id', toDocumentId)
+        .has('id', toResourceId)
         .path()
         .by(process.statics.elementMap())
         .limit(10)
@@ -990,22 +990,22 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const paths: GraphPath[] = [];
       
       for (const pathResult of results) {
-        const documents: ResourceDescriptor[] = [];
+        const resources: ResourceDescriptor[] = [];
 
         // Process path elements (alternating vertices and edges)
         for (let i = 0; i < pathResult.objects.length; i++) {
           const element = pathResult.objects[i];
 
           if (i % 2 === 0) {
-            // Vertex (Document)
-            documents.push(vertexToDocument(element));
+            // Vertex (Resource)
+            resources.push(vertexToResource(element));
           } else {
             // Edge - skip for now as we're using vertex-based annotations
-            // We'd need to query for annotations between documents
+            // We'd need to query for annotations between resources
           }
         }
 
-        paths.push({ documents, annotations: [] });
+        paths.push({ resources, annotations: [] });
       }
       
       return paths;
@@ -1019,7 +1019,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     try {
       // Use Neptune's analytics capabilities
       const results = await this.g.V()
-        .hasLabel('Document')
+        .hasLabel('Resource')
         .values('entityTypes')
         .map((entityTypesJson: string) => {
           const types = JSON.parse(entityTypesJson);
@@ -1048,7 +1048,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
   
   async getStats(): Promise<{
-    documentCount: number;
+    resourceCount: number;
     annotationCount: number;
     highlightCount: number;
     referenceCount: number;
@@ -1057,12 +1057,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     contentTypes: Record<string, number>;
   }> {
     try {
-      // Get document count
+      // Get resource count
       const docCountResult = await this.g.V()
-        .hasLabel('Document')
+        .hasLabel('Resource')
         .count()
         .next();
-      const documentCount = docCountResult.value || 0;
+      const resourceCount = docCountResult.value || 0;
       
       // Get annotation count
       const selCountResult = await this.g.V()
@@ -1071,18 +1071,18 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .next();
       const annotationCount = selCountResult.value || 0;
 
-      // Get highlight count (annotations without resolved document)
+      // Get highlight count (annotations without resolved resource)
       const highlightCountResult = await this.g.V()
         .hasLabel('Annotation')
-        .hasNot('resolvedDocumentId')
+        .hasNot('resolvedResourceId')
         .count()
         .next();
       const highlightCount = highlightCountResult.value || 0;
 
-      // Get reference count (annotations with resolved document)
+      // Get reference count (annotations with resolved resource)
       const referenceCountResult = await this.g.V()
         .hasLabel('Annotation')
-        .has('resolvedDocumentId')
+        .has('resolvedResourceId')
         .count()
         .next();
       const referenceCount = referenceCountResult.value || 0;
@@ -1090,7 +1090,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Get entity reference count
       const entityRefCountResult = await this.g.V()
         .hasLabel('Annotation')
-        .has('resolvedDocumentId')
+        .has('resolvedResourceId')
         .has('entityTypes')
         .count()
         .next();
@@ -1105,14 +1105,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       
       // Get content type stats
       const contentTypeResult = await this.g.V()
-        .hasLabel('Document')
+        .hasLabel('Resource')
         .groupCount()
         .by('contentType')
         .next();
       const contentTypes = contentTypeResult.value || {};
       
       return {
-        documentCount,
+        resourceCount,
         annotationCount,
         highlightCount,
         referenceCount,
@@ -1159,8 +1159,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async detectAnnotations(_documentId: string): Promise<Annotation[]> {
-    // This would use AI/ML to detect annotations in a document
+  async detectAnnotations(_resourceId: string): Promise<Annotation[]> {
+    // This would use AI/ML to detect annotations in a resource
     // For now, return empty array as a placeholder
     return [];
   }

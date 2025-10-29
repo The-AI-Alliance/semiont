@@ -14,7 +14,7 @@ import {
   CREATION_METHODS,
   generateUuid,
 } from '@semiont/core';
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
@@ -24,22 +24,22 @@ import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getResourceId, getEntityTypes } from '../../../utils/resource-helpers';
 
-type GetDocumentByTokenResponse = components['schemas']['GetDocumentByTokenResponse'];
-type CreateDocumentFromTokenRequest = components['schemas']['CreateDocumentFromTokenRequest'];
-type CreateDocumentFromTokenResponse = components['schemas']['CreateDocumentFromTokenResponse'];
-type CloneDocumentWithTokenResponse = components['schemas']['CloneDocumentWithTokenResponse'];
+type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
+type CreateResourceFromTokenRequest = components['schemas']['CreateResourceFromTokenRequest'];
+type CreateResourceFromTokenResponse = components['schemas']['CreateResourceFromTokenResponse'];
+type CloneResourceWithTokenResponse = components['schemas']['CloneResourceWithTokenResponse'];
 
 // Simple in-memory token store (replace with Redis/DB in production)
-const cloneTokens = new Map<string, { documentId: string; expiresAt: Date }>();
+const cloneTokens = new Map<string, { resourceId: string; expiresAt: Date }>();
 
-export function registerTokenRoutes(router: DocumentsRouterType) {
+export function registerTokenRoutes(router: ResourcesRouterType) {
   /**
-   * GET /api/documents/token/:token
+   * GET /api/resources/token/:token
    *
-   * Retrieve a document using a clone token
+   * Retrieve a resource using a clone token
    * Requires authentication
    */
-  router.get('/api/documents/token/:token', async (c) => {
+  router.get('/api/resources/token/:token', async (c) => {
     const { token } = c.req.param();
 
     const tokenData = cloneTokens.get(token);
@@ -53,15 +53,15 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const sourceDoc = await graphDb.getDocument(tokenData.documentId);
+    const sourceDoc = await graphDb.getResource(tokenData.resourceId);
     if (!sourceDoc) {
-      throw new HTTPException(404, { message: 'Source document not found' });
+      throw new HTTPException(404, { message: 'Source resource not found' });
     }
 
-    // NOTE: Content is NOT included - frontend should fetch via GET /documents/:id/content
+    // NOTE: Content is NOT included - frontend should fetch via GET /resources/:id/content
 
-    const response: GetDocumentByTokenResponse = {
-      sourceDocument: sourceDoc,
+    const response: GetResourceByTokenResponse = {
+      sourceResource: sourceDoc,
       expiresAt: tokenData.expiresAt.toISOString(),
     };
 
@@ -69,16 +69,16 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
   });
 
   /**
-   * POST /api/documents/create-from-token
+   * POST /api/resources/create-from-token
    *
-   * Create a new document using a clone token
+   * Create a new resource using a clone token
    * Requires authentication
-   * Validates request body against CreateDocumentFromTokenRequest schema
+   * Validates request body against CreateResourceFromTokenRequest schema
    */
-  router.post('/api/documents/create-from-token',
-    validateRequestBody('CreateDocumentFromTokenRequest'),
+  router.post('/api/resources/create-from-token',
+    validateRequestBody('CreateResourceFromTokenRequest'),
     async (c) => {
-      const body = c.get('validatedBody') as CreateDocumentFromTokenRequest;
+      const body = c.get('validatedBody') as CreateResourceFromTokenRequest;
       const user = c.get('user');
       const basePath = getFilesystemConfig().path;
 
@@ -95,14 +95,14 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       const graphDb = await getGraphDatabase();
       const repStore = new FilesystemRepresentationStore({ basePath });
 
-      // Get source document
-      const sourceDoc = await graphDb.getDocument(tokenData.documentId);
+      // Get source resource
+      const sourceDoc = await graphDb.getResource(tokenData.resourceId);
       if (!sourceDoc) {
-        throw new HTTPException(404, { message: 'Source document not found' });
+        throw new HTTPException(404, { message: 'Source resource not found' });
       }
 
-      // Create new document
-      const documentId = generateUuid();
+      // Create new resource
+      const resourceId = generateUuid();
 
       // Get source format and validate it's a supported ContentFormat
       const primaryRep = getPrimaryRepresentation(sourceDoc);
@@ -120,9 +120,9 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
         rel: 'original',
       });
 
-      const document: ResourceDescriptor = {
+      const resource: ResourceDescriptor = {
         '@context': 'https://schema.org/',
-        '@id': `http://localhost:4000/documents/${documentId}`,
+        '@id': `http://localhost:4000/resources/${resourceId}`,
         name: body.name,
         entityTypes: getEntityTypes(sourceDoc),
         representations: [{
@@ -134,10 +134,10 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
         dateCreated: new Date().toISOString(),
         wasAttributedTo: userToAgent(user),
         creationMethod: CREATION_METHODS.CLONE,
-        sourceDocumentId: getResourceId(sourceDoc),
+        sourceResourceId: getResourceId(sourceDoc),
       };
 
-      const savedDoc = await graphDb.createResource(document);
+      const savedDoc = await graphDb.createResource(resource);
 
       // Store representation
       await repStore.store(Buffer.from(body.content), {
@@ -147,7 +147,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
 
       // Archive original if requested
       if (body.archiveOriginal) {
-        await graphDb.updateDocument(tokenData.documentId, {
+        await graphDb.updateResource(tokenData.resourceId, {
           archived: true
         });
       }
@@ -156,10 +156,10 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       cloneTokens.delete(body.token);
 
       // Get annotations
-      const result = await graphDb.listAnnotations({ documentId: getResourceId(savedDoc) });
+      const result = await graphDb.listAnnotations({ resourceId: getResourceId(savedDoc) });
 
-      const response: CreateDocumentFromTokenResponse = {
-        document: savedDoc,
+      const response: CreateResourceFromTokenResponse = {
+        resource: savedDoc,
         annotations: result.annotations,
       };
 
@@ -168,32 +168,32 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
   );
 
   /**
-   * POST /api/documents/:id/clone-with-token
+   * POST /api/resources/:id/clone-with-token
    *
-   * Generate a temporary token for cloning a document
+   * Generate a temporary token for cloning a resource
    * Requires authentication
    */
-  router.post('/api/documents/:id/clone-with-token', async (c) => {
+  router.post('/api/resources/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
     const basePath = getFilesystemConfig().path;
     const graphDb = await getGraphDatabase();
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    const sourceDoc = await graphDb.getDocument(id);
+    const sourceDoc = await graphDb.getResource(id);
     if (!sourceDoc) {
-      throw new HTTPException(404, { message: 'Document not found' });
+      throw new HTTPException(404, { message: 'Resource not found' });
     }
 
     // Check if content exists
     const primaryRep = getPrimaryRepresentation(sourceDoc);
     if (!primaryRep?.checksum || !primaryRep?.mediaType) {
-      throw new HTTPException(404, { message: 'Document content not found' });
+      throw new HTTPException(404, { message: 'Resource content not found' });
     }
 
     try {
       await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
     } catch {
-      throw new HTTPException(404, { message: 'Document content not found' });
+      throw new HTTPException(404, { message: 'Resource content not found' });
     }
 
     // Create token
@@ -201,14 +201,14 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     cloneTokens.set(token, {
-      documentId: id,
+      resourceId: id,
       expiresAt,
     });
 
-    const response: CloneDocumentWithTokenResponse = {
+    const response: CloneResourceWithTokenResponse = {
       token,
       expiresAt: expiresAt.toISOString(),
-      document: sourceDoc,
+      resource: sourceDoc,
     };
 
     return c.json(response);

@@ -1,5 +1,5 @@
 /**
- * Document Events Stream Route - Spec-First Version
+ * Resource Events Stream Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -15,43 +15,43 @@
 
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 
 /**
- * Document-scoped SSE event stream for real-time collaboration
+ * Resource-scoped SSE event stream for real-time collaboration
  *
- * Opens a long-lived connection that broadcasts all events for a specific document.
+ * Opens a long-lived connection that broadcasts all events for a specific resource.
  * Clients receive events as they happen (highlights added, references created, etc.)
  *
- * Use case: Multiple users viewing the same document see each other's changes in real-time
+ * Use case: Multiple users viewing the same resource see each other's changes in real-time
  */
 
-export function registerGetEventStream(router: DocumentsRouterType) {
+export function registerGetEventStream(router: ResourcesRouterType) {
   /**
-   * GET /api/documents/:id/events/stream
+   * GET /api/resources/:id/events/stream
    *
-   * Open a Server-Sent Events stream to receive real-time document events
+   * Open a Server-Sent Events stream to receive real-time resource events
    * Requires authentication
    * Returns text/event-stream
    */
-  router.get('/api/documents/:id/events/stream', async (c) => {
+  router.get('/api/resources/:id/events/stream', async (c) => {
     const { id } = c.req.param();
     const basePath = getFilesystemConfig().path;
 
-    console.log(`[EventStream] Client connecting to document events stream for ${id}`);
+    console.log(`[EventStream] Client connecting to resource events stream for ${id}`);
 
-    // Verify document exists in event store (Layer 2 - source of truth)
+    // Verify resource exists in event store (Layer 2 - source of truth)
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
-    const events = await query.getDocumentEvents(id);
+    const events = await query.getResourceEvents(id);
     if (events.length === 0) {
-      console.log(`[EventStream] Document ${id} not found - no events exist`);
-      throw new HTTPException(404, { message: 'Document not found - no events exist for this document' });
+      console.log(`[EventStream] Resource ${id} not found - no events exist`);
+      throw new HTTPException(404, { message: 'Resource not found - no events exist for this resource' });
     }
 
-    console.log(`[EventStream] Document ${id} exists with ${events.length} events`);
+    console.log(`[EventStream] Resource ${id} exists with ${events.length} events`);
 
     return streamSSE(c, async (stream) => {
 
@@ -60,7 +60,7 @@ export function registerGetEventStream(router: DocumentsRouterType) {
       await stream.writeSSE({
         data: JSON.stringify({
           type: 'connected',
-          documentId: id,
+          resourceId: id,
           timestamp: new Date().toISOString(),
           message: 'Event stream connected',
         }),
@@ -99,16 +99,16 @@ export function registerGetEventStream(router: DocumentsRouterType) {
         }
       };
 
-      // Subscribe to events for this document
+      // Subscribe to events for this resource
       const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
-      console.log(`[EventStream:${streamId}] Subscribing to events for document ${id}`);
+      console.log(`[EventStream:${streamId}] Subscribing to events for resource ${id}`);
       subscription = eventStore.subscriptions.subscribe(id, async (storedEvent) => {
         if (isStreamClosed) {
           console.log(`[EventStream:${streamId}] Stream already closed for ${id}, ignoring event ${storedEvent.event.type}`);
           return;
         }
 
-        console.log(`[EventStream:${streamId}] Received event ${storedEvent.event.type} for document ${id}, attempting to write to SSE stream`);
+        console.log(`[EventStream:${streamId}] Received event ${storedEvent.event.type} for resource ${id}, attempting to write to SSE stream`);
 
         try {
           const eventData = {
@@ -116,7 +116,7 @@ export function registerGetEventStream(router: DocumentsRouterType) {
             type: storedEvent.event.type,
             timestamp: storedEvent.event.timestamp,
             userId: storedEvent.event.userId,
-            documentId: storedEvent.event.documentId,
+            resourceId: storedEvent.event.resourceId,
             payload: storedEvent.event.payload,
             metadata: {
               sequenceNumber: storedEvent.metadata.sequenceNumber,
@@ -158,7 +158,7 @@ export function registerGetEventStream(router: DocumentsRouterType) {
 
       // Cleanup on disconnect
       c.req.raw.signal.addEventListener('abort', () => {
-        console.log(`[EventStream] Client disconnected from document events stream for ${id}`);
+        console.log(`[EventStream] Client disconnected from resource events stream for ${id}`);
         cleanup();
       });
 

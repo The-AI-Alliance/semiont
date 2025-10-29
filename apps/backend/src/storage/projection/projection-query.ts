@@ -1,7 +1,7 @@
 /**
  * ProjectionQuery - Layer 3 Query Operations
  *
- * Handles query operations for document projections:
+ * Handles query operations for resource projections:
  * - Find by entity type
  * - Find by creator
  * - Get annotation count
@@ -11,7 +11,7 @@
  * Separated from storage to follow Single Responsibility Principle
  */
 
-import type { DocumentState } from './projection-storage-v2';
+import type { ResourceState } from './projection-storage-v2';
 import type { ProjectionStorage } from './projection-storage-v2';
 import { getCreator } from '../../utils/resource-helpers';
 
@@ -27,13 +27,13 @@ export class ProjectionQuery {
    * @param entityType - Entity type to filter by (e.g., 'Person')
    * @returns Array of matching projections
    */
-  async findByEntityType(entityType: string): Promise<DocumentState[]> {
-    const allIds = await this.storage.getAllDocumentIds();
-    const results: DocumentState[] = [];
+  async findByEntityType(entityType: string): Promise<ResourceState[]> {
+    const allIds = await this.storage.getAllResourceIds();
+    const results: ResourceState[] = [];
 
     for (const id of allIds) {
       const projection = await this.storage.get(id);
-      if (projection && projection.document.entityTypes?.includes(entityType)) {
+      if (projection && projection.resource.entityTypes?.includes(entityType)) {
         results.push(projection);
       }
     }
@@ -47,14 +47,14 @@ export class ProjectionQuery {
    * @param userId - User DID to filter by
    * @returns Array of matching projections
    */
-  async findByCreator(userId: string): Promise<DocumentState[]> {
-    const allIds = await this.storage.getAllDocumentIds();
-    const results: DocumentState[] = [];
+  async findByCreator(userId: string): Promise<ResourceState[]> {
+    const allIds = await this.storage.getAllResourceIds();
+    const results: ResourceState[] = [];
 
     for (const id of allIds) {
       const projection = await this.storage.get(id);
       if (projection) {
-        const creator = getCreator(projection.document);
+        const creator = getCreator(projection.resource);
         if (creator?.['@id'] === userId) {
           results.push(projection);
         }
@@ -69,13 +69,13 @@ export class ProjectionQuery {
    *
    * @returns Array of archived projections
    */
-  async findArchived(): Promise<DocumentState[]> {
-    const allIds = await this.storage.getAllDocumentIds();
-    const results: DocumentState[] = [];
+  async findArchived(): Promise<ResourceState[]> {
+    const allIds = await this.storage.getAllResourceIds();
+    const results: ResourceState[] = [];
 
     for (const id of allIds) {
       const projection = await this.storage.get(id);
-      if (projection && projection.document.archived) {
+      if (projection && projection.resource.archived) {
         results.push(projection);
       }
     }
@@ -88,13 +88,13 @@ export class ProjectionQuery {
    *
    * @returns Array of active projections
    */
-  async findActive(): Promise<DocumentState[]> {
-    const allIds = await this.storage.getAllDocumentIds();
-    const results: DocumentState[] = [];
+  async findActive(): Promise<ResourceState[]> {
+    const allIds = await this.storage.getAllResourceIds();
+    const results: ResourceState[] = [];
 
     for (const id of allIds) {
       const projection = await this.storage.get(id);
-      if (projection && !projection.document.archived) {
+      if (projection && !projection.resource.archived) {
         results.push(projection);
       }
     }
@@ -103,13 +103,13 @@ export class ProjectionQuery {
   }
 
   /**
-   * Get annotation count for a document
+   * Get annotation count for a resource
    *
-   * @param documentId - Document identifier
+   * @param resourceId - Resource identifier
    * @returns Number of annotations or 0 if not found
    */
-  async getAnnotationCount(documentId: string): Promise<number> {
-    const projection = await this.storage.get(documentId);
+  async getAnnotationCount(resourceId: string): Promise<number> {
+    const projection = await this.storage.get(resourceId);
     return projection?.annotations.annotations.length || 0;
   }
 
@@ -119,9 +119,9 @@ export class ProjectionQuery {
    * @param minCount - Minimum annotation count
    * @returns Array of projections with >= minCount annotations
    */
-  async findByAnnotationCount(minCount: number): Promise<DocumentState[]> {
-    const allIds = await this.storage.getAllDocumentIds();
-    const results: DocumentState[] = [];
+  async findByAnnotationCount(minCount: number): Promise<ResourceState[]> {
+    const allIds = await this.storage.getAllResourceIds();
+    const results: ResourceState[] = [];
 
     for (const id of allIds) {
       const projection = await this.storage.get(id);
@@ -134,19 +134,19 @@ export class ProjectionQuery {
   }
 
   /**
-   * Search projections by document name (case-insensitive substring match)
+   * Search projections by resource name (case-insensitive substring match)
    *
    * @param query - Search query string
    * @returns Array of matching projections
    */
-  async searchByName(query: string): Promise<DocumentState[]> {
-    const allIds = await this.storage.getAllDocumentIds();
-    const results: DocumentState[] = [];
+  async searchByName(query: string): Promise<ResourceState[]> {
+    const allIds = await this.storage.getAllResourceIds();
+    const results: ResourceState[] = [];
     const lowerQuery = query.toLowerCase();
 
     for (const id of allIds) {
       const projection = await this.storage.get(id);
-      if (projection && projection.document.name.toLowerCase().includes(lowerQuery)) {
+      if (projection && projection.resource.name.toLowerCase().includes(lowerQuery)) {
         results.push(projection);
       }
     }
@@ -160,7 +160,7 @@ export class ProjectionQuery {
    * @returns Total number of projections
    */
   async count(): Promise<number> {
-    const ids = await this.storage.getAllDocumentIds();
+    const ids = await this.storage.getAllResourceIds();
     return ids.length;
   }
 
@@ -181,7 +181,7 @@ export class ProjectionQuery {
    * @returns True if at least one projection exists
    */
   async hasAny(): Promise<boolean> {
-    const ids = await this.storage.getAllDocumentIds();
+    const ids = await this.storage.getAllResourceIds();
     return ids.length > 0;
   }
 }

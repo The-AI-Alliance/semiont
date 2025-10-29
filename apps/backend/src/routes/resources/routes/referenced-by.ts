@@ -11,32 +11,32 @@
 import { getGraphDatabase } from '../../../graph/factory';
 import { getExactText } from '@semiont/api-client';
 import { getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
-export function registerGetReferencedBy(router: DocumentsRouterType) {
+export function registerGetReferencedBy(router: ResourcesRouterType) {
   /**
-   * GET /api/documents/:id/referenced-by
+   * GET /api/resources/:id/referenced-by
    *
-   * Get documents that reference this document
+   * Get resources that reference this resource
    * Requires authentication
-   * Returns list of documents with references to this document
+   * Returns list of resources with references to this resource
    */
-  router.get('/api/documents/:id/referenced-by', async (c) => {
+  router.get('/api/resources/:id/referenced-by', async (c) => {
     const { id } = c.req.param();
     const graphDb = await getGraphDatabase();
 
-    // Get all annotations that reference this document
-    const references = await graphDb.getDocumentReferencedBy(id);
+    // Get all annotations that reference this resource
+    const references = await graphDb.getResourceReferencedBy(id);
 
-    // Get unique documents from the selections
+    // Get unique resources from the selections
     const docIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-    const documents = await Promise.all(docIds.map(docId => graphDb.getDocument(docId)));
+    const resources = await Promise.all(docIds.map(docId => graphDb.getResource(docId)));
 
-    // Build document map for lookup
-    const docMap = new Map(documents.filter(doc => doc !== null).map(doc => [doc.id, doc]));
+    // Build resource map for lookup
+    const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc.id, doc]));
 
     // Transform into ReferencedBy structure
     const referencedBy = references.map(ref => {
@@ -45,7 +45,7 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
       const doc = docMap.get(targetSource);
       return {
         id: ref.id,
-        documentName: doc?.name || 'Untitled Document',
+        resourceName: doc?.name || 'Untitled Resource',
         target: {
           source: targetSource,
           selector: {

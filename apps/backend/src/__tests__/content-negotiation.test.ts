@@ -1,7 +1,7 @@
 /**
  * Content Negotiation Tests
  *
- * Tests W3C-compliant content negotiation for document and annotation URIs
+ * Tests W3C-compliant content negotiation for resource and annotation URIs
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';

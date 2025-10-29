@@ -1,6 +1,6 @@
 /**
  * Layered Storage Tests
- * Tests for Layer 1 (documents) and Layer 3 (projections) filesystem storage
+ * Tests for Layer 1 (resources) and Layer 3 (projections) filesystem storage
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -16,7 +16,7 @@ import { createTestResource } from '../fixtures/resource-fixtures';
 
 describe('Layered Storage', () => {
   let testDir: string;
-  let documentStorage: FilesystemStorage;
+  let resourceStorage: FilesystemStorage;
   let projectionStorage: FilesystemProjectionStorage;
   let eventStore: EventStore;
   let query: EventQuery;
@@ -25,7 +25,7 @@ describe('Layered Storage', () => {
     testDir = join(tmpdir(), `semiont-layered-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    documentStorage = new FilesystemStorage(testDir);
+    resourceStorage = new FilesystemStorage(testDir);
     projectionStorage = new FilesystemProjectionStorage(testDir);
 
     eventStore = new EventStore({
@@ -42,21 +42,21 @@ describe('Layered Storage', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  describe('Layer 1: Document Storage', () => {
-    it('should use 4-hex sharding for documents', async () => {
+  describe('Layer 1: Resource Storage', () => {
+    it('should use 4-hex sharding for resources', async () => {
       const docId = 'doc-sha256:abc123def456';
-      const path = documentStorage.getDocumentPath(docId);
+      const path = resourceStorage.getResourcePath(docId);
 
-      // Should match pattern: documents/ab/cd/doc-sha256:abc123def456.dat
-      expect(path).toMatch(/documents\/[0-9a-f]{2}\/[0-9a-f]{2}\/doc-sha256:abc123def456\.dat$/);
+      // Should match pattern: resources/ab/cd/doc-sha256:abc123def456.dat
+      expect(path).toMatch(/resources\/[0-9a-f]{2}\/[0-9a-f]{2}\/doc-sha256:abc123def456\.dat$/);
     });
 
-    it('should save and retrieve document content', async () => {
+    it('should save and retrieve resource content', async () => {
       const docId = 'doc-sha256:test1';
-      const content = 'This is test document content';
+      const content = 'This is test resource content';
 
-      await documentStorage.saveDocument(docId, content);
-      const retrieved = await documentStorage.getDocument(docId);
+      await resourceStorage.saveResource(docId, content);
+      const retrieved = await resourceStorage.getResource(docId);
 
       expect(retrieved.toString('utf-8')).toBe(content);
     });
@@ -65,8 +65,8 @@ describe('Layered Storage', () => {
       const docId = 'doc-sha256:test2';
       const content = Buffer.from([0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello"
 
-      await documentStorage.saveDocument(docId, content);
-      const retrieved = await documentStorage.getDocument(docId);
+      await resourceStorage.saveResource(docId, content);
+      const retrieved = await resourceStorage.getResource(docId);
 
       expect(retrieved).toEqual(content);
     });
@@ -76,7 +76,7 @@ describe('Layered Storage', () => {
     it('should use 4-hex sharding for projections', async () => {
       const docId = 'doc-sha256:xyz789';
       const stored = {
-        document: createTestResource({
+        resource: createTestResource({
           '@id': `urn:semiont:resource:${docId}`,
           name: 'Test Doc',
           representations: [{
@@ -93,7 +93,7 @@ describe('Layered Storage', () => {
           },
         }),
         annotations: {
-          documentId: docId,
+          resourceId: docId,
           annotations: [],
           version: 1,
           updatedAt: new Date().toISOString(),
@@ -110,7 +110,7 @@ describe('Layered Storage', () => {
     it('should save and retrieve projections', async () => {
       const docId = 'doc-sha256:proj1';
       const stored = {
-        document: createTestResource({
+        resource: createTestResource({
           '@id': `urn:semiont:resource:${docId}`,
           name: 'Projection Test',
           representations: [{
@@ -127,7 +127,7 @@ describe('Layered Storage', () => {
           },
         }),
         annotations: {
-          documentId: docId,
+          resourceId: docId,
           annotations: [
             {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -176,7 +176,7 @@ describe('Layered Storage', () => {
     it('should delete projections', async () => {
       const docId = 'doc-sha256:delete-me';
       const stored = {
-        document: createTestResource({
+        resource: createTestResource({
           '@id': `urn:semiont:resource:${docId}`,
           name: 'To Delete',
           representations: [{
@@ -193,7 +193,7 @@ describe('Layered Storage', () => {
           },
         }),
         annotations: {
-          documentId: docId,
+          resourceId: docId,
           annotations: [],
           version: 1,
           updatedAt: new Date().toISOString(),
@@ -212,10 +212,10 @@ describe('Layered Storage', () => {
     it('should save projections when rebuilding from events', async () => {
       const docId = 'doc-test-integration1';
 
-      // Emit document.created event
+      // Emit resource.created event
       await eventStore.appendEvent({
-        type: 'document.created',
-        documentId: docId,
+        type: 'resource.created',
+        resourceId: docId,
         userId: 'user1',
         version: 1,
         payload: {
@@ -229,16 +229,16 @@ describe('Layered Storage', () => {
       // Projection should be saved to Layer 3
       const stored = await projectionStorage.getProjection(docId);
       expect(stored).toBeDefined();
-      expect(stored!.document.name).toBe('Integration Test');
+      expect(stored!.resource.name).toBe('Integration Test');
     });
 
     it('should update projections when events appended', async () => {
       const docId = 'doc-test-integration2';
 
-      // Create document
+      // Create resource
       await eventStore.appendEvent({
-        type: 'document.created',
-        documentId: docId,
+        type: 'resource.created',
+        resourceId: docId,
         userId: 'user1',
         version: 1,
         payload: {
@@ -255,7 +255,7 @@ describe('Layered Storage', () => {
       // Add highlighting annotation
       await eventStore.appendEvent({
         type: 'annotation.added',
-        documentId: docId,
+        resourceId: docId,
         userId: 'user1',
         version: 1,
         payload: {
@@ -296,8 +296,8 @@ describe('Layered Storage', () => {
 
       // Create events
       await eventStore.appendEvent({
-        type: 'document.created',
-        documentId: docId,
+        type: 'resource.created',
+        resourceId: docId,
         userId: 'user1',
         version: 1,
         payload: {
@@ -309,12 +309,12 @@ describe('Layered Storage', () => {
       });
 
       // First call rebuilds from events
-      const events1 = await query.getDocumentEvents(docId);
-      const projection1 = await eventStore.projector.projectDocument(events1, docId);
+      const events1 = await query.getResourceEvents(docId);
+      const projection1 = await eventStore.projector.projectResource(events1, docId);
 
       // Second call should load from Layer 3 (no rebuild)
-      const events2 = await query.getDocumentEvents(docId);
-      const projection2 = await eventStore.projector.projectDocument(events2, docId);
+      const events2 = await query.getResourceEvents(docId);
+      const projection2 = await eventStore.projector.projectResource(events2, docId);
 
       expect(projection1).toEqual(projection2);
     });

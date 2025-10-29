@@ -1,5 +1,5 @@
 /**
- * Get Document Annotations Route - Spec-First Version
+ * Get Resource Annotations Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -10,21 +10,21 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import type { components } from '@semiont/api-client';
 
 type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
-export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
+export function registerGetResourceAnnotations(router: ResourcesRouterType) {
   /**
-   * GET /api/documents/:id/annotations
+   * GET /api/resources/:id/annotations
    *
-   * Get all annotations (both highlights and references) in a document
+   * Get all annotations (both highlights and references) in a resource
    * Requires authentication
    * Uses Layer 3 projections with GraphDB fallback
    */
-  router.get('/api/documents/:id/annotations', async (c) => {
+  router.get('/api/resources/:id/annotations', async (c) => {
     const { id } = c.req.param();
 
     try {
@@ -43,12 +43,12 @@ export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
       console.warn(`[Annotations] Layer 3 miss for ${id}, falling back to GraphDB`);
 
       const graphDb = await getGraphDatabase();
-      const document = await graphDb.getDocument(id);
-      if (!document) {
-        throw new HTTPException(404, { message: 'Document not found' });
+      const resource = await graphDb.getResource(id);
+      if (!resource) {
+        throw new HTTPException(404, { message: 'Resource not found' });
       }
 
-      const result = await graphDb.listAnnotations({ documentId: id });
+      const result = await graphDb.listAnnotations({ resourceId: id });
 
       const response: GetAnnotationsResponse = {
         annotations: result.annotations,

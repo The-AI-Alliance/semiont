@@ -1,5 +1,5 @@
 /**
- * Generate Document Stream Route - Spec-First Version
+ * Generate Resource Stream Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -22,34 +22,34 @@ import { nanoid } from 'nanoid';
 import { getTargetSelector } from '../../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
 
-type GenerateDocumentStreamRequest = components['schemas']['GenerateDocumentStreamRequest'];
+type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
 
 interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
   referenceId: string;
-  documentName?: string;
-  documentId?: string;
-  sourceDocumentId?: string;
+  resourceName?: string;
+  resourceId?: string;
+  sourceResourceId?: string;
   percentage: number;
   message?: string;
 }
 
-export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
+export function registerGenerateResourceStream(router: AnnotationsRouterType) {
   /**
-   * POST /api/annotations/:id/generate-document-stream
+   * POST /api/annotations/:id/generate-resource-stream
    *
-   * Generate a document from an annotation with streaming progress updates via SSE
+   * Generate a resource from an annotation with streaming progress updates via SSE
    * Requires authentication
-   * Validates request body against GenerateDocumentStreamRequest schema
+   * Validates request body against GenerateResourceStreamRequest schema
    * Returns SSE stream with progress updates
    */
-  router.post('/api/annotations/:id/generate-document-stream',
-    validateRequestBody('GenerateDocumentStreamRequest'),
+  router.post('/api/annotations/:id/generate-resource-stream',
+    validateRequestBody('GenerateResourceStreamRequest'),
     async (c) => {
       const { id: referenceId } = c.req.param();
-      const body = c.get('validatedBody') as GenerateDocumentStreamRequest;
+      const body = c.get('validatedBody') as GenerateResourceStreamRequest;
 
-      console.log('[GenerateDocumentStream] Received request body:', body);
+      console.log('[GenerateResourceStream] Received request body:', body);
 
       // User will be available from auth middleware
       const user = c.get('user');
@@ -57,15 +57,15 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      console.log(`[GenerateDocument] Starting generation for reference ${referenceId} in document ${body.documentId}`);
-      console.log(`[GenerateDocument] Locale from request:`, body.language);
+      console.log(`[GenerateResource] Starting generation for reference ${referenceId} in resource ${body.resourceId}`);
+      console.log(`[GenerateResource] Locale from request:`, body.language);
 
       // Validate annotation exists using Layer 3
-      const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
+      const projection = await AnnotationQueryService.getResourceAnnotations(body.resourceId);
 
       // Debug: log what annotations exist
       const linkingAnnotations = projection.annotations.filter((a: any) => a.motivation === 'linking');
-      console.log(`[GenerateDocument] Found ${linkingAnnotations.length} linking annotations in document`);
+      console.log(`[GenerateResource] Found ${linkingAnnotations.length} linking annotations in resource`);
       linkingAnnotations.forEach((a: any, i: number) => {
         console.log(`  [${i}] id: ${a.id}`);
       });
@@ -76,7 +76,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
       );
 
       if (!reference) {
-        throw new HTTPException(404, { message: `Reference ${referenceId} not found in document ${body.documentId}` });
+        throw new HTTPException(404, { message: `Reference ${referenceId} not found in resource ${body.resourceId}` });
       }
 
       // Create a generation job (this decouples event emission from HTTP client)
@@ -87,7 +87,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
         status: 'pending',
         userId: user.id,
         referenceId,
-        sourceDocumentId: body.documentId,
+        sourceResourceId: body.resourceId,
         title: body.title,
         prompt: body.prompt,
         language: body.language,
@@ -98,12 +98,12 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
       };
 
       await jobQueue.createJob(job);
-      console.log(`[GenerateDocument] Created job ${job.id} for reference ${referenceId}`);
-      console.log(`[GenerateDocument] Job includes locale:`, job.language);
+      console.log(`[GenerateResource] Created job ${job.id} for reference ${referenceId}`);
+      console.log(`[GenerateResource] Job includes locale:`, job.language);
 
-      // Determine document name for progress messages
+      // Determine resource name for progress messages
       const targetSelector = getTargetSelector(reference.target);
-      const documentName = body.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Document';
+      const resourceName = body.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
 
       // Stream the job's progress to the client
       return streamSSE(c, async (stream) => {
@@ -117,7 +117,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
             data: JSON.stringify({
               status: 'started',
               referenceId,
-              documentName,
+              resourceName,
               percentage: 0,
               message: 'Starting...'
             } as GenerationProgress),
@@ -159,7 +159,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
                       data: JSON.stringify({
                         status: statusMap[progress.stage],
                         referenceId,
-                        documentName,
+                        resourceName,
                         percentage: progress.percentage,
                         message: progress.message || `${progress.stage}...`
                       } as GenerationProgress),
@@ -167,7 +167,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
                       id: String(Date.now())
                     });
                   } catch (sseError) {
-                    console.warn(`[GenerateDocument] Client disconnected, but job ${job.id} will continue processing`);
+                    console.warn(`[GenerateResource] Client disconnected, but job ${job.id} will continue processing`);
                     break; // Client disconnected, stop streaming (job continues)
                   }
                 }
@@ -184,11 +184,11 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
                 data: JSON.stringify({
                   status: 'complete',
                   referenceId,
-                  documentName: result?.documentName || documentName,
-                  documentId: result?.documentId,
-                  sourceDocumentId: body.documentId,
+                  resourceName: result?.resourceName || resourceName,
+                  resourceId: result?.resourceId,
+                  sourceResourceId: body.resourceId,
                   percentage: 100,
-                  message: 'Draft document created! Ready for review.'
+                  message: 'Draft resource created! Ready for review.'
                 } as GenerationProgress),
                 event: 'generation-complete',
                 id: String(Date.now())
@@ -229,7 +229,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[GenerateDocument] Could not send error to client (disconnected), but job ${job.id} status is preserved`);
+            console.warn(`[GenerateResource] Could not send error to client (disconnected), but job ${job.id} status is preserved`);
           }
         }
       });

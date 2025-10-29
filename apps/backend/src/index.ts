@@ -59,7 +59,7 @@ import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
-import { documentsRouter } from './routes/documents/index';
+import { resourcesRouter } from './routes/resources/index';
 import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
 import { jobsRouter } from './routes/jobs/index';
@@ -116,7 +116,7 @@ app.route('/', healthRouter);
 app.route('/', authRouter);
 app.route('/', statusRouter);
 app.route('/', adminRouter);
-app.route('/', documentsRouter);
+app.route('/', resourcesRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
 app.route('/', jobsRouter);
@@ -163,7 +163,7 @@ app.get('/api/test-inference', async (c) => {
 
 
 
-// API Documentation root - redirect to appropriate format
+// API Resourceation root - redirect to appropriate format
 app.get('/api', (c) => {
   const acceptHeader = c.req.header('Accept') || '';
   const userAgent = c.req.header('User-Agent') || '';
@@ -202,7 +202,7 @@ app.get('/api/openapi.json', (c) => {
   return c.json(openApiSpec);
 });
 
-// Serve Swagger UI documentation - now public
+// Serve Swagger UI resourceation - now public
 app.get('/api/docs', async (c) => {
   // Token is optional for authenticated access
   const token = c.req.query('token');
@@ -211,7 +211,7 @@ app.get('/api/docs', async (c) => {
     const swaggerHandler = swaggerUI({ 
       url: token ? `/api/openapi.json?token=${token}` : '/api/openapi.json',
       persistAuthorization: true,
-      title: 'Semiont API Documentation'
+      title: 'Semiont API Resourceation'
     });
     
     // TypeScript workarounds: swaggerUI has type mismatches
@@ -220,7 +220,7 @@ app.get('/api/docs', async (c) => {
     return await swaggerHandler(c as any, async () => {});
   } catch (error) {
     console.error('Error in /api/docs handler:', error);
-    return c.json({ error: 'Failed to load documentation', details: String(error) }, 500);
+    return c.json({ error: 'Failed to load resourceation', details: String(error) }, 500);
   }
 });
 

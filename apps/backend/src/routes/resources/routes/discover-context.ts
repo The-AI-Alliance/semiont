@@ -9,35 +9,35 @@
  */
 
 import { getGraphDatabase } from '../../../graph/factory';
-import type { DocumentsRouterType } from '../shared';
+import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 
 type DiscoverContextResponse = components['schemas']['DiscoverContextResponse'];
 
-export function registerDiscoverContext(router: DocumentsRouterType) {
+export function registerDiscoverContext(router: ResourcesRouterType) {
   /**
-   * POST /api/documents/:id/discover-context
+   * POST /api/resources/:id/discover-context
    *
-   * Discover related documents and concepts
+   * Discover related resources and concepts
    * Requires authentication
    * Validates request body against DiscoverContextRequest schema
    */
-  router.post('/api/documents/:id/discover-context',
+  router.post('/api/resources/:id/discover-context',
     validateRequestBody('DiscoverContextRequest'),
     async (c) => {
       const { id } = c.req.param();
       const graphDb = await getGraphDatabase();
 
-      // Get document connections
-      const connections = await graphDb.getDocumentConnections(id);
-      const connectedDocs = connections.map(conn => conn.targetDocument);
+      // Get resource connections
+      const connections = await graphDb.getResourceConnections(id);
+      const connectedDocs = connections.map(conn => conn.targetResource);
 
       const response: DiscoverContextResponse = {
-        documents: connectedDocs,
+        resources: connectedDocs,
         connections: connections.map(conn => ({
           fromId: id,
-          toId: conn.targetDocument['@id'],
+          toId: conn.targetResource['@id'],
           type: conn.relationshipType || 'link',
           metadata: {},
         })),

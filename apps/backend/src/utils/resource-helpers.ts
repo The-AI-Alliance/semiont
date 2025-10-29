@@ -23,7 +23,7 @@ export function getResourceId(resource: ResourceDescriptor): string {
   if (id.startsWith('urn:semiont:resource:')) {
     return id.replace('urn:semiont:resource:', '');
   }
-  // Extract ID from URL format: https://api.semiont.com/documents/doc-123
+  // Extract ID from URL format: https://api.semiont.com/resources/doc-123
   if (id.includes('/')) {
     const parts = id.split('/');
     return parts[parts.length - 1] || id;
