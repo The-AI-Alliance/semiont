@@ -7,21 +7,21 @@ import { type StoredEvent, isEventRelatedToAnnotation } from '@semiont/api-clien
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
-  documentId: string;
+  resourceId: string;
   hoveredAnnotationId?: string | null;
   onEventHover?: (annotationId: string | null) => void;
   onEventClick?: (annotationId: string | null) => void;
 }
 
-export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHover, onEventClick }: Props) {
+export function AnnotationHistory({ resourceId, hoveredAnnotationId, onEventHover, onEventClick }: Props) {
   const t = useTranslations('AnnotationHistory');
 
   // Load events using React Query
   // React Query will automatically refetch when the query is invalidated by the parent
-  const { data: eventsData, isLoading: loading, isError: error } = resources.events.useQuery(documentId);
+  const { data: eventsData, isLoading: loading, isError: error } = resources.events.useQuery(resourceId);
 
   // Load annotations to look up text for removed/resolved events (single request)
-  const { data: annotationsData } = resources.annotations.useQuery(documentId);
+  const { data: annotationsData } = resources.annotations.useQuery(resourceId);
   const annotations = annotationsData?.annotations || [];
 
   // Refs to track event elements for scrolling

@@ -6,14 +6,14 @@ import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 /**
- * Document event structure from the event store
+ * Resource event structure from the event store
  */
-export interface DocumentEvent {
+export interface ResourceEvent {
   id: string;
   type: string;
   timestamp: string;
   userId: string;
-  documentId: string;
+  resourceId: string;
   payload: Record<string, any>;
   metadata: {
     sequenceNumber: number;
@@ -28,15 +28,15 @@ export interface DocumentEvent {
 export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 interface UseResourceEventsOptions {
-  documentId: string;
-  onEvent?: (event: DocumentEvent) => void;
-  onAnnotationAdded?: (event: DocumentEvent) => void;
-  onAnnotationRemoved?: (event: DocumentEvent) => void;
-  onAnnotationBodyUpdated?: (event: DocumentEvent) => void;
-  onEntityTagAdded?: (event: DocumentEvent) => void;
-  onEntityTagRemoved?: (event: DocumentEvent) => void;
-  onDocumentArchived?: (event: DocumentEvent) => void;
-  onDocumentUnarchived?: (event: DocumentEvent) => void;
+  resourceId: string;
+  onEvent?: (event: ResourceEvent) => void;
+  onAnnotationAdded?: (event: ResourceEvent) => void;
+  onAnnotationRemoved?: (event: ResourceEvent) => void;
+  onAnnotationBodyUpdated?: (event: ResourceEvent) => void;
+  onEntityTagAdded?: (event: ResourceEvent) => void;
+  onEntityTagRemoved?: (event: ResourceEvent) => void;
+  onDocumentArchived?: (event: ResourceEvent) => void;
+  onDocumentUnarchived?: (event: ResourceEvent) => void;
   onError?: (error: string) => void;
   autoConnect?: boolean; // Default: true
 }
@@ -50,7 +50,7 @@ interface UseResourceEventsOptions {
  * @example
  * ```tsx
  * const { status, connect, disconnect } = useResourceEvents({
- *   documentId: 'doc-123',
+ *   resourceId: 'doc-123',
  *   onAnnotationAdded: (event) => {
  *     console.log('New annotation:', event.payload);
  *     // Update UI to show new annotation (highlight, reference, or assessment)
@@ -63,7 +63,7 @@ interface UseResourceEventsOptions {
  * ```
  */
 export function useResourceEvents({
-  documentId,
+  resourceId,
   onEvent,
   onAnnotationAdded,
   onAnnotationRemoved,
@@ -77,13 +77,13 @@ export function useResourceEvents({
 }: UseResourceEventsOptions) {
   const { data: session, status: sessionStatus } = useSession();
   const [status, setStatus] = useState<StreamStatus>('disconnected');
-  const [lastEvent, setLastEvent] = useState<DocumentEvent | null>(null);
+  const [lastEvent, setLastEvent] = useState<ResourceEvent | null>(null);
   const [eventCount, setEventCount] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
 
-  const handleEvent = useCallback((event: DocumentEvent) => {
+  const handleEvent = useCallback((event: ResourceEvent) => {
     setLastEvent(event);
     setEventCount(prev => prev + 1);
 
@@ -126,11 +126,11 @@ export function useResourceEvents({
   ]);
 
   const connect = useCallback(async () => {
-    console.log(`[DocumentEvents] Attempting to connect to document ${documentId} events stream`);
+    console.log(`[ResourceEvents] Attempting to connect to document ${resourceId} events stream`);
 
     // Close any existing connection
     if (abortControllerRef.current) {
-      console.log(`[DocumentEvents] Closing existing connection for ${documentId}`);
+      console.log(`[ResourceEvents] Closing existing connection for ${resourceId}`);
       abortControllerRef.current.abort();
     }
 
@@ -142,13 +142,13 @@ export function useResourceEvents({
 
     // Get auth token from session
     if (!session?.backendToken) {
-      console.error(`[DocumentEvents] Cannot connect to ${documentId}: No auth token`);
+      console.error(`[ResourceEvents] Cannot connect to ${resourceId}: No auth token`);
       onError?.('Authentication required');
       setStatus('error');
       return;
     }
 
-    console.log(`[DocumentEvents] Connecting to SSE stream for document ${documentId}`);
+    console.log(`[ResourceEvents] Connecting to SSE stream for document ${resourceId}`);
     setStatus('connecting');
 
     // Create new abort controller
@@ -157,7 +157,7 @@ export function useResourceEvents({
 
     // Build SSE URL
     const apiUrl = NEXT_PUBLIC_API_URL;
-    const url = `${apiUrl}/api/documents/${documentId}/events/stream`;
+    const url = `${apiUrl}/api/documents/${resourceId}/events/stream`;
 
     try {
       await fetchEventSource(url, {
@@ -169,11 +169,11 @@ export function useResourceEvents({
 
         async onopen(response) {
           if (response.ok) {
-            console.log(`[DocumentEvents] Successfully connected to document ${documentId} events stream`);
+            console.log(`[ResourceEvents] Successfully connected to document ${resourceId} events stream`);
             setStatus('connected');
             reconnectAttemptsRef.current = 0; // Reset reconnect counter
           } else {
-            console.error(`[DocumentEvents] Failed to open stream for ${documentId}: ${response.status}`);
+            console.error(`[ResourceEvents] Failed to open stream for ${resourceId}: ${response.status}`);
             throw new Error(`Failed to open stream: ${response.status}`);
           }
         },
@@ -186,18 +186,18 @@ export function useResourceEvents({
 
           // Handle stream-connected event
           if (msg.event === 'stream-connected') {
-            console.log(`[DocumentEvents] Stream connected event received for ${documentId}`);
+            console.log(`[ResourceEvents] Stream connected event received for ${resourceId}`);
             return;
           }
 
-          console.log(`[DocumentEvents] Received event for document ${documentId}:`, msg.event);
+          console.log(`[ResourceEvents] Received event for document ${resourceId}:`, msg.event);
 
           // Handle document events
           try {
-            const event = JSON.parse(msg.data) as DocumentEvent;
+            const event = JSON.parse(msg.data) as ResourceEvent;
             handleEvent(event);
           } catch (error) {
-            console.error('[DocumentEvents] Failed to parse event:', error, msg.data);
+            console.error('[ResourceEvents] Failed to parse event:', error, msg.data);
           }
         },
 
@@ -211,7 +211,7 @@ export function useResourceEvents({
 
           // Don't retry on 404 - document doesn't exist
           if (err instanceof Error && err.message.includes('404')) {
-            console.error(`[DocumentEvents] Document ${documentId} not found (404). Stopping reconnection attempts.`);
+            console.error(`[ResourceEvents] Document ${resourceId} not found (404). Stopping reconnection attempts.`);
             onError?.('Document not found');
             throw err;
           }
@@ -220,7 +220,7 @@ export function useResourceEvents({
           reconnectAttemptsRef.current++;
           const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
 
-          console.log(`[DocumentEvents] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
+          console.log(`[ResourceEvents] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
 
           reconnectTimeoutRef.current = setTimeout(() => {
             if (!abortController.signal.aborted) {
@@ -237,13 +237,13 @@ export function useResourceEvents({
       if (!abortController.signal.aborted) {
         // Don't log 404s - already handled in onerror
         if (!(error instanceof Error && error.message.includes('404'))) {
-          console.error('[DocumentEvents] Failed to connect:', error);
+          console.error('[ResourceEvents] Failed to connect:', error);
           setStatus('error');
           onError?.('Failed to connect to event stream');
         }
       }
     }
-  }, [documentId, handleEvent, onError, session]);
+  }, [resourceId, handleEvent, onError, session]);
 
   const disconnect = useCallback(() => {
     if (abortControllerRef.current) {
@@ -258,7 +258,7 @@ export function useResourceEvents({
 
     setStatus('disconnected');
     reconnectAttemptsRef.current = 0;
-  }, [documentId]);
+  }, [resourceId]);
 
   // Auto-connect on mount if enabled and authenticated
   useEffect(() => {

@@ -62,12 +62,14 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     if (loading) {
       announceSearching();
     } else if (searchData) {
-      const docResults: SearchResult[] = (searchData.resources || []).map((resource: any) => ({
-        type: 'document' as const,
-        id: getResourceId(resource),
-        name: resource.name,
-        content: resource.content?.substring(0, 150)
-      }));
+      const docResults: SearchResult[] = (searchData.resources || [])
+        .filter((resource: any) => getResourceId(resource) !== undefined)
+        .map((resource: any) => ({
+          type: 'document' as const,
+          id: getResourceId(resource)!,
+          name: resource.name,
+          content: resource.content?.substring(0, 150)
+        }));
 
       // Search entities - Currently entities API may not be available
       // TODO: Add entities search when API is ready

@@ -6,7 +6,7 @@ import { useRouter } from '@/i18n/routing';
 import { resources } from '@/lib/api/resources';
 import { entityTypes as entityTypesAPI } from '@/lib/api/entity-types';
 import type { components } from '@semiont/api-client';
-import { getResourceId, getDocumentId } from '@/lib/resource-helpers';
+import { getResourceId } from '@/lib/resource-helpers';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 import { useOpenResources } from '@/contexts/OpenResourcesContext';
@@ -170,7 +170,10 @@ export default function DiscoverPage() {
   }, []);
 
   const openResource = useCallback((resource: ResourceDescriptor) => {
-    router.push(`/know/resource/${encodeURIComponent(getResourceId(resource))}`);
+    const resourceId = getResourceId(resource);
+    if (resourceId) {
+      router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
+    }
   }, [router]);
 
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {

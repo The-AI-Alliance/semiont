@@ -13,7 +13,7 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getResourceId, getDocumentId, getPrimaryMediaType } from '@/lib/resource-helpers';
+import { getResourceId, getPrimaryMediaType } from '@/lib/resource-helpers';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
@@ -85,11 +85,14 @@ function ComposeDocumentContent() {
 
           // Fetch representation separately
           try {
-            const documentId = getResourceId(cloneData.sourceResource);
-            // Get the primary representation's mediaType from the source document
+            const resourceId = getResourceId(cloneData.sourceResource);
+            if (!resourceId) {
+              throw new Error('Cannot extract resource ID from source resource');
+            }
+            // Get the primary representation's mediaType from the source resource
             const mediaType = getPrimaryMediaType(cloneData.sourceResource) || 'text/plain';
 
-            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/documents/${encodeURIComponent(documentId)}`, {
+            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/resources/${encodeURIComponent(resourceId)}`, {
               headers: {
                 'Authorization': `Bearer ${session.backendToken}`,
                 'Accept': mediaType,
@@ -129,11 +132,10 @@ function ComposeDocumentContent() {
 
     setIsCreating(true);
     try {
-      let documentId: string;
-      let documentName: string;
-      
+      let resourceId: string;
+
       if (isClone && cloneToken) {
-        // Create document from clone token with edited content
+        // Create resource from clone token with edited content
         const response = await createFromTokenMutation.mutateAsync({
           token: cloneToken,
           name: newDocName,
@@ -141,14 +143,13 @@ function ComposeDocumentContent() {
           archiveOriginal: archiveOriginal
         });
 
-        const docId = response.resource ? getResourceId(response.resource) : '';
-        if (!docId) {
-          throw new Error('No document ID returned from server');
+        const resId = response.resource ? getResourceId(response.resource) : '';
+        if (!resId) {
+          throw new Error('No resource ID returned from server');
         }
-        documentId = docId;
-        documentName = response.resource?.name || newDocName;
+        resourceId = resId;
       } else {
-        // Create a new document with entity types
+        // Create a new resource with entity types
         const response = await createDocMutation.mutateAsync({
           name: newDocName,
           content: newDocContent,
@@ -157,15 +158,14 @@ function ComposeDocumentContent() {
           creationMethod: 'ui'
         });
 
-        const docId = response.resource ? getResourceId(response.resource) : '';
-        if (!docId) {
-          throw new Error('No document ID returned from server');
+        const resId = response.resource ? getResourceId(response.resource) : '';
+        if (!resId) {
+          throw new Error('No resource ID returned from server');
         }
-        documentId = docId;
-        documentName = response.resource?.name || newDocName;
+        resourceId = resId;
 
-        // If this is a reference completion, update the reference to point to the new document
-        if (isReferenceCompletion && referenceId && documentId && sourceDocumentId) {
+        // If this is a reference completion, update the reference to point to the new resource
+        if (isReferenceCompletion && referenceId && resourceId && sourceDocumentId) {
           try {
             await updateAnnotationBodyMutation.mutateAsync({
               id: referenceId,
@@ -175,23 +175,23 @@ function ComposeDocumentContent() {
                   op: 'add',
                   item: {
                     type: 'SpecificResource',
-                    source: documentId,
+                    source: resourceId,
                     purpose: 'linking'
                   }
                 }]
               }
             });
-            showSuccess('Reference successfully linked to the new document');
+            showSuccess('Reference successfully linked to the new resource');
           } catch (error) {
             console.error('Failed to update reference:', error);
             // Don't fail the whole operation, just log the error
-            showError('Document created but failed to update reference. You may need to manually link it.');
+            showError('Resource created but failed to update reference. You may need to manually link it.');
           }
         }
       }
 
-      // Navigate to the new document (will add to tabs on page load)
-      router.push(`/know/resource/${encodeURIComponent(documentId)}`);
+      // Navigate to the new resource (will add to tabs on page load)
+      router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
     } catch (error) {
       console.error('Failed to save document:', error);
       showError('Failed to save document. Please try again.');
