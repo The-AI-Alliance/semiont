@@ -27,39 +27,39 @@ All endpoint details, schemas, and request/response formats are defined in [../o
 
 ## Core Capabilities
 
-### Document Management
+### Resource Management
 
-Create, read, update, and delete markdown documents. Features include:
+Create, read, update, and delete markdown resources. Features include:
 
 - **CRUD Operations**: Standard create, read, update, delete
 - **Content Types**: text/plain, text/markdown
-- **Search**: Find documents by name or content
-- **Pagination**: Efficient browsing of large document sets
+- **Search**: Find resources by name or content
+- **Pagination**: Efficient browsing of large resource sets
 - **Event Sourcing**: All changes tracked in immutable event log
-- **Content Streaming**: Efficient handling of large documents
+- **Content Streaming**: Efficient handling of large resources
 
-**Related Endpoints**: `/api/documents`, `/api/documents/{id}`, `/api/documents/search`
+**Related Endpoints**: `/api/resources`, `/api/resources/{id}`, `/api/resources/search`
 
 See [openapi.json](../openapi.json) for complete endpoint details.
 
 ### Annotation Management (W3C Web Annotation Model)
 
-Full W3C Web Annotation Data Model compliance for marking up documents with:
+Full W3C Web Annotation Data Model compliance for marking up resources with:
 
 - **Entity Tags**: Mark text spans with entity types (Person, Concept, Organization, etc.)
-- **Document Links**: Create references between documents
+- **Resource Links**: Create references between resources
 - **Highlights**: Mark important passages
 - **Multiple Selectors**: TextPositionSelector, TextQuoteSelector support
-- **Multi-body Arrays**: Combine entity tags and document links
+- **Multi-body Arrays**: Combine entity tags and resource links
 - **Motivations**: W3C vocabulary (linking, highlighting, tagging, commenting, etc.)
 
 **Workflows:**
 - **Stub References**: Entity tags without resolved links (provisional annotations)
-- **Resolved References**: Entity tags + links to specific documents
+- **Resolved References**: Entity tags + links to specific resources
 - **Highlights**: Important passages with optional entity classification
-- **AI Generation**: Generate document content from annotated text
+- **AI Generation**: Generate resource content from annotated text
 
-**Related Endpoints**: `/api/annotations`, `/api/annotations/{id}`, `/api/documents/{id}/annotations`
+**Related Endpoints**: `/api/annotations`, `/api/annotations/{id}`, `/api/resources/{id}/annotations`
 
 For W3C JSON-LD structure and examples, see [W3C Web Annotation](./W3C-WEB-ANNOTATION.md).
 For backend implementation flow, see [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md).
@@ -79,17 +79,17 @@ Define and manage custom entity types for semantic classification:
 
 Extract semantic context from the knowledge graph for LLM consumption:
 
-- **Document Context**: Get related documents, annotations, and entity information
+- **Resource Context**: Get related resources, annotations, and entity information
 - **Text Discovery**: Find relevant graph context from arbitrary text
-- **Event Streaming**: Real-time updates to document state
+- **Event Streaming**: Real-time updates to resource state
 - **Reference Context**: Build LLM context from annotation references
 
 **Workflows:**
-- **AI Generation**: Generate documents from annotated text with graph context
-- **Context Discovery**: Find related documents and entities
+- **AI Generation**: Generate resources from annotated text with graph context
+- **Context Discovery**: Find related resources and entities
 - **Streaming Detection**: Real-time entity and annotation detection
 
-**Related Endpoints**: `/api/documents/{id}/llm-context`, `/api/documents/{id}/discover-context`, `/api/documents/{id}/detect-entities`
+**Related Endpoints**: `/api/resources/{id}/llm-context`, `/api/resources/{id}/discover-context`, `/api/resources/{id}/detect-annotations-stream`
 
 ## Authentication & Security
 
@@ -113,15 +113,15 @@ For complete authentication details, see [Backend Authentication](../../apps/bac
 
 The API builds and maintains a knowledge graph with these core entities:
 
-- **Documents**: Markdown/text content with metadata
-- **Annotations**: W3C-compliant markup linking text spans to entities and documents
+- **Resources**: Markdown/text content with metadata
+- **Annotations**: W3C-compliant markup linking text spans to entities and resources
 - **Entity Types**: Semantic classifications (Person, Organization, Concept, Location, etc.)
-- **References**: Graph edges between documents created via annotations
+- **References**: Graph edges between resources created via annotations
 - **Events**: Immutable change log (event sourcing)
 
 **Graph Capabilities:**
-- **Backlinks**: Discover which documents reference a given document
-- **Entity Networks**: Find all documents mentioning an entity type
+- **Backlinks**: Discover which resources reference a given resource
+- **Entity Networks**: Find all resources mentioning an entity type
 - **Context Extraction**: Build semantic context for LLM consumption
 - **Path Finding**: Trace connections between concepts
 
@@ -167,4 +167,4 @@ For architecture details, see [Backend W3C Implementation](../../apps/backend/do
 
 ---
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2025-10-29
