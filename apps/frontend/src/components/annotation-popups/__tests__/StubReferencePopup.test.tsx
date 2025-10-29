@@ -117,12 +117,12 @@ describe('StubReferencePopup', () => {
 
       // SearchResourcesModal should appear
       await waitFor(() => {
-        expect(screen.getByText('Search Documents')).toBeInTheDocument();
+        expect(screen.getByText('Search Resources')).toBeInTheDocument();
       });
 
       // Both modals should be visible
       expect(screen.getByText('Stub Reference')).toBeInTheDocument();
-      expect(screen.getByText('Search Documents')).toBeInTheDocument();
+      expect(screen.getByText('Search Resources')).toBeInTheDocument();
     });
 
     it('should handle Escape key in nested modal (closes only the nested modal)', async () => {
@@ -133,7 +133,7 @@ describe('StubReferencePopup', () => {
       fireEvent.click(linkButton);
 
       await waitFor(() => {
-        expect(screen.getByText('Search Documents')).toBeInTheDocument();
+        expect(screen.getByText('Search Resources')).toBeInTheDocument();
       });
 
       // Press Escape key
@@ -141,7 +141,7 @@ describe('StubReferencePopup', () => {
 
       // SearchResourcesModal should close
       await waitFor(() => {
-        expect(screen.queryByText('Search Documents')).not.toBeInTheDocument();
+        expect(screen.queryByText('Search Resources')).not.toBeInTheDocument();
       });
 
       // But StubReferencePopup should remain open
@@ -156,11 +156,11 @@ describe('StubReferencePopup', () => {
       fireEvent.click(linkButton);
 
       await waitFor(() => {
-        expect(screen.getByText('Search Documents')).toBeInTheDocument();
+        expect(screen.getByText('Search Resources')).toBeInTheDocument();
       });
 
       // Verify modal elements are present and accessible
-      const searchInput = screen.getByPlaceholderText('Search for documents...');
+      const searchInput = screen.getByPlaceholderText('Search for resources...');
 
       expect(searchInput).toBeInTheDocument();
 
@@ -181,7 +181,7 @@ describe('StubReferencePopup', () => {
       fireEvent.click(linkButton);
 
       await waitFor(() => {
-        expect(screen.getByText('Search Documents')).toBeInTheDocument();
+        expect(screen.getByText('Search Resources')).toBeInTheDocument();
       });
 
       // Close the SearchResourcesModal (there are multiple close buttons, get the last one)
@@ -193,7 +193,7 @@ describe('StubReferencePopup', () => {
 
       // SearchResourcesModal should close
       await waitFor(() => {
-        expect(screen.queryByText('Search Documents')).not.toBeInTheDocument();
+        expect(screen.queryByText('Search Resources')).not.toBeInTheDocument();
       });
 
       // Parent modal should still be open

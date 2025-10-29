@@ -80,7 +80,7 @@ export function SearchResourcesModal({ isOpen, onClose, onSelect, searchTerm = '
               <DialogPanel className="w-full max-w-[600px] transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 p-6 transition-all">
                 <div className="flex items-center justify-between mb-4">
                   <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Search Documents
+                    Search Resources
                   </DialogTitle>
                   <button
                     onClick={onClose}
