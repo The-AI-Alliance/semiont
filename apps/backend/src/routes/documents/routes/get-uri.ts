@@ -2,8 +2,8 @@
  * Get Document URI Route - W3C Content Negotiation
  *
  * Handles globally resolvable document URIs with content negotiation:
- * - Accept: application/ld+json -> returns JSON-LD representation
- * - Accept: text/html (or browser) -> redirects to frontend viewer
+ * - Accept: application/ld+json -> returns JSON-LD representation (default)
+ * - ?view=semiont -> redirects to Semiont frontend viewer
  *
  * This implements W3C Web Annotation Data Model requirement that
  * document URIs be globally resolvable.
@@ -16,7 +16,7 @@ import type { DocumentsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
-import { prefersHtml, getFrontendUrl } from '../../../middleware/content-negotiation';
+import { getFrontendUrl } from '../../../middleware/content-negotiation';
 
 type GetDocumentResponse = components['schemas']['GetDocumentResponse'];
 
@@ -27,13 +27,14 @@ export function registerGetDocumentUri(router: DocumentsRouterType) {
    * W3C-compliant globally resolvable document URI
    * Supports content negotiation:
    * - JSON-LD for machines (default)
-   * - HTML redirect to frontend for browsers
+   * - ?view=semiont -> 302 redirect to Semiont frontend viewer
    */
   router.get('/documents/:id', async (c) => {
     const { id } = c.req.param();
 
-    // Check if client prefers HTML (browser)
-    if (prefersHtml(c)) {
+    // Check for explicit view=semiont query parameter
+    const view = c.req.query('view');
+    if (view === 'semiont') {
       const frontendUrl = getFrontendUrl();
       const normalizedBase = frontendUrl.endsWith('/') ? frontendUrl.slice(0, -1) : frontendUrl;
       const redirectUrl = `${normalizedBase}/know/document/${id}`;
