@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
-import { documents } from '@/lib/api/documents';
+import { resources } from '@/lib/api/resources';
 
 interface SearchResourcesModalProps {
   isOpen: boolean;
@@ -24,7 +24,7 @@ export function SearchResourcesModal({ isOpen, onClose, onSelect, searchTerm = '
   }, [search]);
 
   // Use React Query for search
-  const { data: searchData, isFetching: loading } = documents.search.useQuery(
+  const { data: searchData, isFetching: loading } = resources.search.useQuery(
     debouncedSearch,
     10
   );
@@ -95,7 +95,7 @@ export function SearchResourcesModal({ isOpen, onClose, onSelect, searchTerm = '
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search for documents..."
+                    placeholder="Search for resources..."
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-gray-900 dark:text-white"
                     autoFocus
                   />

@@ -21,7 +21,7 @@ interface SortableResourceTabProps {
 }
 
 export function SortableResourceTab({ doc, isCollapsed, onClose }: SortableResourceTabProps) {
-  const t = useTranslations('SortableDocumentTab');
+  const t = useTranslations('SortableResourceTab');
   const pathname = usePathname();
   const docHref = `/know/resource/${doc.id}`;
   const isActive = pathname === docHref;
@@ -104,7 +104,7 @@ export function SortableResourceTab({ doc, isCollapsed, onClose }: SortableResou
         <button
           onClick={(e) => onClose(doc.id, e)}
           className="ml-1 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
-          title={t('closeDocument')}
+          title={t('closeResource')}
         >
           <XMarkIcon className="h-3 w-3 text-gray-500 dark:text-gray-400" />
         </button>

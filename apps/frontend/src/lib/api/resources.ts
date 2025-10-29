@@ -9,18 +9,18 @@ type RequestContent<T> = T extends { requestBody?: { content: { 'application/jso
 
 type Document = ResponseContent<paths['/api/documents']['get']>['documents'][number];
 type CreateResourceRequest = RequestContent<paths['/api/documents']['post']>;
-type CreateDocumentResponse = paths['/api/documents']['post']['responses'][201]['content']['application/json'];
+type CreateResourceResponse = paths['/api/documents']['post']['responses'][201]['content']['application/json'];
 type UpdateResourceRequest = RequestContent<paths['/documents/{id}']['patch']>;
 type GetResourceResponse = paths['/documents/{id}']['get']['responses'][200]['content']['application/ld+json'];
-type ListDocumentsResponse = ResponseContent<paths['/api/documents']['get']>;
+type ListResourcesResponse = ResponseContent<paths['/api/documents']['get']>;
 type ReferencedBy = paths['/api/documents/{id}/referenced-by']['get']['responses'][200]['content']['application/json']['referencedBy'][number];
-type GetDocumentByTokenResponse = paths['/api/documents/token/{token}']['get']['responses'][200]['content']['application/json'];
-type CreateDocumentFromTokenRequest = RequestContent<paths['/api/documents/create-from-token']['post']>;
-type CreateDocumentFromTokenResponse = paths['/api/documents/create-from-token']['post']['responses'][201]['content']['application/json'];
-type CloneDocumentWithTokenResponse = paths['/api/documents/{id}/clone-with-token']['post']['responses'][200]['content']['application/json'];
+type GetResourceByTokenResponse = paths['/api/documents/token/{token}']['get']['responses'][200]['content']['application/json'];
+type CreateResourceFromTokenRequest = RequestContent<paths['/api/documents/create-from-token']['post']>;
+type CreateResourceFromTokenResponse = paths['/api/documents/create-from-token']['post']['responses'][201]['content']['application/json'];
+type CloneResourceWithTokenResponse = paths['/api/documents/{id}/clone-with-token']['post']['responses'][200]['content']['application/json'];
 type GetAnnotationsResponse = paths['/api/documents/{id}/annotations']['get']['responses'][200]['content']['application/json'];
 
-export const documents = {
+export const resources = {
   list: {
     useQuery: (limit?: number, archived?: boolean) => {
       const { data: session } = useSession();
@@ -31,7 +31,7 @@ export const documents = {
 
       return useQuery({
         queryKey: QUERY_KEYS.documents.all(limit, archived),
-        queryFn: () => fetchAPI<ListDocumentsResponse>(`/api/documents${queryString}`, {}, session?.backendToken),
+        queryFn: () => fetchAPI<ListResourcesResponse>(`/api/documents${queryString}`, {}, session?.backendToken),
         enabled: !!session?.backendToken && !!session?.user?.isAdmin,
       });
     },
@@ -55,7 +55,7 @@ export const documents = {
 
       return useMutation({
         mutationFn: (data: CreateResourceRequest) =>
-          fetchAPI<CreateDocumentResponse>('/api/documents', {
+          fetchAPI<CreateResourceResponse>('/api/documents', {
             method: 'POST',
             body: JSON.stringify(data),
           }, session?.backendToken),
@@ -121,7 +121,7 @@ export const documents = {
 
       return useMutation({
         mutationFn: (id: string) =>
-          fetchAPI<CloneDocumentWithTokenResponse>(`/api/documents/${id}/clone-with-token`, {
+          fetchAPI<CloneResourceWithTokenResponse>(`/api/documents/${id}/clone-with-token`, {
             method: 'POST',
           }, session?.backendToken),
       });
@@ -133,7 +133,7 @@ export const documents = {
       const { data: session } = useSession();
       return useQuery({
         queryKey: QUERY_KEYS.documents.byToken(token),
-        queryFn: () => fetchAPI<GetDocumentByTokenResponse>(
+        queryFn: () => fetchAPI<GetResourceByTokenResponse>(
           `/api/documents/token/${token}`,
           {},
           session?.backendToken
@@ -149,8 +149,8 @@ export const documents = {
       const queryClient = useQueryClient();
 
       return useMutation({
-        mutationFn: (data: CreateDocumentFromTokenRequest) =>
-          fetchAPI<CreateDocumentFromTokenResponse>(`/api/documents/create-from-token`, {
+        mutationFn: (data: CreateResourceFromTokenRequest) =>
+          fetchAPI<CreateResourceFromTokenResponse>(`/api/documents/create-from-token`, {
             method: 'POST',
             body: JSON.stringify(data),
           }, session?.backendToken),

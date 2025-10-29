@@ -121,7 +121,7 @@ export function StubReferencePopup({
             {/* Link Options */}
             <div className="mb-4">
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('linkToDocument')}
+                {t('linkToResource')}
               </p>
               <div className="space-y-2">
                 <button

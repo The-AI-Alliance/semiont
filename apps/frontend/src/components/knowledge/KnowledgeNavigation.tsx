@@ -49,7 +49,7 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
       name: t('compose'),
       href: '/know/compose',
       icon: PlusIcon,
-      description: t('composeNewDocument')
+      description: t('composeNewResource')
     }
   ];
 

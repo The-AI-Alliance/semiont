@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { documents } from '@/lib/api/documents';
+import { resources } from '@/lib/api/resources';
 import { entityTypes as entityTypesAPI } from '@/lib/api/entity-types';
 import type { components } from '@semiont/api-client';
 import { getResourceId, getDocumentId } from '@/lib/resource-helpers';
@@ -115,7 +115,7 @@ export default function DiscoverPage() {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // Load recent documents using React Query
-  const { data: recentDocsData, isLoading: isLoadingRecent } = documents.list.useQuery(
+  const { data: recentDocsData, isLoading: isLoadingRecent } = resources.list.useQuery(
     10,
     false
   );
@@ -124,7 +124,7 @@ export default function DiscoverPage() {
   const { data: entityTypesData } = entityTypesAPI.all.useQuery();
 
   // Search documents using React Query (only when there's a search query)
-  const { data: searchData, isFetching: isSearching } = documents.search.useQuery(
+  const { data: searchData, isFetching: isSearching } = resources.search.useQuery(
     debouncedSearchQuery,
     20
   );
@@ -273,12 +273,12 @@ export default function DiscoverPage() {
         <div>
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             {showNoResultsWarning
-              ? t('recentDocuments')
+              ? t('recentResources')
               : hasSearchResults
                 ? t('searchResults', { count: searchDocuments.length })
                 : selectedEntityType
                   ? t('documentsTaggedWith', { entityType: selectedEntityType })
-                  : t('recentDocuments')
+                  : t('recentResources')
             }
           </h3>
 
@@ -312,14 +312,14 @@ export default function DiscoverPage() {
           ) : (
             <div className="text-center py-12">
               <p className="text-gray-500 dark:text-gray-400">
-                {t('noDocumentsAvailable')}
+                {t('noResourcesAvailable')}
               </p>
               {!hasSearchQuery && (
                 <button
                   onClick={() => router.push('/know/compose')}
                   className="mt-4 px-6 py-2 bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20 border border-black/20 dark:border-white/20 text-gray-900 dark:text-white rounded-lg transition-all duration-300 transform hover:scale-105"
                 >
-                  {t('composeFirstDocument')}
+                  {t('composeFirstResource')}
                 </button>
               )}
             </div>

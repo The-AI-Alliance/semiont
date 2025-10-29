@@ -18,10 +18,10 @@ export function ModerationNavigation() {
 
   const navigation = [
     {
-      name: t('recentDocuments'),
+      name: t('recentResources'),
       href: '/moderate/recent',
       icon: ClockIcon,
-      description: t('recentDocumentsDescription')
+      description: t('recentResourcesDescription')
     },
     {
       name: t('entityTags'),

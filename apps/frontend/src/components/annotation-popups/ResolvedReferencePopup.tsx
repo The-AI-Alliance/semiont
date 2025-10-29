@@ -134,7 +134,7 @@ export function ResolvedReferencePopup({
               onClick={handleUnlinkDocument}
               className={`${buttonStyles.secondary.base} w-full justify-center`}
             >
-              ⛓️‍💥 {t('unlinkDocument')}
+              ⛓️‍💥 {t('unlinkResource')}
             </button>
             <button
               onClick={handleConvertToHighlight}

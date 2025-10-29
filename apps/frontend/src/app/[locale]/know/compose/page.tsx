@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { documents } from '@/lib/api/documents';
+import { resources } from '@/lib/api/resources';
 import { annotations } from '@/lib/api/annotations';
 import { entityTypes } from '@/lib/api/entity-types';
 import { buttonStyles } from '@/lib/button-styles';
@@ -53,12 +53,12 @@ function ComposeDocumentContent() {
   const availableEntityTypes = entityTypesData?.entityTypes || [];
 
   // Set up mutation hooks
-  const createDocMutation = documents.create.useMutation();
+  const createDocMutation = resources.create.useMutation();
   const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
 
   // Fetch cloned document data if in clone mode
-  const { data: cloneData } = documents.getByToken.useQuery(tokenFromUrl || '');
-  const createFromTokenMutation = documents.createFromToken.useMutation();
+  const { data: cloneData } = resources.getByToken.useQuery(tokenFromUrl || '');
+  const createFromTokenMutation = resources.createFromToken.useMutation();
 
   // Load cloned document data if in clone mode or pre-fill reference completion data
   useEffect(() => {
@@ -240,14 +240,14 @@ function ComposeDocumentContent() {
         <form onSubmit={handleSaveDocument} className="space-y-6">
           <div>
             <label htmlFor="docName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('documentName')}
+              {t('resourceName')}
             </label>
             <input
               id="docName"
               type="text"
               value={newDocName}
               onChange={(e) => setNewDocName(e.target.value)}
-              placeholder={t('documentNamePlaceholder')}
+              placeholder={t('resourceNamePlaceholder')}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
               disabled={isCreating}
@@ -331,7 +331,7 @@ function ComposeDocumentContent() {
           {/* Content editor */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {isClone ? t('documentContent') : t('content')}
+              {isClone ? t('resourceContent') : t('content')}
             </label>
             <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
               <CodeMirrorRenderer
@@ -377,7 +377,7 @@ function ComposeDocumentContent() {
             >
               {isCreating
                 ? (isClone ? t('saving') : isReferenceCompletion ? t('creatingAndLinking') : t('creating'))
-                : (isClone ? t('saveClonedDocument') : isReferenceCompletion ? t('createAndLinkDocument') : t('createResource'))}
+                : (isClone ? t('saveClonedResource') : isReferenceCompletion ? t('createAndLinkResource') : t('createResource'))}
             </button>
           </div>
         </form>

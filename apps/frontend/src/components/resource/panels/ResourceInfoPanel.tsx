@@ -27,7 +27,7 @@ export function ResourceInfoPanel({
   documentEntityTypes,
   documentLocale
 }: Props) {
-  const t = useTranslations('DocumentInfoPanel');
+  const t = useTranslations('ResourceInfoPanel');
 
   // Count stub vs resolved references
   const stubCount = useMemo(
@@ -158,7 +158,7 @@ export function ResourceInfoPanel({
                     href={`/know/resource/${encodeURIComponent(ref.target.source)}`}
                     className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
                   >
-                    {ref.documentName || t('untitledDocument')}
+                    {ref.documentName || t('untitledResource')}
                   </Link>
                   <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
                     "{ref.target.selector?.exact || t('noText')}"

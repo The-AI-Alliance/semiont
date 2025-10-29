@@ -17,7 +17,7 @@ export function ResourceActionsPanel({
   onUnarchive,
   onClone
 }: Props) {
-  const t = useTranslations('DocumentPanel');
+  const t = useTranslations('ResourceActionsPanel');
 
   return (
     <div className="space-y-4">
