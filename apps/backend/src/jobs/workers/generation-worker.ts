@@ -47,15 +47,37 @@ export class GenerationWorker extends JobWorker {
 
     const basePath = getFilesystemConfig().path;
     const repStore = new FilesystemRepresentationStore({ basePath });
+    const eventStore = await createEventStore(basePath);
 
-    // Update progress: fetching
-    job.progress = {
-      stage: 'fetching',
-      percentage: 20,
-      message: 'Fetching source resource...'
-    };
-    console.log(`[GenerationWorker] 📥 ${job.progress.message}`);
-    await this.updateJobProgress(job);
+    // Emit job.started event
+    await eventStore.appendEvent({
+      type: 'job.started',
+      resourceId: job.sourceResourceId,
+      userId: job.userId,
+      version: 1,
+      payload: {
+        jobId: job.id,
+        jobType: 'generation',
+        totalSteps: 5,  // fetching, generating, creating, linking, complete
+      },
+    });
+
+    // Emit job.progress event (fetching)
+    await eventStore.appendEvent({
+      type: 'job.progress',
+      resourceId: job.sourceResourceId,
+      userId: job.userId,
+      version: 1,
+      payload: {
+        jobId: job.id,
+        jobType: 'generation',
+        percentage: 20,
+        currentStep: 'fetching',
+        processedSteps: 1,
+        totalSteps: 5,
+        message: 'Fetching source resource...',
+      },
+    });
 
     // Fetch annotation from Layer 3
     const projection = await AnnotationQueryService.getResourceAnnotations(job.sourceResourceId);
@@ -78,14 +100,22 @@ export class GenerationWorker extends JobWorker {
     const resourceName = job.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
     console.log(`[GenerationWorker] Generating resource: "${resourceName}"`);
 
-    // Update progress: generating
-    job.progress = {
-      stage: 'generating',
-      percentage: 40,
-      message: 'Creating content with AI...'
-    };
-    console.log(`[GenerationWorker] 🤖 ${job.progress.message}`);
-    await this.updateJobProgress(job);
+    // Emit job.progress event (generating)
+    await eventStore.appendEvent({
+      type: 'job.progress',
+      resourceId: job.sourceResourceId,
+      userId: job.userId,
+      version: 1,
+      payload: {
+        jobId: job.id,
+        jobType: 'generation',
+        percentage: 40,
+        currentStep: 'generating',
+        processedSteps: 2,
+        totalSteps: 5,
+        message: 'Creating content with AI...',
+      },
+    });
 
     // Generate content using AI
     const prompt = job.prompt || `Create a comprehensive resource about "${resourceName}"`;
@@ -101,25 +131,25 @@ export class GenerationWorker extends JobWorker {
 
     console.log(`[GenerationWorker] ✅ Generated ${generatedContent.content.length} bytes of content`);
 
-    // Update progress: creating
-    job.progress = {
-      stage: 'generating',
-      percentage: 70,
-      message: 'Content ready, creating resource...'
-    };
-    await this.updateJobProgress(job);
-
     // Generate resource ID
     const resourceId = generateUuid();
 
-    // Update progress: creating
-    job.progress = {
-      stage: 'creating',
-      percentage: 85,
-      message: 'Saving resource...'
-    };
-    console.log(`[GenerationWorker] 💾 ${job.progress.message}`);
-    await this.updateJobProgress(job);
+    // Emit job.progress event (creating)
+    await eventStore.appendEvent({
+      type: 'job.progress',
+      resourceId: job.sourceResourceId,
+      userId: job.userId,
+      version: 1,
+      payload: {
+        jobId: job.id,
+        jobType: 'generation',
+        percentage: 85,
+        currentStep: 'creating',
+        processedSteps: 4,
+        totalSteps: 5,
+        message: 'Saving resource...',
+      },
+    });
 
     // Save content to RepresentationStore
     const storedRep = await repStore.store(Buffer.from(generatedContent.content), {
@@ -129,7 +159,6 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] ✅ Saved resource representation to filesystem: ${resourceId}`);
 
     // Emit resource.created event
-    const eventStore = await createEventStore(basePath);
     await eventStore.appendEvent({
       type: 'resource.created',
       resourceId,
@@ -148,15 +177,6 @@ export class GenerationWorker extends JobWorker {
       },
     });
     console.log(`[GenerationWorker] Emitted resource.created event for ${resourceId}`);
-
-    // Update progress: linking
-    job.progress = {
-      stage: 'linking',
-      percentage: 95,
-      message: 'Linking reference...'
-    };
-    console.log(`[GenerationWorker] 🔗 ${job.progress.message}`);
-    await this.updateJobProgress(job);
 
     // Emit annotation.body.updated event to link the annotation to the new resource
     const operations: BodyOperation[] = [{
@@ -186,12 +206,20 @@ export class GenerationWorker extends JobWorker {
       resourceName
     };
 
-    job.progress = {
-      stage: 'linking',
-      percentage: 100,
-      message: 'Complete!'
-    };
-    await this.updateJobProgress(job);
+    // Emit job.completed event
+    await eventStore.appendEvent({
+      type: 'job.completed',
+      resourceId: job.sourceResourceId,
+      userId: job.userId,
+      version: 1,
+      payload: {
+        jobId: job.id,
+        jobType: 'generation',
+        totalSteps: 5,
+        resultResourceId: resourceId,
+        message: `Generation complete: created resource "${resourceName}"`,
+      },
+    });
 
     console.log(`[GenerationWorker] ✅ Generation complete: created resource ${resourceId}`);
   }

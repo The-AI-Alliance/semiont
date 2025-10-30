@@ -37,6 +37,22 @@ export class DetectionWorker extends JobWorker {
     console.log(`[DetectionWorker] Processing detection for resource ${job.resourceId} (job: ${job.id})`);
     console.log(`[DetectionWorker] 🔍 Entity types: ${job.entityTypes.join(', ')}`);
 
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
+
+    // Emit job.started event
+    await eventStore.appendEvent({
+      type: 'job.started',
+      resourceId: job.resourceId,
+      userId: job.userId,
+      version: 1,
+      payload: {
+        jobId: job.id,
+        jobType: 'detection',
+        totalSteps: job.entityTypes.length,
+      },
+    });
+
     // Fetch resource content
     const resource = await ResourceQueryService.getResourceMetadata(job.resourceId);
 
@@ -56,15 +72,23 @@ export class DetectionWorker extends JobWorker {
 
       console.log(`[DetectionWorker] 🤖 [${i + 1}/${job.entityTypes.length}] Detecting ${entityType}...`);
 
-      // Update progress
-      job.progress = {
-        totalEntityTypes: job.entityTypes.length,
-        processedEntityTypes: i,
-        currentEntityType: entityType,
-        entitiesFound: totalFound,
-        entitiesEmitted: totalEmitted
-      };
-      await this.updateJobProgress(job);
+      // Emit job.progress event to Event Store
+      await eventStore.appendEvent({
+        type: 'job.progress',
+        resourceId: job.resourceId,
+        userId: job.userId,
+        version: 1,
+        payload: {
+          jobId: job.id,
+          jobType: 'detection',
+          percentage: Math.round((i / job.entityTypes.length) * 100),
+          currentStep: entityType,
+          processedSteps: i,
+          totalSteps: job.entityTypes.length,
+          foundCount: totalFound,
+          message: `Scanning for ${entityType}...`,
+        },
+      });
 
       // Detect entities using AI (loads content from filesystem internally)
       const detectedAnnotations = await detectAnnotationsInResource(
@@ -90,15 +114,10 @@ export class DetectionWorker extends JobWorker {
           referenceId = generateAnnotationId();
         } catch (error) {
           console.error(`[DetectionWorker] Failed to generate annotation ID:`, error);
-          job.status = 'failed';
-          job.error = 'Configuration error: BACKEND_URL not set';
-          await this.updateJobProgress(job);
-          return;
+          throw new Error('Configuration error: BACKEND_URL not set');
         }
 
         try {
-          const basePath = getFilesystemConfig().path;
-          const eventStore = await createEventStore(basePath);
           await eventStore.appendEvent({
             type: 'annotation.added',
             resourceId: job.resourceId,
@@ -157,14 +176,35 @@ export class DetectionWorker extends JobWorker {
       errors: totalErrors
     };
 
-    job.progress = {
-      totalEntityTypes: job.entityTypes.length,
-      processedEntityTypes: job.entityTypes.length,
-      entitiesFound: totalFound,
-      entitiesEmitted: totalEmitted
-    };
-
-    await this.updateJobProgress(job);
+    // Emit job.completed event to Event Store
+    if (totalErrors > 0) {
+      await eventStore.appendEvent({
+        type: 'job.failed',
+        resourceId: job.resourceId,
+        userId: job.userId,
+        version: 1,
+        payload: {
+          jobId: job.id,
+          jobType: 'detection',
+          error: `Detection completed with ${totalErrors} errors`,
+          details: `Found ${totalFound} entities, emitted ${totalEmitted} events, ${totalErrors} errors`,
+        },
+      });
+    } else {
+      await eventStore.appendEvent({
+        type: 'job.completed',
+        resourceId: job.resourceId,
+        userId: job.userId,
+        version: 1,
+        payload: {
+          jobId: job.id,
+          jobType: 'detection',
+          totalSteps: job.entityTypes.length,
+          foundCount: totalFound,
+          message: `Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted`,
+        },
+      });
+    }
 
     console.log(`[DetectionWorker] ✅ Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted, ${totalErrors} errors`);
   }

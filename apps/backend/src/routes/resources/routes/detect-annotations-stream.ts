@@ -18,6 +18,9 @@ import type { DetectionJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { createEventStore } from '../../../services/event-store-service';
+import { getFilesystemConfig } from '../../../config/environment-loader';
+import type { JobProgressEvent, JobCompletedEvent, JobFailedEvent } from '@semiont/core';
 
 type DetectAnnotationsStreamRequest = components['schemas']['DetectAnnotationsStreamRequest'];
 
@@ -94,92 +97,84 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
             id: String(Date.now())
           });
 
-          let lastStatus = job.status;
-          let lastProgress = JSON.stringify(job.progress);
-
-          // Poll job status and stream updates to client
+          // Subscribe to Event Store for job progress events
           // The job worker processes independently - if client disconnects, job continues
-          while (true) {
-            const currentJob = await jobQueue.getJob(job.id);
+          const basePath = getFilesystemConfig().path;
+          const eventStore = await createEventStore(basePath);
 
-            if (!currentJob) {
-              throw new Error('Job was deleted');
-            }
+          // Promise that resolves when the job is done (complete or failed)
+          let jobDoneResolver: (() => void) | null = null;
+          const jobDonePromise = new Promise<void>((resolve) => {
+            jobDoneResolver = resolve;
+          });
 
-            const currentProgress = JSON.stringify(currentJob.progress);
+          // Subscribe to all events for this resource
+          const subscription = eventStore.subscriptions.subscribe(id, async (storedEvent) => {
+            const event = storedEvent.event;
 
-            // Send progress updates when job state changes
-            if (currentJob.status !== lastStatus || currentProgress !== lastProgress) {
-              if (currentJob.status === 'running' && currentJob.type === 'detection') {
-                const detectionJob = currentJob as DetectionJob;
-                const progress = detectionJob.progress;
-
-                if (progress) {
-                  // Send scanning progress
-                  try {
-                    await stream.writeSSE({
-                      data: JSON.stringify({
-                        status: 'scanning',
-                        resourceId: id,
-                        currentEntityType: progress.currentEntityType,
-                        totalEntityTypes: progress.totalEntityTypes,
-                        processedEntityTypes: progress.processedEntityTypes,
-                        foundCount: progress.entitiesFound,
-                        message: progress.currentEntityType
-                          ? `Scanning for ${progress.currentEntityType}...`
-                          : 'Processing...'
-                      } as DetectionProgress),
-                      event: 'detection-progress',
-                      id: String(Date.now())
-                    });
-                  } catch (sseError) {
-                    console.warn(`[DetectAnnotations] Client disconnected, but job ${job.id} will continue processing`);
-                    break; // Client disconnected, stop streaming (job continues)
-                  }
-                }
+            // Filter events for this specific job
+            if (event.type === 'job.progress' && event.payload.jobId === job.id) {
+              const progressEvent = event as JobProgressEvent;
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: 'scanning',
+                    resourceId: id,
+                    currentEntityType: progressEvent.payload.currentStep,
+                    totalEntityTypes: progressEvent.payload.totalSteps || entityTypes.length,
+                    processedEntityTypes: progressEvent.payload.processedSteps || 0,
+                    foundCount: progressEvent.payload.foundCount || 0,
+                    message: progressEvent.payload.message || 'Processing...'
+                  } as DetectionProgress),
+                  event: 'detection-progress',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (sseError) {
+                console.warn(`[DetectAnnotations] Client disconnected, but job ${job.id} will continue processing`);
+                subscription.unsubscribe();
+                if (jobDoneResolver) jobDoneResolver();
               }
-
-              lastStatus = currentJob.status;
-              lastProgress = currentProgress;
             }
 
-            // Check if job completed
-            if (currentJob.status === 'complete') {
-              const result = (currentJob as DetectionJob).result;
+            // Handle job completion
+            if (event.type === 'job.completed' && event.payload.jobId === job.id) {
+              const completedEvent = event as JobCompletedEvent;
               await stream.writeSSE({
                 data: JSON.stringify({
                   status: 'complete',
                   resourceId: id,
                   totalEntityTypes: entityTypes.length,
                   processedEntityTypes: entityTypes.length,
-                  message: result
-                    ? `Detection complete! Found ${result.totalFound} entities, emitted ${result.totalEmitted} events`
-                    : 'Detection complete!'
+                  message: completedEvent.payload.message || 'Detection complete!'
                 } as DetectionProgress),
                 event: 'detection-complete',
-                id: String(Date.now())
+                id: storedEvent.metadata.sequenceNumber.toString()
               });
-              break;
+              subscription.unsubscribe();
+              if (jobDoneResolver) jobDoneResolver();
             }
 
-            if (currentJob.status === 'failed') {
+            // Handle job failure
+            if (event.type === 'job.failed' && event.payload.jobId === job.id) {
+              const failedEvent = event as JobFailedEvent;
               await stream.writeSSE({
                 data: JSON.stringify({
                   status: 'error',
                   resourceId: id,
                   totalEntityTypes: entityTypes.length,
                   processedEntityTypes: 0,
-                  message: currentJob.error || 'Detection failed'
+                  message: failedEvent.payload.error || 'Detection failed'
                 } as DetectionProgress),
                 event: 'detection-error',
-                id: String(Date.now())
+                id: storedEvent.metadata.sequenceNumber.toString()
               });
-              break;
+              subscription.unsubscribe();
+              if (jobDoneResolver) jobDoneResolver();
             }
+          });
 
-            // Poll every 500ms
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
+          // Keep the connection alive until the job is done
+          await jobDonePromise;
 
         } catch (error) {
           // Send error event

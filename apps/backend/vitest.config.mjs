@@ -21,7 +21,7 @@ export default defineConfig({
       'node_modules',
       'dist',
       'src/**/*.d.ts',
-      // Exclude integration tests from main config - they use separate config
+      // Exclude integration tests - they require separate setup
       'src/__tests__/integration/**/*.test.ts'
     ],
     coverage: {
