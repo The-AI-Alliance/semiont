@@ -38,6 +38,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/resource/panels/CollaborationPanel';
 import { ResourceActionsPanel } from '@/components/resource/panels/ResourceActionsPanel';
 import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
+import { CommentsPanel } from '@/components/resource/panels/CommentsPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { extractAnnotationId, compareAnnotationIds } from '@semiont/api-client';
 
@@ -129,7 +130,7 @@ function ResourceView({
   const { data: session } = useSession();
   const locale = useLocale();
   const { addResource } = useOpenResources();
-  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight } = useResourceAnnotations();
+  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight, deleteAnnotation, addComment } = useResourceAnnotations();
   const { showError, showSuccess } = useToast();
   const { fetchAPI } = useAuthenticatedAPI();
   const queryClient = useQueryClient();
@@ -175,6 +176,7 @@ function ResourceView({
   const highlights = annotations.filter((a: Annotation) => a.motivation === 'highlighting');
   const references = annotations.filter((a: Annotation) => a.motivation === 'linking');
   const assessments = annotations.filter((a: Annotation) => a.motivation === 'assessing');
+  const comments = annotations.filter((a: Annotation) => a.motivation === 'commenting');
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   // Using React Query's invalidateQueries is the best practice - it invalidates cache
@@ -209,10 +211,11 @@ function ResourceView({
     return false;
   });
   const { theme, setTheme } = useTheme();
-  const { activePanel, togglePanel } = useToolbar({ persistToStorage: true });
+  const { activePanel, togglePanel, setActivePanel } = useToolbar({ persistToStorage: true });
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
+  const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -556,6 +559,7 @@ function ResourceView({
                 highlights={highlights}
                 references={references}
                 assessments={assessments}
+                comments={comments}
                 onRefetchAnnotations={() => {
                   console.log('[DocumentPage] Annotation mutation - waiting for real-time event to trigger refetch');
                   // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
@@ -563,6 +567,12 @@ function ResourceView({
                 }}
                 onWikiLinkClick={handleWikiLinkClick}
                 curationMode={annotateMode}
+                onCommentCreationRequested={(selection) => {
+                  // Store the selection and ensure the Comments Panel is open
+                  setPendingCommentSelection(selection);
+                  // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
+                  setActivePanel('comments');
+                }}
                 onGenerateDocument={handleGenerateDocument}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
@@ -624,6 +634,33 @@ function ResourceView({
                 hoveredAnnotationId={hoveredAnnotationId}
                 onEventHover={handleEventHover}
                 onEventClick={handleEventClick}
+              />
+            )}
+
+            {/* Comments Panel */}
+            {activePanel === 'comments' && (
+              <CommentsPanel
+                comments={comments}
+                onCommentClick={(annotation) => {
+                  // TODO: Scroll to comment in document and highlight it
+                  console.log('Comment clicked:', annotation.id);
+                }}
+                onDeleteComment={async (annotationId) => {
+                  await deleteAnnotation(annotationId, resourceId);
+                }}
+                onUpdateComment={async (annotationId, newText) => {
+                  // TODO: Implement update comment mutation
+                  console.log('Update comment:', annotationId, newText);
+                }}
+                onCreateComment={async (commentText) => {
+                  if (pendingCommentSelection) {
+                    await addComment(resourceId, pendingCommentSelection, commentText);
+                    setPendingCommentSelection(null);
+                  }
+                }}
+                focusedCommentId={null}
+                resourceContent={content}
+                pendingSelection={pendingCommentSelection}
               />
             )}
 

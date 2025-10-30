@@ -18,6 +18,7 @@ interface CreateAnnotationPopupProps {
   onCreateHighlight: () => void;
   onCreateReference: (targetDocId?: string, entityType?: string, referenceType?: string) => void;
   onCreateAssessment: () => void;
+  onCreateComment?: () => void;
 }
 
 export function CreateAnnotationPopup({
@@ -28,6 +29,7 @@ export function CreateAnnotationPopup({
   onCreateHighlight,
   onCreateReference,
   onCreateAssessment,
+  onCreateComment,
 }: CreateAnnotationPopupProps) {
   const t = useTranslations('CreateAnnotationPopup');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
@@ -45,6 +47,13 @@ export function CreateAnnotationPopup({
   const handleCreateAssessment = () => {
     onCreateAssessment();
     onClose();
+  };
+
+  const handleCreateComment = () => {
+    if (onCreateComment) {
+      onCreateComment();
+      onClose();
+    }
   };
 
   const handleCreateStubReference = () => {
@@ -65,20 +74,30 @@ export function CreateAnnotationPopup({
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
       <PopupHeader title={t('title')} selectedText={selection.exact} onClose={onClose} />
 
-      {/* Quick Actions - Highlight and Assessment side by side */}
-      <div className="flex gap-2 mb-3">
-        <button
-          onClick={handleCreateHighlight}
-          className={`${buttonStyles.warning.base} flex-1 justify-center`}
-        >
-          🟡 {t('createHighlight')}
-        </button>
-        <button
-          onClick={handleCreateAssessment}
-          className={`${buttonStyles.danger.base} flex-1 justify-center`}
-        >
-          🔴 {t('createAssessment')}
-        </button>
+      {/* Quick Actions - Highlight, Comment, and Assessment */}
+      <div className="space-y-2 mb-3">
+        <div className="flex gap-2">
+          <button
+            onClick={handleCreateHighlight}
+            className={`${buttonStyles.warning.base} flex-1 justify-center`}
+          >
+            🟡 {t('createHighlight')}
+          </button>
+          <button
+            onClick={handleCreateAssessment}
+            className={`${buttonStyles.danger.base} flex-1 justify-center`}
+          >
+            🔴 {t('createAssessment')}
+          </button>
+        </div>
+        {onCreateComment && (
+          <button
+            onClick={handleCreateComment}
+            className={`${buttonStyles.secondary.base} w-full justify-center`}
+          >
+            💬 {t('createComment')}
+          </button>
+        )}
       </div>
 
       {/* Reference Section with Config */}

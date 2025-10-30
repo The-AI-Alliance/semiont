@@ -16,6 +16,7 @@ interface Props {
   highlights: Annotation[];
   references: Annotation[];
   assessments: Annotation[];
+  comments: Annotation[];
   onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
@@ -101,6 +102,7 @@ export function AnnotateView({
   highlights,
   references,
   assessments,
+  comments,
   onTextSelect,
   onAnnotationClick,
   onAnnotationRightClick,
@@ -130,7 +132,7 @@ export function AnnotateView({
   } | null>(null);
 
   // Combine annotations
-  const allAnnotations = [...highlights, ...references, ...assessments];
+  const allAnnotations = [...highlights, ...references, ...assessments, ...comments];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
 
   // Handle text annotation with sparkle

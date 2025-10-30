@@ -20,6 +20,7 @@ interface Props {
   highlights: Annotation[];
   references: Annotation[];
   assessments: Annotation[];
+  comments: Annotation[];
   onRefetchAnnotations?: () => void;
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
@@ -29,6 +30,7 @@ interface Props {
   hoveredAnnotationId?: string | null;
   scrollToAnnotationId?: string | null;
   showLineNumbers?: boolean;
+  onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
 }
 
 export function ResourceViewer({
@@ -36,6 +38,7 @@ export function ResourceViewer({
   highlights,
   references,
   assessments,
+  comments,
   onRefetchAnnotations,
   onWikiLinkClick,
   curationMode = false,
@@ -44,7 +47,8 @@ export function ResourceViewer({
   onAnnotationHover,
   hoveredAnnotationId,
   scrollToAnnotationId,
-  showLineNumbers = false
+  showLineNumbers = false,
+  onCommentCreationRequested
 }: Props) {
   const router = useRouter();
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -250,6 +254,25 @@ export function ResourceViewer({
     }
   }, [annotationPosition, selectedText, resourceId, addAssessment, onRefetchAnnotations]);
 
+  const handleCreateComment = useCallback(() => {
+    if (!annotationPosition || !selectedText) return;
+
+    // Notify parent component to open Comments Panel with this selection
+    if (onCommentCreationRequested) {
+      onCommentCreationRequested({
+        exact: selectedText,
+        start: annotationPosition.start,
+        end: annotationPosition.end
+      });
+    }
+
+    // Close popup
+    setShowAnnotationPopup(false);
+    setSelectedText('');
+    setAnnotationPosition(null);
+    setEditingAnnotation(null);
+  }, [annotationPosition, selectedText, onCommentCreationRequested]);
+
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
     console.log('[DocumentViewer] handleDeleteAnnotation called with id:', id);
@@ -437,6 +460,7 @@ export function ResourceViewer({
             highlights={highlights}
             references={references}
             assessments={assessments}
+            comments={comments}
             onAnnotationClick={handleAnnotationClick}
             {...(onAnnotationHover && { onAnnotationHover })}
             {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
@@ -463,6 +487,7 @@ export function ResourceViewer({
             highlights={highlights}
             references={references}
             assessments={assessments}
+            comments={comments}
             onTextSelect={handleTextSelection}
             onAnnotationClick={handleAnnotationClick}
             onAnnotationRightClick={handleAnnotationRightClick}
@@ -492,6 +517,7 @@ export function ResourceViewer({
           highlights={highlights}
           references={references}
           assessments={assessments}
+          comments={comments}
           onAnnotationClick={handleAnnotationClick}
           {...(onWikiLinkClick && { onWikiLinkClick })}
         />
@@ -514,6 +540,7 @@ export function ResourceViewer({
         onCreateHighlight={handleCreateHighlight}
         onCreateReference={handleCreateReference}
         onCreateAssessment={handleCreateAssessment}
+        onCreateComment={handleCreateComment}
         onUpdateAnnotation={async (updates) => {
           if (editingAnnotation) {
             // Handle body updates

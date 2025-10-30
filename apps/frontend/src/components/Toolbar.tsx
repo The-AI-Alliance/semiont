@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user' | 'jsonld';
+type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments';
 type ToolbarContext = 'document' | 'simple';
 
 interface Props<T extends string = string> {
@@ -95,6 +95,17 @@ export function Toolbar<T extends string = string>({
             title={t('history')}
           >
             <span className="text-xl" aria-hidden="true">📒</span>
+          </button>
+
+          {/* Comments Icon */}
+          <button
+            onClick={() => onPanelToggle('comments' as T)}
+            className={buttonClass('comments')}
+            aria-label={t('comments')}
+            aria-pressed={activePanel === 'comments'}
+            title={t('comments')}
+          >
+            <span className="text-xl" aria-hidden="true">💬</span>
           </button>
 
           {/* Document Info Icon */}

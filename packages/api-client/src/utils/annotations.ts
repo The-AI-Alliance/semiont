@@ -187,6 +187,27 @@ export function isAssessment(annotation: Annotation): annotation is Annotation {
 }
 
 /**
+ * Type guard to check if an annotation is a comment
+ */
+export function isComment(annotation: Annotation): annotation is Annotation {
+  return annotation.motivation === 'commenting';
+}
+
+/**
+ * Extract comment text from a comment annotation's body
+ * @param annotation - The annotation to extract comment text from
+ * @returns The comment text, or undefined if not a comment or no text found
+ */
+export function getCommentText(annotation: Annotation): string | undefined {
+  if (!isComment(annotation)) return undefined;
+  const body = Array.isArray(annotation.body) ? annotation.body[0] : annotation.body;
+  if (body && 'value' in body) {
+    return body.value;
+  }
+  return undefined;
+}
+
+/**
  * Type guard to check if a reference annotation is a stub (unresolved)
  * Stub if no SpecificResource in body array
  */
