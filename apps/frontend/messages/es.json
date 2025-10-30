@@ -403,6 +403,36 @@
     "title": "Evaluación",
     "deleteAssessment": "Eliminar Evaluación"
   },
+  "CommentsPanel": {
+    "title": "Comentarios",
+    "noComments": "Aún no hay comentarios. Seleccione texto y haga clic en Comentar para agregar uno.",
+    "commentPlaceholder": "Escriba su comentario aquí...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "edit": "Editar"
+  },
+  "CreateAnnotationPopup": {
+    "title": "Anotar",
+    "createHighlight": "Destacar",
+    "createAssessment": "Evaluar",
+    "createComment": "Comentar",
+    "createReference": "Referenciar",
+    "entityTypesOptional": "Tipos de Entidad (opcional)"
+  },
+  "Toolbar": {
+    "comments": "Comentarios",
+    "history": "Historial",
+    "resource": "Recurso",
+    "resourceInfo": "Información del Recurso",
+    "detectReferences": "Detectar Referencias",
+    "collaboration": "Colaboración",
+    "annotateMode": "Modo Anotar",
+    "browseMode": "Modo Navegar",
+    "switchToAnnotate": "Cambiar a Anotar",
+    "switchToBrowse": "Cambiar a Navegar",
+    "userAccount": "Cuenta de Usuario",
+    "settings": "Configuración"
+  },
   "StubReferencePopup": {
     "title": "Referencia Stub",
     "linkToResource": "Vincular a Recurso",
