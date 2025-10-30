@@ -232,8 +232,13 @@ export class GraphDBConsumer {
       }
     } catch (error) {
       // If annotation doesn't exist in graph (e.g., created before consumer started),
-      // log warning but don't fail - event store is source of truth
-      console.warn(`[GraphDBConsumer] Could not update annotation ${event.payload.annotationId} in graph: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // log error but don't fail - event store is source of truth
+      console.error(
+        `[GraphDBConsumer] Failed to update annotation body for ${event.payload.annotationId}:`,
+        error instanceof Error ? error.message : String(error),
+        '\nFull error:',
+        error
+      );
     }
   }
 
