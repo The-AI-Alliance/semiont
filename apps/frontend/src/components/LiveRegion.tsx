@@ -1,6 +1,10 @@
 'use client';
 
 import React, { useEffect, useState, createContext, useContext, useCallback } from 'react';
+import type { components } from '@semiont/api-client';
+import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+
+type Annotation = components['schemas']['Annotation'];
 
 interface LiveRegionContextType {
   announce: (message: string, priority?: 'polite' | 'assertive') => void;
@@ -95,8 +99,10 @@ export function useDocumentAnnouncements() {
     announce('Document deleted', 'polite');
   }, [announce]);
 
-  const announceAnnotationCreated = useCallback((type: 'highlight' | 'reference') => {
-    announce(`${type === 'highlight' ? 'Highlight' : 'Reference'} created`, 'polite');
+  const announceAnnotationCreated = useCallback((annotation: Annotation) => {
+    const metadata = getAnnotationTypeMetadata(annotation);
+    const message = metadata?.announceOnCreate ?? 'Annotation created';
+    announce(message, 'polite');
   }, [announce]);
 
   const announceAnnotationDeleted = useCallback(() => {

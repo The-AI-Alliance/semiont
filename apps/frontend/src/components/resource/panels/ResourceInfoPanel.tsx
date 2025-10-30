@@ -12,6 +12,8 @@ import { formatLocaleDisplay, getBodySource, isBodyResolved, getEntityTypes } fr
 
 interface Props {
   highlights: Annotation[];
+  comments: Annotation[];
+  assessments: Annotation[];
   references: Annotation[];
   referencedBy: ReferencedBy[];
   referencedByLoading: boolean;
@@ -21,6 +23,8 @@ interface Props {
 
 export function ResourceInfoPanel({
   highlights,
+  comments,
+  assessments,
   references,
   referencedBy,
   referencedByLoading,
@@ -95,6 +99,22 @@ export function ResourceInfoPanel({
           <span className="text-gray-500 dark:text-gray-400 block">{t('highlights')}</span>
           <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
             {highlights.length}
+          </span>
+        </div>
+
+        {/* Comments */}
+        <div>
+          <span className="text-gray-500 dark:text-gray-400 block">{t('comments')}</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+            {comments.length}
+          </span>
+        </div>
+
+        {/* Assessments */}
+        <div>
+          <span className="text-gray-500 dark:text-gray-400 block">{t('assessments')}</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+            {assessments.length}
           </span>
         </div>
 

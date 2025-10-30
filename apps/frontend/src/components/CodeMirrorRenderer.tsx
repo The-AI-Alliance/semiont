@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, lineNumbers } from '@codemirror/view';
 import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
-import { annotationStyles } from '@/lib/annotation-styles';
+import { getAnnotationClassName } from '@/lib/annotation-registry';
 import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
 import { isHighlight, isReference, isResolvedReference, isComment, compareAnnotationIds, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
@@ -86,7 +86,7 @@ function buildAnnotationDecorations(
     if (!segment.annotation) continue;
 
     const isNew = newAnnotationIds?.has(segment.annotation.id) || false;
-    const baseClassName = annotationStyles.getAnnotationStyle(segment.annotation);
+    const baseClassName = getAnnotationClassName(segment.annotation);
     const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
 
     // Use W3C helpers to determine annotation type

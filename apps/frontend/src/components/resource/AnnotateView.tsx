@@ -4,6 +4,7 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
@@ -139,17 +140,19 @@ export function AnnotateView({
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
 
-  // Wrapper for annotation hover that detects comments
+  // Wrapper for annotation hover that routes based on registry metadata
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
-    if (annotationId && onCommentHover) {
-      // Check if this is a comment annotation
+    if (annotationId) {
       const annotation = allAnnotations.find(a => a.id === annotationId);
-      if (annotation?.motivation === 'commenting') {
+      const metadata = annotation ? getAnnotationTypeMetadata(annotation) : null;
+
+      // Route to side panel if annotation type has one
+      if (metadata?.hasSidePanel && onCommentHover) {
         onCommentHover(annotationId);
         return;
       }
     }
-    // For non-comments or null, call the regular handler
+    // For non-side-panel annotations or null, call the regular handler
     if (onAnnotationHover) {
       onAnnotationHover(annotationId);
     }

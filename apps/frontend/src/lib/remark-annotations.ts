@@ -12,7 +12,7 @@ export interface PreparedAnnotation {
   exact: string;
   offset: number;  // Character offset in source text (start position)
   length: number;  // Length of annotated text (not end position!)
-  type: 'highlight' | 'reference' | 'assessment' | 'comment';
+  type: string;  // Internal type like 'highlight', 'comment', 'assessment', 'reference'
   source: string | null; // For references - the linked document ID (null for stubs)
 }
 
