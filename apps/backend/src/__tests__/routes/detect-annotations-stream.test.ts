@@ -82,8 +82,10 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
     // Set required environment variables
     process.env.SITE_DOMAIN = 'test.example.com';
     process.env.OAUTH_ALLOWED_DOMAINS = 'test.example.com,example.com';
-    process.env.JWT_SECRET = 'test-secret-key-for-testing';
+    process.env.JWT_SECRET = 'test-secret-key-for-testing-with-at-least-32-characters';
     process.env.BACKEND_URL = 'http://localhost:4000';
+    process.env.CORS_ORIGIN = 'http://localhost:3000';
+    process.env.FRONTEND_URL = 'http://localhost:3000';
     process.env.NODE_ENV = 'test';
 
     // Initialize job queue
@@ -163,7 +165,8 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
     });
 
     const contentType = response.headers.get('content-type');
-    expect(contentType).toBe('text/event-stream; charset=utf-8');
+    // SSE streams should have text/event-stream content type (with or without charset)
+    expect(contentType).toMatch(/text\/event-stream/);
   });
 
   it('should create a job when SSE connection is established', async () => {

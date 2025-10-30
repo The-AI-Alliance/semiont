@@ -20,9 +20,7 @@ export default defineConfig({
     exclude: [
       'node_modules',
       'dist',
-      'src/**/*.d.ts',
-      // Exclude integration tests from main config - they use separate config
-      'src/__tests__/integration/**/*.test.ts'
+      'src/**/*.d.ts'
     ],
     coverage: {
       provider: 'v8',

@@ -5,29 +5,32 @@
  * to SSE stream delivery.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { EventStore } from '../../events/event-store';
-import { FilesystemProjectionStorage } from '../../storage/projection-storage';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import type { EventStore } from '../../events/event-store';
 import type { JobProgressEvent, JobCompletedEvent, JobFailedEvent } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
+// Mock environment
+vi.mock('../../config/environment-loader', () => ({
+  getFilesystemConfig: () => ({ path: testDir })
+}));
+
+let testDir: string;
+
 describe('SSE Event Flow - End-to-End', () => {
-  let testDir: string;
   let eventStore: EventStore;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-e2e-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    const projectionStorage = new FilesystemProjectionStorage(testDir);
-    eventStore = new EventStore({
-      basePath: testDir,
-      dataDir: testDir,
+    const { createEventStore } = await import('../../services/event-store-service');
+    eventStore = await createEventStore(testDir, {
       enableSharding: false,
       maxEventsPerFile: 100,
-    }, projectionStorage);
+    });
   });
 
   afterAll(async () => {
