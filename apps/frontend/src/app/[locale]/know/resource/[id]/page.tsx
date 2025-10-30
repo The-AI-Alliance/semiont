@@ -603,7 +603,11 @@ function ResourceView({
             onThemeChange={setTheme}
             showLineNumbers={showLineNumbers}
             onLineNumbersToggle={toggleLineNumbers}
-            width={activePanel === 'jsonld' ? 'w-[600px]' : 'w-64'}
+            width={
+              activePanel === 'jsonld' ? 'w-[600px]' :
+              activePanel === 'comments' ? 'w-[400px]' :
+              'w-64'
+            }
           >
             {/* Archived Status */}
             {annotateMode && resource.archived && (

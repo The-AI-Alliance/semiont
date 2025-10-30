@@ -123,20 +123,20 @@ export function CommentEntry({
 
       {/* Metadata and actions */}
       {!isEditing && (
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <div>
+        <div className="space-y-1">
+          <div className="text-xs text-gray-500">
             By {typeof comment.creator === 'string' ? comment.creator : comment.creator?.name || 'Unknown'} • {formatRelativeTime(comment.created || new Date().toISOString())}
           </div>
           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={handleEditClick}
-              className="hover:text-purple-600 dark:hover:text-purple-400"
+              className="text-xs hover:text-purple-600 dark:hover:text-purple-400"
             >
               {t('edit')}
             </button>
             <button
               onClick={onDelete}
-              className="hover:text-red-600 dark:hover:text-red-400"
+              className="text-xs hover:text-red-600 dark:hover:text-red-400"
             >
               🗑️
             </button>
