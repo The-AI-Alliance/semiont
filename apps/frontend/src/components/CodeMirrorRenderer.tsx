@@ -30,6 +30,7 @@ interface Props {
   editable?: boolean;
   newAnnotationIds?: Set<string>;
   hoveredAnnotationId?: string | null;
+  hoveredCommentId?: string | null;
   scrollToAnnotationId?: string | null;
   sourceView?: boolean; // If true, show raw source (no markdown rendering)
   showLineNumbers?: boolean; // If true, show line numbers
@@ -235,6 +236,7 @@ export function CodeMirrorRenderer({
   editable = false,
   newAnnotationIds,
   hoveredAnnotationId,
+  hoveredCommentId,
   scrollToAnnotationId,
   sourceView = false,
   showLineNumbers = false,
@@ -511,6 +513,45 @@ export function CodeMirrorRenderer({
       }
     };
   }, [hoveredAnnotationId, segments]);
+
+  // Handle hovered comment - add pulse effect and scroll if not visible
+  useEffect(() => {
+    if (!viewRef.current || !hoveredCommentId) return undefined;
+
+    const segment = segments.find(s => s.annotation?.id === hoveredCommentId);
+    if (!segment) return undefined;
+
+    const view = viewRef.current;
+
+    // Scroll first
+    view.dispatch({
+      effects: EditorView.scrollIntoView(segment.start, {
+        y: 'nearest',
+        yMargin: 50
+      })
+    });
+
+    // Add pulse effect after a brief delay to ensure element is visible
+    const timeoutId = setTimeout(() => {
+      const element = view.contentDOM.querySelector(
+        `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
+      ) as HTMLElement;
+
+      if (element) {
+        element.classList.add('annotation-pulse');
+      }
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      const element = view.contentDOM.querySelector(
+        `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
+      ) as HTMLElement;
+      if (element) {
+        element.classList.remove('annotation-pulse');
+      }
+    };
+  }, [hoveredCommentId, segments]);
 
   // Handle scroll to annotation
   useEffect(() => {

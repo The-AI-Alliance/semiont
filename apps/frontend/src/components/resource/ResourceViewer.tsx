@@ -27,7 +27,9 @@ interface Props {
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   generatingReferenceId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
+  onCommentHover?: (commentId: string | null) => void;
   hoveredAnnotationId?: string | null;
+  hoveredCommentId?: string | null;
   scrollToAnnotationId?: string | null;
   showLineNumbers?: boolean;
   onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
@@ -46,7 +48,9 @@ export function ResourceViewer({
   onGenerateDocument,
   generatingReferenceId,
   onAnnotationHover,
+  onCommentHover,
   hoveredAnnotationId,
+  hoveredCommentId,
   scrollToAnnotationId,
   showLineNumbers = false,
   onCommentCreationRequested,
@@ -475,7 +479,9 @@ export function ResourceViewer({
             comments={comments}
             onAnnotationClick={handleAnnotationClick}
             {...(onAnnotationHover && { onAnnotationHover })}
+            {...(onCommentHover && { onCommentHover })}
             {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+            {...(hoveredCommentId !== undefined && { hoveredCommentId })}
             {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
             enableWidgets={true}
             {...(onWikiLinkClick && { onWikiLinkClick })}
@@ -504,7 +510,9 @@ export function ResourceViewer({
             onAnnotationClick={handleAnnotationClick}
             onAnnotationRightClick={handleAnnotationRightClick}
             {...(onAnnotationHover && { onAnnotationHover })}
+            {...(onCommentHover && { onCommentHover })}
             {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+            {...(hoveredCommentId !== undefined && { hoveredCommentId })}
             {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
             enableWidgets={true}
             {...(onWikiLinkClick && { onWikiLinkClick })}
@@ -531,6 +539,8 @@ export function ResourceViewer({
           assessments={assessments}
           comments={comments}
           onAnnotationClick={handleAnnotationClick}
+          {...(onCommentHover && { onCommentHover })}
+          {...(hoveredCommentId !== undefined && { hoveredCommentId })}
           {...(onWikiLinkClick && { onWikiLinkClick })}
         />
       )}
