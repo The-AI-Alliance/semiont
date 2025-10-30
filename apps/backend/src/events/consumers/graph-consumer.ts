@@ -13,14 +13,14 @@ import type { components } from '@semiont/api-client';
 import type { ResourceEvent, StoredEvent } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
 import { getFilesystemConfig } from '../../config/environment-loader';
+import type { EventSubscription } from '../subscriptions/event-subscriptions';
 
-type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class GraphDBConsumer {
   private graphDb: GraphDatabase | null = null;
-  private subscriptions: Map<string, any> = new Map();
-  private _globalSubscription: any = null;  // Subscription to system-level events (kept for cleanup)
+  private subscriptions: Map<string, EventSubscription> = new Map();
+  private _globalSubscription: EventSubscription | null = null;  // Subscription to system-level events (kept for cleanup)
   private processing: Map<string, Promise<void>> = new Map();
   private lastProcessed: Map<string, number> = new Map();
 
@@ -226,7 +226,7 @@ export class GraphDBConsumer {
             // Update annotation with new body
             await graphDb.updateAnnotation(event.payload.annotationId, {
               body: bodyArray,
-            } as Partial<Annotation>);
+            });
           }
         } catch (error) {
           // If annotation doesn't exist in graph (e.g., created before consumer started),
