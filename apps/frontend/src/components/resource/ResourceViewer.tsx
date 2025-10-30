@@ -11,6 +11,7 @@ import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { annotations } from '@/lib/api/annotations';
 import { getResourceId } from '@/lib/resource-helpers';
+import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -106,8 +107,10 @@ export function ResourceViewer({
   
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
-    // If it's a comment, handle it differently - open Comments Panel and scroll to it
-    if (annotation.motivation === 'commenting') {
+    const metadata = getAnnotationTypeMetadata(annotation);
+
+    // If annotation has a side panel, open it
+    if (metadata?.hasSidePanel) {
       if (onCommentClick) {
         onCommentClick(annotation.id);
       }
@@ -144,8 +147,10 @@ export function ResourceViewer({
 
   // Handle annotation right-clicks - memoized
   const handleAnnotationRightClick = useCallback((annotation: Annotation, x: number, y: number) => {
-    // If it's a comment, treat right-click same as left-click - open Comments Panel and scroll to it
-    if (annotation.motivation === 'commenting') {
+    const metadata = getAnnotationTypeMetadata(annotation);
+
+    // If annotation has a side panel, treat right-click same as left-click - open side panel
+    if (metadata?.hasSidePanel) {
       if (onCommentClick) {
         onCommentClick(annotation.id);
       }
@@ -231,13 +236,10 @@ export function ResourceViewer({
       } else {
         // Create new reference
         const newId = await addReference(resourceId, selectedText, annotationPosition, targetDocId, entityType, referenceType);
-        console.log('[DocumentViewer] Created reference:', newId);
       }
 
       // Refetch annotations to update UI
-      console.log('[DocumentViewer] Calling onRefetchAnnotations');
       onRefetchAnnotations?.();
-      console.log('[DocumentViewer] onRefetchAnnotations called');
 
       // Close popup
       setShowAnnotationPopup(false);
@@ -291,7 +293,6 @@ export function ResourceViewer({
 
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
-    console.log('[DocumentViewer] handleDeleteAnnotation called with id:', id);
     try {
       await deleteAnnotation(id, resourceId);
 
@@ -307,13 +308,11 @@ export function ResourceViewer({
 
   // Quick action: Delete annotation from widget
   const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
-    console.log('[DocumentViewer] Delete annotation from widget:', annotation);
     await handleDeleteAnnotation(annotation.id);
   }, [handleDeleteAnnotation]);
 
   // Quick action: Convert annotation from widget
   const handleConvertAnnotationWidget = useCallback(async (annotation: Annotation) => {
-    console.log('[DocumentViewer] Convert annotation from widget:', annotation);
     try {
       if (isHighlight(annotation)) {
         // Convert highlight to reference (open dialog to get target)

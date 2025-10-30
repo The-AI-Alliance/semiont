@@ -1,19 +1,64 @@
 import { visit, SKIP } from 'unist-util-visit';
 import type { Root, Element, Text, ElementContent } from 'hast';
 
-interface Annotation {
+/**
+ * PreparedAnnotation - Simplified annotation format for rehype rendering
+ * This is NOT the W3C Annotation from the API - it's a pre-processed format
+ * created by remark-annotations plugin with offset/length for text processing
+ */
+interface PreparedAnnotation {
   id: string;
   exact: string;
   offset: number;
   length: number;
-  type: 'highlight' | 'reference' | 'assessment' | 'comment';
+  type: string; // Internal type like 'highlight', 'comment', 'assessment', 'reference'
   source?: string;
 }
 
 interface ChildSpan {
-  annotation: Annotation;
+  annotation: PreparedAnnotation;
   startChildIndex: number;
   endChildIndex: number; // exclusive
+}
+
+/**
+ * Build annotation span element with styling
+ * Determines className and data attributes based on annotation type and source
+ */
+function buildAnnotationSpan(annotation: PreparedAnnotation, children: ElementContent[]): Element {
+  let className: string;
+  const annotationType = annotation.type;
+
+  if (annotation.type === 'highlight') {
+    className = 'bg-yellow-200 dark:bg-yellow-800';
+  } else if (annotation.type === 'assessment') {
+    // Red squiggly underline for assessments (errors, warnings)
+    className = 'red-underline cursor-pointer transition-all duration-200 hover:opacity-80';
+  } else if (annotation.type === 'comment') {
+    // Gray dashed outline for comments, no background
+    className = 'rounded px-0.5 cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 outline outline-2 outline-dashed outline-gray-900 dark:outline-gray-100 outline-offset-1';
+  } else if (annotation.type === 'reference') {
+    // Stub reference (no target document) - red text with !important-like specificity
+    if (!annotation.source) {
+      className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-inherit';
+    } else {
+      // Resolved reference - blue text with !important-like specificity
+      className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
+    }
+  } else {
+    className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
+  }
+
+  return {
+    type: 'element',
+    tagName: 'span',
+    properties: {
+      className,
+      'data-annotation-id': annotation.id,
+      'data-annotation-type': annotationType
+    },
+    children
+  };
 }
 
 export function rehypeRenderAnnotations() {
@@ -28,7 +73,7 @@ export function rehypeRenderAnnotations() {
         return;
       }
 
-      const annotations: Annotation[] = JSON.parse(annotationsJson);
+      const annotations: PreparedAnnotation[] = JSON.parse(annotationsJson);
 
       // Handle annotations that span across multiple immediate children
       wrapCrossElementAnnotations(element, annotations);
@@ -47,7 +92,7 @@ export function rehypeRenderAnnotations() {
  * Example: <strong>Zeus</strong> and <strong>Hera</strong>
  * If annotation spans both, wrap them: <span class="annotation"><strong>Zeus</strong> and <strong>Hera</strong></span>
  */
-function wrapCrossElementAnnotations(element: Element, annotations: Annotation[]) {
+function wrapCrossElementAnnotations(element: Element, annotations: PreparedAnnotation[]) {
   const spans = analyzeChildSpans(element, annotations);
 
   if (spans.length === 0) return;
@@ -65,7 +110,7 @@ function wrapCrossElementAnnotations(element: Element, annotations: Annotation[]
   }
 }
 
-function analyzeChildSpans(element: Element, annotations: Annotation[]): ChildSpan[] {
+function analyzeChildSpans(element: Element, annotations: PreparedAnnotation[]): ChildSpan[] {
   const spans: ChildSpan[] = [];
 
   for (const ann of annotations) {
@@ -113,46 +158,7 @@ function wrapChildRange(element: Element, span: ChildSpan) {
   const { annotation, startChildIndex, endChildIndex } = span;
 
   const childrenToWrap = element.children.slice(startChildIndex, endChildIndex);
-
-  // Determine className based on annotation type and whether reference is resolved
-  let className: string;
-  let annotationType: string;
-
-  if (annotation.type === 'highlight') {
-    className = 'bg-yellow-200 dark:bg-yellow-800';
-    annotationType = 'highlight';
-  } else if (annotation.type === 'assessment') {
-    // Red squiggly underline for assessments (errors, warnings)
-    className = 'red-underline cursor-pointer transition-all duration-200 hover:opacity-80';
-    annotationType = 'assessment';
-  } else if (annotation.type === 'comment') {
-    // Gray dashed outline for comments, no background
-    className = 'rounded px-0.5 cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 outline outline-2 outline-dashed outline-gray-900 dark:outline-gray-100 outline-offset-1';
-    annotationType = 'comment';
-  } else if (annotation.type === 'reference') {
-    annotationType = 'reference';
-    // Stub reference (no target document) - red text with !important-like specificity
-    if (!annotation.source) {
-      className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-inherit';
-    } else {
-      // Resolved reference - blue text with !important-like specificity
-      className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
-    }
-  } else {
-    className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
-    annotationType = annotation.type;
-  }
-
-  const wrapper: Element = {
-    type: 'element',
-    tagName: 'span',
-    properties: {
-      className,
-      'data-annotation-id': annotation.id,
-      'data-annotation-type': annotationType
-    },
-    children: childrenToWrap
-  };
+  const wrapper = buildAnnotationSpan(annotation, childrenToWrap);
 
   element.children.splice(startChildIndex, endChildIndex - startChildIndex, wrapper);
 }
@@ -163,7 +169,7 @@ function wrapChildRange(element: Element, span: ChildSpan) {
  */
 function applyWithinTextNodeAnnotations(
   element: Element,
-  annotations: Annotation[],
+  annotations: PreparedAnnotation[],
   originalSource: string
 ) {
   visit(element, 'text', (textNode: Text, index: number | undefined, parent: Element | Root | undefined) => {
@@ -222,45 +228,11 @@ function applyWithinTextNodeAnnotations(
         segments.push({ type: 'text', value: textContent.substring(lastPos, relStart) });
       }
 
-      // Annotation span - determine className based on type and whether reference is resolved
-      let className: string;
-      let annotationType: string;
-
-      if (ann.type === 'highlight') {
-        className = 'bg-yellow-200 dark:bg-yellow-800';
-        annotationType = 'highlight';
-      } else if (ann.type === 'assessment') {
-        // Red squiggly underline for assessments (errors, warnings)
-        className = 'red-underline cursor-pointer transition-all duration-200 hover:opacity-80';
-        annotationType = 'assessment';
-      } else if (ann.type === 'comment') {
-        // Gray dashed outline for comments, no background
-        className = 'rounded px-0.5 cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 outline outline-2 outline-dashed outline-gray-900 dark:outline-gray-100 outline-offset-1';
-        annotationType = 'comment';
-      } else if (ann.type === 'reference') {
-        annotationType = 'reference';
-        // Stub reference (no target document) - red text with !important-like specificity
-        if (!ann.source) {
-          className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-inherit';
-        } else {
-          // Resolved reference - blue text with !important-like specificity
-          className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
-        }
-      } else {
-        className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
-        annotationType = ann.type;
-      }
-
-      segments.push({
-        type: 'element',
-        tagName: 'span',
-        properties: {
-          className,
-          'data-annotation-id': ann.id,
-          'data-annotation-type': annotationType
-        },
-        children: [{ type: 'text', value: textContent.substring(relStart, relEnd) }]
-      });
+      // Annotation span - use centralized styling function
+      const annotationSpan = buildAnnotationSpan(ann, [
+        { type: 'text', value: textContent.substring(relStart, relEnd) }
+      ]);
+      segments.push(annotationSpan);
 
       lastPos = relEnd;
     }

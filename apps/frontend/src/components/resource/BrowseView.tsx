@@ -7,6 +7,7 @@ import { remarkAnnotations, type PreparedAnnotation } from '@/lib/remark-annotat
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
 import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource } from '@semiont/api-client';
+import { getAnnotationInternalType, getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
@@ -37,17 +38,10 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
       const posSelector = getTextPositionSelector(targetSelector);
       const start = posSelector?.start ?? 0;
       const end = posSelector?.end ?? 0;
-      // Use W3C motivation to determine type
-      let type: 'highlight' | 'reference' | 'assessment' | 'comment';
-      if (ann.motivation === 'assessing') {
-        type = 'assessment';
-      } else if (ann.motivation === 'commenting') {
-        type = 'comment';
-      } else if (isReference(ann)) {
-        type = 'reference';
-      } else {
-        type = 'highlight';
-      }
+
+      // Use centralized registry to determine type
+      const type = getAnnotationInternalType(ann);
+
       return {
         id: ann.id,
         exact: getExactText(targetSelector),
@@ -93,11 +87,14 @@ export function BrowseView({
     return map;
   }, [allAnnotations]);
 
-  // Wrapper for annotation hover that detects comments
+  // Wrapper for annotation hover that routes based on registry metadata
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
-    if (annotationId && onCommentHover) {
+    if (annotationId) {
       const annotation = annotationMap.get(annotationId);
-      if (annotation?.motivation === 'commenting') {
+      const metadata = annotation ? getAnnotationTypeMetadata(annotation) : null;
+
+      // Route to side panel if annotation type has one
+      if (metadata?.hasSidePanel && onCommentHover) {
         onCommentHover(annotationId);
         return;
       }

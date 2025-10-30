@@ -16,6 +16,7 @@ import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components } from '@semiont/api-client';
 import { getResourceId, getLanguage, getPrimaryMediaType } from '@/lib/resource-helpers';
+import { groupAnnotationsByType } from '@/lib/annotation-registry';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 import { useOpenResources } from '@/contexts/OpenResourcesContext';
@@ -171,12 +172,13 @@ function ResourceView({
   const { data: annotationsData, refetch: refetchAnnotations } = resources.annotations.useQuery(resourceId);
   const annotations = annotationsData?.annotations || [];
 
-  // Filter by motivation client-side
+  // Group annotations by type using centralized registry
   type Annotation = components['schemas']['Annotation'];
-  const highlights = annotations.filter((a: Annotation) => a.motivation === 'highlighting');
-  const references = annotations.filter((a: Annotation) => a.motivation === 'linking');
-  const assessments = annotations.filter((a: Annotation) => a.motivation === 'assessing');
-  const comments = annotations.filter((a: Annotation) => a.motivation === 'commenting');
+  const groups = groupAnnotationsByType(annotations);
+  const highlights = groups.highlight || [];
+  const references = groups.reference || [];
+  const assessments = groups.assessment || [];
+  const comments = groups.comment || [];
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   // Using React Query's invalidateQueries is the best practice - it invalidates cache
@@ -399,13 +401,6 @@ function ResourceView({
 
   // Handle document generation from stub reference
   const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
-    console.log('[DocumentPage] handleGenerateDocument called with:', {
-      referenceId,
-      options,
-      locale,
-      resourceId
-    });
-
     // Clear CSS sparkle animation if reference was recently created
     // (it may still be in newAnnotationIds with a 6-second timer from creation)
     // We only want the widget sparkle (✨ emoji) during generation, not the CSS pulse
@@ -418,7 +413,6 @@ function ResourceView({
     // Widget sparkle (✨ emoji) will show automatically during generation via generatingReferenceId
     // Pass language (using locale from Next.js routing) to ensure generated content is in the user's preferred language
     const optionsWithLanguage = { ...options, language: locale };
-    console.log('[DocumentPage] Calling startGeneration with:', optionsWithLanguage);
     startGeneration(referenceId, resourceId, optionsWithLanguage);
   }, [startGeneration, resourceId, clearNewAnnotationId, locale]);
 
@@ -481,7 +475,6 @@ function ResourceView({
 
     // Document status events
     onDocumentArchived: useCallback((event) => {
-      console.log('[RealTime] Document archived');
       // Reload document to show archived status
       loadDocument();
       showSuccess('This document has been archived');
@@ -489,7 +482,6 @@ function ResourceView({
     }, [loadDocument, showSuccess, debouncedInvalidateAnnotations]),
 
     onDocumentUnarchived: useCallback((event) => {
-      console.log('[RealTime] Document unarchived');
       // Reload document to show unarchived status
       loadDocument();
       showSuccess('This document has been unarchived');
@@ -498,14 +490,12 @@ function ResourceView({
 
     // Entity tag events
     onEntityTagAdded: useCallback((event) => {
-      console.log('[RealTime] Entity tag added:', event.payload.entityType);
       // Reload document to show updated tags
       loadDocument();
       debouncedInvalidateAnnotations();
     }, [loadDocument, debouncedInvalidateAnnotations]),
 
     onEntityTagRemoved: useCallback((event) => {
-      console.log('[RealTime] Entity tag removed:', event.payload.entityType);
       // Reload document to show updated tags
       loadDocument();
       debouncedInvalidateAnnotations();
@@ -563,7 +553,6 @@ function ResourceView({
                 assessments={assessments}
                 comments={comments}
                 onRefetchAnnotations={() => {
-                  console.log('[DocumentPage] Annotation mutation - waiting for real-time event to trigger refetch');
                   // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
                   // This prevents race condition where we refetch before the event is processed
                 }}
@@ -657,15 +646,15 @@ function ResourceView({
               <CommentsPanel
                 comments={comments}
                 onCommentClick={(annotation) => {
-                  // TODO: Scroll to comment in document and highlight it
-                  console.log('Comment clicked:', annotation.id);
+                  // Scroll to comment in document and highlight it
+                  setHoveredCommentId(annotation.id);
+                  setTimeout(() => setHoveredCommentId(null), 1500);
                 }}
                 onDeleteComment={async (annotationId) => {
                   await deleteAnnotation(annotationId, resourceId);
                 }}
                 onUpdateComment={async (annotationId, newText) => {
                   // TODO: Implement update comment mutation
-                  console.log('Update comment:', annotationId, newText);
                 }}
                 onCreateComment={async (commentText) => {
                   if (pendingCommentSelection) {
