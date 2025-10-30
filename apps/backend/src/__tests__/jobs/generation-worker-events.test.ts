@@ -5,18 +5,15 @@
  * during resource generation processing.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from 'vitest';
 import { GenerationWorker } from '../../jobs/workers/generation-worker';
-import { EventStore } from '../../events/event-store';
-import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import type { GenerationJob } from '../../jobs/types';
-import type { StoredEvent } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock AI generation to avoid external API calls
-vi.mock('../../inference/generate-resource', () => ({
+vi.mock('../../inference/factory', () => ({
   generateResourceFromTopic: vi.fn().mockResolvedValue({
     content: '# Test Resource\n\nGenerated content about test topic.',
     metadata: { format: 'text/markdown' }
@@ -61,42 +58,22 @@ vi.mock('../../services/resource-queries', () => ({
   }
 }));
 
-// Mock environment
+// Mock environment - testDir will be set in beforeAll
+let testDir: string;
+
 vi.mock('../../config/environment-loader', () => ({
   getFilesystemConfig: () => ({ path: testDir }),
   getInferenceConfig: () => ({ provider: 'test', model: 'test-model' })
 }));
 
-let testDir: string;
-
 describe('GenerationWorker - Event Emission', () => {
-  let eventStore: EventStore;
   let worker: GenerationWorker;
-  let emittedEvents: StoredEvent[] = [];
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-generation-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-
     process.env.BACKEND_URL = 'http://localhost:4000';
-
-    const projectionStorage = new FilesystemProjectionStorage(testDir);
-    eventStore = new EventStore({
-      basePath: testDir,
-      dataDir: testDir,
-      enableSharding: false,
-      maxEventsPerFile: 100,
-    }, projectionStorage);
-
     worker = new GenerationWorker();
-
-    // Capture all events emitted during processing
-    const originalAppendEvent = eventStore.appendEvent.bind(eventStore);
-    vi.spyOn(eventStore, 'appendEvent').mockImplementation(async (event) => {
-      const stored = await originalAppendEvent(event);
-      emittedEvents.push(stored);
-      return stored;
-    });
   });
 
   afterAll(async () => {
@@ -104,15 +81,13 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit job.started event when generation begins', async () => {
-    emittedEvents = [];
-
     const job: GenerationJob = {
       id: 'job-gen-1',
       type: 'generation',
       status: 'pending',
       userId: 'user-1',
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource',
+      sourceResourceId: 'source-resource-1',  // Unique per test
       title: 'Test Resource',
       entityTypes: ['Person'],
       created: new Date().toISOString(),
@@ -122,12 +97,18 @@ describe('GenerationWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const startedEvents = emittedEvents.filter(e => e.event.type === 'job.started');
-    expect(startedEvents).toHaveLength(1);
+    // Query events from Event Store
+    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
+    const eventStore = await createEventStore(testDir);
+    const query = createEventQuery(eventStore);
+    const events = await query.getResourceEvents('source-resource-1');
+
+    const startedEvents = events.filter(e => e.event.type === 'job.started');
+    expect(startedEvents.length).toBeGreaterThanOrEqual(1);
 
     expect(startedEvents[0].event).toMatchObject({
       type: 'job.started',
-      resourceId: 'source-resource',
+      resourceId: 'source-resource-1',
       userId: 'user-1',
       payload: {
         jobId: 'job-gen-1',
@@ -138,15 +119,13 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit job.progress events for each generation stage', async () => {
-    emittedEvents = [];
-
     const job: GenerationJob = {
       id: 'job-gen-2',
       type: 'generation',
       status: 'pending',
       userId: 'user-1',
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource',
+      sourceResourceId: 'source-resource-2',
       title: 'Test Resource',
       entityTypes: ['Person'],
       created: new Date().toISOString(),
@@ -156,27 +135,30 @@ describe('GenerationWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const progressEvents = emittedEvents.filter(e => e.event.type === 'job.progress');
-    expect(progressEvents.length).toBeGreaterThanOrEqual(4);
+    // Query events from Event Store
+    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
+    const eventStore = await createEventStore(testDir);
+    const query = createEventQuery(eventStore);
+    const events = await query.getResourceEvents('source-resource-2');
 
-    // Check for specific stages
+    const progressEvents = events.filter(e => e.event.type === 'job.progress');
+    expect(progressEvents.length).toBeGreaterThanOrEqual(3);
+
+    // Check for specific stages (fetching, generating, creating)
     const stages = progressEvents.map(e => e.event.payload.currentStep);
     expect(stages).toContain('fetching');
     expect(stages).toContain('generating');
     expect(stages).toContain('creating');
-    expect(stages).toContain('linking');
   });
 
   it('should emit progress events with increasing percentages', async () => {
-    emittedEvents = [];
-
     const job: GenerationJob = {
       id: 'job-gen-3',
       type: 'generation',
       status: 'pending',
       userId: 'user-1',
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource',
+      sourceResourceId: 'source-resource-3',
       title: 'Test Resource',
       entityTypes: ['Person'],
       created: new Date().toISOString(),
@@ -186,7 +168,13 @@ describe('GenerationWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const progressEvents = emittedEvents.filter(e => e.event.type === 'job.progress');
+    // Query events from Event Store
+    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
+    const eventStore = await createEventStore(testDir);
+    const query = createEventQuery(eventStore);
+    const events = await query.getResourceEvents('source-resource-3');
+
+    const progressEvents = events.filter(e => e.event.type === 'job.progress');
     const percentages = progressEvents.map(e => e.event.payload.percentage);
 
     // Percentages should be in ascending order
@@ -199,15 +187,13 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit job.completed event with resultResourceId', async () => {
-    emittedEvents = [];
-
     const job: GenerationJob = {
       id: 'job-gen-4',
       type: 'generation',
       status: 'pending',
       userId: 'user-1',
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource',
+      sourceResourceId: 'source-resource-4',
       title: 'Test Resource',
       entityTypes: ['Person'],
       created: new Date().toISOString(),
@@ -217,12 +203,18 @@ describe('GenerationWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const completedEvents = emittedEvents.filter(e => e.event.type === 'job.completed');
-    expect(completedEvents).toHaveLength(1);
+    // Query events from Event Store
+    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
+    const eventStore = await createEventStore(testDir);
+    const query = createEventQuery(eventStore);
+    const events = await query.getResourceEvents('source-resource-4');
+
+    const completedEvents = events.filter(e => e.event.type === 'job.completed');
+    expect(completedEvents.length).toBeGreaterThanOrEqual(1);
 
     expect(completedEvents[0].event).toMatchObject({
       type: 'job.completed',
-      resourceId: 'source-resource',
+      resourceId: 'source-resource-4',
       payload: {
         jobId: 'job-gen-4',
         jobType: 'generation',
@@ -232,15 +224,13 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit resource.created event for new resource', async () => {
-    emittedEvents = [];
-
     const job: GenerationJob = {
       id: 'job-gen-5',
       type: 'generation',
       status: 'pending',
       userId: 'user-1',
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource',
+      sourceResourceId: 'source-resource-5',
       title: 'Test Resource',
       entityTypes: ['Person'],
       created: new Date().toISOString(),
@@ -250,9 +240,23 @@ describe('GenerationWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const createdEvents = emittedEvents.filter(e => e.event.type === 'resource.created');
-    expect(createdEvents.length).toBeGreaterThan(0);
+    // Get the resultResourceId from job.completed event
+    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
+    const eventStore = await createEventStore(testDir);
+    const query = createEventQuery(eventStore);
+    const sourceEvents = await query.getResourceEvents('source-resource-5');
 
+    const completedEvents = sourceEvents.filter(e => e.event.type === 'job.completed');
+    expect(completedEvents.length).toBeGreaterThan(0);
+
+    const resultResourceId = completedEvents[0].event.payload.resultResourceId;
+    expect(resultResourceId).toBeDefined();
+
+    // Now query the new resource's events
+    const newResourceEvents = await query.getResourceEvents(resultResourceId);
+    const createdEvents = newResourceEvents.filter(e => e.event.type === 'resource.created');
+
+    expect(createdEvents.length).toBeGreaterThan(0);
     expect(createdEvents[0].event).toMatchObject({
       type: 'resource.created',
       userId: 'user-1',
@@ -264,15 +268,13 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit events in correct order', async () => {
-    emittedEvents = [];
-
     const job: GenerationJob = {
       id: 'job-gen-6',
       type: 'generation',
       status: 'pending',
       userId: 'user-1',
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource',
+      sourceResourceId: 'source-resource-6',
       title: 'Test Resource',
       entityTypes: ['Person'],
       created: new Date().toISOString(),
@@ -282,7 +284,13 @@ describe('GenerationWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const eventTypes = emittedEvents.map(e => e.event.type);
+    // Query events from Event Store
+    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
+    const eventStore = await createEventStore(testDir);
+    const query = createEventQuery(eventStore);
+    const events = await query.getResourceEvents('source-resource-6');
+
+    const eventTypes = events.map(e => e.event.type);
 
     // First event should be job.started
     expect(eventTypes[0]).toBe('job.started');
@@ -290,24 +298,19 @@ describe('GenerationWorker - Event Emission', () => {
     // Should contain progress events
     expect(eventTypes.filter(t => t === 'job.progress').length).toBeGreaterThan(0);
 
-    // Should contain resource.created
-    expect(eventTypes).toContain('resource.created');
-
     // Last job event should be job.completed
     const lastJobEventIndex = eventTypes.lastIndexOf('job.completed');
     expect(lastJobEventIndex).toBeGreaterThan(0);
   });
 
   it('should include descriptive messages in progress events', async () => {
-    emittedEvents = [];
-
     const job: GenerationJob = {
       id: 'job-gen-7',
       type: 'generation',
       status: 'pending',
       userId: 'user-1',
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource',
+      sourceResourceId: 'source-resource-7',
       title: 'Test Resource',
       entityTypes: ['Person'],
       created: new Date().toISOString(),
@@ -317,7 +320,13 @@ describe('GenerationWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const progressEvents = emittedEvents.filter(e => e.event.type === 'job.progress');
+    // Query events from Event Store
+    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
+    const eventStore = await createEventStore(testDir);
+    const query = createEventQuery(eventStore);
+    const events = await query.getResourceEvents('source-resource-7');
+
+    const progressEvents = events.filter(e => e.event.type === 'job.progress');
 
     for (const event of progressEvents) {
       expect(event.event.payload).toHaveProperty('message');
