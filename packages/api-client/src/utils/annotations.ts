@@ -180,6 +180,13 @@ export function isReference(annotation: Annotation): annotation is ReferenceAnno
 }
 
 /**
+ * Type guard to check if an annotation is an assessment
+ */
+export function isAssessment(annotation: Annotation): annotation is Annotation {
+  return annotation.motivation === 'assessing';
+}
+
+/**
  * Type guard to check if a reference annotation is a stub (unresolved)
  * Stub if no SpecificResource in body array
  */
