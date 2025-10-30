@@ -17,6 +17,7 @@ interface Props {
   highlights: Annotation[];
   references: Annotation[];
   assessments: Annotation[];
+  comments: Annotation[];
   onAnnotationClick?: (annotation: Annotation) => void;
   onWikiLinkClick?: (pageName: string) => void;
 }
@@ -33,9 +34,11 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
       const start = posSelector?.start ?? 0;
       const end = posSelector?.end ?? 0;
       // Use W3C motivation to determine type
-      let type: 'highlight' | 'reference' | 'assessment';
+      let type: 'highlight' | 'reference' | 'assessment' | 'comment';
       if (ann.motivation === 'assessing') {
         type = 'assessment';
+      } else if (ann.motivation === 'commenting') {
+        type = 'comment';
       } else if (isReference(ann)) {
         type = 'reference';
       } else {
@@ -57,14 +60,15 @@ export function BrowseView({
   highlights,
   references,
   assessments,
+  comments,
   onAnnotationClick
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const allAnnotations = useMemo(() =>
-    [...highlights, ...references, ...assessments],
-    [highlights, references, assessments]
+    [...highlights, ...references, ...assessments, ...comments],
+    [highlights, references, assessments, comments]
   );
 
   const preparedAnnotations = useMemo(() =>
