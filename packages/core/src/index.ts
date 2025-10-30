@@ -26,6 +26,8 @@ export type {
   BaseEvent,
   ResourceEvent,
   ResourceEventType,
+  SystemEvent,
+  ResourceScopedEvent,
   ResourceCreatedEvent,
   ResourceClonedEvent,
   ResourceArchivedEvent,
@@ -49,6 +51,8 @@ export type {
 } from './events';
 export {
   isResourceEvent,
+  isSystemEvent,
+  isResourceScopedEvent,
   getEventType,
 } from './events';
 

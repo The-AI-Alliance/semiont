@@ -22,8 +22,7 @@ export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
   timestamp: string;              // ISO 8601 timestamp (for humans, NOT for ordering)
   resourceId?: string;            // Optional - present for resource-scoped events, absent for system events
-                                  // ⚠️ BRITTLE: Event routing depends on presence/absence of this field
-                                  // TODO: Add explicit projection target field for cleaner routing
+                                  // Use isSystemEvent() / isResourceScopedEvent() type guards for routing
   userId: string;                 // DID format: did:web:org.com:users:alice (federation-ready)
   version: number;                // Event schema version
 }
@@ -204,6 +203,12 @@ export type ResourceEvent =
 // Extract just the event type strings from the union
 export type ResourceEventType = ResourceEvent['type'];
 
+// System-level events (no resource scope)
+export type SystemEvent = EntityTypeAddedEvent;
+
+// Resource-scoped events (require resourceId)
+export type ResourceScopedEvent = Exclude<ResourceEvent, SystemEvent>;
+
 // Type guards
 export function isResourceEvent(event: any): event is ResourceEvent {
   return event &&
@@ -212,6 +217,22 @@ export function isResourceEvent(event: any): event is ResourceEvent {
     (event.resourceId === undefined || typeof event.resourceId === 'string') &&  // resourceId now optional
     typeof event.type === 'string' &&
     event.type.includes('.');
+}
+
+/**
+ * Type guard: Check if event is system-level (no resourceId)
+ * System events affect global state, not individual resources
+ */
+export function isSystemEvent(event: ResourceEvent): event is SystemEvent {
+  return event.type === 'entitytype.added';
+}
+
+/**
+ * Type guard: Check if event is resource-scoped (has resourceId)
+ * Resource events affect a specific resource's state
+ */
+export function isResourceScopedEvent(event: ResourceEvent): event is ResourceScopedEvent {
+  return !isSystemEvent(event);
 }
 
 export function getEventType<T extends ResourceEvent>(
