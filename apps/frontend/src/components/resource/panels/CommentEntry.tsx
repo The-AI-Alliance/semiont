@@ -76,8 +76,8 @@ export function CommentEntry({
       ref={commentRef}
       className={`border rounded-lg p-3 transition-all cursor-pointer ${
         isFocused
-          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 animate-pulse-outline'
-          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+          ? 'border-gray-400 bg-gray-50 dark:bg-gray-800 animate-pulse-outline'
+          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
       }`}
       onClick={onClick}
     >

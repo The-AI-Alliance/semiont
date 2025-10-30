@@ -163,10 +163,10 @@ body {
 /* Pulsing outline animation for focused comments */
 @keyframes pulse-outline {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4);
+    box-shadow: 0 0 0 0 rgba(107, 114, 128, 0.4);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(168, 85, 247, 0);
+    box-shadow: 0 0 0 8px rgba(107, 114, 128, 0);
   }
 }
 
