@@ -5,7 +5,7 @@
  * during resource generation processing.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../jobs/workers/generation-worker';
 import type { GenerationJob } from '../../jobs/types';
 import { promises as fs } from 'fs';
@@ -106,7 +106,8 @@ describe('GenerationWorker - Event Emission', () => {
     const startedEvents = events.filter(e => e.event.type === 'job.started');
     expect(startedEvents.length).toBeGreaterThanOrEqual(1);
 
-    expect(startedEvents[0].event).toMatchObject({
+    expect(startedEvents[0]).toBeDefined();
+    expect(startedEvents[0]!.event).toMatchObject({
       type: 'job.started',
       resourceId: 'source-resource-1',
       userId: 'user-1',
@@ -145,7 +146,7 @@ describe('GenerationWorker - Event Emission', () => {
     expect(progressEvents.length).toBeGreaterThanOrEqual(3);
 
     // Check for specific stages (fetching, generating, creating)
-    const stages = progressEvents.map(e => e.event.payload.currentStep);
+    const stages = progressEvents.map(e => (e.event.payload as any).currentStep);
     expect(stages).toContain('fetching');
     expect(stages).toContain('generating');
     expect(stages).toContain('creating');
@@ -175,7 +176,7 @@ describe('GenerationWorker - Event Emission', () => {
     const events = await query.getResourceEvents('source-resource-3');
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
-    const percentages = progressEvents.map(e => e.event.payload.percentage);
+    const percentages = progressEvents.map(e => (e.event.payload as any).percentage);
 
     // Percentages should be in ascending order
     for (let i = 1; i < percentages.length; i++) {
@@ -212,7 +213,8 @@ describe('GenerationWorker - Event Emission', () => {
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
     expect(completedEvents.length).toBeGreaterThanOrEqual(1);
 
-    expect(completedEvents[0].event).toMatchObject({
+    expect(completedEvents[0]).toBeDefined();
+    expect(completedEvents[0]!.event).toMatchObject({
       type: 'job.completed',
       resourceId: 'source-resource-4',
       payload: {
@@ -249,7 +251,8 @@ describe('GenerationWorker - Event Emission', () => {
     const completedEvents = sourceEvents.filter(e => e.event.type === 'job.completed');
     expect(completedEvents.length).toBeGreaterThan(0);
 
-    const resultResourceId = completedEvents[0].event.payload.resultResourceId;
+    expect(completedEvents[0]).toBeDefined();
+    const resultResourceId = (completedEvents[0]!.event.payload as any).resultResourceId;
     expect(resultResourceId).toBeDefined();
 
     // Now query the new resource's events
@@ -257,7 +260,8 @@ describe('GenerationWorker - Event Emission', () => {
     const createdEvents = newResourceEvents.filter(e => e.event.type === 'resource.created');
 
     expect(createdEvents.length).toBeGreaterThan(0);
-    expect(createdEvents[0].event).toMatchObject({
+    expect(createdEvents[0]).toBeDefined();
+    expect(createdEvents[0]!.event).toMatchObject({
       type: 'resource.created',
       userId: 'user-1',
       payload: {
@@ -330,8 +334,8 @@ describe('GenerationWorker - Event Emission', () => {
 
     for (const event of progressEvents) {
       expect(event.event.payload).toHaveProperty('message');
-      expect(typeof event.event.payload.message).toBe('string');
-      expect(event.event.payload.message.length).toBeGreaterThan(0);
+      expect(typeof (event.event.payload as any).message).toBe('string');
+      expect((event.event.payload as any).message.length).toBeGreaterThan(0);
     }
   });
 });

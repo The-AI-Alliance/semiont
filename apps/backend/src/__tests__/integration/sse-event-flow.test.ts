@@ -7,7 +7,6 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { EventStore } from '../../events/event-store';
-import type { JobProgressEvent, JobCompletedEvent, JobFailedEvent } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -405,7 +404,7 @@ describe('SSE Event Flow - End-to-End', () => {
     const jobId = 'job-e2e-6';
     let notifyTime: number | null = null;
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(resourceId, async () => {
       notifyTime = Date.now();
     });
 

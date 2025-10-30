@@ -7,10 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { DetectionWorker } from '../../jobs/workers/detection-worker';
-import { EventStore } from '../../events/event-store';
-import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import type { DetectionJob } from '../../jobs/types';
-import type { StoredEvent } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -89,7 +86,8 @@ describe('DetectionWorker - Event Emission', () => {
     expect(startedEvents.length).toBeGreaterThanOrEqual(1);
 
     const startedEvent = startedEvents[0];
-    expect(startedEvent.event).toMatchObject({
+    expect(startedEvent).toBeDefined();
+    expect(startedEvent!.event).toMatchObject({
       type: 'job.started',
       resourceId: 'resource-1',
       userId: 'user-1',
@@ -127,7 +125,8 @@ describe('DetectionWorker - Event Emission', () => {
     expect(progressEvents.length).toBeGreaterThanOrEqual(3); // At least one per entity type
 
     // Check first progress event
-    expect(progressEvents[0].event).toMatchObject({
+    expect(progressEvents[0]).toBeDefined();
+    expect(progressEvents[0]!.event).toMatchObject({
       type: 'job.progress',
       resourceId: 'resource-2',
       payload: {
@@ -140,8 +139,9 @@ describe('DetectionWorker - Event Emission', () => {
     });
 
     // Check progress percentage increases
-    const percentages = progressEvents.map(e => e.event.payload.percentage);
-    expect(percentages[0]).toBeLessThan(percentages[percentages.length - 1]);
+    const percentages = progressEvents.map(e => (e.event.payload as any).percentage).filter((p): p is number => typeof p === 'number');
+    expect(percentages[0]).toBeDefined();
+    expect(percentages[0]!).toBeLessThan(percentages[percentages.length - 1]!);
   });
 
   it('should emit job.completed event when detection finishes successfully', async () => {
@@ -169,7 +169,8 @@ describe('DetectionWorker - Event Emission', () => {
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
     expect(completedEvents.length).toBeGreaterThanOrEqual(1);
 
-    expect(completedEvents[0].event).toMatchObject({
+    expect(completedEvents[0]).toBeDefined();
+    expect(completedEvents[0]!.event).toMatchObject({
       type: 'job.completed',
       resourceId: 'resource-3',
       payload: {
@@ -208,7 +209,8 @@ describe('DetectionWorker - Event Emission', () => {
     // Verify that IF entities were detected, they would have the correct schema
     // This is a schema test, not an integration test
     if (annotationEvents.length > 0) {
-      expect(annotationEvents[0].event).toMatchObject({
+      expect(annotationEvents[0]).toBeDefined();
+      expect(annotationEvents[0]!.event).toMatchObject({
         type: 'annotation.added',
         resourceId: 'resource-4',
         payload: {
@@ -288,7 +290,7 @@ describe('DetectionWorker - Event Emission', () => {
 
     for (const event of progressEvents) {
       expect(event.event.payload).toHaveProperty('foundCount');
-      expect(typeof event.event.payload.foundCount).toBe('number');
+      expect(typeof (event.event.payload as any).foundCount).toBe('number');
     }
   });
 });

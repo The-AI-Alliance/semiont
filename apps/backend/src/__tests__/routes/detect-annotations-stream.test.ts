@@ -73,6 +73,7 @@ let app: Hono<{ Variables: Variables }>;
 describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscriptions', () => {
   let authToken: string;
   let testUser: User;
+  // @ts-ignore - used in multiple test blocks
   let eventStore: EventStore;
 
   beforeAll(async () => {
@@ -281,7 +282,7 @@ describe('Event Store Subscription Pattern', () => {
     const resourceId = 'test-resource-1';
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -316,7 +317,7 @@ describe('Event Store Subscription Pattern', () => {
     const resourceId = 'test-resource-2';
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -344,7 +345,7 @@ describe('Event Store Subscription Pattern', () => {
     const resourceId = 'test-resource-3';
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -374,7 +375,7 @@ describe('Event Store Subscription Pattern', () => {
     const resourceId = 'test-resource-4';
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 

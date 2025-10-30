@@ -63,11 +63,11 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
     // Format events for API response
     const events: GetAnnotationHistoryResponse['events'] = annotationEvents.map(stored => ({
       id: stored.event.id,
-      type: stored.event.type,
+      type: stored.event.type as any, // Job events are filtered out above but TS doesn't know
       timestamp: stored.event.timestamp,
       userId: stored.event.userId,
       resourceId: stored.event.resourceId!, // Map internal resourceId to API resourceId
-      payload: stored.event.payload,
+      payload: stored.event.payload as any,
       metadata: {
         sequenceNumber: stored.metadata.sequenceNumber,
         prevEventHash: stored.metadata.prevEventHash,
