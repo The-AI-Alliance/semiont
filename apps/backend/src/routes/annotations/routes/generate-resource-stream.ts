@@ -21,6 +21,9 @@ import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { getTargetSelector } from '../../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
+import { createEventStore } from '../../../services/event-store-service';
+import { getFilesystemConfig } from '../../../config/environment-loader';
+import type { JobProgressEvent, JobCompletedEvent, JobFailedEvent } from '@semiont/core';
 
 type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
 
@@ -125,94 +128,91 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
             id: String(Date.now())
           });
 
-          let lastStatus = job.status;
-          let lastProgress = JSON.stringify(job.progress);
-
-          // Poll job status and stream updates to client
+          // Subscribe to Event Store for job progress events
           // The job worker processes independently - if client disconnects, job continues
-          while (true) {
-            const currentJob = await jobQueue.getJob(job.id);
+          const basePath = getFilesystemConfig().path;
+          const eventStore = await createEventStore(basePath);
 
-            if (!currentJob) {
-              throw new Error('Job was deleted');
-            }
+          // Promise that resolves when the job is done (complete or failed)
+          let jobDoneResolver: (() => void) | null = null;
+          const jobDonePromise = new Promise<void>((resolve) => {
+            jobDoneResolver = resolve;
+          });
 
-            const currentProgress = JSON.stringify(currentJob.progress);
+          // Map event progress steps to SSE status
+          const statusMap: Record<string, GenerationProgress['status']> = {
+            'fetching': 'fetching',
+            'generating': 'generating',
+            'creating': 'creating',
+            'linking': 'creating'
+          };
 
-            // Send progress updates when job state changes
-            if (currentJob.status !== lastStatus || currentProgress !== lastProgress) {
-              if (currentJob.status === 'running' && currentJob.type === 'generation') {
-                const generationJob = currentJob as GenerationJob;
-                const progress = generationJob.progress;
+          // Subscribe to all events for the source resource
+          const subscription = eventStore.subscriptions.subscribe(body.resourceId, async (storedEvent) => {
+            const event = storedEvent.event;
 
-                if (progress) {
-                  // Map job progress stages to SSE status
-                  const statusMap: Record<typeof progress.stage, GenerationProgress['status']> = {
-                    'fetching': 'fetching',
-                    'generating': 'generating',
-                    'creating': 'creating',
-                    'linking': 'creating'
-                  };
-
-                  try {
-                    await stream.writeSSE({
-                      data: JSON.stringify({
-                        status: statusMap[progress.stage],
-                        referenceId,
-                        resourceName,
-                        percentage: progress.percentage,
-                        message: progress.message || `${progress.stage}...`
-                      } as GenerationProgress),
-                      event: 'generation-progress',
-                      id: String(Date.now())
-                    });
-                  } catch (sseError) {
-                    console.warn(`[GenerateResource] Client disconnected, but job ${job.id} will continue processing`);
-                    break; // Client disconnected, stop streaming (job continues)
-                  }
-                }
+            // Filter events for this specific job
+            if (event.type === 'job.progress' && event.payload.jobId === job.id) {
+              const progressEvent = event as JobProgressEvent;
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: statusMap[progressEvent.payload.currentStep || ''] || 'generating',
+                    referenceId,
+                    resourceName,
+                    percentage: progressEvent.payload.percentage,
+                    message: progressEvent.payload.message || 'Processing...'
+                  } as GenerationProgress),
+                  event: 'generation-progress',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (sseError) {
+                console.warn(`[GenerateResource] Client disconnected, but job ${job.id} will continue processing`);
+                subscription.unsubscribe();
+                if (jobDoneResolver) jobDoneResolver();
               }
-
-              lastStatus = currentJob.status;
-              lastProgress = currentProgress;
             }
 
-            // Check if job completed
-            if (currentJob.status === 'complete') {
-              const result = (currentJob as GenerationJob).result;
+            // Handle job completion
+            if (event.type === 'job.completed' && event.payload.jobId === job.id) {
+              const completedEvent = event as JobCompletedEvent;
               await stream.writeSSE({
                 data: JSON.stringify({
                   status: 'complete',
                   referenceId,
-                  resourceName: result?.resourceName || resourceName,
-                  resourceId: result?.resourceId,
+                  resourceName,
+                  resourceId: completedEvent.payload.resultResourceId,
                   sourceResourceId: body.resourceId,
                   percentage: 100,
-                  message: 'Draft resource created! Ready for review.'
+                  message: completedEvent.payload.message || 'Draft resource created! Ready for review.'
                 } as GenerationProgress),
                 event: 'generation-complete',
-                id: String(Date.now())
+                id: storedEvent.metadata.sequenceNumber.toString()
               });
-              break;
+              subscription.unsubscribe();
+              if (jobDoneResolver) jobDoneResolver();
             }
 
-            if (currentJob.status === 'failed') {
+            // Handle job failure
+            if (event.type === 'job.failed' && event.payload.jobId === job.id) {
+              const failedEvent = event as JobFailedEvent;
               await stream.writeSSE({
                 data: JSON.stringify({
                   status: 'error',
                   referenceId,
                   percentage: 0,
-                  message: currentJob.error || 'Generation failed'
+                  message: failedEvent.payload.error || 'Generation failed'
                 } as GenerationProgress),
                 event: 'generation-error',
-                id: String(Date.now())
+                id: storedEvent.metadata.sequenceNumber.toString()
               });
-              break;
+              subscription.unsubscribe();
+              if (jobDoneResolver) jobDoneResolver();
             }
+          });
 
-            // Poll every 500ms
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
+          // Keep the connection alive until the job is done
+          await jobDonePromise;
 
         } catch (error) {
           // Send error event

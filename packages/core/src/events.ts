@@ -107,6 +107,57 @@ export interface AnnotationBodyUpdatedEvent extends BaseEvent {
   };
 }
 
+// Job progress events (resource-level)
+// Emitted by background workers for real-time progress updates
+export interface JobStartedEvent extends BaseEvent {
+  type: 'job.started';
+  resourceId: string;  // Required - job is scoped to a resource
+  payload: {
+    jobId: string;
+    jobType: 'detection' | 'generation';
+    totalSteps?: number;  // Optional - total number of steps if known
+  };
+}
+
+export interface JobProgressEvent extends BaseEvent {
+  type: 'job.progress';
+  resourceId: string;  // Required - job is scoped to a resource
+  payload: {
+    jobId: string;
+    jobType: 'detection' | 'generation';
+    percentage: number;  // 0-100
+    currentStep?: string;  // Human-readable current step (e.g., "Scanning for Person")
+    processedSteps?: number;  // Number of steps completed
+    totalSteps?: number;  // Total number of steps
+    foundCount?: number;  // For detection: number of entities found so far
+    message?: string;  // Optional status message
+  };
+}
+
+export interface JobCompletedEvent extends BaseEvent {
+  type: 'job.completed';
+  resourceId: string;  // Required - job is scoped to a resource
+  payload: {
+    jobId: string;
+    jobType: 'detection' | 'generation';
+    totalSteps?: number;  // Total steps completed
+    foundCount?: number;  // For detection: total entities found
+    resultResourceId?: string;  // For generation: ID of generated resource
+    message?: string;  // Optional completion message
+  };
+}
+
+export interface JobFailedEvent extends BaseEvent {
+  type: 'job.failed';
+  resourceId: string;  // Required - job is scoped to a resource
+  payload: {
+    jobId: string;
+    jobType: 'detection' | 'generation';
+    error: string;  // Error message
+    details?: string;  // Optional detailed error information
+  };
+}
+
 // Entity tag events (resource-level)
 export interface EntityTagAddedEvent extends BaseEvent {
   type: 'entitytag.added';
@@ -142,6 +193,10 @@ export type ResourceEvent =
   | AnnotationAddedEvent
   | AnnotationRemovedEvent
   | AnnotationBodyUpdatedEvent
+  | JobStartedEvent          // Job progress
+  | JobProgressEvent         // Job progress
+  | JobCompletedEvent        // Job progress
+  | JobFailedEvent           // Job progress
   | EntityTagAddedEvent      // Resource-level
   | EntityTagRemovedEvent    // Resource-level
   | EntityTypeAddedEvent;    // Global collection

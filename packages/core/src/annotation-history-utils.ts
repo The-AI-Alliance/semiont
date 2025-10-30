@@ -52,6 +52,14 @@ export function formatEventType(type: ResourceEventType, t: TranslateFn): string
       return t('entitytagRemoved');
     case 'entitytype.added':
       return t('entitytypeAdded');
+    case 'job.started':
+      return t('jobStarted');
+    case 'job.progress':
+      return t('jobProgress');
+    case 'job.completed':
+      return t('jobCompleted');
+    case 'job.failed':
+      return t('jobFailed');
     default:
       // Exhaustive check: if we get here, we missed a case
       const _exhaustiveCheck: never = type;
@@ -103,6 +111,14 @@ export function getEventEmoji(type: ResourceEventType, event?: StoredEvent): str
       return '🏷️';
     case 'entitytype.added':
       return '🏷️';  // Same emoji as entitytag (global entity type collection)
+    case 'job.started':
+      return '▶️';
+    case 'job.progress':
+      return '⏳';
+    case 'job.completed':
+      return '✅';
+    case 'job.failed':
+      return '❌';
     default:
       // Exhaustive check: if we get here, we missed a case
       const _exhaustiveCheck: never = type;
