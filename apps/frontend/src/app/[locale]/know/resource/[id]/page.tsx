@@ -674,6 +674,8 @@ function ResourceView({
             {activePanel === 'info' && (
               <ResourceInfoPanel
                 highlights={highlights}
+                comments={comments}
+                assessments={assessments}
                 references={references}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
