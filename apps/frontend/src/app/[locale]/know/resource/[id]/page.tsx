@@ -216,6 +216,7 @@ function ResourceView({
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
+  const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -573,6 +574,13 @@ function ResourceView({
                   // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
                   setActivePanel('comments');
                 }}
+                onCommentClick={(commentId) => {
+                  // Open Comments Panel and focus on this comment
+                  setActivePanel('comments');
+                  setFocusedCommentId(commentId);
+                  // Clear after a short delay to remove highlight
+                  setTimeout(() => setFocusedCommentId(null), 3000);
+                }}
                 onGenerateDocument={handleGenerateDocument}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
@@ -658,7 +666,7 @@ function ResourceView({
                     setPendingCommentSelection(null);
                   }
                 }}
-                focusedCommentId={null}
+                focusedCommentId={focusedCommentId}
                 resourceContent={content}
                 pendingSelection={pendingCommentSelection}
               />

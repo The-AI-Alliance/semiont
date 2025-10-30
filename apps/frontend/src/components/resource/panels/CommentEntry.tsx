@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
@@ -44,6 +44,14 @@ export function CommentEntry({
   const t = useTranslations('CommentsPanel');
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
+  const commentRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to comment when focused
+  useEffect(() => {
+    if (isFocused && commentRef.current) {
+      commentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [isFocused]);
 
   const commentText = getCommentText(comment) || '';
   const selectedText = getAnnotationExactText(comment);
@@ -65,9 +73,10 @@ export function CommentEntry({
 
   return (
     <div
+      ref={commentRef}
       className={`border rounded-lg p-3 transition-all cursor-pointer ${
         isFocused
-          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 animate-pulse-outline'
           : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
       }`}
       onClick={onClick}
