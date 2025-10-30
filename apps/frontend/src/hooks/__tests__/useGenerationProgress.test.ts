@@ -102,7 +102,9 @@ describe('useGenerationProgress', () => {
 
     await result.current.startGeneration('test-ref-id', 'test-resource');
 
-    expect(result.current.isGenerating).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isGenerating).toBe(true);
+    });
   });
 
   it('should handle generation-started event', async () => {

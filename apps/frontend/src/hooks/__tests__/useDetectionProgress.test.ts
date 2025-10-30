@@ -93,7 +93,9 @@ describe('useDetectionProgress', () => {
 
     await result.current.startDetection(['Person']);
 
-    expect(result.current.isDetecting).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isDetecting).toBe(true);
+    });
   });
 
   it('should handle detection-started event', async () => {
