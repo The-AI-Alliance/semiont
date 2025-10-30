@@ -2,26 +2,27 @@
 
 ## Overview
 
-Semiont uses a graph database (Layer 4) to model relationships between documents and annotations. The graph stores W3C-compliant Web Annotations with entity type tags and document links, enabling rich knowledge graph traversal and discovery.
+Semiont uses a graph database to model relationships between documents and annotations. The graph stores W3C-compliant Web Annotations with entity type tags and document links, enabling rich knowledge graph traversal and discovery.
 
 The system supports four different graph database implementations that share a common pattern while accommodating technology-specific differences. All implementations reconstruct W3C-compliant multi-body annotations from graph relationships.
 
-For complete details on how data flows through all layers:
-- [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) - Layer 1 raw document content storage
-- [EVENT-STORE.md](./EVENT-STORE.md) - Layer 2 event sourcing architecture
-- [PROJECTION.md](./PROJECTION.md) - Layer 3 projection storage and queries
+For complete details on how data flows through the system:
+
+- [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) - Raw document content storage
+- [EVENT-STORE.md](./EVENT-STORE.md) - Event sourcing architecture
+- [PROJECTION.md](./PROJECTION.md) - Projection storage and queries
 - [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) - Complete annotation flow (UI, API, Event Store, Projection, Graph)
 
 ## Graph Architecture
 
 ```mermaid
 graph LR
-    subgraph "Application Layer"
+    subgraph "Application"
         APP[Semiont Application]
         GDI[GraphDatabase Interface]
     end
 
-    subgraph "Implementation Layer"
+    subgraph "Graph Implementations"
         NEO[Neo4j<br/>Cypher]
         NEP[Neptune<br/>Gremlin]
         JAN[JanusGraph<br/>Gremlin]
@@ -30,7 +31,7 @@ graph LR
 
     subgraph "Data Model"
         DOC[Document Vertices]
-        SEL[Selection Vertices]
+        ANN[Annotation Vertices]
         TAG[TagCollection Vertices]
         BT[BELONGS_TO Edges]
         REF[REFERENCES Edges]
@@ -47,11 +48,78 @@ graph LR
     JAN --> DOC
     MEM --> DOC
 
-    DOC --> SEL
-    SEL -->|belongs to| BT
-    SEL -->|references| REF
+    DOC --> ANN
+    ANN -->|belongs to| BT
+    ANN -->|references| REF
     DOC --> TAG
 ```
+
+## Event-Driven Projection (Event Store → Graph)
+
+The Graph is an **event-sourced projection** of Event Store events. The `GraphDBConsumer` subscribes to resource events and applies them to the graph database in real-time.
+
+### Event Flow
+
+```mermaid
+graph LR
+    API[API Request] --> ES[Event Store]
+    ES --> GC[GraphDBConsumer<br/>Event Processor]
+    GC --> GDB[Graph Database]
+
+    ES -->|resource.created| GC
+    ES -->|annotation.added| GC
+    ES -->|entitytag.added| GC
+
+    GC -->|createResource| GDB
+    GC -->|createAnnotation| GDB
+    GC -->|updateResource| GDB
+```
+
+### GraphDBConsumer Architecture
+
+The consumer processes events with the following guarantees:
+
+1. **Sequential Processing per Resource**: Events for the same resource are processed in order
+2. **System Event Routing**: System-level events (e.g., `entitytype.added`) are processed immediately
+3. **Fail-Fast**: Errors propagate to prevent silent data corruption
+4. **Idempotent Operations**: Repeated events produce the same result
+
+**Event Handlers:**
+
+| Event Type | Handler | GraphDB Operation |
+|------------|---------|-------------------|
+| `resource.created` | `handleResourceCreated()` | Creates Document vertex with W3C ResourceDescriptor |
+| `resource.cloned` | `handleResourceCloned()` | Creates Document vertex (clone) |
+| `resource.archived` | `handleResourceArchived()` | Updates Document.archived = true |
+| `resource.unarchived` | `handleResourceUnarchived()` | Updates Document.archived = false |
+| `annotation.added` | `handleAnnotationAdded()` | Creates Annotation vertex |
+| `annotation.removed` | `handleAnnotationRemoved()` | Deletes Annotation vertex |
+| `annotation.body.updated` | `handleAnnotationBodyUpdated()` | Updates Annotation body array |
+| `entitytag.added` | `handleEntityTagAdded()` | Adds entity type to Document |
+| `entitytag.removed` | `handleEntityTagRemoved()` | Removes entity type from Document |
+| `entitytype.added` | `handleEntityTypeAdded()` | Adds to global TagCollection |
+
+**Key Code:**
+- [graph-consumer.ts](../../apps/backend/src/events/consumers/graph-consumer.ts) - Event consumer implementation
+- [event-store.ts](../../apps/backend/src/events/event-store.ts) - Event routing with type discriminators
+
+**Type Discriminators:**
+
+Events are routed using explicit type guards instead of implicit field checks:
+
+```typescript
+// System-level events (no resource scope)
+if (isSystemEvent(event)) {
+  await subscriptions.notifyGlobalSubscribers(event);
+}
+
+// Resource-scoped events (require resourceId)
+if (isResourceScopedEvent(event)) {
+  await subscriptions.notifySubscribers(resourceId, event);
+}
+```
+
+This replaces the brittle pattern of checking `if (!resourceId)`.
 
 ## Common Graph Pattern
 
@@ -78,13 +146,13 @@ All implementations use three primary vertex types:
 
 All implementations use consistent edge labels:
 
-1. **BELONGS_TO** - Links a Selection to its source Document
-   - Direction: `(Selection)-[:BELONGS_TO]->(Document)`
-   - Every selection must belong to exactly one document
+1. **BELONGS_TO** - Links an Annotation to its source Document
+   - Direction: `(Annotation)-[:BELONGS_TO]->(Document)`
+   - Every annotation must belong to exactly one document
 
-2. **REFERENCES** - Links a Selection to its target Document (if resolved)
-   - Direction: `(Selection)-[:REFERENCES]->(Document)`
-   - Only present for resolved selections (references)
+2. **REFERENCES** - Links an Annotation to its target Document (if resolved)
+   - Direction: `(Annotation)-[:REFERENCES]->(Document)`
+   - Only present for resolved annotations (references)
 
 ### Data Model Principles
 
@@ -232,26 +300,25 @@ private referenceTypesCollection: Set<string>
 
 ## Query Patterns
 
-### Finding Selections for a Document
+### Finding Annotations for a Document
 
 **Neo4j**:
 ```cypher
-MATCH (s:Selection {documentId: $documentId})
-WHERE s.resolvedDocumentId IS NULL
-RETURN s
+MATCH (a:Annotation)
+WHERE a.target.source = $resourceId
+RETURN a
 ```
 
 **Gremlin (Neptune/JanusGraph)**:
 ```javascript
-g.V().hasLabel('Selection')
-  .has('documentId', documentId)
-  .not(has('resolvedDocumentId'))
+g.V().hasLabel('Annotation')
+  .has('target.source', resourceId)
 ```
 
 **Memory**:
 ```typescript
-Array.from(selections.values())
-  .filter(sel => sel.documentId === documentId && !sel.resolvedDocumentId)
+Array.from(annotations.values())
+  .filter(ann => ann.target?.source === resourceId)
 ```
 
 ### Finding Document Connections
@@ -259,8 +326,8 @@ Array.from(selections.values())
 **Neo4j**:
 ```cypher
 MATCH (d:Document {id: $documentId})
-OPTIONAL MATCH (d)<-[:BELONGS_TO]-(s:Selection)-[:REFERENCES]->(other:Document)
-RETURN other, s
+OPTIONAL MATCH (d)<-[:BELONGS_TO]-(a:Annotation)-[:REFERENCES]->(other:Document)
+RETURN other, a
 ```
 
 **Gremlin**:
@@ -286,14 +353,55 @@ generateId(): string {
 - Vertex labels provide type identification
 - Supports import/export scenarios
 
+## Error Handling
+
+### Event Processing Errors
+
+The GraphDBConsumer handles errors at different levels:
+
+1. **Transient Errors** (network, GraphDB down):
+   - Events remain in event store (source of truth)
+   - Consumer can be restarted to replay events
+   - Use `rebuildResource()` or `rebuildAll()` for recovery
+
+2. **Data Errors** (missing annotation, invalid payload):
+   - Logged with full stack trace via `console.error()`
+   - Currently swallowed to prevent consumer crashes
+   - ⚠️ Can lead to GraphDB inconsistencies
+
+**Recovery Operations:**
+
+```typescript
+// Rebuild single resource from events
+await consumer.rebuildResource(resourceId);
+
+// Nuclear option: rebuild entire GraphDB
+await consumer.rebuildAll();
+```
+
+**Health Monitoring:**
+
+```typescript
+const health = consumer.getHealthMetrics();
+// {
+//   subscriptions: 42,
+//   lastProcessed: { 'doc-123': 15, 'doc-456': 23 },
+//   processing: ['doc-789']
+// }
+```
+
 ## Best Practices
 
 1. **Always Read Before Update**: Use the Read tool before modifying files
 2. **Trace Type Errors**: Fix type errors at source rather than adding defensive defaults
 3. **Use Nullish Coalescing**: Use `??` for optional fields that could be falsy
-4. **Batch Operations**: Use bulk operations when creating multiple selections
+4. **Batch Operations**: Use bulk operations when creating multiple annotations
 5. **Cache Tag Collections**: Load once and cache in memory for performance
 6. **Handle Technology Differences**: Account for property wrapping in Neptune, JSON serialization, etc.
+7. **Event-Driven Updates**: Never write directly to GraphDB - emit events instead
+8. **Type Discriminators**: Use `isSystemEvent()` and `isResourceScopedEvent()` for routing
+9. **Consumer Recovery**: Use `rebuildResource()` for fixing inconsistencies
+10. **Fail-Fast Validation**: Validate event payloads early, let errors propagate
 
 ## Migration Considerations
 
