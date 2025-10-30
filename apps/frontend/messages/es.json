@@ -399,6 +399,10 @@
     "convertToReference": "Convertir a Referencia",
     "deleteHighlight": "Eliminar Destacado"
   },
+  "AssessmentPopup": {
+    "title": "Evaluación",
+    "deleteAssessment": "Eliminar Evaluación"
+  },
   "StubReferencePopup": {
     "title": "Referencia Stub",
     "linkToResource": "Vincular a Recurso",

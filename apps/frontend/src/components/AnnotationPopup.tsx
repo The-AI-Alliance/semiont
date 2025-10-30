@@ -3,10 +3,11 @@
 import React from 'react';
 import { CreateAnnotationPopup } from './annotation-popups/CreateAnnotationPopup';
 import { HighlightPopup } from './annotation-popups/HighlightPopup';
+import { AssessmentPopup } from './annotation-popups/AssessmentPopup';
 import { StubReferencePopup } from './annotation-popups/StubReferencePopup';
 import { ResolvedReferencePopup } from './annotation-popups/ResolvedReferencePopup';
 import type { components } from '@semiont/api-client';
-import { isHighlight, isReference, isBodyResolved } from '@semiont/api-client';
+import { isHighlight, isReference, isAssessment, isBodyResolved } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type HighlightAnnotation = components['schemas']['Annotation'];
@@ -28,7 +29,7 @@ interface AnnotationPopupProps {
   onGenerateDocument?: (title: string, prompt?: string) => void;
 }
 
-type PopupState = 'initial' | 'highlight' | 'stub_reference' | 'resolved_reference';
+type PopupState = 'initial' | 'highlight' | 'assessment' | 'stub_reference' | 'resolved_reference';
 
 export function AnnotationPopup({
   isOpen,
@@ -47,6 +48,7 @@ export function AnnotationPopup({
   const getPopupState = (): PopupState => {
     if (!annotation) return 'initial';
     if (isHighlight(annotation)) return 'highlight';
+    if (isAssessment(annotation)) return 'assessment';
     if (isReference(annotation)) {
       // Body is either empty array (stub) or SpecificResource with source (resolved)
       // Type assertion needed because TypeScript can't narrow the union properly
@@ -85,6 +87,21 @@ export function AnnotationPopup({
           position={position}
           selection={selection}
           annotation={annotation as HighlightAnnotation}
+          onUpdateAnnotation={onUpdateAnnotation!}
+          onDeleteAnnotation={onDeleteAnnotation!}
+        />
+      );
+
+    case 'assessment':
+      // TypeScript doesn't know that annotation is defined and is an assessment when we're in this case
+      // We know it's safe because getPopupState() only returns 'assessment' when annotation.motivation === 'assessing'
+      return (
+        <AssessmentPopup
+          isOpen={isOpen}
+          onClose={onClose}
+          position={position}
+          selection={selection}
+          annotation={annotation as Annotation}
           onUpdateAnnotation={onUpdateAnnotation!}
           onDeleteAnnotation={onDeleteAnnotation!}
         />

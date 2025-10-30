@@ -84,10 +84,12 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   ): Promise<string | undefined> => {
     try {
       // Build CreateAnnotationRequest following W3C Web Annotation format
+      // Backend expects source as a full URI
+      const resourceUri = `${process.env.NEXT_PUBLIC_API_URL}/resources/${resourceId}`;
       const createData: CreateAnnotationRequest = {
         motivation: 'linking',
         target: {
-          source: resourceId,
+          source: resourceUri,
           selector: [
             {
               type: 'TextPositionSelector',
@@ -164,10 +166,12 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     try {
       // Build CreateAnnotationRequest following W3C Web Annotation format
       // Assessment uses motivation: 'assessing'
+      // Backend expects source as a full URI
+      const resourceUri = `${process.env.NEXT_PUBLIC_API_URL}/resources/${resourceId}`;
       const createData: CreateAnnotationRequest = {
         motivation: 'assessing',  // W3C motivation for assessments
         target: {
-          source: resourceId,
+          source: resourceUri,
           selector: [
             {
               type: 'TextPositionSelector',
@@ -213,7 +217,9 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
 
   const deleteAnnotation = useCallback(async (annotationId: string, resourceId: string) => {
     try {
-      await deleteAnnotationMutation.mutateAsync({ id: annotationId, resourceId });
+      // Backend expects resourceId as a full URI, not just the ID
+      const resourceUri = `${process.env.NEXT_PUBLIC_API_URL}/resources/${resourceId}`;
+      await deleteAnnotationMutation.mutateAsync({ id: annotationId, resourceId: resourceUri });
     } catch (err) {
       console.error('Failed to delete annotation:', err);
       throw err;
