@@ -352,7 +352,7 @@ export class GraphDBConsumer {
    * Unsubscribe from all resources
    */
   async unsubscribeAll(): Promise<void> {
-    for (const [_resourceId, subscription] of this.subscriptions) {
+    for (const subscription of this.subscriptions.values()) {
       subscription.unsubscribe();
     }
     this.subscriptions.clear();
