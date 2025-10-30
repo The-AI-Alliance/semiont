@@ -24,9 +24,9 @@ export const annotationStyles = {
     className: "red-underline cursor-pointer transition-all duration-200 hover:opacity-80"
   },
 
-  // Comment annotation style - purple with dashed ring
+  // Comment annotation style - gray dashed outline, no background
   comment: {
-    className: "rounded px-0.5 cursor-pointer transition-all duration-200 bg-purple-200 hover:bg-purple-300 text-gray-900 dark:bg-purple-900/50 dark:hover:bg-purple-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-purple-500/60 dark:outline-offset-1"
+    className: "rounded px-0.5 cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 outline outline-2 outline-dashed outline-gray-900 dark:outline-gray-100 outline-offset-1"
   },
 
   // Legacy aliases for backward compatibility
