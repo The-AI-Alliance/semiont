@@ -10,7 +10,7 @@ import { getGraphDatabase } from '../../graph/factory';
 import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { components } from '@semiont/api-client';
-import type { ResourceEvent, StoredEvent } from '@semiont/core';
+import type { ResourceEvent, StoredEvent, CreationMethod } from '@semiont/core';
 import { findBodyItem, isSystemEvent } from '@semiont/core';
 import { getFilesystemConfig } from '../../config/environment-loader';
 import type { EventSubscription } from '../subscriptions/event-subscriptions';
@@ -112,6 +112,31 @@ export class GraphDBConsumer {
   }
 
   /**
+   * Build ResourceDescriptor from resource creation/clone event
+   */
+  private buildResourceDescriptor(
+    resourceId: string,
+    payload: { name: string; format: string; contentChecksum: string; creationMethod: CreationMethod; entityTypes?: string[] },
+    userId: string
+  ): ResourceDescriptor {
+    return {
+      '@context': 'https://schema.org/',
+      '@id': `http://localhost:4000/resources/${resourceId}`,
+      name: payload.name,
+      entityTypes: payload.entityTypes || [],
+      representations: [{
+        mediaType: payload.format,
+        checksum: payload.contentChecksum,
+        rel: 'original',
+      }],
+      archived: false,
+      dateCreated: new Date().toISOString(),
+      wasAttributedTo: didToAgent(userId),
+      creationMethod: payload.creationMethod,
+    };
+  }
+
+  /**
    * Apply event to GraphDB
    */
   protected async applyEventToGraph(storedEvent: StoredEvent): Promise<void> {
@@ -123,42 +148,14 @@ export class GraphDBConsumer {
     switch (event.type) {
       case 'resource.created': {
         if (!event.resourceId) throw new Error('resource.created requires resourceId');
-        const resource: ResourceDescriptor = {
-          '@context': 'https://schema.org/',
-          '@id': `http://localhost:4000/resources/${event.resourceId}`,
-          name: event.payload.name,
-          entityTypes: event.payload.entityTypes || [],
-          representations: [{
-            mediaType: event.payload.format,
-            checksum: event.payload.contentChecksum,
-            rel: 'original',
-          }],
-          archived: false,
-          dateCreated: new Date().toISOString(),
-          wasAttributedTo: didToAgent(event.userId),
-          creationMethod: 'api',
-        };
+        const resource = this.buildResourceDescriptor(event.resourceId, event.payload, event.userId);
         await graphDb.createResource(resource);
         break;
       }
 
       case 'resource.cloned': {
         if (!event.resourceId) throw new Error('resource.cloned requires resourceId');
-        const resource: ResourceDescriptor = {
-          '@context': 'https://schema.org/',
-          '@id': `http://localhost:4000/resources/${event.resourceId}`,
-          name: event.payload.name,
-          entityTypes: event.payload.entityTypes || [],
-          representations: [{
-            mediaType: event.payload.format,
-            checksum: event.payload.contentChecksum,
-            rel: 'original',
-          }],
-          archived: false,
-          dateCreated: new Date().toISOString(),
-          wasAttributedTo: didToAgent(event.userId),
-          creationMethod: 'clone',
-        };
+        const resource = this.buildResourceDescriptor(event.resourceId, event.payload, event.userId);
         await graphDb.createResource(resource);
         break;
       }
