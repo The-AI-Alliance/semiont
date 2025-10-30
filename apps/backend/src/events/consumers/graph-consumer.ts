@@ -11,7 +11,7 @@ import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { components } from '@semiont/api-client';
 import type { ResourceEvent, StoredEvent } from '@semiont/core';
-import { findBodyItem } from '@semiont/core';
+import { findBodyItem, isSystemEvent } from '@semiont/core';
 import { getFilesystemConfig } from '../../config/environment-loader';
 import type { EventSubscription } from '../subscriptions/event-subscriptions';
 
@@ -78,13 +78,16 @@ export class GraphDBConsumer {
    * Process event with ordering guarantee (sequential per resource)
    */
   protected async processEvent(storedEvent: StoredEvent): Promise<void> {
-    const { resourceId } = storedEvent.event;
-
-    // ⚠️ BRITTLE: System-level events (entitytype.added) have no resourceId
-    // Process these immediately without ordering guarantees
-    if (!resourceId) {
+    // System-level events have no resource scope - process immediately
+    if (isSystemEvent(storedEvent.event)) {
       await this.applyEventToGraph(storedEvent);
       return;
+    }
+
+    // Resource-scoped events require sequential processing per resource
+    const resourceId = storedEvent.event.resourceId;
+    if (!resourceId) {
+      throw new Error(`Resource-scoped event ${storedEvent.event.type} missing resourceId`);
     }
 
     // Wait for previous event on this resource to complete
@@ -256,9 +259,7 @@ export class GraphDBConsumer {
         break;
 
       case 'entitytype.added':
-        // ⚠️ BRITTLE: Event routing depends on absence of resourceId
-        // This handler is called for system-level events (global entity type collection)
-        // TODO: Design cleaner event routing with explicit projection targets
+        // System-level event: Update global entity type collection
         await graphDb.addEntityType(event.payload.entityType);
         break;
 

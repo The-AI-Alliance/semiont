@@ -15,6 +15,7 @@ import type {
   ResourceEvent,
   StoredEvent,
 } from '@semiont/core';
+import { isSystemEvent } from '@semiont/core';
 import type { ProjectionStorage } from '../storage/projection-storage';
 
 // Import extracted modules
@@ -52,30 +53,31 @@ export class EventStore {
    * Coordinates: storage → projection → notification
    */
   async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>): Promise<StoredEvent> {
-    // System-level events (entitytype.added) have no resourceId - use __system__
+    // Determine storage location based on event type
+    // System events use special '__system__' shard, resource events use their resourceId
     const resourceId = event.resourceId || '__system__';
 
     // Storage handles ALL event creation
     const storedEvent = await this.storage.appendEvent(event, resourceId);
 
-    // Update projections (Layer 3)
-    if (resourceId === '__system__') {
-      // System projection (entity types)
-      if (storedEvent.event.type === 'entitytype.added') {
-        const payload = storedEvent.event.payload as any;
-        await this.projector.updateEntityTypesProjection(payload.entityType);
-      }
+    // Route to appropriate projection and notification based on event type
+    if (isSystemEvent(storedEvent.event)) {
+      // System-level event: Update global projection
+      await this.projector.updateEntityTypesProjection(storedEvent.event.payload.entityType);
       // Notify global subscribers
       await this.subscriptions.notifyGlobalSubscribers(storedEvent);
     } else {
-      // Resource projection
+      // Resource-scoped event: Update resource projection
+      if (!storedEvent.event.resourceId) {
+        throw new Error(`Resource-scoped event ${storedEvent.event.type} missing resourceId`);
+      }
       await this.projector.updateProjectionIncremental(
-        resourceId,
+        storedEvent.event.resourceId,
         storedEvent.event,
-        () => this.storage.getAllEvents(resourceId)
+        () => this.storage.getAllEvents(storedEvent.event.resourceId!)
       );
       // Notify resource subscribers
-      await this.subscriptions.notifySubscribers(resourceId, storedEvent);
+      await this.subscriptions.notifySubscribers(storedEvent.event.resourceId, storedEvent);
     }
 
     return storedEvent;
