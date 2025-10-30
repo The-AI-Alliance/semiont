@@ -24,6 +24,11 @@ export const annotationStyles = {
     className: "red-underline cursor-pointer transition-all duration-200 hover:opacity-80"
   },
 
+  // Comment annotation style - gray dashed outline, no background
+  comment: {
+    className: "rounded px-0.5 cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 outline outline-2 outline-dashed outline-gray-900 dark:outline-gray-100 outline-offset-1"
+  },
+
   // Legacy aliases for backward compatibility
   entityReference: {
     className: "rounded px-0.5 cursor-pointer transition-all duration-200 bg-gradient-to-r from-cyan-200 to-blue-200 hover:from-cyan-300 hover:to-blue-300 text-gray-900 dark:from-blue-900/50 dark:to-cyan-900/50 dark:hover:from-blue-900/60 dark:hover:to-cyan-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-cyan-500/60 dark:outline-offset-1"
@@ -38,6 +43,11 @@ export const annotationStyles = {
     // Check for red-underline style (W3C motivation 'assessing' for assessments/errors/warnings)
     if (annotation.motivation === 'assessing') {
       return annotationStyles.redUnderline.className;
+    }
+
+    // Check for comment style (W3C motivation 'commenting')
+    if (annotation.motivation === 'commenting') {
+      return annotationStyles.comment.className;
     }
 
     // Use W3C-compliant helper functions to determine annotation type

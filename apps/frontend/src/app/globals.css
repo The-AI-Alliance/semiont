@@ -159,3 +159,17 @@ body {
   opacity: 1 !important;
 }
 .md-header-widget.md-h3 { font-size: 1.25em; font-weight: bold; }
+
+/* Pulsing outline animation for focused comments */
+@keyframes pulse-outline {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(107, 114, 128, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(107, 114, 128, 0);
+  }
+}
+
+.animate-pulse-outline {
+  animation: pulse-outline 1s ease-in-out 3;
+}

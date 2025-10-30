@@ -24,6 +24,7 @@ interface AnnotationPopupProps {
   onCreateHighlight?: () => void;
   onCreateReference?: (targetDocId?: string, entityType?: string, referenceType?: string) => void;
   onCreateAssessment?: () => void;
+  onCreateComment?: () => void;
   onUpdateAnnotation?: (updates: AnnotationUpdate) => void;
   onDeleteAnnotation?: () => void;
   onGenerateDocument?: (title: string, prompt?: string) => void;
@@ -40,6 +41,7 @@ export function AnnotationPopup({
   onCreateHighlight,
   onCreateReference,
   onCreateAssessment,
+  onCreateComment,
   onUpdateAnnotation,
   onDeleteAnnotation,
   onGenerateDocument
@@ -74,6 +76,7 @@ export function AnnotationPopup({
           onCreateHighlight={onCreateHighlight!}
           onCreateReference={onCreateReference!}
           onCreateAssessment={onCreateAssessment!}
+          {...(onCreateComment && { onCreateComment })}
         />
       );
 

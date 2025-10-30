@@ -20,6 +20,7 @@ interface Props {
   highlights: Annotation[];
   references: Annotation[];
   assessments: Annotation[];
+  comments: Annotation[];
   onRefetchAnnotations?: () => void;
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
@@ -29,6 +30,8 @@ interface Props {
   hoveredAnnotationId?: string | null;
   scrollToAnnotationId?: string | null;
   showLineNumbers?: boolean;
+  onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
+  onCommentClick?: (commentId: string) => void;
 }
 
 export function ResourceViewer({
@@ -36,6 +39,7 @@ export function ResourceViewer({
   highlights,
   references,
   assessments,
+  comments,
   onRefetchAnnotations,
   onWikiLinkClick,
   curationMode = false,
@@ -44,7 +48,9 @@ export function ResourceViewer({
   onAnnotationHover,
   hoveredAnnotationId,
   scrollToAnnotationId,
-  showLineNumbers = false
+  showLineNumbers = false,
+  onCommentCreationRequested,
+  onCommentClick
 }: Props) {
   const router = useRouter();
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -96,21 +102,23 @@ export function ResourceViewer({
   
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
-    // If it's a resolved reference, navigate to it (in both curation and browse mode)
-    if (isReference(annotation) && isBodyResolved(annotation.body)) {
+    // If it's a comment, handle it differently - open Comments Panel and scroll to it
+    if (annotation.motivation === 'commenting') {
+      if (onCommentClick) {
+        onCommentClick(annotation.id);
+      }
+    } else if (annotation.motivation === 'linking' && annotation.body && isBodyResolved(annotation.body)) {
+      // If it's a resolved reference, navigate to it (in both curation and browse mode)
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
         router.push(`/know/resource/${encodeURIComponent(bodySource)}`);
       }
-      return;
-    }
-
-    // For other annotations in Annotate mode, show the popup
-    if (curationMode) {
+    } else if (curationMode) {
+      // For other annotations in Annotate mode, show the popup
       setEditingAnnotation(annotation);
-      const targetSelector = getTargetSelector(annotation.target);
-      setSelectedText(getExactText(targetSelector));
-      const posSelector = getTextPositionSelector(targetSelector);
+      const targetSelector = annotation.target ? getTargetSelector(annotation.target) : undefined;
+      setSelectedText(targetSelector ? getExactText(targetSelector) : '');
+      const posSelector = targetSelector ? getTextPositionSelector(targetSelector) : undefined;
       if (posSelector) {
         setAnnotationPosition({
           start: posSelector.start,
@@ -128,10 +136,18 @@ export function ResourceViewer({
 
       setShowAnnotationPopup(true);
     }
-  }, [router, curationMode]);
+  }, [router, curationMode, onCommentClick]);
 
   // Handle annotation right-clicks - memoized
   const handleAnnotationRightClick = useCallback((annotation: Annotation, x: number, y: number) => {
+    // If it's a comment, treat right-click same as left-click - open Comments Panel and scroll to it
+    if (annotation.motivation === 'commenting') {
+      if (onCommentClick) {
+        onCommentClick(annotation.id);
+      }
+      return;
+    }
+
     setEditingAnnotation(annotation);
     const targetSelector = getTargetSelector(annotation.target);
     setSelectedText(getExactText(targetSelector));
@@ -144,7 +160,7 @@ export function ResourceViewer({
     }
     setPopupPosition({ x, y: y + 10 });
     setShowAnnotationPopup(true);
-  }, []);
+  }, [onCommentClick]);
 
   // Handle clicking 🔗 icon on resolved reference - show popup instead of navigating
   const handleResolvedReferenceWidgetClick = useCallback((documentId: string) => {
@@ -249,6 +265,25 @@ export function ResourceViewer({
       console.error('Failed to create assessment:', err);
     }
   }, [annotationPosition, selectedText, resourceId, addAssessment, onRefetchAnnotations]);
+
+  const handleCreateComment = useCallback(() => {
+    if (!annotationPosition || !selectedText) return;
+
+    // Notify parent component to open Comments Panel with this selection
+    if (onCommentCreationRequested) {
+      onCommentCreationRequested({
+        exact: selectedText,
+        start: annotationPosition.start,
+        end: annotationPosition.end
+      });
+    }
+
+    // Close popup
+    setShowAnnotationPopup(false);
+    setSelectedText('');
+    setAnnotationPosition(null);
+    setEditingAnnotation(null);
+  }, [annotationPosition, selectedText, onCommentCreationRequested]);
 
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
@@ -437,6 +472,7 @@ export function ResourceViewer({
             highlights={highlights}
             references={references}
             assessments={assessments}
+            comments={comments}
             onAnnotationClick={handleAnnotationClick}
             {...(onAnnotationHover && { onAnnotationHover })}
             {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
@@ -463,6 +499,7 @@ export function ResourceViewer({
             highlights={highlights}
             references={references}
             assessments={assessments}
+            comments={comments}
             onTextSelect={handleTextSelection}
             onAnnotationClick={handleAnnotationClick}
             onAnnotationRightClick={handleAnnotationRightClick}
@@ -492,6 +529,7 @@ export function ResourceViewer({
           highlights={highlights}
           references={references}
           assessments={assessments}
+          comments={comments}
           onAnnotationClick={handleAnnotationClick}
           {...(onWikiLinkClick && { onWikiLinkClick })}
         />
@@ -514,6 +552,7 @@ export function ResourceViewer({
         onCreateHighlight={handleCreateHighlight}
         onCreateReference={handleCreateReference}
         onCreateAssessment={handleCreateAssessment}
+        onCreateComment={handleCreateComment}
         onUpdateAnnotation={async (updates) => {
           if (editingAnnotation) {
             // Handle body updates

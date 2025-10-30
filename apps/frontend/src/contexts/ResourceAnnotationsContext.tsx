@@ -10,6 +10,12 @@ type Annotation = components['schemas']['Annotation'];
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
 type CreateAnnotationRequest = RequestContent<paths['/api/annotations']['post']>;
 
+export interface SelectionData {
+  exact: string;
+  start: number;
+  end: number;
+}
+
 interface ResourceAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
@@ -18,6 +24,7 @@ interface ResourceAnnotationsContextType {
   addHighlight: (resourceId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
   addReference: (resourceId: string, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
   addAssessment: (resourceId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  addComment: (resourceId: string, selection: SelectionData, commentText: string) => Promise<string | undefined>;
   deleteAnnotation: (annotationId: string, resourceId: string) => Promise<void>;
   convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
@@ -215,6 +222,68 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [createAnnotationMutation]);
 
+  const addComment = useCallback(async (
+    resourceId: string,
+    selection: SelectionData,
+    commentText: string
+  ): Promise<string | undefined> => {
+    try {
+      // Build CreateAnnotationRequest following W3C Web Annotation format
+      // Comment uses motivation: 'commenting'
+      // Backend expects source as a full URI
+      const resourceUri = `${process.env.NEXT_PUBLIC_API_URL}/resources/${resourceId}`;
+      const createData: CreateAnnotationRequest = {
+        motivation: 'commenting',  // W3C motivation for comments
+        target: {
+          source: resourceUri,
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: selection.start,
+              end: selection.end,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: selection.exact,
+            },
+          ],
+        },
+        // Comment body with TextualBody structure
+        body: {
+          type: 'TextualBody',
+          value: commentText,
+          format: 'text/plain',
+          purpose: 'commenting',
+        },
+      };
+
+      // Create the annotation
+      const result = await createAnnotationMutation.mutateAsync(createData);
+
+      // Track this as a new annotation for sparkle animation
+      let newId: string | undefined;
+      if (result.annotation?.id) {
+        newId = result.annotation.id;
+        setNewAnnotationIds(prev => new Set(prev).add(newId!));
+
+        // Clear the ID after animation completes (6 seconds for 3 iterations)
+        setTimeout(() => {
+          setNewAnnotationIds(prev => {
+            const next = new Set(prev);
+            next.delete(newId!);
+            return next;
+          });
+        }, 6000);
+      }
+
+      // Return the new ID so component can invalidate queries
+      return newId;
+    } catch (err) {
+      console.error('Failed to create comment:', err);
+      throw err;
+    }
+  }, [createAnnotationMutation]);
+
   const deleteAnnotation = useCallback(async (annotationId: string, resourceId: string) => {
     try {
       // Backend expects resourceId as a full URI, not just the ID
@@ -327,6 +396,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
         addHighlight,
         addReference,
         addAssessment,
+        addComment,
         deleteAnnotation,
         convertHighlightToReference,
         convertReferenceToHighlight,
