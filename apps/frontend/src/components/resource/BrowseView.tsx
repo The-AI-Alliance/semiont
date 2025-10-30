@@ -16,6 +16,7 @@ interface Props {
   content: string;
   highlights: Annotation[];
   references: Annotation[];
+  assessments: Annotation[];
   onAnnotationClick?: (annotation: Annotation) => void;
   onWikiLinkClick?: (pageName: string) => void;
 }
@@ -55,14 +56,15 @@ export function BrowseView({
   content,
   highlights,
   references,
+  assessments,
   onAnnotationClick
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const allAnnotations = useMemo(() =>
-    [...highlights, ...references],
-    [highlights, references]
+    [...highlights, ...references, ...assessments],
+    [highlights, references, assessments]
   );
 
   const preparedAnnotations = useMemo(() =>

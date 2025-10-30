@@ -19,6 +19,7 @@ interface Props {
   resource: SemiontResource & { content: string };
   highlights: Annotation[];
   references: Annotation[];
+  assessments: Annotation[];
   onRefetchAnnotations?: () => void;
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
@@ -34,6 +35,7 @@ export function ResourceViewer({
   resource,
   highlights,
   references,
+  assessments,
   onRefetchAnnotations,
   onWikiLinkClick,
   curationMode = false,
@@ -434,6 +436,7 @@ export function ResourceViewer({
             content={resource.content}
             highlights={highlights}
             references={references}
+            assessments={assessments}
             onAnnotationClick={handleAnnotationClick}
             {...(onAnnotationHover && { onAnnotationHover })}
             {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
@@ -459,6 +462,7 @@ export function ResourceViewer({
             content={resource.content}
             highlights={highlights}
             references={references}
+            assessments={assessments}
             onTextSelect={handleTextSelection}
             onAnnotationClick={handleAnnotationClick}
             onAnnotationRightClick={handleAnnotationRightClick}
@@ -487,6 +491,7 @@ export function ResourceViewer({
           content={resource.content}
           highlights={highlights}
           references={references}
+          assessments={assessments}
           onAnnotationClick={handleAnnotationClick}
           {...(onWikiLinkClick && { onWikiLinkClick })}
         />

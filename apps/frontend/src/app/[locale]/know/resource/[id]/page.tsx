@@ -174,6 +174,7 @@ function ResourceView({
   type Annotation = components['schemas']['Annotation'];
   const highlights = annotations.filter((a: Annotation) => a.motivation === 'highlighting');
   const references = annotations.filter((a: Annotation) => a.motivation === 'linking');
+  const assessments = annotations.filter((a: Annotation) => a.motivation === 'assessing');
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   // Using React Query's invalidateQueries is the best practice - it invalidates cache
@@ -554,6 +555,7 @@ function ResourceView({
                   resource={{ ...resource, content }}
                 highlights={highlights}
                 references={references}
+                assessments={assessments}
                 onRefetchAnnotations={() => {
                   console.log('[DocumentPage] Annotation mutation - waiting for real-time event to trigger refetch');
                   // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
