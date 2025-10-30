@@ -12,7 +12,7 @@ import type { GraphDatabase } from '../../graph/interface';
 import type { components } from '@semiont/api-client';
 import type { ResourceEvent, StoredEvent, CreationMethod } from '@semiont/core';
 import { findBodyItem, isSystemEvent } from '@semiont/core';
-import { getFilesystemConfig } from '../../config/environment-loader';
+import { getFilesystemConfig, getBackendConfig } from '../../config/environment-loader';
 import type { EventSubscription } from '../subscriptions/event-subscriptions';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -23,10 +23,12 @@ export class GraphDBConsumer {
   private _globalSubscription: EventSubscription | null = null;  // Subscription to system-level events (kept for cleanup)
   private processing: Map<string, Promise<void>> = new Map();
   private lastProcessed: Map<string, number> = new Map();
+  private backendURL: string | null = null;
 
   async initialize() {
     if (!this.graphDb) {
       this.graphDb = await getGraphDatabase();
+      this.backendURL = getBackendConfig().publicURL;
       console.log('[GraphDBConsumer] Initialized');
 
       // Subscribe to global system-level events
@@ -51,7 +53,7 @@ export class GraphDBConsumer {
   }
 
   private ensureInitialized(): GraphDatabase {
-    if (!this.graphDb) {
+    if (!this.graphDb || !this.backendURL) {
       throw new Error('GraphDBConsumer not initialized. Call initialize() first.');
     }
     return this.graphDb;
@@ -121,7 +123,7 @@ export class GraphDBConsumer {
   ): ResourceDescriptor {
     return {
       '@context': 'https://schema.org/',
-      '@id': `http://localhost:4000/resources/${resourceId}`,
+      '@id': `${this.backendURL}/resources/${resourceId}`,
       name: payload.name,
       entityTypes: payload.entityTypes || [],
       representations: [{

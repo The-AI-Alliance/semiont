@@ -125,8 +125,9 @@ describe('GraphDBConsumer', () => {
     mockGraphDB = createMockGraphDB();
     consumer = new GraphDBConsumer();
 
-    // Inject mock GraphDB
+    // Inject mock GraphDB and backendURL
     consumer['graphDb'] = mockGraphDB;
+    consumer['backendURL'] = 'http://localhost:4000';
   });
 
   afterEach(async () => {
