@@ -43,6 +43,8 @@ describe('Main Application (index.ts)', () => {
 
   beforeAll(async () => {
     // Set required environment variables before importing app
+    process.env.SEMIONT_ENV = 'unit';
+    process.env.SEMIONT_API_URL = 'http://localhost:4000';
     process.env.BACKEND_URL = 'http://localhost:4000';
     process.env.CORS_ORIGIN = 'http://localhost:3000';
     process.env.FRONTEND_URL = 'http://localhost:3000';
