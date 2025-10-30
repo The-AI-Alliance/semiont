@@ -63,7 +63,8 @@ vi.mock('../../services/resource-queries', () => ({
 
 // Mock environment
 vi.mock('../../config/environment-loader', () => ({
-  getFilesystemConfig: () => ({ path: testDir })
+  getFilesystemConfig: () => ({ path: testDir }),
+  getInferenceConfig: () => ({ provider: 'test', model: 'test-model' })
 }));
 
 let testDir: string;
@@ -119,7 +120,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await worker.process(job);
+    await (worker as any).executeJob(job);
 
     const startedEvents = emittedEvents.filter(e => e.event.type === 'job.started');
     expect(startedEvents).toHaveLength(1);
@@ -153,7 +154,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await worker.process(job);
+    await (worker as any).executeJob(job);
 
     const progressEvents = emittedEvents.filter(e => e.event.type === 'job.progress');
     expect(progressEvents.length).toBeGreaterThanOrEqual(4);
@@ -183,7 +184,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await worker.process(job);
+    await (worker as any).executeJob(job);
 
     const progressEvents = emittedEvents.filter(e => e.event.type === 'job.progress');
     const percentages = progressEvents.map(e => e.event.payload.percentage);
@@ -214,7 +215,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await worker.process(job);
+    await (worker as any).executeJob(job);
 
     const completedEvents = emittedEvents.filter(e => e.event.type === 'job.completed');
     expect(completedEvents).toHaveLength(1);
@@ -247,7 +248,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await worker.process(job);
+    await (worker as any).executeJob(job);
 
     const createdEvents = emittedEvents.filter(e => e.event.type === 'resource.created');
     expect(createdEvents.length).toBeGreaterThan(0);
@@ -279,7 +280,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await worker.process(job);
+    await (worker as any).executeJob(job);
 
     const eventTypes = emittedEvents.map(e => e.event.type);
 
@@ -314,7 +315,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await worker.process(job);
+    await (worker as any).executeJob(job);
 
     const progressEvents = emittedEvents.filter(e => e.event.type === 'job.progress');
 
