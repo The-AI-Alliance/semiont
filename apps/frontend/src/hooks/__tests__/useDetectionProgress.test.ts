@@ -15,7 +15,7 @@ vi.mock('next-auth/react', () => ({
 }));
 
 // Mock fetch-event-source
-const mockFetchEventSource = vi.fn();
+const mockFetchEventSource: any = vi.fn();
 vi.mock('@microsoft/fetch-event-source', () => ({
   fetchEventSource: (...args: any[]) => mockFetchEventSource(...args)
 }));
@@ -116,7 +116,7 @@ describe('useDetectionProgress', () => {
     await result.current.startDetection(['Person']);
 
     // Simulate SSE event
-    capturedOnMessage?.({
+    capturedOnMessage!({
       event: 'detection-started',
       data: JSON.stringify({
         status: 'started',
@@ -157,7 +157,7 @@ describe('useDetectionProgress', () => {
     await result.current.startDetection(['Person', 'Organization']);
 
     // Simulate progress events
-    capturedOnMessage?.({
+    capturedOnMessage!({
       event: 'detection-progress',
       data: JSON.stringify({
         status: 'scanning',
@@ -208,7 +208,7 @@ describe('useDetectionProgress', () => {
 
     await result.current.startDetection(['Person']);
 
-    capturedOnMessage?.({
+    capturedOnMessage!({
       event: 'detection-complete',
       data: JSON.stringify({
         status: 'complete',
@@ -244,7 +244,7 @@ describe('useDetectionProgress', () => {
 
     await result.current.startDetection(['Person']);
 
-    capturedOnMessage?.({
+    capturedOnMessage!({
       event: 'detection-error',
       data: JSON.stringify({
         status: 'error',
@@ -277,7 +277,7 @@ describe('useDetectionProgress', () => {
     await result.current.startDetection(['Person', 'Organization']);
 
     // First entity type
-    capturedOnMessage?.({
+    capturedOnMessage!({
       event: 'detection-progress',
       data: JSON.stringify({
         status: 'scanning',
@@ -291,7 +291,7 @@ describe('useDetectionProgress', () => {
     });
 
     // Second entity type
-    capturedOnMessage?.({
+    capturedOnMessage!({
       event: 'detection-progress',
       data: JSON.stringify({
         status: 'scanning',

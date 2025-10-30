@@ -15,7 +15,7 @@ vi.mock('next-auth/react', () => ({
 }));
 
 // Mock fetch-event-source
-const mockFetchEventSource = vi.fn();
+const mockFetchEventSource: any = vi.fn();
 vi.mock('@microsoft/fetch-event-source', () => ({
   fetchEventSource: (...args: any[]) => mockFetchEventSource(...args)
 }));
@@ -121,7 +121,7 @@ describe('useGenerationProgress', () => {
 
     await result.current.startGeneration('test-ref-id', 'test-resource');
 
-    capturedOnMessage?.({
+    capturedOnMessage!({
       event: 'generation-started',
       data: JSON.stringify({
         status: 'started',
@@ -163,7 +163,7 @@ describe('useGenerationProgress', () => {
     ];
 
     for (const stage of stages) {
-      capturedOnMessage?.({
+      capturedOnMessage!({
         event: 'generation-progress',
         data: JSON.stringify({
           status: stage.status,
@@ -201,7 +201,7 @@ describe('useGenerationProgress', () => {
 
     await result.current.startGeneration('test-ref-id', 'test-resource');
 
-    capturedOnMessage?.({
+    capturedOnMessage!({
       event: 'generation-complete',
       data: JSON.stringify({
         status: 'complete',
@@ -239,7 +239,7 @@ describe('useGenerationProgress', () => {
 
     await result.current.startGeneration('test-ref-id', 'test-resource');
 
-    capturedOnMessage?.({
+    capturedOnMessage!({
       event: 'generation-error',
       data: JSON.stringify({
         status: 'error',
