@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
@@ -15,6 +15,8 @@ interface CommentsPanelProps {
   onUpdateComment: (annotationId: string, newText: string) => void;
   onCreateComment?: (commentText: string) => void;
   focusedCommentId: string | null;
+  hoveredCommentId?: string | null;
+  onCommentHover?: (commentId: string | null) => void;
   resourceContent: string;
   pendingSelection?: {
     exact: string;
@@ -30,11 +32,15 @@ export function CommentsPanel({
   onUpdateComment,
   onCreateComment,
   focusedCommentId,
+  hoveredCommentId,
+  onCommentHover,
   resourceContent,
   pendingSelection,
 }: CommentsPanelProps) {
   const t = useTranslations('CommentsPanel');
   const [newCommentText, setNewCommentText] = useState('');
+  const commentRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Sort comments by their position in the resource
   const sortedComments = useMemo(() => {
@@ -46,10 +52,33 @@ export function CommentsPanel({
     });
   }, [comments]);
 
+  // Handle hoveredCommentId - scroll to and pulse comment entry
+  useEffect(() => {
+    if (!hoveredCommentId) return;
+
+    const commentElement = commentRefs.current.get(hoveredCommentId);
+
+    if (commentElement && containerRef.current) {
+      commentElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      commentElement.classList.add('bg-gray-200', 'dark:bg-gray-700');
+      setTimeout(() => {
+        commentElement.classList.remove('bg-gray-200', 'dark:bg-gray-700');
+      }, 1500);
+    }
+  }, [hoveredCommentId]);
+
   const handleSaveNewComment = () => {
     if (onCreateComment && newCommentText.trim()) {
       onCreateComment(newCommentText);
       setNewCommentText('');
+    }
+  };
+
+  const handleCommentRef = (commentId: string, el: HTMLElement | null) => {
+    if (el) {
+      commentRefs.current.set(commentId, el);
+    } else {
+      commentRefs.current.delete(commentId);
     }
   };
 
@@ -93,7 +122,7 @@ export function CommentsPanel({
       )}
 
       {/* Comments list */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {sortedComments.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400 text-sm">
             {t('noComments')}
@@ -107,6 +136,8 @@ export function CommentsPanel({
               onClick={() => onCommentClick(comment)}
               onDelete={() => onDeleteComment(comment.id)}
               onUpdate={(newText) => onUpdateComment(comment.id, newText)}
+              onCommentRef={handleCommentRef}
+              {...(onCommentHover && { onCommentHover })}
               resourceContent={resourceContent}
             />
           ))

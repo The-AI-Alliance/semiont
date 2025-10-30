@@ -403,6 +403,36 @@
     "title": "Assessment",
     "deleteAssessment": "Delete Assessment"
   },
+  "CommentsPanel": {
+    "title": "Comments",
+    "noComments": "No comments yet. Select text and click Comment to add one.",
+    "commentPlaceholder": "Type your comment here...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit"
+  },
+  "CreateAnnotationPopup": {
+    "title": "Annotate",
+    "createHighlight": "Highlight",
+    "createAssessment": "Assess",
+    "createComment": "Comment",
+    "createReference": "Reference",
+    "entityTypesOptional": "Entity Types (optional)"
+  },
+  "Toolbar": {
+    "comments": "Comments",
+    "history": "History",
+    "resource": "Resource",
+    "resourceInfo": "Resource Info",
+    "detectReferences": "Detect References",
+    "collaboration": "Collaboration",
+    "annotateMode": "Annotate Mode",
+    "browseMode": "Browse Mode",
+    "switchToAnnotate": "Switch to Annotate",
+    "switchToBrowse": "Switch to Browse",
+    "userAccount": "User Account",
+    "settings": "Settings"
+  },
   "StubReferencePopup": {
     "title": "Stub Reference",
     "linkToResource": "Link to Resource",

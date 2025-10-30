@@ -214,6 +214,7 @@ function ResourceView({
   const { activePanel, togglePanel, setActivePanel } = useToolbar({ persistToStorage: true });
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
+  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
@@ -584,7 +585,9 @@ function ResourceView({
                 onGenerateDocument={handleGenerateDocument}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
+                onCommentHover={setHoveredCommentId}
                 hoveredAnnotationId={hoveredAnnotationId}
+                hoveredCommentId={hoveredCommentId}
                 scrollToAnnotationId={scrollToAnnotationId}
                 showLineNumbers={showLineNumbers}
               />
@@ -671,6 +674,8 @@ function ResourceView({
                   }
                 }}
                 focusedCommentId={focusedCommentId}
+                hoveredCommentId={hoveredCommentId}
+                onCommentHover={setHoveredCommentId}
                 resourceContent={content}
                 pendingSelection={pendingCommentSelection}
               />

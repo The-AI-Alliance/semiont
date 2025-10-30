@@ -13,6 +13,8 @@ interface CommentEntryProps {
   onClick: () => void;
   onDelete: () => void;
   onUpdate: (newText: string) => void;
+  onCommentRef: (commentId: string, el: HTMLElement | null) => void;
+  onCommentHover?: (commentId: string | null) => void;
   resourceContent: string;
 }
 
@@ -39,12 +41,22 @@ export function CommentEntry({
   onClick,
   onDelete,
   onUpdate,
+  onCommentRef,
+  onCommentHover,
   resourceContent,
 }: CommentEntryProps) {
   const t = useTranslations('CommentsPanel');
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const commentRef = useRef<HTMLDivElement>(null);
+
+  // Register ref with parent
+  useEffect(() => {
+    onCommentRef(comment.id, commentRef.current);
+    return () => {
+      onCommentRef(comment.id, null);
+    };
+  }, [comment.id, onCommentRef]);
 
   // Scroll to comment when focused
   useEffect(() => {
@@ -80,6 +92,8 @@ export function CommentEntry({
           : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
       }`}
       onClick={onClick}
+      onMouseEnter={() => onCommentHover?.(comment.id)}
+      onMouseLeave={() => onCommentHover?.(null)}
     >
       {/* Selected text quote */}
       <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-purple-300 pl-2">

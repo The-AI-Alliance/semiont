@@ -6,7 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartme
 import { markdown } from '@codemirror/lang-markdown';
 import { annotationStyles } from '@/lib/annotation-styles';
 import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
-import { isHighlight, isReference, isResolvedReference, compareAnnotationIds, getBodySource } from '@semiont/api-client';
+import { isHighlight, isReference, isResolvedReference, isComment, compareAnnotationIds, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import '@/styles/animations.css';
 
@@ -30,6 +30,7 @@ interface Props {
   editable?: boolean;
   newAnnotationIds?: Set<string>;
   hoveredAnnotationId?: string | null;
+  hoveredCommentId?: string | null;
   scrollToAnnotationId?: string | null;
   sourceView?: boolean; // If true, show raw source (no markdown rendering)
   showLineNumbers?: boolean; // If true, show line numbers
@@ -91,18 +92,27 @@ function buildAnnotationDecorations(
     // Use W3C helpers to determine annotation type
     const isHighlightAnn = isHighlight(segment.annotation);
     const isReferenceAnn = isReference(segment.annotation);
+    const isCommentAnn = isComment(segment.annotation);
     const isResolvedRef = isResolvedReference(segment.annotation);
+
+    // Determine annotation type for data attribute - use motivation directly
+    let annotationType = 'highlight'; // default
+    if (isCommentAnn) annotationType = 'comment';
+    else if (isReferenceAnn) annotationType = 'reference';
+    else if (isHighlightAnn) annotationType = 'highlight';
 
     const decoration = Decoration.mark({
       class: className,
       attributes: {
         'data-annotation-id': segment.annotation.id,
-        'data-annotation-type': isReferenceAnn ? 'reference' : 'highlight',
-        title: isHighlightAnn
-          ? 'Click to delete or convert to reference'
-          : isResolvedRef
-            ? 'Click to navigate • Right-click for options'
-            : 'Right-click for options'
+        'data-annotation-type': annotationType,
+        title: isCommentAnn
+          ? 'Click to view comment'
+          : isHighlightAnn
+            ? 'Click to delete or convert to reference'
+            : isResolvedRef
+              ? 'Click to navigate • Right-click for options'
+              : 'Right-click for options'
       }
     });
 
@@ -226,6 +236,7 @@ export function CodeMirrorRenderer({
   editable = false,
   newAnnotationIds,
   hoveredAnnotationId,
+  hoveredCommentId,
   scrollToAnnotationId,
   sourceView = false,
   showLineNumbers = false,
@@ -252,6 +263,9 @@ export function CodeMirrorRenderer({
     getTargetDocumentName?: (documentId: string) => string | undefined;
     onDeleteAnnotation?: (annotation: Annotation) => void;
     onConvertAnnotation?: (annotation: Annotation) => void;
+    onAnnotationClick?: (annotation: Annotation, event?: React.MouseEvent) => void;
+    onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
+    onAnnotationHover?: (annotationId: string | null) => void;
   }>({});
 
   // Update segments ref when they change
@@ -266,9 +280,12 @@ export function CodeMirrorRenderer({
       ...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick }),
       ...(getTargetDocumentName && { getTargetDocumentName }),
       ...(onDeleteAnnotation && { onDeleteAnnotation }),
-      ...(onConvertAnnotation && { onConvertAnnotation })
+      ...(onConvertAnnotation && { onConvertAnnotation }),
+      ...(onAnnotationClick && { onAnnotationClick }),
+      ...(onAnnotationRightClick && { onAnnotationRightClick }),
+      ...(onAnnotationHover && { onAnnotationHover })
     };
-  }, [onWikiLinkClick, onEntityTypeClick, onReferenceNavigate, onUnresolvedReferenceClick, getTargetDocumentName, onDeleteAnnotation, onConvertAnnotation]);
+  }, [onWikiLinkClick, onEntityTypeClick, onReferenceNavigate, onUnresolvedReferenceClick, getTargetDocumentName, onDeleteAnnotation, onConvertAnnotation, onAnnotationClick, onAnnotationRightClick, onAnnotationHover]);
 
   // Initialize CodeMirror view once
   useEffect(() => {
@@ -299,11 +316,11 @@ export function CodeMirrorRenderer({
             const annotationElement = target.closest('[data-annotation-id]');
             const annotationId = annotationElement?.getAttribute('data-annotation-id');
 
-            if (annotationId && onAnnotationClick) {
+            if (annotationId && callbacksRef.current.onAnnotationClick) {
               const segment = segmentsRef.current.find(s => s.annotation?.id === annotationId);
               if (segment?.annotation) {
                 event.preventDefault();
-                onAnnotationClick(segment.annotation);
+                callbacksRef.current.onAnnotationClick(segment.annotation);
                 return true; // Stop propagation
               }
             }
@@ -313,19 +330,17 @@ export function CodeMirrorRenderer({
             const target = event.target as HTMLElement;
             const annotationId = target.closest('[data-annotation-id]')?.getAttribute('data-annotation-id');
 
-            if (annotationId && onAnnotationRightClick) {
+            if (annotationId && callbacksRef.current.onAnnotationRightClick) {
               const segment = segmentsRef.current.find(s => s.annotation?.id === annotationId);
               if (segment?.annotation) {
                 event.preventDefault();
-                onAnnotationRightClick(segment.annotation, event.clientX, event.clientY);
+                callbacksRef.current.onAnnotationRightClick(segment.annotation, event.clientX, event.clientY);
                 return true; // Stop propagation
               }
             }
             return false;
           },
           mousemove: (event, view) => {
-            if (!onAnnotationHover) return false;
-
             const target = event.target as HTMLElement;
             const annotationElement = target.closest('[data-annotation-id]');
             const annotationId = annotationElement?.getAttribute('data-annotation-id');
@@ -334,7 +349,9 @@ export function CodeMirrorRenderer({
             const lastHovered = (view.dom as any).__lastHoveredAnnotation;
             if (annotationId !== lastHovered) {
               (view.dom as any).__lastHoveredAnnotation = annotationId || null;
-              onAnnotationHover(annotationId || null);
+              if (callbacksRef.current.onAnnotationHover) {
+                callbacksRef.current.onAnnotationHover(annotationId || null);
+              }
             }
 
             return false;
@@ -478,7 +495,7 @@ export function CodeMirrorRenderer({
     // Add pulse effect after a brief delay to ensure element is visible
     const timeoutId = setTimeout(() => {
       const element = view.contentDOM.querySelector(
-        `[data-annotation-id="${hoveredAnnotationId}"]`
+        `[data-annotation-id="${CSS.escape(hoveredAnnotationId)}"]`
       ) as HTMLElement;
 
       if (element) {
@@ -489,13 +506,52 @@ export function CodeMirrorRenderer({
     return () => {
       clearTimeout(timeoutId);
       const element = view.contentDOM.querySelector(
-        `[data-annotation-id="${hoveredAnnotationId}"]`
+        `[data-annotation-id="${CSS.escape(hoveredAnnotationId)}"]`
       ) as HTMLElement;
       if (element) {
         element.classList.remove('annotation-pulse');
       }
     };
   }, [hoveredAnnotationId, segments]);
+
+  // Handle hovered comment - add pulse effect and scroll if not visible
+  useEffect(() => {
+    if (!viewRef.current || !hoveredCommentId) return undefined;
+
+    const segment = segments.find(s => s.annotation?.id === hoveredCommentId);
+    if (!segment) return undefined;
+
+    const view = viewRef.current;
+
+    // Scroll first
+    view.dispatch({
+      effects: EditorView.scrollIntoView(segment.start, {
+        y: 'nearest',
+        yMargin: 50
+      })
+    });
+
+    // Add pulse effect after a brief delay to ensure element is visible
+    const timeoutId = setTimeout(() => {
+      const element = view.contentDOM.querySelector(
+        `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
+      ) as HTMLElement;
+
+      if (element) {
+        element.classList.add('annotation-pulse');
+      }
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      const element = view.contentDOM.querySelector(
+        `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
+      ) as HTMLElement;
+      if (element) {
+        element.classList.remove('annotation-pulse');
+      }
+    };
+  }, [hoveredCommentId, segments]);
 
   // Handle scroll to annotation
   useEffect(() => {

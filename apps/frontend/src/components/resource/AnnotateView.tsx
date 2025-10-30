@@ -21,7 +21,9 @@ interface Props {
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
+  onCommentHover?: (commentId: string | null) => void;
   hoveredAnnotationId?: string | null;
+  hoveredCommentId?: string | null;
   scrollToAnnotationId?: string | null;
   editable?: boolean;
   enableWidgets?: boolean;
@@ -107,7 +109,9 @@ export function AnnotateView({
   onAnnotationClick,
   onAnnotationRightClick,
   onAnnotationHover,
+  onCommentHover,
   hoveredAnnotationId,
+  hoveredCommentId,
   scrollToAnnotationId,
   editable = false,
   enableWidgets = false,
@@ -134,6 +138,22 @@ export function AnnotateView({
   // Combine annotations
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
+
+  // Wrapper for annotation hover that detects comments
+  const handleAnnotationHover = useCallback((annotationId: string | null) => {
+    if (annotationId && onCommentHover) {
+      // Check if this is a comment annotation
+      const annotation = allAnnotations.find(a => a.id === annotationId);
+      if (annotation?.motivation === 'commenting') {
+        onCommentHover(annotationId);
+        return;
+      }
+    }
+    // For non-comments or null, call the regular handler
+    if (onAnnotationHover) {
+      onAnnotationHover(annotationId);
+    }
+  }, [allAnnotations, onAnnotationHover, onCommentHover]);
 
   // Handle text annotation with sparkle
   useEffect(() => {
@@ -232,10 +252,11 @@ export function AnnotateView({
         segments={segments}
         {...(onAnnotationClick && { onAnnotationClick })}
         {...(onAnnotationRightClick && { onAnnotationRightClick })}
-        {...(onAnnotationHover && { onAnnotationHover })}
+        onAnnotationHover={handleAnnotationHover}
         editable={false}
         newAnnotationIds={newAnnotationIds}
         {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+        {...(hoveredCommentId !== undefined && { hoveredCommentId })}
         {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
         sourceView={true}
         showLineNumbers={showLineNumbers}

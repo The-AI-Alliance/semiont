@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { remarkAnnotations, type PreparedAnnotation } from '@/lib/remark-annotations';
@@ -19,6 +19,10 @@ interface Props {
   assessments: Annotation[];
   comments: Annotation[];
   onAnnotationClick?: (annotation: Annotation) => void;
+  onAnnotationHover?: (annotationId: string | null) => void;
+  onCommentHover?: (commentId: string | null) => void;
+  hoveredAnnotationId?: string | null;
+  hoveredCommentId?: string | null;
   onWikiLinkClick?: (pageName: string) => void;
 }
 
@@ -61,7 +65,11 @@ export function BrowseView({
   references,
   assessments,
   comments,
-  onAnnotationClick
+  onAnnotationClick,
+  onAnnotationHover,
+  onCommentHover,
+  hoveredAnnotationId,
+  hoveredCommentId
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,7 +93,21 @@ export function BrowseView({
     return map;
   }, [allAnnotations]);
 
-  // Attach click handlers and animations after render
+  // Wrapper for annotation hover that detects comments
+  const handleAnnotationHover = useCallback((annotationId: string | null) => {
+    if (annotationId && onCommentHover) {
+      const annotation = annotationMap.get(annotationId);
+      if (annotation?.motivation === 'commenting') {
+        onCommentHover(annotationId);
+        return;
+      }
+    }
+    if (onAnnotationHover) {
+      onAnnotationHover(annotationId);
+    }
+  }, [annotationMap, onAnnotationHover, onCommentHover]);
+
+  // Attach click handlers, hover handlers, and animations after render
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -108,7 +130,21 @@ export function BrowseView({
       }
     };
 
+    // Attach hover handlers
+    const handleMouseEnter = (e: Event) => {
+      const target = e.currentTarget as HTMLElement;
+      const annotationId = target.getAttribute('data-annotation-id');
+      if (annotationId) {
+        handleAnnotationHover(annotationId);
+      }
+    };
+
+    const handleMouseLeave = () => {
+      handleAnnotationHover(null);
+    };
+
     const clickHandlers: Array<{ element: Element; handler: EventListener }> = [];
+    const hoverHandlers: Array<{ element: Element; enterHandler: EventListener; leaveHandler: EventListener }> = [];
 
     annotationSpans.forEach((span) => {
       const annotationType = span.getAttribute('data-annotation-type');
@@ -116,6 +152,11 @@ export function BrowseView({
         span.addEventListener('click', handleClick);
         clickHandlers.push({ element: span, handler: handleClick });
       }
+
+      // Add hover handlers for all annotation types
+      span.addEventListener('mouseenter', handleMouseEnter);
+      span.addEventListener('mouseleave', handleMouseLeave);
+      hoverHandlers.push({ element: span, enterHandler: handleMouseEnter, leaveHandler: handleMouseLeave });
     });
 
     // Apply animation classes to new annotations
@@ -133,8 +174,36 @@ export function BrowseView({
       clickHandlers.forEach(({ element, handler }) => {
         element.removeEventListener('click', handler);
       });
+      hoverHandlers.forEach(({ element, enterHandler, leaveHandler }) => {
+        element.removeEventListener('mouseenter', enterHandler);
+        element.removeEventListener('mouseleave', leaveHandler);
+      });
     };
-  }, [content, allAnnotations, onAnnotationClick, annotationMap, newAnnotationIds]);
+  }, [content, allAnnotations, onAnnotationClick, annotationMap, newAnnotationIds, handleAnnotationHover]);
+
+  // Handle hoveredCommentId visual feedback
+  useEffect(() => {
+    if (!containerRef.current || !hoveredCommentId) return undefined;
+
+    const container = containerRef.current;
+    const element = container.querySelector(
+      `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
+    ) as HTMLElement;
+
+    if (element) {
+      element.classList.add('annotation-pulse');
+      const timeoutId = setTimeout(() => {
+        element.classList.remove('annotation-pulse');
+      }, 1500);
+
+      return () => {
+        clearTimeout(timeoutId);
+        element.classList.remove('annotation-pulse');
+      };
+    }
+
+    return undefined;
+  }, [hoveredCommentId]);
 
   return (
     <div ref={containerRef} className="prose prose-lg dark:prose-invert max-w-none p-4">

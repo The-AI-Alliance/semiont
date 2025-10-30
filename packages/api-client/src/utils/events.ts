@@ -50,7 +50,7 @@ export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
     case 'annotation.added':
     case 'annotation.removed':
     case 'annotation.body.updated':
-      return payload.annotationId || null;
+      return payload.annotation?.id || null;
 
     default:
       return null;
