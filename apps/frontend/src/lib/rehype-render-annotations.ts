@@ -6,7 +6,7 @@ interface Annotation {
   exact: string;
   offset: number;
   length: number;
-  type: 'highlight' | 'reference' | 'assessment';
+  type: 'highlight' | 'reference' | 'assessment' | 'comment';
   source?: string;
 }
 
@@ -125,6 +125,10 @@ function wrapChildRange(element: Element, span: ChildSpan) {
     // Red squiggly underline for assessments (errors, warnings)
     className = 'red-underline cursor-pointer transition-all duration-200 hover:opacity-80';
     annotationType = 'assessment';
+  } else if (annotation.type === 'comment') {
+    // Gray dashed outline for comments, no background
+    className = 'rounded px-0.5 cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 outline outline-2 outline-dashed outline-gray-900 dark:outline-gray-100 outline-offset-1';
+    annotationType = 'comment';
   } else if (annotation.type === 'reference') {
     annotationType = 'reference';
     // Stub reference (no target document) - red text with !important-like specificity
@@ -229,6 +233,10 @@ function applyWithinTextNodeAnnotations(
         // Red squiggly underline for assessments (errors, warnings)
         className = 'red-underline cursor-pointer transition-all duration-200 hover:opacity-80';
         annotationType = 'assessment';
+      } else if (ann.type === 'comment') {
+        // Gray dashed outline for comments, no background
+        className = 'rounded px-0.5 cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 outline outline-2 outline-dashed outline-gray-900 dark:outline-gray-100 outline-offset-1';
+        annotationType = 'comment';
       } else if (ann.type === 'reference') {
         annotationType = 'reference';
         // Stub reference (no target document) - red text with !important-like specificity
