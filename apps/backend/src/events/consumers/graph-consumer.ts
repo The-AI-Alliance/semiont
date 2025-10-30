@@ -139,7 +139,135 @@ export class GraphDBConsumer {
   }
 
   /**
+   * Event Handlers - Each handler processes one event type
+   */
+
+  private async handleResourceCreated(graphDb: GraphDatabase, event: StoredEvent['event']): Promise<void> {
+    if (event.type !== 'resource.created') return;
+    if (!event.resourceId) throw new Error('resource.created requires resourceId');
+    const resource = this.buildResourceDescriptor(event.resourceId, event.payload, event.userId);
+    await graphDb.createResource(resource);
+  }
+
+  private async handleResourceCloned(graphDb: GraphDatabase, event: StoredEvent['event']): Promise<void> {
+    if (event.type !== 'resource.cloned') return;
+    if (!event.resourceId) throw new Error('resource.cloned requires resourceId');
+    const resource = this.buildResourceDescriptor(event.resourceId, event.payload, event.userId);
+    await graphDb.createResource(resource);
+  }
+
+  private async handleResourceArchived(graphDb: GraphDatabase, event: StoredEvent['event']): Promise<void> {
+    if (event.type !== 'resource.archived') return;
+    if (!event.resourceId) throw new Error('resource.archived requires resourceId');
+    await graphDb.updateResource(event.resourceId, {
+      archived: true,
+    });
+  }
+
+  private async handleResourceUnarchived(graphDb: GraphDatabase, event: StoredEvent['event']): Promise<void> {
+    if (event.type !== 'resource.unarchived') return;
+    if (!event.resourceId) throw new Error('resource.unarchived requires resourceId');
+    await graphDb.updateResource(event.resourceId, {
+      archived: false,
+    });
+  }
+
+  private async handleAnnotationAdded(graphDb: GraphDatabase, event: StoredEvent['event']): Promise<void> {
+    if (event.type !== 'annotation.added') return;
+    // Event payload contains Omit<Annotation, 'creator' | 'created'>
+    // Add creator from event metadata (created not needed for graph)
+    await graphDb.createAnnotation({
+      ...event.payload.annotation,
+      creator: didToAgent(event.userId),
+    });
+  }
+
+  private async handleAnnotationRemoved(graphDb: GraphDatabase, event: StoredEvent['event']): Promise<void> {
+    if (event.type !== 'annotation.removed') return;
+    await graphDb.deleteAnnotation(event.payload.annotationId);
+  }
+
+  private async handleAnnotationBodyUpdated(graphDb: GraphDatabase, event: StoredEvent['event']): Promise<void> {
+    if (event.type !== 'annotation.body.updated') return;
+
+    // Apply fine-grained body operations
+    try {
+      // Get current annotation from graph
+      const currentAnnotation = await graphDb.getAnnotation(event.payload.annotationId);
+      if (currentAnnotation) {
+        // Ensure body is an array
+        let bodyArray = Array.isArray(currentAnnotation.body)
+          ? [...currentAnnotation.body]
+          : currentAnnotation.body
+          ? [currentAnnotation.body]
+          : [];
+
+        // Apply each operation
+        for (const op of event.payload.operations) {
+          if (op.op === 'add') {
+            // Add item (idempotent - don't add if already exists)
+            const exists = findBodyItem(bodyArray, op.item) !== -1;
+            if (!exists) {
+              bodyArray.push(op.item);
+            }
+          } else if (op.op === 'remove') {
+            // Remove item
+            const index = findBodyItem(bodyArray, op.item);
+            if (index !== -1) {
+              bodyArray.splice(index, 1);
+            }
+          } else if (op.op === 'replace') {
+            // Replace item
+            const index = findBodyItem(bodyArray, op.oldItem);
+            if (index !== -1) {
+              bodyArray[index] = op.newItem;
+            }
+          }
+        }
+
+        // Update annotation with new body
+        await graphDb.updateAnnotation(event.payload.annotationId, {
+          body: bodyArray,
+        });
+      }
+    } catch (error) {
+      // If annotation doesn't exist in graph (e.g., created before consumer started),
+      // log warning but don't fail - event store is source of truth
+      console.warn(`[GraphDBConsumer] Could not update annotation ${event.payload.annotationId} in graph: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async handleEntityTagAdded(graphDb: GraphDatabase, event: StoredEvent['event']): Promise<void> {
+    if (event.type !== 'entitytag.added') return;
+    if (!event.resourceId) throw new Error('entitytag.added requires resourceId');
+    const existingResource = await graphDb.getResource(event.resourceId);
+    if (existingResource) {
+      await graphDb.updateResource(event.resourceId, {
+        entityTypes: [...(existingResource.entityTypes || []), event.payload.entityType],
+      });
+    }
+  }
+
+  private async handleEntityTagRemoved(graphDb: GraphDatabase, event: StoredEvent['event']): Promise<void> {
+    if (event.type !== 'entitytag.removed') return;
+    if (!event.resourceId) throw new Error('entitytag.removed requires resourceId');
+    const existingResource = await graphDb.getResource(event.resourceId);
+    if (existingResource) {
+      await graphDb.updateResource(event.resourceId, {
+        entityTypes: (existingResource.entityTypes || []).filter(t => t !== event.payload.entityType),
+      });
+    }
+  }
+
+  private async handleEntityTypeAdded(graphDb: GraphDatabase, event: StoredEvent['event']): Promise<void> {
+    if (event.type !== 'entitytype.added') return;
+    // System-level event: Update global entity type collection
+    await graphDb.addEntityType(event.payload.entityType);
+  }
+
+  /**
    * Apply event to GraphDB
+   * Routes events to specific handlers
    */
   protected async applyEventToGraph(storedEvent: StoredEvent): Promise<void> {
     const graphDb = this.ensureInitialized();
@@ -148,120 +276,26 @@ export class GraphDBConsumer {
     console.log(`[GraphDBConsumer] Applying ${event.type} to GraphDB (seq=${storedEvent.metadata.sequenceNumber})`);
 
     switch (event.type) {
-      case 'resource.created': {
-        if (!event.resourceId) throw new Error('resource.created requires resourceId');
-        const resource = this.buildResourceDescriptor(event.resourceId, event.payload, event.userId);
-        await graphDb.createResource(resource);
-        break;
-      }
-
-      case 'resource.cloned': {
-        if (!event.resourceId) throw new Error('resource.cloned requires resourceId');
-        const resource = this.buildResourceDescriptor(event.resourceId, event.payload, event.userId);
-        await graphDb.createResource(resource);
-        break;
-      }
-
+      case 'resource.created':
+        return this.handleResourceCreated(graphDb, event);
+      case 'resource.cloned':
+        return this.handleResourceCloned(graphDb, event);
       case 'resource.archived':
-        if (!event.resourceId) throw new Error('resource.archived requires resourceId');
-        await graphDb.updateResource(event.resourceId, {
-          archived: true,
-        });
-        break;
-
+        return this.handleResourceArchived(graphDb, event);
       case 'resource.unarchived':
-        if (!event.resourceId) throw new Error('resource.unarchived requires resourceId');
-        await graphDb.updateResource(event.resourceId, {
-          archived: false,
-        });
-        break;
-
+        return this.handleResourceUnarchived(graphDb, event);
       case 'annotation.added':
-        // Event payload contains Omit<Annotation, 'creator' | 'created'>
-        // Add creator from event metadata (created not needed for graph)
-        await graphDb.createAnnotation({
-          ...event.payload.annotation,
-          creator: didToAgent(event.userId),
-        });
-        break;
-
+        return this.handleAnnotationAdded(graphDb, event);
       case 'annotation.removed':
-        await graphDb.deleteAnnotation(event.payload.annotationId);
-        break;
-
+        return this.handleAnnotationRemoved(graphDb, event);
       case 'annotation.body.updated':
-        // Apply fine-grained body operations
-        try {
-          // Get current annotation from graph
-          const currentAnnotation = await graphDb.getAnnotation(event.payload.annotationId);
-          if (currentAnnotation) {
-            // Ensure body is an array
-            let bodyArray = Array.isArray(currentAnnotation.body)
-              ? [...currentAnnotation.body]
-              : currentAnnotation.body
-              ? [currentAnnotation.body]
-              : [];
-
-            // Apply each operation
-            for (const op of event.payload.operations) {
-              if (op.op === 'add') {
-                // Add item (idempotent - don't add if already exists)
-                const exists = findBodyItem(bodyArray, op.item) !== -1;
-                if (!exists) {
-                  bodyArray.push(op.item);
-                }
-              } else if (op.op === 'remove') {
-                // Remove item
-                const index = findBodyItem(bodyArray, op.item);
-                if (index !== -1) {
-                  bodyArray.splice(index, 1);
-                }
-              } else if (op.op === 'replace') {
-                // Replace item
-                const index = findBodyItem(bodyArray, op.oldItem);
-                if (index !== -1) {
-                  bodyArray[index] = op.newItem;
-                }
-              }
-            }
-
-            // Update annotation with new body
-            await graphDb.updateAnnotation(event.payload.annotationId, {
-              body: bodyArray,
-            });
-          }
-        } catch (error) {
-          // If annotation doesn't exist in graph (e.g., created before consumer started),
-          // log warning but don't fail - event store is source of truth
-          console.warn(`[GraphDBConsumer] Could not update annotation ${event.payload.annotationId} in graph: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-        break;
-
+        return this.handleAnnotationBodyUpdated(graphDb, event);
       case 'entitytag.added':
-        if (!event.resourceId) throw new Error('entitytag.added requires resourceId');
-        const doc = await graphDb.getResource(event.resourceId);
-        if (doc) {
-          await graphDb.updateResource(event.resourceId, {
-            entityTypes: [...(doc.entityTypes || []), event.payload.entityType],
-          });
-        }
-        break;
-
+        return this.handleEntityTagAdded(graphDb, event);
       case 'entitytag.removed':
-        if (!event.resourceId) throw new Error('entitytag.removed requires resourceId');
-        const doc2 = await graphDb.getResource(event.resourceId);
-        if (doc2) {
-          await graphDb.updateResource(event.resourceId, {
-            entityTypes: (doc2.entityTypes || []).filter(t => t !== event.payload.entityType),
-          });
-        }
-        break;
-
+        return this.handleEntityTagRemoved(graphDb, event);
       case 'entitytype.added':
-        // System-level event: Update global entity type collection
-        await graphDb.addEntityType(event.payload.entityType);
-        break;
-
+        return this.handleEntityTypeAdded(graphDb, event);
       default:
         console.warn(`[GraphDBConsumer] Unknown event type: ${(event as ResourceEvent).type}`);
     }
