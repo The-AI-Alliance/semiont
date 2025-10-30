@@ -140,6 +140,14 @@ export function ResourceViewer({
 
   // Handle annotation right-clicks - memoized
   const handleAnnotationRightClick = useCallback((annotation: Annotation, x: number, y: number) => {
+    // If it's a comment, treat right-click same as left-click - open Comments Panel and scroll to it
+    if (annotation.motivation === 'commenting') {
+      if (onCommentClick) {
+        onCommentClick(annotation.id);
+      }
+      return;
+    }
+
     setEditingAnnotation(annotation);
     const targetSelector = getTargetSelector(annotation.target);
     setSelectedText(getExactText(targetSelector));
@@ -152,7 +160,7 @@ export function ResourceViewer({
     }
     setPopupPosition({ x, y: y + 10 });
     setShowAnnotationPopup(true);
-  }, []);
+  }, [onCommentClick]);
 
   // Handle clicking 🔗 icon on resolved reference - show popup instead of navigating
   const handleResolvedReferenceWidgetClick = useCallback((documentId: string) => {
