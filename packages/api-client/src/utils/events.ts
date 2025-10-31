@@ -123,7 +123,6 @@ export function formatEventType(type: ResourceEventType, t: TranslateFn, payload
       return t('entitytypeAdded');
 
     case 'job.completed':
-      return t('linkedResourceCreated');
     case 'job.started':
     case 'job.progress':
     case 'job.failed':
@@ -283,6 +282,28 @@ export function getEventDisplayContent(
     case 'entitytag.added':
     case 'entitytag.removed': {
       return { exact: payload.entityType, isQuoted: false, isTag: true };
+    }
+
+    case 'job.completed': {
+      // Find the annotation that was used to generate the resource
+      if (payload.annotationId) {
+        const annotation = annotations.find(a =>
+          compareAnnotationIds(a.id, payload.annotationId)
+        );
+
+        if (annotation?.target) {
+          try {
+            const targetSelector = getTargetSelector(annotation.target);
+            const exact = getExactText(targetSelector);
+            if (exact) {
+              return { exact: truncateText(exact), isQuoted: true, isTag: false };
+            }
+          } catch {
+            // If selector parsing fails, continue to return null
+          }
+        }
+      }
+      return null;
     }
 
     default:

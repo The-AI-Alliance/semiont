@@ -197,6 +197,7 @@ export class GenerationWorker extends JobWorker {
         jobType: 'generation',
         totalSteps: 5,
         resultResourceId: resourceId,
+        annotationId: job.referenceId,
         message: `Generation complete: created resource "${resourceName}"`,
       },
     });
