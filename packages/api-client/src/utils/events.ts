@@ -26,7 +26,11 @@ export type ResourceEventType =
   | 'annotation.body.updated'
   | 'entitytag.added'
   | 'entitytag.removed'
-  | 'entitytype.added';  // Global entity type collection
+  | 'entitytype.added'  // Global entity type collection
+  | 'job.started'
+  | 'job.progress'
+  | 'job.completed'
+  | 'job.failed';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
@@ -118,6 +122,13 @@ export function formatEventType(type: ResourceEventType, t: TranslateFn, payload
     case 'entitytype.added':
       return t('entitytypeAdded');
 
+    case 'job.completed':
+      return t('linkedResourceCreated');
+    case 'job.started':
+    case 'job.progress':
+    case 'job.failed':
+      return t('jobEvent');
+
     default:
       const _exhaustiveCheck: never = type;
       return _exhaustiveCheck;
@@ -155,6 +166,14 @@ export function getEventEmoji(type: ResourceEventType, payload?: any): string {
       return '🏷️';
     case 'entitytype.added':
       return '🏷️';  // Same emoji as entitytag (global entity type collection)
+
+    case 'job.completed':
+      return '🔗';  // Link emoji for linked document creation
+    case 'job.started':
+    case 'job.progress':
+      return '⚙️';  // Gear for job processing
+    case 'job.failed':
+      return '❌';  // X mark for failed jobs
 
     default:
       const _exhaustiveCheck: never = type;

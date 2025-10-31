@@ -17,14 +17,11 @@ import {
   generateUuid,
   type BodyOperation,
 } from '@semiont/core';
-import { getExactText, extractAnnotationId } from '@semiont/api-client';
+import { getExactText } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
 
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig, getBackendConfig } from '../../config/environment-loader';
-import type { components } from '@semiont/api-client';
-
-type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
+import { getFilesystemConfig } from '../../config/environment-loader';
 
 export class GenerationWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -63,37 +60,13 @@ export class GenerationWorker extends JobWorker {
       },
     });
 
-    // Emit job.progress event (fetching)
-    await eventStore.appendEvent({
-      type: 'job.progress',
-      resourceId: job.sourceResourceId,
-      userId: job.userId,
-      version: 1,
-      payload: {
-        jobId: job.id,
-        jobType: 'generation',
-        percentage: 20,
-        currentStep: 'fetching',
-        processedSteps: 1,
-        totalSteps: 5,
-        message: 'Fetching annotation context...',
-      },
-    });
-
-    // Fetch rich LLM context using the annotation-llm-context endpoint
-    const backendURL = getBackendConfig().publicURL;
-    const annotationId = extractAnnotationId(job.referenceId);
-    const contextURL = `${backendURL}/api/resources/${encodeURIComponent(job.sourceResourceId)}/annotations/${encodeURIComponent(annotationId)}/llm-context?includeSourceContext=true&includeTargetContext=false&contextWindow=2000`;
-
-    console.log(`[GenerationWorker] Fetching LLM context from: ${contextURL}`);
-
-    const contextResponse = await fetch(contextURL);
-    if (!contextResponse.ok) {
-      throw new Error(`Failed to fetch annotation context: ${contextResponse.status} ${contextResponse.statusText}`);
+    // Use pre-fetched LLM context from job payload
+    const llmContext = job.llmContext;
+    if (!llmContext) {
+      throw new Error('LLM context missing from job payload - job may have been created incorrectly');
     }
 
-    const llmContext = await contextResponse.json() as AnnotationLLMContextResponse;
-    console.log(`[GenerationWorker] Retrieved LLM context with source context: ${!!llmContext.sourceContext}`);
+    console.log(`[GenerationWorker] Using pre-fetched LLM context with source context: ${!!llmContext.sourceContext}`);
 
     // Determine resource name
     const targetSelector = getTargetSelector(llmContext.annotation.target);

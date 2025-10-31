@@ -5,6 +5,10 @@
  * They are completely independent of HTTP request/response cycles.
  */
 
+import type { components } from '@semiont/api-client';
+
+type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
+
 export type JobType = 'detection' | 'generation';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
 
@@ -56,6 +60,7 @@ export interface GenerationJob extends BaseJob {
   title?: string;
   entityTypes?: string[];
   language?: string;
+  llmContext?: AnnotationLLMContextResponse;  // Pre-fetched context from annotation-llm-context endpoint
   progress?: {
     stage: 'fetching' | 'generating' | 'creating' | 'linking';
     percentage: number;

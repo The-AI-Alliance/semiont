@@ -29,11 +29,17 @@ export function AnnotationHistory({ resourceId, hoveredAnnotationId, onEventHove
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sort events by oldest first (most recent at bottom)
+  // Filter out job.started and job.progress events (only show job.completed)
   const events = useMemo(() => {
     if (!eventsData?.events) return [];
-    return [...eventsData.events].sort((a: StoredEvent, b: StoredEvent) =>
-      a.metadata.sequenceNumber - b.metadata.sequenceNumber
-    );
+    return [...eventsData.events]
+      .filter((e: StoredEvent) => {
+        const eventType = e.event.type;
+        return eventType !== 'job.started' && eventType !== 'job.progress';
+      })
+      .sort((a: StoredEvent, b: StoredEvent) =>
+        a.metadata.sequenceNumber - b.metadata.sequenceNumber
+      );
   }, [eventsData]);
 
   // Scroll to bottom when History is first shown or when events change

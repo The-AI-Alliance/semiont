@@ -413,8 +413,10 @@ function ResourceView({
     // Widget sparkle (✨ emoji) will show automatically during generation via generatingReferenceId
     // Pass language (using locale from Next.js routing) to ensure generated content is in the user's preferred language
     const optionsWithLanguage = { ...options, language: locale };
-    startGeneration(referenceId, resourceId, optionsWithLanguage);
-  }, [startGeneration, resourceId, clearNewAnnotationId, locale]);
+    // Use full resource URI (W3C Web Annotation spec requires URIs)
+    const resourceUri = resource['@id'];
+    startGeneration(referenceId, resourceUri, optionsWithLanguage);
+  }, [startGeneration, resource, clearNewAnnotationId, locale]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useResourceEvents({

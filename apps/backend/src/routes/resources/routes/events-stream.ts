@@ -17,7 +17,7 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { getFilesystemConfig, getBackendConfig } from '../../../config/environment-loader';
 
 /**
  * Resource-scoped SSE event stream for real-time collaboration
@@ -40,7 +40,12 @@ export function registerGetEventStream(router: ResourcesRouterType) {
     const { id } = c.req.param();
     const basePath = getFilesystemConfig().path;
 
+    // Construct full resource URI for event subscriptions (consistent with W3C Web Annotation spec)
+    const backendConfig = getBackendConfig();
+    const resourceUri = `${backendConfig.publicURL}/resources/${id}`;
+
     console.log(`[EventStream] Client connecting to resource events stream for ${id}`);
+    console.log(`[EventStream] Subscribing to events for resource URI: ${resourceUri}`);
 
     // Verify resource exists in event store (Layer 2 - source of truth)
     const eventStore = await createEventStore(basePath);
@@ -99,16 +104,16 @@ export function registerGetEventStream(router: ResourcesRouterType) {
         }
       };
 
-      // Subscribe to events for this resource
+      // Subscribe to events for this resource using full URI
       const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
-      console.log(`[EventStream:${streamId}] Subscribing to events for resource ${id}`);
-      subscription = eventStore.subscriptions.subscribe(id, async (storedEvent) => {
+      console.log(`[EventStream:${streamId}] Subscribing to events for resource URI ${resourceUri}`);
+      subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
         if (isStreamClosed) {
-          console.log(`[EventStream:${streamId}] Stream already closed for ${id}, ignoring event ${storedEvent.event.type}`);
+          console.log(`[EventStream:${streamId}] Stream already closed for ${resourceUri}, ignoring event ${storedEvent.event.type}`);
           return;
         }
 
-        console.log(`[EventStream:${streamId}] Received event ${storedEvent.event.type} for resource ${id}, attempting to write to SSE stream`);
+        console.log(`[EventStream:${streamId}] Received event ${storedEvent.event.type} for resource ${resourceUri}, attempting to write to SSE stream`);
 
         try {
           const eventData = {
@@ -131,9 +136,9 @@ export function registerGetEventStream(router: ResourcesRouterType) {
             event: storedEvent.event.type,
             id: storedEvent.metadata.sequenceNumber.toString(),
           });
-          console.log(`[EventStream:${streamId}] Successfully wrote event ${storedEvent.event.type} to SSE stream for ${id}`);
+          console.log(`[EventStream:${streamId}] Successfully wrote event ${storedEvent.event.type} to SSE stream for ${resourceUri}`);
         } catch (error) {
-          console.error(`[EventStream:${streamId}] Error writing event ${storedEvent.event.type} to SSE stream for ${id}:`, error);
+          console.error(`[EventStream:${streamId}] Error writing event ${storedEvent.event.type} to SSE stream for ${resourceUri}:`, error);
           cleanup();
         }
       });

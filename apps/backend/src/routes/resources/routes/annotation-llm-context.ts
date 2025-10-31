@@ -9,16 +9,9 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
-import { generateResourceSummary } from '../../../inference/factory';
-import { getBodySource, getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/environment-loader';
-import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
-import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../../../utils/resource-helpers';
-
-type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
+import { AnnotationContextService } from '../../../services/annotation-context';
+import { getBackendConfig } from '../../../config/environment-loader';
 
 export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   /**
@@ -35,7 +28,6 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   router.get('/api/resources/:resourceId/annotations/:annotationId/llm-context', async (c) => {
     const { resourceId, annotationId } = c.req.param();
     const query = c.req.query();
-    const basePath = getFilesystemConfig().path;
 
     // Parse and validate query parameters
     const includeSourceContext = query.includeSourceContext === 'false' ? false : true;
@@ -47,75 +39,32 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "contextWindow" must be between 100 and 5000' });
     }
 
-    const graphDb = await getGraphDatabase();
-    const repStore = new FilesystemRepresentationStore({ basePath });
+    try {
+      // Construct full resource URI (consistent with W3C Web Annotation spec)
+      const backendConfig = getBackendConfig();
+      const resourceUri = `${backendConfig.publicURL}/resources/${resourceId}`;
 
-    // Get the annotation
-    const annotation = await graphDb.getAnnotation(annotationId);
-    if (!annotation || getTargetSource(annotation.target) !== resourceId) {
-      throw new HTTPException(404, { message: 'Annotation not found' });
-    }
+      // Use shared service to build context
+      const response = await AnnotationContextService.buildLLMContext(annotationId, resourceUri, {
+        includeSourceContext,
+        includeTargetContext,
+        contextWindow
+      });
 
-    // Get source resource
-    const sourceDoc = await graphDb.getResource(resourceId);
-    if (!sourceDoc) {
-      throw new HTTPException(404, { message: 'Source resource not found' });
-    }
-
-    // Get target resource if annotation is a reference (has resolved body source)
-    const bodySource = getBodySource(annotation.body);
-    const targetDoc = bodySource ? await graphDb.getResource(bodySource) : null;
-
-    // Build source context if requested
-    let sourceContext;
-    if (includeSourceContext) {
-      const primaryRep = getPrimaryRepresentation(sourceDoc);
-      if (!primaryRep?.checksum || !primaryRep?.mediaType) {
-        throw new HTTPException(404, { message: 'Source content not found' });
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'Annotation not found') {
+          throw new HTTPException(404, { message: 'Annotation not found' });
+        }
+        if (error.message === 'Source resource not found') {
+          throw new HTTPException(404, { message: 'Source resource not found' });
+        }
+        if (error.message === 'Source content not found') {
+          throw new HTTPException(404, { message: 'Source content not found' });
+        }
       }
-      const sourceContent = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-      const contentStr = sourceContent.toString('utf-8');
-
-      const targetSelector = getTargetSelector(annotation.target);
-      if (targetSelector && 'start' in targetSelector && 'end' in targetSelector) {
-        const start = targetSelector.start as number;
-        const end = targetSelector.end as number;
-
-        const before = contentStr.slice(Math.max(0, start - contextWindow), start);
-        const selected = contentStr.slice(start, end);
-        const after = contentStr.slice(end, Math.min(contentStr.length, end + contextWindow));
-
-        sourceContext = { before, selected, after };
-      }
+      throw error;
     }
-
-    // Build target context if requested and available
-    let targetContext;
-    if (includeTargetContext && targetDoc) {
-      const targetRep = getPrimaryRepresentation(targetDoc);
-      if (targetRep?.checksum && targetRep?.mediaType) {
-        const targetContent = await repStore.retrieve(targetRep.checksum, targetRep.mediaType);
-        const contentStr = targetContent.toString('utf-8');
-
-        targetContext = {
-          content: contentStr.slice(0, contextWindow * 2),
-          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc)),
-        };
-      }
-    }
-
-    // TODO: Generate suggested resolution using AI
-    const suggestedResolution = undefined;
-
-    const response: AnnotationLLMContextResponse = {
-      annotation,
-      sourceResource: sourceDoc,
-      targetResource: targetDoc,
-      ...(sourceContext ? { sourceContext } : {}),
-      ...(targetContext ? { targetContext } : {}),
-      ...(suggestedResolution ? { suggestedResolution } : {}),
-    };
-
-    return c.json(response);
   });
 }
