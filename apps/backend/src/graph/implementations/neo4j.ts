@@ -451,7 +451,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       Object.entries(updates).forEach(([key, value]) => {
         if (key !== 'id' && key !== 'updatedAt') {
           setClauses.push(`a.${key} = $${key}`);
-          if (key === 'selector' || key === 'metadata') {
+          if (key === 'selector' || key === 'metadata' || key === 'body') {
             params[key] = JSON.stringify(value);
           } else if (key === 'created' || key === 'resolvedAt') {
             params[key] = value ? new Date(value as any).toISOString() : null;
@@ -465,6 +465,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const result = await session.run(
         `MATCH (a:Annotation {id: $id})
          SET ${setClauses.join(', ')}
+         WITH a
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes`,
         params

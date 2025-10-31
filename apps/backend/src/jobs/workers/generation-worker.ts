@@ -174,6 +174,11 @@ export class GenerationWorker extends JobWorker {
     const backendConfig = getBackendConfig();
     const resourceUri = `${backendConfig.publicURL}/resources/${resourceId}`;
 
+    // Construct full annotation URI (Neo4j stores annotations with full URIs)
+    const annotationUri = job.referenceId.includes('/')
+      ? job.referenceId  // Already a full URI
+      : `${backendConfig.publicURL}/annotations/${job.referenceId}`;  // Construct from short ID
+
     const operations: BodyOperation[] = [{
       op: 'add',
       item: {
@@ -189,11 +194,11 @@ export class GenerationWorker extends JobWorker {
       userId: job.userId,
       version: 1,
       payload: {
-        annotationId: job.referenceId,
+        annotationId: annotationUri,
         operations,
       },
     });
-    console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${job.referenceId} → ${resourceId}`);
+    console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${annotationUri} → ${resourceId}`);
 
     // Set final result
     job.result = {
@@ -212,7 +217,7 @@ export class GenerationWorker extends JobWorker {
         jobType: 'generation',
         totalSteps: 5,
         resultResourceId: resourceId,
-        annotationId: job.referenceId,
+        annotationId: annotationUri,
         message: `Generation complete: created resource "${resourceName}"`,
       },
     });

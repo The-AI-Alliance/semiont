@@ -39,7 +39,8 @@ vi.mock('../../services/resource-queries', () => ({
 
 // Mock environment
 vi.mock('../../config/environment-loader', () => ({
-  getFilesystemConfig: () => ({ path: testDir })
+  getFilesystemConfig: () => ({ path: testDir }),
+  getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
 }));
 
 let testDir: string;

@@ -25,7 +25,8 @@ let testDir: string;
 
 vi.mock('../../config/environment-loader', () => ({
   getFilesystemConfig: () => ({ path: testDir }),
-  getInferenceConfig: () => ({ provider: 'test', model: 'test-model' })
+  getInferenceConfig: () => ({ provider: 'test', model: 'test-model' }),
+  getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
 }));
 
 // Pre-fetched LLM context (included in job payload, no HTTP call needed)

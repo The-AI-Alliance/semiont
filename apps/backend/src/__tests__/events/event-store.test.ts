@@ -19,6 +19,9 @@ describe('Event Store', () => {
   let validator: EventValidator;
 
   beforeAll(async () => {
+    // Set required environment variables for tests
+    process.env.BACKEND_URL = 'http://localhost:4000';
+
     testDir = join(tmpdir(), `semiont-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
