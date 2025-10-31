@@ -380,7 +380,6 @@
     "assessmentAdded": "Evaluación Agregada",
     "assessmentRemoved": "Evaluación Eliminada",
     "annotationBodyUpdated": "Anotación Actualizada",
-    "linkedResourceCreated": "Recurso Vinculado Creado",
     "jobEvent": "Evento de Trabajo",
     "justNow": "justo ahora",
     "minutesAgo": "hace {count}m",
