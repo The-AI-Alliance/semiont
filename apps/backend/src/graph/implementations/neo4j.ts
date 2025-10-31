@@ -17,7 +17,7 @@ import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
-import { getPrimaryRepresentation, getResourceId } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -163,7 +163,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
     const session = this.getSession();
     try {
-      const id = getResourceId(resource);
+      const id = resource['@id']; // Use full URI for consistency
       const primaryRep = getPrimaryRepresentation(resource);
       if (!primaryRep) {
         throw new Error('Resource must have at least one representation');
@@ -174,8 +174,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           id: $id,
           name: $name,
           entityTypes: $entityTypes,
-          format: $contentType,
-          metadata: $metadata,
+          format: $format,
           archived: $archived,
           created: datetime($created),
           creator: $creator,

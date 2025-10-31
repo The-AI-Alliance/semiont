@@ -301,6 +301,12 @@ export class GraphDBConsumer {
         return this.handleEntityTagRemoved(graphDb, event);
       case 'entitytype.added':
         return this.handleEntityTypeAdded(graphDb, event);
+      case 'job.started':
+      case 'job.progress':
+      case 'job.completed':
+      case 'job.failed':
+        // Job events don't need to update the graph database
+        return;
       default:
         console.warn(`[GraphDBConsumer] Unknown event type: ${(event as ResourceEvent).type}`);
     }
