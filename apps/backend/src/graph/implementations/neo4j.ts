@@ -461,6 +461,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         }
       });
 
+      // Update annotation properties
       const result = await session.run(
         `MATCH (a:Annotation {id: $id})
          SET ${setClauses.join(', ')}
@@ -471,6 +472,25 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       if (result.records.length === 0) {
         throw new Error('Annotation not found');
+      }
+
+      // If body was updated and contains a SpecificResource, create REFERENCES relationship
+      if (updates.body) {
+        const bodyArray = Array.isArray(updates.body) ? updates.body : [updates.body];
+        const specificResource = bodyArray.find((item: any) => item.type === 'SpecificResource' && item.purpose === 'linking');
+
+        if (specificResource && 'source' in specificResource && specificResource.source) {
+          // Create REFERENCES relationship to the target resource
+          await session.run(
+            `MATCH (a:Annotation {id: $annotationId})
+             MATCH (target:Resource {id: $targetResourceId})
+             MERGE (a)-[:REFERENCES]->(target)`,
+            {
+              annotationId: id,
+              targetResourceId: specificResource.source
+            }
+          );
+        }
       }
 
       return this.parseAnnotationNode(
