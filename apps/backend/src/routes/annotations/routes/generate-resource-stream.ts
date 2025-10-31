@@ -16,6 +16,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { getExactText, compareAnnotationIds } from '@semiont/api-client';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { AnnotationContextService } from '../../../services/annotation-context';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
@@ -63,58 +64,108 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
       console.log(`[GenerateResource] Starting generation for reference ${referenceId} in resource ${body.resourceId}`);
       console.log(`[GenerateResource] Locale from request:`, body.language);
 
-      // Validate annotation exists using Layer 3
-      const projection = await AnnotationQueryService.getResourceAnnotations(body.resourceId);
-
-      // Debug: log what annotations exist
-      const linkingAnnotations = projection.annotations.filter((a: any) => a.motivation === 'linking');
-      console.log(`[GenerateResource] Found ${linkingAnnotations.length} linking annotations in resource`);
-      linkingAnnotations.forEach((a: any, i: number) => {
-        console.log(`  [${i}] id: ${a.id}`);
-      });
-
-      // Compare by ID portion (handle both URI and simple ID formats)
-      const reference = projection.annotations.find((a: any) =>
-        compareAnnotationIds(a.id, referenceId) && a.motivation === 'linking'
-      );
-
-      if (!reference) {
-        throw new HTTPException(404, { message: `Reference ${referenceId} not found in resource ${body.resourceId}` });
-      }
-
-      // Create a generation job (this decouples event emission from HTTP client)
-      const jobQueue = getJobQueue();
-      const job: GenerationJob = {
-        id: `job-${nanoid()}`,
-        type: 'generation',
-        status: 'pending',
-        userId: user.id,
-        referenceId,
-        sourceResourceId: body.resourceId,
-        title: body.title,
-        prompt: body.prompt,
-        language: body.language,
-        entityTypes: getEntityTypes(reference),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      };
-
-      await jobQueue.createJob(job);
-      console.log(`[GenerateResource] Created job ${job.id} for reference ${referenceId}`);
-      console.log(`[GenerateResource] Job includes locale:`, job.language);
-
-      // Determine resource name for progress messages
-      const targetSelector = getTargetSelector(reference.target);
-      const resourceName = body.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
-
       // Stream the job's progress to the client
+      // IMPORTANT: Start SSE stream immediately so errors are sent as SSE events, not HTTP errors
       return streamSSE(c, async (stream) => {
         // Set proper SSE headers with charset
         c.header('Content-Type', 'text/event-stream; charset=utf-8');
         c.header('Cache-Control', 'no-cache');
         c.header('Connection', 'keep-alive');
+
+        let job: GenerationJob | undefined;
+
         try {
+          // Extract short resource ID from URI for filesystem lookup
+          const shortResourceId = body.resourceId.split('/').pop() || body.resourceId;
+
+          // Validate annotation exists using Layer 3
+          const projection = await AnnotationQueryService.getResourceAnnotations(shortResourceId);
+
+          // Debug: log what annotations exist
+          const linkingAnnotations = projection.annotations.filter((a: any) => a.motivation === 'linking');
+          console.log(`[GenerateResource] Found ${linkingAnnotations.length} linking annotations in resource`);
+          linkingAnnotations.forEach((a: any, i: number) => {
+            console.log(`  [${i}] id: ${a.id}`);
+          });
+
+          // Compare by ID portion (handle both URI and simple ID formats)
+          const reference = projection.annotations.find((a: any) =>
+            compareAnnotationIds(a.id, referenceId) && a.motivation === 'linking'
+          );
+
+          if (!reference) {
+            await stream.writeSSE({
+              data: JSON.stringify({
+                status: 'error',
+                referenceId,
+                percentage: 0,
+                message: `Reference ${referenceId} not found in resource ${body.resourceId}`
+              } as GenerationProgress),
+              event: 'generation-error',
+              id: String(Date.now())
+            });
+            return;
+          }
+
+          // Build LLM context directly (no HTTP call, fast!)
+          // Use the full annotation URI from the reference we just found
+          const annotationId = reference.id;
+
+          // body.resourceId is expected to be the full resource URI (W3C Web Annotation spec)
+          const resourceUri = body.resourceId;
+
+          console.log(`[GenerateResource] Building LLM context for annotation ${annotationId}`);
+          console.log(`[GenerateResource] Resource URI: ${resourceUri}`);
+
+          let llmContext;
+          try {
+            llmContext = await AnnotationContextService.buildLLMContext(annotationId, resourceUri, {
+              includeSourceContext: true,
+              includeTargetContext: false,
+              contextWindow: 2000
+            });
+            console.log(`[GenerateResource] Built LLM context with source context: ${!!llmContext.sourceContext}`);
+          } catch (error) {
+            await stream.writeSSE({
+              data: JSON.stringify({
+                status: 'error',
+                referenceId,
+                percentage: 0,
+                message: `Failed to build annotation context: ${error instanceof Error ? error.message : 'Unknown error'}`
+              } as GenerationProgress),
+              event: 'generation-error',
+              id: String(Date.now())
+            });
+            return;
+          }
+
+          // Determine resource name for progress messages
+          const targetSelector = getTargetSelector(reference.target);
+          const resourceName = body.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
+
+          // Create a generation job with pre-fetched context (no auth needed by worker)
+          const jobQueue = getJobQueue();
+          const job: GenerationJob = {
+            id: `job-${nanoid()}`,
+            type: 'generation',
+            status: 'pending',
+            userId: user.id,
+            referenceId,
+            sourceResourceId: body.resourceId,
+            title: body.title,
+            prompt: body.prompt,
+            language: body.language,
+            entityTypes: getEntityTypes(reference),
+            llmContext: llmContext,  // Pre-fetched context included in job
+            created: new Date().toISOString(),
+            retryCount: 0,
+            maxRetries: 3
+          };
+
+          await jobQueue.createJob(job);
+          console.log(`[GenerateResource] Created job ${job.id} for reference ${referenceId}`);
+          console.log(`[GenerateResource] Job includes locale:`, job.language);
+
           // Send initial started event
           await stream.writeSSE({
             data: JSON.stringify({
@@ -150,9 +201,14 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
           // Subscribe to all events for the source resource
           const subscription = eventStore.subscriptions.subscribe(body.resourceId, async (storedEvent) => {
             const event = storedEvent.event;
+            const eventJobId = (event.type === 'job.progress' || event.type === 'job.completed' || event.type === 'job.failed')
+              ? (event.payload as any).jobId
+              : 'N/A';
+            console.log(`[GenerateResource] Received event type: ${event.type}, jobId: ${eventJobId}, expected jobId: ${job.id}`);
 
             // Filter events for this specific job
             if (event.type === 'job.progress' && event.payload.jobId === job.id) {
+              console.log(`[GenerateResource] Sending progress event to client`);
               const progressEvent = event as JobProgressEvent;
               try {
                 await stream.writeSSE({
@@ -175,20 +231,25 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
 
             // Handle job completion
             if (event.type === 'job.completed' && event.payload.jobId === job.id) {
+              console.log(`[GenerateResource] Job completed! Sending completion event to client`);
               const completedEvent = event as JobCompletedEvent;
-              await stream.writeSSE({
-                data: JSON.stringify({
-                  status: 'complete',
-                  referenceId,
-                  resourceName,
-                  resourceId: completedEvent.payload.resultResourceId,
-                  sourceResourceId: body.resourceId,
-                  percentage: 100,
-                  message: completedEvent.payload.message || 'Draft resource created! Ready for review.'
-                } as GenerationProgress),
-                event: 'generation-complete',
-                id: storedEvent.metadata.sequenceNumber.toString()
-              });
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: 'complete',
+                    referenceId,
+                    resourceName,
+                    resourceId: completedEvent.payload.resultResourceId,
+                    sourceResourceId: body.resourceId,
+                    percentage: 100,
+                    message: completedEvent.payload.message || 'Draft resource created! Ready for review.'
+                  } as GenerationProgress),
+                  event: 'generation-complete',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (sseError) {
+                console.warn(`[GenerateResource] Failed to send completion event to client, but job ${job.id} completed successfully`);
+              }
               subscription.unsubscribe();
               if (jobDoneResolver) jobDoneResolver();
             }
@@ -196,16 +257,20 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
             // Handle job failure
             if (event.type === 'job.failed' && event.payload.jobId === job.id) {
               const failedEvent = event as JobFailedEvent;
-              await stream.writeSSE({
-                data: JSON.stringify({
-                  status: 'error',
-                  referenceId,
-                  percentage: 0,
-                  message: failedEvent.payload.error || 'Generation failed'
-                } as GenerationProgress),
-                event: 'generation-error',
-                id: storedEvent.metadata.sequenceNumber.toString()
-              });
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: 'error',
+                    referenceId,
+                    percentage: 0,
+                    message: failedEvent.payload.error || 'Generation failed'
+                  } as GenerationProgress),
+                  event: 'generation-error',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (sseError) {
+                console.warn(`[GenerateResource] Failed to send error event to client for job ${job.id}`);
+              }
               subscription.unsubscribe();
               if (jobDoneResolver) jobDoneResolver();
             }
@@ -229,7 +294,7 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[GenerateResource] Could not send error to client (disconnected), but job ${job.id} status is preserved`);
+            console.warn(`[GenerateResource] Could not send error to client (disconnected)${job ? `, but job ${job.id} status is preserved` : ''}`);
           }
         }
       });

@@ -694,10 +694,10 @@
           "graph"
         ]
       },
-      "ReferenceLLMContextResponse": {
+      "AnnotationLLMContextResponse": {
         "type": "object",
         "properties": {
-          "reference": {
+          "annotation": {
             "$ref": "#/components/schemas/Annotation"
           },
           "sourceResource": {
@@ -771,7 +771,7 @@
           }
         },
         "required": [
-          "reference",
+          "annotation",
           "sourceResource"
         ]
       },
@@ -4257,10 +4257,10 @@
         }
       }
     },
-    "/api/resources/{resourceId}/references/{referenceId}/llm-context": {
+    "/api/resources/{resourceId}/annotations/{annotationId}/llm-context": {
       "get": {
-        "summary": "Get Reference LLM Context",
-        "description": "Get reference with full context for LLM processing",
+        "summary": "Get Annotation LLM Context",
+        "description": "Get annotation with full context for LLM processing",
         "tags": [
           "Resources",
           "AI"
@@ -4284,7 +4284,7 @@
               "type": "string"
             },
             "required": true,
-            "name": "referenceId",
+            "name": "annotationId",
             "in": "path"
           },
           {
@@ -4351,11 +4351,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Reference LLM context",
+            "description": "Annotation LLM context",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReferenceLLMContextResponse"
+                  "$ref": "#/components/schemas/AnnotationLLMContextResponse"
                 }
               }
             }

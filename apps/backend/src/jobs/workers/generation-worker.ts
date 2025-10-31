@@ -10,8 +10,6 @@
 import { JobWorker } from './job-worker';
 import type { Job, GenerationJob } from '../types';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { AnnotationQueryService } from '../../services/annotation-queries';
-import { ResourceQueryService } from '../../services/resource-queries';
 import { generateResourceFromTopic } from '../../inference/factory';
 import { getTargetSelector } from '../../lib/annotation-utils';
 import {
@@ -19,7 +17,7 @@ import {
   generateUuid,
   type BodyOperation,
 } from '@semiont/core';
-import { getExactText, compareAnnotationIds } from '@semiont/api-client';
+import { getExactText } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
 
 import { getEntityTypes } from '@semiont/api-client';
@@ -62,41 +60,16 @@ export class GenerationWorker extends JobWorker {
       },
     });
 
-    // Emit job.progress event (fetching)
-    await eventStore.appendEvent({
-      type: 'job.progress',
-      resourceId: job.sourceResourceId,
-      userId: job.userId,
-      version: 1,
-      payload: {
-        jobId: job.id,
-        jobType: 'generation',
-        percentage: 20,
-        currentStep: 'fetching',
-        processedSteps: 1,
-        totalSteps: 5,
-        message: 'Fetching source resource...',
-      },
-    });
-
-    // Fetch annotation from Layer 3
-    const projection = await AnnotationQueryService.getResourceAnnotations(job.sourceResourceId);
-    // Compare by ID portion (handle both URI and simple ID formats)
-    const annotation = projection.annotations.find((a: any) =>
-      compareAnnotationIds(a.id, job.referenceId) && a.motivation === 'linking'
-    );
-
-    if (!annotation) {
-      throw new Error(`Reference annotation ${job.referenceId} not found in resource ${job.sourceResourceId}`);
+    // Use pre-fetched LLM context from job payload
+    const llmContext = job.llmContext;
+    if (!llmContext) {
+      throw new Error('LLM context missing from job payload - job may have been created incorrectly');
     }
 
-    const sourceResource = await ResourceQueryService.getResourceMetadata(job.sourceResourceId);
-    if (!sourceResource) {
-      throw new Error(`Source resource ${job.sourceResourceId} not found`);
-    }
+    console.log(`[GenerationWorker] Using pre-fetched LLM context with source context: ${!!llmContext.sourceContext}`);
 
     // Determine resource name
-    const targetSelector = getTargetSelector(annotation.target);
+    const targetSelector = getTargetSelector(llmContext.annotation.target);
     const resourceName = job.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
     console.log(`[GenerationWorker] Generating resource: "${resourceName}"`);
 
@@ -117,15 +90,22 @@ export class GenerationWorker extends JobWorker {
       },
     });
 
-    // Generate content using AI
-    const prompt = job.prompt || `Create a comprehensive resource about "${resourceName}"`;
+    // Build enriched prompt with source context
+    let enrichedPrompt = job.prompt || `Create a comprehensive resource about "${resourceName}"`;
+
+    if (llmContext.sourceContext) {
+      const { before, selected, after } = llmContext.sourceContext;
+      enrichedPrompt += `\n\nSource Context:\nThe phrase "${selected}" appears in this context:\n...${before}[${selected}]${after}...`;
+      console.log(`[GenerationWorker] Including source context (${before.length + selected.length + after.length} chars)`);
+    }
+
     // Extract entity types from annotation body
-    const annotationEntityTypes = getEntityTypes({ body: annotation.body });
+    const annotationEntityTypes = getEntityTypes({ body: llmContext.annotation.body });
 
     const generatedContent = await generateResourceFromTopic(
       resourceName,
       job.entityTypes || annotationEntityTypes,
-      prompt,
+      enrichedPrompt,
       job.language
     );
 
@@ -217,6 +197,7 @@ export class GenerationWorker extends JobWorker {
         jobType: 'generation',
         totalSteps: 5,
         resultResourceId: resourceId,
+        annotationId: job.referenceId,
         message: `Generation complete: created resource "${resourceName}"`,
       },
     });

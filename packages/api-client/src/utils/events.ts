@@ -26,7 +26,11 @@ export type ResourceEventType =
   | 'annotation.body.updated'
   | 'entitytag.added'
   | 'entitytag.removed'
-  | 'entitytype.added';  // Global entity type collection
+  | 'entitytype.added'  // Global entity type collection
+  | 'job.started'
+  | 'job.progress'
+  | 'job.completed'
+  | 'job.failed';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
@@ -118,6 +122,12 @@ export function formatEventType(type: ResourceEventType, t: TranslateFn, payload
     case 'entitytype.added':
       return t('entitytypeAdded');
 
+    case 'job.completed':
+    case 'job.started':
+    case 'job.progress':
+    case 'job.failed':
+      return t('jobEvent');
+
     default:
       const _exhaustiveCheck: never = type;
       return _exhaustiveCheck;
@@ -155,6 +165,14 @@ export function getEventEmoji(type: ResourceEventType, payload?: any): string {
       return '🏷️';
     case 'entitytype.added':
       return '🏷️';  // Same emoji as entitytag (global entity type collection)
+
+    case 'job.completed':
+      return '🔗';  // Link emoji for linked document creation
+    case 'job.started':
+    case 'job.progress':
+      return '⚙️';  // Gear for job processing
+    case 'job.failed':
+      return '❌';  // X mark for failed jobs
 
     default:
       const _exhaustiveCheck: never = type;
@@ -264,6 +282,28 @@ export function getEventDisplayContent(
     case 'entitytag.added':
     case 'entitytag.removed': {
       return { exact: payload.entityType, isQuoted: false, isTag: true };
+    }
+
+    case 'job.completed': {
+      // Find the annotation that was used to generate the resource
+      if (payload.annotationId) {
+        const annotation = annotations.find(a =>
+          compareAnnotationIds(a.id, payload.annotationId)
+        );
+
+        if (annotation?.target) {
+          try {
+            const targetSelector = getTargetSelector(annotation.target);
+            const exact = getExactText(targetSelector);
+            if (exact) {
+              return { exact: truncateText(exact), isQuoted: true, isTag: false };
+            }
+          } catch {
+            // If selector parsing fails, continue to return null
+          }
+        }
+      }
+      return null;
     }
 
     default:

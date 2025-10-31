@@ -12,7 +12,7 @@ import { registerCreateResourceFromAnnotation } from './routes/create-from-annot
 import { registerDetectAnnotationsStream } from './routes/detect-annotations-stream';
 import { registerDetectEntities } from './routes/detect-entities';
 import { registerGetResourceLLMContext } from './routes/llm-context';
-import { registerGetReferenceLLMContext } from './routes/reference-llm-context';
+import { registerGetAnnotationLLMContext } from './routes/annotation-llm-context';
 import { registerGetReferencedBy } from './routes/referenced-by';
 import { registerDiscoverContext } from './routes/discover-context';
 import { registerTokenRoutes } from './routes/token';
@@ -33,7 +33,7 @@ registerCreateResourceFromAnnotation(resourcesRouter);
 registerDetectAnnotationsStream(resourcesRouter);
 registerDetectEntities(resourcesRouter);
 registerGetResourceLLMContext(resourcesRouter);
-registerGetReferenceLLMContext(resourcesRouter);
+registerGetAnnotationLLMContext(resourcesRouter);
 registerGetReferencedBy(resourcesRouter);
 registerDiscoverContext(resourcesRouter);
 registerTokenRoutes(resourcesRouter);

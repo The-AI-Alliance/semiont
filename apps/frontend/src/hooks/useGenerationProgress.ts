@@ -83,12 +83,14 @@ export function useGenerationProgress({
         signal: abortController.signal,
 
         onmessage(ev) {
+          console.log('[useGenerationProgress] Received SSE event:', ev.event, 'data:', ev.data);
           const data = JSON.parse(ev.data) as GenerationProgress;
           setProgress(data);
           onProgress?.(data);
 
           // Handle specific event types
           if (ev.event === 'generation-complete') {
+            console.log('[useGenerationProgress] Processing completion event');
             setIsGenerating(false);
             // Keep progress visible to show completion state and link
             onComplete?.(data);

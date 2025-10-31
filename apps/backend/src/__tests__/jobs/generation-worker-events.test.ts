@@ -20,44 +20,6 @@ vi.mock('../../inference/factory', () => ({
   })
 }));
 
-// Mock annotation queries
-vi.mock('../../services/annotation-queries', () => ({
-  AnnotationQueryService: {
-    getResourceAnnotations: vi.fn().mockResolvedValue({
-      resourceId: 'source-resource',
-      version: 1,
-      updatedAt: new Date().toISOString(),
-      annotations: [{
-        id: 'test-ref-id',
-        motivation: 'linking',
-        body: [{
-          type: 'TextualBody',
-          purpose: 'tagging',
-          value: 'Person'
-        }],
-        target: {
-          source: 'source-resource',
-          selector: [{
-            type: 'TextQuoteSelector',
-            exact: 'Test Topic'
-          }]
-        }
-      }]
-    })
-  }
-}));
-
-// Mock resource queries
-vi.mock('../../services/resource-queries', () => ({
-  ResourceQueryService: {
-    getResourceMetadata: vi.fn().mockResolvedValue({
-      id: 'source-resource',
-      name: 'Source Resource',
-      format: 'text/plain'
-    })
-  }
-}));
-
 // Mock environment - testDir will be set in beforeAll
 let testDir: string;
 
@@ -65,6 +27,35 @@ vi.mock('../../config/environment-loader', () => ({
   getFilesystemConfig: () => ({ path: testDir }),
   getInferenceConfig: () => ({ provider: 'test', model: 'test-model' })
 }));
+
+// Pre-fetched LLM context (included in job payload, no HTTP call needed)
+const mockLLMContext: any = {
+  annotation: {
+    id: 'test-ref-id',
+    motivation: 'linking' as const,
+    body: [{
+      type: 'TextualBody' as const,
+      purpose: 'tagging' as const,
+      value: 'Person'
+    }],
+    target: {
+      source: 'source-resource',
+      selector: [{
+        type: 'TextQuoteSelector' as const,
+        exact: 'Test Topic'
+      }]
+    }
+  },
+  sourceResource: {
+    id: 'source-resource',
+    name: 'Source Resource'
+  },
+  sourceContext: {
+    before: 'Context before ',
+    selected: 'Test Topic',
+    after: ' context after'
+  }
+};
 
 describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
@@ -90,6 +81,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: 'source-resource-1',  // Unique per test
       title: 'Test Resource',
       entityTypes: ['Person'],
+      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -129,6 +121,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: 'source-resource-2',
       title: 'Test Resource',
       entityTypes: ['Person'],
+      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -143,11 +136,11 @@ describe('GenerationWorker - Event Emission', () => {
     const events = await query.getResourceEvents('source-resource-2');
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
-    expect(progressEvents.length).toBeGreaterThanOrEqual(3);
+    expect(progressEvents.length).toBeGreaterThanOrEqual(2);
 
-    // Check for specific stages (fetching, generating, creating)
+    // Check for specific stages (generating, creating)
+    // Note: "fetching" stage removed because context is now pre-fetched
     const stages = progressEvents.map(e => (e.event.payload as any).currentStep);
-    expect(stages).toContain('fetching');
     expect(stages).toContain('generating');
     expect(stages).toContain('creating');
   });
@@ -162,6 +155,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: 'source-resource-3',
       title: 'Test Resource',
       entityTypes: ['Person'],
+      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -197,6 +191,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: 'source-resource-4',
       title: 'Test Resource',
       entityTypes: ['Person'],
+      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -235,6 +230,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: 'source-resource-5',
       title: 'Test Resource',
       entityTypes: ['Person'],
+      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -281,6 +277,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: 'source-resource-6',
       title: 'Test Resource',
       entityTypes: ['Person'],
+      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -317,6 +314,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: 'source-resource-7',
       title: 'Test Resource',
       entityTypes: ['Person'],
+      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3

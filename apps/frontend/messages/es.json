@@ -380,6 +380,7 @@
     "assessmentAdded": "Evaluación Agregada",
     "assessmentRemoved": "Evaluación Eliminada",
     "annotationBodyUpdated": "Anotación Actualizada",
+    "jobEvent": "Evento de Trabajo",
     "justNow": "justo ahora",
     "minutesAgo": "hace {count}m",
     "hoursAgo": "hace {count}h",
