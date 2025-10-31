@@ -1,5 +1,5 @@
 /**
- * Reference LLM Context Route - Spec-First Version
+ * Annotation LLM Context Route - Spec-First Version
  *
  * Migrated from code-first to spec-first architecture:
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -18,22 +18,22 @@ import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../../../utils/resource-helpers';
 
-type ReferenceLLMContextResponse = components['schemas']['ReferenceLLMContextResponse'];
+type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
-export function registerGetReferenceLLMContext(router: ResourcesRouterType) {
+export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/:resourceId/references/:referenceId/llm-context
+   * GET /api/resources/:resourceId/annotations/:annotationId/llm-context
    *
-   * Get reference with full context for LLM processing
-   * Includes source context (text around reference), target context (referenced resource), and metadata
+   * Get annotation with full context for LLM processing
+   * Includes source context (text around annotation), target context (referenced resource if applicable), and metadata
    *
    * Query parameters:
    * - includeSourceContext: true/false (default: true)
    * - includeTargetContext: true/false (default: true)
    * - contextWindow: 100-5000 (default: 1000) - characters before/after selection
    */
-  router.get('/api/resources/:resourceId/references/:referenceId/llm-context', async (c) => {
-    const { resourceId, referenceId } = c.req.param();
+  router.get('/api/resources/:resourceId/annotations/:annotationId/llm-context', async (c) => {
+    const { resourceId, annotationId } = c.req.param();
     const query = c.req.query();
     const basePath = getFilesystemConfig().path;
 
@@ -50,10 +50,10 @@ export function registerGetReferenceLLMContext(router: ResourcesRouterType) {
     const graphDb = await getGraphDatabase();
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    // Get the reference
-    const reference = await graphDb.getAnnotation(referenceId);
-    if (!reference || getTargetSource(reference.target) !== resourceId) {
-      throw new HTTPException(404, { message: 'Reference not found' });
+    // Get the annotation
+    const annotation = await graphDb.getAnnotation(annotationId);
+    if (!annotation || getTargetSource(annotation.target) !== resourceId) {
+      throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
     // Get source resource
@@ -62,8 +62,8 @@ export function registerGetReferenceLLMContext(router: ResourcesRouterType) {
       throw new HTTPException(404, { message: 'Source resource not found' });
     }
 
-    // Get target resource if reference is resolved
-    const bodySource = getBodySource(reference.body);
+    // Get target resource if annotation is a reference (has resolved body source)
+    const bodySource = getBodySource(annotation.body);
     const targetDoc = bodySource ? await graphDb.getResource(bodySource) : null;
 
     // Build source context if requested
@@ -76,7 +76,7 @@ export function registerGetReferenceLLMContext(router: ResourcesRouterType) {
       const sourceContent = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
       const contentStr = sourceContent.toString('utf-8');
 
-      const targetSelector = getTargetSelector(reference.target);
+      const targetSelector = getTargetSelector(annotation.target);
       if (targetSelector && 'start' in targetSelector && 'end' in targetSelector) {
         const start = targetSelector.start as number;
         const end = targetSelector.end as number;
@@ -107,8 +107,8 @@ export function registerGetReferenceLLMContext(router: ResourcesRouterType) {
     // TODO: Generate suggested resolution using AI
     const suggestedResolution = undefined;
 
-    const response: ReferenceLLMContextResponse = {
-      reference,
+    const response: AnnotationLLMContextResponse = {
+      annotation,
       sourceResource: sourceDoc,
       targetResource: targetDoc,
       ...(sourceContext ? { sourceContext } : {}),
