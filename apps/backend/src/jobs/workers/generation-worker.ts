@@ -138,6 +138,18 @@ export class GenerationWorker extends JobWorker {
     });
     console.log(`[GenerationWorker] ✅ Saved resource representation to filesystem: ${resourceId}`);
 
+    // Subscribe GraphDB consumer to new resource BEFORE emitting event
+    // This ensures the consumer receives the resource.created event
+    try {
+      const { getGraphConsumer } = await import('../../events/consumers/graph-consumer');
+      const consumer = await getGraphConsumer();
+      await consumer.subscribeToResource(resourceId);
+      console.log(`[GenerationWorker] ✅ Subscribed GraphDB consumer to ${resourceId}`);
+    } catch (error) {
+      console.error('[GenerationWorker] Failed to subscribe GraphDB consumer:', error);
+      // Don't fail the job - consumer can catch up later
+    }
+
     // Emit resource.created event
     await eventStore.appendEvent({
       type: 'resource.created',
