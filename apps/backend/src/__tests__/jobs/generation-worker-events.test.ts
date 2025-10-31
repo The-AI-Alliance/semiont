@@ -63,8 +63,50 @@ let testDir: string;
 
 vi.mock('../../config/environment-loader', () => ({
   getFilesystemConfig: () => ({ path: testDir }),
-  getInferenceConfig: () => ({ provider: 'test', model: 'test-model' })
+  getInferenceConfig: () => ({ provider: 'test', model: 'test-model' }),
+  getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
 }));
+
+// Mock fetch for LLM context endpoint
+const mockLLMContextResponse = {
+  annotation: {
+    id: 'test-ref-id',
+    motivation: 'linking',
+    body: [{
+      type: 'TextualBody',
+      purpose: 'tagging',
+      value: 'Person'
+    }],
+    target: {
+      source: 'source-resource',
+      selector: [{
+        type: 'TextQuoteSelector',
+        exact: 'Test Topic'
+      }]
+    }
+  },
+  sourceResource: {
+    id: 'source-resource',
+    name: 'Source Resource'
+  },
+  sourceContext: {
+    before: 'Context before ',
+    selected: 'Test Topic',
+    after: ' context after'
+  }
+};
+
+global.fetch = vi.fn().mockImplementation(() => {
+  const response = {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: async () => mockLLMContextResponse,
+    text: async () => JSON.stringify(mockLLMContextResponse),
+    clone: function() { return { ...this }; }
+  };
+  return Promise.resolve(response);
+}) as any;
 
 describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
