@@ -476,21 +476,32 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       // If body was updated and contains a SpecificResource, create REFERENCES relationship
       if (updates.body) {
+        console.log(`[Neo4j] updateAnnotation body update detected for ${id}`);
+        console.log(`[Neo4j] updates.body:`, JSON.stringify(updates.body));
         const bodyArray = Array.isArray(updates.body) ? updates.body : [updates.body];
+        console.log(`[Neo4j] bodyArray length: ${bodyArray.length}`);
         const specificResource = bodyArray.find((item: any) => item.type === 'SpecificResource' && item.purpose === 'linking');
+        console.log(`[Neo4j] Found SpecificResource:`, specificResource ? JSON.stringify(specificResource) : 'null');
 
         if (specificResource && 'source' in specificResource && specificResource.source) {
+          console.log(`[Neo4j] Creating REFERENCES edge: ${id} -> ${specificResource.source}`);
           // Create REFERENCES relationship to the target resource
-          await session.run(
+          const refResult = await session.run(
             `MATCH (a:Annotation {id: $annotationId})
              MATCH (target:Resource {id: $targetResourceId})
-             MERGE (a)-[:REFERENCES]->(target)`,
+             MERGE (a)-[:REFERENCES]->(target)
+             RETURN a, target`,
             {
               annotationId: id,
               targetResourceId: specificResource.source
             }
           );
+          console.log(`[Neo4j] REFERENCES edge created successfully (matched ${refResult.records.length} nodes)`);
+        } else {
+          console.log(`[Neo4j] SpecificResource not found or missing source field`);
         }
+      } else {
+        console.log(`[Neo4j] No body update for annotation ${id}`);
       }
 
       return this.parseAnnotationNode(

@@ -68,12 +68,17 @@ export class GraphDBConsumer {
     const basePath = getFilesystemConfig().path;
     const eventStore = await createEventStore(basePath);
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent) => {
+    // Construct full resource URI for subscription (events are published with full URIs)
+    const resourceUri = resourceId.includes('/')
+      ? resourceId  // Already a full URI
+      : `${this.backendURL}/resources/${resourceId}`;  // Construct from short ID
+
+    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
       await this.processEvent(storedEvent);
     });
 
-    this.subscriptions.set(resourceId, subscription);
-    console.log(`[GraphDBConsumer] Subscribed to ${resourceId}`);
+    this.subscriptions.set(resourceUri, subscription);
+    console.log(`[GraphDBConsumer] Subscribed to ${resourceUri}`);
   }
 
   /**
@@ -193,8 +198,10 @@ export class GraphDBConsumer {
     // Apply fine-grained body operations
     try {
       // Get current annotation from graph
+      console.log(`[GraphDBConsumer] handleAnnotationBodyUpdated for ${event.payload.annotationId}`);
       const currentAnnotation = await graphDb.getAnnotation(event.payload.annotationId);
       if (currentAnnotation) {
+        console.log(`[GraphDBConsumer] Found annotation in Neo4j, applying ${event.payload.operations.length} operations`);
         // Ensure body is an array
         let bodyArray = Array.isArray(currentAnnotation.body)
           ? [...currentAnnotation.body]
@@ -225,10 +232,13 @@ export class GraphDBConsumer {
           }
         }
 
+        console.log(`[GraphDBConsumer] Calling updateAnnotation with body:`, JSON.stringify(bodyArray));
         // Update annotation with new body
         await graphDb.updateAnnotation(event.payload.annotationId, {
           body: bodyArray,
         });
+      } else {
+        console.warn(`[GraphDBConsumer] Annotation ${event.payload.annotationId} not found in Neo4j - cannot update body. Annotation may have been created before GraphDBConsumer started.`);
       }
     } catch (error) {
       // If annotation doesn't exist in graph (e.g., created before consumer started),

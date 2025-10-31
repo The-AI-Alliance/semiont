@@ -8,6 +8,7 @@ import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
 import { getBodySource, getEntityTypes } from '@semiont/api-client';
+import { extractResourceId } from '@/lib/resource-utils';
 import type { components } from '@semiont/api-client';
 
 type ReferenceAnnotation = components['schemas']['Annotation'];
@@ -55,14 +56,16 @@ export function ResolvedReferencePopup({
 
   const handleViewDocument = () => {
     if (resolvedDocumentId) {
-      router.push(`/know/resource/${encodeURIComponent(resolvedDocumentId)}`);
+      const shortId = extractResourceId(resolvedDocumentId);
+      router.push(`/know/resource/${encodeURIComponent(shortId)}`);
       onClose();
     }
   };
 
   const handleOpenInNewTab = () => {
     if (resolvedDocumentId) {
-      window.open(`/know/resource/${encodeURIComponent(resolvedDocumentId)}`, '_blank');
+      const shortId = extractResourceId(resolvedDocumentId);
+      window.open(`/know/resource/${encodeURIComponent(shortId)}`, '_blank');
     }
   };
 
