@@ -380,6 +380,8 @@
     "assessmentAdded": "Assessment Added",
     "assessmentRemoved": "Assessment Removed",
     "annotationBodyUpdated": "Annotation Updated",
+    "linkedResourceCreated": "Created Linked Resource",
+    "jobEvent": "Job Event",
     "justNow": "just now",
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
