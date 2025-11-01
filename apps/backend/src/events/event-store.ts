@@ -22,6 +22,7 @@ import type { ProjectionStorage } from '../storage/projection-storage';
 import { EventStorage, type EventStorageConfig } from './storage/event-storage';
 import { EventProjector, type ProjectorConfig } from './projections/event-projector';
 import { getEventSubscriptions, type EventSubscriptions } from './subscriptions/event-subscriptions';
+import { getBackendConfig } from '../config/environment-loader';
 
 /**
  * EventStore orchestrates event sourcing operations
@@ -76,8 +77,13 @@ export class EventStore {
         storedEvent.event,
         () => this.storage.getAllEvents(storedEvent.event.resourceId!)
       );
-      // Notify resource subscribers
-      await this.subscriptions.notifySubscribers(storedEvent.event.resourceId, storedEvent);
+      // Notify resource subscribers using full URI (W3C Web Annotation spec compliance)
+      // Convert short resource ID to full URI at the publication boundary (if not already a URI)
+      const backendConfig = getBackendConfig();
+      const resourceUri = storedEvent.event.resourceId.includes('/')
+        ? storedEvent.event.resourceId  // Already a full URI
+        : `${backendConfig.publicURL}/resources/${storedEvent.event.resourceId}`;  // Short ID, construct URI
+      await this.subscriptions.notifySubscribers(resourceUri, storedEvent);
     }
 
     return storedEvent;

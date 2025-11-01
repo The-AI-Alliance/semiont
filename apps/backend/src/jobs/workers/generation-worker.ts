@@ -21,7 +21,7 @@ import { getExactText } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
 
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../config/environment-loader';
+import { getFilesystemConfig, getBackendConfig } from '../../config/environment-loader';
 
 export class GenerationWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -138,6 +138,18 @@ export class GenerationWorker extends JobWorker {
     });
     console.log(`[GenerationWorker] ✅ Saved resource representation to filesystem: ${resourceId}`);
 
+    // Subscribe GraphDB consumer to new resource BEFORE emitting event
+    // This ensures the consumer receives the resource.created event
+    try {
+      const { getGraphConsumer } = await import('../../events/consumers/graph-consumer');
+      const consumer = await getGraphConsumer();
+      await consumer.subscribeToResource(resourceId);
+      console.log(`[GenerationWorker] ✅ Subscribed GraphDB consumer to ${resourceId}`);
+    } catch (error) {
+      console.error('[GenerationWorker] Failed to subscribe GraphDB consumer:', error);
+      // Don't fail the job - consumer can catch up later
+    }
+
     // Emit resource.created event
     await eventStore.appendEvent({
       type: 'resource.created',
@@ -159,11 +171,19 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] Emitted resource.created event for ${resourceId}`);
 
     // Emit annotation.body.updated event to link the annotation to the new resource
+    const backendConfig = getBackendConfig();
+    const resourceUri = `${backendConfig.publicURL}/resources/${resourceId}`;
+
+    // Construct full annotation URI (Neo4j stores annotations with full URIs)
+    const annotationUri = job.referenceId.includes('/')
+      ? job.referenceId  // Already a full URI
+      : `${backendConfig.publicURL}/annotations/${job.referenceId}`;  // Construct from short ID
+
     const operations: BodyOperation[] = [{
       op: 'add',
       item: {
         type: 'SpecificResource',
-        source: resourceId,
+        source: resourceUri,  // Use full URI, not short ID
         purpose: 'linking',
       },
     }];
@@ -174,11 +194,11 @@ export class GenerationWorker extends JobWorker {
       userId: job.userId,
       version: 1,
       payload: {
-        annotationId: job.referenceId,
+        annotationId: annotationUri,
         operations,
       },
     });
-    console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${job.referenceId} → ${resourceId}`);
+    console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${annotationUri} → ${resourceId}`);
 
     // Set final result
     job.result = {
@@ -197,7 +217,7 @@ export class GenerationWorker extends JobWorker {
         jobType: 'generation',
         totalSteps: 5,
         resultResourceId: resourceId,
-        annotationId: job.referenceId,
+        annotationId: annotationUri,
         message: `Generation complete: created resource "${resourceName}"`,
       },
     });

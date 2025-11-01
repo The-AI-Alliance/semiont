@@ -19,7 +19,7 @@ import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { createEventStore } from '../../../services/event-store-service';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { getFilesystemConfig, getBackendConfig } from '../../../config/environment-loader';
 import type { JobProgressEvent, JobCompletedEvent, JobFailedEvent } from '@semiont/core';
 
 type DetectAnnotationsStreamRequest = components['schemas']['DetectAnnotationsStreamRequest'];
@@ -108,8 +108,12 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
             jobDoneResolver = resolve;
           });
 
-          // Subscribe to all events for this resource
-          const subscription = eventStore.subscriptions.subscribe(id, async (storedEvent) => {
+          // Construct full resource URI for subscription (consistent with event publication)
+          const backendConfig = getBackendConfig();
+          const resourceUri = `${backendConfig.publicURL}/resources/${id}`;
+
+          // Subscribe to all events for this resource using full URI
+          const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
             const event = storedEvent.event;
 
             // Filter events for this specific job

@@ -65,7 +65,8 @@ vi.mock('../../services/resource-queries', () => ({
 
 // Mock environment
 vi.mock('../../config/environment-loader', () => ({
-  getFilesystemConfig: () => ({ path: testDir })
+  getFilesystemConfig: () => ({ path: testDir }),
+  getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
 }));
 
 let app: Hono<{ Variables: Variables }>;
@@ -280,9 +281,10 @@ describe('Event Store Subscription Pattern', () => {
 
   it('should subscribe to resource events and receive job.progress events', async () => {
     const resourceId = 'test-resource-1';
+    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -315,9 +317,10 @@ describe('Event Store Subscription Pattern', () => {
 
   it('should receive job.completed event', async () => {
     const resourceId = 'test-resource-2';
+    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -343,9 +346,10 @@ describe('Event Store Subscription Pattern', () => {
 
   it('should receive job.failed event', async () => {
     const resourceId = 'test-resource-3';
+    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -373,9 +377,10 @@ describe('Event Store Subscription Pattern', () => {
 
   it('should unsubscribe and stop receiving events', async () => {
     const resourceId = 'test-resource-4';
+    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 

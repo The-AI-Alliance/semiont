@@ -17,7 +17,7 @@ import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
-import { getPrimaryRepresentation, getResourceId } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -163,7 +163,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
     const session = this.getSession();
     try {
-      const id = getResourceId(resource);
+      const id = resource['@id']; // Use full URI for consistency
       const primaryRep = getPrimaryRepresentation(resource);
       if (!primaryRep) {
         throw new Error('Resource must have at least one representation');
@@ -174,8 +174,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           id: $id,
           name: $name,
           entityTypes: $entityTypes,
-          format: $contentType,
-          metadata: $metadata,
+          format: $format,
           archived: $archived,
           created: datetime($created),
           creator: $creator,
@@ -452,7 +451,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       Object.entries(updates).forEach(([key, value]) => {
         if (key !== 'id' && key !== 'updatedAt') {
           setClauses.push(`a.${key} = $${key}`);
-          if (key === 'selector' || key === 'metadata') {
+          if (key === 'selector' || key === 'metadata' || key === 'body') {
             params[key] = JSON.stringify(value);
           } else if (key === 'created' || key === 'resolvedAt') {
             params[key] = value ? new Date(value as any).toISOString() : null;
@@ -462,9 +461,11 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         }
       });
 
+      // Update annotation properties
       const result = await session.run(
         `MATCH (a:Annotation {id: $id})
          SET ${setClauses.join(', ')}
+         WITH a
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes`,
         params
@@ -472,6 +473,36 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       if (result.records.length === 0) {
         throw new Error('Annotation not found');
+      }
+
+      // If body was updated and contains a SpecificResource, create REFERENCES relationship
+      if (updates.body) {
+        console.log(`[Neo4j] updateAnnotation body update detected for ${id}`);
+        console.log(`[Neo4j] updates.body:`, JSON.stringify(updates.body));
+        const bodyArray = Array.isArray(updates.body) ? updates.body : [updates.body];
+        console.log(`[Neo4j] bodyArray length: ${bodyArray.length}`);
+        const specificResource = bodyArray.find((item: any) => item.type === 'SpecificResource' && item.purpose === 'linking');
+        console.log(`[Neo4j] Found SpecificResource:`, specificResource ? JSON.stringify(specificResource) : 'null');
+
+        if (specificResource && 'source' in specificResource && specificResource.source) {
+          console.log(`[Neo4j] Creating REFERENCES edge: ${id} -> ${specificResource.source}`);
+          // Create REFERENCES relationship to the target resource
+          const refResult = await session.run(
+            `MATCH (a:Annotation {id: $annotationId})
+             MATCH (target:Resource {id: $targetResourceId})
+             MERGE (a)-[:REFERENCES]->(target)
+             RETURN a, target`,
+            {
+              annotationId: id,
+              targetResourceId: specificResource.source
+            }
+          );
+          console.log(`[Neo4j] REFERENCES edge created successfully (matched ${refResult.records.length} nodes)`);
+        } else {
+          console.log(`[Neo4j] SpecificResource not found or missing source field`);
+        }
+      } else {
+        console.log(`[Neo4j] No body update for annotation ${id}`);
       }
 
       return this.parseAnnotationNode(

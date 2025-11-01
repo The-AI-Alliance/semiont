@@ -11,6 +11,7 @@ import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { annotations } from '@/lib/api/annotations';
 import { getResourceId } from '@/lib/resource-helpers';
+import { extractResourceId } from '@/lib/resource-utils';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
@@ -118,7 +119,8 @@ export function ResourceViewer({
       // If it's a resolved reference, navigate to it (in both curation and browse mode)
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        router.push(`/know/resource/${encodeURIComponent(bodySource)}`);
+        const shortId = extractResourceId(bodySource);
+        router.push(`/know/resource/${encodeURIComponent(shortId)}`);
       }
     } else if (curationMode) {
       // For other annotations in Annotate mode, show the popup

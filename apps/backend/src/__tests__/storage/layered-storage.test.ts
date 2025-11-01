@@ -22,6 +22,9 @@ describe('Layered Storage', () => {
   let query: EventQuery;
 
   beforeAll(async () => {
+    // Set required environment variables for tests
+    process.env.BACKEND_URL = 'http://localhost:4000';
+
     testDir = join(tmpdir(), `semiont-layered-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
