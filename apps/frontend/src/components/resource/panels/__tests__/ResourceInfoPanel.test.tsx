@@ -63,7 +63,10 @@ const mockIsBodyResolved = isBodyResolved as MockedFunction<typeof isBodyResolve
 const mockGetEntityTypes = getEntityTypes as MockedFunction<typeof getEntityTypes>;
 
 // Test data fixtures
-const createMockAnnotation = (id: string, motivation: string): Annotation => ({
+const createMockAnnotation = (
+  id: string,
+  motivation: Annotation['motivation']
+): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
   id,
   type: 'Annotation',
@@ -83,7 +86,6 @@ const createMockAnnotation = (id: string, motivation: string): Annotation => ({
     {
       type: 'TextualBody',
       value: `Content for ${id}`,
-      purpose: motivation,
     },
   ],
 });
@@ -93,9 +95,6 @@ const createMockReferencedBy = (id: string, resourceName?: string): ReferencedBy
   target: {
     source: `resource-${id}`,
     selector: {
-      type: 'TextPositionSelector',
-      start: 0,
-      end: 20,
       exact: `Referenced text from ${id}`,
     },
   },
@@ -377,7 +376,7 @@ describe('ResourceInfoPanel Component', () => {
       const typeElements = entityTypesSection?.querySelectorAll('.text-gray-700.dark\\:text-gray-300');
 
       if (typeElements && typeElements.length >= 3) {
-        expect(typeElements[0].textContent).toBe('TypeB');
+        expect(typeElements[0]?.textContent).toBe('TypeB');
         // TypeA and TypeC both have count 1, order between them is stable but not guaranteed
       }
     });
@@ -433,13 +432,10 @@ describe('ResourceInfoPanel Component', () => {
           target: {
             source: 'resource-1',
             selector: {
-              type: 'TextPositionSelector',
-              start: 0,
-              end: 10,
               exact: 'Some text',
             },
           },
-          resourceName: undefined,
+          resourceName: '',
         },
       ];
 
@@ -455,9 +451,7 @@ describe('ResourceInfoPanel Component', () => {
           target: {
             source: 'resource-1',
             selector: {
-              type: 'TextPositionSelector',
-              start: 0,
-              end: 10,
+              exact: '',
             },
           },
           resourceName: 'Document A',
@@ -476,9 +470,6 @@ describe('ResourceInfoPanel Component', () => {
           target: {
             source: 'resource/with/slashes',
             selector: {
-              type: 'TextPositionSelector',
-              start: 0,
-              end: 10,
               exact: 'Text',
             },
           },

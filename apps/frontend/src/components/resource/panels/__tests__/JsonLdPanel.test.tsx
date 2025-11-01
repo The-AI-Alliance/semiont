@@ -50,7 +50,7 @@ vi.mock('@/lib/codemirror-json-theme', () => ({
 
 // Mock useLineNumbers hook
 vi.mock('@/hooks/useLineNumbers', () => ({
-  useLineNumbers: vi.fn(() => ({ showLineNumbers: true })),
+  useLineNumbers: vi.fn(() => ({ showLineNumbers: true, toggleLineNumbers: vi.fn() })),
 }));
 
 import { EditorView } from '@codemirror/view';
@@ -61,6 +61,8 @@ const mockUseLineNumbers = useLineNumbers as MockedFunction<typeof useLineNumber
 
 // Test data fixtures
 const createMockResource = (overrides?: Partial<SemiontResource>): SemiontResource => ({
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  '@id': 'test-resource-1',
   id: 'test-resource-1',
   name: 'Test Resource',
   content: 'This is test content',
@@ -68,6 +70,7 @@ const createMockResource = (overrides?: Partial<SemiontResource>): SemiontResour
   archived: false,
   entityTypes: ['Person', 'Organization'],
   locale: 'en-US',
+  representations: [],
   created: '2024-01-01T10:00:00Z',
   modified: '2024-01-01T10:00:00Z',
   ...overrides,
@@ -98,7 +101,7 @@ describe('JsonLdPanel Component', () => {
       configurable: true,
     });
 
-    mockUseLineNumbers.mockReturnValue({ showLineNumbers: true });
+    mockUseLineNumbers.mockReturnValue({ showLineNumbers: true, toggleLineNumbers: vi.fn() });
   });
 
   afterEach(() => {
@@ -164,7 +167,7 @@ describe('JsonLdPanel Component', () => {
     });
 
     it('should include line numbers when enabled', () => {
-      mockUseLineNumbers.mockReturnValue({ showLineNumbers: true });
+      mockUseLineNumbers.mockReturnValue({ showLineNumbers: true, toggleLineNumbers: vi.fn() });
 
       const resource = createMockResource();
       const { container } = render(<JsonLdPanel resource={resource} />);
@@ -174,7 +177,7 @@ describe('JsonLdPanel Component', () => {
     });
 
     it('should not include line numbers when disabled', () => {
-      mockUseLineNumbers.mockReturnValue({ showLineNumbers: false });
+      mockUseLineNumbers.mockReturnValue({ showLineNumbers: false, toggleLineNumbers: vi.fn() });
 
       const resource = createMockResource();
       const { container } = render(<JsonLdPanel resource={resource} />);
@@ -296,12 +299,12 @@ describe('JsonLdPanel Component', () => {
     });
 
     it('should reinitialize editor when line numbers setting changes', () => {
-      mockUseLineNumbers.mockReturnValue({ showLineNumbers: true });
+      mockUseLineNumbers.mockReturnValue({ showLineNumbers: true, toggleLineNumbers: vi.fn() });
 
       const resource = createMockResource();
       const { rerender } = render(<JsonLdPanel resource={resource} />);
 
-      mockUseLineNumbers.mockReturnValue({ showLineNumbers: false });
+      mockUseLineNumbers.mockReturnValue({ showLineNumbers: false, toggleLineNumbers: vi.fn() });
 
       // Should rerender without errors
       expect(() => rerender(<JsonLdPanel resource={resource} />)).not.toThrow();
@@ -311,11 +314,14 @@ describe('JsonLdPanel Component', () => {
   describe('Edge Cases', () => {
     it('should handle resource with minimal data', () => {
       const minimalResource: SemiontResource = {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        '@id': 'minimal',
         id: 'minimal',
         name: 'Minimal',
         content: 'Test',
         format: 'text/plain',
         archived: false,
+        representations: [],
         created: '2024-01-01T00:00:00Z',
         modified: '2024-01-01T00:00:00Z',
       };
@@ -360,11 +366,14 @@ describe('JsonLdPanel Component', () => {
 
     it('should handle undefined optional fields', () => {
       const resource: SemiontResource = {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        '@id': 'test',
         id: 'test',
         name: 'Test',
         content: 'Content',
         format: 'text/plain',
         archived: false,
+        representations: [],
         created: '2024-01-01T00:00:00Z',
         modified: '2024-01-01T00:00:00Z',
         // Optional fields omitted

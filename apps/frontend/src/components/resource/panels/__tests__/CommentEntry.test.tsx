@@ -514,10 +514,13 @@ describe('CommentEntry Component', () => {
 
       // Use a more flexible matcher for multiline text
       const commentText = screen.getByText((content, element) => {
-        return element?.className.includes('whitespace-pre-wrap') &&
-               content.includes('Line 1') &&
-               content.includes('Line 2') &&
-               content.includes('Line 3');
+        return (
+          !!element &&
+          element.className.includes('whitespace-pre-wrap') &&
+          content.includes('Line 1') &&
+          content.includes('Line 2') &&
+          content.includes('Line 3')
+        );
       });
       expect(commentText).toHaveClass('whitespace-pre-wrap');
     });

@@ -38,7 +38,6 @@ describe('CollaborationPanel Component', () => {
   const defaultProps = {
     isConnected: false,
     eventCount: 0,
-    lastEventTimestamp: undefined,
   };
 
   beforeEach(() => {
@@ -143,7 +142,7 @@ describe('CollaborationPanel Component', () => {
 
   describe('Last Sync Time', () => {
     it('should show "no activity" when no timestamp', () => {
-      render(<CollaborationPanel {...defaultProps} lastEventTimestamp={undefined} />);
+      render(<CollaborationPanel {...defaultProps} />);
 
       expect(screen.getByText('No activity')).toBeInTheDocument();
     });
