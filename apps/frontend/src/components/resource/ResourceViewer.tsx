@@ -419,48 +419,21 @@ export function ResourceViewer({
   useKeyboardShortcuts([
     {
       key: 'h',
-      handler: (e) => {
-        // Don't trigger if user is typing
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
+      handler: () => {
         handleQuickHighlight();
       },
       description: 'Create highlight from annotation'
     },
     {
       key: 'r',
-      handler: (e) => {
-        // Don't trigger if user is typing
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
+      handler: () => {
         handleQuickReference();
       },
       description: 'Create reference from annotation'
     },
     {
       key: 'Delete',
-      handler: (e) => {
-        // Don't trigger if user is typing
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
+      handler: () => {
         handleDeleteFocusedAnnotation();
       },
       description: 'Delete focused annotation'

@@ -27,6 +27,16 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
     // Guard against undefined key
     if (!event.key) return;
 
+    // Don't trigger shortcuts if user is typing in an input field
+    const target = event.target as HTMLElement;
+    if (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.contentEditable === 'true'
+    ) {
+      return;
+    }
+
     // Get the active shortcuts
     const activeShortcuts = shortcutsRef.current.filter(s => s.enabled !== false);
 

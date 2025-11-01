@@ -60,16 +60,7 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
     {
       key: 'k',
       ctrlOrCmd: true,
-      handler: (e) => {
-        // Don't trigger if user is in an input field
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
+      handler: () => {
         openGlobalSearch();
       },
       description: 'Open global search'
@@ -77,16 +68,7 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
     {
       key: 'n',
       ctrlOrCmd: true,
-      handler: (e) => {
-        // Don't trigger if user is in an input field
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
+      handler: () => {
         // Navigate to compose page to create new resource
         router.push('/know/compose');
       },
@@ -94,16 +76,7 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
     },
     {
       key: '/',
-      handler: (e) => {
-        // Don't trigger if user is in an input field
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
+      handler: () => {
         // Alternative search trigger (like GitHub)
         openGlobalSearch();
       },
@@ -112,16 +85,7 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
     {
       key: '?',
       shift: true,
-      handler: (e) => {
-        // Don't trigger if user is in an input field
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
+      handler: () => {
         // Open keyboard shortcuts help
         openKeyboardHelp();
       },
