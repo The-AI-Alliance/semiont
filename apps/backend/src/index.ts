@@ -27,24 +27,29 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
+import { loadEnvironmentConfig } from '@semiont/core';
 
 import { User } from '@prisma/client';
 
-// Configuration is loaded in JWT service when needed
-// For the server itself, we use environment variables
-const CORS_ORIGIN = process.env.CORS_ORIGIN;
-const FRONTEND_URL = process.env.FRONTEND_URL;
-const NODE_ENV = process.env.NODE_ENV;
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
+// Load configuration from semiont.json + environments/{SEMIONT_ENV}.json
+// Only SEMIONT_ROOT and SEMIONT_ENV are read from environment
+const env = process.env.SEMIONT_ENV || 'local';
+const config = loadEnvironmentConfig(env);
+
+// Extract backend configuration
+const backendService = config.services.backend;
+const frontendService = config.services.frontend;
+
+const CORS_ORIGIN = backendService?.corsOrigin;
+const FRONTEND_URL = frontendService?.url;
+const NODE_ENV = config.env?.NODE_ENV || 'development';
+const PORT = backendService?.port || 4000;
 
 if (!CORS_ORIGIN) {
-  throw new Error('CORS_ORIGIN environment variable is required');
+  throw new Error('services.backend.corsOrigin is required in environment config');
 }
 if (!FRONTEND_URL) {
-  throw new Error('FRONTEND_URL environment variable is required');
-}
-if (!NODE_ENV) {
-  throw new Error('NODE_ENV environment variable is required');
+  throw new Error('services.frontend.url is required in environment config');
 }
 
 const CONFIG = {
@@ -52,6 +57,8 @@ const CONFIG = {
   FRONTEND_URL,
   NODE_ENV,
   PORT,
+  BACKEND_URL: backendService?.publicUrl || `http://localhost:${PORT}`,
+  DATA_DIR: config.services.filesystem?.path || './data',
 };
 
 // Import route definitions
@@ -189,7 +196,7 @@ app.get('/api/openapi.json', (c) => {
   const openApiSpec = JSON.parse(openApiContent);
 
   // Update server URL dynamically
-  const apiUrl = process.env.BACKEND_URL;
+  const apiUrl = CONFIG.BACKEND_URL;
   if (apiUrl) {
     openApiSpec.servers = [
       {
@@ -309,9 +316,9 @@ if (CONFIG.NODE_ENV !== 'test') {
     try {
       console.log('💼 Initializing job queue...');
       const { initializeJobQueue } = await import('./jobs/job-queue');
-      const dataDir = process.env.DATA_DIR;
+      const dataDir = CONFIG.DATA_DIR;
       if (!dataDir) {
-        throw new Error('DATA_DIR environment variable is required for job queue initialization');
+        throw new Error('services.filesystem.path is required in environment config for job queue initialization');
       }
       await initializeJobQueue({ dataDir });
       console.log('✅ Job queue initialized');

@@ -6,33 +6,25 @@
  * - Global subscriptions: notifications for all system-level events
  * - Fire-and-forget notification pattern (non-blocking)
  * - Automatic cleanup of empty subscription sets
- *
  * SINGLETON PATTERN: All EventStore instances share the same EventSubscriptions
  * to ensure SSE connections receive events from any EventStore instance.
- *
  * @see docs/EVENT-STORE.md#eventsubscriptions for architecture details
  */
 
 import type { StoredEvent } from '@semiont/core';
-
 export type EventCallback = (event: StoredEvent) => void | Promise<void>;
-
 export interface EventSubscription {
   resourceId: string;
   callback: EventCallback;
   unsubscribe: () => void;
 }
-
-/**
  * EventSubscriptions manages real-time event pub/sub
  * Supports both resource-scoped and global subscriptions
- */
 export class EventSubscriptions {
   // Per-resource subscriptions: resourceId -> Set of callbacks
   private subscriptions: Map<string, Set<EventCallback>> = new Map();
   // Global subscriptions for system-level events (no resourceId)
   private globalSubscriptions: Set<EventCallback> = new Set();
-
   /**
    * Subscribe to events for a specific resource
    * Returns an EventSubscription with unsubscribe function
@@ -41,12 +33,9 @@ export class EventSubscriptions {
     if (!this.subscriptions.has(resourceId)) {
       this.subscriptions.set(resourceId, new Set());
     }
-
     const callbacks = this.subscriptions.get(resourceId)!;
     callbacks.add(callback);
-
     console.log(`[EventSubscriptions] Subscription added for resource ${resourceId} (total: ${callbacks.size} subscribers)`);
-
     return {
       resourceId,
       callback,
@@ -60,42 +49,24 @@ export class EventSubscriptions {
       }
     };
   }
-
-  /**
    * Subscribe to all system-level events (no resourceId)
-   * Returns an EventSubscription with unsubscribe function
    *
    * Use this for consumers that need to react to global events like:
    * - entitytype.added (global entity type collection changes)
    * - Future system-level events (user.created, workspace.created, etc.)
-   */
   subscribeGlobal(callback: EventCallback): EventSubscription {
     this.globalSubscriptions.add(callback);
-
     console.log(`[EventSubscriptions] Global subscription added (total: ${this.globalSubscriptions.size} subscribers)`);
-
-    return {
       resourceId: '__global__',  // Special marker for global subscriptions
-      callback,
-      unsubscribe: () => {
         this.globalSubscriptions.delete(callback);
         console.log(`[EventSubscriptions] Global subscription removed (remaining: ${this.globalSubscriptions.size} subscribers)`);
-      }
-    };
-  }
-
-  /**
    * Notify all subscribers for a resource when a new event is appended
-   */
   async notifySubscribers(resourceId: string, event: StoredEvent): Promise<void> {
     const callbacks = this.subscriptions.get(resourceId);
     if (!callbacks || callbacks.size === 0) {
       console.log(`[EventSubscriptions] Event ${event.event.type} for resource ${resourceId} - no subscribers to notify`);
       return;
-    }
-
     console.log(`[EventSubscriptions] Notifying ${callbacks.size} subscriber(s) of event ${event.event.type} for resource ${resourceId}`);
-
     // Call all callbacks without waiting - fire and forget
     // Each callback handles its own errors and cleanup
     // This prevents slow/hanging callbacks from blocking event emission
@@ -108,67 +79,32 @@ export class EventSubscriptions {
           console.error(`[EventSubscriptions] Error in subscriber #${index + 1} for resource ${resourceId}, event ${event.event.type}:`, error);
         });
     });
-  }
-
-  /**
    * Notify all global subscribers when a system-level event is appended
-   */
   async notifyGlobalSubscribers(event: StoredEvent): Promise<void> {
     if (this.globalSubscriptions.size === 0) {
       console.log(`[EventSubscriptions] System event ${event.event.type} - no global subscribers to notify`);
-      return;
-    }
-
     console.log(`[EventSubscriptions] Notifying ${this.globalSubscriptions.size} global subscriber(s) of system event ${event.event.type}`);
-
     // Call all global callbacks without waiting - fire and forget
-    // Each callback handles its own errors and cleanup
-    // This prevents slow/hanging callbacks from blocking event emission
     Array.from(this.globalSubscriptions).forEach((callback, index) => {
-      Promise.resolve(callback(event))
-        .then(() => {
           console.log(`[EventSubscriptions] Global subscriber #${index + 1} successfully notified of ${event.event.type}`);
-        })
-        .catch((error: unknown) => {
           console.error(`[EventSubscriptions] Error in global subscriber #${index + 1} for system event ${event.event.type}:`, error);
-        });
-    });
-  }
-
-  /**
    * Get subscription count for a resource (useful for debugging)
-   */
   getSubscriptionCount(resourceId: string): number {
     return this.subscriptions.get(resourceId)?.size || 0;
-  }
-
-  /**
    * Get total number of active subscriptions across all resources
-   */
   getTotalSubscriptions(): number {
     let total = 0;
     for (const callbacks of this.subscriptions.values()) {
       total += callbacks.size;
-    }
     return total;
-  }
-
-  /**
    * Get total number of global subscriptions
-   */
   getGlobalSubscriptionCount(): number {
     return this.globalSubscriptions.size;
-  }
-}
-
 // Singleton instance - shared across all EventStore instances
 // This ensures SSE connections receive events from any EventStore instance
 let globalEventSubscriptions: EventSubscriptions | null = null;
-
 export function getEventSubscriptions(): EventSubscriptions {
   if (!globalEventSubscriptions) {
     globalEventSubscriptions = new EventSubscriptions();
     console.log('[EventSubscriptions] Created global singleton instance');
-  }
   return globalEventSubscriptions;
-}

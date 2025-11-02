@@ -7,7 +7,7 @@
  */
 
 import { ServiceName } from './service-discovery.js';
-import { PlatformType } from './platform-types.js';
+import { PlatformType } from '@semiont/core';
 import { PlatformResources } from '../platforms/platform-resources.js';
 
 /**

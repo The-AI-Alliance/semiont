@@ -13,6 +13,8 @@ import type { EventStorageConfig } from '../events/storage/event-storage';
 import { EventQuery } from '../events/query/event-query';
 import { EventValidator } from '../events/validation/event-validator';
 import { createProjectionManager } from './storage-service';
+import { getBackendConfig } from '../config/environment-loader';
+import type { IdentifierConfig } from './identifier-service';
 
 /**
  * Create and initialize an EventStore instance
@@ -25,6 +27,12 @@ export async function createEventStore(
   basePath: string,
   config?: Omit<EventStorageConfig, 'basePath' | 'dataDir'>
 ): Promise<EventStore> {
+  // Get backend config for identifier conversion
+  const backendConfig = getBackendConfig();
+  const identifierConfig: IdentifierConfig = {
+    baseUrl: backendConfig.publicURL
+  };
+
   // Create ProjectionManager (Layer 3)
   // Structure: <basePath>/projections/resources/...
   const projectionManager = createProjectionManager(basePath, {
@@ -41,7 +49,7 @@ export async function createEventStore(
     dataDir,
     enableSharding: true,
     numShards: 65536,  // 4 hex digits
-  }, projectionManager);
+  }, projectionManager, identifierConfig);
 
   return eventStore;
 }

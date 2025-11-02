@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AWSPublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
+import { loadEnvironmentConfig } from '@semiont/core';
 
 /**
  * Publish handler for ECS Fargate services

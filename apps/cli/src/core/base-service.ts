@@ -27,7 +27,7 @@
 import { Service } from './service-interface.js';
 import { ServiceName } from './service-discovery.js';
 import { Config, ServiceConfig } from './cli-config.js';
-import { PlatformType } from './platform-types.js';
+import { PlatformType } from '@semiont/core';
 import { 
   ServiceRequirements,
   StorageRequirement,

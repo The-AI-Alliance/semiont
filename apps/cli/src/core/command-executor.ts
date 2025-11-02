@@ -26,7 +26,7 @@ import type { ServicePlatformInfo } from './service-resolver.js';
 import { loadCommand, loadAllCommands } from './command-discovery.js';
 import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
-import { getAvailableEnvironments, isValidEnvironment } from './environment-loader.js';
+import { getAvailableEnvironments, isValidEnvironment } from '@semiont/core';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { formatResults } from './io/output-formatter.js';
 import { printError } from './io/cli-logger.js';
@@ -34,7 +34,7 @@ import { getPreamble, getPreambleSeparator } from './io/cli-colors.js';
 import { extractCLIBehaviors, CLIBehaviors } from './service-cli-behaviors.js';
 import { ServiceFactory } from '../services/service-factory.js';
 import { ServiceName } from './service-discovery.js';
-import { parseEnvironment } from './environment-validator.js';
+import { parseEnvironment } from '@semiont/core';
 
 /**
  * Get the CLI version from package.json

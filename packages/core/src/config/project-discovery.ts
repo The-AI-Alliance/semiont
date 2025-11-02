@@ -7,7 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConfigurationError } from './configuration-error.js';
+import { ConfigurationError } from './configuration-error';
 
 /**
  * Find project root - uses SEMIONT_ROOT if set, otherwise current directory

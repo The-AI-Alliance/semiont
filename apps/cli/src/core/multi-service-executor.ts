@@ -7,7 +7,7 @@
  */
 
 import { ServicePlatformInfo } from './service-resolver.js';
-import { PlatformType } from './platform-types.js';
+import { PlatformType } from '@semiont/core';
 import { Service } from './service-interface.js';
 import { ServiceName } from './service-discovery.js';
 import { ServiceFactory } from '../services/service-factory.js';
@@ -19,7 +19,7 @@ import { HandlerRegistry } from './handlers/registry.js';
 import { HandlerContextBuilder } from './handlers/context.js';
 import { HandlerResult } from './handlers/types.js';
 import { Config } from './cli-config.js';
-import { parseEnvironment } from './environment-validator.js';
+import { parseEnvironment } from '@semiont/core';
 import { printError, printInfo } from './io/cli-logger.js';
 
 // Get project root (user's project directory, NOT the Semiont source repo)

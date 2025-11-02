@@ -9,7 +9,7 @@ import React from 'react';
 import { render } from 'ink';
 import { DashboardApp, DashboardMode } from '../dashboard/dashboard-layouts.js';
 
-import { getAvailableEnvironments } from '../environment-loader.js';
+import { getAvailableEnvironments } from '@semiont/core';
 
 // Argument parsing with environment support
 function parseArgs(): { environment: string; mode: DashboardMode } {

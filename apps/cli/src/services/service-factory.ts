@@ -8,7 +8,7 @@
 import { Service } from '../core/service-interface.js';
 import { ServiceName } from '../core/service-discovery.js';
 import { Config, ServiceConfig } from '../core/cli-config.js';
-import { PlatformType } from '../core/platform-types.js';
+import { PlatformType } from '@semiont/core';
 import { BackendService } from './backend-service.js';
 import { FrontendService } from './frontend-service.js';
 import { DatabaseService } from './database-service.js';

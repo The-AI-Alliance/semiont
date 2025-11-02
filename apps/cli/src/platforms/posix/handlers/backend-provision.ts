@@ -3,7 +3,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
+import { loadEnvironmentConfig } from '@semiont/core';
 
 /**
  * Provision handler for backend services on POSIX systems

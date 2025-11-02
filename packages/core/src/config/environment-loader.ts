@@ -7,10 +7,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConfigurationError } from './configuration-error.js';
-import { findProjectRoot } from './project-discovery.js';
-import { PlatformType } from './platform-types.js';
-import { isObject } from '@semiont/core';
+import { ConfigurationError } from './configuration-error';
+import { findProjectRoot } from './project-discovery';
+import { PlatformType } from './platform-types';
+import { isObject } from '../index';
 
 /**
  * Environment configuration structure

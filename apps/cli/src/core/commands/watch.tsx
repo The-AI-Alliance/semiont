@@ -31,7 +31,7 @@
 import { z } from 'zod';
 import { printInfo, printError, setSuppressOutput } from '../io/cli-logger.js';
 import { type ServicePlatformInfo } from '../service-resolver.js';
-import { type PlatformType } from '../platform-types.js';
+import { type PlatformType } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
@@ -40,7 +40,7 @@ import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 import { ServiceName } from '../service-discovery.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 import { Config } from '../cli-config.js';
-import { parseEnvironment } from '../environment-validator.js';
+import { parseEnvironment } from '@semiont/core';
 import { Platform } from '../platform.js';
 import { AWSPlatform } from '../../platforms/aws/platform.js';
 import { ContainerPlatform } from '../../platforms/container/platform.js';

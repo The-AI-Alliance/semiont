@@ -6,10 +6,10 @@
  */
 
 import * as path from 'path';
-import { PlatformType } from './platform-types.js';
-import { ServiceConfig, loadEnvironmentConfig } from './environment-loader.js';
-import { ConfigurationError } from './configuration-error.js';
-import { findProjectRoot } from './project-discovery.js';
+import { PlatformType } from '@semiont/core';
+import { ServiceConfig, loadEnvironmentConfig } from '@semiont/core';
+import { ConfigurationError } from '@semiont/core';
+import { findProjectRoot } from '@semiont/core';
 
 /**
  * Service platform information

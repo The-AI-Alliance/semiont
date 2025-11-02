@@ -6,7 +6,7 @@
  * get persisted in state for later reference.
  */
 
-import type { PlatformType } from '../core/platform-types.js';
+import type { PlatformType } from '@semiont/core';
 import type { PosixResources } from './posix/types.js';
 import type { ContainerResources } from './container/types.js';
 import type { AWSResources } from './aws/types.js';

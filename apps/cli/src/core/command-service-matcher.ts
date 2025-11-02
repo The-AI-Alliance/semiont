@@ -21,10 +21,10 @@
 
 import { commandRequiresServices } from './command-discovery.js';
 import { getAvailableServices, isValidService, ServiceSelector, ServiceCapability, ServiceName } from './service-discovery.js';
-import { findProjectRoot } from './project-discovery.js';
+import { findProjectRoot } from '@semiont/core';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { ServiceFactory } from '../services/service-factory.js';
-import { parseEnvironment } from './environment-validator.js';
+import { parseEnvironment } from '@semiont/core';
 import { serviceSupportsCommand } from './service-command-capabilities.js';
 import * as path from 'path';
 

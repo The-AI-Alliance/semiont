@@ -8,9 +8,9 @@
  * whether they extend BaseService or provide a custom implementation.
  */
 
-import type { PlatformType } from './platform-types.js';
+import type { PlatformType } from '@semiont/core';
 import type { ServiceConfig } from './cli-config.js';
-import type { Environment } from './environment-validator.js';
+import type { Environment } from '@semiont/core';
 import type { ServiceName } from './service-discovery.js';
 import type { 
   ServiceRequirements,

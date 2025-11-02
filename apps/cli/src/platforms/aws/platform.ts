@@ -67,7 +67,7 @@ export class AWSPlatform extends Platform {
     appStack?: string;
   } {
     // Load the environment configuration to get AWS settings
-    const { loadEnvironmentConfig } = require('../../core/environment-loader.js');
+    const { loadEnvironmentConfig } = require('@semiont/core');
     const envConfig = loadEnvironmentConfig(service.environment);
     
     // Get AWS config from environment file, fallback to env vars

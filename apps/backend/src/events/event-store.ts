@@ -5,9 +5,7 @@
  * - EventStorage: File I/O, sequence tracking, checksums
  * - EventProjector: Build projections from events
  * - EventSubscriptions: Real-time pub/sub notifications
- *
  * 82 lines. Pure coordination. Zero cruft.
- *
  * @see docs/EVENT-STORE.md for complete architecture resourceation
  */
 
@@ -17,38 +15,36 @@ import type {
 } from '@semiont/core';
 import { isSystemEvent } from '@semiont/core';
 import type { ProjectionStorage } from '../storage/projection-storage';
-
 // Import extracted modules
 import { EventStorage, type EventStorageConfig } from './storage/event-storage';
 import { EventProjector, type ProjectorConfig } from './projections/event-projector';
 import { getEventSubscriptions, type EventSubscriptions } from './subscriptions/event-subscriptions';
-import { getBackendConfig } from '../config/environment-loader';
-
-/**
+import { toResourceUri, type IdentifierConfig } from '../services/identifier-service';
  * EventStore orchestrates event sourcing operations
  * Delegates to specialized modules for focused functionality
  * NO state - just coordination between modules
- */
 export class EventStore {
   // Public module access - only what's needed for coordination
   readonly storage: EventStorage;
   readonly projector: EventProjector;
   readonly subscriptions: EventSubscriptions;
-
-  constructor(config: EventStorageConfig, projectionStorage: ProjectionStorage) {
+  private readonly identifierConfig: IdentifierConfig;
+  constructor(
+    config: EventStorageConfig,
+    projectionStorage: ProjectionStorage,
+    identifierConfig: IdentifierConfig
+  ) {
     // Initialize modules
     this.storage = new EventStorage(config);
-
     const projectorConfig: ProjectorConfig = {
       basePath: config.basePath,
     };
     this.projector = new EventProjector(projectionStorage, projectorConfig);
-
     // Use global singleton EventSubscriptions to ensure all EventStore instances
     // share the same subscription registry (critical for SSE real-time events)
     this.subscriptions = getEventSubscriptions();
+    this.identifierConfig = identifierConfig;
   }
-
   /**
    * Append an event to the store
    * Coordinates: storage → projection → notification
@@ -57,10 +53,8 @@ export class EventStore {
     // Determine storage location based on event type
     // System events use special '__system__' shard, resource events use their resourceId
     const resourceId = event.resourceId || '__system__';
-
     // Storage handles ALL event creation
     const storedEvent = await this.storage.appendEvent(event, resourceId);
-
     // Route to appropriate projection and notification based on event type
     if (isSystemEvent(storedEvent.event)) {
       // System-level event: Update global projection
@@ -79,14 +73,8 @@ export class EventStore {
       );
       // Notify resource subscribers using full URI (W3C Web Annotation spec compliance)
       // Convert short resource ID to full URI at the publication boundary (if not already a URI)
-      const backendConfig = getBackendConfig();
-      const resourceUri = storedEvent.event.resourceId.includes('/')
-        ? storedEvent.event.resourceId  // Already a full URI
-        : `${backendConfig.publicURL}/resources/${storedEvent.event.resourceId}`;  // Short ID, construct URI
+      const resourceUri = toResourceUri(this.identifierConfig, storedEvent.event.resourceId);
       await this.subscriptions.notifySubscribers(resourceUri, storedEvent);
     }
-
     return storedEvent;
-  }
-
 }

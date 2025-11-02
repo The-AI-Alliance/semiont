@@ -15,7 +15,6 @@ import {
   CREATION_METHODS,
   generateUuid,
 } from '@semiont/core';
-
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 import type { ResourcesRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
@@ -26,10 +25,8 @@ import { getEntityTypes } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getResourceId } from '../../../utils/resource-helpers';
-
 type CreateFromAnnotationRequest = components['schemas']['CreateFromAnnotationRequest'];
 type CreateFromAnnotationResponse = components['schemas']['CreateFromAnnotationResponse'];
-
 export function registerCreateResourceFromAnnotation(router: ResourcesRouterType) {
   /**
    * POST /api/resources/from-annotation/:annotationId
@@ -48,20 +45,16 @@ export function registerCreateResourceFromAnnotation(router: ResourcesRouterType
       const basePath = getFilesystemConfig().path;
       const graphDb = await getGraphDatabase();
       const repStore = new FilesystemRepresentationStore({ basePath });
-
       const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.resourceId);
       if (!annotation) {
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
-
       const resourceId = generateUuid();
-
       // Store representation
       const storedRep = await repStore.store(Buffer.from(body.content), {
         mediaType: body.format,
         rel: 'original',
       });
-
       const resource: ResourceDescriptor = {
         '@context': 'https://schema.org/',
         '@id': `http://localhost:4000/resources/${resourceId}`,
@@ -79,19 +72,13 @@ export function registerCreateResourceFromAnnotation(router: ResourcesRouterType
         sourceAnnotationId: annotationId,
         sourceResourceId: getTargetSource(annotation.target),
       };
-
       const savedDoc = await graphDb.createResource(resource);
-
       // Update the annotation to resolve to the new resource
       await graphDb.resolveReference(annotationId, getResourceId(savedDoc));
-
       const result = await graphDb.listAnnotations({ resourceId: getResourceId(savedDoc) });
-
       const response: CreateFromAnnotationResponse = {
         resource: savedDoc,
         annotations: result.annotations,
-      };
-
       return c.json(response, 201);
     }
   );

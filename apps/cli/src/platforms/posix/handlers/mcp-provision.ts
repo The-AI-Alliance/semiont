@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
+import { loadEnvironmentConfig } from '@semiont/core';
 
 /**
  * Provision handler for MCP (Model Context Protocol) services on POSIX systems

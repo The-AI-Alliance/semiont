@@ -13,6 +13,7 @@
 
 import type { CreationMethod } from './creation-methods';
 import type { components } from '@semiont/api-client';
+import type { ResourceId, AnnotationId, UserId } from './identifiers';
 
 // Import OpenAPI types
 type Annotation = components['schemas']['Annotation'];
@@ -21,9 +22,9 @@ type ContentFormat = components['schemas']['ContentFormat'];
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
   timestamp: string;              // ISO 8601 timestamp (for humans, NOT for ordering)
-  resourceId?: string;            // Optional - present for resource-scoped events, absent for system events
+  resourceId?: ResourceId;        // Optional - present for resource-scoped events, absent for system events
                                   // Use isSystemEvent() / isResourceScopedEvent() type guards for routing
-  userId: string;                 // DID format: did:web:org.com:users:alice (federation-ready)
+  userId: UserId;                 // DID format: did:web:org.com:users:alice (federation-ready)
   version: number;                // Event schema version
 }
 
@@ -84,7 +85,7 @@ export interface AnnotationAddedEvent extends BaseEvent {
 export interface AnnotationRemovedEvent extends BaseEvent {
   type: 'annotation.removed';
   payload: {
-    annotationId: string;           // Unified ID field
+    annotationId: AnnotationId;     // Branded type for compile-time safety
   };
 }
 
@@ -101,7 +102,7 @@ export type BodyOperation =
 export interface AnnotationBodyUpdatedEvent extends BaseEvent {
   type: 'annotation.body.updated';
   payload: {
-    annotationId: string;
+    annotationId: AnnotationId;      // Branded type for compile-time safety
     operations: BodyOperation[];
   };
 }
@@ -110,7 +111,7 @@ export interface AnnotationBodyUpdatedEvent extends BaseEvent {
 // Emitted by background workers for real-time progress updates
 export interface JobStartedEvent extends BaseEvent {
   type: 'job.started';
-  resourceId: string;  // Required - job is scoped to a resource
+  resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: string;
     jobType: 'detection' | 'generation';
@@ -120,7 +121,7 @@ export interface JobStartedEvent extends BaseEvent {
 
 export interface JobProgressEvent extends BaseEvent {
   type: 'job.progress';
-  resourceId: string;  // Required - job is scoped to a resource
+  resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: string;
     jobType: 'detection' | 'generation';
@@ -135,20 +136,20 @@ export interface JobProgressEvent extends BaseEvent {
 
 export interface JobCompletedEvent extends BaseEvent {
   type: 'job.completed';
-  resourceId: string;  // Required - job is scoped to a resource
+  resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: string;
     jobType: 'detection' | 'generation';
     totalSteps?: number;  // Total steps completed
     foundCount?: number;  // For detection: total entities found
-    resultResourceId?: string;  // For generation: ID of generated resource
+    resultResourceId?: ResourceId;  // For generation: ID of generated resource (branded type)
     message?: string;  // Optional completion message
   };
 }
 
 export interface JobFailedEvent extends BaseEvent {
   type: 'job.failed';
-  resourceId: string;  // Required - job is scoped to a resource
+  resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: string;
     jobType: 'detection' | 'generation';
@@ -160,7 +161,7 @@ export interface JobFailedEvent extends BaseEvent {
 // Entity tag events (resource-level)
 export interface EntityTagAddedEvent extends BaseEvent {
   type: 'entitytag.added';
-  resourceId: string;  // Required - resource-scoped event
+  resourceId: ResourceId;  // Required - resource-scoped event
   payload: {
     entityType: string;
   };
@@ -168,7 +169,7 @@ export interface EntityTagAddedEvent extends BaseEvent {
 
 export interface EntityTagRemovedEvent extends BaseEvent {
   type: 'entitytag.removed';
-  resourceId: string;  // Required - resource-scoped event
+  resourceId: ResourceId;  // Required - resource-scoped event
   payload: {
     entityType: string;
   };
@@ -279,7 +280,7 @@ export interface EventQuery {
 // Annotation collections for a resource (Layer 3 projection)
 // Annotations are NOT part of the resource - they reference the resource
 export interface ResourceAnnotations {
-  resourceId: string;           // Which resource these annotations belong to
+  resourceId: ResourceId;       // Which resource these annotations belong to (branded type)
   annotations: Annotation[];    // All annotations (highlights, references, assessments, etc.)
   version: number;              // Event count for this resource's annotation stream
   updatedAt: string;           // Last annotation event timestamp
