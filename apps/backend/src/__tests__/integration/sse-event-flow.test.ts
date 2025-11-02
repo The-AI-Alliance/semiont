@@ -198,7 +198,7 @@ describe('SSE Event Flow - End-to-End', () => {
       payload: {
         jobId,
         jobType: 'generation',
-        resultResourceId: 'new-resource-id',
+        resultResourceId: resourceId('new-resource-id'),
         message: 'Draft resource created!'
       }
     });

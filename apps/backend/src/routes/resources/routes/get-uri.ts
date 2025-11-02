@@ -21,6 +21,7 @@ import { getFrontendUrl } from '../../../middleware/content-negotiation';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getPrimaryMediaType } from '../../../utils/resource-helpers';
 import { ResourceQueryService } from '../../../services/resource-queries';
+import { resourceId } from '@semiont/core';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
@@ -85,7 +86,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     const eventStore = await createEventStore(basePath);
     const query = new EventQuery(eventStore.storage);
     const events = await query.getResourceEvents(id);
-    const stored = await eventStore.projector.projectResource(events, id);
+    const stored = await eventStore.projector.projectResource(events, resourceId(id));
 
     if (!stored) {
       throw new HTTPException(404, { message: 'Resource not found' });

@@ -502,7 +502,7 @@ describe('EventQuery', () => {
       for (let i = 0; i < 100; i++) {
         await storage.appendEvent({
           type: i % 2 === 0 ? 'annotation.added' : 'annotation.removed',
-          userId: i % 3 === 0 ? 'user1' : 'user2',
+          userId: i % 3 === 0 ? userId('user1') : userId('user2'),
           resourceId: resourceId('doc-filter'),
           version: 1,
           payload: i % 2 === 0
@@ -516,7 +516,7 @@ describe('EventQuery', () => {
                   body: []
                 }
               }
-            : { annotationId: `anno-${i}` },
+            : { annotationId: annotationId(`anno-${i}`) },
         }, 'doc-filter');
       }
 

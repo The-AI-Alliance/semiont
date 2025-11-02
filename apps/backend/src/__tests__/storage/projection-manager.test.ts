@@ -9,7 +9,7 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { components } from '@semiont/api-client';
-import type { ResourceAnnotations } from '@semiont/core';
+import type { ResourceAnnotations, ResourceId } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
 
 import { createTestResource } from '../fixtures/resource-fixtures';
@@ -35,7 +35,7 @@ describe('ProjectionManager', () => {
   });
 
   // Helper to create test resource state
-  const createTestState = (docId: string): ResourceState => {
+  const createTestState = (docId: ResourceId): ResourceState => {
     const resource: ResourceDescriptor = createTestResource({
       id: docId,
       name: `Test Resource ${docId}`,
@@ -81,19 +81,19 @@ describe('ProjectionManager', () => {
   describe('Save Operations', () => {
     it('should save projection via manager', async () => {
       const docId = resourceId('doc-save-1');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
-      await manager.save(docId, state);
+      await manager.save(resourceId(docId), state);
 
-      const exists = await manager.exists(docId);
+      const exists = await manager.exists(resourceId(docId));
       expect(exists).toBe(true);
     });
 
     it('should delegate save to storage module', async () => {
       const docId = resourceId('doc-save-2');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
-      await manager.save(docId, state);
+      await manager.save(resourceId(docId), state);
 
       // Verify via direct storage access
       const loaded = await manager.storage.get(docId);
@@ -104,11 +104,11 @@ describe('ProjectionManager', () => {
       const docIds = ['doc-multi-1', 'doc-multi-2', 'doc-multi-3'];
 
       for (const docId of docIds) {
-        await manager.save(docId, createTestState(docId));
+        await manager.save(resourceId(docId), createTestState(resourceId(docId)));
       }
 
       for (const docId of docIds) {
-        expect(await manager.exists(docId)).toBe(true);
+        expect(await manager.exists(resourceId(docId))).toBe(true);
       }
     });
   });
@@ -116,9 +116,9 @@ describe('ProjectionManager', () => {
   describe('Get Operations', () => {
     it('should retrieve projection via manager', async () => {
       const docId = resourceId('doc-get-1');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
-      await manager.save(docId, state);
+      await manager.save(resourceId(docId), state);
 
       const loaded = await manager.get(docId);
       expect(loaded).not.toBeNull();
@@ -126,15 +126,15 @@ describe('ProjectionManager', () => {
     });
 
     it('should return null for non-existent projection', async () => {
-      const loaded = await manager.get('doc-nonexistent');
+      const loaded = await manager.get(resourceId('doc-nonexistent'));
       expect(loaded).toBeNull();
     });
 
     it('should delegate get to storage module', async () => {
       const docId = resourceId('doc-get-2');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
-      await manager.save(docId, state);
+      await manager.save(resourceId(docId), state);
 
       const viaManager = await manager.get(docId);
       const viaStorage = await manager.storage.get(docId);
@@ -146,20 +146,20 @@ describe('ProjectionManager', () => {
   describe('Delete Operations', () => {
     it('should delete projection via manager', async () => {
       const docId = resourceId('doc-delete-1');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
-      await manager.save(docId, state);
-      expect(await manager.exists(docId)).toBe(true);
+      await manager.save(resourceId(docId), state);
+      expect(await manager.exists(resourceId(docId))).toBe(true);
 
       await manager.delete(docId);
-      expect(await manager.exists(docId)).toBe(false);
+      expect(await manager.exists(resourceId(docId))).toBe(false);
     });
 
     it('should delegate delete to storage module', async () => {
       const docId = resourceId('doc-delete-2');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
-      await manager.save(docId, state);
+      await manager.save(resourceId(docId), state);
       await manager.delete(docId);
 
       const loaded = await manager.storage.get(docId);
@@ -167,22 +167,22 @@ describe('ProjectionManager', () => {
     });
 
     it('should not throw when deleting non-existent projection', async () => {
-      await expect(manager.delete('doc-never-existed')).resolves.toBeUndefined();
+      await expect(manager.delete(resourceId('doc-never-existed'))).resolves.toBeUndefined();
     });
   });
 
   describe('Exists Operations', () => {
     it('should check existence via manager', async () => {
       const docId = resourceId('doc-exists-1');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
-      expect(await manager.exists(docId)).toBe(false);
+      expect(await manager.exists(resourceId(docId))).toBe(false);
 
-      await manager.save(docId, state);
-      expect(await manager.exists(docId)).toBe(true);
+      await manager.save(resourceId(docId), state);
+      expect(await manager.exists(resourceId(docId))).toBe(true);
 
       await manager.delete(docId);
-      expect(await manager.exists(docId)).toBe(false);
+      expect(await manager.exists(resourceId(docId))).toBe(false);
     });
   });
 
@@ -195,7 +195,7 @@ describe('ProjectionManager', () => {
 
       const docIds = ['doc-bulk-1', 'doc-bulk-2', 'doc-bulk-3'];
       for (const docId of docIds) {
-        await manager2.save(docId, createTestState(docId));
+        await manager2.save(resourceId(docId), createTestState(resourceId(docId)));
       }
 
       const all = await manager2.getAll();
@@ -215,7 +215,7 @@ describe('ProjectionManager', () => {
 
       const docIds = ['doc-id-1', 'doc-id-2'];
       for (const docId of docIds) {
-        await manager3.save(docId, createTestState(docId));
+        await manager3.save(resourceId(docId), createTestState(resourceId(docId)));
       }
 
       const allIds = await manager3.getAllResourceIds();
@@ -271,7 +271,7 @@ describe('ProjectionManager', () => {
         subNamespace: 'query-integration',
       });
 
-      const state = createTestState('doc-query-1');
+      const state = createTestState(resourceId('doc-query-1'));
       state.resource.entityTypes = ['Person'];
       await manager4.save('doc-query-1', state);
 
@@ -284,19 +284,19 @@ describe('ProjectionManager', () => {
   describe('Backward Compatibility', () => {
     it('should support deprecated saveProjection method', async () => {
       const docId = resourceId('doc-compat-save');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
       await manager.saveProjection(docId, state);
 
-      const exists = await manager.exists(docId);
+      const exists = await manager.exists(resourceId(docId));
       expect(exists).toBe(true);
     });
 
     it('should support deprecated getProjection method', async () => {
       const docId = resourceId('doc-compat-get');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
-      await manager.save(docId, state);
+      await manager.save(resourceId(docId), state);
 
       const loaded = await manager.getProjection(docId);
       expect(loaded ? getResourceId(loaded.resource) : null).toBe(docId);
@@ -304,19 +304,19 @@ describe('ProjectionManager', () => {
 
     it('should support deprecated deleteProjection method', async () => {
       const docId = resourceId('doc-compat-delete');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
-      await manager.save(docId, state);
+      await manager.save(resourceId(docId), state);
       await manager.deleteProjection(docId);
 
-      expect(await manager.exists(docId)).toBe(false);
+      expect(await manager.exists(resourceId(docId))).toBe(false);
     });
 
     it('should support deprecated projectionExists method', async () => {
       const docId = resourceId('doc-compat-exists');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
-      await manager.save(docId, state);
+      await manager.save(resourceId(docId), state);
 
       const exists = await manager.projectionExists(docId);
       expect(exists).toBe(true);
@@ -328,7 +328,7 @@ describe('ProjectionManager', () => {
         subNamespace: 'compat-getall',
       });
 
-      await manager5.save('doc-compat-1', createTestState('doc-compat-1'));
+      await manager5.save('doc-compat-1', createTestState(resourceId('doc-compat-1')));
 
       const all = await manager5.getAllProjections();
       expect(all.length).toBe(1);
@@ -338,20 +338,20 @@ describe('ProjectionManager', () => {
   describe('Error Handling', () => {
     it('should handle errors from storage layer', async () => {
       // Try to get with invalid ID that causes issues
-      const loaded = await manager.get('doc-invalid-<>?');
+      const loaded = await manager.get(resourceId('doc-invalid-<>?'));
       // Should gracefully handle (return null or throw appropriately)
       expect(loaded).toBeNull();
     });
 
     it('should handle concurrent operations', async () => {
       const docId = resourceId('doc-concurrent');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
       // Save concurrently (should not corrupt data)
       await Promise.all([
-        manager.save(docId, state),
-        manager.save(docId, state),
-        manager.save(docId, state),
+        manager.save(resourceId(docId), state),
+        manager.save(resourceId(docId), state),
+        manager.save(resourceId(docId), state),
       ]);
 
       const loaded = await manager.get(docId);
@@ -362,10 +362,10 @@ describe('ProjectionManager', () => {
   describe('Orchestration Behavior', () => {
     it('should properly delegate to storage for CRUD', async () => {
       const docId = resourceId('doc-orchestration');
-      const state = createTestState(docId);
+      const state = createTestState(resourceId(docId));
 
       // Save via manager
-      await manager.save(docId, state);
+      await manager.save(resourceId(docId), state);
 
       // Verify via direct storage access
       const fromStorage = await manager.storage.get(docId);

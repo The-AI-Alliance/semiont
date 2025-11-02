@@ -72,7 +72,7 @@ describe('EventProjector', () => {
         }, 1),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       expect(projection).not.toBeNull();
       expect(projection!.resource['@id']).toContain('doc1'); // @id is HTTP URI containing doc1
@@ -97,7 +97,7 @@ describe('EventProjector', () => {
         }, 2),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       expect(projection!.resource.archived).toBe(true);
       expect(projection!.annotations.version).toBe(2);
@@ -119,7 +119,7 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       expect(projection!.resource.archived).toBe(false);
       expect(projection!.annotations.version).toBe(3);
@@ -141,7 +141,7 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       expect(projection!.resource.entityTypes).toEqual(['Person', 'Organization']);
       expect(projection!.annotations.version).toBe(3);
@@ -159,7 +159,7 @@ describe('EventProjector', () => {
         }, 2),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       expect(projection!.resource.entityTypes).toEqual(['Organization']);
       expect(projection!.annotations.version).toBe(2);
@@ -200,7 +200,7 @@ describe('EventProjector', () => {
         }, 2),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       expect(projection!.annotations.annotations).toHaveLength(1);
       expect(projection!.annotations.annotations[0]?.id).toBe('anno1');
@@ -235,7 +235,7 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       expect(projection!.annotations.annotations).toHaveLength(0);
       expect(projection!.annotations.version).toBe(3);
@@ -272,7 +272,7 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       const body = projection!.annotations.annotations[0]?.body;
       expect(Array.isArray(body) ? body : []).toHaveLength(1);
@@ -319,7 +319,7 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       const body = projection!.annotations.annotations[0]?.body;
       expect(Array.isArray(body) ? body : []).toHaveLength(1);
@@ -367,7 +367,7 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       const body = projection!.annotations.annotations[0]?.body;
       expect(Array.isArray(body) ? body : []).toHaveLength(1);
@@ -414,14 +414,14 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       expect(projection!.annotations.annotations).toHaveLength(2);
       expect(projection!.annotations.version).toBe(3);
     });
 
     it('should return null for empty event list', async () => {
-      const projection = await projector.projectResource([], 'doc1');
+      const projection = await projector.projectResource([], resourceId('doc1'));
       expect(projection).toBeNull();
     });
   });
@@ -437,13 +437,12 @@ describe('EventProjector', () => {
 
       const getAllEvents = async () => events;
 
-      await projector.updateProjectionIncremental(
-        'doc1',
+      await projector.updateProjectionIncremental(resourceId('doc1'),
         events[0]!.event,
         getAllEvents
       );
 
-      const projection = await projectionStorage.getProjection('doc1');
+      const projection = await projectionStorage.getProjection(resourceId('doc1'));
       expect(projection).not.toBeNull();
       expect(projection!.resource.name).toBe('Test');
       expect(projection!.annotations.version).toBe(1);
@@ -458,8 +457,8 @@ describe('EventProjector', () => {
         }, 1),
       ];
 
-      await projector.projectResource(initialEvents, 'doc1');
-      await projectionStorage.saveProjection('doc1', (await projector.projectResource(initialEvents, 'doc1'))!);
+      await projector.projectResource(initialEvents, resourceId('doc1'));
+      await projectionStorage.saveProjection(resourceId('doc1'), (await projector.projectResource(initialEvents, resourceId('doc1')))!);
 
       // Apply incremental update
       const newEvent = createStoredEvent({
@@ -467,13 +466,12 @@ describe('EventProjector', () => {
         payload: { entityType: 'Person' },
       }, 2);
 
-      await projector.updateProjectionIncremental(
-        'doc1',
+      await projector.updateProjectionIncremental(resourceId('doc1'),
         newEvent.event,
         async () => [...initialEvents, newEvent]
       );
 
-      const projection = await projectionStorage.getProjection('doc1');
+      const projection = await projectionStorage.getProjection(resourceId('doc1'));
       expect(projection!.resource.entityTypes).toContain('Person');
       expect(projection!.annotations.version).toBe(2);
     });
@@ -486,8 +484,8 @@ describe('EventProjector', () => {
         }, 1),
       ];
 
-      await projector.projectResource(initialEvents, 'doc1');
-      await projectionStorage.saveProjection('doc1', (await projector.projectResource(initialEvents, 'doc1'))!);
+      await projector.projectResource(initialEvents, resourceId('doc1'));
+      await projectionStorage.saveProjection(resourceId('doc1'), (await projector.projectResource(initialEvents, resourceId('doc1')))!);
 
       // Apply 3 incremental updates
       const events = [
@@ -497,14 +495,13 @@ describe('EventProjector', () => {
       ];
 
       for (const event of events) {
-        await projector.updateProjectionIncremental(
-          'doc1',
+        await projector.updateProjectionIncremental(resourceId('doc1'),
           event.event,
           async () => [...initialEvents, ...events.slice(0, event.metadata.sequenceNumber)]
         );
       }
 
-      const projection = await projectionStorage.getProjection('doc1');
+      const projection = await projectionStorage.getProjection(resourceId('doc1'));
       expect(projection!.annotations.version).toBe(4);
     });
   });
@@ -571,7 +568,7 @@ describe('EventProjector', () => {
         }, 1),
       ];
 
-      const projection = await projector.projectResource(events, 'doc1');
+      const projection = await projector.projectResource(events, resourceId('doc1'));
 
       // Should apply resource.created first (sequence 1), then annotation.added (sequence 2)
       expect(projection!.resource.name).toBe('Test');

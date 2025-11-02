@@ -20,6 +20,7 @@ import type {
   ResourceEvent,
   StoredEvent,
   ResourceAnnotations,
+  ResourceId,
 } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
@@ -44,7 +45,7 @@ export class EventProjector {
    * Build resource projection from events
    * Loads from Layer 3 if exists, otherwise rebuilds from Layer 2 events
    */
-  async projectResource(events: StoredEvent[], resourceId: string): Promise<ResourceState | null> {
+  async projectResource(events: StoredEvent[], resourceId: ResourceId): Promise<ResourceState | null> {
     // Try to load existing projection from Layer 3
     const existing = await this.projectionStorage.getProjection(resourceId);
     if (existing) {
@@ -67,7 +68,7 @@ export class EventProjector {
    * Falls back to full rebuild if projection doesn't exist
    */
   async updateProjectionIncremental(
-    resourceId: string,
+    resourceId: ResourceId,
     event: ResourceEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
@@ -98,7 +99,7 @@ export class EventProjector {
   /**
    * Build projection from event list (full rebuild)
    */
-  private buildProjectionFromEvents(events: StoredEvent[], resourceId: string): ResourceState {
+  private buildProjectionFromEvents(events: StoredEvent[], resourceId: ResourceId): ResourceState {
     // Build W3C-compliant HTTP URI for @id
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
     const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
