@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventSubscriptions } from '../../events/subscriptions/event-subscriptions';
 import type { StoredEvent, ResourceEvent } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 
 describe('EventSubscriptions', () => {
   let subscriptions: EventSubscriptions;

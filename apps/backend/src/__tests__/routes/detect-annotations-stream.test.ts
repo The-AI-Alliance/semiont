@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import { JWTService } from '../../auth/jwt';
@@ -280,8 +281,8 @@ describe('Event Store Subscription Pattern', () => {
   });
 
   it('should subscribe to resource events and receive job.progress events', async () => {
-    const resourceId = 'test-resource-1';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
+    const rId = resourceId('test-resource-1');
+    const resourceUri = `http://localhost:4000/resources/${rId}`;
     const receivedEvents: any[] = [];
 
     const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
@@ -291,8 +292,8 @@ describe('Event Store Subscription Pattern', () => {
     // Emit a job.progress event
     await eventStore.appendEvent({
       type: 'job.progress',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: 'job-1',
@@ -316,8 +317,8 @@ describe('Event Store Subscription Pattern', () => {
   });
 
   it('should receive job.completed event', async () => {
-    const resourceId = 'test-resource-2';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
+    const rId = resourceId('test-resource-2');
+    const resourceUri = `http://localhost:4000/resources/${rId}`;
     const receivedEvents: any[] = [];
 
     const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
@@ -326,8 +327,8 @@ describe('Event Store Subscription Pattern', () => {
 
     await eventStore.appendEvent({
       type: 'job.completed',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: 'job-2',
@@ -345,8 +346,8 @@ describe('Event Store Subscription Pattern', () => {
   });
 
   it('should receive job.failed event', async () => {
-    const resourceId = 'test-resource-3';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
+    const rId = resourceId('test-resource-3');
+    const resourceUri = `http://localhost:4000/resources/${rId}`;
     const receivedEvents: any[] = [];
 
     const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
@@ -355,8 +356,8 @@ describe('Event Store Subscription Pattern', () => {
 
     await eventStore.appendEvent({
       type: 'job.failed',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: 'job-3',
@@ -376,8 +377,8 @@ describe('Event Store Subscription Pattern', () => {
   });
 
   it('should unsubscribe and stop receiving events', async () => {
-    const resourceId = 'test-resource-4';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
+    const rId = resourceId('test-resource-4');
+    const resourceUri = `http://localhost:4000/resources/${rId}`;
     const receivedEvents: any[] = [];
 
     const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
@@ -390,8 +391,8 @@ describe('Event Store Subscription Pattern', () => {
     // Emit event after unsubscribing
     await eventStore.appendEvent({
       type: 'job.progress',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: 'job-4',

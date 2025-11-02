@@ -22,6 +22,7 @@ import { compareAnnotationIds } from '@semiont/api-client';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
+import { userId, resourceId } from '@semiont/core';
 
 type GenerateResourceRequest = components['schemas']['GenerateResourceRequest'];
 type CreateJobResponse = components['schemas']['CreateJobResponse'];
@@ -67,9 +68,9 @@ export function registerGenerateResource(router: AnnotationsRouterType) {
         id: `job-${nanoid()}`,
         type: 'generation',
         status: 'pending',
-        userId: user.id,
+        userId: userId(user.id),
         referenceId: annotationId,
-        sourceResourceId: body.resourceId,
+        sourceResourceId: resourceId(body.resourceId),
         title: body.title,
         prompt: body.prompt,
         language: body.language,

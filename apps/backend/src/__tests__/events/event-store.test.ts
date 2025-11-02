@@ -8,6 +8,7 @@ import { EventQuery } from '../../events/query/event-query';
 import { EventValidator } from '../../events/validation/event-validator';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import { CREATION_METHODS } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -43,12 +44,12 @@ describe('Event Store', () => {
   });
 
   it('should emit and retrieve events', async () => {
-    const docId = 'doc-test1';
+    const docId = resourceId('doc-test1');
 
     const event1 = await eventStore.appendEvent({
       type: 'resource.created',
       resourceId: docId,
-      userId: 'user1',
+      userId: userId('user1'),
       version: 1,
       payload: {
         name: 'Test',
@@ -66,12 +67,12 @@ describe('Event Store', () => {
   });
 
   it('should create event chain with prevEventHash', async () => {
-    const docId = 'doc-test2';
+    const docId = resourceId('doc-test2');
 
     const e1 = await eventStore.appendEvent({
       type: 'resource.created',
       resourceId: docId,
-      userId: 'user1',
+      userId: userId('user1'),
       version: 1,
       payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
     });
@@ -79,7 +80,7 @@ describe('Event Store', () => {
     const e2 = await eventStore.appendEvent({
       type: 'annotation.added',
       resourceId: docId,
-      userId: 'user1',
+      userId: userId('user1'),
       version: 1,
       payload: {
         annotation: {
@@ -116,12 +117,12 @@ describe('Event Store', () => {
   });
 
   it('should rebuild projection from events', async () => {
-    const docId = 'doc-test3';
+    const docId = resourceId('doc-test3');
 
     await eventStore.appendEvent({
       type: 'resource.created',
       resourceId: docId,
-      userId: 'user1',
+      userId: userId('user1'),
       version: 1,
       payload: { name: 'Doc', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
     });
@@ -129,7 +130,7 @@ describe('Event Store', () => {
     await eventStore.appendEvent({
       type: 'entitytag.added',
       resourceId: docId,
-      userId: 'user1',
+      userId: userId('user1'),
       version: 1,
       payload: { entityType: 'note' },
     });

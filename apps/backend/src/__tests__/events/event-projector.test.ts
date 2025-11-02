@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventProjector } from '../../events/projections/event-projector';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import type { StoredEvent, ResourceEvent } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -59,8 +60,8 @@ describe('EventProjector', () => {
       const events = [
         createStoredEvent({
           type: 'resource.created',
-          resourceId: 'doc1',
-          userId: 'user1',
+          resourceId: resourceId('doc1'),
+          userId: userId('user1'),
           payload: {
             name: 'Test Resource',
             format: 'text/markdown',
@@ -230,7 +231,7 @@ describe('EventProjector', () => {
         }, 2),
         createStoredEvent({
           type: 'annotation.removed',
-          payload: { annotationId: 'anno1' },
+          payload: { annotationId: annotationId('anno1') },
         }, 3),
       ];
 
@@ -263,7 +264,7 @@ describe('EventProjector', () => {
         createStoredEvent({
           type: 'annotation.body.updated',
           payload: {
-            annotationId: 'anno1',
+            annotationId: annotationId('anno1'),
             operations: [
               { op: 'add' as const, item: { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const } },
             ],
@@ -310,7 +311,7 @@ describe('EventProjector', () => {
         createStoredEvent({
           type: 'annotation.body.updated',
           payload: {
-            annotationId: 'anno1',
+            annotationId: annotationId('anno1'),
             operations: [
               { op: 'remove' as const, item: { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const } },
             ],
@@ -354,7 +355,7 @@ describe('EventProjector', () => {
         createStoredEvent({
           type: 'annotation.body.updated',
           payload: {
-            annotationId: 'anno1',
+            annotationId: annotationId('anno1'),
             operations: [
               {
                 op: 'replace' as const,

@@ -11,6 +11,7 @@ import type { DetectionJob } from '../../jobs/types';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { resourceId, userId } from '@semiont/core';
 
 // Mock AI detection to avoid external API calls
 vi.mock('../../inference/detect-annotations', () => ({
@@ -66,8 +67,8 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-1',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-1',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-1'),
       entityTypes: ['Person'],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -90,8 +91,8 @@ describe('DetectionWorker - Event Emission', () => {
     expect(startedEvent).toBeDefined();
     expect(startedEvent!.event).toMatchObject({
       type: 'job.started',
-      resourceId: 'resource-1',
-      userId: 'user-1',
+      resourceId: resourceId('resource-1'),
+      userId: userId('user-1'),
       payload: {
         jobId: 'job-test-1',
         jobType: 'detection',
@@ -105,8 +106,8 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-2',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-2',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-2'),
       entityTypes: ['Person', 'Organization', 'Location'],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -129,7 +130,7 @@ describe('DetectionWorker - Event Emission', () => {
     expect(progressEvents[0]).toBeDefined();
     expect(progressEvents[0]!.event).toMatchObject({
       type: 'job.progress',
-      resourceId: 'resource-2',
+      resourceId: resourceId('resource-2'),
       payload: {
         jobId: 'job-test-2',
         jobType: 'detection',
@@ -150,8 +151,8 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-3',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-3',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-3'),
       entityTypes: ['Person'],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -173,7 +174,7 @@ describe('DetectionWorker - Event Emission', () => {
     expect(completedEvents[0]).toBeDefined();
     expect(completedEvents[0]!.event).toMatchObject({
       type: 'job.completed',
-      resourceId: 'resource-3',
+      resourceId: resourceId('resource-3'),
       payload: {
         jobId: 'job-test-3',
         jobType: 'detection'
@@ -186,8 +187,8 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-4',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-4',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-4'),
       entityTypes: ['Person'],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -213,7 +214,7 @@ describe('DetectionWorker - Event Emission', () => {
       expect(annotationEvents[0]).toBeDefined();
       expect(annotationEvents[0]!.event).toMatchObject({
         type: 'annotation.added',
-        resourceId: 'resource-4',
+        resourceId: resourceId('resource-4'),
         payload: {
           annotation: {
             motivation: 'linking',
@@ -236,8 +237,8 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-5',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-5',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-5'),
       entityTypes: ['Person'],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -270,8 +271,8 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-6',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-6',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-6'),
       entityTypes: ['Person', 'Organization'],
       created: new Date().toISOString(),
       retryCount: 0,

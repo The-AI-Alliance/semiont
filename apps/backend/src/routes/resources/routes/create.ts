@@ -12,6 +12,8 @@ import {
   CREATION_METHODS,
   type CreationMethod,
   generateUuid,
+  userId,
+  resourceId,
 } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore } from '../../../services/event-store-service';
@@ -20,9 +22,11 @@ import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+
 type CreateResourceRequest = components['schemas']['CreateResourceRequest'];
 type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+
 export function registerCreateResource(router: ResourcesRouterType) {
   /**
    * POST /api/resources
@@ -38,7 +42,9 @@ export function registerCreateResource(router: ResourcesRouterType) {
       const user = c.get('user');
       const basePath = getFilesystemConfig().path;
       const repStore = new FilesystemRepresentationStore({ basePath });
-      const resourceId = generateUuid();
+
+      const rId = resourceId(generateUuid());
+
       // Store representation (Layer 1)
       const contentBuffer = Buffer.from(body.content);
       const storedRep = await repStore.store(contentBuffer, {
@@ -46,27 +52,30 @@ export function registerCreateResource(router: ResourcesRouterType) {
         language: body.language,
         rel: 'original',
       });
+
       // Subscribe GraphDB consumer to new resource BEFORE emitting event
       // This ensures the consumer receives the resource.created event
       try {
         const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
         const consumer = await getGraphConsumer();
-        await consumer.subscribeToResource(resourceId);
+        await consumer.subscribeToResource(rId);
       } catch (error) {
         console.error('[CreateResource] Failed to subscribe GraphDB consumer:', error);
         // Don't fail the request - consumer can catch up later
       }
+
       // Validate and use creationMethod from request body, or default to API
       const validCreationMethods = Object.values(CREATION_METHODS) as string[];
       const creationMethod: CreationMethod = body.creationMethod && validCreationMethods.includes(body.creationMethod)
         ? body.creationMethod as CreationMethod
         : CREATION_METHODS.API;
+
       // Emit resource.created event (consumer will update GraphDB)
       const eventStore = await createEventStore(basePath);
       await eventStore.appendEvent({
         type: 'resource.created',
-        resourceId,
-        userId: user.id,
+        resourceId: rId,
+        userId: userId(user.id),
         version: 1,
         payload: {
           name: body.name,
@@ -79,12 +88,15 @@ export function registerCreateResource(router: ResourcesRouterType) {
           generatedFrom: undefined,
           generationPrompt: undefined,
         },
+      });
+
       // Return optimistic response with W3C-compliant HTTP URI
       const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
       const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
+
       const resourceMetadata: ResourceDescriptor = {
         '@context': 'https://schema.org/',
-        '@id': `${normalizedBase}/resources/${resourceId}`,
+        '@id': `${normalizedBase}/resources/${rId}`,
         name: body.name,
         archived: false,
         entityTypes: body.entityTypes || [],
@@ -95,11 +107,15 @@ export function registerCreateResource(router: ResourcesRouterType) {
           mediaType: body.format,
           checksum: storedRep.checksum,
           rel: 'original',
+          language: body.language,
         }],
       };
+
       const response: CreateResourceResponse = {
         resource: resourceMetadata,
         annotations: [],
+      };
+
       return c.json(response, 201);
     }
   );

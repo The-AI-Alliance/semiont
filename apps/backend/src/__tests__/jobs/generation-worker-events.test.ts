@@ -11,6 +11,7 @@ import type { GenerationJob } from '../../jobs/types';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { resourceId, userId } from '@semiont/core';
 
 // Mock AI generation to avoid external API calls
 vi.mock('../../inference/factory', () => ({
@@ -77,9 +78,9 @@ describe('GenerationWorker - Event Emission', () => {
       id: 'job-gen-1',
       type: 'generation',
       status: 'pending',
-      userId: 'user-1',
+      userId: userId('user-1'),
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource-1',  // Unique per test
+      sourceResourceId: resourceId('source-resource-1'),  // Unique per test
       title: 'Test Resource',
       entityTypes: ['Person'],
       llmContext: mockLLMContext,
@@ -102,8 +103,8 @@ describe('GenerationWorker - Event Emission', () => {
     expect(startedEvents[0]).toBeDefined();
     expect(startedEvents[0]!.event).toMatchObject({
       type: 'job.started',
-      resourceId: 'source-resource-1',
-      userId: 'user-1',
+      resourceId: resourceId('source-resource-1'),
+      userId: userId('user-1'),
       payload: {
         jobId: 'job-gen-1',
         jobType: 'generation',
@@ -117,9 +118,9 @@ describe('GenerationWorker - Event Emission', () => {
       id: 'job-gen-2',
       type: 'generation',
       status: 'pending',
-      userId: 'user-1',
+      userId: userId('user-1'),
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource-2',
+      sourceResourceId: resourceId('source-resource-2'),
       title: 'Test Resource',
       entityTypes: ['Person'],
       llmContext: mockLLMContext,
@@ -151,9 +152,9 @@ describe('GenerationWorker - Event Emission', () => {
       id: 'job-gen-3',
       type: 'generation',
       status: 'pending',
-      userId: 'user-1',
+      userId: userId('user-1'),
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource-3',
+      sourceResourceId: resourceId('source-resource-3'),
       title: 'Test Resource',
       entityTypes: ['Person'],
       llmContext: mockLLMContext,
@@ -187,9 +188,9 @@ describe('GenerationWorker - Event Emission', () => {
       id: 'job-gen-4',
       type: 'generation',
       status: 'pending',
-      userId: 'user-1',
+      userId: userId('user-1'),
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource-4',
+      sourceResourceId: resourceId('source-resource-4'),
       title: 'Test Resource',
       entityTypes: ['Person'],
       llmContext: mockLLMContext,
@@ -212,7 +213,7 @@ describe('GenerationWorker - Event Emission', () => {
     expect(completedEvents[0]).toBeDefined();
     expect(completedEvents[0]!.event).toMatchObject({
       type: 'job.completed',
-      resourceId: 'source-resource-4',
+      resourceId: resourceId('source-resource-4'),
       payload: {
         jobId: 'job-gen-4',
         jobType: 'generation',
@@ -226,9 +227,9 @@ describe('GenerationWorker - Event Emission', () => {
       id: 'job-gen-5',
       type: 'generation',
       status: 'pending',
-      userId: 'user-1',
+      userId: userId('user-1'),
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource-5',
+      sourceResourceId: resourceId('source-resource-5'),
       title: 'Test Resource',
       entityTypes: ['Person'],
       llmContext: mockLLMContext,
@@ -260,7 +261,7 @@ describe('GenerationWorker - Event Emission', () => {
     expect(createdEvents[0]).toBeDefined();
     expect(createdEvents[0]!.event).toMatchObject({
       type: 'resource.created',
-      userId: 'user-1',
+      userId: userId('user-1'),
       payload: {
         name: 'Test Resource',
         format: expect.any(String)
@@ -273,9 +274,9 @@ describe('GenerationWorker - Event Emission', () => {
       id: 'job-gen-6',
       type: 'generation',
       status: 'pending',
-      userId: 'user-1',
+      userId: userId('user-1'),
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource-6',
+      sourceResourceId: resourceId('source-resource-6'),
       title: 'Test Resource',
       entityTypes: ['Person'],
       llmContext: mockLLMContext,
@@ -310,9 +311,9 @@ describe('GenerationWorker - Event Emission', () => {
       id: 'job-gen-7',
       type: 'generation',
       status: 'pending',
-      userId: 'user-1',
+      userId: userId('user-1'),
       referenceId: 'test-ref-id',
-      sourceResourceId: 'source-resource-7',
+      sourceResourceId: resourceId('source-resource-7'),
       title: 'Test Resource',
       entityTypes: ['Person'],
       llmContext: mockLLMContext,

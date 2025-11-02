@@ -20,6 +20,7 @@ import type { DetectionJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { userId, resourceId } from '@semiont/core';
 
 type DetectEntitiesRequest = components['schemas']['DetectEntitiesRequest'];
 type CreateJobResponse = components['schemas']['CreateJobResponse'];
@@ -62,8 +63,8 @@ export function registerDetectEntities(router: ResourcesRouterType) {
         id: `job-${nanoid()}`,
         type: 'detection',
         status: 'pending',
-        userId: user.id,
-        resourceId: id,
+        userId: userId(user.id),
+        resourceId: resourceId(id),
         entityTypes,
         created: new Date().toISOString(),
         retryCount: 0,

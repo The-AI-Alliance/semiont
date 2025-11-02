@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { calculateChecksum } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

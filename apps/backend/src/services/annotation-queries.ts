@@ -10,6 +10,7 @@ import { createProjectionManager } from './storage-service';
 import { getGraphDatabase } from '../graph/factory';
 import type { components } from '@semiont/api-client';
 import type { ResourceAnnotations } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import { getFilesystemConfig } from '../config/environment-loader';
 
 type Annotation = components['schemas']['Annotation'];

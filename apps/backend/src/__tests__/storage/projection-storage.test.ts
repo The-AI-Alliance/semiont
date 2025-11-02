@@ -9,6 +9,7 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { ResourceAnnotations } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import { createTestResource } from '../fixtures/resource-fixtures';
 import { getResourceId } from '../../utils/resource-helpers';
 
@@ -61,7 +62,7 @@ describe('ProjectionStorage', () => {
 
   describe('Save Operations', () => {
     it('should save projection to disk', async () => {
-      const docId = 'doc-sha256:save-test-1';
+      const docId = resourceId('doc-sha256:save-test-1');
       const state = createTestResourceState(docId);
 
       await storage.save(docId, state);
@@ -72,7 +73,7 @@ describe('ProjectionStorage', () => {
     });
 
     it('should create shard directories automatically', async () => {
-      const docId = 'doc-sha256:auto-dir-test';
+      const docId = resourceId('doc-sha256:auto-dir-test');
       const state = createTestResourceState(docId);
 
       await storage.save(docId, state);
@@ -84,7 +85,7 @@ describe('ProjectionStorage', () => {
     });
 
     it('should overwrite existing projection', async () => {
-      const docId = 'doc-sha256:overwrite-test';
+      const docId = resourceId('doc-sha256:overwrite-test');
       const state1 = createTestResourceState(docId);
       state1.resource.name = 'Original Name';
 
@@ -120,7 +121,7 @@ describe('ProjectionStorage', () => {
     });
 
     it('should preserve resource state exactly', async () => {
-      const docId = 'doc-sha256:preserve-test';
+      const docId = resourceId('doc-sha256:preserve-test');
       const original = createTestResourceState(docId);
       original.resource.entityTypes = ['Person', 'Organization'];
       original.annotations.version = 42;
@@ -135,7 +136,7 @@ describe('ProjectionStorage', () => {
 
   describe('Get Operations', () => {
     it('should retrieve saved projection', async () => {
-      const docId = 'doc-sha256:get-test-1';
+      const docId = resourceId('doc-sha256:get-test-1');
       const state = createTestResourceState(docId);
 
       await storage.save(docId, state);
@@ -147,7 +148,7 @@ describe('ProjectionStorage', () => {
     });
 
     it('should return null for non-existent projection', async () => {
-      const docId = 'doc-sha256:does-not-exist';
+      const docId = resourceId('doc-sha256:does-not-exist');
 
       const loaded = await storage.get(docId);
       expect(loaded).toBeNull();
@@ -170,7 +171,7 @@ describe('ProjectionStorage', () => {
     });
 
     it('should parse JSON correctly', async () => {
-      const docId = 'doc-sha256:json-test';
+      const docId = resourceId('doc-sha256:json-test');
       const state = createTestResourceState(docId);
       state.annotations.annotations = [
         {
@@ -200,7 +201,7 @@ describe('ProjectionStorage', () => {
 
   describe('Delete Operations', () => {
     it('should delete existing projection', async () => {
-      const docId = 'doc-sha256:delete-test-1';
+      const docId = resourceId('doc-sha256:delete-test-1');
       const state = createTestResourceState(docId);
 
       await storage.save(docId, state);
@@ -211,14 +212,14 @@ describe('ProjectionStorage', () => {
     });
 
     it('should not throw when deleting non-existent projection', async () => {
-      const docId = 'doc-sha256:never-existed';
+      const docId = resourceId('doc-sha256:never-existed');
 
       // Should not throw
       await expect(storage.delete(docId)).resolves.toBeUndefined();
     });
 
     it('should allow re-saving after deletion', async () => {
-      const docId = 'doc-sha256:re-save-test';
+      const docId = resourceId('doc-sha256:re-save-test');
       const state = createTestResourceState(docId);
 
       await storage.save(docId, state);
@@ -232,7 +233,7 @@ describe('ProjectionStorage', () => {
 
   describe('Exists Operations', () => {
     it('should return true for existing projection', async () => {
-      const docId = 'doc-sha256:exists-test-1';
+      const docId = resourceId('doc-sha256:exists-test-1');
       const state = createTestResourceState(docId);
 
       await storage.save(docId, state);
@@ -241,13 +242,13 @@ describe('ProjectionStorage', () => {
     });
 
     it('should return false for non-existent projection', async () => {
-      const docId = 'doc-sha256:not-here';
+      const docId = resourceId('doc-sha256:not-here');
 
       expect(await storage.exists(docId)).toBe(false);
     });
 
     it('should return false after deletion', async () => {
-      const docId = 'doc-sha256:exists-then-deleted';
+      const docId = resourceId('doc-sha256:exists-then-deleted');
       const state = createTestResourceState(docId);
 
       await storage.save(docId, state);
@@ -377,7 +378,7 @@ describe('ProjectionStorage', () => {
     });
 
     it('should use consistent sharding', async () => {
-      const docId = 'doc-sha256:consistent-shard';
+      const docId = resourceId('doc-sha256:consistent-shard');
       const state = createTestResourceState(docId);
 
       // Save, delete, save again
@@ -393,7 +394,7 @@ describe('ProjectionStorage', () => {
 
   describe('Error Handling', () => {
     it('should throw on malformed JSON', async () => {
-      const docId = 'doc-sha256:bad-json';
+      const docId = resourceId('doc-sha256:bad-json');
       const state = createTestResourceState(docId);
 
       // Save valid JSON first
@@ -417,7 +418,7 @@ describe('ProjectionStorage', () => {
     it('should handle file system errors gracefully', async () => {
       // Try to save to a read-only location (this test is platform-dependent)
       // For now, just verify delete doesn't throw on non-existent file
-      const docId = 'doc-sha256:no-file';
+      const docId = resourceId('doc-sha256:no-file');
       await expect(storage.delete(docId)).resolves.toBeUndefined();
     });
   });

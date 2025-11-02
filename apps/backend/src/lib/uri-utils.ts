@@ -6,6 +6,7 @@
  */
 
 import { getBackendConfig } from '../config/environment-loader';
+import { resourceId, annotationId, type ResourceId, type AnnotationId } from '@semiont/core';
 
 /**
  * Convert resource ID to full URI
@@ -35,13 +36,13 @@ export function resourceIdToURI(resourceId: string): string {
  * uriToResourceId("https://api.semiont.app/resources/doc-abc123")
  * // => "doc-abc123"
  */
-export function uriToResourceId(uri: string): string {
+export function uriToResourceId(uri: string): ResourceId {
   const url = new URL(uri);
   const match = url.pathname.match(/\/resources\/([^/]+)/);
   if (!match || !match[1]) {
     throw new Error(`Invalid resource URI: ${uri}`);
   }
-  return match[1];
+  return resourceId(match[1]);
 }
 
 /**
@@ -72,11 +73,11 @@ export function annotationIdToURI(annotationId: string): string {
  * uriToAnnotationId("https://api.semiont.app/annotations/anno-xyz789")
  * // => "anno-xyz789"
  */
-export function uriToAnnotationId(uri: string): string {
+export function uriToAnnotationId(uri: string): AnnotationId {
   const url = new URL(uri);
   const match = url.pathname.match(/\/annotations\/([^/]+)/);
   if (!match || !match[1]) {
     throw new Error(`Invalid annotation URI: ${uri}`);
   }
-  return match[1];
+  return annotationId(match[1]);
 }

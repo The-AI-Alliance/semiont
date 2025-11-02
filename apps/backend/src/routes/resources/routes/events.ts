@@ -11,10 +11,13 @@
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import type { EventQuery, StoredEvent } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 import { HTTPException } from 'hono/http-exception';
 import { getFilesystemConfig } from '../../../config/environment-loader';
+
 type GetEventsResponse = components['schemas']['GetEventsResponse'];
+
 const eventTypes = [
   'resource.created',
   'resource.cloned',
@@ -26,16 +29,19 @@ const eventTypes = [
   'entitytag.added',
   'entitytag.removed',
 ] as const;
+
 // Type guard function for event type validation
 function isValidEventType(type: string): type is typeof eventTypes[number] {
   return eventTypes.includes(type as any);
 }
+
 export function registerGetEvents(router: ResourcesRouterType) {
   /**
    * GET /api/resources/:id/events
    *
    * Get full event history for a resource with optional filtering
    * Requires authentication
+   *
    * Query parameters:
    * - type: Event type filter (optional)
    * - userId: User ID filter (optional)
@@ -45,31 +51,43 @@ export function registerGetEvents(router: ResourcesRouterType) {
     const { id } = c.req.param();
     const queryParams = c.req.query();
     const basePath = getFilesystemConfig().path;
+
     // Parse and validate query parameters
     const type = queryParams.type;
     const userId = queryParams.userId;
     const limit = queryParams.limit ? Number(queryParams.limit) : 100;
+
     // Validate type if provided
     if (type && !isValidEventType(type)) {
       throw new HTTPException(400, { message: `Invalid event type. Must be one of: ${eventTypes.join(', ')}` });
     }
+
     // Validate limit range
     if (limit < 1 || limit > 1000) {
       throw new HTTPException(400, { message: 'Query parameter "limit" must be between 1 and 1000' });
+    }
+
     const eventStore = await createEventStore(basePath);
     const eventQuery = createEventQuery(eventStore);
+
     // Build query filters - type is validated by this point
     const validatedType = type && isValidEventType(type) ? type : undefined;
     const filters: EventQuery = {
       resourceId: id,
       ...(validatedType && { eventTypes: [validatedType] }),
     };
+
     if (userId) {
       filters.userId = userId;
+    }
+
     if (limit) {
       filters.limit = limit;
+    }
+
     // Query events
     const storedEvents: StoredEvent[] = await eventQuery.queryEvents(filters);
+
     if (!storedEvents || storedEvents.length === 0) {
       const emptyResponse: GetEventsResponse = {
         events: [],
@@ -77,6 +95,8 @@ export function registerGetEvents(router: ResourcesRouterType) {
         resourceId: id,
       };
       return c.json(emptyResponse);
+    }
+
     // Validate and transform events to match API response structure
     const events = storedEvents.map(stored => {
       // Validate required top-level properties
@@ -85,12 +105,17 @@ export function registerGetEvents(router: ResourcesRouterType) {
       }
       if (!stored.metadata) {
         throw new Error(`Event missing 'metadata' property for resource ${id}`);
+      }
+
       // Validate required event properties
       const { event, metadata } = stored;
       if (!event.id || !event.type || !event.timestamp || !event.userId || !event.resourceId) {
         throw new Error(`Event ${event.id || 'unknown'} for resource ${id} is missing required properties: ${JSON.stringify({ id: event.id, type: event.type, timestamp: event.timestamp, userId: event.userId, resourceId: event.resourceId })}`);
+      }
       if (metadata.sequenceNumber === undefined) {
         throw new Error(`Event ${event.id} for resource ${id} is missing metadata.sequenceNumber`);
+      }
+
       // Return nested structure matching StoredEvent interface - map internal resourceId to API resourceId
       return {
         event: {
@@ -105,9 +130,16 @@ export function registerGetEvents(router: ResourcesRouterType) {
           sequenceNumber: metadata.sequenceNumber,
           prevEventHash: metadata.prevEventHash,
           checksum: metadata.checksum,
+        },
+      };
     });
+
     const response: GetEventsResponse = {
       events,
       total: events.length,
+      resourceId: id,
+    };
+
     return c.json(response);
   });
+}

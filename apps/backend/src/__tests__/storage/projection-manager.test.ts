@@ -10,6 +10,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import type { components } from '@semiont/api-client';
 import type { ResourceAnnotations } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 
 import { createTestResource } from '../fixtures/resource-fixtures';
 import { getResourceId } from '../../utils/resource-helpers';
@@ -79,7 +80,7 @@ describe('ProjectionManager', () => {
 
   describe('Save Operations', () => {
     it('should save projection via manager', async () => {
-      const docId = 'doc-save-1';
+      const docId = resourceId('doc-save-1');
       const state = createTestState(docId);
 
       await manager.save(docId, state);
@@ -89,7 +90,7 @@ describe('ProjectionManager', () => {
     });
 
     it('should delegate save to storage module', async () => {
-      const docId = 'doc-save-2';
+      const docId = resourceId('doc-save-2');
       const state = createTestState(docId);
 
       await manager.save(docId, state);
@@ -114,7 +115,7 @@ describe('ProjectionManager', () => {
 
   describe('Get Operations', () => {
     it('should retrieve projection via manager', async () => {
-      const docId = 'doc-get-1';
+      const docId = resourceId('doc-get-1');
       const state = createTestState(docId);
 
       await manager.save(docId, state);
@@ -130,7 +131,7 @@ describe('ProjectionManager', () => {
     });
 
     it('should delegate get to storage module', async () => {
-      const docId = 'doc-get-2';
+      const docId = resourceId('doc-get-2');
       const state = createTestState(docId);
 
       await manager.save(docId, state);
@@ -144,7 +145,7 @@ describe('ProjectionManager', () => {
 
   describe('Delete Operations', () => {
     it('should delete projection via manager', async () => {
-      const docId = 'doc-delete-1';
+      const docId = resourceId('doc-delete-1');
       const state = createTestState(docId);
 
       await manager.save(docId, state);
@@ -155,7 +156,7 @@ describe('ProjectionManager', () => {
     });
 
     it('should delegate delete to storage module', async () => {
-      const docId = 'doc-delete-2';
+      const docId = resourceId('doc-delete-2');
       const state = createTestState(docId);
 
       await manager.save(docId, state);
@@ -172,7 +173,7 @@ describe('ProjectionManager', () => {
 
   describe('Exists Operations', () => {
     it('should check existence via manager', async () => {
-      const docId = 'doc-exists-1';
+      const docId = resourceId('doc-exists-1');
       const state = createTestState(docId);
 
       expect(await manager.exists(docId)).toBe(false);
@@ -282,7 +283,7 @@ describe('ProjectionManager', () => {
 
   describe('Backward Compatibility', () => {
     it('should support deprecated saveProjection method', async () => {
-      const docId = 'doc-compat-save';
+      const docId = resourceId('doc-compat-save');
       const state = createTestState(docId);
 
       await manager.saveProjection(docId, state);
@@ -292,7 +293,7 @@ describe('ProjectionManager', () => {
     });
 
     it('should support deprecated getProjection method', async () => {
-      const docId = 'doc-compat-get';
+      const docId = resourceId('doc-compat-get');
       const state = createTestState(docId);
 
       await manager.save(docId, state);
@@ -302,7 +303,7 @@ describe('ProjectionManager', () => {
     });
 
     it('should support deprecated deleteProjection method', async () => {
-      const docId = 'doc-compat-delete';
+      const docId = resourceId('doc-compat-delete');
       const state = createTestState(docId);
 
       await manager.save(docId, state);
@@ -312,7 +313,7 @@ describe('ProjectionManager', () => {
     });
 
     it('should support deprecated projectionExists method', async () => {
-      const docId = 'doc-compat-exists';
+      const docId = resourceId('doc-compat-exists');
       const state = createTestState(docId);
 
       await manager.save(docId, state);
@@ -343,7 +344,7 @@ describe('ProjectionManager', () => {
     });
 
     it('should handle concurrent operations', async () => {
-      const docId = 'doc-concurrent';
+      const docId = resourceId('doc-concurrent');
       const state = createTestState(docId);
 
       // Save concurrently (should not corrupt data)
@@ -360,7 +361,7 @@ describe('ProjectionManager', () => {
 
   describe('Orchestration Behavior', () => {
     it('should properly delegate to storage for CRUD', async () => {
-      const docId = 'doc-orchestration';
+      const docId = resourceId('doc-orchestration');
       const state = createTestState(docId);
 
       // Save via manager

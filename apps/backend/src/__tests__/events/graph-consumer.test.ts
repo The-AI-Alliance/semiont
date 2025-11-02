@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GraphDBConsumer } from '../../events/consumers/graph-consumer';
 import type { StoredEvent, ResourceEvent, ResourceCreatedEvent, ResourceClonedEvent } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 import type { GraphDatabase } from '../../graph/interface';
 
@@ -46,7 +47,7 @@ const createMockGraphDB = (): GraphDatabase => ({
 
   createAnnotation: vi.fn().mockResolvedValue({
     id: 'sel-123',
-    resourceId: 'doc-123',
+    resourceId: resourceId('doc-123'),
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'TextualBody',
@@ -57,7 +58,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   getAnnotation: vi.fn().mockResolvedValue(null),
   updateAnnotation: vi.fn().mockResolvedValue({
     id: 'sel-123',
-    resourceId: 'doc-123',
+    resourceId: resourceId('doc-123'),
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'SpecificResource',
@@ -72,7 +73,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   getHighlights: vi.fn().mockResolvedValue([]),
   resolveReference: vi.fn().mockResolvedValue({
     id: 'sel-123',
-    resourceId: 'doc-123',
+    resourceId: resourceId('doc-123'),
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'SpecificResource',
@@ -139,8 +140,8 @@ describe('GraphDBConsumer', () => {
       const event: ResourceCreatedEvent = {
         id: 'evt-1',
         type: 'resource.created',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
@@ -190,8 +191,8 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-1',
         type: 'resource.created',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
@@ -240,8 +241,8 @@ describe('GraphDBConsumer', () => {
       const event: ResourceClonedEvent = {
         id: 'evt-2',
         type: 'resource.cloned',
-        resourceId: 'doc-456',
-        userId: 'user1',
+        resourceId: resourceId('doc-456'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
@@ -293,8 +294,8 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-3',
         type: 'resource.archived',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: { reason: 'test' },
@@ -322,8 +323,8 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-4',
         type: 'resource.unarchived',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {},
@@ -351,8 +352,8 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-5',
         type: 'annotation.added',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
@@ -430,12 +431,12 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-6',
         type: 'annotation.removed',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          annotationId: 'hl-123',
+          annotationId: annotationId('hl-123'),
         },
       };
 
@@ -459,8 +460,8 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-7',
         type: 'annotation.added',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
@@ -538,8 +539,8 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-8',
         type: 'annotation.added',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
@@ -631,12 +632,12 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-9',
         type: 'annotation.body.updated',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          annotationId: 'ref-456',
+          annotationId: annotationId('ref-456'),
           operations: [{
             op: 'add',
             item: {
@@ -674,12 +675,12 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-10',
         type: 'annotation.removed',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
-          annotationId: 'ref-123',
+          annotationId: annotationId('ref-123'),
         },
       };
 
@@ -703,8 +704,8 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-11',
         type: 'entitytag.added',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {
@@ -735,8 +736,8 @@ describe('GraphDBConsumer', () => {
       const event: ResourceEvent = {
         id: 'evt-12',
         type: 'entitytag.removed',
-        resourceId: 'doc-123',
-        userId: 'user1',
+        resourceId: resourceId('doc-123'),
+        userId: userId('user1'),
         timestamp: new Date().toISOString(),
         version: 1,
         payload: {

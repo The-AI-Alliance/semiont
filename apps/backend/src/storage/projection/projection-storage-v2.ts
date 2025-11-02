@@ -18,6 +18,7 @@
 import { promises as fs } from 'fs';
 import type { components } from '@semiont/api-client';
 import type { ResourceAnnotations } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import { PathBuilder } from '../shared/path-builder';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

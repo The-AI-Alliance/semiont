@@ -26,6 +26,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { calculateChecksum } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 
 /**
  * Metadata for a representation being stored

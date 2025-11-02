@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { components } from '@semiont/api-client';
 import type { ResourceCreatedEvent } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
@@ -17,8 +18,8 @@ import { mkdir, rm } from 'fs/promises';
 
 describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => {
   let testBasePath: string;
-  const testDocId = 'test-doc-integration-' + Date.now();
-  const testDocId2 = 'test-doc-target-' + Date.now();
+  const testDocId = resourceId('test-doc-integration-' + Date.now());
+  const testDocId2 = resourceId('test-doc-target-' + Date.now());
 
   beforeAll(async () => {
     // Create temp dir ONCE for entire test suite
@@ -35,7 +36,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     const docEvent1: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
       type: 'resource.created',
       resourceId: testDocId,
-      userId: 'test-user',
+      userId: userId('test-user'),
       version: 1,
       payload: {
         name: 'Test Resource for CRUD',
@@ -48,7 +49,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     const docEvent2: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
       type: 'resource.created',
       resourceId: testDocId2,
-      userId: 'test-user',
+      userId: userId('test-user'),
       version: 1,
       payload: {
         name: 'Test Target Resource',
@@ -106,7 +107,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation },
       });
@@ -161,7 +162,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation },
       });
@@ -199,7 +200,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       const eventStore = await createEventStore(testBasePath);
 
       // Create stub annotation with entity tags
-      const stubId = 'test-resolve-stub-' + Date.now();
+      const stubId = annotationId('test-resolve-stub-' + Date.now());
       const stubAnnotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -232,7 +233,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation: stubAnnotation },
       });
@@ -244,7 +245,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.body.updated',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: {
           annotationId: stubId,
@@ -299,7 +300,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       const eventStore = await createEventStore(testBasePath);
 
       // Create stub with empty body
-      const stubId = 'test-resolve-empty-' + Date.now();
+      const stubId = annotationId('test-resolve-empty-' + Date.now());
       const stubAnnotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -326,7 +327,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation: stubAnnotation },
       });
@@ -337,7 +338,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.body.updated',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: {
           annotationId: stubId,
@@ -410,7 +411,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       const eventStore = await createEventStore(testBasePath);
 
       // Create annotation
-      const deleteId = 'test-delete-' + Date.now();
+      const deleteId = annotationId('test-delete-' + Date.now());
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -448,7 +449,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation },
       });
@@ -463,7 +464,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.removed',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: {
           annotationId: deleteId,
@@ -509,7 +510,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation },
       });
