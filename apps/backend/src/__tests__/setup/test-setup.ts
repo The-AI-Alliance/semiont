@@ -9,7 +9,6 @@ let testEnv: TestEnvironmentConfig | null = null;
 beforeAll(async () => {
   // Create proper Semiont project structure for integration tests
   testEnv = await setupTestEnvironment();
-  console.log(`📋 Created test project at ${testEnv.testDir}`);
 
   // Ensure integration test environment is properly configured
   process.env.NODE_ENV = 'test';
