@@ -48,6 +48,15 @@ export class DetectionWorker extends JobWorker {
     let totalEmitted = 0;
     let totalErrors = 0;
 
+    // Emit job.started before processing
+    job.progress = {
+      totalEntityTypes: job.entityTypes.length,
+      processedEntityTypes: 0,
+      entitiesFound: 0,
+      entitiesEmitted: 0
+    };
+    await this.updateJobProgress(job);
+
     // Process each entity type
     for (let i = 0; i < job.entityTypes.length; i++) {
       const entityType = job.entityTypes[i];
@@ -55,16 +64,6 @@ export class DetectionWorker extends JobWorker {
       if (!entityType) continue;
 
       console.log(`[DetectionWorker] 🤖 [${i + 1}/${job.entityTypes.length}] Detecting ${entityType}...`);
-
-      // Update progress
-      job.progress = {
-        totalEntityTypes: job.entityTypes.length,
-        processedEntityTypes: i,
-        currentEntityType: entityType,
-        entitiesFound: totalFound,
-        entitiesEmitted: totalEmitted
-      };
-      await this.updateJobProgress(job);
 
       // Detect entities using AI (loads content from filesystem internally)
       const detectedAnnotations = await detectAnnotationsInResource(
@@ -148,6 +147,16 @@ export class DetectionWorker extends JobWorker {
       }
 
       console.log(`[DetectionWorker] ✅ Completed ${entityType}: ${detectedAnnotations.length} found, ${detectedAnnotations.length - (totalErrors - (totalFound - totalEmitted))} emitted`);
+
+      // Update progress after processing this entity type
+      job.progress = {
+        totalEntityTypes: job.entityTypes.length,
+        processedEntityTypes: i + 1,
+        currentEntityType: entityType,
+        entitiesFound: totalFound,
+        entitiesEmitted: totalEmitted
+      };
+      await this.updateJobProgress(job);
     }
 
     // Set final result
@@ -157,15 +166,78 @@ export class DetectionWorker extends JobWorker {
       errors: totalErrors
     };
 
-    job.progress = {
-      totalEntityTypes: job.entityTypes.length,
-      processedEntityTypes: job.entityTypes.length,
-      entitiesFound: totalFound,
-      entitiesEmitted: totalEmitted
+    console.log(`[DetectionWorker] ✅ Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted, ${totalErrors} errors`);
+  }
+
+  /**
+   * Update job progress and emit events to Event Store
+   * Overrides base class to also emit job progress events
+   */
+  protected override async updateJobProgress(job: Job): Promise<void> {
+    // Call parent to update job queue
+    await super.updateJobProgress(job);
+
+    // Emit events for detection jobs
+    if (job.type !== 'detection') {
+      return;
+    }
+
+    const detJob = job as DetectionJob;
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
+
+    const baseEvent = {
+      resourceId: detJob.resourceId,
+      userId: detJob.userId,
+      version: 1,
     };
 
-    await this.updateJobProgress(job);
+    // Determine if this is the first progress update (job.started)
+    const isFirstUpdate = detJob.progress?.processedEntityTypes === 0;
 
-    console.log(`[DetectionWorker] ✅ Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted, ${totalErrors} errors`);
+    // Determine if this is the final update (job.completed)
+    const isFinalUpdate =
+      detJob.progress?.processedEntityTypes === detJob.progress?.totalEntityTypes &&
+      detJob.progress?.totalEntityTypes > 0;
+
+    if (isFirstUpdate) {
+      // First progress update - emit job.started
+      await eventStore.appendEvent({
+        type: 'job.started',
+        ...baseEvent,
+        payload: {
+          jobId: detJob.id,
+          jobType: detJob.type,
+          totalEntityTypes: detJob.entityTypes.length,
+        },
+      });
+    } else if (isFinalUpdate) {
+      // Final progress update - emit job.completed
+      await eventStore.appendEvent({
+        type: 'job.completed',
+        ...baseEvent,
+        payload: {
+          jobId: detJob.id,
+          jobType: detJob.type,
+          entitiesFound: detJob.progress.entitiesFound,
+          entitiesEmitted: detJob.progress.entitiesEmitted,
+        },
+      });
+    } else if (detJob.progress) {
+      // Intermediate progress - emit job.progress
+      await eventStore.appendEvent({
+        type: 'job.progress',
+        ...baseEvent,
+        payload: {
+          jobId: detJob.id,
+          jobType: detJob.type,
+          currentEntityType: detJob.progress.currentEntityType,
+          processedEntityTypes: detJob.progress.processedEntityTypes,
+          totalEntityTypes: detJob.progress.totalEntityTypes,
+          entitiesFound: detJob.progress.entitiesFound,
+          entitiesEmitted: detJob.progress.entitiesEmitted,
+        },
+      });
+    }
   }
 }

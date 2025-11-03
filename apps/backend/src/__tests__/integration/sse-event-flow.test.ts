@@ -24,6 +24,7 @@ describe('SSE Event Flow - End-to-End', () => {
     // Set environment variables for @semiont/core config loading
     process.env.SEMIONT_ROOT = testDir;
     process.env.SEMIONT_ENV = 'unit';
+    process.env.BACKEND_URL = 'http://localhost:4000';
 
     const { createEventStore } = await import('../../services/event-store-service');
     eventStore = await createEventStore(testDir, {

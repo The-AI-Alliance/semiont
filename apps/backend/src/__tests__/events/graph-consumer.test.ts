@@ -123,6 +123,7 @@ describe('GraphDBConsumer', () => {
   let mockGraphDB: GraphDatabase;
 
   beforeEach(async () => {
+    process.env.BACKEND_URL = 'http://localhost:4000';
     mockGraphDB = createMockGraphDB();
     consumer = new GraphDBConsumer();
 
@@ -311,7 +312,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('doc-123', {
+      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('http://localhost:4000/resources/doc-123', {
         archived: true,
       });
     });
@@ -340,7 +341,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('doc-123', {
+      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('http://localhost:4000/resources/doc-123', {
         archived: false,
       });
     });
@@ -450,7 +451,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.deleteAnnotation).toHaveBeenCalledWith('hl-123');
+      expect(mockGraphDB.deleteAnnotation).toHaveBeenCalledWith('http://localhost:4000/annotations/hl-123');
     });
   });
 
@@ -660,7 +661,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       // Should update annotation with both TextualBody and SpecificResource
-      expect(mockGraphDB.updateAnnotation).toHaveBeenCalledWith('ref-456', {
+      expect(mockGraphDB.updateAnnotation).toHaveBeenCalledWith('http://localhost:4000/annotations/ref-456', {
         body: [
           { type: 'TextualBody', value: 'Entity1', purpose: 'tagging' },
           { type: 'SpecificResource', source: 'doc-789', purpose: 'linking' },
@@ -694,7 +695,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.deleteAnnotation).toHaveBeenCalledWith('ref-123');
+      expect(mockGraphDB.deleteAnnotation).toHaveBeenCalledWith('http://localhost:4000/annotations/ref-123');
     });
   });
 
@@ -723,8 +724,8 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.getResource).toHaveBeenCalledWith('doc-123');
-      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('doc-123', {
+      expect(mockGraphDB.getResource).toHaveBeenCalledWith('http://localhost:4000/resources/doc-123');
+      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('http://localhost:4000/resources/doc-123', {
         entityTypes: ['entity1', 'NewEntity'],
       });
     });
@@ -755,8 +756,8 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.getResource).toHaveBeenCalledWith('doc-123');
-      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('doc-123', {
+      expect(mockGraphDB.getResource).toHaveBeenCalledWith('http://localhost:4000/resources/doc-123');
+      expect(mockGraphDB.updateResource).toHaveBeenCalledWith('http://localhost:4000/resources/doc-123', {
         entityTypes: [],
       });
     });

@@ -129,7 +129,7 @@ describe('EventSubscriptions', () => {
 
       expect(subscriptions.getSubscriptionCount(resourceUri('http://localhost:4000/resources/doc1'))).toBe(2);
       expect(subscriptions.getSubscriptionCount(resourceUri('http://localhost:4000/resources/doc2'))).toBe(1);
-      expect(subscriptions.getSubscriptionCount(resourceUri('http://localhost:4000/resources/doc-nonexistent'))).toBe(0);
+      expect(subscriptions.getSubscriptionCount(resourceUri('doc-nonexistent'))).toBe(0);
     });
 
     it('should get total subscription count', () => {
@@ -306,7 +306,7 @@ describe('EventSubscriptions', () => {
     it('should handle notification with no subscribers', async () => {
       const event = createStoredEvent('annotation.added', 'doc-nonexistent');
 
-      await expect(subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc-nonexistent'), event)).resolves.toBeUndefined();
+      await expect(subscriptions.notifySubscribers(resourceUri('doc-nonexistent'), event)).resolves.toBeUndefined();
     });
 
     it('should handle global notification with no subscribers', async () => {

@@ -96,7 +96,7 @@ describe('DetectionWorker - Event Emission', () => {
       payload: {
         jobId: 'job-test-1',
         jobType: 'detection',
-        totalSteps: 1
+        totalEntityTypes: 1
       }
     });
   });
@@ -124,7 +124,7 @@ describe('DetectionWorker - Event Emission', () => {
     const events = await query.getResourceEvents('resource-2');
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
-    expect(progressEvents.length).toBeGreaterThanOrEqual(3); // At least one per entity type
+    expect(progressEvents.length).toBeGreaterThanOrEqual(2); // First two entity types emit progress, last emits completed
 
     // Check first progress event
     expect(progressEvents[0]).toBeDefined();
@@ -134,16 +134,13 @@ describe('DetectionWorker - Event Emission', () => {
       payload: {
         jobId: 'job-test-2',
         jobType: 'detection',
-        currentStep: 'Person',
-        processedSteps: 0,
-        totalSteps: 3
+        currentEntityType: 'Person',
+        processedEntityTypes: 1,
+        totalEntityTypes: 3,
+        entitiesFound: expect.any(Number),
+        entitiesEmitted: expect.any(Number)
       }
     });
-
-    // Check progress percentage increases
-    const percentages = progressEvents.map(e => (e.event.payload as any).percentage).filter((p): p is number => typeof p === 'number');
-    expect(percentages[0]).toBeDefined();
-    expect(percentages[0]!).toBeLessThan(percentages[percentages.length - 1]!);
   });
 
   it('should emit job.completed event when detection finishes successfully', async () => {
@@ -177,7 +174,9 @@ describe('DetectionWorker - Event Emission', () => {
       resourceId: resourceId('resource-3'),
       payload: {
         jobId: 'job-test-3',
-        jobType: 'detection'
+        jobType: 'detection',
+        entitiesFound: expect.any(Number),
+        entitiesEmitted: expect.any(Number)
       }
     });
   });
@@ -239,7 +238,7 @@ describe('DetectionWorker - Event Emission', () => {
       status: 'pending',
       userId: userId('user-1'),
       resourceId: resourceId('resource-5'),
-      entityTypes: ['Person'],
+      entityTypes: ['Person', 'Organization'], // Use multiple types to test progress
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -262,11 +261,11 @@ describe('DetectionWorker - Event Emission', () => {
     // Last event should be job.completed
     expect(eventTypes[eventTypes.length - 1]).toBe('job.completed');
 
-    // Should have at least one job.progress event
+    // Should have at least one job.progress event (between started and completed)
     expect(eventTypes).toContain('job.progress');
   });
 
-  it('should include foundCount in progress events', async () => {
+  it('should include entitiesFound and entitiesEmitted in progress events', async () => {
     const job: DetectionJob = {
       id: 'job-test-6',
       type: 'detection',
@@ -291,8 +290,10 @@ describe('DetectionWorker - Event Emission', () => {
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
 
     for (const event of progressEvents) {
-      expect(event.event.payload).toHaveProperty('foundCount');
-      expect(typeof (event.event.payload as any).foundCount).toBe('number');
+      expect(event.event.payload).toHaveProperty('entitiesFound');
+      expect(typeof (event.event.payload as any).entitiesFound).toBe('number');
+      expect(event.event.payload).toHaveProperty('entitiesEmitted');
+      expect(typeof (event.event.payload as any).entitiesEmitted).toBe('number');
     }
   });
 });
