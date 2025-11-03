@@ -200,6 +200,10 @@ jobs:
           cat > environments/ci.json << 'EOF'
           {
             "_comment": "ci environment",
+            "site": {
+              "domain": "localhost",
+              "oauthAllowedDomains": ["example.com", "test.example.com"]
+            },
             "platform": {
               "default": "process"
             },
@@ -212,7 +216,16 @@ jobs:
                   "type": "process"
                 },
                 "command": "npm start",
-                "port": 3001
+                "port": 3001,
+                "publicURL": "http://localhost:3001",
+                "corsOrigin": "http://localhost:3000"
+              },
+              "frontend": {
+                "url": "http://localhost:3000",
+                "port": 3000
+              },
+              "filesystem": {
+                "path": "data"
               },
               "database": {
                 "platform": {
@@ -265,36 +278,28 @@ jobs:
 
       - name: Start backend for API security verification
         run: |
-          # TODO: Fix semiont start to properly detach processes in CI
-          # Currently semiont start spawns the process but it dies when semiont exits
-          # This is a workaround - starting the backend directly
-          
-          # Set required environment variables
-          export PORT=3001
-          export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
-          export JWT_SECRET=test-secret-for-ci
-          export NODE_ENV=ci
+          # Start backend using the ci environment configuration
+          cd ../..
+          export SEMIONT_ROOT=$(pwd)
           export SEMIONT_ENV=ci
-          export BACKEND_URL=http://localhost:3001
-          export CORS_ORIGIN=http://localhost:3000
-          export FRONTEND_URL=http://localhost:3000
-          
-          # Start backend directly - workaround for semiont process spawning issue
-          echo "Starting backend on port 3001..."
+          export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
+
+          echo "Starting backend with SEMIONT_ENV=ci..."
+          cd apps/backend
           nohup npm start > backend.log 2>&1 &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
-          
+
           # Give it a moment to start
           sleep 5
-          
+
           # Check if process is still running
           if ! kill -0 $APP_PID 2>/dev/null; then
             echo "Backend process died immediately. Logs:"
             cat backend.log
             exit 1
           fi
-          
+
           # Try to curl the health endpoint with verbose output
           echo "Attempting to connect to backend health endpoint..."
           for i in {1..30}; do
@@ -304,7 +309,7 @@ jobs:
             fi
             echo "Attempt $i failed, waiting..."
             sleep 2
-            
+
             # Check if process is still alive
             if ! kill -0 $APP_PID 2>/dev/null; then
               echo "Backend process died. Logs:"
@@ -312,7 +317,7 @@ jobs:
               exit 1
             fi
           done
-          
+
           # Final check
           if ! curl -f http://localhost:3001/api/health 2>/dev/null; then
             echo "Backend never became healthy. Process status:"
