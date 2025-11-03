@@ -10,7 +10,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from './shard-utils';
-import { getFilesystemConfig } from '../config/config';
 import type { components } from '@semiont/api-client';
 import type { ResourceAnnotations, ResourceId } from '@semiont/core';
 
@@ -33,13 +32,8 @@ export interface ProjectionStorage {
 export class FilesystemProjectionStorage implements ProjectionStorage {
   private basePath: string;
 
-  constructor(basePath?: string) {
-    if (basePath) {
-      this.basePath = basePath;
-    } else {
-      const config = getFilesystemConfig();
-      this.basePath = config.path;
-    }
+  constructor(basePath: string) {
+    this.basePath = basePath;
   }
 
   private getProjectionPath(resourceId: ResourceId): string {

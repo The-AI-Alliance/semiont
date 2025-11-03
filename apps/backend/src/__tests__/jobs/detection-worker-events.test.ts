@@ -101,9 +101,8 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/config');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
+    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-1');
@@ -140,9 +139,8 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/config');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
+    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-2');
@@ -182,9 +180,8 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/config');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
+    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-3');
@@ -219,9 +216,8 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/config');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
+    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-4');
@@ -269,9 +265,8 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/config');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
+    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-5');
@@ -303,9 +298,8 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/config');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
+    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-6');

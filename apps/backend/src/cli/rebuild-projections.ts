@@ -11,14 +11,17 @@
  */
 
 import { createEventStore, createEventQuery, createEventValidator } from '../services/event-store-service';
-import { getFilesystemConfig } from '../config/config';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { loadEnvironmentConfig, resourceId as makeResourceId } from '@semiont/core';
 
 async function rebuildProjections(rId?: string) {
   console.log('🔄 Rebuilding annotation projections from events...\n');
 
-  const config = getFilesystemConfig();
-  const eventStore = await createEventStore(config.path);
+  // Load config - uses SEMIONT_ROOT and SEMIONT_ENV from environment
+  const projectRoot = process.env.SEMIONT_ROOT || process.cwd();
+  const environment = process.env.SEMIONT_ENV || 'development';
+  const config = loadEnvironmentConfig(projectRoot, environment);
+
+  const eventStore = await createEventStore(config.services.filesystem!.path);
   const query = createEventQuery(eventStore);
   const validator = createEventValidator();
 
@@ -65,7 +68,7 @@ async function rebuildProjections(rId?: string) {
     // TODO: Implement full directory scan across all shards
     // For now, show usage message
     console.log(`   To rebuild all projections, you need to:`);
-    console.log(`   1. Scan all event shards in ${config.path}/events/shards/`);
+    console.log(`   1. Scan all event shards in ${config.services.filesystem!.path}/events/shards/`);
     console.log(`   2. For each resource found, call eventStore.projector.projectResource(resourceId)`);
     console.log(`   3. Projections are automatically saved to Layer 3\n`);
     console.log(`   For now, rebuild individual resources by ID.`);

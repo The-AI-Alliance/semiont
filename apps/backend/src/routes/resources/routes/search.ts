@@ -27,6 +27,7 @@ export function registerSearchResources(router: ResourcesRouterType) {
     const query = c.req.query();
     const q = query.q;
     const limit = Number(query.limit) || 10;
+    const config = c.get('config');
 
     // Validate required param
     if (!q || q.trim().length === 0) {
@@ -36,7 +37,7 @@ export function registerSearchResources(router: ResourcesRouterType) {
     // Search using Layer 3 projection storage
     const matchingDocs = await ResourceQueryService.listResources({
       search: q,
-    });
+    }, config);
 
     // Limit results
     const limitedDocs = matchingDocs.slice(0, limit);

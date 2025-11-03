@@ -39,7 +39,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       const basePath = config.services.filesystem!.path;
 
       // Check resource exists using Layer 3
-      const doc = await ResourceQueryService.getResourceMetadata(id);
+      const doc = await ResourceQueryService.getResourceMetadata(id, config);
       if (!doc) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }

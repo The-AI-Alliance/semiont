@@ -14,10 +14,10 @@
 import { generateResourceSummary } from '../inference/factory';
 import { getBodySource, getTargetSource, getTargetSelector } from '../lib/annotation-utils';
 import type { components } from '@semiont/api-client';
-import { getFilesystemConfig } from '../config/config';
 import { FilesystemRepresentationStore } from '../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../utils/resource-helpers';
 import { createProjectionManager } from './storage-service';
+import type { EnvironmentConfig } from '@semiont/core';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
@@ -35,6 +35,7 @@ export class AnnotationContextService {
    *
    * @param annotationId - Annotation ID (with or without URI prefix)
    * @param resourceId - Source resource ID
+   * @param config - Application configuration
    * @param options - Context building options
    * @returns Rich context for LLM processing
    * @throws Error if annotation or resource not found
@@ -42,6 +43,7 @@ export class AnnotationContextService {
   static async buildLLMContext(
     annotationId: string,
     resourceId: string,
+    config: EnvironmentConfig,
     options: BuildContextOptions = {}
   ): Promise<AnnotationLLMContextResponse> {
     const {
@@ -62,7 +64,7 @@ export class AnnotationContextService {
     const shortResourceId = resourceId.split('/').pop() || resourceId;
     console.log(`[AnnotationContext] Short resource ID: ${shortResourceId}`);
 
-    const basePath = getFilesystemConfig().path;
+    const basePath = config.services.filesystem!.path;
     console.log(`[AnnotationContext] basePath=${basePath}`);
 
     const projectionManager = createProjectionManager(basePath);

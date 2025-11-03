@@ -13,7 +13,6 @@ import { createEventStore, createEventQuery } from '../../../services/event-stor
 import type { EventQuery, StoredEvent } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 import { HTTPException } from 'hono/http-exception';
-import { getFilesystemConfig } from '../../../config/config';
 
 type GetEventsResponse = components['schemas']['GetEventsResponse'];
 
@@ -49,7 +48,8 @@ export function registerGetEvents(router: ResourcesRouterType) {
   router.get('/api/resources/:id/events', async (c) => {
     const { id } = c.req.param();
     const queryParams = c.req.query();
-    const basePath = getFilesystemConfig().path;
+    const config = c.get('config');
+    const basePath = config.services.filesystem!.path;
 
     // Parse and validate query parameters
     const type = queryParams.type;

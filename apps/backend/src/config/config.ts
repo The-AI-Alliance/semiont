@@ -5,7 +5,6 @@
  * for backend-specific config sections.
  */
 
-import * as path from 'path';
 import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 
 /**
@@ -23,27 +22,6 @@ function getConfig() {
     cachedConfig = loadEnvironmentConfig(projectRoot, environment);
   }
   return cachedConfig;
-}
-
-/**
- * Get filesystem service configuration
- */
-export function getFilesystemConfig(): { path: string } {
-  const config = getConfig();
-
-  if (!config.services?.filesystem?.path) {
-    throw new Error('services.filesystem.path is required in environment config');
-  }
-
-  let resolvedPath = config.services.filesystem.path;
-
-  // If path is relative, prepend project root
-  if (!path.isAbsolute(resolvedPath)) {
-    const projectRoot = findProjectRoot();
-    resolvedPath = path.join(projectRoot, resolvedPath);
-  }
-
-  return { path: resolvedPath };
 }
 
 /**
@@ -113,21 +91,6 @@ export function getInferenceConfig(): {
   }
 
   return expandedConfig;
-}
-
-/**
- * Get backend configuration (public URL for generating URIs)
- */
-export function getBackendConfig(): { publicURL: string } {
-  const config = getConfig();
-
-  if (!config.services?.backend?.publicURL) {
-    throw new Error('services.backend.publicURL is required in environment config');
-  }
-
-  return {
-    publicURL: config.services.backend.publicURL
-  };
 }
 
 /**

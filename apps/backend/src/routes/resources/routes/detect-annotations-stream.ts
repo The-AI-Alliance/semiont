@@ -47,6 +47,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as DetectAnnotationsStreamRequest;
       const { entityTypes } = body;
+      const config = c.get('config');
 
       console.log(`[DetectAnnotations] Starting detection for resource ${id} with entity types:`, entityTypes);
 
@@ -57,7 +58,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
       }
 
       // Validate resource exists using Layer 3
-      const resource = await ResourceQueryService.getResourceMetadata(id);
+      const resource = await ResourceQueryService.getResourceMetadata(id, config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found in Layer 3 projections - resource may need to be recreated' });
       }

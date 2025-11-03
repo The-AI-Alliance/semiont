@@ -1,9 +1,9 @@
 // Helper functions for resource routes
 import type { components } from '@semiont/api-client';
 import { extractEntities } from '../../inference/entity-extractor';
-import { getFilesystemConfig } from '../../config/config';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { getPrimaryRepresentation } from '../../utils/resource-helpers';
+import type { EnvironmentConfig } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -31,7 +31,8 @@ export interface DetectedAnnotation {
 // Implementation for detecting entity references in resource using AI
 export async function detectAnnotationsInResource(
   resource: ResourceDescriptor,
-  entityTypes: string[]
+  entityTypes: string[],
+  config: EnvironmentConfig
 ): Promise<DetectedAnnotation[]> {
   console.log(`Detecting entities of types: ${entityTypes.join(', ')}`);
 
@@ -47,7 +48,7 @@ export async function detectAnnotationsInResource(
     // Load content from representation store using content-addressed lookup
     if (!primaryRep.checksum || !primaryRep.mediaType) return detectedAnnotations;
 
-    const basePath = getFilesystemConfig().path;
+    const basePath = config.services.filesystem!.path;
     const repStore = new FilesystemRepresentationStore({ basePath });
     const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
     const content = contentBuffer.toString('utf-8');

@@ -13,7 +13,6 @@ import { formatSearchResult } from '../helpers';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { ResourceQueryService } from '../../../services/resource-queries';
-import { getFilesystemConfig } from '../../../config/config';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
 
@@ -30,7 +29,8 @@ export function registerListResources(router: ResourcesRouterType) {
   router.get('/api/resources', async (c) => {
     // Parse query parameters with defaults and coercion
     const query = c.req.query();
-    const basePath = getFilesystemConfig().path;
+    const config = c.get('config');
+    const basePath = config.services.filesystem!.path;
     const offset = Number(query.offset) || 0;
     const limit = Number(query.limit) || 50;
     const entityType = query.entityType;
@@ -53,7 +53,7 @@ export function registerListResources(router: ResourcesRouterType) {
     let filteredDocs = await ResourceQueryService.listResources({
       search,
       archived,
-    });
+    }, config);
 
     // Additional filter by entity type (Layer 3 already handles search and archived)
     if (entityType) {

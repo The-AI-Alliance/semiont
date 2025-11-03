@@ -11,7 +11,6 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { AnnotationContextService } from '../../../services/annotation-context';
-import { getBackendConfig } from '../../../config/config';
 
 export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   /**
@@ -28,6 +27,7 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   router.get('/api/resources/:resourceId/annotations/:annotationId/llm-context', async (c) => {
     const { resourceId, annotationId } = c.req.param();
     const query = c.req.query();
+    const config = c.get('config');
 
     // Parse and validate query parameters
     const includeSourceContext = query.includeSourceContext === 'false' ? false : true;
@@ -41,11 +41,10 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
 
     try {
       // Construct full resource URI (consistent with W3C Web Annotation spec)
-      const backendConfig = getBackendConfig();
-      const resourceUri = `${backendConfig.publicURL}/resources/${resourceId}`;
+      const resourceUri = `${config.services.backend!.publicURL}/resources/${resourceId}`;
 
       // Use shared service to build context
-      const response = await AnnotationContextService.buildLLMContext(annotationId, resourceUri, {
+      const response = await AnnotationContextService.buildLLMContext(annotationId, resourceUri, config, {
         includeSourceContext,
         includeTargetContext,
         contextWindow

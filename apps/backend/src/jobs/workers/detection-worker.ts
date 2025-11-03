@@ -42,7 +42,7 @@ export class DetectionWorker extends JobWorker {
     console.log(`[DetectionWorker] 🔍 Entity types: ${job.entityTypes.join(', ')}`);
 
     // Fetch resource content
-    const resource = await ResourceQueryService.getResourceMetadata(job.resourceId);
+    const resource = await ResourceQueryService.getResourceMetadata(job.resourceId, this.config);
 
     if (!resource) {
       throw new Error(`Resource ${job.resourceId} not found`);
@@ -72,7 +72,8 @@ export class DetectionWorker extends JobWorker {
       // Detect entities using AI (loads content from filesystem internally)
       const detectedAnnotations = await detectAnnotationsInResource(
         resource,
-        [entityType]
+        [entityType],
+        this.config
       );
 
       totalFound += detectedAnnotations.length;

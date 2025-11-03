@@ -18,7 +18,6 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { resourceUri } from '@semiont/core';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
-import { getFilesystemConfig, getBackendConfig } from '../../../config/config';
 
 /**
  * Resource-scoped SSE event stream for real-time collaboration
@@ -39,11 +38,11 @@ export function registerGetEventStream(router: ResourcesRouterType) {
    */
   router.get('/api/resources/:id/events/stream', async (c) => {
     const { id } = c.req.param();
-    const basePath = getFilesystemConfig().path;
+    const config = c.get('config');
+    const basePath = config.services.filesystem!.path;
 
     // Construct full resource URI for event subscriptions (consistent with W3C Web Annotation spec)
-    const backendConfig = getBackendConfig();
-    const rUri = resourceUri(`${backendConfig.publicURL}/resources/${id}`);
+    const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
 
     console.log(`[EventStream] Client connecting to resource events stream for ${id}`);
     console.log(`[EventStream] Subscribing to events for resource URI: ${rUri}`);

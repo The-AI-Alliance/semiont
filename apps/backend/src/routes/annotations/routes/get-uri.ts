@@ -72,7 +72,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     }
 
     // Get resource metadata
-    const resource = await ResourceQueryService.getResourceMetadata(resourceId);
+    const resource = await ResourceQueryService.getResourceMetadata(resourceId, config);
 
     // If it's a linking annotation with a resolved source, get resolved resource
     let resolvedResource = null;
@@ -80,7 +80,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     if (annotation.motivation === 'linking' && bodySource) {
       // Extract ID from body source URI if needed
       const bodyDocId = bodySource.includes('://') ? uriToResourceId(bodySource) : bodySource;
-      resolvedResource = await ResourceQueryService.getResourceMetadata(bodyDocId);
+      resolvedResource = await ResourceQueryService.getResourceMetadata(bodyDocId, config);
     }
 
     const response: GetAnnotationResponse = {

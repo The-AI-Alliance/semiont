@@ -4,7 +4,6 @@ import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
-import { getFilesystemConfig } from '../config/config';
 import { getShardPath } from './shard-utils';
 
 export interface StorageService {
@@ -17,14 +16,9 @@ export interface StorageService {
 
 export class FilesystemStorage implements StorageService {
   private basePath: string;
-  
-  constructor(basePath?: string) {
-    if (basePath) {
-      this.basePath = basePath;
-    } else {
-      const config = getFilesystemConfig();
-      this.basePath = config.path;
-    }
+
+  constructor(basePath: string) {
+    this.basePath = basePath;
   }
   
   async ensureDirectoryExists(): Promise<void> {

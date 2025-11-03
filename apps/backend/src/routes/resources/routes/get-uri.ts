@@ -16,7 +16,6 @@ import { EventQuery } from '../../../events/query/event-query';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/config';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getPrimaryMediaType } from '../../../utils/resource-helpers';
@@ -36,6 +35,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
    */
   router.get('/resources/:id', async (c) => {
     const { id } = c.req.param();
+    const config = c.get('config');
 
     // Check for explicit view=semiont query parameter
     const view = c.req.query('view');
@@ -48,14 +48,14 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
 
     // Check Accept header for content negotiation
     const acceptHeader = c.req.header('Accept') || 'application/ld+json';
-    const basePath = getFilesystemConfig().path;
+    const basePath = config.services.filesystem!.path;
 
     // If requesting raw representation (text/plain, text/markdown, etc.)
     if (acceptHeader.includes('text/') || acceptHeader.includes('application/pdf')) {
       const repStore = new FilesystemRepresentationStore({ basePath });
 
       // Get resource metadata from Layer 3
-      const resource = await ResourceQueryService.getResourceMetadata(id);
+      const resource = await ResourceQueryService.getResourceMetadata(id, config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }

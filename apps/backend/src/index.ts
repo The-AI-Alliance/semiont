@@ -266,7 +266,7 @@ if (nodeEnv !== 'test') {
     try {
       console.log('🌱 Bootstrapping entity types...');
       const { bootstrapEntityTypes } = await import('./bootstrap/entity-types-bootstrap');
-      await bootstrapEntityTypes();
+      await bootstrapEntityTypes(config);
       console.log('✅ Entity types bootstrap complete');
     } catch (error) {
       console.error('⚠️ Failed to bootstrap entity types:', error);

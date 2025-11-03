@@ -74,7 +74,7 @@ export class GenerationWorker extends JobWorker {
       throw new Error(`Reference annotation ${job.referenceId} not found in resource ${job.sourceResourceId}`);
     }
 
-    const sourceResource = await ResourceQueryService.getResourceMetadata(job.sourceResourceId);
+    const sourceResource = await ResourceQueryService.getResourceMetadata(job.sourceResourceId, this.config);
     if (!sourceResource) {
       throw new Error(`Source resource ${job.sourceResourceId} not found`);
     }

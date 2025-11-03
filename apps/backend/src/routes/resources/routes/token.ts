@@ -22,7 +22,6 @@ import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-import { getFilesystemConfig } from '../../../config/config';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getResourceId, getEntityTypes } from '../../../utils/resource-helpers';
 
@@ -83,7 +82,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
     async (c) => {
       const body = c.get('validatedBody') as CreateResourceFromTokenRequest;
       const user = c.get('user');
-      const basePath = getFilesystemConfig().path;
+      const config = c.get('config');
+      const basePath = config.services.filesystem!.path;
 
       const tokenData = cloneTokens.get(body.token);
       if (!tokenData) {
@@ -94,8 +94,6 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         cloneTokens.delete(body.token);
         throw new HTTPException(404, { message: 'Token expired' });
       }
-
-      const config = c.get('config');
     const graphDb = await getGraphDatabase(config);
       const repStore = new FilesystemRepresentationStore({ basePath });
 
@@ -179,8 +177,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
    */
   router.post('/api/resources/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
-    const basePath = getFilesystemConfig().path;
     const config = c.get('config');
+    const basePath = config.services.filesystem!.path;
     const graphDb = await getGraphDatabase(config);
     const repStore = new FilesystemRepresentationStore({ basePath });
 
