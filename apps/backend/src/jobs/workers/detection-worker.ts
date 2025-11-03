@@ -13,10 +13,14 @@ import { ResourceQueryService } from '../../services/resource-queries';
 import { detectAnnotationsInResource } from '../../routes/resources/helpers';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
-import { getFilesystemConfig } from '../../config/config';
 import { resourceIdToURI } from '../../lib/uri-utils';
+import type { EnvironmentConfig } from '@semiont/core';
 
 export class DetectionWorker extends JobWorker {
+  constructor(private config: EnvironmentConfig) {
+    super();
+  }
+
   protected getWorkerName(): string {
     return 'DetectionWorker';
   }
@@ -96,7 +100,7 @@ export class DetectionWorker extends JobWorker {
         }
 
         try {
-          const basePath = getFilesystemConfig().path;
+          const basePath = this.config.services.filesystem!.path;
           const eventStore = await createEventStore(basePath);
           await eventStore.appendEvent({
             type: 'annotation.added',
@@ -110,7 +114,7 @@ export class DetectionWorker extends JobWorker {
                 id: referenceId,
                 motivation: 'linking' as const,
                 target: {
-                  source: resourceIdToURI(job.resourceId), // Convert to full URI
+                  source: resourceIdToURI(job.resourceId, this.config.services.backend!.publicURL), // Convert to full URI
                   selector: [
                     {
                       type: 'TextPositionSelector',
@@ -183,7 +187,7 @@ export class DetectionWorker extends JobWorker {
     }
 
     const detJob = job as DetectionJob;
-    const basePath = getFilesystemConfig().path;
+    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
 
     const baseEvent = {

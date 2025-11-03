@@ -5,23 +5,22 @@
  * Full URIs are required by W3C Web Annotation Data Model.
  */
 
-import { getBackendConfig } from '../config/config';
 import { resourceId, resourceUri, annotationId, annotationUri, type ResourceId, type ResourceUri, type AnnotationId, type AnnotationUri } from '@semiont/core';
 
 /**
  * Convert resource ID to full URI
  *
- * @param resourceId - Short resource ID (e.g., "doc-abc123")
+ * @param id - Short resource ID (e.g., "doc-abc123")
+ * @param publicURL - Backend base URL
  * @returns Full URI (e.g., "https://api.semiont.app/resources/doc-abc123")
  *
  * @example
- * resourceIdToURI("doc-abc123")
+ * resourceIdToURI("doc-abc123", "https://api.semiont.app")
  * // => "https://api.semiont.app/resources/doc-abc123"
  */
-export function resourceIdToURI(id: ResourceId): ResourceUri {
-  const baseURL = getBackendConfig().publicURL;
+export function resourceIdToURI(id: ResourceId, publicURL: string): ResourceUri {
   // Remove trailing slash if present
-  const normalizedBase = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+  const normalizedBase = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL;
   return resourceUri(`${normalizedBase}/resources/${id}` );
 }
 
@@ -48,17 +47,17 @@ export function uriToResourceId(uri: string): ResourceId {
 /**
  * Convert annotation ID to full URI
  *
- * @param annotationId - Short annotation ID (e.g., "anno-xyz789")
+ * @param id - Short annotation ID (e.g., "anno-xyz789")
+ * @param publicURL - Backend base URL
  * @returns Full URI (e.g., "https://api.semiont.app/annotations/anno-xyz789")
  *
  * @example
- * annotationIdToURI("anno-xyz789")
+ * annotationIdToURI("anno-xyz789", "https://api.semiont.app")
  * // => "https://api.semiont.app/annotations/anno-xyz789"
  */
-export function annotationIdToURI(id: AnnotationId): AnnotationUri {
-  const baseURL = getBackendConfig().publicURL;
+export function annotationIdToURI(id: AnnotationId, publicURL: string): AnnotationUri {
   // Remove trailing slash if present
-  const normalizedBase = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+  const normalizedBase = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL;
   return annotationUri(`${normalizedBase}/annotations/${id}`);
 }
 

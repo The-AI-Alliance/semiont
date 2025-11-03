@@ -2,12 +2,10 @@
  * Tests for URI utilities
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resourceIdToURI, uriToResourceId, annotationIdToURI, uriToAnnotationId } from '../uri-utils';
 import { resourceId, annotationId } from '@semiont/core';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../../__tests__/_test-setup';
-import { resetConfigCache } from '../../config/config';
-import * as config from '../../config/config';
 
 describe('URI Utilities', () => {
   let testEnv: TestEnvironmentConfig;
@@ -20,31 +18,24 @@ describe('URI Utilities', () => {
     await testEnv.cleanup();
   });
 
-  beforeEach(() => {
-    // Reset config cache before each test
-    resetConfigCache();
-  });
-
   describe('resourceIdToURI', () => {
+    const publicURL = 'http://localhost:4000';
+
     it('converts resource ID to URI', () => {
-      expect(resourceIdToURI(resourceId('doc-abc123'))).toBe('http://localhost:4000/resources/doc-abc123');
+      expect(resourceIdToURI(resourceId('doc-abc123'), publicURL)).toBe('http://localhost:4000/resources/doc-abc123');
     });
 
     it('handles BACKEND_URL with trailing slash', () => {
-      vi.spyOn(config, 'getBackendConfig').mockReturnValue({ publicURL: 'http://localhost:4000/' });
-      expect(resourceIdToURI(resourceId('doc-abc123'))).toBe('http://localhost:4000/resources/doc-abc123');
-      vi.restoreAllMocks();
+      expect(resourceIdToURI(resourceId('doc-abc123'), 'http://localhost:4000/')).toBe('http://localhost:4000/resources/doc-abc123');
     });
 
     it('handles production URLs', () => {
-      vi.spyOn(config, 'getBackendConfig').mockReturnValue({ publicURL: 'https://api.semiont.app' });
-      expect(resourceIdToURI(resourceId('doc-abc123'))).toBe('https://api.semiont.app/resources/doc-abc123');
-      vi.restoreAllMocks();
+      expect(resourceIdToURI(resourceId('doc-abc123'), 'https://api.semiont.app')).toBe('https://api.semiont.app/resources/doc-abc123');
     });
 
     it('handles content-addressable resource IDs', () => {
       const contentId = 'doc-sha256:a1b2c3d4e5f6';
-      expect(resourceIdToURI(resourceId(contentId))).toBe(`http://localhost:4000/resources/${contentId}`);
+      expect(resourceIdToURI(resourceId(contentId), publicURL)).toBe(`http://localhost:4000/resources/${contentId}`);
     });
   });
 
@@ -80,25 +71,23 @@ describe('URI Utilities', () => {
   });
 
   describe('annotationIdToURI', () => {
+    const publicURL = 'http://localhost:4000';
+
     it('converts annotation ID to URI', () => {
-      expect(annotationIdToURI(annotationId('anno-xyz789'))).toBe('http://localhost:4000/annotations/anno-xyz789');
+      expect(annotationIdToURI(annotationId('anno-xyz789'), publicURL)).toBe('http://localhost:4000/annotations/anno-xyz789');
     });
 
     it('handles BACKEND_URL with trailing slash', () => {
-      vi.spyOn(config, 'getBackendConfig').mockReturnValue({ publicURL: 'http://localhost:4000/' });
-      expect(annotationIdToURI(annotationId('anno-xyz789'))).toBe('http://localhost:4000/annotations/anno-xyz789');
-      vi.restoreAllMocks();
+      expect(annotationIdToURI(annotationId('anno-xyz789'), 'http://localhost:4000/')).toBe('http://localhost:4000/annotations/anno-xyz789');
     });
 
     it('handles production URLs', () => {
-      vi.spyOn(config, 'getBackendConfig').mockReturnValue({ publicURL: 'https://api.semiont.app' });
-      expect(annotationIdToURI(annotationId('anno-xyz789'))).toBe('https://api.semiont.app/annotations/anno-xyz789');
-      vi.restoreAllMocks();
+      expect(annotationIdToURI(annotationId('anno-xyz789'), 'https://api.semiont.app')).toBe('https://api.semiont.app/annotations/anno-xyz789');
     });
 
     it('handles nanoid-style annotation IDs', () => {
       const nanoidAnnotation = 'anno-V1StGXR8_Z5jdHi6B-myT';
-      expect(annotationIdToURI(annotationId(nanoidAnnotation))).toBe(`http://localhost:4000/annotations/${nanoidAnnotation}`);
+      expect(annotationIdToURI(annotationId(nanoidAnnotation), publicURL)).toBe(`http://localhost:4000/annotations/${nanoidAnnotation}`);
     });
   });
 
@@ -134,16 +123,18 @@ describe('URI Utilities', () => {
   });
 
   describe('Round-trip conversion', () => {
+    const publicURL = 'http://localhost:4000';
+
     it('resource ID -> URI -> ID', () => {
       const originalId = 'doc-abc123';
-      const uri = resourceIdToURI(resourceId(originalId));
+      const uri = resourceIdToURI(resourceId(originalId), publicURL);
       const extractedId = uriToResourceId(uri);
       expect(extractedId).toBe(originalId);
     });
 
     it('annotation ID -> URI -> ID', () => {
       const originalId = 'anno-xyz789';
-      const uri = annotationIdToURI(annotationId(originalId));
+      const uri = annotationIdToURI(annotationId(originalId), publicURL);
       const extractedId = uriToAnnotationId(uri);
       expect(extractedId).toBe(originalId);
     });
@@ -152,16 +143,12 @@ describe('URI Utilities', () => {
       const docId = 'doc-abc123';
 
       // Local
-      vi.spyOn(config, 'getBackendConfig').mockReturnValue({ publicURL: 'http://localhost:4000' });
-      const localUri = resourceIdToURI(resourceId(docId));
+      const localUri = resourceIdToURI(resourceId(docId), 'http://localhost:4000');
       expect(uriToResourceId(localUri)).toBe(docId);
-      vi.restoreAllMocks();
 
       // Production
-      vi.spyOn(config, 'getBackendConfig').mockReturnValue({ publicURL: 'https://api.semiont.app' });
-      const prodUri = resourceIdToURI(resourceId(docId));
+      const prodUri = resourceIdToURI(resourceId(docId), 'https://api.semiont.app');
       expect(uriToResourceId(prodUri)).toBe(docId);
-      vi.restoreAllMocks();
     });
   });
 });

@@ -5,7 +5,7 @@ import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
 import { MemoryGraphDatabase } from './implementations/memorygraph';
-import { getGraphConfig } from '../config/config';
+import type { EnvironmentConfig } from '@semiont/core';
 
 export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
 
@@ -33,7 +33,7 @@ export interface GraphDatabaseConfig {
 // Singleton instance
 let graphDatabaseInstance: GraphDatabase | null = null;
 
-export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase {
+export function createGraphDatabase(config: GraphDatabaseConfig, envConfig: EnvironmentConfig): GraphDatabase {
   switch (config.type) {
     case 'neptune': {
       const neptuneConfig: any = {};
@@ -42,7 +42,7 @@ export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase 
       if (config.neptuneRegion !== undefined) neptuneConfig.region = config.neptuneRegion;
       return new NeptuneGraphDatabase(neptuneConfig);
     }
-      
+
     case 'neo4j': {
       const neo4jConfig: any = {};
       if (config.neo4jUri !== undefined) neo4jConfig.uri = config.neo4jUri;
@@ -51,19 +51,19 @@ export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase 
       if (config.neo4jDatabase !== undefined) neo4jConfig.database = config.neo4jDatabase;
       return new Neo4jGraphDatabase(neo4jConfig);
     }
-      
+
     case 'janusgraph': {
       const janusConfig: any = {};
       if (config.janusHost !== undefined) janusConfig.host = config.janusHost;
       if (config.janusPort !== undefined) janusConfig.port = config.janusPort;
       if (config.janusStorageBackend !== undefined) janusConfig.storageBackend = config.janusStorageBackend;
       if (config.janusIndexBackend !== undefined) janusConfig.indexBackend = config.janusIndexBackend;
-      return new JanusGraphDatabase(janusConfig);
+      return new JanusGraphDatabase(janusConfig, envConfig);
     }
-      
+
     case 'memory':
       return new MemoryGraphDatabase({});
-      
+
     default:
       throw new Error(`Unsupported graph database type: ${config.type}`);
   }
@@ -83,9 +83,9 @@ function evaluateEnvVar(value: string | undefined): string | undefined {
   });
 }
 
-export async function getGraphDatabase(): Promise<GraphDatabase> {
+export async function getGraphDatabase(envConfig: EnvironmentConfig): Promise<GraphDatabase> {
   if (!graphDatabaseInstance) {
-    const graphConfig = getGraphConfig();
+    const graphConfig = envConfig.services.graph!;
 
     const config: GraphDatabaseConfig = {
       type: graphConfig.type,
@@ -130,7 +130,7 @@ export async function getGraphDatabase(): Promise<GraphDatabase> {
       }
     }
 
-    graphDatabaseInstance = createGraphDatabase(config);
+    graphDatabaseInstance = createGraphDatabase(config, envConfig);
     await graphDatabaseInstance.connect();
   }
 

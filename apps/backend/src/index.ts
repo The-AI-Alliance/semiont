@@ -27,7 +27,7 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
-import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
+import { loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig } from '@semiont/core';
 
 import { User } from '@prisma/client';
 
@@ -70,6 +70,7 @@ import { getInferenceClient } from './inference/factory';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
 };
 
 // Create Hono app with proper typing
@@ -80,6 +81,12 @@ app.use('*', cors({
   origin: backendService.corsOrigin,
   credentials: true,
 }));
+
+// Inject config into context for all routes
+app.use('*', async (c, next) => {
+  c.set('config', config);
+  await next();
+});
 
 // Add request/response logging middleware
 app.use('*', async (c, next) => {
@@ -269,7 +276,7 @@ if (nodeEnv !== 'test') {
     // Initialize graph database and seed tag collections
     try {
       console.log('🔧 Initializing graph database...');
-      const graphDb = await getGraphDatabase();
+      const graphDb = await getGraphDatabase(config);
 
       // Pre-populate tag collections by calling getters
       // This ensures defaults are loaded on startup
@@ -295,7 +302,7 @@ if (nodeEnv !== 'test') {
     try {
       console.log('📊 Starting GraphDB consumer...');
       const { startGraphConsumer } = await import('./events/consumers/graph-consumer');
-      await startGraphConsumer();
+      await startGraphConsumer(config);
       console.log('✅ GraphDB consumer started');
     } catch (error) {
       console.error('⚠️ Failed to start GraphDB consumer:', error);
@@ -322,7 +329,7 @@ if (nodeEnv !== 'test') {
       const { DetectionWorker } = await import('./jobs/workers/detection-worker');
       const { GenerationWorker } = await import('./jobs/workers/generation-worker');
 
-      const detectionWorker = new DetectionWorker();
+      const detectionWorker = new DetectionWorker(config);
       const generationWorker = new GenerationWorker();
 
       // Start workers in background (non-blocking)

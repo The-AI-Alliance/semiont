@@ -18,6 +18,7 @@ import type {
   ResourceUri,
   AnnotationId,
   AnnotationUri,
+  EnvironmentConfig,
 } from '@semiont/core';
 import { resourceUri } from '@semiont/core';
 import { annotationIdToURI } from '../../lib/uri-utils';
@@ -39,21 +40,24 @@ export class JanusGraphDatabase implements GraphDatabase {
   private entityTypesCollection: Set<string> | null = null;
 
 
-  constructor(private config: {
-    host?: string;
-    port?: number;
-    storageBackend?: 'cassandra' | 'hbase' | 'berkeleydb';
-    indexBackend?: 'elasticsearch' | 'solr' | 'lucene';
-  } = {}) {}
+  constructor(
+    private graphConfig: {
+      host?: string;
+      port?: number;
+      storageBackend?: 'cassandra' | 'hbase' | 'berkeleydb';
+      indexBackend?: 'elasticsearch' | 'solr' | 'lucene';
+    },
+    private envConfig: EnvironmentConfig
+  ) {}
   
   async connect(): Promise<void> {
     // Configuration must be provided via constructor
-    const host = this.config.host;
+    const host = this.graphConfig.host;
     if (!host) {
       throw new Error('JanusGraph host is required: provide in config');
     }
 
-    const port = this.config.port;
+    const port = this.graphConfig.port;
     if (!port) {
       throw new Error('JanusGraph port is required: provide in config');
     }
@@ -589,12 +593,13 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
 
   async resolveReference(annotationId: AnnotationId, source: string): Promise<Annotation> {
-    const annotation = await this.getAnnotation(annotationIdToURI(annotationId));
+    const publicURL = this.envConfig.services.backend!.publicURL;
+    const annotation = await this.getAnnotation(annotationIdToURI(annotationId, publicURL));
     if (!annotation) throw new Error('Annotation not found');
 
     // TODO Preserve existing TextualBody entities, add SpecificResource
     // For now, just update with SpecificResource (losing entity tags)
-    await this.updateAnnotation(annotationIdToURI(annotationId), {
+    await this.updateAnnotation(annotationIdToURI(annotationId, publicURL), {
       body: [
         {
           type: 'SpecificResource',
@@ -612,7 +617,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .to(this.g!.V().has('Resource', 'id', source))
       .next();
 
-    const updatedAnnotation = await this.getAnnotation(annotationIdToURI(annotationId));
+    const updatedAnnotation = await this.getAnnotation(annotationIdToURI(annotationId, publicURL));
     if (!updatedAnnotation) {
       throw new Error('Annotation not found after update');
     }

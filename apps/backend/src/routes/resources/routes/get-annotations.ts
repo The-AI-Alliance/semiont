@@ -24,8 +24,9 @@ export function registerGetResourceAnnotations(router: ResourcesRouterType) {
    */
   router.get('/api/resources/:id/annotations', async (c) => {
     const { id } = c.req.param();
+    const config = c.get('config');
 
-    const annotations = await AnnotationQueryService.getAllAnnotations(id);
+    const annotations = await AnnotationQueryService.getAllAnnotations(id, config);
 
     const response: GetAnnotationsResponse = {
       annotations,

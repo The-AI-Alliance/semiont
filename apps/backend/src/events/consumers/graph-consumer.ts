@@ -10,10 +10,9 @@ import { getGraphDatabase } from '../../graph/factory';
 import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { components } from '@semiont/api-client';
-import type { ResourceEvent, StoredEvent } from '@semiont/core';
+import type { ResourceEvent, StoredEvent, EnvironmentConfig } from '@semiont/core';
 import { resourceUri, resourceId as makeResourceId } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
-import { getFilesystemConfig, getBackendConfig } from '../../config/config';
 import { resourceIdToURI, annotationIdToURI } from '../../lib/uri-utils';
 
 type Annotation = components['schemas']['Annotation'];
@@ -26,9 +25,11 @@ export class GraphDBConsumer {
   private processing: Map<string, Promise<void>> = new Map();
   private lastProcessed: Map<string, number> = new Map();
 
+  constructor(private config: EnvironmentConfig) {}
+
   async initialize() {
     if (!this.graphDb) {
-      this.graphDb = await getGraphDatabase();
+      this.graphDb = await getGraphDatabase(this.config);
       console.log('[GraphDBConsumer] Initialized');
 
       // Subscribe to global system-level events
@@ -41,7 +42,7 @@ export class GraphDBConsumer {
    * This allows the consumer to react to events like entitytype.added
    */
   private async subscribeToGlobalEvents() {
-    const basePath = getFilesystemConfig().path;
+    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
 
     this._globalSubscription = eventStore.subscriptions.subscribeGlobal(async (storedEvent) => {
@@ -65,12 +66,12 @@ export class GraphDBConsumer {
    */
   async subscribeToResource(resourceId: string) {
     this.ensureInitialized();
-    const basePath = getFilesystemConfig().path;
+    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
 
     // Convert plain ID to full URI for subscription (EventSubscriptions uses ResourceUri branded type)
-    const backendConfig = getBackendConfig();
-    const rUri = resourceUri(`${backendConfig.publicURL}/resources/${resourceId}`);
+    const publicURL = this.config.services.backend!.publicURL;
+    const rUri = resourceUri(`${publicURL}/resources/${resourceId}`);
 
     const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
       await this.processEvent(storedEvent);
@@ -168,14 +169,14 @@ export class GraphDBConsumer {
 
       case 'resource.archived':
         if (!event.resourceId) throw new Error('resource.archived requires resourceId');
-        await graphDb.updateResource(resourceIdToURI(event.resourceId), {
+        await graphDb.updateResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL), {
           archived: true,
         });
         break;
 
       case 'resource.unarchived':
         if (!event.resourceId) throw new Error('resource.unarchived requires resourceId');
-        await graphDb.updateResource(resourceIdToURI(event.resourceId), {
+        await graphDb.updateResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL), {
           archived: false,
         });
         break;
@@ -190,14 +191,14 @@ export class GraphDBConsumer {
         break;
 
       case 'annotation.removed':
-        await graphDb.deleteAnnotation(annotationIdToURI(event.payload.annotationId));
+        await graphDb.deleteAnnotation(annotationIdToURI(event.payload.annotationId, this.config.services.backend!.publicURL));
         break;
 
       case 'annotation.body.updated':
         // Apply fine-grained body operations
         try {
           // Get current annotation from graph
-          const currentAnnotation = await graphDb.getAnnotation(annotationIdToURI(event.payload.annotationId));
+          const currentAnnotation = await graphDb.getAnnotation(annotationIdToURI(event.payload.annotationId, this.config.services.backend!.publicURL));
           if (currentAnnotation) {
             // Ensure body is an array
             let bodyArray = Array.isArray(currentAnnotation.body)
@@ -230,7 +231,7 @@ export class GraphDBConsumer {
             }
 
             // Update annotation with new body
-            await graphDb.updateAnnotation(annotationIdToURI(event.payload.annotationId), {
+            await graphDb.updateAnnotation(annotationIdToURI(event.payload.annotationId, this.config.services.backend!.publicURL), {
               body: bodyArray,
             } as Partial<Annotation>);
           }
@@ -243,9 +244,9 @@ export class GraphDBConsumer {
 
       case 'entitytag.added':
         if (!event.resourceId) throw new Error('entitytag.added requires resourceId');
-        const doc = await graphDb.getResource(resourceIdToURI(event.resourceId));
+        const doc = await graphDb.getResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL));
         if (doc) {
-          await graphDb.updateResource(resourceIdToURI(event.resourceId), {
+          await graphDb.updateResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL), {
             entityTypes: [...(doc.entityTypes || []), event.payload.entityType],
           });
         }
@@ -253,9 +254,9 @@ export class GraphDBConsumer {
 
       case 'entitytag.removed':
         if (!event.resourceId) throw new Error('entitytag.removed requires resourceId');
-        const doc2 = await graphDb.getResource(resourceIdToURI(event.resourceId));
+        const doc2 = await graphDb.getResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL));
         if (doc2) {
-          await graphDb.updateResource(resourceIdToURI(event.resourceId), {
+          await graphDb.updateResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL), {
             entityTypes: (doc2.entityTypes || []).filter(t => t !== event.payload.entityType),
           });
         }
@@ -283,14 +284,14 @@ export class GraphDBConsumer {
 
     // Delete existing data
     try {
-      await graphDb.deleteResource(resourceIdToURI(makeResourceId(resourceId)));
+      await graphDb.deleteResource(resourceIdToURI(makeResourceId(resourceId), this.config.services.backend!.publicURL));
     } catch (error) {
       // Resource might not exist yet
       console.log(`[GraphDBConsumer] No existing resource to delete: ${resourceId}`);
     }
 
     // Replay all events
-    const basePath = getFilesystemConfig().path;
+    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents(resourceId);
@@ -314,7 +315,7 @@ export class GraphDBConsumer {
     await graphDb.clearDatabase();
 
     // Get all resource IDs by scanning event shards
-    const basePath = getFilesystemConfig().path;
+    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
     const allResourceIds = await eventStore.storage.getAllResourceIds();
 
@@ -389,9 +390,9 @@ export class GraphDBConsumer {
 // Singleton instance
 let graphConsumer: GraphDBConsumer | null = null;
 
-export async function getGraphConsumer(): Promise<GraphDBConsumer> {
+export async function getGraphConsumer(config: EnvironmentConfig): Promise<GraphDBConsumer> {
   if (!graphConsumer) {
-    graphConsumer = new GraphDBConsumer();
+    graphConsumer = new GraphDBConsumer(config);
     await graphConsumer.initialize();
   }
   return graphConsumer;
@@ -401,9 +402,9 @@ export async function getGraphConsumer(): Promise<GraphDBConsumer> {
  * Start consumer for existing resources
  * Called on app initialization
  */
-export async function startGraphConsumer(): Promise<void> {
-  const consumer = await getGraphConsumer();
-  const basePath = getFilesystemConfig().path;
+export async function startGraphConsumer(config: EnvironmentConfig): Promise<void> {
+  const consumer = await getGraphConsumer(config);
+  const basePath = config.services.filesystem!.path;
   const eventStore = await createEventStore(basePath);
 
   // Get all existing resource IDs
