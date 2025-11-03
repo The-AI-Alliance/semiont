@@ -29,6 +29,7 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export interface ProjectorConfig {
   basePath: string;
+  backendUrl: string;
 }
 
 /**
@@ -100,7 +101,7 @@ export class EventProjector {
    */
   private buildProjectionFromEvents(events: StoredEvent[], resourceId: ResourceId): ResourceState {
     // Build W3C-compliant HTTP URI for @id
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+    const backendUrl = this.config.backendUrl;
     const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
 
     // Start with empty ResourceDescriptor state

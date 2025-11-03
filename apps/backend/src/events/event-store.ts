@@ -45,6 +45,7 @@ export class EventStore {
 
     const projectorConfig: ProjectorConfig = {
       basePath: config.basePath,
+      backendUrl: identifierConfig.baseUrl,
     };
     this.projector = new EventProjector(projectionStorage, projectorConfig);
 

@@ -91,11 +91,15 @@ export class DetectionWorker extends JobWorker {
 
         let referenceId: string;
         try {
-          referenceId = generateAnnotationId();
+          const backendUrl = this.config.services.backend?.publicURL;
+          if (!backendUrl) {
+            throw new Error('Backend publicURL not configured');
+          }
+          referenceId = generateAnnotationId(backendUrl);
         } catch (error) {
           console.error(`[DetectionWorker] Failed to generate annotation ID:`, error);
           job.status = 'failed';
-          job.error = 'Configuration error: BACKEND_URL not set';
+          job.error = 'Configuration error: Backend publicURL not set';
           await this.updateJobProgress(job);
           return;
         }

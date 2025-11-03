@@ -91,7 +91,10 @@ export function registerCreateResource(router: ResourcesRouterType) {
       });
 
       // Return optimistic response with W3C-compliant HTTP URI
-      const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+      const backendUrl = config.services.backend?.publicURL;
+      if (!backendUrl) {
+        throw new HTTPException(500, { message: 'Backend publicURL not configured' });
+      }
       const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
 
       const resourceMetadata: ResourceDescriptor = {

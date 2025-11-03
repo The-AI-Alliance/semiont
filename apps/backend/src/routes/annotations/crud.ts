@@ -56,7 +56,11 @@ crudRouter.post('/api/annotations',
     // Generate ID - backend-internal, not graph-dependent
     let annotationId: string;
     try {
-      annotationId = generateAnnotationId();
+      const backendUrl = config.services.backend?.publicURL;
+      if (!backendUrl) {
+        throw new Error('Backend publicURL not configured');
+      }
+      annotationId = generateAnnotationId(backendUrl);
     } catch (error) {
       console.error('Failed to generate annotation ID:', error);
       throw new HTTPException(500, { message: 'Failed to create annotation' });

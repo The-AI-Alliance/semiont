@@ -193,7 +193,7 @@ app.get('/api/openapi.json', (c) => {
 
   // Update server URL dynamically
   const port = backendService.port || 4000;
-  const apiUrl = backendService.publicUrl || process.env.BACKEND_URL || `http://localhost:${port}`;
+  const apiUrl = backendService.publicUrl || `http://localhost:${port}`;
   if (apiUrl) {
     openApiSpec.servers = [
       {

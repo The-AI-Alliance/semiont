@@ -26,7 +26,10 @@ describe('EventProjector', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     projectionStorage = new FilesystemProjectionStorage(testDir);
-    projector = new EventProjector(projectionStorage, { basePath: testDir });
+    projector = new EventProjector(projectionStorage, {
+      basePath: testDir,
+      backendUrl: 'http://localhost:4000'
+    });
   });
 
   afterEach(async () => {

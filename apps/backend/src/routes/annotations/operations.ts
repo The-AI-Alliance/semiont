@@ -157,7 +157,10 @@ operationsRouter.post('/api/annotations/:id/create-resource',
     });
 
     // Build HTTP URI for the new resource
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+    const backendUrl = config.services.backend?.publicURL;
+    if (!backendUrl) {
+      throw new HTTPException(500, { message: 'Backend publicURL not configured' });
+    }
     const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
     const resourceUri = `${normalizedBase}/resources/${rId}`;
 
@@ -267,7 +270,10 @@ operationsRouter.post('/api/annotations/:id/generate-resource',
     const rId = makeResourceId(generateUuid());
 
     // Build HTTP URI for the new resource
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+    const backendUrl = config.services.backend?.publicURL;
+    if (!backendUrl) {
+      throw new HTTPException(500, { message: 'Backend publicURL not configured' });
+    }
     const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
     const resourceUri = `${normalizedBase}/resources/${rId}`;
 
