@@ -34,22 +34,38 @@ import { User } from '@prisma/client';
 // Load configuration from semiont.json + environments/{SEMIONT_ENV}.json
 // Only SEMIONT_ROOT and SEMIONT_ENV are read from environment
 const env = process.env.SEMIONT_ENV || 'local';
-const config = loadEnvironmentConfig(env);
 
-// Extract backend configuration
-const backendService = config.services.backend;
-const frontendService = config.services.frontend;
+// Skip loading config in test environment - tests will mock getBackendConfig directly
+let config: any;
+let backendService: any;
+let frontendService: any;
+let CORS_ORIGIN: string | undefined;
+let FRONTEND_URL: string | undefined;
+let NODE_ENV: string;
+let PORT: number;
 
-const CORS_ORIGIN = backendService?.corsOrigin;
-const FRONTEND_URL = frontendService?.url;
-const NODE_ENV = config.env?.NODE_ENV || 'development';
-const PORT = backendService?.port || 4000;
+if (env === 'unit' || env === 'test') {
+  // Use defaults for tests
+  CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
+  FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+  NODE_ENV = 'test';
+  PORT = 4000;
+} else {
+  config = loadEnvironmentConfig(env);
+  backendService = config.services.backend;
+  frontendService = config.services.frontend;
 
-if (!CORS_ORIGIN) {
-  throw new Error('services.backend.corsOrigin is required in environment config');
-}
-if (!FRONTEND_URL) {
-  throw new Error('services.frontend.url is required in environment config');
+  CORS_ORIGIN = backendService?.corsOrigin;
+  FRONTEND_URL = frontendService?.url;
+  NODE_ENV = config.env?.NODE_ENV || 'development';
+  PORT = backendService?.port || 4000;
+
+  if (!CORS_ORIGIN) {
+    throw new Error('services.backend.corsOrigin is required in environment config');
+  }
+  if (!FRONTEND_URL) {
+    throw new Error('services.frontend.url is required in environment config');
+  }
 }
 
 const CONFIG = {
@@ -57,8 +73,8 @@ const CONFIG = {
   FRONTEND_URL,
   NODE_ENV,
   PORT,
-  BACKEND_URL: backendService?.publicUrl || `http://localhost:${PORT}`,
-  DATA_DIR: config.services.filesystem?.path || './data',
+  BACKEND_URL: backendService?.publicUrl || process.env.BACKEND_URL || `http://localhost:${PORT}`,
+  DATA_DIR: config?.services?.filesystem?.path || process.env.DATA_DIR || './data',
 };
 
 // Import route definitions

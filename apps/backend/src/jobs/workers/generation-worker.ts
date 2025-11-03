@@ -197,4 +197,66 @@ export class GenerationWorker extends JobWorker {
 
     console.log(`[GenerationWorker] ✅ Generation complete: created resource ${rId}`);
   }
+
+  /**
+   * Update job progress and emit events to Event Store
+   * Overrides base class to also emit job progress events
+   */
+  protected override async updateJobProgress(job: Job): Promise<void> {
+    // Call parent to update job queue
+    await super.updateJobProgress(job);
+
+    // Emit events for generation jobs
+    if (job.type !== 'generation') {
+      return;
+    }
+
+    const genJob = job as GenerationJob;
+    const basePath = getFilesystemConfig().path;
+    const eventStore = await createEventStore(basePath);
+
+    const baseEvent = {
+      resourceId: genJob.sourceResourceId,
+      userId: genJob.userId,
+      version: 1,
+    };
+
+    // Emit appropriate event based on progress stage
+    if (genJob.progress?.stage === 'fetching' && genJob.progress?.percentage === 20) {
+      // First progress update - emit job.started
+      await eventStore.appendEvent({
+        type: 'job.started',
+        ...baseEvent,
+        payload: {
+          jobId: genJob.id,
+          jobType: genJob.type,
+          totalSteps: 5, // fetching, generating, creating, linking, complete
+        },
+      });
+    } else if (genJob.progress?.stage === 'linking' && genJob.progress?.percentage === 100) {
+      // Final progress update - emit job.completed
+      await eventStore.appendEvent({
+        type: 'job.completed',
+        ...baseEvent,
+        payload: {
+          jobId: genJob.id,
+          jobType: genJob.type,
+          resultResourceId: genJob.result?.resourceId,
+        },
+      });
+    } else if (genJob.progress) {
+      // Intermediate progress - emit job.progress
+      await eventStore.appendEvent({
+        type: 'job.progress',
+        ...baseEvent,
+        payload: {
+          jobId: genJob.id,
+          jobType: genJob.type,
+          currentStep: genJob.progress.stage,
+          percentage: genJob.progress.percentage,
+          message: genJob.progress.message,
+        },
+      });
+    }
+  }
 }
