@@ -42,7 +42,6 @@ export class GraphDBConsumer {
    * This allows the consumer to react to events like entitytype.added
    */
   private async subscribeToGlobalEvents() {
-    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore( this.config);
 
     this._globalSubscription = eventStore.subscriptions.subscribeGlobal(async (storedEvent) => {
@@ -66,7 +65,6 @@ export class GraphDBConsumer {
    */
   async subscribeToResource(resourceId: string) {
     this.ensureInitialized();
-    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore( this.config);
 
     // Convert plain ID to full URI for subscription (EventSubscriptions uses ResourceUri branded type)
@@ -291,7 +289,6 @@ export class GraphDBConsumer {
     }
 
     // Replay all events
-    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore( this.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents(resourceId);
@@ -315,7 +312,6 @@ export class GraphDBConsumer {
     await graphDb.clearDatabase();
 
     // Get all resource IDs by scanning event shards
-    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore( this.config);
     const allResourceIds = await eventStore.storage.getAllResourceIds();
 
@@ -404,7 +400,6 @@ export async function getGraphConsumer(config: EnvironmentConfig): Promise<Graph
  */
 export async function startGraphConsumer(config: EnvironmentConfig): Promise<void> {
   const consumer = await getGraphConsumer(config);
-  const basePath = config.services.filesystem!.path;
   const eventStore = await createEventStore( config);
 
   // Get all existing resource IDs

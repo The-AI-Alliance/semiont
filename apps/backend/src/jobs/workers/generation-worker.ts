@@ -217,7 +217,6 @@ export class GenerationWorker extends JobWorker {
     }
 
     const genJob = job as GenerationJob;
-    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore( this.config);
 
     const baseEvent = {

@@ -15,7 +15,6 @@ import { AnnotationQueryService } from '../../services/annotation-queries';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
 describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => {
-  let testBasePath: string;
   let testEnv: TestEnvironmentConfig;
   let config: EnvironmentConfig;
   const testDocId = resourceId('test-doc-integration-' + Date.now());
@@ -24,7 +23,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
     config = testEnv.config;
-    testBasePath = config.services.filesystem!.path;
 
     // Create test resources in event store
     const eventStore = await createEventStore( testEnv.config);

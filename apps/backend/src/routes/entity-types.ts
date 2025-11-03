@@ -86,7 +86,6 @@ entityTypesRouter.post('/api/entity-types',
     const body = c.get('validatedBody') as AddEntityTypeRequest;
 
     // Emit event (no resourceId for system-level events)
-    const basePath = config.services.filesystem!.path;
     const eventStore = await createEventStore( config);
     await eventStore.appendEvent({
       type: 'entitytype.added',
@@ -122,7 +121,6 @@ entityTypesRouter.post('/api/entity-types/bulk',
     }
 
     const body = c.get('validatedBody') as BulkAddEntityTypesRequest;
-    const basePath = config.services.filesystem!.path;
     const eventStore = await createEventStore( config);
 
     // Emit one event per entity type (no resourceId)

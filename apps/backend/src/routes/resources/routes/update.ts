@@ -36,7 +36,6 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       const body = c.get('validatedBody') as UpdateResourceRequest;
       const user = c.get('user');
       const config = c.get('config');
-      const basePath = config.services.filesystem!.path;
 
       // Check resource exists using Layer 3
       const doc = await ResourceQueryService.getResourceMetadata(id, config);

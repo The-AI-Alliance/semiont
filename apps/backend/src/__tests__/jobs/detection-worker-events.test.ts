@@ -47,7 +47,10 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
 
   return {
     ...actual,
-    createEventStore: vi.fn(async (basePath: string) => {
+    createEventStore: vi.fn(async (envConfig: any) => {
+      // Extract basePath from envConfig
+      const basePath = envConfig.services.filesystem!.path;
+
       // Return cached instance if available
       if (eventStoreCache.has(basePath)) {
         return eventStoreCache.get(basePath);
@@ -102,7 +105,6 @@ describe('DetectionWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-1');
@@ -140,7 +142,6 @@ describe('DetectionWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-2');
@@ -181,7 +182,6 @@ describe('DetectionWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-3');
@@ -217,7 +217,6 @@ describe('DetectionWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-4');
@@ -266,7 +265,6 @@ describe('DetectionWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-5');
@@ -299,7 +297,6 @@ describe('DetectionWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = testEnv.config.services.filesystem!.path;
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-6');

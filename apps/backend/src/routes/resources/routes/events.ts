@@ -49,7 +49,6 @@ export function registerGetEvents(router: ResourcesRouterType) {
     const { id } = c.req.param();
     const queryParams = c.req.query();
     const config = c.get('config');
-    const basePath = config.services.filesystem!.path;
 
     // Parse and validate query parameters
     const type = queryParams.type;

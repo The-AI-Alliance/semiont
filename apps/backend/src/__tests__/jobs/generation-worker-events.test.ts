@@ -30,7 +30,10 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
 
   return {
     ...actual,
-    createEventStore: vi.fn(async (basePath: string) => {
+    createEventStore: vi.fn(async (envConfig: any) => {
+      // Extract basePath from envConfig
+      const basePath = envConfig.services.filesystem!.path;
+
       // Return cached instance if available
       if (eventStoreCache.has(basePath)) {
         return eventStoreCache.get(basePath);

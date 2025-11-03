@@ -39,7 +39,6 @@ export function registerGetEventStream(router: ResourcesRouterType) {
   router.get('/api/resources/:id/events/stream', async (c) => {
     const { id } = c.req.param();
     const config = c.get('config');
-    const basePath = config.services.filesystem!.path;
 
     // Construct full resource URI for event subscriptions (consistent with W3C Web Annotation spec)
     const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);

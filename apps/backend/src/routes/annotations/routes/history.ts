@@ -40,7 +40,6 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       throw new HTTPException(404, { message: 'Annotation does not belong to this resource' });
     }
 
-    const basePath = config.services.filesystem!.path;
     const eventStore = await createEventStore( config);
     const query = createEventQuery(eventStore);
 
