@@ -3,7 +3,7 @@
  * Tests multi-body arrays with TextualBody (tagging) and SpecificResource (linking)
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import type { components } from '@semiont/api-client';
 import type { ResourceCreatedEvent } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
@@ -12,9 +12,7 @@ import { CREATION_METHODS } from '@semiont/core';
 type Annotation = components['schemas']['Annotation'];
 import { createEventStore } from '../../services/event-store-service';
 import { AnnotationQueryService } from '../../services/annotation-queries';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { mkdir, rm } from 'fs/promises';
+import { getFilesystemConfig } from '../../config/config';
 
 describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => {
   let testBasePath: string;
@@ -22,15 +20,11 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   const testDocId2 = resourceId('test-doc-target-' + Date.now());
 
   beforeAll(async () => {
-    // Create temp dir ONCE for entire test suite
-    testBasePath = join(tmpdir(), `semiont-integration-${Date.now()}`);
-    await mkdir(testBasePath, { recursive: true });
+    // Use the filesystem path configured by global test setup
+    // This ensures EventStore and AnnotationQueryService use the SAME path
+    testBasePath = getFilesystemConfig().path;
 
-    // Set environment variable so getFilesystemConfig() returns our test path
-    // This ensures all services (AnnotationQueryService, etc.) use the SAME path
-    process.env.SEMIONT_TEST_FS_PATH = testBasePath;
-
-    // Create test resources in event store with explicit path
+    // Create test resources in event store
     const eventStore = await createEventStore(testBasePath);
 
     const docEvent1: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
@@ -66,15 +60,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     await new Promise(resolve => setTimeout(resolve, 100));
   });
 
-  afterAll(async () => {
-    // Clean up environment variable
-    delete process.env.SEMIONT_TEST_FS_PATH;
-
-    // Clean up temp directory
-    if (testBasePath) {
-      await rm(testBasePath, { recursive: true, force: true });
-    }
-  });
+  // Cleanup handled by global test setup
 
   describe('Create Annotation with Entity Tags (stub reference)', () => {
     it('should create annotation with empty body array', async () => {
