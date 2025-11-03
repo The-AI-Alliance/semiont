@@ -184,7 +184,7 @@ describe('EventStorage', () => {
 
       // Initialize should load sequence from disk
       await newStorage.initializeResourceStream(resourceId('doc1'));
-      expect(newStorage.getSequenceNumber(resourceId('doc1'))).toBe(2);
+      expect(newStorage.getSequenceNumber('doc1')).toBe(2);
 
       // Next event should be sequence 3
       const e3 = await newStorage.appendEvent({
@@ -201,18 +201,18 @@ describe('EventStorage', () => {
 
   describe('Sharding', () => {
     it('should calculate shard path for resource IDs', () => {
-      const path1 = storage.getShardPath(resourceId('doc-abc123'));
+      const path1 = storage.getShardPath('doc-abc123');
       expect(path1).toMatch(/^[0-9a-f]{2}\/[0-9a-f]{2}$/);
     });
 
     it('should create consistent shard paths for same resource', () => {
-      const path1 = storage.getShardPath(resourceId('doc-test123'));
-      const path2 = storage.getShardPath(resourceId('doc-test123'));
+      const path1 = storage.getShardPath('doc-test123');
+      const path2 = storage.getShardPath('doc-test123');
       expect(path1).toBe(path2);
     });
 
     it('should bypass sharding for __system__ events', () => {
-      const path = storage.getShardPath(resourceId('__system__'));
+      const path = storage.getShardPath('__system__');
       expect(path).toBe('');
     });
 
@@ -223,7 +223,7 @@ describe('EventStorage', () => {
         enableSharding: false,
       });
 
-      const path = noShardStorage.getShardPath(resourceId('doc-test123'));
+      const path = noShardStorage.getShardPath('doc-test123');
       expect(path).toBe('');
     });
 
@@ -236,7 +236,7 @@ describe('EventStorage', () => {
         payload: {},
       }, resourceId('doc1'));
 
-      const shardPath = storage.getShardPath(resourceId('doc1'));
+      const shardPath = storage.getShardPath('doc1');
       const docPath = join(testDir, 'events', shardPath, 'doc1');
 
       const exists = await fs.access(docPath).then(() => true).catch(() => false);
@@ -346,7 +346,7 @@ describe('EventStorage', () => {
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Person' },
-      }, resourceId('__system__'));
+      }, '__system__');
 
       const systemPath = join(testDir, 'events', '__system__');
       const exists = await fs.access(systemPath).then(() => true).catch(() => false);
@@ -359,14 +359,14 @@ describe('EventStorage', () => {
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Person' },
-      }, resourceId('__system__'));
+      }, '__system__');
 
       const e2 = await storage.appendEvent({
         type: 'entitytype.added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Organization' },
-      }, resourceId('__system__'));
+      }, '__system__');
 
       expect(e1.metadata.sequenceNumber).toBe(1);
       expect(e2.metadata.sequenceNumber).toBe(2);
@@ -378,14 +378,14 @@ describe('EventStorage', () => {
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Person' },
-      }, resourceId('__system__'));
+      }, '__system__');
 
       await storage.appendEvent({
         type: 'entitytype.added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Organization' },
-      }, resourceId('__system__'));
+      }, '__system__');
 
       const events = await storage.getAllEvents(resourceId('__system__'));
       expect(events).toHaveLength(2);

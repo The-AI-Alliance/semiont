@@ -150,7 +150,7 @@ describe('ProjectionQuery', () => {
 
   describe('Creator Queries', () => {
     it('should find resources by creator', async () => {
-      const aliceResults = await query.findByCreator(userId('user-alice'));
+      const aliceResults = await query.findByCreator('user-alice');
 
       expect(aliceResults.length).toBe(3); // doc-1, doc-3, doc-6
       const ids = aliceResults.map(r => getResourceId(r.resource));
@@ -160,15 +160,15 @@ describe('ProjectionQuery', () => {
     });
 
     it('should find resources for different creators', async () => {
-      const bobResults = await query.findByCreator(userId('user-bob'));
-      const charlieResults = await query.findByCreator(userId('user-charlie'));
+      const bobResults = await query.findByCreator('user-bob');
+      const charlieResults = await query.findByCreator('user-charlie');
 
       expect(bobResults.length).toBe(2); // doc-2, doc-7
       expect(charlieResults.length).toBe(2); // doc-4, doc-5
     });
 
     it('should return empty array for non-existent creator', async () => {
-      const results = await query.findByCreator(userId('user-nonexistent'));
+      const results = await query.findByCreator('user-nonexistent');
       expect(results).toEqual([]);
     });
   });
@@ -323,7 +323,7 @@ describe('ProjectionQuery', () => {
   describe('Complex Queries', () => {
     it('should combine filters programmatically', async () => {
       // Find active resources by Alice
-      const aliceDocs = await query.findByCreator(userId('user-alice'));
+      const aliceDocs = await query.findByCreator('user-alice');
       const activeDocs = aliceDocs.filter(d => !d.resource.archived);
 
       expect(activeDocs.length).toBe(3); // All Alice's docs are active

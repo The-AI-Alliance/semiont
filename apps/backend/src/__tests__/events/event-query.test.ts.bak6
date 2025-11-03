@@ -39,7 +39,7 @@ describe('EventQuery', () => {
       resourceId: resourceId('doc1'),
       version: 1,
       payload: { name: 'Doc1', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
-    }, resourceId('doc1'));
+    }, 'doc1');
 
     await storage.appendEvent({
       type: 'annotation.added',
@@ -47,7 +47,7 @@ describe('EventQuery', () => {
       resourceId: resourceId('doc1'),
       version: 1,
       payload: {},
-    }, resourceId('doc1'));
+    }, 'doc1');
 
     await storage.appendEvent({
       type: 'annotation.added',
@@ -55,7 +55,7 @@ describe('EventQuery', () => {
       resourceId: resourceId('doc1'),
       version: 1,
       payload: {},
-    }, resourceId('doc1'));
+    }, 'doc1');
 
     await storage.appendEvent({
       type: 'annotation.removed',
@@ -63,7 +63,7 @@ describe('EventQuery', () => {
       resourceId: resourceId('doc1'),
       version: 1,
       payload: {},
-    }, resourceId('doc1'));
+    }, 'doc1');
 
     await storage.appendEvent({
       type: 'entitytag.added',
@@ -71,7 +71,7 @@ describe('EventQuery', () => {
       resourceId: resourceId('doc1'),
       version: 1,
       payload: {},
-    }, resourceId('doc1'));
+    }, 'doc1');
 
     // Create events for doc2
     await storage.appendEvent({
@@ -80,7 +80,7 @@ describe('EventQuery', () => {
       resourceId: resourceId('doc2'),
       version: 1,
       payload: { name: 'Doc2', format: 'text/plain' as const, contentChecksum: 'checksum2', creationMethod: 'api' as const },
-    }, resourceId('doc2'));
+    }, 'doc2');
   });
 
   afterEach(async () => {
@@ -486,7 +486,7 @@ describe('EventQuery', () => {
               body: []
             }
           },
-        }, resourceId('doc-perf'));
+        }, 'doc-perf');
       }
 
       const start = Date.now();
@@ -517,7 +517,7 @@ describe('EventQuery', () => {
                 }
               }
             : { annotationId: annotationId(`anno-${i}`) },
-        }, resourceId('doc-filter'));
+        }, 'doc-filter');
       }
 
       const start = Date.now();

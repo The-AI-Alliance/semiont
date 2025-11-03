@@ -42,7 +42,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       expect(stored.event.id).toBeDefined();
       expect(stored.event.id).toHaveLength(36); // UUID format
@@ -57,7 +57,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       expect(stored.metadata.checksum).toBeDefined();
       expect(stored.metadata.checksum).toMatch(/^[a-f0-9]{64}$/); // SHA-256 hex
@@ -70,7 +70,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       const e2 = await storage.appendEvent({
         type: 'annotation.added',
@@ -87,7 +87,7 @@ describe('EventStorage', () => {
             body: []
           }
         },
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       expect(e1.metadata.prevEventHash).toBeUndefined();
       expect(e2.metadata.prevEventHash).toBe(e1.metadata.checksum);
@@ -102,7 +102,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       const e2 = await storage.appendEvent({
         type: 'annotation.added',
@@ -110,7 +110,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       const e3 = await storage.appendEvent({
         type: 'annotation.added',
@@ -118,7 +118,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       expect(e1.metadata.sequenceNumber).toBe(1);
       expect(e2.metadata.sequenceNumber).toBe(2);
@@ -132,7 +132,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       const doc2e1 = await storage.appendEvent({
         type: 'resource.created',
@@ -140,7 +140,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc2'),
         version: 1,
         payload: {},
-      }, resourceId('doc2'));
+      }, 'doc2');
 
       const doc1e2 = await storage.appendEvent({
         type: 'annotation.added',
@@ -148,7 +148,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       expect(doc1e1.metadata.sequenceNumber).toBe(1);
       expect(doc2e1.metadata.sequenceNumber).toBe(1);
@@ -163,7 +163,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       await storage.appendEvent({
         type: 'annotation.added',
@@ -171,7 +171,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       // Create new storage instance (simulates restart)
       const newStorage = new EventStorage({
@@ -184,7 +184,7 @@ describe('EventStorage', () => {
 
       // Initialize should load sequence from disk
       await newStorage.initializeResourceStream(resourceId('doc1'));
-      expect(newStorage.getSequenceNumber(resourceId('doc1'))).toBe(2);
+      expect(newStorage.getSequenceNumber('doc1')).toBe(2);
 
       // Next event should be sequence 3
       const e3 = await newStorage.appendEvent({
@@ -193,7 +193,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       expect(e3.metadata.sequenceNumber).toBe(3);
     });
@@ -201,18 +201,18 @@ describe('EventStorage', () => {
 
   describe('Sharding', () => {
     it('should calculate shard path for resource IDs', () => {
-      const path1 = storage.getShardPath(resourceId('doc-abc123'));
+      const path1 = storage.getShardPath('doc-abc123');
       expect(path1).toMatch(/^[0-9a-f]{2}\/[0-9a-f]{2}$/);
     });
 
     it('should create consistent shard paths for same resource', () => {
-      const path1 = storage.getShardPath(resourceId('doc-test123'));
-      const path2 = storage.getShardPath(resourceId('doc-test123'));
+      const path1 = storage.getShardPath('doc-test123');
+      const path2 = storage.getShardPath('doc-test123');
       expect(path1).toBe(path2);
     });
 
     it('should bypass sharding for __system__ events', () => {
-      const path = storage.getShardPath(resourceId('__system__'));
+      const path = storage.getShardPath('__system__');
       expect(path).toBe('');
     });
 
@@ -223,7 +223,7 @@ describe('EventStorage', () => {
         enableSharding: false,
       });
 
-      const path = noShardStorage.getShardPath(resourceId('doc-test123'));
+      const path = noShardStorage.getShardPath('doc-test123');
       expect(path).toBe('');
     });
 
@@ -234,9 +234,9 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
-      const shardPath = storage.getShardPath(resourceId('doc1'));
+      const shardPath = storage.getShardPath('doc1');
       const docPath = join(testDir, 'events', shardPath, 'doc1');
 
       const exists = await fs.access(docPath).then(() => true).catch(() => false);
@@ -253,7 +253,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       await storage.appendEvent({
         type: 'annotation.added',
@@ -261,7 +261,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       await storage.appendEvent({
         type: 'annotation.added',
@@ -269,7 +269,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       // 4th event should trigger rotation
       await storage.appendEvent({
@@ -278,7 +278,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       const files = await storage.getEventFiles(resourceId('doc1'));
       expect(files).toHaveLength(2);
@@ -304,7 +304,7 @@ describe('EventStorage', () => {
               body: []
             }
           },
-        }, resourceId('doc1'));
+        }, 'doc1');
       }
 
       const allEvents = await storage.getAllEvents(resourceId('doc1'));
@@ -331,7 +331,7 @@ describe('EventStorage', () => {
               body: []
             }
           },
-        }, resourceId('doc1'));
+        }, 'doc1');
       }
 
       const allEvents = await storage.getAllEvents(resourceId('doc1'));
@@ -346,7 +346,7 @@ describe('EventStorage', () => {
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Person' },
-      }, resourceId('__system__'));
+      }, '__system__');
 
       const systemPath = join(testDir, 'events', '__system__');
       const exists = await fs.access(systemPath).then(() => true).catch(() => false);
@@ -359,14 +359,14 @@ describe('EventStorage', () => {
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Person' },
-      }, resourceId('__system__'));
+      }, '__system__');
 
       const e2 = await storage.appendEvent({
         type: 'entitytype.added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Organization' },
-      }, resourceId('__system__'));
+      }, '__system__');
 
       expect(e1.metadata.sequenceNumber).toBe(1);
       expect(e2.metadata.sequenceNumber).toBe(2);
@@ -378,14 +378,14 @@ describe('EventStorage', () => {
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Person' },
-      }, resourceId('__system__'));
+      }, '__system__');
 
       await storage.appendEvent({
         type: 'entitytype.added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Organization' },
-      }, resourceId('__system__'));
+      }, '__system__');
 
       const events = await storage.getAllEvents(resourceId('__system__'));
       expect(events).toHaveLength(2);
@@ -402,7 +402,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: { name: 'Doc1', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       await storage.appendEvent({
         type: 'annotation.added',
@@ -419,7 +419,7 @@ describe('EventStorage', () => {
             body: []
           }
         },
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       await storage.appendEvent({
         type: 'resource.created',
@@ -427,7 +427,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc2'),
         version: 1,
         payload: { name: 'Doc2', format: 'text/plain' as const, contentChecksum: 'checksum2', creationMethod: 'api' as const },
-      }, resourceId('doc2'));
+      }, 'doc2');
     });
 
     it('should get all events for resource', async () => {
@@ -461,7 +461,7 @@ describe('EventStorage', () => {
 
     it('should return null for last event of empty file', async () => {
       // Create empty file
-      const docPath = storage.getResourcePath(resourceId('doc-empty'));
+      const docPath = storage.getResourcePath('doc-empty');
       await fs.mkdir(docPath, { recursive: true });
       await fs.writeFile(join(docPath, 'events-000001.jsonl'), '', 'utf-8');
 
@@ -485,7 +485,7 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       await storage.appendEvent({
         type: 'annotation.added',
@@ -493,9 +493,9 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
-      const docPath = storage.getResourcePath(resourceId('doc1'));
+      const docPath = storage.getResourcePath('doc1');
       const content = await fs.readFile(join(docPath, 'events-000001.jsonl'), 'utf-8');
 
       const lines = content.trim().split('\n');
@@ -518,10 +518,10 @@ describe('EventStorage', () => {
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
-      }, resourceId('doc1'));
+      }, 'doc1');
 
       // Manually add empty line
-      const docPath = storage.getResourcePath(resourceId('doc1'));
+      const docPath = storage.getResourcePath('doc1');
       await fs.appendFile(join(docPath, 'events-000001.jsonl'), '\n\n', 'utf-8');
 
       // Should still read correctly

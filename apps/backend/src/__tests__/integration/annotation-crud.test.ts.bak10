@@ -116,7 +116,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify annotation was created
-      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(annotation.id), testDocId);
+      const retrieved = await AnnotationQueryService.getAnnotation(annotation.id, testDocId);
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe(annotation.id);
       expect(Array.isArray(retrieved?.body)).toBe(true);
@@ -171,7 +171,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify annotation was created with entity tags
-      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(annotation.id), testDocId);
+      const retrieved = await AnnotationQueryService.getAnnotation(annotation.id, testDocId);
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe(annotation.id);
       expect(Array.isArray(retrieved?.body)).toBe(true);
@@ -517,7 +517,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(w3cId), testDocId);
+      const retrieved = await AnnotationQueryService.getAnnotation(w3cId, testDocId);
 
       // Verify W3C required fields
       expect(retrieved).toBeDefined();

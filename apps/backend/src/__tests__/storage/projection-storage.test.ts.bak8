@@ -268,7 +268,7 @@ describe('ProjectionStorage', () => {
       const docIds = ['doc-1', 'doc-2', 'doc-3'];
       for (const docId of docIds) {
         const state = createTestResourceState(resourceId(docId));
-        await storage2.save(resourceId(docId), state);
+        await storage2.save(docId, state);
       }
 
       const allIds = await storage2.getAllResourceIds();
@@ -287,7 +287,7 @@ describe('ProjectionStorage', () => {
       const docIds = ['doc-a', 'doc-b'];
       for (const docId of docIds) {
         const state = createTestResourceState(resourceId(docId));
-        await storage3.save(resourceId(docId), state);
+        await storage3.save(docId, state);
       }
 
       const allProjections = await storage3.getAll();
@@ -366,7 +366,7 @@ describe('ProjectionStorage', () => {
       for (let i = 0; i < 50; i++) {
         const docId = `doc-shard-${i}`;
         const state = createTestResourceState(resourceId(docId));
-        await storage5.save(resourceId(docId), state);
+        await storage5.save(docId, state);
       }
 
       // Verify all were saved
