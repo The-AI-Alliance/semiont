@@ -68,7 +68,7 @@ export class AWSPlatform extends Platform {
   } {
     // Load the environment configuration to get AWS settings
     const { loadEnvironmentConfig } = require('@semiont/core');
-    const envConfig = loadEnvironmentConfig(service.environment);
+    const envConfig = loadEnvironmentConfig(service.projectRoot, service.environment);
     
     // Get AWS config from environment file, fallback to env vars
     return {

@@ -124,7 +124,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     expect(isValidEnvironment('foo')).toBe(true);
     
     // Test 3: Configuration loading should parse foo.json correctly
-    const loadedConfig = loadEnvironmentConfig('foo');
+    const loadedConfig = loadEnvironmentConfig(testDir, 'foo');
     
     expect(loadedConfig).toBeDefined();
     expect(loadedConfig.site?.domain).toBe('foo.example.com');
@@ -232,7 +232,7 @@ describe('Filesystem Authority for Environment Validation', () => {
       expect(available).toContain(envName);
       expect(isValidEnvironment(envName)).toBe(true);
       
-      const config = loadEnvironmentConfig(envName);
+      const config = loadEnvironmentConfig(testDir, envName);
       expect(config.site?.domain).toBe(`${envName}.test.local`);
     }
   });

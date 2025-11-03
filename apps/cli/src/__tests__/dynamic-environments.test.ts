@@ -86,11 +86,11 @@ describe('Dynamic Environment Discovery', () => {
     expect(isValidEnvironment('staging')).toBe(false);
     
     // Should load configurations correctly
-    const demoConfig = loadEnvironmentConfig('demo');
+    const demoConfig = loadEnvironmentConfig(testDir, 'demo');
     expect(demoConfig.site?.domain).toBe('demo.local');
     expect(demoConfig.services?.backend).toBeDefined();
-    
-    const featureConfig = loadEnvironmentConfig('feature-branch');
+
+    const featureConfig = loadEnvironmentConfig(testDir, 'feature-branch');
     expect(featureConfig.site?.domain).toBe('feature.local');
     expect(featureConfig.services?.api).toBeDefined();
   });
@@ -204,11 +204,11 @@ describe('Dynamic Environment Discovery', () => {
     expect(environments).toContain('integration-testing');
     
     // Should load correctly
-    const sandboxConfig = loadEnvironmentConfig('sandbox');
+    const sandboxConfig = loadEnvironmentConfig(testDir, 'sandbox');
     expect(sandboxConfig.services?.api?.port).toBe(8080);
     expect(sandboxConfig.services?.web?.port).toBe(3000);
-    
-    const integrationConfig = loadEnvironmentConfig('integration-testing');
+
+    const integrationConfig = loadEnvironmentConfig(testDir, 'integration-testing');
     expect(integrationConfig.platform?.default).toBe('aws');
     expect(integrationConfig.site?.domain).toBe('integration.example.com');
   });

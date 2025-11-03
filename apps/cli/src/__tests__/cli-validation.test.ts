@@ -155,10 +155,10 @@ describe('CLI Environment Validation Logic', () => {
       );
       
       const { loadEnvironmentConfig, isValidEnvironment } = await import('@semiont/core');
-      
+
       expect(isValidEnvironment('demo')).toBe(true);
-      
-      const config = loadEnvironmentConfig('demo');
+
+      const config = loadEnvironmentConfig(testDir, 'demo');
       expect(config.services).toHaveProperty('api');
       expect(config.services).toHaveProperty('web');
       expect(config.services).toHaveProperty('cache');
@@ -206,10 +206,10 @@ describe('CLI Environment Validation Logic', () => {
       );
       
       const { loadEnvironmentConfig, isValidEnvironment } = await import('@semiont/core');
-      
+
       expect(isValidEnvironment('test')).toBe(true);
-      
-      const loaded = loadEnvironmentConfig('test');
+
+      const loaded = loadEnvironmentConfig(testDir, 'test');
       
       // Verify all sections are present
       expect(loaded.platform).toBeDefined();

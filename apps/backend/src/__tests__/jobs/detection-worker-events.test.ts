@@ -38,13 +38,51 @@ vi.mock('../../services/resource-queries', () => ({
   }
 }));
 
-// Mock environment
+// testDir will be set in beforeAll
+let testDir: string;
+
+// Mock getFilesystemConfig to return testDir
 vi.mock('../../config/environment-loader', () => ({
   getFilesystemConfig: () => ({ path: testDir }),
   getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
 }));
 
-let testDir: string;
+// Cache EventStore instances per basePath to ensure consistency
+const eventStoreCache = new Map();
+
+// Mock createEventStore to avoid requiring project config
+vi.mock('../../services/event-store-service', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  const { EventStore } = await import('../../events/event-store');
+  const { FilesystemProjectionStorage } = await import('../../storage/projection-storage');
+
+  return {
+    ...actual,
+    createEventStore: vi.fn(async (basePath: string) => {
+      // Return cached instance if available
+      if (eventStoreCache.has(basePath)) {
+        return eventStoreCache.get(basePath);
+      }
+
+      // Create new instance and cache it
+      const projectionStorage = new FilesystemProjectionStorage(basePath);
+      const identifierConfig = { baseUrl: 'http://localhost:4000' };
+      const eventStore = new EventStore(
+        {
+          basePath,
+          dataDir: basePath,
+          enableSharding: false,
+          maxEventsPerFile: 100,
+        },
+        projectionStorage,
+        identifierConfig
+      );
+
+      eventStoreCache.set(basePath, eventStore);
+      return eventStore;
+    })
+  };
+});
 
 describe('DetectionWorker - Event Emission', () => {
   let worker: DetectionWorker;

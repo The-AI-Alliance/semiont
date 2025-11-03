@@ -27,55 +27,27 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
-import { loadEnvironmentConfig } from '@semiont/core';
+import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 
 import { User } from '@prisma/client';
 
 // Load configuration from semiont.json + environments/{SEMIONT_ENV}.json
-// Only SEMIONT_ROOT and SEMIONT_ENV are read from environment
+// SEMIONT_ROOT and SEMIONT_ENV are read from environment
 const env = process.env.SEMIONT_ENV || 'local';
+const projectRoot = findProjectRoot();
+const config = loadEnvironmentConfig(projectRoot, env);
 
-// Skip loading config in test environment - tests will mock getBackendConfig directly
-let config: any;
-let backendService: any;
-let frontendService: any;
-let CORS_ORIGIN: string | undefined;
-let FRONTEND_URL: string | undefined;
-let NODE_ENV: string;
-let PORT: number;
-
-if (env === 'unit' || env === 'test') {
-  // Use defaults for tests
-  CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
-  FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-  NODE_ENV = 'test';
-  PORT = 4000;
-} else {
-  config = loadEnvironmentConfig(env);
-  backendService = config.services.backend;
-  frontendService = config.services.frontend;
-
-  CORS_ORIGIN = backendService?.corsOrigin;
-  FRONTEND_URL = frontendService?.url;
-  NODE_ENV = config.env?.NODE_ENV || 'development';
-  PORT = backendService?.port || 4000;
-
-  if (!CORS_ORIGIN) {
-    throw new Error('services.backend.corsOrigin is required in environment config');
-  }
-  if (!FRONTEND_URL) {
-    throw new Error('services.frontend.url is required in environment config');
-  }
+if (!config.services?.backend) {
+  throw new Error('services.backend is required in environment config');
+}
+if (!config.services.backend.corsOrigin) {
+  throw new Error('services.backend.corsOrigin is required in environment config');
+}
+if (!config.services?.frontend?.url) {
+  throw new Error('services.frontend.url is required in environment config');
 }
 
-const CONFIG = {
-  CORS_ORIGIN,
-  FRONTEND_URL,
-  NODE_ENV,
-  PORT,
-  BACKEND_URL: backendService?.publicUrl || process.env.BACKEND_URL || `http://localhost:${PORT}`,
-  DATA_DIR: config?.services?.filesystem?.path || process.env.DATA_DIR || './data',
-};
+const backendService = config.services.backend;
 
 // Import route definitions
 import { healthRouter } from './routes/health';
@@ -105,7 +77,7 @@ const app = new Hono<{ Variables: Variables }>();
 
 // Add CORS middleware
 app.use('*', cors({
-  origin: CONFIG.CORS_ORIGIN,
+  origin: backendService.corsOrigin,
   credentials: true,
 }));
 
@@ -212,7 +184,8 @@ app.get('/api/openapi.json', (c) => {
   const openApiSpec = JSON.parse(openApiContent);
 
   // Update server URL dynamically
-  const apiUrl = CONFIG.BACKEND_URL;
+  const port = backendService.port || 4000;
+  const apiUrl = backendService.publicUrl || process.env.BACKEND_URL || `http://localhost:${port}`;
   if (apiUrl) {
     openApiSpec.servers = [
       {
@@ -260,19 +233,20 @@ app.all('/api/*', (c) => {
 });
 
 // Start server
-const port = CONFIG.PORT;
+const port = backendService.port || 4000;
+const nodeEnv = config.env?.NODE_ENV || 'development';
 
 console.log(`🚀 Starting Semiont Backend...`);
-console.log(`Environment: ${CONFIG.NODE_ENV}`);
+console.log(`Environment: ${nodeEnv}`);
 console.log(`Port: ${port}`);
 
 // Start server
-if (CONFIG.NODE_ENV !== 'test') {
+if (nodeEnv !== 'test') {
   console.log('🚀 Starting HTTP server...');
 }
 
 // Only start server if not in test environment
-if (CONFIG.NODE_ENV !== 'test') {
+if (nodeEnv !== 'test') {
   serve({
     fetch: app.fetch,
     port: port,
@@ -332,7 +306,7 @@ if (CONFIG.NODE_ENV !== 'test') {
     try {
       console.log('💼 Initializing job queue...');
       const { initializeJobQueue } = await import('./jobs/job-queue');
-      const dataDir = CONFIG.DATA_DIR;
+      const dataDir = config.services?.filesystem?.path || process.env.DATA_DIR || './data';
       if (!dataDir) {
         throw new Error('services.filesystem.path is required in environment config for job queue initialization');
       }

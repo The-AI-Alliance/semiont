@@ -15,17 +15,25 @@ export const mockPlatformInstance = PlatformFactory.getPlatform('mock') as MockP
 // Note: PlatformFactory.getPlatform('mock') will return the singleton MockPlatform
 
 // Mock environment-loader for environment config
-vi.mock('../../environment-loader', () => ({
-  findProjectRoot: vi.fn(() => '/test/project/root'),
-  getNodeEnvForEnvironment: vi.fn(() => 'test'),
-  loadEnvironmentConfig: vi.fn(() => ({
-    name: 'test',
-    env: { NODE_ENV: 'test' }
-  })),
-  getAvailableEnvironments: vi.fn(() => ['dev', 'staging', 'production', 'test']),
-  isValidEnvironment: vi.fn((env) => ['dev', 'staging', 'production', 'test'].includes(env)),
-  resolveServiceDeployments: vi.fn((services, _env) => services)
-}));
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/core')>('@semiont/core');
+  return {
+    ...actual,
+    findProjectRoot: vi.fn(() => '/test/project/root'),
+    getNodeEnvForEnvironment: vi.fn(() => 'test'),
+    loadEnvironmentConfig: vi.fn((_projectRoot, _environment) => ({
+      services: {},
+      env: { NODE_ENV: 'test' }
+    })),
+    getAvailableEnvironments: vi.fn(() => ['dev', 'staging', 'production', 'test']),
+    isValidEnvironment: vi.fn((env) => ['dev', 'staging', 'production', 'test'].includes(env)),
+    parseEnvironment: vi.fn((env) => {
+      const valid = ['dev', 'staging', 'production', 'test'];
+      if (valid.includes(env)) return env;
+      throw new Error(`Invalid environment: ${env}. Available environments: ${valid.join(', ')}`);
+    }),
+  };
+});
 
 // Mock cli-paths to provide a test project root
 vi.mock('../../lib/cli-paths.js', () => ({

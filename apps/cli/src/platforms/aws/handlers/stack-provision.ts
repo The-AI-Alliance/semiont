@@ -31,7 +31,7 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
   const environment = service.environment;
   
   // Load environment config to get AWS settings
-  const envConfig = loadEnvironmentConfig(environment);
+  const envConfig = loadEnvironmentConfig(projectRoot, environment);
   
   if (!envConfig.aws) {
     return {

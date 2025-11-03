@@ -25,8 +25,8 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
   // Load environment configuration from the PROJECT ROOT (current working directory)
   // NOT from the semiont source code repository
   // The project's semiont.json is ALWAYS in the user's project directory
-  const projectConfigPath = path.join(process.cwd(), 'semiont.json');
-  const envConfig = loadEnvironmentConfig(service.environment, projectConfigPath);
+  const projectRoot = process.cwd();
+  const envConfig = loadEnvironmentConfig(projectRoot, service.environment);
   
   // Determine image tag based on configuration
   let version: string;

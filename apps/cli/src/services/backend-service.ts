@@ -117,7 +117,7 @@ export class BackendService extends BaseService {
   }
   
   private buildEnvironment(): Record<string, string> {
-    const envConfig = loadEnvironmentConfig(this.systemConfig.environment);
+    const envConfig = loadEnvironmentConfig(this.systemConfig.projectRoot, this.systemConfig.environment);
     
     return {
       PORT: this.getPort().toString(),
@@ -302,7 +302,7 @@ export class BackendService extends BaseService {
     }
     
     // Try to get database configuration from environment config
-    const envConfig = loadEnvironmentConfig(this.systemConfig.environment);
+    const envConfig = loadEnvironmentConfig(this.systemConfig.projectRoot, this.systemConfig.environment);
     const dbConfig = envConfig.services?.database;
     
     if (dbConfig && dbConfig.platform?.type === 'external') {

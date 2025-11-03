@@ -114,7 +114,8 @@ export class MCPService extends BaseService {
   // =====================================================================
   
   private getApiUrl(): string {
-    const envConfig = loadEnvironmentConfig(this.config.environment);
+    const projectRoot = this.config.projectRoot || process.cwd();
+    const envConfig = loadEnvironmentConfig(projectRoot, this.config.environment);
     return `https://${envConfig.site?.domain || 'localhost'}`;
   }
   

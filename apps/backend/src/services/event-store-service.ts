@@ -7,7 +7,7 @@
  */
 
 import * as path from 'path';
-import { loadEnvironmentConfig } from '@semiont/core';
+import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import { EventStore } from '../events/event-store';
 import type { EventStorageConfig } from '../events/storage/event-storage';
 import type { IdentifierConfig } from './identifier-service';
@@ -32,18 +32,14 @@ export async function createEventStore(
     throw new Error('SEMIONT_ENV environment variable is required');
   }
 
-  let baseUrl: string;
+  const projectRoot = findProjectRoot();
+  const envConfig = await loadEnvironmentConfig(projectRoot, environment);
 
-  // For unit tests, use BACKEND_URL environment variable directly
-  if (environment === 'unit' && process.env.BACKEND_URL) {
-    baseUrl = process.env.BACKEND_URL;
-  } else {
-    const envConfig = await loadEnvironmentConfig(environment);
-    if (!envConfig.services?.backend?.publicURL) {
-      throw new Error('Backend publicURL not found in configuration');
-    }
-    baseUrl = envConfig.services.backend.publicURL;
+  if (!envConfig.services?.backend?.publicURL) {
+    throw new Error('Backend publicURL not found in configuration');
   }
+
+  const baseUrl = envConfig.services.backend.publicURL;
 
   const identifierConfig: IdentifierConfig = {
     baseUrl,

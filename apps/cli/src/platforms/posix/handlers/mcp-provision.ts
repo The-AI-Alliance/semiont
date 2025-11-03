@@ -28,7 +28,7 @@ const provisionMCPService = async (context: PosixProvisionHandlerContext): Promi
     };
   }
   
-  const envConfig = loadEnvironmentConfig(service.environment);
+  const envConfig = loadEnvironmentConfig(service.projectRoot, service.environment);
   const domain = envConfig.site?.domain || 'localhost:3000';
   const protocol = domain.includes('localhost') ? 'http' : 'https';
   const port = 8585; // Default MCP OAuth callback port

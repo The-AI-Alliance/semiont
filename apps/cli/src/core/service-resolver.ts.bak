@@ -32,7 +32,7 @@ export function getServicePlatform(
   serviceName: string, 
   environment: string
 ): PlatformType {
-  const config = loadEnvironmentConfig(findProjectRoot(), environment);
+  const config = loadEnvironmentConfig(environment);
   const serviceConfig = config.services?.[serviceName];
   
   if (!serviceConfig) {
@@ -79,7 +79,7 @@ export function resolveServiceDeployments(
   serviceNames: string[],
   environment: string
 ): ServicePlatformInfo[] {
-  const config = loadEnvironmentConfig(findProjectRoot(), environment);
+  const config = loadEnvironmentConfig(environment);
   const platformInfos: ServicePlatformInfo[] = [];
   
   for (const serviceName of serviceNames) {
@@ -139,7 +139,7 @@ export function getServicesByPlatform(
   platform: PlatformType,
   environment: string
 ): ServicePlatformInfo[] {
-  const config = loadEnvironmentConfig(findProjectRoot(), environment);
+  const config = loadEnvironmentConfig(environment);
   const matchingServices: ServicePlatformInfo[] = [];
   
   for (const [serviceName, serviceConfig] of Object.entries(config.services || {})) {
@@ -176,7 +176,7 @@ export function getServicesByPlatform(
  * @returns Array of service names
  */
 export function getServicesInEnvironment(environment: string): string[] {
-  const config = loadEnvironmentConfig(findProjectRoot(), environment);
+  const config = loadEnvironmentConfig(environment);
   return Object.keys(config.services || {});
 }
 
@@ -191,6 +191,6 @@ export function serviceExistsInEnvironment(
   serviceName: string,
   environment: string
 ): boolean {
-  const config = loadEnvironmentConfig(findProjectRoot(), environment);
+  const config = loadEnvironmentConfig(environment);
   return serviceName in (config.services || {});
 }

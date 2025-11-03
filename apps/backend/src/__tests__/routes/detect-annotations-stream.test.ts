@@ -14,6 +14,7 @@ import { initializeJobQueue, getJobQueue } from '../../jobs/job-queue';
 import { EventStore } from '../../events/event-store';
 import type { IdentifierConfig } from '../../services/identifier-service';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
+import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -78,19 +79,20 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
   let testUser: User;
   // @ts-ignore - used in multiple test blocks
   let eventStore: EventStore;
+  let testEnv: TestEnvironmentConfig;
 
   beforeAll(async () => {
+    // Set up test environment with proper config files
+    testEnv = await setupTestEnvironment();
+
+    // Get testDir from environment setup (or create a local one for job queue)
     testDir = join(tmpdir(), `semiont-test-sse-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    // Set required environment variables
+    // Set additional JWT environment variables
     process.env.SITE_DOMAIN = 'test.example.com';
     process.env.OAUTH_ALLOWED_DOMAINS = 'test.example.com,example.com';
     process.env.JWT_SECRET = 'test-secret-key-for-testing-with-at-least-32-characters';
-    process.env.BACKEND_URL = 'http://localhost:4000';
-    process.env.CORS_ORIGIN = 'http://localhost:3000';
-    process.env.FRONTEND_URL = 'http://localhost:3000';
-    process.env.NODE_ENV = 'test';
 
     // Initialize job queue
     await initializeJobQueue({ dataDir: join(testDir, 'jobs') });
@@ -159,6 +161,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
 
   afterAll(async () => {
     await fs.rm(testDir, { recursive: true, force: true });
+    await testEnv.cleanup();
   });
 
   it('should return SSE stream with proper content-type', async () => {

@@ -55,7 +55,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   }
   
   // Load environment configuration to get database credentials
-  const envConfig = loadEnvironmentConfig(service.environment);
+  const envConfig = loadEnvironmentConfig(service.projectRoot, service.environment);
   const dbConfig = envConfig.services?.database;
   
   // Build database URL from environment config
