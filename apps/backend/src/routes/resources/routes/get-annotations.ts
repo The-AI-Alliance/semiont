@@ -8,12 +8,9 @@
  * - OpenAPI spec is the source of truth
  */
 
-import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
 import type { ResourcesRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import type { components } from '@semiont/api-client';
-import { resourceUri, resourceId as makeResourceId } from '@semiont/core';
 
 type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
@@ -23,40 +20,18 @@ export function registerGetResourceAnnotations(router: ResourcesRouterType) {
    *
    * Get all annotations (both highlights and references) in a resource
    * Requires authentication
-   * Uses Layer 3 projections with GraphDB fallback
+   * Uses Layer 3 projections
    */
   router.get('/api/resources/:id/annotations', async (c) => {
     const { id } = c.req.param();
 
-    try {
-      // Try Layer 3 first (fast path - O(1) file read)
-      const annotations = await AnnotationQueryService.getAllAnnotations(id);
+    const annotations = await AnnotationQueryService.getAllAnnotations(id);
 
-      // Layer 3 projections have simplified format - return directly
-      const response: GetAnnotationsResponse = {
-        annotations,
-        total: annotations.length
-      };
+    const response: GetAnnotationsResponse = {
+      annotations,
+      total: annotations.length
+    };
 
-      return c.json(response);
-    } catch (error) {
-      // Fallback to GraphDB if projection missing
-      console.warn(`[Annotations] Layer 3 miss for ${id}, falling back to GraphDB`);
-
-      const graphDb = await getGraphDatabase();
-      const resource = await graphDb.getResource(resourceUri(id));
-      if (!resource) {
-        throw new HTTPException(404, { message: 'Resource not found' });
-      }
-
-      const result = await graphDb.listAnnotations({ resourceId: makeResourceId(id) });
-
-      const response: GetAnnotationsResponse = {
-        annotations: result.annotations,
-        total: result.total
-      };
-
-      return c.json(response);
-    }
+    return c.json(response);
   });
 }

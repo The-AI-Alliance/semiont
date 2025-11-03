@@ -166,30 +166,28 @@ function resolveEnvVars(obj: any): any {
 /**
  * Load environment configuration
  * Merges semiont.json with environment-specific config
- * 
- * @param environment - Environment name
- * @param configFile - Optional path to semiont.json
+ *
+ * @param projectRoot - Absolute path to project directory containing semiont.json
+ * @param environment - Environment name (must match a file in environments/)
  * @returns Merged environment configuration
  * @throws ConfigurationError if files are missing or invalid
  */
-export function loadEnvironmentConfig(environment: string, configFile?: string): EnvironmentConfig {
+export function loadEnvironmentConfig(projectRoot: string, environment: string): EnvironmentConfig {
   try {
-    const projectRoot = findProjectRoot();
-    
     // Load base semiont.json
-    const baseConfigPath = configFile || path.join(projectRoot, 'semiont.json');
+    const baseConfigPath = path.join(projectRoot, 'semiont.json');
     let baseConfig: any = {};
     if (fs.existsSync(baseConfigPath)) {
       const baseContent = fs.readFileSync(baseConfigPath, 'utf-8');
       baseConfig = JSON.parse(baseContent);
     }
-    
+
     // Load environment-specific config
     const envPath = path.join(projectRoot, 'environments', `${environment}.json`);
-    
+
     if (!fs.existsSync(envPath)) {
       throw new ConfigurationError(
-        `Environment configuration missing: ${envPath}`, 
+        `Environment configuration missing: ${envPath}`,
         environment,
         `Create the configuration file or use: semiont init`
       );
@@ -251,13 +249,14 @@ export function loadEnvironmentConfig(environment: string, configFile?: string):
 
 /**
  * Get NODE_ENV value from environment config
- * 
+ *
  * @param environment - Environment name
  * @returns NODE_ENV value
  * @throws ConfigurationError if not specified
  */
 export function getNodeEnvForEnvironment(environment: string): 'development' | 'production' | 'test' {
-  const config = loadEnvironmentConfig(environment);
+  const projectRoot = findProjectRoot();
+  const config = loadEnvironmentConfig(projectRoot, environment);
   const nodeEnv = config.env?.NODE_ENV;
   
   if (!nodeEnv) {

@@ -6,14 +6,17 @@
  */
 
 export class ConfigurationError extends Error {
+  public override readonly cause?: Error;
+
   constructor(
-    message: string, 
+    message: string,
     public environment?: string,
     public suggestion?: string,
-    public override readonly cause?: Error
+    cause?: Error
   ) {
     super(message);
     this.name = 'ConfigurationError';
+    this.cause = cause;
   }
   
   /**
