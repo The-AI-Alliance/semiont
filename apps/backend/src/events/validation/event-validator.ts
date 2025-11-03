@@ -10,7 +10,6 @@
  */
 
 import type { StoredEvent } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
 import { sha256 } from '../../storage/shard-utils';
 
 export interface ValidationResult {

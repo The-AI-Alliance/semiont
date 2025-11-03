@@ -8,7 +8,8 @@ import { EventQuery } from '../../events/query/event-query';
 import { EventValidator } from '../../events/validation/event-validator';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import { CREATION_METHODS } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import { resourceId, userId } from '@semiont/core';
+import type { IdentifierConfig } from '../../services/identifier-service';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -20,20 +21,22 @@ describe('Event Store', () => {
   let validator: EventValidator;
 
   beforeAll(async () => {
-    // Set required environment variables for tests
-    process.env.BACKEND_URL = 'http://localhost:4000';
-
     testDir = join(tmpdir(), `semiont-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     const projectionStorage = new FilesystemProjectionStorage(testDir);
+    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
 
-    eventStore = new EventStore({
-      basePath: testDir,
-      dataDir: testDir,
-      enableSharding: false, // Faster without sharding
-      maxEventsPerFile: 100,
-    }, projectionStorage);
+    eventStore = new EventStore(
+      {
+        basePath: testDir,
+        dataDir: testDir,
+        enableSharding: false, // Faster without sharding
+        maxEventsPerFile: 100,
+      },
+      projectionStorage,
+      identifierConfig
+    );
 
     query = new EventQuery(eventStore.storage);
     validator = new EventValidator();

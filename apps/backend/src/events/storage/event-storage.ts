@@ -15,8 +15,8 @@ import * as path from 'path';
 import { createReadStream } from 'fs';
 import * as readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
-import type { StoredEvent, ResourceEvent, EventMetadata } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import type { StoredEvent, ResourceEvent, EventMetadata, ResourceId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import { jumpConsistentHash, sha256 } from '../../storage/shard-utils';
 
 export interface EventStorageConfig {
@@ -56,7 +56,7 @@ export class EventStorage {
    * Uses jump consistent hash for uniform distribution
    * Special case: __system__ events bypass sharding
    */
-  getShardPath(resourceId: string): string {
+  getShardPath(resourceId: ResourceId): string {
     // System events don't get sharded
     if (resourceId === '__system__' || !this.config.enableSharding) {
       return '';
@@ -75,7 +75,7 @@ export class EventStorage {
   /**
    * Get full path to resource's event directory
    */
-  getResourcePath(resourceId: string): string {
+  getResourcePath(resourceId: ResourceId): string {
     const shardPath = this.getShardPath(resourceId);
     return path.join(this.config.dataDir, 'events', shardPath, resourceId);
   }
@@ -84,7 +84,7 @@ export class EventStorage {
    * Initialize directory structure for a resource's event stream
    * Also loads sequence number and last hash if stream exists
    */
-  async initializeResourceStream(resourceId: string): Promise<void> {
+  async initializeResourceStream(resourceId: ResourceId): Promise<void> {
     const docPath = this.getResourcePath(resourceId);
 
     // Check if already initialized
@@ -133,7 +133,7 @@ export class EventStorage {
    * Append an event - handles EVERYTHING for event creation
    * Creates ID, timestamp, metadata, checksum, sequence tracking, and writes to disk
    */
-  async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>, resourceId: string): Promise<StoredEvent> {
+  async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>, resourceId: ResourceId): Promise<StoredEvent> {
     // Ensure resource stream is initialized
     if (this.getSequenceNumber(resourceId) === 0) {
       await this.initializeResourceStream(resourceId);
@@ -176,7 +176,7 @@ export class EventStorage {
    * Write an event to storage (append to JSONL)
    * Internal method - use appendEvent() instead
    */
-  private async writeEvent(event: StoredEvent, resourceId: string): Promise<void> {
+  private async writeEvent(event: StoredEvent, resourceId: ResourceId): Promise<void> {
     const docPath = this.getResourcePath(resourceId);
 
     // Get current event files
@@ -214,7 +214,7 @@ export class EventStorage {
    * Count events in a specific file
    */
   async countEventsInFile(resourceId: string, filename: string): Promise<number> {
-    const docPath = this.getResourcePath(resourceId);
+    const docPath = this.getResourcePath(makeResourceId(resourceId));
     const filePath = path.join(docPath, filename);
 
     try {
@@ -233,7 +233,7 @@ export class EventStorage {
    * Read all events from a specific file
    */
   async readEventsFromFile(resourceId: string, filename: string): Promise<StoredEvent[]> {
-    const docPath = this.getResourcePath(resourceId);
+    const docPath = this.getResourcePath(makeResourceId(resourceId));
     const filePath = path.join(docPath, filename);
 
     const events: StoredEvent[] = [];
@@ -270,8 +270,8 @@ export class EventStorage {
   /**
    * Get list of event files for a resource (sorted by sequence)
    */
-  async getEventFiles(resourceId: string): Promise<string[]> {
-    const docPath = this.getResourcePath(resourceId);
+  async getEventFiles(resourceId: ResourceId): Promise<string[]> {
+    const docPath = this.getResourcePath(makeResourceId(resourceId));
 
     try {
       const files = await fs.readdir(docPath);
@@ -298,7 +298,7 @@ export class EventStorage {
    * Create a new event file for rotation
    */
   async createNewEventFile(resourceId: string): Promise<string> {
-    const files = await this.getEventFiles(resourceId);
+    const files = await this.getEventFiles(makeResourceId(resourceId));
 
     // Determine next sequence number
     const lastFile = files[files.length - 1];
@@ -307,7 +307,7 @@ export class EventStorage {
 
     // Create new file
     const filename = this.createEventFilename(newSeq);
-    const docPath = this.getResourcePath(resourceId);
+    const docPath = this.getResourcePath(makeResourceId(resourceId));
     const filePath = path.join(docPath, filename);
 
     await fs.writeFile(filePath, '', 'utf-8');
@@ -329,7 +329,7 @@ export class EventStorage {
   /**
    * Get all events for a resource across all files
    */
-  async getAllEvents(resourceId: string): Promise<StoredEvent[]> {
+  async getAllEvents(resourceId: ResourceId): Promise<StoredEvent[]> {
     const files = await this.getEventFiles(resourceId);
     const allEvents: StoredEvent[] = [];
 
@@ -392,14 +392,14 @@ export class EventStorage {
   /**
    * Get current sequence number for a resource
    */
-  getSequenceNumber(resourceId: string): number {
+  getSequenceNumber(resourceId: ResourceId): number {
     return this.resourceSequences.get(resourceId) || 0;
   }
 
   /**
    * Increment and return next sequence number for a resource
    */
-  getNextSequenceNumber(resourceId: string): number {
+  getNextSequenceNumber(resourceId: ResourceId): number {
     const current = this.getSequenceNumber(resourceId);
     const next = current + 1;
     this.resourceSequences.set(resourceId, next);
@@ -409,14 +409,14 @@ export class EventStorage {
   /**
    * Get last event hash for a resource
    */
-  getLastEventHash(resourceId: string): string | null {
+  getLastEventHash(resourceId: ResourceId): string | null {
     return this.resourceLastHash.get(resourceId) || null;
   }
 
   /**
    * Set last event hash for a resource
    */
-  setLastEventHash(resourceId: string, hash: string): void {
+  setLastEventHash(resourceId: ResourceId, hash: string): void {
     this.resourceLastHash.set(resourceId, hash);
   }
 }

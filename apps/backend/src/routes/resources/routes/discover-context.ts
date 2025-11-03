@@ -12,6 +12,7 @@ import { getGraphDatabase } from '../../../graph/factory';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { resourceId as makeResourceId } from '@semiont/core';
 
 type DiscoverContextResponse = components['schemas']['DiscoverContextResponse'];
 
@@ -30,7 +31,7 @@ export function registerDiscoverContext(router: ResourcesRouterType) {
       const graphDb = await getGraphDatabase();
 
       // Get resource connections
-      const connections = await graphDb.getResourceConnections(id);
+      const connections = await graphDb.getResourceConnections(makeResourceId(id));
       const connectedDocs = connections.map(conn => conn.targetResource);
 
       const response: DiscoverContextResponse = {

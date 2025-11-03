@@ -16,6 +16,7 @@ import type { components } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getResourceId, getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
+import { resourceUri, resourceId as makeResourceId } from '@semiont/core';
 
 type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
 
@@ -56,7 +57,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     const graphDb = await getGraphDatabase();
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    const mainDoc = await graphDb.getResource(id);
+    const mainDoc = await graphDb.getResource(resourceUri(id));
     if (!mainDoc) {
       throw new HTTPException(404, { message: 'Resource not found' });
     }
@@ -72,7 +73,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     }
 
     // Get related resources through graph connections
-    const connections = await graphDb.getResourceConnections(id);
+    const connections = await graphDb.getResourceConnections(makeResourceId(id));
     const relatedDocs = connections.map(conn => conn.targetResource);
     const limitedRelatedDocs = relatedDocs.slice(0, maxResources - 1);
 
@@ -93,7 +94,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     }
 
     // Get all annotations for the main resource
-    const result = await graphDb.listAnnotations({ resourceId: id });
+    const result = await graphDb.listAnnotations({ resourceId: makeResourceId(id) });
     const annotations = result.annotations;
 
     // Build graph representation

@@ -13,13 +13,12 @@
  * @see docs/EVENT-STORE.md#eventsubscriptions for architecture details
  */
 
-import type { StoredEvent } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import type { StoredEvent, ResourceUri } from '@semiont/core';
 
 export type EventCallback = (event: StoredEvent) => void | Promise<void>;
 
 export interface EventSubscription {
-  resourceId: string;
+  resourceUri: ResourceUri;
   callback: EventCallback;
   unsubscribe: () => void;
 }
@@ -29,34 +28,34 @@ export interface EventSubscription {
  * Supports both resource-scoped and global subscriptions
  */
 export class EventSubscriptions {
-  // Per-resource subscriptions: resourceId -> Set of callbacks
-  private subscriptions: Map<string, Set<EventCallback>> = new Map();
+  // Per-resource subscriptions: ResourceUri -> Set of callbacks
+  private subscriptions: Map<ResourceUri, Set<EventCallback>> = new Map();
   // Global subscriptions for system-level events (no resourceId)
   private globalSubscriptions: Set<EventCallback> = new Set();
 
   /**
-   * Subscribe to events for a specific resource
+   * Subscribe to events for a specific resource using full URI
    * Returns an EventSubscription with unsubscribe function
    */
-  subscribe(resourceId: string, callback: EventCallback): EventSubscription {
-    if (!this.subscriptions.has(resourceId)) {
-      this.subscriptions.set(resourceId, new Set());
+  subscribe(resourceUri: ResourceUri, callback: EventCallback): EventSubscription {
+    if (!this.subscriptions.has(resourceUri)) {
+      this.subscriptions.set(resourceUri, new Set());
     }
 
-    const callbacks = this.subscriptions.get(resourceId)!;
+    const callbacks = this.subscriptions.get(resourceUri)!;
     callbacks.add(callback);
 
-    console.log(`[EventSubscriptions] Subscription added for resource ${resourceId} (total: ${callbacks.size} subscribers)`);
+    console.log(`[EventSubscriptions] Subscription added for resource ${resourceUri} (total: ${callbacks.size} subscribers)`);
 
     return {
-      resourceId,
+      resourceUri,
       callback,
       unsubscribe: () => {
         callbacks.delete(callback);
-        console.log(`[EventSubscriptions] Subscription removed for resource ${resourceId} (remaining: ${callbacks.size} subscribers)`);
+        console.log(`[EventSubscriptions] Subscription removed for resource ${resourceUri} (remaining: ${callbacks.size} subscribers)`);
         if (callbacks.size === 0) {
-          this.subscriptions.delete(resourceId);
-          console.log(`[EventSubscriptions] No more subscribers for resource ${resourceId}, removed from subscriptions map`);
+          this.subscriptions.delete(resourceUri);
+          console.log(`[EventSubscriptions] No more subscribers for resource ${resourceUri}, removed from subscriptions map`);
         }
       }
     };
@@ -76,7 +75,7 @@ export class EventSubscriptions {
     console.log(`[EventSubscriptions] Global subscription added (total: ${this.globalSubscriptions.size} subscribers)`);
 
     return {
-      resourceId: '__global__',  // Special marker for global subscriptions
+      resourceUri: '__global__' as ResourceUri,  // Special marker for global subscriptions
       callback,
       unsubscribe: () => {
         this.globalSubscriptions.delete(callback);
@@ -87,15 +86,16 @@ export class EventSubscriptions {
 
   /**
    * Notify all subscribers for a resource when a new event is appended
+   * @param resourceUri - Full resource URI (e.g., http://localhost:4000/resources/abc123)
    */
-  async notifySubscribers(resourceId: string, event: StoredEvent): Promise<void> {
-    const callbacks = this.subscriptions.get(resourceId);
+  async notifySubscribers(resourceUri: ResourceUri, event: StoredEvent): Promise<void> {
+    const callbacks = this.subscriptions.get(resourceUri);
     if (!callbacks || callbacks.size === 0) {
-      console.log(`[EventSubscriptions] Event ${event.event.type} for resource ${resourceId} - no subscribers to notify`);
+      console.log(`[EventSubscriptions] Event ${event.event.type} for resource ${resourceUri} - no subscribers to notify`);
       return;
     }
 
-    console.log(`[EventSubscriptions] Notifying ${callbacks.size} subscriber(s) of event ${event.event.type} for resource ${resourceId}`);
+    console.log(`[EventSubscriptions] Notifying ${callbacks.size} subscriber(s) of event ${event.event.type} for resource ${resourceUri}`);
 
     // Call all callbacks without waiting - fire and forget
     // Each callback handles its own errors and cleanup
@@ -106,7 +106,7 @@ export class EventSubscriptions {
           console.log(`[EventSubscriptions] Subscriber #${index + 1} successfully notified of ${event.event.type}`);
         })
         .catch((error: unknown) => {
-          console.error(`[EventSubscriptions] Error in subscriber #${index + 1} for resource ${resourceId}, event ${event.event.type}:`, error);
+          console.error(`[EventSubscriptions] Error in subscriber #${index + 1} for resource ${resourceUri}, event ${event.event.type}:`, error);
         });
     });
   }
@@ -139,8 +139,8 @@ export class EventSubscriptions {
   /**
    * Get subscription count for a resource (useful for debugging)
    */
-  getSubscriptionCount(resourceId: string): number {
-    return this.subscriptions.get(resourceId)?.size || 0;
+  getSubscriptionCount(resourceUri: ResourceUri): number {
+    return this.subscriptions.get(resourceUri)?.size || 0;
   }
 
   /**

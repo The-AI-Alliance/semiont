@@ -11,7 +11,6 @@
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import type { EventQuery, StoredEvent } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 import { HTTPException } from 'hono/http-exception';
 import { getFilesystemConfig } from '../../../config/environment-loader';

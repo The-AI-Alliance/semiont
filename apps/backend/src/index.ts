@@ -28,7 +28,6 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { loadEnvironmentConfig } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
 
 import { User } from '@prisma/client';
 

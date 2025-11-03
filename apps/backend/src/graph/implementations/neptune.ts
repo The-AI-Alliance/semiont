@@ -12,6 +12,10 @@ import type {
   ResourceFilter,
   UpdateResourceInput,
   CreateAnnotationInternal,
+  ResourceId,
+  ResourceUri,
+  AnnotationId,
+  AnnotationUri,
 } from '@semiont/core';
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
@@ -378,7 +382,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getResource(id: string): Promise<ResourceDescriptor | null> {
+  async getResource(id: ResourceUri): Promise<ResourceDescriptor | null> {
     try {
       const result = await this.g.V()
         .hasLabel('Resource')
@@ -397,7 +401,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async updateResource(id: string, input: UpdateResourceInput): Promise<ResourceDescriptor> {
+  async updateResource(id: ResourceUri, input: UpdateResourceInput): Promise<ResourceDescriptor> {
     // Resources are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
       throw new Error('Resources are immutable. Only archiving is allowed.');
@@ -422,7 +426,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async deleteResource(id: string): Promise<void> {
+  async deleteResource(id: ResourceUri): Promise<void> {
     try {
       // Delete the resource vertex and all connected edges
       await this.g.V()
@@ -582,7 +586,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getAnnotation(id: string): Promise<Annotation | null> {
+  async getAnnotation(id: AnnotationUri): Promise<Annotation | null> {
     try {
       const result = await this.g.V()
         .hasLabel('Annotation')
@@ -612,7 +616,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation> {
+  async updateAnnotation(id: AnnotationUri, updates: Partial<Annotation>): Promise<Annotation> {
     try {
       let traversal = this.g.V()
         .hasLabel('Annotation')
@@ -697,7 +701,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async deleteAnnotation(id: string): Promise<void> {
+  async deleteAnnotation(id: AnnotationUri): Promise<void> {
     try {
       await this.g.V()
         .hasLabel('Annotation')
@@ -712,7 +716,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async listAnnotations(filter: { resourceId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
+  async listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     try {
       let traversal = this.g.V().hasLabel('Annotation');
 
@@ -737,7 +741,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
   
   
-  async getHighlights(resourceId: string): Promise<Annotation[]> {
+  async getHighlights(resourceId: ResourceId): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')
@@ -753,7 +757,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async resolveReference(annotationId: string, source: string): Promise<Annotation> {
+  async resolveReference(annotationId: AnnotationId, source: string): Promise<Annotation> {
     try {
       // Get target resource name
       const targetDocResult = await this.g.V()
@@ -806,7 +810,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getReferences(resourceId: string): Promise<Annotation[]> {
+  async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')
@@ -822,7 +826,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getEntityReferences(resourceId: string, entityTypes?: string[]): Promise<Annotation[]> {
+  async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
     try {
       let traversal = this.g.V()
         .hasLabel('Annotation')
@@ -849,7 +853,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getResourceAnnotations(resourceId: string): Promise<Annotation[]> {
+  async getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')
@@ -864,7 +868,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getResourceReferencedBy(resourceId: string): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceId: ResourceId): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')
@@ -879,7 +883,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getResourceConnections(resourceId: string): Promise<GraphConnection[]> {
+  async getResourceConnections(resourceId: ResourceId): Promise<GraphConnection[]> {
     try {
       // Get all annotations from this resource that reference other resources
       const outgoingAnnotations = await this.g.V()
@@ -1143,7 +1147,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
 
 
-  async resolveReferences(inputs: { annotationId: string; source: string }[]): Promise<Annotation[]> {
+  async resolveReferences(inputs: { annotationId: AnnotationId; source: string }[]): Promise<Annotation[]> {
     const results: Annotation[] = [];
 
     try {
@@ -1159,7 +1163,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async detectAnnotations(_resourceId: string): Promise<Annotation[]> {
+  async detectAnnotations(_resourceId: ResourceId): Promise<Annotation[]> {
     // This would use AI/ML to detect annotations in a resource
     // For now, return empty array as a placeholder
     return [];

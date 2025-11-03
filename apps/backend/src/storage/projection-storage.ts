@@ -12,8 +12,7 @@ import * as path from 'path';
 import { getShardPath } from './shard-utils';
 import { getFilesystemConfig } from '../config/environment-loader';
 import type { components } from '@semiont/api-client';
-import type { ResourceAnnotations } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import type { ResourceAnnotations, ResourceId } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -24,10 +23,10 @@ export interface ResourceState {
 }
 
 export interface ProjectionStorage {
-  saveProjection(resourceId: string, projection: ResourceState): Promise<void>;
-  getProjection(resourceId: string): Promise<ResourceState | null>;
-  deleteProjection(resourceId: string): Promise<void>;
-  projectionExists(resourceId: string): Promise<boolean>;
+  saveProjection(resourceId: ResourceId, projection: ResourceState): Promise<void>;
+  getProjection(resourceId: ResourceId): Promise<ResourceState | null>;
+  deleteProjection(resourceId: ResourceId): Promise<void>;
+  projectionExists(resourceId: ResourceId): Promise<boolean>;
   getAllProjections(): Promise<ResourceState[]>;
 }
 
@@ -43,13 +42,13 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     }
   }
 
-  private getProjectionPath(resourceId: string): string {
+  private getProjectionPath(resourceId: ResourceId): string {
     // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
     const [ab, cd] = getShardPath(resourceId);
     return path.join(this.basePath, 'projections', 'resources', ab, cd, `${resourceId}.json`);
   }
 
-  async saveProjection(resourceId: string, projection: ResourceState): Promise<void> {
+  async saveProjection(resourceId: ResourceId, projection: ResourceState): Promise<void> {
     const projPath = this.getProjectionPath(resourceId);
     const projDir = path.dirname(projPath);
 
@@ -60,7 +59,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     await fs.writeFile(projPath, JSON.stringify(projection, null, 2), 'utf-8');
   }
 
-  async getProjection(resourceId: string): Promise<ResourceState | null> {
+  async getProjection(resourceId: ResourceId): Promise<ResourceState | null> {
     const projPath = this.getProjectionPath(resourceId);
 
     try {
@@ -74,7 +73,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     }
   }
 
-  async deleteProjection(resourceId: string): Promise<void> {
+  async deleteProjection(resourceId: ResourceId): Promise<void> {
     const projPath = this.getProjectionPath(resourceId);
 
     try {
@@ -87,7 +86,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     }
   }
 
-  async projectionExists(resourceId: string): Promise<boolean> {
+  async projectionExists(resourceId: ResourceId): Promise<boolean> {
     const projPath = this.getProjectionPath(resourceId);
 
     try {

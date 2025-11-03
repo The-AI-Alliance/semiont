@@ -1,0 +1,360 @@
+// Construct DATABASE_URL from components if not already set
+// MUST be done before any Prisma imports!
+if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
+  const dbPort = process.env.DB_PORT;
+  const dbName = process.env.DB_NAME;
+
+  if (!dbPort) {
+    throw new Error('DB_PORT is required when constructing DATABASE_URL from components');
+  }
+  if (!dbName) {
+    throw new Error('DB_NAME is required when constructing DATABASE_URL from components');
+  }
+
+  const url = new URL('postgresql://localhost');
+  url.username = process.env.DB_USER;
+  url.password = process.env.DB_PASSWORD; // Automatically URL-encoded by URL class
+  url.hostname = process.env.DB_HOST;
+  url.port = dbPort;
+  url.pathname = `/${dbName}`;
+  url.searchParams.set('sslmode', 'require');
+
+  process.env.DATABASE_URL = url.toString();
+  console.log('✅ DATABASE_URL constructed from components');
+}
+
+import { cors } from 'hono/cors';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { swaggerUI } from '@hono/swagger-ui';
+import { loadEnvironmentConfig } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
+
+import { User } from '@prisma/client';
+
+// Load configuration from semiont.json + environments/{SEMIONT_ENV}.json
+// Only SEMIONT_ROOT and SEMIONT_ENV are read from environment
+const env = process.env.SEMIONT_ENV || 'local';
+const config = loadEnvironmentConfig(env);
+
+// Extract backend configuration
+const backendService = config.services.backend;
+const frontendService = config.services.frontend;
+
+const CORS_ORIGIN = backendService?.corsOrigin;
+const FRONTEND_URL = frontendService?.url;
+const NODE_ENV = config.env?.NODE_ENV || 'development';
+const PORT = backendService?.port || 4000;
+
+if (!CORS_ORIGIN) {
+  throw new Error('services.backend.corsOrigin is required in environment config');
+}
+if (!FRONTEND_URL) {
+  throw new Error('services.frontend.url is required in environment config');
+}
+
+const CONFIG = {
+  CORS_ORIGIN,
+  FRONTEND_URL,
+  NODE_ENV,
+  PORT,
+  BACKEND_URL: backendService?.publicUrl || `http://localhost:${PORT}`,
+  DATA_DIR: config.services.filesystem?.path || './data',
+};
+
+// Import route definitions
+import { healthRouter } from './routes/health';
+import { authRouter } from './routes/auth';
+import { statusRouter } from './routes/status';
+import { adminRouter } from './routes/admin';
+import { resourcesRouter } from './routes/resources/index';
+import { annotationsRouter } from './routes/annotations/index';
+import { entityTypesRouter } from './routes/entity-types';
+import { jobsRouter } from './routes/jobs/index';
+
+// Import static OpenAPI spec
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Import graph database for initialization
+import { getGraphDatabase } from './graph/factory';
+// Import inference client for initialization
+import { getInferenceClient } from './inference/factory';
+
+type Variables = {
+  user: User;
+};
+
+// Create Hono app with proper typing
+const app = new Hono<{ Variables: Variables }>();
+
+// Add CORS middleware
+app.use('*', cors({
+  origin: CONFIG.CORS_ORIGIN,
+  credentials: true,
+}));
+
+// Add request/response logging middleware
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  const method = c.req.method;
+  const url = c.req.url;
+  
+  console.log(`[${new Date().toISOString()}] --> ${method} ${url}`);
+  
+  // Log request body for POST/PUT requests
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+    try {
+      const body = await c.req.raw.clone().json();
+      console.log(`    Request body:`, JSON.stringify(body, null, 2));
+    } catch (e) {
+      // Body might not be JSON or might be empty
+    }
+  }
+  
+  await next();
+  
+  const duration = Date.now() - start;
+  const status = c.res.status;
+  console.log(`[${new Date().toISOString()}] <-- ${method} ${url} ${status} (${duration}ms)`);
+});
+
+// Mount route routers
+app.route('/', healthRouter);
+app.route('/', authRouter);
+app.route('/', statusRouter);
+app.route('/', adminRouter);
+app.route('/', resourcesRouter);
+app.route('/', annotationsRouter);
+app.route('/', entityTypesRouter);
+app.route('/', jobsRouter);
+
+// Test inference route
+app.get('/api/test-inference', async (c) => {
+  const { getInferenceClient, getInferenceModel } = await import('./inference/factory');
+  const client = await getInferenceClient();
+
+  if (!client) {
+    return c.json({
+      status: 'error',
+      message: 'Inference not configured',
+      env: {
+        SEMIONT_ENV: process.env.SEMIONT_ENV,
+        SEMIONT_ROOT: process.env.SEMIONT_ROOT,
+        hasApiKey: !!process.env.ANTHROPIC_API_KEY
+      }
+    }, 500);
+  }
+
+  try {
+    const response = await client.messages.create({
+      model: getInferenceModel(),
+      max_tokens: 10,
+      messages: [{
+        role: 'user',
+        content: 'Say "hello"'
+      }]
+    });
+
+    return c.json({
+      status: 'success',
+      response: response.content[0],
+      model: getInferenceModel()
+    });
+  } catch (error: any) {
+    return c.json({
+      status: 'error',
+      message: error.message
+    }, 500);
+  }
+});
+
+
+
+// API Resourceation root - redirect to appropriate format
+app.get('/api', (c) => {
+  const acceptHeader = c.req.header('Accept') || '';
+  const userAgent = c.req.header('User-Agent') || '';
+  const token = c.req.query('token');
+  
+  // If request is from a browser, redirect to Swagger UI
+  if (acceptHeader.includes('text/html') || userAgent.includes('Mozilla')) {
+    // Preserve token in redirect if it was provided
+    const redirectUrl = token ? `/api/docs?token=${token}` : '/api/docs';
+    return c.redirect(redirectUrl);
+  }
+
+  // For API clients requesting JSON, redirect to OpenAPI spec
+  const redirectUrl = token ? `/api/openapi.json?token=${token}` : '/api/openapi.json';
+  return c.redirect(redirectUrl);
+});
+
+// Serve OpenAPI JSON specification - now automatically generated
+app.get('/api/openapi.json', (c) => {
+  // Serve the static OpenAPI spec from the specs directory
+  const openApiPath = path.join(__dirname, '../../../specs/openapi.json');
+  const openApiContent = fs.readFileSync(openApiPath, 'utf-8');
+  const openApiSpec = JSON.parse(openApiContent);
+
+  // Update server URL dynamically
+  const apiUrl = CONFIG.BACKEND_URL;
+  if (apiUrl) {
+    openApiSpec.servers = [
+      {
+        url: apiUrl,
+        description: 'API Server',
+      },
+    ];
+  }
+
+  return c.json(openApiSpec);
+});
+
+// Serve Swagger UI resourceation - now public
+app.get('/api/docs', async (c) => {
+  // Token is optional for authenticated access
+  const token = c.req.query('token');
+  
+  try {
+    const swaggerHandler = swaggerUI({ 
+      url: token ? `/api/openapi.json?token=${token}` : '/api/openapi.json',
+      persistAuthorization: true,
+      title: 'Semiont API Resourceation'
+    });
+    
+    // TypeScript workarounds: swaggerUI has type mismatches
+    // - It's typed as MiddlewareHandler expecting (c, next) but runtime only uses (c)
+    // - Context type incompatibility requires 'as any' cast
+    return await swaggerHandler(c as any, async () => {});
+  } catch (error) {
+    console.error('Error in /api/docs handler:', error);
+    return c.json({ error: 'Failed to load resourceation', details: String(error) }, 500);
+  }
+});
+
+// Redirect /api/swagger to /api/docs for convenience
+app.get('/api/swagger', (c) => {
+  const token = c.req.query('token');
+  const redirectUrl = token ? `/api/docs?token=${token}` : '/api/docs';
+  return c.redirect(redirectUrl);
+});
+
+// 404 handler for non-existent API routes
+app.all('/api/*', (c) => {
+  return c.json({ error: 'Not found' }, 404);
+});
+
+// Start server
+const port = CONFIG.PORT;
+
+console.log(`🚀 Starting Semiont Backend...`);
+console.log(`Environment: ${CONFIG.NODE_ENV}`);
+console.log(`Port: ${port}`);
+
+// Start server
+if (CONFIG.NODE_ENV !== 'test') {
+  console.log('🚀 Starting HTTP server...');
+}
+
+// Only start server if not in test environment
+if (CONFIG.NODE_ENV !== 'test') {
+  serve({
+    fetch: app.fetch,
+    port: port,
+    hostname: '0.0.0.0'
+  }, async (info) => {
+    console.log(`🚀 Server ready at http://localhost:${info.port}`);
+    console.log(`📡 API ready at http://localhost:${info.port}/api`);
+
+    // Bootstrap entity types projection if it doesn't exist
+    try {
+      console.log('🌱 Bootstrapping entity types...');
+      const { bootstrapEntityTypes } = await import('./bootstrap/entity-types-bootstrap');
+      await bootstrapEntityTypes();
+      console.log('✅ Entity types bootstrap complete');
+    } catch (error) {
+      console.error('⚠️ Failed to bootstrap entity types:', error);
+      // Continue running even if bootstrap fails
+    }
+
+    // Initialize graph database and seed tag collections
+    try {
+      console.log('🔧 Initializing graph database...');
+      const graphDb = await getGraphDatabase();
+
+      // Pre-populate tag collections by calling getters
+      // This ensures defaults are loaded on startup
+      const entityTypes = await graphDb.getEntityTypes();
+
+      console.log(`✅ Graph database initialized with ${entityTypes.length} entity types`);
+    } catch (error) {
+      console.error('⚠️ Failed to initialize graph database:', error);
+      // Continue running even if graph initialization fails
+    }
+
+    // Initialize inference client
+    try {
+      console.log('🤖 Initializing inference client...');
+      await getInferenceClient();
+      console.log('✅ Inference client initialized');
+    } catch (error) {
+      console.error('⚠️ Failed to initialize inference client:', error);
+      // Continue running even if inference initialization fails
+    }
+
+    // Initialize GraphDB consumer (event-driven Layer 4)
+    try {
+      console.log('📊 Starting GraphDB consumer...');
+      const { startGraphConsumer } = await import('./events/consumers/graph-consumer');
+      await startGraphConsumer();
+      console.log('✅ GraphDB consumer started');
+    } catch (error) {
+      console.error('⚠️ Failed to start GraphDB consumer:', error);
+      // Continue running even if consumer fails to start
+    }
+
+    // Initialize Job Queue
+    try {
+      console.log('💼 Initializing job queue...');
+      const { initializeJobQueue } = await import('./jobs/job-queue');
+      const dataDir = CONFIG.DATA_DIR;
+      if (!dataDir) {
+        throw new Error('services.filesystem.path is required in environment config for job queue initialization');
+      }
+      await initializeJobQueue({ dataDir });
+      console.log('✅ Job queue initialized');
+    } catch (error) {
+      console.error('⚠️ Failed to initialize job queue:', error);
+    }
+
+    // Start Job Workers
+    try {
+      console.log('👷 Starting job workers...');
+      const { DetectionWorker } = await import('./jobs/workers/detection-worker');
+      const { GenerationWorker } = await import('./jobs/workers/generation-worker');
+
+      const detectionWorker = new DetectionWorker();
+      const generationWorker = new GenerationWorker();
+
+      // Start workers in background (non-blocking)
+      detectionWorker.start().catch((error) => {
+        console.error('⚠️ Detection worker stopped with error:', error);
+      });
+
+      generationWorker.start().catch((error) => {
+        console.error('⚠️ Generation worker stopped with error:', error);
+      });
+
+      console.log('✅ Detection worker started');
+      console.log('✅ Generation worker started');
+
+    } catch (error) {
+      console.error('⚠️ Failed to start job workers:', error);
+    }
+  });
+}
+
+export type AppType = typeof app;
+
+// Export app for testing
+export { app };

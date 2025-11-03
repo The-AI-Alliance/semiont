@@ -6,7 +6,7 @@
  */
 
 import { getBackendConfig } from '../config/environment-loader';
-import { resourceId, annotationId, type ResourceId, type AnnotationId } from '@semiont/core';
+import { resourceId, resourceUri, annotationId, annotationUri, type ResourceId, type ResourceUri, type AnnotationId, type AnnotationUri } from '@semiont/core';
 
 /**
  * Convert resource ID to full URI
@@ -18,11 +18,11 @@ import { resourceId, annotationId, type ResourceId, type AnnotationId } from '@s
  * resourceIdToURI("doc-abc123")
  * // => "https://api.semiont.app/resources/doc-abc123"
  */
-export function resourceIdToURI(resourceId: string): string {
+export function resourceIdToURI(id: ResourceId): ResourceUri {
   const baseURL = getBackendConfig().publicURL;
   // Remove trailing slash if present
   const normalizedBase = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
-  return `${normalizedBase}/resources/${resourceId}`;
+  return resourceUri(`${normalizedBase}/resources/${id}` );
 }
 
 /**
@@ -55,11 +55,11 @@ export function uriToResourceId(uri: string): ResourceId {
  * annotationIdToURI("anno-xyz789")
  * // => "https://api.semiont.app/annotations/anno-xyz789"
  */
-export function annotationIdToURI(annotationId: string): string {
+export function annotationIdToURI(id: AnnotationId): AnnotationUri {
   const baseURL = getBackendConfig().publicURL;
   // Remove trailing slash if present
   const normalizedBase = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
-  return `${normalizedBase}/annotations/${annotationId}`;
+  return annotationUri(`${normalizedBase}/annotations/${id}`);
 }
 
 /**

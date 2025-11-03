@@ -6,12 +6,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import { resourceId, resourceUri, userId } from '@semiont/core';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import { JWTService } from '../../auth/jwt';
 import { initializeJobQueue, getJobQueue } from '../../jobs/job-queue';
 import { EventStore } from '../../events/event-store';
+import type { IdentifierConfig } from '../../services/identifier-service';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -96,12 +97,17 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
 
     // Initialize Event Store
     const projectionStorage = new FilesystemProjectionStorage(testDir);
-    eventStore = new EventStore({
-      basePath: testDir,
-      dataDir: testDir,
-      enableSharding: false,
-      maxEventsPerFile: 100,
-    }, projectionStorage);
+    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
+    eventStore = new EventStore(
+      {
+        basePath: testDir,
+        dataDir: testDir,
+        enableSharding: false,
+        maxEventsPerFile: 100,
+      },
+      projectionStorage,
+      identifierConfig
+    );
 
     // Import app after environment setup
     const appModule = await import('../../index');
@@ -268,12 +274,17 @@ describe('Event Store Subscription Pattern', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     const projectionStorage = new FilesystemProjectionStorage(testDir);
-    eventStore = new EventStore({
-      basePath: testDir,
-      dataDir: testDir,
-      enableSharding: false,
-      maxEventsPerFile: 100,
-    }, projectionStorage);
+    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
+    eventStore = new EventStore(
+      {
+        basePath: testDir,
+        dataDir: testDir,
+        enableSharding: false,
+        maxEventsPerFile: 100,
+      },
+      projectionStorage,
+      identifierConfig
+    );
   });
 
   afterAll(async () => {
@@ -282,10 +293,10 @@ describe('Event Store Subscription Pattern', () => {
 
   it('should subscribe to resource events and receive job.progress events', async () => {
     const rId = resourceId('test-resource-1');
-    const resourceUri = `http://localhost:4000/resources/${rId}`;
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -318,10 +329,10 @@ describe('Event Store Subscription Pattern', () => {
 
   it('should receive job.completed event', async () => {
     const rId = resourceId('test-resource-2');
-    const resourceUri = `http://localhost:4000/resources/${rId}`;
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -347,10 +358,10 @@ describe('Event Store Subscription Pattern', () => {
 
   it('should receive job.failed event', async () => {
     const rId = resourceId('test-resource-3');
-    const resourceUri = `http://localhost:4000/resources/${rId}`;
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -378,10 +389,10 @@ describe('Event Store Subscription Pattern', () => {
 
   it('should unsubscribe and stop receiving events', async () => {
     const rId = resourceId('test-resource-4');
-    const resourceUri = `http://localhost:4000/resources/${rId}`;
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 

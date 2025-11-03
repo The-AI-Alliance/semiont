@@ -12,6 +12,10 @@ import type {
   ResourceFilter,
   UpdateResourceInput,
   CreateAnnotationInternal,
+  ResourceId,
+  ResourceUri,
+  AnnotationId,
+  AnnotationUri,
 } from '@semiont/core';
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
@@ -204,7 +208,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getResource(id: string): Promise<ResourceDescriptor | null> {
+  async getResource(id: ResourceUri): Promise<ResourceDescriptor | null> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -219,7 +223,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async updateResource(id: string, input: UpdateResourceInput): Promise<ResourceDescriptor> {
+  async updateResource(id: ResourceUri, input: UpdateResourceInput): Promise<ResourceDescriptor> {
     // Resources are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
       throw new Error('Resources are immutable. Only archiving is allowed.');
@@ -244,7 +248,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async deleteResource(id: string): Promise<void> {
+  async deleteResource(id: ResourceUri): Promise<void> {
     const session = this.getSession();
     try {
       // Delete resource and all its annotations
@@ -421,7 +425,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getAnnotation(id: string): Promise<Annotation | null> {
+  async getAnnotation(id: AnnotationUri): Promise<Annotation | null> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -441,7 +445,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation> {
+  async updateAnnotation(id: AnnotationUri, updates: Partial<Annotation>): Promise<Annotation> {
     const session = this.getSession();
     try {
       const setClauses: string[] = ['a.updatedAt = datetime()'];
@@ -514,7 +518,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async deleteAnnotation(id: string): Promise<void> {
+  async deleteAnnotation(id: AnnotationUri): Promise<void> {
     const session = this.getSession();
     try {
       await session.run(
@@ -526,7 +530,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async listAnnotations(filter: { resourceId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
+  async listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     const session = this.getSession();
     try {
       const conditions: string[] = [];
@@ -563,7 +567,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getHighlights(resourceId: string): Promise<Annotation[]> {
+  async getHighlights(resourceId: ResourceId): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -583,7 +587,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async resolveReference(annotationId: string, source: string): Promise<Annotation> {
+  async resolveReference(annotationId: AnnotationId, source: string): Promise<Annotation> {
     const session = this.getSession();
     try {
       // Get the target resource's name
@@ -619,7 +623,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getReferences(resourceId: string): Promise<Annotation[]> {
+  async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -639,7 +643,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getEntityReferences(resourceId: string, entityTypes?: string[]): Promise<Annotation[]> {
+  async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       let cypher = `MATCH (a:Annotation {resourceId: $resourceId})
@@ -669,7 +673,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getResourceAnnotations(resourceId: string): Promise<Annotation[]> {
+  async getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -688,7 +692,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getResourceReferencedBy(resourceId: string): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceId: ResourceId): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -707,7 +711,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getResourceConnections(resourceId: string): Promise<GraphConnection[]> {
+  async getResourceConnections(resourceId: ResourceId): Promise<GraphConnection[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -922,7 +926,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async resolveReferences(inputs: { annotationId: string; source: string }[]): Promise<Annotation[]> {
+  async resolveReferences(inputs: { annotationId: AnnotationId; source: string }[]): Promise<Annotation[]> {
     const results: Annotation[] = [];
     for (const input of inputs) {
       results.push(await this.resolveReference(input.annotationId, input.source));
@@ -930,7 +934,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async detectAnnotations(_resourceId: string): Promise<Annotation[]> {
+  async detectAnnotations(_resourceId: ResourceId): Promise<Annotation[]> {
     // This would use AI/ML to detect annotations in a resource
     // For now, return empty array as a placeholder
     return [];

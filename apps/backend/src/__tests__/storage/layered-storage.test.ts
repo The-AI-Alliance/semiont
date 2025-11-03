@@ -7,9 +7,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FilesystemStorage } from '../../storage/filesystem';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
 import { EventStore } from '../../events/event-store';
+import type { IdentifierConfig } from '../../services/identifier-service';
 import { EventQuery } from '../../events/query/event-query';
 import { CREATION_METHODS } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import { resourceId, userId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -23,21 +24,23 @@ describe('Layered Storage', () => {
   let query: EventQuery;
 
   beforeAll(async () => {
-    // Set required environment variables for tests
-    process.env.BACKEND_URL = 'http://localhost:4000';
-
     testDir = join(tmpdir(), `semiont-layered-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     resourceStorage = new FilesystemStorage(testDir);
     projectionStorage = new FilesystemProjectionStorage(testDir);
+    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
 
-    eventStore = new EventStore({
-      basePath: testDir,
-      dataDir: testDir,
-      enableSharding: true,
-      maxEventsPerFile: 100,
-    }, projectionStorage);
+    eventStore = new EventStore(
+      {
+        basePath: testDir,
+        dataDir: testDir,
+        enableSharding: true,
+        maxEventsPerFile: 100,
+      },
+      projectionStorage,
+      identifierConfig
+    );
 
     query = new EventQuery(eventStore.storage);
   });
@@ -173,7 +176,7 @@ describe('Layered Storage', () => {
     });
 
     it('should return null for non-existent projection', async () => {
-      const result = await projectionStorage.getProjection('doc-sha256:nonexistent');
+      const result = await projectionStorage.getProjection(resourceId('doc-sha256:nonexistent'));
       expect(result).toBeNull();
     });
 

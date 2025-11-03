@@ -13,6 +13,8 @@ import { getGraphDatabase } from '../../../graph/factory';
 import {
   CREATION_METHODS,
   generateUuid,
+  resourceUri,
+  resourceId as makeResourceId,
 } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -53,7 +55,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const sourceDoc = await graphDb.getResource(tokenData.resourceId);
+    const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Source resource not found' });
     }
@@ -96,7 +98,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       const repStore = new FilesystemRepresentationStore({ basePath });
 
       // Get source resource
-      const sourceDoc = await graphDb.getResource(tokenData.resourceId);
+      const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
       if (!sourceDoc) {
         throw new HTTPException(404, { message: 'Source resource not found' });
       }
@@ -147,7 +149,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
 
       // Archive original if requested
       if (body.archiveOriginal) {
-        await graphDb.updateResource(tokenData.resourceId, {
+        await graphDb.updateResource(resourceUri(tokenData.resourceId), {
           archived: true
         });
       }
@@ -156,7 +158,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       cloneTokens.delete(body.token);
 
       // Get annotations
-      const result = await graphDb.listAnnotations({ resourceId: getResourceId(savedDoc) });
+      const result = await graphDb.listAnnotations({ resourceId: makeResourceId(getResourceId(savedDoc)) });
 
       const response: CreateResourceFromTokenResponse = {
         resource: savedDoc,
@@ -179,7 +181,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
     const graphDb = await getGraphDatabase();
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    const sourceDoc = await graphDb.getResource(id);
+    const sourceDoc = await graphDb.getResource(resourceUri(resourceUri(id)));
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Resource not found' });
     }

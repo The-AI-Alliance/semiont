@@ -23,7 +23,6 @@ import type {
   ResourceId,
 } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
 import type { ProjectionStorage, ResourceState } from '../../storage/projection-storage';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

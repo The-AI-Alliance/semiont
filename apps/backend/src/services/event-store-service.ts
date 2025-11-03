@@ -3,13 +3,14 @@
  *
  * Single initialization point for EventStore and all its dependencies.
  * No singleton pattern - just a simple factory function.
- * NO getFilesystemConfig calls - requires EXPLICIT basePath from caller
- * NO fallbacks - basePath is REQUIRED
+ * Uses @semiont/core config loading to get backend.publicURL
  */
 
 import * as path from 'path';
+import { loadEnvironmentConfig } from '@semiont/core';
 import { EventStore } from '../events/event-store';
 import type { EventStorageConfig } from '../events/storage/event-storage';
+import type { IdentifierConfig } from './identifier-service';
 import { EventQuery } from '../events/query/event-query';
 import { EventValidator } from '../events/validation/event-validator';
 import { createProjectionManager } from './storage-service';
@@ -25,6 +26,21 @@ export async function createEventStore(
   basePath: string,
   config?: Omit<EventStorageConfig, 'basePath' | 'dataDir'>
 ): Promise<EventStore> {
+  // Load environment configuration to get backend.publicURL
+  const environment = process.env.SEMIONT_ENV;
+  if (!environment) {
+    throw new Error('SEMIONT_ENV environment variable is required');
+  }
+  const envConfig = await loadEnvironmentConfig(environment);
+
+  // Create IdentifierConfig for URI conversion
+  if (!envConfig.services?.backend?.publicURL) {
+    throw new Error('Backend publicURL not found in configuration');
+  }
+  const identifierConfig: IdentifierConfig = {
+    baseUrl: envConfig.services.backend.publicURL,
+  };
+
   // Create ProjectionManager (Layer 3)
   // Structure: <basePath>/projections/resources/...
   const projectionManager = createProjectionManager(basePath, {
@@ -35,13 +51,17 @@ export async function createEventStore(
   // Structure: <basePath>/events/...
   const dataDir = path.join(basePath, 'events');
 
-  const eventStore = new EventStore({
-    ...config,
-    basePath,
-    dataDir,
-    enableSharding: true,
-    numShards: 65536,  // 4 hex digits
-  }, projectionManager);
+  const eventStore = new EventStore(
+    {
+      ...config,
+      basePath,
+      dataDir,
+      enableSharding: true,
+      numShards: 65536,  // 4 hex digits
+    },
+    projectionManager,
+    identifierConfig
+  );
 
   return eventStore;
 }

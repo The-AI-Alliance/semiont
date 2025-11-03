@@ -14,8 +14,10 @@
 import type {
   ResourceEvent,
   StoredEvent,
+  ResourceId,
 } from '@semiont/core';
 import type { ProjectionStorage } from '../storage/projection-storage';
+import { toResourceUri, type IdentifierConfig } from '../services/identifier-service';
 
 // Import extracted modules
 import { EventStorage, type EventStorageConfig } from './storage/event-storage';
@@ -33,7 +35,11 @@ export class EventStore {
   readonly projector: EventProjector;
   readonly subscriptions: EventSubscriptions;
 
-  constructor(config: EventStorageConfig, projectionStorage: ProjectionStorage) {
+  constructor(
+    config: EventStorageConfig,
+    projectionStorage: ProjectionStorage,
+    private identifierConfig: IdentifierConfig
+  ) {
     // Initialize modules
     this.storage = new EventStorage(config);
 
@@ -53,10 +59,10 @@ export class EventStore {
    */
   async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>): Promise<StoredEvent> {
     // System-level events (entitytype.added) have no resourceId - use __system__
-    const resourceId = event.resourceId || '__system__';
+    const resourceId: ResourceId | '__system__' = event.resourceId || '__system__';
 
     // Storage handles ALL event creation
-    const storedEvent = await this.storage.appendEvent(event, resourceId);
+    const storedEvent = await this.storage.appendEvent(event, resourceId as any);
 
     // Update projections (Layer 3)
     if (resourceId === '__system__') {
@@ -70,12 +76,13 @@ export class EventStore {
     } else {
       // Resource projection
       await this.projector.updateProjectionIncremental(
-        resourceId,
+        resourceId as ResourceId,
         storedEvent.event,
-        () => this.storage.getAllEvents(resourceId)
+        () => this.storage.getAllEvents(resourceId as ResourceId)
       );
-      // Notify resource subscribers
-      await this.subscriptions.notifySubscribers(resourceId, storedEvent);
+      // Notify resource subscribers - convert ID to URI for type safety
+      const resourceUri = toResourceUri(this.identifierConfig, resourceId as ResourceId);
+      await this.subscriptions.notifySubscribers(resourceUri, storedEvent);
     }
 
     return storedEvent;

@@ -17,8 +17,8 @@
 
 import { promises as fs } from 'fs';
 import type { components } from '@semiont/api-client';
-import type { ResourceAnnotations } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import type { ResourceAnnotations, ResourceId } from '@semiont/core';;
+import { resourceId as makeResourceId } from '@semiont/core';
 import { PathBuilder } from '../shared/path-builder';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -61,7 +61,7 @@ export class ProjectionStorage {
    * @param resourceId - Resource identifier
    * @param projection - Complete resource state (metadata + annotations)
    */
-  async save(resourceId: string, projection: ResourceState): Promise<void> {
+  async save(resourceId: ResourceId, projection: ResourceState): Promise<void> {
     const filePath = this.pathBuilder.buildPath(resourceId, '.json');
     await this.pathBuilder.ensureDirectory(filePath);
 
@@ -75,7 +75,7 @@ export class ProjectionStorage {
    * @param resourceId - Resource identifier
    * @returns Resource state or null if not found
    */
-  async get(resourceId: string): Promise<ResourceState | null> {
+  async get(resourceId: ResourceId): Promise<ResourceState | null> {
     const filePath = this.pathBuilder.buildPath(resourceId, '.json');
 
     try {
@@ -94,7 +94,7 @@ export class ProjectionStorage {
    *
    * @param resourceId - Resource identifier
    */
-  async delete(resourceId: string): Promise<void> {
+  async delete(resourceId: ResourceId): Promise<void> {
     const filePath = this.pathBuilder.buildPath(resourceId, '.json');
 
     try {
@@ -113,7 +113,7 @@ export class ProjectionStorage {
    * @param resourceId - Resource identifier
    * @returns True if projection file exists
    */
-  async exists(resourceId: string): Promise<boolean> {
+  async exists(resourceId: ResourceId): Promise<boolean> {
     const filePath = this.pathBuilder.buildPath(resourceId, '.json');
 
     try {
@@ -144,7 +144,7 @@ export class ProjectionStorage {
 
     for (const id of resourceIds) {
       try {
-        const projection = await this.get(id);
+        const projection = await this.get(makeResourceId(id));
         if (projection) {
           projections.push(projection);
         }

@@ -23,7 +23,7 @@ import type {
   AnnotationAddedEvent,
   BodyOperation,
 } from '@semiont/core';
-import { userId, annotationId } from '@semiont/core';
+import { resourceId, annotationId, userId } from '@semiont/core';
 import { getTargetSource } from '../../lib/annotation-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
@@ -126,7 +126,7 @@ crudRouter.put('/api/annotations/:id/body',
     console.log(`[BODY UPDATE HANDLER] Called for annotation ${id}, operations:`, request.operations);
 
     // Get annotation from Layer 3 (event store projection)
-    const annotation = await AnnotationQueryService.getAnnotation(id, request.resourceId);
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), resourceId(request.resourceId));
     console.log(`[BODY UPDATE HANDLER] Layer 3 lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
 
     if (!annotation) {

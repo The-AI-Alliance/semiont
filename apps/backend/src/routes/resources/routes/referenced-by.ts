@@ -13,6 +13,7 @@ import { getExactText } from '@semiont/api-client';
 import { getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
+import { resourceId as makeResourceId, resourceUri } from '@semiont/core';
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
@@ -29,11 +30,11 @@ export function registerGetReferencedBy(router: ResourcesRouterType) {
     const graphDb = await getGraphDatabase();
 
     // Get all annotations that reference this resource
-    const references = await graphDb.getResourceReferencedBy(id);
+    const references = await graphDb.getResourceReferencedBy(makeResourceId(id));
 
     // Get unique resources from the selections
     const docIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-    const resources = await Promise.all(docIds.map(docId => graphDb.getResource(docId)));
+    const resources = await Promise.all(docIds.map(docId => graphDb.getResource(resourceUri(docId))));
 
     // Build resource map for lookup
     const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc.id, doc]));

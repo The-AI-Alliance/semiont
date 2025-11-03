@@ -14,6 +14,8 @@ import type { components } from '@semiont/api-client';
 import {
   CREATION_METHODS,
   generateUuid,
+  annotationId as makeAnnotationId,
+  resourceId as makeResourceId,
 } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -49,7 +51,7 @@ export function registerCreateResourceFromAnnotation(router: ResourcesRouterType
       const graphDb = await getGraphDatabase();
       const repStore = new FilesystemRepresentationStore({ basePath });
 
-      const annotation = await AnnotationQueryService.getAnnotation(annotationId, body.resourceId);
+      const annotation = await AnnotationQueryService.getAnnotation(makeAnnotationId(annotationId), makeResourceId(body.resourceId));
       if (!annotation) {
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
@@ -83,9 +85,9 @@ export function registerCreateResourceFromAnnotation(router: ResourcesRouterType
       const savedDoc = await graphDb.createResource(resource);
 
       // Update the annotation to resolve to the new resource
-      await graphDb.resolveReference(annotationId, getResourceId(savedDoc));
+      await graphDb.resolveReference(makeAnnotationId(annotationId), getResourceId(savedDoc));
 
-      const result = await graphDb.listAnnotations({ resourceId: getResourceId(savedDoc) });
+      const result = await graphDb.listAnnotations({ resourceId: makeResourceId(getResourceId(savedDoc)) });
 
       const response: CreateFromAnnotationResponse = {
         resource: savedDoc,

@@ -9,8 +9,8 @@
 import { createProjectionManager } from './storage-service';
 import { getGraphDatabase } from '../graph/factory';
 import type { components } from '@semiont/api-client';
-import type { ResourceAnnotations } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import type { ResourceAnnotations, ResourceId, AnnotationId, AnnotationCategory } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import { getFilesystemConfig } from '../config/environment-loader';
 
 type Annotation = components['schemas']['Annotation'];
@@ -71,16 +71,16 @@ export class AnnotationQueryService {
    * Get a single annotation by ID
    * O(1) lookup using resource ID to access Layer 3 projection
    */
-  static async getAnnotation(annotationId: string, resourceId: string): Promise<Annotation | null> {
+  static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId): Promise<Annotation | null> {
     const annotations = await this.getResourceAnnotations(resourceId);
     return annotations.annotations.find(a => a.id === annotationId) || null;
   }
 
   /**
    * List annotations with optional filtering
-   * @param filters - Optional filters like resourceId
+   * @param filters - Optional filters like resourceId and type
    */
-  static async listAnnotations(filters?: { resourceId?: string }): Promise<any> {
+  static async listAnnotations(filters?: { resourceId?: string; type?: AnnotationCategory }): Promise<any> {
     if (filters?.resourceId) {
       // If filtering by resource ID, use Layer 3 directly
       return await this.getAllAnnotations(filters.resourceId);
@@ -89,7 +89,10 @@ export class AnnotationQueryService {
     // For now, fall back to graph for cross-resource listing
     // TODO: Implement by scanning all projections
     const graphDb = await getGraphDatabase();
-    const result = await graphDb.listAnnotations(filters || {});
+    const graphFilters = filters?.resourceId
+      ? { resourceId: makeResourceId(filters.resourceId), type: filters.type }
+      : { type: filters?.type };
+    const result = await graphDb.listAnnotations(graphFilters);
     return result.annotations || [];
   }
 
@@ -103,7 +106,7 @@ export class AnnotationQueryService {
    */
   static async getBacklinks(resourceId: string): Promise<any[]> {
     const graphDb = await getGraphDatabase();
-    return await graphDb.getResourceReferencedBy(resourceId);
+    return await graphDb.getResourceReferencedBy(makeResourceId(resourceId));
   }
 
   /**
@@ -116,7 +119,7 @@ export class AnnotationQueryService {
     maxDepth?: number
   ): Promise<any[]> {
     const graphDb = await getGraphDatabase();
-    return await graphDb.findPath(fromResourceId, toResourceId, maxDepth);
+    return await graphDb.findPath(makeResourceId(fromResourceId), makeResourceId(toResourceId), maxDepth);
   }
 
   /**
@@ -125,7 +128,7 @@ export class AnnotationQueryService {
    */
   static async getResourceConnections(resourceId: string): Promise<any[]> {
     const graphDb = await getGraphDatabase();
-    return await graphDb.getResourceConnections(resourceId);
+    return await graphDb.getResourceConnections(makeResourceId(resourceId));
   }
 
   /**

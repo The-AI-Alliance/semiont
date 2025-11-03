@@ -9,7 +9,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EventValidator } from '../../events/validation/event-validator';
 import type { StoredEvent, ResourceEvent } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
 import { sha256 } from '../../storage/shard-utils';
 
 describe('EventValidator', () => {

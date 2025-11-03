@@ -10,8 +10,8 @@
  * @see docs/EVENT-STORE.md#eventquery for architecture details
  */
 
-import type { StoredEvent, EventQuery as EventQueryType } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import type { StoredEvent, EventQuery as EventQueryType, ResourceId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import type { EventStorage } from '../storage/event-storage';
 
 /**
@@ -31,7 +31,7 @@ export class EventQuery {
     }
 
     // Get all events from storage
-    const allEvents = await this.eventStorage.getAllEvents(query.resourceId);
+    const allEvents = await this.eventStorage.getAllEvents(makeResourceId(query.resourceId));
 
     // Apply filters
     let results = allEvents;
@@ -68,7 +68,7 @@ export class EventQuery {
    * Get all events for a specific resource (no filters)
    */
   async getResourceEvents(resourceId: string): Promise<StoredEvent[]> {
-    return this.eventStorage.getAllEvents(resourceId);
+    return this.eventStorage.getAllEvents(makeResourceId(resourceId));
   }
 
   /**
@@ -82,7 +82,7 @@ export class EventQuery {
   /**
    * Get the latest event for a resource across all files
    */
-  async getLatestEvent(resourceId: string): Promise<StoredEvent | null> {
+  async getLatestEvent(resourceId: ResourceId): Promise<StoredEvent | null> {
     const files = await this.eventStorage.getEventFiles(resourceId);
     if (files.length === 0) return null;
 
@@ -109,7 +109,7 @@ export class EventQuery {
    * Check if a resource has any events
    */
   async hasEvents(resourceId: string): Promise<boolean> {
-    const files = await this.eventStorage.getEventFiles(resourceId);
+    const files = await this.eventStorage.getEventFiles(makeResourceId(resourceId));
     return files.length > 0;
   }
 }

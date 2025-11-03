@@ -15,6 +15,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import type { components } from '@semiont/api-client';
 import { getFilesystemConfig } from '../../../config/environment-loader';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 
 type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
 
@@ -30,7 +31,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
     const { resourceId, annotationId } = c.req.param();
 
     // Verify annotation exists using Layer 3 (not GraphDB)
-    const annotation = await AnnotationQueryService.getAnnotation(annotationId, resourceId);
+    const annotation = await AnnotationQueryService.getAnnotation(makeAnnotationId(annotationId), makeResourceId(resourceId));
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }

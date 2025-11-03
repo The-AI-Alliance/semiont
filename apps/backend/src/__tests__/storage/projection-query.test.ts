@@ -11,7 +11,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import type { components } from '@semiont/api-client';
 import type { ResourceAnnotations, ResourceId } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 import { createTestResource } from '../fixtures/resource-fixtures';

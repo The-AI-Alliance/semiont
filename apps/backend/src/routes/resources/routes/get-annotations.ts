@@ -13,6 +13,7 @@ import { getGraphDatabase } from '../../../graph/factory';
 import type { ResourcesRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import type { components } from '@semiont/api-client';
+import { resourceUri, resourceId as makeResourceId } from '@semiont/core';
 
 type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
@@ -43,12 +44,12 @@ export function registerGetResourceAnnotations(router: ResourcesRouterType) {
       console.warn(`[Annotations] Layer 3 miss for ${id}, falling back to GraphDB`);
 
       const graphDb = await getGraphDatabase();
-      const resource = await graphDb.getResource(id);
+      const resource = await graphDb.getResource(resourceUri(id));
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
 
-      const result = await graphDb.listAnnotations({ resourceId: id });
+      const result = await graphDb.listAnnotations({ resourceId: makeResourceId(id) });
 
       const response: GetAnnotationsResponse = {
         annotations: result.annotations,

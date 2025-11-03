@@ -11,9 +11,10 @@ import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { components } from '@semiont/api-client';
 import type { ResourceEvent, StoredEvent } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
+import { resourceUri, resourceId as makeResourceId } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
-import { getFilesystemConfig } from '../../config/environment-loader';
+import { getFilesystemConfig, getBackendConfig } from '../../config/environment-loader';
+import { resourceIdToURI, annotationIdToURI } from '../../lib/uri-utils';
 
 type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -67,7 +68,11 @@ export class GraphDBConsumer {
     const basePath = getFilesystemConfig().path;
     const eventStore = await createEventStore(basePath);
 
-    const subscription = eventStore.subscriptions.subscribe(resourceId, async (storedEvent) => {
+    // Convert plain ID to full URI for subscription (EventSubscriptions uses ResourceUri branded type)
+    const backendConfig = getBackendConfig();
+    const rUri = resourceUri(`${backendConfig.publicURL}/resources/${resourceId}`);
+
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
       await this.processEvent(storedEvent);
     });
 
@@ -163,14 +168,14 @@ export class GraphDBConsumer {
 
       case 'resource.archived':
         if (!event.resourceId) throw new Error('resource.archived requires resourceId');
-        await graphDb.updateResource(event.resourceId, {
+        await graphDb.updateResource(resourceIdToURI(event.resourceId), {
           archived: true,
         });
         break;
 
       case 'resource.unarchived':
         if (!event.resourceId) throw new Error('resource.unarchived requires resourceId');
-        await graphDb.updateResource(event.resourceId, {
+        await graphDb.updateResource(resourceIdToURI(event.resourceId), {
           archived: false,
         });
         break;
@@ -185,14 +190,14 @@ export class GraphDBConsumer {
         break;
 
       case 'annotation.removed':
-        await graphDb.deleteAnnotation(event.payload.annotationId);
+        await graphDb.deleteAnnotation(annotationIdToURI(event.payload.annotationId));
         break;
 
       case 'annotation.body.updated':
         // Apply fine-grained body operations
         try {
           // Get current annotation from graph
-          const currentAnnotation = await graphDb.getAnnotation(event.payload.annotationId);
+          const currentAnnotation = await graphDb.getAnnotation(annotationIdToURI(event.payload.annotationId));
           if (currentAnnotation) {
             // Ensure body is an array
             let bodyArray = Array.isArray(currentAnnotation.body)
@@ -225,7 +230,7 @@ export class GraphDBConsumer {
             }
 
             // Update annotation with new body
-            await graphDb.updateAnnotation(event.payload.annotationId, {
+            await graphDb.updateAnnotation(annotationIdToURI(event.payload.annotationId), {
               body: bodyArray,
             } as Partial<Annotation>);
           }
@@ -238,9 +243,9 @@ export class GraphDBConsumer {
 
       case 'entitytag.added':
         if (!event.resourceId) throw new Error('entitytag.added requires resourceId');
-        const doc = await graphDb.getResource(event.resourceId);
+        const doc = await graphDb.getResource(resourceIdToURI(event.resourceId));
         if (doc) {
-          await graphDb.updateResource(event.resourceId, {
+          await graphDb.updateResource(resourceIdToURI(event.resourceId), {
             entityTypes: [...(doc.entityTypes || []), event.payload.entityType],
           });
         }
@@ -248,9 +253,9 @@ export class GraphDBConsumer {
 
       case 'entitytag.removed':
         if (!event.resourceId) throw new Error('entitytag.removed requires resourceId');
-        const doc2 = await graphDb.getResource(event.resourceId);
+        const doc2 = await graphDb.getResource(resourceIdToURI(event.resourceId));
         if (doc2) {
-          await graphDb.updateResource(event.resourceId, {
+          await graphDb.updateResource(resourceIdToURI(event.resourceId), {
             entityTypes: (doc2.entityTypes || []).filter(t => t !== event.payload.entityType),
           });
         }
@@ -278,7 +283,7 @@ export class GraphDBConsumer {
 
     // Delete existing data
     try {
-      await graphDb.deleteResource(resourceId);
+      await graphDb.deleteResource(resourceIdToURI(makeResourceId(resourceId)));
     } catch (error) {
       // Resource might not exist yet
       console.log(`[GraphDBConsumer] No existing resource to delete: ${resourceId}`);
