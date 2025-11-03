@@ -20,10 +20,15 @@ export interface TestEnvironmentConfig {
  * Create a complete test environment with:
  * - Temporary directory
  * - semiont.json
- * - environments/unit.json based on CLI test.json template
+ * - environments/{envName}.json based on CLI test.json template
  * - SEMIONT_ROOT and SEMIONT_ENV set
+ *
+ * @param envName - Optional environment name (defaults to SEMIONT_ENV or 'unit')
  */
-export async function setupTestEnvironment(): Promise<TestEnvironmentConfig> {
+export async function setupTestEnvironment(envName?: string): Promise<TestEnvironmentConfig> {
+  // Use provided envName, or existing SEMIONT_ENV, or default to 'unit'
+  const environment = envName || process.env.SEMIONT_ENV || 'unit';
+
   // Create temp directory
   const testDir = join(tmpdir(), `semiont-backend-test-${Date.now()}`);
   await fs.mkdir(testDir, { recursive: true });
@@ -50,27 +55,27 @@ export async function setupTestEnvironment(): Promise<TestEnvironmentConfig> {
   // Load CLI test.json template as base
   const templatePath = resolve(__dirname, '../../../cli/templates/environments/test.json');
   const templateContent = await fs.readFile(templatePath, 'utf-8');
-  const unitConfig = JSON.parse(templateContent);
+  const envConfig = JSON.parse(templateContent);
 
-  // Customize for unit tests:
-  // 1. Change name from 'test' to 'unit' (since SEMIONT_ENV=unit)
-  unitConfig.name = 'unit';
+  // Customize for tests:
+  // 1. Set name to match environment
+  envConfig.name = environment;
 
   // 2. Use posix platform instead of containers for faster tests
-  unitConfig.platform.default = 'posix';
-  unitConfig.services.backend.platform.type = 'posix';
-  unitConfig.services.frontend.platform.type = 'posix';
+  envConfig.platform.default = 'posix';
+  envConfig.services.backend.platform.type = 'posix';
+  envConfig.services.frontend.platform.type = 'posix';
 
   // 3. Set filesystem path to test directory
-  unitConfig.services.filesystem = {
+  envConfig.services.filesystem = {
     platform: { type: 'posix' },
     path: join(testDir, 'data'),
     description: 'Test filesystem storage'
   };
 
   await fs.writeFile(
-    join(envDir, 'unit.json'),
-    JSON.stringify(unitConfig, null, 2)
+    join(envDir, `${environment}.json`),
+    JSON.stringify(envConfig, null, 2)
   );
 
   // Create data directory for filesystem service
@@ -78,7 +83,7 @@ export async function setupTestEnvironment(): Promise<TestEnvironmentConfig> {
 
   // Set environment variables
   process.env.SEMIONT_ROOT = testDir;
-  process.env.SEMIONT_ENV = 'unit';
+  process.env.SEMIONT_ENV = environment;
 
   return {
     testDir,
