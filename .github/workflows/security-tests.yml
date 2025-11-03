@@ -282,6 +282,7 @@ jobs:
           cd ../..
           export SEMIONT_ROOT=$(pwd)
           export SEMIONT_ENV=ci
+          export NODE_ENV=test
           export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
 
           echo "Starting backend with SEMIONT_ENV=ci..."
