@@ -127,9 +127,11 @@ const provisionExecutor = new MultiServiceExecutor(provisionDescriptor);
  */
 export async function provision(
   serviceDeployments: ServicePlatformInfo[],
-  options: ProvisionOptions
+  options: ProvisionOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ) {
-  return provisionExecutor.execute(serviceDeployments, options);
+  return provisionExecutor.execute(serviceDeployments, options, envConfig);
 }
 
 // ProvisionResult type alias removed - use CommandResult directly

@@ -26,8 +26,8 @@
 
 import { Service } from './service-interface.js';
 import { ServiceName } from './service-discovery.js';
-import { Config, ServiceConfig } from './cli-config.js';
-import { PlatformType, EnvironmentConfig } from '@semiont/core';
+import { ServiceConfig } from './cli-config.js';
+import { PlatformType, EnvironmentConfig, Environment } from '@semiont/core';
 import {
   ServiceRequirements,
   StorageRequirement,
@@ -38,21 +38,34 @@ import {
 } from './service-requirements.js';
 
 export abstract class BaseService implements Service {
-  protected readonly systemConfig: Config;
   protected readonly envConfig: EnvironmentConfig;
   public readonly config: ServiceConfig;
   protected envVars: Record<string, string | undefined> = {};
 
+  // Runtime flags
+  public readonly verbose: boolean;
+  public readonly quiet: boolean;
+  public readonly dryRun: boolean;
+  public readonly forceDiscovery: boolean;
+
   constructor(
     public readonly name: ServiceName,
     public readonly platform: PlatformType,
-    systemConfig: Config,
     envConfig: EnvironmentConfig,
-    serviceConfig: ServiceConfig
+    serviceConfig: ServiceConfig,
+    runtimeFlags: {
+      verbose: boolean;
+      quiet: boolean;
+      dryRun?: boolean;
+      forceDiscovery?: boolean;
+    }
   ) {
-    this.systemConfig = systemConfig;
     this.envConfig = envConfig;
     this.config = serviceConfig;
+    this.verbose = runtimeFlags.verbose;
+    this.quiet = runtimeFlags.quiet;
+    this.dryRun = runtimeFlags.dryRun || false;
+    this.forceDiscovery = runtimeFlags.forceDiscovery || false;
     this.envVars = { ...process.env } as Record<string, string | undefined>;
   }
   
@@ -61,12 +74,23 @@ export abstract class BaseService implements Service {
   // These methods provide service-specific information to the platform
   // =====================================================================
 
-  get environment() { return this.systemConfig.environment; }
-  get projectRoot() { return this.systemConfig.projectRoot; }
-  get verbose() { return this.systemConfig.verbose || false; }
-  get quiet() { return this.systemConfig.quiet || false; }
-  get dryRun() { return this.systemConfig.dryRun || false; }
-  get forceDiscovery() { return this.systemConfig.forceDiscovery || false; }
+  // Derived properties from envConfig._metadata
+  get environment(): Environment {
+    const env = this.envConfig._metadata?.environment;
+    if (!env) {
+      throw new Error('Environment is required in envConfig._metadata');
+    }
+    return env as Environment;
+  }
+
+  get projectRoot(): string {
+    const root = this.envConfig._metadata?.projectRoot;
+    if (!root) {
+      throw new Error('Project root is required in envConfig._metadata');
+    }
+    return root;
+  }
+
   get environmentConfig() { return this.envConfig; }
   
   /**
@@ -110,17 +134,15 @@ export abstract class BaseService implements Service {
    */
   getEnvironmentVariables(): Record<string, string> {
     const envVars: Record<string, string> = {};
-    
+
     // Add common environment variables
-    if (this.systemConfig.environment) {
-      envVars.NODE_ENV = this.systemConfig.environment;
-    }
-    
+    envVars.NODE_ENV = this.environment;
+
     // Add service-specific environment variables from config
     if (this.config.env) {
       Object.assign(envVars, this.config.env);
     }
-    
+
     // Filter out undefined values
     return Object.entries(envVars).reduce((acc, [key, value]) => {
       if (value !== undefined) {

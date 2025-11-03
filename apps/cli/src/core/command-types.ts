@@ -32,13 +32,16 @@ export interface CommandResults<TResult = any> {
 
 /**
  * Standard command function signature for service-based commands.
- * 
- * Service-based commands receive pre-resolved services as the first parameter
- * and command-specific options as the second parameter.
+ *
+ * Service-based commands receive:
+ * 1. Pre-resolved services
+ * 2. Command-specific options
+ * 3. Environment configuration (includes projectRoot in _metadata)
  */
 export type ServiceCommandFunction<TOptions = any, TResult = any> = (
   serviceDeployments: ServicePlatformInfo[],
-  options: TOptions
+  options: TOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
 ) => Promise<CommandResults<TResult>>;
 
 /**

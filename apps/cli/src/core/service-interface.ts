@@ -29,13 +29,17 @@ export interface Service {
   readonly name: ServiceName;
   readonly platform: PlatformType;
   readonly config: ServiceConfig;
-  readonly environment: Environment;
   readonly environmentConfig: EnvironmentConfig;
-  readonly projectRoot: string;
+
+  // Runtime flags (not part of environment config)
   readonly verbose: boolean;
   readonly quiet: boolean;
   readonly dryRun?: boolean;
   readonly forceDiscovery?: boolean;
+
+  // Derived properties (from environmentConfig._metadata)
+  readonly environment: Environment;
+  readonly projectRoot: string;
   
   // Service-specific methods that platforms can call
   getPort(): number;

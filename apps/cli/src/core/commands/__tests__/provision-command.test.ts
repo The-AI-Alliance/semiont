@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createServiceDeployments, resetMockState } from './_mock-setup';
+import { createServiceDeployments, resetMockState, createMockEnvConfig } from './_mock-setup';
 import type { ProvisionOptions } from '../provision.js';
 
 // Import mocks (side effects)
@@ -57,7 +57,7 @@ describe('Provision Command', () => {
         output: 'json'
       });
 
-      const result = await provision(serviceDeployments, options);
+      const result = await provision(serviceDeployments, options, createMockEnvConfig());
 
       expect(result).toMatchObject({
         command: 'provision',

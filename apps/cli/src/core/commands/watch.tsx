@@ -143,9 +143,9 @@ async function launchDashboard(
       if (terminalMode) {
         // Terminal dashboard mode
         const { DashboardApp: DashboardComponent } = await import('../dashboard/dashboard-layouts.js');
-        
+
         // Create data source using the new architecture
-        const dataSource = new DashboardDataSource(environment, serviceDeployments, config);
+        const dataSource = new DashboardDataSource(environment, serviceDeployments, envConfig);
         
         // Determine dashboard mode
         let mode: 'unified' | 'logs' | 'metrics' = 'unified';
@@ -177,7 +177,7 @@ async function launchDashboard(
           constructor(environment: string, port: number, interval: number) {
             super(environment, port, interval);
             // Override the parent's dataSource with our enhanced version
-            this.dataSource = new DashboardDataSource(environment, serviceDeployments, config);
+            this.dataSource = new DashboardDataSource(environment, serviceDeployments, envConfig);
           }
           
           async getDashboardData() {
@@ -224,15 +224,21 @@ async function launchDashboard(
 
 export async function watch(
   serviceDeployments: ServicePlatformInfo[],
-  options: WatchOptions
+  options: WatchOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  const environment = options.environment!;
-  
+  const environment = envConfig._metadata?.environment || options.environment!;
+  const projectRoot = envConfig._metadata?.projectRoot;
+  if (!projectRoot) {
+    throw new Error('Project root is required in config metadata');
+  }
+
   // Create config for the services
   const config: Config = {
-    projectRoot: process.cwd(),
+    projectRoot,
     environment: parseEnvironment(environment),
     verbose: options.verbose,
     quiet: isStructuredOutput,

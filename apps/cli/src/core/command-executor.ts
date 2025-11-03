@@ -187,8 +187,11 @@ export async function executeCommand(
     // Execute the command handler based on its type
     let results;
     if (command.requiresServices) {
-      // Service command - pass services and options
-      results = await command.handler(services, options);
+      // Service command - pass services, options, and config (config includes projectRoot in _metadata)
+      const environment = options.environment!;
+      const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+      const envConfig = loadEnvironmentConfig(projectRoot, environment);
+      results = await command.handler(services, options, envConfig);
     } else {
       // Setup command - pass only options
       const setupHandler = command.handler as any; // TypeScript needs help here

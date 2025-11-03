@@ -103,9 +103,11 @@ const checkExecutor = new MultiServiceExecutor(checkDescriptor);
  */
 export async function check(
   serviceDeployments: ServicePlatformInfo[],
-  options: CheckOptions
+  options: CheckOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ) {
-  return checkExecutor.execute(serviceDeployments, options);
+  return checkExecutor.execute(serviceDeployments, options, envConfig);
 }
 
 // CheckResult type alias removed - use CommandResult directly

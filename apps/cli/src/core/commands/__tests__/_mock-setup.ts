@@ -22,6 +22,10 @@ vi.mock('@semiont/core', async () => {
     findProjectRoot: vi.fn(() => '/test/project/root'),
     getNodeEnvForEnvironment: vi.fn(() => 'test'),
     loadEnvironmentConfig: vi.fn((_projectRoot, _environment) => ({
+      _metadata: {
+        environment: _environment,
+        projectRoot: _projectRoot
+      },
       services: {},
       env: { NODE_ENV: 'test' }
     })),
@@ -73,4 +77,16 @@ export function createServiceDeployments(services: Array<{name: string, type?: s
 export function resetMockState() {
   vi.clearAllMocks();
   mockPlatformInstance['mockState'].clear();
+}
+
+// Helper to create mock environment config for tests
+export function createMockEnvConfig(environment: string = 'test'): import('@semiont/core').EnvironmentConfig {
+  return {
+    _metadata: {
+      environment,
+      projectRoot: '/test/project/root'
+    },
+    services: {},
+    env: { NODE_ENV: 'test' }
+  } as import('@semiont/core').EnvironmentConfig;
 }

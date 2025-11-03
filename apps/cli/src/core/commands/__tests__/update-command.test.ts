@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createServiceDeployments, resetMockState } from './_mock-setup';
+import { createServiceDeployments, resetMockState, createMockEnvConfig } from './_mock-setup';
 import type { UpdateOptions } from '../update.js';
 
 // Import mocks (side effects)
@@ -53,7 +53,7 @@ describe('Uupdate Command', () => {
         output: 'json'
       });
 
-      const result = await update(serviceDeployments, options);
+      const result = await update(serviceDeployments, options, createMockEnvConfig());
 
       expect(result).toMatchObject({
         command: 'update',
