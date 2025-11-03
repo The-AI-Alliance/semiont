@@ -54,31 +54,45 @@ Each environment configuration file follows this structure:
 {
   "_comment": "Environment description",
   "_extends": "base-environment",  // Optional: inherit from another config
-  
+
   "site": {
-    "name": "My Semiont Instance",
     "domain": "wiki.example.com",
-    "adminEmail": "admin@example.com",
-    "oauthAllowedDomains": ["example.com"]
+    "oauthAllowedDomains": ["example.com"]  // REQUIRED for JWT auth
   },
-  
+
   "services": {
     "backend": {
-      "deployment": { "type": "aws" },  // aws | container | process | external
-      "port": 3001,
-      "host": "localhost"
+      "platform": { "type": "posix" },  // posix | container | aws | external
+      "port": 4000,
+      "publicURL": "http://localhost:4000",  // REQUIRED for URIs
+      "corsOrigin": "http://localhost:3000"
     },
     "frontend": {
-      "deployment": { "type": "aws" },
-      "port": 3000
+      "platform": { "type": "posix" },
+      "port": 3000,
+      "url": "http://localhost:3000"
+    },
+    "filesystem": {
+      "platform": { "type": "posix" },
+      "path": "./data/uploads",  // REQUIRED for file storage
+      "description": "Local filesystem storage"
     },
     "database": {
-      "deployment": { "type": "container" },
+      "platform": { "type": "container" },
+      "image": "postgres:15-alpine",
       "name": "semiont_db",
       "port": 5432
+    },
+    "inference": {
+      "platform": { "type": "external" },
+      "type": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "maxTokens": 8192,
+      "endpoint": "https://api.anthropic.com",
+      "apiKey": "${ANTHROPIC_API_KEY}"  // Loaded from environment
     }
   },
-  
+
   "aws": {
     "region": "us-east-2",
     "accountId": "123456789012",
@@ -89,12 +103,29 @@ Each environment configuration file follows this structure:
       "app": "SemiontAppStack"
     }
   },
-  
+
   "deployment": {
     "imageTagStrategy": "mutable"  // or "immutable" for production
+  },
+
+  "env": {
+    "NODE_ENV": "development"  // Node.js environment mode
   }
 }
 ```
+
+#### Required Fields
+
+**For Backend to Start**:
+- `site.domain` - Used for JWT issuer
+- `site.oauthAllowedDomains` - Array of allowed OAuth email domains
+- `services.backend.publicURL` - Base URL for generating resource/annotation URIs
+- `services.filesystem.path` - Where to store uploaded files and projections
+
+**Optional But Common**:
+- `services.backend.corsOrigin` - CORS allowed origin
+- `services.frontend.url` - Frontend base URL
+- `services.inference` - AI service configuration
 
 ### 4. **Configuration Loading Process**
 
@@ -437,29 +468,86 @@ semiont start
 
 ## Implementation Details
 
-The configuration system is implemented in `apps/cli/src/lib/deployment-resolver.ts`, which provides:
+The configuration system is implemented in `@semiont/core` (`packages/core/src/config/`), which provides:
 
-- **`loadEnvironmentConfig(environment: string)`**: Loads and merges configuration for a specific environment
+- **`loadEnvironmentConfig(projectRoot: string, environment: string)`**: Loads and validates configuration for a specific environment
 - **`findProjectRoot()`**: Locates the project root by searching for `semiont.json`
-- **`getAvailableEnvironments()`**: Lists all available environment configurations
-- **`isValidEnvironment(environment: string)`**: Validates if an environment exists
+- **Configuration validators**: Type-safe access to config values
+
+The CLI wraps these functions in `apps/cli/src/lib/deployment-resolver.ts` for convenience.
 
 ### Backend Configuration
 
-Backend services receive configuration through environment variables at runtime:
+**Backend loads configuration from files**, not environment variables (except for a minimal set).
 
-- **`SITE_DOMAIN`**: Domain for JWT issuer (from `config.site.domain`)
-- **`OAUTH_ALLOWED_DOMAINS`**: Comma-separated list of allowed OAuth domains (from `config.site.oauthAllowedDomains`)
-- **`JWT_SECRET`**: Authentication secret (from AWS Secrets Manager or local development)
-- **`DATABASE_URL`**: Database connection string
-- **`NODE_ENV`**: Runtime environment (development/production/test)
-- **`SEMIONT_ENV`**: Semiont environment name
+#### Configuration Loading in Backend
 
-The CLI automatically passes these environment variables when starting services.
+Backend uses wrapper functions in `apps/backend/src/config/config.ts`:
+
+```typescript
+import { getFilesystemConfig, getBackendConfig, getInferenceConfig } from './config/config';
+
+// Get filesystem storage path
+const { path } = getFilesystemConfig();
+// Returns: { path: '/absolute/path/to/data' }
+
+// Get backend URL for URI generation
+const { publicURL } = getBackendConfig();
+// Returns: { publicURL: 'http://localhost:4000' }
+
+// Get AI service config
+const config = getInferenceConfig();
+// Returns: { type: 'anthropic', model: '...', apiKey: '...' }
+```
+
+These functions:
+1. Read `SEMIONT_ENV` to know which environment
+2. Call `findProjectRoot()` to locate the project
+3. Load `environments/${SEMIONT_ENV}.json`
+4. Parse and validate the configuration
+5. Resolve relative paths to absolute paths
+6. Cache the config for performance
+
+#### Environment Variables (Minimal Set)
+
+Only **4 environment variables** are required:
+
+- **`SEMIONT_ROOT`**: Project root directory (optional if running from project dir)
+- **`SEMIONT_ENV`**: Which environment config to load (e.g., 'local', 'production')
+- **`NODE_ENV`**: Node.js environment mode (development/production/test)
+- **`DATABASE_URL`**: Database connection string (required by Prisma ORM)
+
+**All other configuration** comes from `environments/${SEMIONT_ENV}.json`:
+- JWT secrets from `.secrets.json`
+- OAuth domains from `site.oauthAllowedDomains`
+- Backend URL from `services.backend.publicURL`
+- File paths from `services.filesystem.path`
+- etc.
+
+#### Why This Approach?
+
+1. **Single Source of Truth**: Config files, not scattered env vars
+2. **Type Safety**: TypeScript types from config schema
+3. **Easy Testing**: Tests create temp config files
+4. **Version Control**: Config changes are tracked in git
+5. **Less Error-Prone**: No magic environment variable names
 
 ## Related Documentation
 
-- [apps/cli/src/lib/deployment-resolver.ts](../apps/cli/src/lib/deployment-resolver.ts) - Configuration loading implementation
-- [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment guide using configurations
-- [apps/cli/README.md](../apps/cli/README.md) - CLI commands that use configuration
-- [apps/backend/src/auth/jwt.ts](../apps/backend/src/auth/jwt.ts) - Backend JWT service using environment variables
+### Core Implementation
+- [packages/core/src/config/](../packages/core/src/config/) - Core configuration loading (@semiont/core)
+- [packages/core/src/config/environment-loader.ts](../packages/core/src/config/environment-loader.ts) - `loadEnvironmentConfig()` implementation
+- [packages/core/src/config/project-discovery.ts](../packages/core/src/config/project-discovery.ts) - `findProjectRoot()` implementation
+
+### Backend Configuration
+- [apps/backend/src/config/config.ts](../apps/backend/src/config/config.ts) - Backend config wrapper functions
+- [apps/backend/src/auth/jwt.ts](../apps/backend/src/auth/jwt.ts) - JWT service using config files
+
+### CLI Integration
+- [apps/cli/src/lib/deployment-resolver.ts](../apps/cli/src/lib/deployment-resolver.ts) - CLI wrapper for configuration
+- [apps/cli/templates/environments/](../apps/cli/templates/environments/) - Environment templates (source of truth)
+- [apps/cli/README.md](../apps/cli/README.md) - CLI commands
+
+### Other Docs
+- [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment guide
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture
