@@ -1,5 +1,9 @@
 {
   "name": "test",
+  "site": {
+    "domain": "localhost",
+    "oauthAllowedDomains": ["example.com", "test.example.com"]
+  },
   "platform": {
     "default": "container"
   },
@@ -12,14 +16,24 @@
         "type": "container"
       },
       "image": "semiont-backend:test",
-      "port": 4000
+      "port": 4000,
+      "publicURL": "http://localhost:4000",
+      "corsOrigin": "http://localhost:3000"
     },
     "frontend": {
       "platform": {
         "type": "container"
       },
       "image": "semiont-frontend:test",
-      "port": 3000
+      "port": 3000,
+      "url": "http://localhost:3000"
+    },
+    "filesystem": {
+      "platform": {
+        "type": "posix"
+      },
+      "path": "data",
+      "description": "Test filesystem storage"
     },
     "database": {
       "platform": {
