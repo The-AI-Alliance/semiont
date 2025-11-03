@@ -41,8 +41,8 @@ describe('Start Command', () => {
       const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'mock' },
-        { name: 'backend', type: 'mock' }
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'postgres:15' } },
+        { name: 'backend', type: 'mock', config: { port: 3001 } }
       ]);
 
       const options = createStartOptions({
@@ -111,7 +111,7 @@ describe('Start Command', () => {
       const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'mock', config: { image: 'invalid-image' } }
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'invalid-image' } }
       ]);
 
       const options = createStartOptions({
@@ -153,7 +153,7 @@ describe('Start Command', () => {
       const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'mock', config: { image: 'postgres:14' } }
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'postgres:14' } }
       ]);
 
       const options = createStartOptions({

@@ -25,7 +25,11 @@ export class SemiontStackConfig {
 
   constructor(environmentConfig: EnvironmentConfig) {
     this.environmentConfig = environmentConfig;
-    this.environment = environmentConfig._metadata?.environment || 'unknown';
+    const environment = environmentConfig._metadata?.environment;
+    if (!environment) {
+      throw new Error('Environment is required in environmentConfig._metadata');
+    }
+    this.environment = environment;
 
     // AWS is required for stack configuration
     if (!this.environmentConfig.aws) {

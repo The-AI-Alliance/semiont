@@ -39,8 +39,6 @@ import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 // Import new service architecture
 import { ServiceName } from '../service-discovery.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
-import { Config } from '../cli-config.js';
-import { parseEnvironment } from '@semiont/core';
 import { Platform } from '../platform.js';
 import { AWSPlatform } from '../../platforms/aws/platform.js';
 import { ContainerPlatform } from '../../platforms/container/platform.js';
@@ -117,10 +115,10 @@ export type WatchOptions = z.output<typeof WatchOptionsSchema>;
 // =====================================================================
 
 async function launchDashboard(
-  environment: string, 
-  target: string, 
+  environment: string,
+  target: string,
   serviceDeployments: ServicePlatformInfo[],
-  config: Config,
+  envConfig: import('@semiont/core').EnvironmentConfig,
   interval: number,
   terminalMode: boolean = false,
   port: number = 3333
@@ -230,21 +228,15 @@ export async function watch(
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  const environment = envConfig._metadata?.environment || options.environment!;
+  const environment = envConfig._metadata?.environment;
+  if (!environment) {
+    throw new Error('Environment is required in envConfig._metadata');
+  }
   const projectRoot = envConfig._metadata?.projectRoot;
   if (!projectRoot) {
-    throw new Error('Project root is required in config metadata');
+    throw new Error('Project root is required in envConfig._metadata');
   }
 
-  // Create config for the services
-  const config: Config = {
-    projectRoot,
-    environment: parseEnvironment(environment),
-    verbose: options.verbose,
-    quiet: isStructuredOutput,
-    dryRun: options.dryRun
-  };
-  
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
@@ -375,7 +367,7 @@ export async function watch(
         environment,
         options.target,
         serviceDeployments,
-        config,
+        envConfig,
         options.interval,
         options.terminal,
         options.port

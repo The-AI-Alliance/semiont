@@ -108,7 +108,7 @@ export class FrontendService extends BaseService {
       NODE_ENV: getNodeEnvForEnvironment(this.envConfig),
       PORT: this.getPort().toString(),
       NEXT_PUBLIC_API_URL: this.getBackendUrl(),
-      NEXT_PUBLIC_SITE_NAME: `Semiont ${this.systemConfig.environment}`,
+      NEXT_PUBLIC_SITE_NAME: `Semiont ${this.environment}`,
       PUBLIC_URL: this.getPublicUrl()
     };
   }

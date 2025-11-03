@@ -51,7 +51,7 @@ export class DatabaseService extends BaseService {
     const dbRequirements: ServiceRequirements = {
       storage: [{
         persistent: true,
-        volumeName: `postgres-data-${this.systemConfig.environment}`,
+        volumeName: `postgres-data-${this.environment}`,
         size: this.config.storageSize,  // Must be configured if needed
         mountPath: '/var/lib/postgresql/data',
         type: 'volume',

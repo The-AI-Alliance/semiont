@@ -58,9 +58,9 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     const startTime = Date.now();
 
     // Environment and projectRoot are guaranteed to be in envConfig._metadata
-    const environment = envConfig._metadata?.environment || options.environment;
+    const environment = envConfig._metadata?.environment;
     if (!environment) {
-      throw new Error('Environment is required in config metadata');
+      throw new Error('Environment is required in envConfig._metadata');
     }
 
     const projectRoot = envConfig._metadata?.projectRoot;
@@ -165,10 +165,13 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     const platform = PlatformFactory.getPlatform(serviceInfo.platform);
 
     // 2. Create config object (environment and projectRoot from envConfig._metadata)
-    const environment = envConfig._metadata?.environment || options.environment!;
+    const environment = envConfig._metadata?.environment;
+    if (!environment) {
+      throw new Error('Environment is required in envConfig._metadata');
+    }
     const projectRoot = envConfig._metadata?.projectRoot;
     if (!projectRoot) {
-      throw new Error('Project root is required in config metadata');
+      throw new Error('Project root is required in envConfig._metadata');
     }
 
     const config: Config = {

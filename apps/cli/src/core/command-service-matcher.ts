@@ -41,8 +41,14 @@ async function checkServiceSupportsCommand(
   envConfig: EnvironmentConfig
 ): Promise<boolean> {
   try {
-    const projectRoot = envConfig._metadata?.projectRoot || process.cwd();
-    const environment = envConfig._metadata?.environment || 'unknown';
+    const projectRoot = envConfig._metadata?.projectRoot;
+    if (!projectRoot) {
+      throw new Error('Project root is required in envConfig._metadata');
+    }
+    const environment = envConfig._metadata?.environment;
+    if (!environment) {
+      throw new Error('Environment is required in envConfig._metadata');
+    }
 
     // Get service deployment info
     const deployments = resolveServiceDeployments(
@@ -135,7 +141,10 @@ export async function resolveServiceSelector(
   capability: ServiceCapability,
   envConfig: EnvironmentConfig
 ): Promise<string[]> {
-  const environment = envConfig._metadata?.environment || 'unknown';
+  const environment = envConfig._metadata?.environment;
+  if (!environment) {
+    throw new Error('Environment is required in envConfig._metadata');
+  }
 
   if (selector === 'all') {
     return getServicesWithCapability(capability, envConfig);
@@ -152,7 +161,10 @@ export async function resolveServiceSelector(
     }
   } else {
     const availableServices = await getAvailableServices(environment);
-    const projectRoot = envConfig._metadata?.projectRoot || process.cwd();
+    const projectRoot = envConfig._metadata?.projectRoot;
+    if (!projectRoot) {
+      throw new Error('Project root is required in envConfig._metadata');
+    }
     const configPath = path.join(projectRoot, 'environments', `${environment}.json`);
 
     const errorMessage = [

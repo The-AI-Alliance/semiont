@@ -54,10 +54,10 @@ describe('Check Command', () => {
         running: true,  // Set to running so check succeeds
         startTime: new Date()
       });
-      
+
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'mock' },
-        { name: 'database', type: 'mock' }
+        { name: 'backend', type: 'mock', config: { port: 3001 } },
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'postgres:15' } }
       ]);
 
       const options = createCheckOptions({
@@ -214,11 +214,11 @@ describe('Check Command', () => {
         running: false,
         startTime: new Date()
       });
-      
+
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'mock' },
-        { name: 'backend', type: 'mock' },
-        { name: 'database', type: 'mock' }
+        { name: 'frontend', type: 'mock', config: { port: 3000 } },
+        { name: 'backend', type: 'mock', config: { port: 3001 } },
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'postgres:15' } }
       ]);
 
       const options = createCheckOptions({
@@ -281,11 +281,11 @@ describe('Check Command', () => {
       });
       
       // Database has no state (never started)
-      
+
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'mock' },
-        { name: 'backend', type: 'mock' },
-        { name: 'database', type: 'mock' }
+        { name: 'frontend', type: 'mock', config: { port: 3000 } },
+        { name: 'backend', type: 'mock', config: { port: 3001 } },
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'postgres:15' } }
       ]);
 
       const options = createCheckOptions({

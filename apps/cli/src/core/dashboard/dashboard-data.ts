@@ -260,22 +260,6 @@ export class DashboardDataSource {
     if (log.match(/\b(warning|WARNING|Warning|warn|WARN)\b/)) return 'warn';
     return 'info';
   }
-
-  // Compatibility methods for web-dashboard-server
-  async getServicesStatus() {
-    const data = await this.getDashboardData();
-    return data.services;
-  }
-
-  async getLogs(maxEntries: number = 50) {
-    const data = await this.getDashboardData();
-    return data.logs.slice(0, maxEntries);
-  }
-
-  async getMetrics() {
-    const data = await this.getDashboardData();
-    return data.metrics;
-  }
 }
 
 // Re-export types for convenience

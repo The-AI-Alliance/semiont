@@ -48,7 +48,7 @@ export class GraphService extends BaseService {
     const graphRequirements: ServiceRequirements = {
       storage: [{
         persistent: true,
-        volumeName: `graph-data-${this.systemConfig.environment}`,
+        volumeName: `graph-data-${this.environment}`,
         size: this.config.storageSize || '20Gi',
         mountPath: this.getDataPath(),
         type: 'volume',

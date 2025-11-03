@@ -31,7 +31,10 @@ export function getServicePlatform(
   serviceName: string,
   config: EnvironmentConfig
 ): PlatformType {
-  const environment = config._metadata?.environment || 'unknown';
+  const environment = config._metadata?.environment;
+  if (!environment) {
+    throw new Error('Environment is required in config._metadata');
+  }
   const serviceConfig = config.services?.[serviceName];
 
   if (!serviceConfig) {
@@ -78,8 +81,14 @@ export function resolveServiceDeployments(
   serviceNames: string[],
   config: EnvironmentConfig
 ): ServicePlatformInfo[] {
-  const environment = config._metadata?.environment || 'unknown';
-  const projectRoot = config._metadata?.projectRoot || process.cwd();
+  const environment = config._metadata?.environment;
+  if (!environment) {
+    throw new Error('Environment is required in config._metadata');
+  }
+  const projectRoot = config._metadata?.projectRoot;
+  if (!projectRoot) {
+    throw new Error('Project root is required in config._metadata');
+  }
   const platformInfos: ServicePlatformInfo[] = [];
 
   for (const serviceName of serviceNames) {
