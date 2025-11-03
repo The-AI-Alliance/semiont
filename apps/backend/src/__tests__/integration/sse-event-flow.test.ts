@@ -21,10 +21,8 @@ describe('SSE Event Flow - End-to-End', () => {
     testDir = join(tmpdir(), `semiont-test-e2e-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    // Set environment variables for @semiont/core config loading
-    process.env.SEMIONT_ROOT = testDir;
-    process.env.SEMIONT_ENV = 'unit';
-    process.env.BACKEND_URL = 'http://localhost:4000';
+    // SEMIONT_ROOT and SEMIONT_ENV are set by the global test setup
+    // Just use testDir for event storage
 
     const { createEventStore } = await import('../../services/event-store-service');
     eventStore = await createEventStore(testDir, {
