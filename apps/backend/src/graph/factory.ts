@@ -5,7 +5,7 @@ import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
 import { MemoryGraphDatabase } from './implementations/memorygraph';
-import { getGraphConfig } from '../config/environment-loader';
+import { getGraphConfig } from '../config/config';
 
 export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
 

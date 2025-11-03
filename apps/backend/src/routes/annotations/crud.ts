@@ -30,7 +30,7 @@ import { AnnotationQueryService } from '../../services/annotation-queries';
 import { uriToResourceId } from '../../lib/uri-utils';
 
 import { validateRequestBody } from '../../middleware/validate-openapi';
-import { getFilesystemConfig } from '../../config/environment-loader';
+import { getFilesystemConfig } from '../../config/config';
 
 type Annotation = components['schemas']['Annotation'];
 

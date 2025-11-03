@@ -11,7 +11,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { AnnotationContextService } from '../../../services/annotation-context';
-import { getBackendConfig } from '../../../config/environment-loader';
+import { getBackendConfig } from '../../../config/config';
 
 export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   /**

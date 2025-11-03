@@ -7,7 +7,7 @@
  * Uses ProjectionManager as single source of truth for paths
  */
 
-import { getFilesystemConfig } from '../config/environment-loader';
+import { getFilesystemConfig } from '../config/config';
 import { createProjectionManager } from './storage-service';
 import type { components } from '@semiont/api-client';
 import { resourceId as makeResourceId } from '@semiont/core';

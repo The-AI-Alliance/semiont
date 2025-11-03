@@ -11,7 +11,7 @@
  */
 
 import { createEventStore, createEventQuery, createEventValidator } from '../services/event-store-service';
-import { getFilesystemConfig } from '../config/environment-loader';
+import { getFilesystemConfig } from '../config/config';
 import { resourceId as makeResourceId } from '@semiont/core';
 
 async function rebuildProjections(rId?: string) {

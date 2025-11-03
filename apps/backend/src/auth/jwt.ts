@@ -1,6 +1,7 @@
 import * as jwt from 'jsonwebtoken';
 import { JWTPayloadSchema } from '../types/jwt-types';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
+import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 
 export interface JWTPayload {
   userId: string;
@@ -20,39 +21,31 @@ interface SiteConfig {
 
 export class JWTService {
   private static siteConfig: SiteConfig | null = null;
-  
+
   /**
-   * Get site configuration from environment variables
-   * FAILS HARD if not properly configured (except in test mode)
+   * Get site configuration from environment config
    */
   private static getSiteConfig(): SiteConfig {
     if (!this.siteConfig) {
       const environment = process.env.SEMIONT_ENV;
-      
-      // Test environments use test defaults
-      if (environment === 'unit' || environment === 'test') {
-        this.siteConfig = {
-          domain: 'localhost',
-          oauthAllowedDomains: ['example.com', 'test.example.com']
-        };
-        return this.siteConfig;
+      if (!environment) {
+        throw new Error('SEMIONT_ENV environment variable is required');
       }
-      
-      // Production/staging must have proper configuration
-      const domain = process.env.SITE_DOMAIN;
-      const allowedDomains = process.env.OAUTH_ALLOWED_DOMAINS;
-      
-      if (!domain) {
-        throw new Error('SITE_DOMAIN environment variable is required for JWT issuer');
+
+      const projectRoot = findProjectRoot();
+      const config = loadEnvironmentConfig(projectRoot, environment);
+
+      if (!config.site?.domain) {
+        throw new Error('site.domain is required in environment config');
       }
-      
-      if (!allowedDomains) {
-        throw new Error('OAUTH_ALLOWED_DOMAINS environment variable is required for authentication');
+
+      if (!config.site?.oauthAllowedDomains || !Array.isArray(config.site.oauthAllowedDomains)) {
+        throw new Error('site.oauthAllowedDomains is required in environment config');
       }
-      
+
       this.siteConfig = {
-        domain,
-        oauthAllowedDomains: allowedDomains.split(',').map(d => d.trim())
+        domain: config.site.domain,
+        oauthAllowedDomains: config.site.oauthAllowedDomains
       };
     }
     return this.siteConfig;

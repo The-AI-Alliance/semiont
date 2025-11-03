@@ -13,7 +13,7 @@ import { createEventStore, createEventQuery } from '../../../services/event-stor
 import type { EventQuery, StoredEvent } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 import { HTTPException } from 'hono/http-exception';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { getFilesystemConfig } from '../../../config/config';
 
 type GetEventsResponse = components['schemas']['GetEventsResponse'];
 

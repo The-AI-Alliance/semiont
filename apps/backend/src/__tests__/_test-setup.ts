@@ -47,6 +47,10 @@ export async function setupTestEnvironment(): Promise<TestEnvironmentConfig> {
 
   // Create environments/unit.json with all required config
   const unitConfig = {
+    site: {
+      domain: 'localhost',
+      oauthAllowedDomains: ['example.com', 'test.example.com']
+    },
     services: {
       backend: {
         port: 4000,

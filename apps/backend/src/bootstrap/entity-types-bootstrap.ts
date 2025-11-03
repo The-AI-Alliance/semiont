@@ -8,7 +8,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { getFilesystemConfig } from '../config/environment-loader';
+import { getFilesystemConfig } from '../config/config';
 import { createEventStore } from '../services/event-store-service';
 import { DEFAULT_ENTITY_TYPES } from '../graph/tag-collections';
 import { userId } from '@semiont/core';

@@ -16,7 +16,7 @@ import { EventQuery } from '../../../events/query/event-query';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { getFilesystemConfig } from '../../../config/config';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getPrimaryMediaType } from '../../../utils/resource-helpers';

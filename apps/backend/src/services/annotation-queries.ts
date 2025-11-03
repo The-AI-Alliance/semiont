@@ -11,7 +11,7 @@ import { getGraphDatabase } from '../graph/factory';
 import type { components } from '@semiont/api-client';
 import type { ResourceAnnotations, ResourceId, AnnotationId, AnnotationCategory } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
-import { getFilesystemConfig } from '../config/environment-loader';
+import { getFilesystemConfig } from '../config/config';
 
 type Annotation = components['schemas']['Annotation'];
 

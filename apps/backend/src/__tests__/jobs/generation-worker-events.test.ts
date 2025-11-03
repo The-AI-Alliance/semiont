@@ -25,7 +25,7 @@ vi.mock('../../inference/factory', () => ({
 let testDir: string;
 
 // Mock getFilesystemConfig to return testDir
-vi.mock('../../config/environment-loader', () => ({
+vi.mock('../../config/config', () => ({
   getFilesystemConfig: () => ({ path: testDir }),
   getInferenceConfig: () => ({ provider: 'test', model: 'test-model' }),
   getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })

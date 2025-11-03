@@ -25,7 +25,7 @@ import { getExactText, compareAnnotationIds } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
 
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../config/environment-loader';
+import { getFilesystemConfig } from '../../config/config';
 
 export class GenerationWorker extends JobWorker {
   protected getWorkerName(): string {

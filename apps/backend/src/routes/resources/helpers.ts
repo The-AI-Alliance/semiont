@@ -1,7 +1,7 @@
 // Helper functions for resource routes
 import type { components } from '@semiont/api-client';
 import { extractEntities } from '../../inference/entity-extractor';
-import { getFilesystemConfig } from '../../config/environment-loader';
+import { getFilesystemConfig } from '../../config/config';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 

@@ -13,7 +13,7 @@ import { formatSearchResult } from '../helpers';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { ResourceQueryService } from '../../../services/resource-queries';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { getFilesystemConfig } from '../../../config/config';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
 

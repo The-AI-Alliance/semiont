@@ -20,7 +20,7 @@ import { createEventStore } from '../../../services/event-store-service';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { getFilesystemConfig } from '../../../config/config';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 
 type CreateResourceRequest = components['schemas']['CreateResourceRequest'];

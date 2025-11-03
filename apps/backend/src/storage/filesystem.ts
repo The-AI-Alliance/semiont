@@ -4,7 +4,7 @@ import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
-import { getFilesystemConfig } from '../config/environment-loader';
+import { getFilesystemConfig } from '../config/config';
 import { getShardPath } from './shard-utils';
 
 export interface StorageService {

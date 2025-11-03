@@ -10,7 +10,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from './shard-utils';
-import { getFilesystemConfig } from '../config/environment-loader';
+import { getFilesystemConfig } from '../config/config';
 import type { components } from '@semiont/api-client';
 import type { ResourceAnnotations, ResourceId } from '@semiont/core';
 

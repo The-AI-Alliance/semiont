@@ -25,7 +25,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import { userToAgent } from '../../../utils/id-generator';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { getFilesystemConfig } from '../../../config/config';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getResourceId } from '../../../utils/resource-helpers';
 

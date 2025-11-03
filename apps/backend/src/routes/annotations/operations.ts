@@ -14,7 +14,7 @@ import { generateResourceFromTopic, generateText } from '../../inference/factory
 import { userToAgent } from '../../utils/id-generator';
 import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { uriToResourceId } from '../../lib/uri-utils';
-import { getFilesystemConfig } from '../../config/environment-loader';
+import { getFilesystemConfig } from '../../config/config';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getTextPositionSelector } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';

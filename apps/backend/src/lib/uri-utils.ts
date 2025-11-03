@@ -5,7 +5,7 @@
  * Full URIs are required by W3C Web Annotation Data Model.
  */
 
-import { getBackendConfig } from '../config/environment-loader';
+import { getBackendConfig } from '../config/config';
 import { resourceId, resourceUri, annotationId, annotationUri, type ResourceId, type ResourceUri, type AnnotationId, type AnnotationUri } from '@semiont/core';
 
 /**

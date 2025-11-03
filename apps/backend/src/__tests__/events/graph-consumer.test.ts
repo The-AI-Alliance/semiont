@@ -2,12 +2,14 @@
  * GraphDB Consumer Tests
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { GraphDBConsumer } from '../../events/consumers/graph-consumer';
 import type { StoredEvent, ResourceEvent, ResourceCreatedEvent, ResourceClonedEvent } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 import type { GraphDatabase } from '../../graph/interface';
+import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
+import { resetConfigCache } from '../../config/config';
 
 // Mock GraphDB
 const createMockGraphDB = (): GraphDatabase => ({
@@ -121,8 +123,18 @@ const createMockGraphDB = (): GraphDatabase => ({
 describe('GraphDBConsumer', () => {
   let consumer: GraphDBConsumer;
   let mockGraphDB: GraphDatabase;
+  let testEnv: TestEnvironmentConfig;
+
+  beforeAll(async () => {
+    testEnv = await setupTestEnvironment();
+  });
+
+  afterAll(async () => {
+    await testEnv.cleanup();
+  });
 
   beforeEach(async () => {
+    resetConfigCache();
     process.env.BACKEND_URL = 'http://localhost:4000';
     mockGraphDB = createMockGraphDB();
     consumer = new GraphDBConsumer();

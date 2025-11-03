@@ -14,7 +14,7 @@ import { createEventStore, createEventQuery } from '../../../services/event-stor
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import type { components } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { getFilesystemConfig } from '../../../config/config';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 
 type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];

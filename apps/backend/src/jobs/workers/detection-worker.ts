@@ -13,7 +13,7 @@ import { ResourceQueryService } from '../../services/resource-queries';
 import { detectAnnotationsInResource } from '../../routes/resources/helpers';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
-import { getFilesystemConfig } from '../../config/environment-loader';
+import { getFilesystemConfig } from '../../config/config';
 import { resourceIdToURI } from '../../lib/uri-utils';
 
 export class DetectionWorker extends JobWorker {

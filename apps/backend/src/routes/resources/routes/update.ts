@@ -16,7 +16,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { getFilesystemConfig } from '../../../config/config';
 import { userId, resourceId } from '@semiont/core';
 
 type UpdateResourceRequest = components['schemas']['UpdateResourceRequest'];

@@ -15,7 +15,7 @@ import * as path from 'path';
 import { authMiddleware } from '../middleware/auth';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import { createEventStore } from '../services/event-store-service';
-import { getFilesystemConfig } from '../config/environment-loader';
+import { getFilesystemConfig } from '../config/config';
 import type { components } from '@semiont/api-client';
 import { userId } from '@semiont/core';
 
