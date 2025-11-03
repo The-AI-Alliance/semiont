@@ -192,13 +192,18 @@ export class DetectionWorker extends JobWorker {
       version: 1,
     };
 
+    // Require progress object to be present
+    if (!detJob.progress) {
+      return;
+    }
+
     // Determine if this is the first progress update (job.started)
-    const isFirstUpdate = detJob.progress?.processedEntityTypes === 0;
+    const isFirstUpdate = detJob.progress.processedEntityTypes === 0;
 
     // Determine if this is the final update (job.completed)
     const isFinalUpdate =
-      detJob.progress?.processedEntityTypes === detJob.progress?.totalEntityTypes &&
-      detJob.progress?.totalEntityTypes > 0;
+      detJob.progress.processedEntityTypes === detJob.progress.totalEntityTypes &&
+      detJob.progress.totalEntityTypes > 0;
 
     if (isFirstUpdate) {
       // First progress update - emit job.started
@@ -208,7 +213,7 @@ export class DetectionWorker extends JobWorker {
         payload: {
           jobId: detJob.id,
           jobType: detJob.type,
-          totalEntityTypes: detJob.entityTypes.length,
+          totalSteps: detJob.entityTypes.length,
         },
       });
     } else if (isFinalUpdate) {
@@ -219,23 +224,23 @@ export class DetectionWorker extends JobWorker {
         payload: {
           jobId: detJob.id,
           jobType: detJob.type,
-          entitiesFound: detJob.progress.entitiesFound,
-          entitiesEmitted: detJob.progress.entitiesEmitted,
+          foundCount: detJob.progress.entitiesFound,
         },
       });
-    } else if (detJob.progress) {
+    } else {
       // Intermediate progress - emit job.progress
+      const percentage = Math.round((detJob.progress.processedEntityTypes / detJob.progress.totalEntityTypes) * 100);
       await eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
         payload: {
           jobId: detJob.id,
           jobType: detJob.type,
-          currentEntityType: detJob.progress.currentEntityType,
-          processedEntityTypes: detJob.progress.processedEntityTypes,
-          totalEntityTypes: detJob.progress.totalEntityTypes,
-          entitiesFound: detJob.progress.entitiesFound,
-          entitiesEmitted: detJob.progress.entitiesEmitted,
+          percentage,
+          currentStep: detJob.progress.currentEntityType,
+          processedSteps: detJob.progress.processedEntityTypes,
+          totalSteps: detJob.progress.totalEntityTypes,
+          foundCount: detJob.progress.entitiesFound,
         },
       });
     }

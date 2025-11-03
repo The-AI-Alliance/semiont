@@ -96,7 +96,7 @@ describe('DetectionWorker - Event Emission', () => {
       payload: {
         jobId: 'job-test-1',
         jobType: 'detection',
-        totalEntityTypes: 1
+        totalSteps: 1
       }
     });
   });
@@ -134,11 +134,11 @@ describe('DetectionWorker - Event Emission', () => {
       payload: {
         jobId: 'job-test-2',
         jobType: 'detection',
-        currentEntityType: 'Person',
-        processedEntityTypes: 1,
-        totalEntityTypes: 3,
-        entitiesFound: expect.any(Number),
-        entitiesEmitted: expect.any(Number)
+        percentage: expect.any(Number),
+        currentStep: 'Person',
+        processedSteps: 1,
+        totalSteps: 3,
+        foundCount: expect.any(Number)
       }
     });
   });
@@ -175,8 +175,7 @@ describe('DetectionWorker - Event Emission', () => {
       payload: {
         jobId: 'job-test-3',
         jobType: 'detection',
-        entitiesFound: expect.any(Number),
-        entitiesEmitted: expect.any(Number)
+        foundCount: expect.any(Number)
       }
     });
   });
@@ -265,7 +264,7 @@ describe('DetectionWorker - Event Emission', () => {
     expect(eventTypes).toContain('job.progress');
   });
 
-  it('should include entitiesFound and entitiesEmitted in progress events', async () => {
+  it('should include percentage and foundCount in progress events', async () => {
     const job: DetectionJob = {
       id: 'job-test-6',
       type: 'detection',
@@ -290,10 +289,10 @@ describe('DetectionWorker - Event Emission', () => {
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
 
     for (const event of progressEvents) {
-      expect(event.event.payload).toHaveProperty('entitiesFound');
-      expect(typeof (event.event.payload as any).entitiesFound).toBe('number');
-      expect(event.event.payload).toHaveProperty('entitiesEmitted');
-      expect(typeof (event.event.payload as any).entitiesEmitted).toBe('number');
+      expect(event.event.payload).toHaveProperty('percentage');
+      expect(typeof (event.event.payload as any).percentage).toBe('number');
+      expect(event.event.payload).toHaveProperty('foundCount');
+      expect(typeof (event.event.payload as any).foundCount).toBe('number');
     }
   });
 });
