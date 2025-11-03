@@ -10,6 +10,7 @@
 import { getFilesystemConfig } from '../config/environment-loader';
 import { createProjectionManager } from './storage-service';
 import type { components } from '@semiont/api-client';
+import { resourceId as makeResourceId } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -31,7 +32,7 @@ export class ResourceQueryService {
       subNamespace: 'resources',
     });
 
-    const state = await projectionManager.get(resourceId);
+    const state = await projectionManager.get(makeResourceId(resourceId));
     if (!state) {
       return null;
     }

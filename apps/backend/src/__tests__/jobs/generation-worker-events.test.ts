@@ -62,6 +62,43 @@ const mockLLMContext: any = {
 describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
 
+  // Helper to create projection for a source resource
+  async function createSourceProjection(sourceResourceId: string) {
+    const { createProjectionManager } = await import('../../services/storage-service');
+    const projectionManager = createProjectionManager(testDir);
+
+    const projection = {
+      resource: {
+        '@id': `http://localhost:4000/resources/${sourceResourceId}`,
+        id: sourceResourceId,
+        name: 'Source Resource'
+      },
+      annotations: {
+        resourceId: sourceResourceId,
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        annotations: [{
+          id: 'test-ref-id',
+          motivation: 'linking',
+          body: [{
+            type: 'TextualBody',
+            purpose: 'tagging',
+            value: 'Person'
+          }],
+          target: {
+            source: sourceResourceId,
+            selector: [{
+              type: 'TextQuoteSelector',
+              exact: 'Test Topic'
+            }]
+          }
+        }]
+      }
+    };
+
+    await projectionManager.save(resourceId(sourceResourceId), projection as any);
+  }
+
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-generation-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
@@ -89,6 +126,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
+    await createSourceProjection(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -129,6 +167,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
+    await createSourceProjection(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -163,6 +202,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
+    await createSourceProjection(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -199,6 +239,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
+    await createSourceProjection(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -238,6 +279,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
+    await createSourceProjection(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Get the resultResourceId from job.completed event
@@ -285,6 +327,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
+    await createSourceProjection(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -322,6 +365,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
+    await createSourceProjection(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store

@@ -23,7 +23,7 @@ export class AnnotationQueryService {
   static async getResourceAnnotations(resourceId: string): Promise<ResourceAnnotations> {
     const basePath = getFilesystemConfig().path;
     const projectionManager = createProjectionManager(basePath);
-    const stored = await projectionManager.get(resourceId);
+    const stored = await projectionManager.get(makeResourceId(resourceId));
 
     if (!stored) {
       throw new Error(`Resource ${resourceId} not found in Layer 3 projections`);
@@ -64,7 +64,7 @@ export class AnnotationQueryService {
   static async resourceExists(resourceId: string): Promise<boolean> {
     const basePath = getFilesystemConfig().path;
     const projectionManager = createProjectionManager(basePath);
-    return await projectionManager.exists(resourceId);
+    return await projectionManager.exists(makeResourceId(resourceId));
   }
 
   /**

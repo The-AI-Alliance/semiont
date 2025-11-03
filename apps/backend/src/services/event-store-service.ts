@@ -31,14 +31,22 @@ export async function createEventStore(
   if (!environment) {
     throw new Error('SEMIONT_ENV environment variable is required');
   }
-  const envConfig = await loadEnvironmentConfig(environment);
 
-  // Create IdentifierConfig for URI conversion
-  if (!envConfig.services?.backend?.publicURL) {
-    throw new Error('Backend publicURL not found in configuration');
+  let baseUrl: string;
+
+  // For unit tests, use BACKEND_URL environment variable directly
+  if (environment === 'unit' && process.env.BACKEND_URL) {
+    baseUrl = process.env.BACKEND_URL;
+  } else {
+    const envConfig = await loadEnvironmentConfig(environment);
+    if (!envConfig.services?.backend?.publicURL) {
+      throw new Error('Backend publicURL not found in configuration');
+    }
+    baseUrl = envConfig.services.backend.publicURL;
   }
+
   const identifierConfig: IdentifierConfig = {
-    baseUrl: envConfig.services.backend.publicURL,
+    baseUrl,
   };
 
   // Create ProjectionManager (Layer 3)
