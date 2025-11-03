@@ -103,7 +103,7 @@ export async function executeCommand(
           const resolvedServices = await resolveServiceSelector(
             options.service as string,
             commandName,
-            env
+            envConfig
           );
           const serviceDeployments = resolveServiceDeployments(resolvedServices, envConfig);
 
@@ -179,9 +179,9 @@ export async function executeCommand(
       const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
       const envConfig = loadEnvironmentConfig(projectRoot, environment);
 
-      await validateServiceSelector(service, commandName, environment);
-      const resolvedServices = await resolveServiceSelector(service, commandName, environment);
-      services = resolveServiceDeployments(resolvedServices, envConfig, environment, projectRoot);
+      await validateServiceSelector(service, commandName, envConfig);
+      const resolvedServices = await resolveServiceSelector(service, commandName, envConfig);
+      services = resolveServiceDeployments(resolvedServices, envConfig);
     }
     
     // Execute the command handler based on its type
