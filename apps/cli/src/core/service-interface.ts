@@ -8,11 +8,11 @@
  * whether they extend BaseService or provide a custom implementation.
  */
 
-import type { PlatformType } from '@semiont/core';
+import type { PlatformType, EnvironmentConfig } from '@semiont/core';
 import type { ServiceConfig } from './cli-config.js';
 import type { Environment } from '@semiont/core';
 import type { ServiceName } from './service-discovery.js';
-import type { 
+import type {
   ServiceRequirements,
   StorageRequirement,
   NetworkRequirement,
@@ -30,6 +30,7 @@ export interface Service {
   readonly platform: PlatformType;
   readonly config: ServiceConfig;
   readonly environment: Environment;
+  readonly environmentConfig: EnvironmentConfig;
   readonly projectRoot: string;
   readonly verbose: boolean;
   readonly quiet: boolean;

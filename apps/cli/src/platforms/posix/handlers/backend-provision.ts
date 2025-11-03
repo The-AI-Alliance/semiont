@@ -3,7 +3,6 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '@semiont/core';
 
 /**
  * Provision handler for backend services on POSIX systems
@@ -53,9 +52,9 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   if (!service.quiet) {
     printInfo(`Created backend directory: ${backendDir}`);
   }
-  
-  // Load environment configuration to get database credentials
-  const envConfig = loadEnvironmentConfig(service.projectRoot, service.environment);
+
+  // Get environment configuration from service
+  const envConfig = service.environmentConfig;
   const dbConfig = envConfig.services?.database;
   
   // Build database URL from environment config

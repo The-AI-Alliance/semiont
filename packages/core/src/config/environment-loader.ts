@@ -250,27 +250,14 @@ export function loadEnvironmentConfig(projectRoot: string, environment: string):
 /**
  * Get NODE_ENV value from environment config
  *
- * @param environment - Environment name
- * @returns NODE_ENV value
- * @throws ConfigurationError if not specified
+ * @param config - Environment configuration
+ * @returns NODE_ENV value (defaults to 'development' if not specified)
  */
-export function getNodeEnvForEnvironment(environment: string): 'development' | 'production' | 'test' {
-  const projectRoot = findProjectRoot();
-  const config = loadEnvironmentConfig(projectRoot, environment);
+export function getNodeEnvForEnvironment(config: EnvironmentConfig): 'development' | 'production' | 'test' {
   const nodeEnv = config.env?.NODE_ENV;
-  
-  if (!nodeEnv) {
-    throw new ConfigurationError(
-      `NODE_ENV not specified for environment '${environment}'`,
-      environment,
-      `Add NODE_ENV to environments/${environment}.json:
-    "env": {
-      "NODE_ENV": "development" // or "production" or "test"
-    }`
-    );
-  }
-  
-  return nodeEnv;
+
+  // Default to 'development' if not specified
+  return nodeEnv || 'development';
 }
 
 /**

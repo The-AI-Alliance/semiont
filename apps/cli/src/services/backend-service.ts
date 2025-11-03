@@ -119,7 +119,7 @@ export class BackendService extends BaseService {
   private buildEnvironment(): Record<string, string> {
     return {
       PORT: this.getPort().toString(),
-      NODE_ENV: getNodeEnvForEnvironment(this.systemConfig.environment),
+      NODE_ENV: getNodeEnvForEnvironment(this.envConfig),
       SEMIONT_ENV: this.systemConfig.environment,
       SEMIONT_ENVIRONMENT: this.systemConfig.environment,
       ...(this.envConfig.site?.domain && { SITE_DOMAIN: this.envConfig.site.domain }),

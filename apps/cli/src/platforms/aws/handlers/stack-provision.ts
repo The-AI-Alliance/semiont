@@ -3,7 +3,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AWSProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printError, printSuccess, printInfo, printWarning } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '@semiont/core';
 
 /**
  * Provision handler for AWS CDK stacks
@@ -23,15 +22,11 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
   const stackType = service.config?.stackType || 'all'; // 'data' | 'app' | 'all'
   const destroy = service.config?.destroy || false;
   const force = service.config?.force || false;
-  
-  // Always use the actual project root (user's project), not semiont-repo
-  // When --semiont-repo is used, service.projectRoot incorrectly points to the semiont repo
-  // We need to use the actual user's project directory where semiont.json lives
-  const projectRoot = process.env.SEMIONT_ROOT || process.cwd();
+
+  // Get environment configuration from service
+  const envConfig = service.environmentConfig;
   const environment = service.environment;
-  
-  // Load environment config to get AWS settings
-  const envConfig = loadEnvironmentConfig(projectRoot, environment);
+  const projectRoot = service.projectRoot;
   
   if (!envConfig.aws) {
     return {

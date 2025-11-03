@@ -60,13 +60,14 @@ export abstract class BaseService implements Service {
   // Service Context Implementation
   // These methods provide service-specific information to the platform
   // =====================================================================
-  
+
   get environment() { return this.systemConfig.environment; }
   get projectRoot() { return this.systemConfig.projectRoot; }
   get verbose() { return this.systemConfig.verbose || false; }
   get quiet() { return this.systemConfig.quiet || false; }
   get dryRun() { return this.systemConfig.dryRun || false; }
   get forceDiscovery() { return this.systemConfig.forceDiscovery || false; }
+  get environmentConfig() { return this.envConfig; }
   
   /**
    * Get the port for this service

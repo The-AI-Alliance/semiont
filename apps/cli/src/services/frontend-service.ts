@@ -102,13 +102,13 @@ export class FrontendService extends BaseService {
   
   override getEnvironmentVariables(): Record<string, string> {
     const baseEnv = super.getEnvironmentVariables();
-    
+
     return {
       ...baseEnv,
-      NODE_ENV: getNodeEnvForEnvironment(this.config.environment),
+      NODE_ENV: getNodeEnvForEnvironment(this.envConfig),
       PORT: this.getPort().toString(),
       NEXT_PUBLIC_API_URL: this.getBackendUrl(),
-      NEXT_PUBLIC_SITE_NAME: `Semiont ${this.config.environment}`,
+      NEXT_PUBLIC_SITE_NAME: `Semiont ${this.systemConfig.environment}`,
       PUBLIC_URL: this.getPublicUrl()
     };
   }
