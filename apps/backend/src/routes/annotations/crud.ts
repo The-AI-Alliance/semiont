@@ -85,7 +85,7 @@ crudRouter.post('/api/annotations',
 
     // Emit unified annotation.added event (single source of truth)
     const basePath = config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore(basePath, config);
     const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
       type: 'annotation.added',
       resourceId: uriToResourceId(request.target.source), // Extract ID from URI for indexing
@@ -136,7 +136,7 @@ crudRouter.put('/api/annotations/:id/body',
 
     // Emit annotation.body.updated event to Layer 2 (consumer will update Layer 3 projection)
     const basePath2 = config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath2);
+    const eventStore = await createEventStore(basePath2, config);
     await eventStore.appendEvent({
       type: 'annotation.body.updated',
       resourceId: uriToResourceId(getTargetSource(annotation.target)), // Extract ID from URI
@@ -246,7 +246,7 @@ crudRouter.delete('/api/annotations/:id',
 
     // Emit unified annotation.removed event (consumer will delete from GraphDB and update Layer 3)
     const basePath3 = config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath3);
+    const eventStore = await createEventStore(basePath3, config);
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',

@@ -136,7 +136,7 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] ✅ Saved resource representation to filesystem: ${rId}`);
 
     // Emit resource.created event
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore(basePath, this.config);
     await eventStore.appendEvent({
       type: 'resource.created',
       resourceId: rId,
@@ -218,7 +218,7 @@ export class GenerationWorker extends JobWorker {
 
     const genJob = job as GenerationJob;
     const basePath = this.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore(basePath, this.config);
 
     const baseEvent = {
       resourceId: genJob.sourceResourceId,

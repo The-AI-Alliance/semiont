@@ -3,11 +3,10 @@
  *
  * Single initialization point for EventStore and all its dependencies.
  * No singleton pattern - just a simple factory function.
- * Uses @semiont/core config loading to get backend.publicURL
  */
 
 import * as path from 'path';
-import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
+import type { EnvironmentConfig } from '@semiont/core';
 import { EventStore } from '../events/event-store';
 import type { EventStorageConfig } from '../events/storage/event-storage';
 import type { IdentifierConfig } from './identifier-service';
@@ -20,21 +19,14 @@ import { createProjectionManager } from './storage-service';
  * This is the ONE place where EventStore is instantiated
  *
  * @param basePath - REQUIRED: Base filesystem path for all storage
+ * @param envConfig - REQUIRED: Application environment configuration
  * @param config - Optional additional configuration
  */
 export async function createEventStore(
   basePath: string,
+  envConfig: EnvironmentConfig,
   config?: Omit<EventStorageConfig, 'basePath' | 'dataDir'>
 ): Promise<EventStore> {
-  // Load environment configuration to get backend.publicURL
-  const environment = process.env.SEMIONT_ENV;
-  if (!environment) {
-    throw new Error('SEMIONT_ENV environment variable is required');
-  }
-
-  const projectRoot = findProjectRoot();
-  const envConfig = await loadEnvironmentConfig(projectRoot, environment);
-
   if (!envConfig.services?.backend?.publicURL) {
     throw new Error('Backend publicURL not found in configuration');
   }

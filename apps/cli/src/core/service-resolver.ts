@@ -6,10 +6,9 @@
  */
 
 import * as path from 'path';
-import { PlatformType } from '@semiont/core';
-import { ServiceConfig, loadEnvironmentConfig } from '@semiont/core';
+import { PlatformType, EnvironmentConfig } from '@semiont/core';
+import { ServiceConfig } from '@semiont/core';
 import { ConfigurationError } from '@semiont/core';
-import { findProjectRoot } from '@semiont/core';
 
 /**
  * Service platform information
@@ -22,19 +21,20 @@ export interface ServicePlatformInfo {
 
 /**
  * Get platform type for a specific service in an environment
- * 
+ *
  * @param serviceName - Name of the service
- * @param environment - Environment name
+ * @param config - Environment configuration
+ * @param environment - Environment name (for error messages)
  * @returns Platform type for the service
  * @throws ConfigurationError if service not found or platform not specified
  */
 export function getServicePlatform(
-  serviceName: string, 
+  serviceName: string,
+  config: EnvironmentConfig,
   environment: string
 ): PlatformType {
-  const config = loadEnvironmentConfig(findProjectRoot(), environment);
   const serviceConfig = config.services?.[serviceName];
-  
+
   if (!serviceConfig) {
     throw new ConfigurationError(
       `Service '${serviceName}' not found in environment '${environment}'`,
@@ -42,17 +42,17 @@ export function getServicePlatform(
       `Add '${serviceName}' to environments/${environment}.json`
     );
   }
-  
+
   // Service-specific platform type takes precedence
   if (serviceConfig.platform?.type) {
     return serviceConfig.platform.type;
   }
-  
+
   // Fall back to environment default
   if (config.platform?.default) {
     return config.platform.default;
   }
-  
+
   // No default - require explicit configuration
   throw new ConfigurationError(
     `Platform not specified for service '${serviceName}'`,
@@ -70,25 +70,27 @@ export function getServicePlatform(
 
 /**
  * Resolve service deployments for requested services
- * 
+ *
  * @param serviceNames - Array of service names
- * @param environment - Environment name
+ * @param config - Environment configuration
+ * @param environment - Environment name (for error messages)
+ * @param projectRoot - Project root path (for error messages)
  * @returns Array of service platform information
  */
 export function resolveServiceDeployments(
   serviceNames: string[],
-  environment: string
+  config: EnvironmentConfig,
+  environment: string,
+  projectRoot: string
 ): ServicePlatformInfo[] {
-  const config = loadEnvironmentConfig(findProjectRoot(), environment);
   const platformInfos: ServicePlatformInfo[] = [];
-  
+
   for (const serviceName of serviceNames) {
     const serviceConfig = config.services?.[serviceName];
     if (!serviceConfig) {
       const availableServices = Object.keys(config.services || {});
-      const projectRoot = findProjectRoot();
       const configPath = path.join(projectRoot, 'environments', `${environment}.json`);
-      
+
       console.warn(`❌ Service '${serviceName}' not found in environment '${environment}'`);
       if (availableServices.length > 0) {
         console.warn(`   Available services: ${availableServices.join(', ')}`);
@@ -104,11 +106,11 @@ export function resolveServiceDeployments(
       console.warn('');
       continue;
     }
-    
+
     // Determine platform with proper error handling
     let platform: PlatformType;
     try {
-      platform = getServicePlatform(serviceName, environment);
+      platform = getServicePlatform(serviceName, config, environment);
     } catch (error) {
       if (error instanceof ConfigurationError) {
         console.error(error.toString());
@@ -117,31 +119,30 @@ export function resolveServiceDeployments(
       }
       continue; // Skip this service but continue with others
     }
-    
+
     platformInfos.push({
       name: serviceName,
       platform,
       config: serviceConfig
     });
   }
-  
+
   return platformInfos;
 }
 
 /**
  * Get all services of a specific platform type in an environment
- * 
+ *
  * @param platform - Platform type to filter by
- * @param environment - Environment name
+ * @param config - Environment configuration
  * @returns Array of services on the specified platform
  */
 export function getServicesByPlatform(
   platform: PlatformType,
-  environment: string
+  config: EnvironmentConfig
 ): ServicePlatformInfo[] {
-  const config = loadEnvironmentConfig(findProjectRoot(), environment);
   const matchingServices: ServicePlatformInfo[] = [];
-  
+
   for (const [serviceName, serviceConfig] of Object.entries(config.services || {})) {
     // Determine service platform
     let servicePlatform: PlatformType | undefined;
@@ -150,13 +151,13 @@ export function getServicesByPlatform(
     } else if (config.platform?.default) {
       servicePlatform = config.platform.default;
     }
-    
+
     // Skip services without platform configuration
     if (!servicePlatform) {
       console.warn(`⚠️  Skipping service '${serviceName}' - no platform specified`);
       continue;
     }
-    
+
     if (servicePlatform === platform) {
       matchingServices.push({
         name: serviceName,
@@ -165,32 +166,30 @@ export function getServicesByPlatform(
       });
     }
   }
-  
+
   return matchingServices;
 }
 
 /**
  * Get all configured services in an environment
- * 
- * @param environment - Environment name
+ *
+ * @param config - Environment configuration
  * @returns Array of service names
  */
-export function getServicesInEnvironment(environment: string): string[] {
-  const config = loadEnvironmentConfig(findProjectRoot(), environment);
+export function getServicesInEnvironment(config: EnvironmentConfig): string[] {
   return Object.keys(config.services || {});
 }
 
 /**
  * Check if a service exists in an environment
- * 
+ *
  * @param serviceName - Service name to check
- * @param environment - Environment name
+ * @param config - Environment configuration
  * @returns True if service exists
  */
 export function serviceExistsInEnvironment(
   serviceName: string,
-  environment: string
+  config: EnvironmentConfig
 ): boolean {
-  const config = loadEnvironmentConfig(findProjectRoot(), environment);
   return serviceName in (config.services || {});
 }

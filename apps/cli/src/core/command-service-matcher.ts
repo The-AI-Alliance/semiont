@@ -21,7 +21,7 @@
 
 import { commandRequiresServices } from './command-discovery.js';
 import { getAvailableServices, isValidService, ServiceSelector, ServiceCapability, ServiceName } from './service-discovery.js';
-import { findProjectRoot } from '@semiont/core';
+import { findProjectRoot, loadEnvironmentConfig } from '@semiont/core';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { ServiceFactory } from '../services/service-factory.js';
 import { parseEnvironment } from '@semiont/core';
@@ -42,34 +42,40 @@ async function checkServiceSupportsCommand(
   environment: string
 ): Promise<boolean> {
   try {
+    const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+    const envConfig = loadEnvironmentConfig(projectRoot, environment);
+
     // Get service deployment info
     const deployments = resolveServiceDeployments(
       [serviceName],
-      environment
+      envConfig,
+      environment,
+      projectRoot
     );
-    
+
     if (deployments.length === 0) {
       return false;
     }
-    
+
     // Create service instance to check its requirements
     const deployment = deployments[0];
     const service = ServiceFactory.create(
       serviceName as ServiceName,
       deployment.platform,
       {
-        projectRoot: process.env.SEMIONT_ROOT || process.cwd(),
+        projectRoot,
         environment: parseEnvironment(environment),
         verbose: false,
         quiet: true,
         dryRun: false
       },
+      envConfig,
       {
         ...deployment.config,
         platform: deployment.platform
       }
     );
-    
+
     // Check if service declares support for this command
     const requirements = service.getRequirements();
     return serviceSupportsCommand(requirements.annotations, command);

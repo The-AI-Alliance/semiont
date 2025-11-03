@@ -96,6 +96,9 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
     process.env.OAUTH_ALLOWED_DOMAINS = 'test.example.com,example.com';
     process.env.JWT_SECRET = 'test-secret-key-for-testing-with-at-least-32-characters';
 
+    // Initialize JWTService with test config
+    JWTService.initialize(testEnv.config);
+
     // Initialize job queue
     await initializeJobQueue({ dataDir: join(testDir, 'jobs') });
 

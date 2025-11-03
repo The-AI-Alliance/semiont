@@ -31,7 +31,7 @@
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
-import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '@semiont/core';
+import { getNodeEnvForEnvironment } from '@semiont/core';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
@@ -117,16 +117,14 @@ export class BackendService extends BaseService {
   }
   
   private buildEnvironment(): Record<string, string> {
-    const envConfig = loadEnvironmentConfig(this.systemConfig.projectRoot, this.systemConfig.environment);
-    
     return {
       PORT: this.getPort().toString(),
       NODE_ENV: getNodeEnvForEnvironment(this.systemConfig.environment),
       SEMIONT_ENV: this.systemConfig.environment,
       SEMIONT_ENVIRONMENT: this.systemConfig.environment,
-      ...(envConfig.site?.domain && { SITE_DOMAIN: envConfig.site.domain }),
-      ...(envConfig.site?.oauthAllowedDomains && { 
-        OAUTH_ALLOWED_DOMAINS: JSON.stringify(envConfig.site.oauthAllowedDomains) 
+      ...(this.envConfig.site?.domain && { SITE_DOMAIN: this.envConfig.site.domain }),
+      ...(this.envConfig.site?.oauthAllowedDomains && {
+        OAUTH_ALLOWED_DOMAINS: JSON.stringify(this.envConfig.site.oauthAllowedDomains)
       })
     };
   }
@@ -302,8 +300,7 @@ export class BackendService extends BaseService {
     }
     
     // Try to get database configuration from environment config
-    const envConfig = loadEnvironmentConfig(this.systemConfig.projectRoot, this.systemConfig.environment);
-    const dbConfig = envConfig.services?.database;
+    const dbConfig = this.envConfig.services?.database;
     
     if (dbConfig && dbConfig.platform?.type === 'external') {
       // Load secrets for database password

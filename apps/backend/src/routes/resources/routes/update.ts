@@ -44,7 +44,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
 
-      const eventStore = await createEventStore(basePath);
+      const eventStore = await createEventStore(basePath, config);
 
       // Emit archived/unarchived events (event store updates Layer 3, graph consumer updates Layer 4)
       if (body.archived !== undefined && body.archived !== doc.archived) {

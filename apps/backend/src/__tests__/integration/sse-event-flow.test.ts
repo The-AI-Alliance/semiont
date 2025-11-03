@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { resourceId, resourceUri, userId } from '@semiont/core';
+import { resourceId, resourceUri, userId, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import type { EventStore } from '../../events/event-store';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -22,10 +22,13 @@ describe('SSE Event Flow - End-to-End', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     // SEMIONT_ROOT and SEMIONT_ENV are set by the global test setup
-    // Just use testDir for event storage
+    // Load config to pass to createEventStore
+    const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+    const environment = process.env.SEMIONT_ENV || 'test';
+    const config = loadEnvironmentConfig(projectRoot, environment);
 
     const { createEventStore } = await import('../../services/event-store-service');
-    eventStore = await createEventStore(testDir, {
+    eventStore = await createEventStore(testDir, config, {
       enableSharding: false,
       maxEventsPerFile: 100,
     });

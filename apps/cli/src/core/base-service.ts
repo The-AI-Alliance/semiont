@@ -27,8 +27,8 @@
 import { Service } from './service-interface.js';
 import { ServiceName } from './service-discovery.js';
 import { Config, ServiceConfig } from './cli-config.js';
-import { PlatformType } from '@semiont/core';
-import { 
+import { PlatformType, EnvironmentConfig } from '@semiont/core';
+import {
   ServiceRequirements,
   StorageRequirement,
   NetworkRequirement,
@@ -39,16 +39,19 @@ import {
 
 export abstract class BaseService implements Service {
   protected readonly systemConfig: Config;
+  protected readonly envConfig: EnvironmentConfig;
   public readonly config: ServiceConfig;
   protected envVars: Record<string, string | undefined> = {};
-  
+
   constructor(
     public readonly name: ServiceName,
     public readonly platform: PlatformType,
     systemConfig: Config,
+    envConfig: EnvironmentConfig,
     serviceConfig: ServiceConfig
   ) {
     this.systemConfig = systemConfig;
+    this.envConfig = envConfig;
     this.config = serviceConfig;
     this.envVars = { ...process.env } as Record<string, string | undefined>;
   }

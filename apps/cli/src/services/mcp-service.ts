@@ -38,7 +38,6 @@ import { ServiceRequirements, RequirementPresets } from '../core/service-require
 import { CLI_BEHAVIOR_ANNOTATIONS } from '../core/service-cli-behaviors.js';
 import { SERVICE_TYPES } from '../core/service-types.js';
 import { CommandExtensions } from '../core/command-result.js';
-import { loadEnvironmentConfig } from '@semiont/core';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -114,9 +113,7 @@ export class MCPService extends BaseService {
   // =====================================================================
   
   private getApiUrl(): string {
-    const projectRoot = this.config.projectRoot || process.cwd();
-    const envConfig = loadEnvironmentConfig(projectRoot, this.config.environment);
-    return `https://${envConfig.site?.domain || 'localhost'}`;
+    return `https://${this.envConfig.site?.domain || 'localhost'}`;
   }
   
   private findMCPServer(): string {

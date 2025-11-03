@@ -7,7 +7,7 @@
  */
 
 import { ServicePlatformInfo } from './service-resolver.js';
-import { PlatformType } from '@semiont/core';
+import { PlatformType, EnvironmentConfig, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import { Service } from './service-interface.js';
 import { ServiceName } from './service-discovery.js';
 import { ServiceFactory } from '../services/service-factory.js';
@@ -62,10 +62,14 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
         'Environment is required. Specify --environment flag or set SEMIONT_ENV environment variable'
       );
     }
-    
+
+    // Load environment configuration once
+    const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+    const envConfig = loadEnvironmentConfig(projectRoot, environment);
+
     // Apply defaults and validate
-    const finalOptions = { 
-      ...this.descriptor.defaultOptions, 
+    const finalOptions = {
+      ...this.descriptor.defaultOptions,
       ...options,
       environment  // Ensure environment is always set
     } as TOptions;
@@ -90,7 +94,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     
     for (const serviceInfo of services) {
       try {
-        const result = await this.executeService(serviceInfo, finalOptions);
+        const result = await this.executeService(serviceInfo, finalOptions, envConfig);
         results.push(result);
         
         if (!isStructuredOutput && !finalOptions.quiet && !result.success) {
@@ -152,12 +156,13 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
    */
   private async executeService(
     serviceInfo: ServicePlatformInfo,
-    options: TOptions
+    options: TOptions,
+    envConfig: EnvironmentConfig
   ): Promise<CommandResult> {
     // 1. Get platform strategy
     const { PlatformFactory } = await import('../platforms/index.js');
     const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-    
+
     // 2. Create config object (environment is guaranteed to exist from execute())
     const config: Config = {
       projectRoot: PROJECT_ROOT,
@@ -166,19 +171,20 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
       quiet: options.quiet || false,
       dryRun: options.dryRun || false
     };
-    
+
     // 3. Build service-specific configuration
     const serviceConfig = this.descriptor.buildServiceConfig(options, serviceInfo);
-    
+
     // 4. Create service instance
     const service = ServiceFactory.create(
       serviceInfo.name as ServiceName,
       serviceInfo.platform,
       config,
-      { 
-        ...serviceInfo.config, 
+      envConfig,
+      {
+        ...serviceInfo.config,
         ...serviceConfig,
-        platform: serviceInfo.platform 
+        platform: serviceInfo.platform
       }
     );
     

@@ -103,7 +103,7 @@ describe('DetectionWorker - Event Emission', () => {
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const basePath = testEnv.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore(basePath, testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-1');
 
@@ -141,7 +141,7 @@ describe('DetectionWorker - Event Emission', () => {
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const basePath = testEnv.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore(basePath, testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-2');
 
@@ -182,7 +182,7 @@ describe('DetectionWorker - Event Emission', () => {
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const basePath = testEnv.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore(basePath, testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-3');
 
@@ -218,7 +218,7 @@ describe('DetectionWorker - Event Emission', () => {
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const basePath = testEnv.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore(basePath, testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-4');
 
@@ -267,7 +267,7 @@ describe('DetectionWorker - Event Emission', () => {
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const basePath = testEnv.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore(basePath, testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-5');
 
@@ -300,7 +300,7 @@ describe('DetectionWorker - Event Emission', () => {
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const basePath = testEnv.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore(basePath, testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('resource-6');
 

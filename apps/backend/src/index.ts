@@ -263,6 +263,17 @@ if (nodeEnv !== 'test') {
     console.log(`🚀 Server ready at http://localhost:${info.port}`);
     console.log(`📡 API ready at http://localhost:${info.port}/api`);
 
+    // Initialize JWT Service with configuration
+    try {
+      console.log('🔐 Initializing JWT Service...');
+      const { JWTService } = await import('./auth/jwt');
+      JWTService.initialize(config);
+      console.log('✅ JWT Service initialized');
+    } catch (error) {
+      console.error('⚠️ Failed to initialize JWT Service:', error);
+      // Continue running even if JWT initialization fails
+    }
+
     // Bootstrap entity types projection if it doesn't exist
     try {
       console.log('🌱 Bootstrapping entity types...');

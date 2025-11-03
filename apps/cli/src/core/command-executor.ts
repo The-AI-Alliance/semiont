@@ -26,7 +26,7 @@ import type { ServicePlatformInfo } from './service-resolver.js';
 import { loadCommand, loadAllCommands } from './command-discovery.js';
 import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
-import { getAvailableEnvironments, isValidEnvironment } from '@semiont/core';
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { formatResults } from './io/output-formatter.js';
 import { printError } from './io/cli-logger.js';
@@ -97,25 +97,29 @@ export async function executeCommand(
       if (options.environment || process.env.SEMIONT_ENV) {
         try {
           const env = options.environment || process.env.SEMIONT_ENV;
+          const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+          const envConfig = loadEnvironmentConfig(projectRoot, env);
+
           const resolvedServices = await resolveServiceSelector(
-            options.service as string, 
+            options.service as string,
             commandName,
             env
           );
-          const serviceDeployments = resolveServiceDeployments(resolvedServices, env);
-          
+          const serviceDeployments = resolveServiceDeployments(resolvedServices, envConfig, env, projectRoot);
+
           if (serviceDeployments.length > 0) {
             const deployment = serviceDeployments[0];
             const service = ServiceFactory.create(
               deployment.name as ServiceName,
               deployment.platform,
               {
-                projectRoot: process.env.SEMIONT_ROOT || process.cwd(),
+                projectRoot,
                 environment: parseEnvironment(env),
                 verbose: false,
                 quiet: true,
                 dryRun: false
               },
+              envConfig,
               {
                 ...deployment.config,
                 platform: deployment.platform
@@ -123,7 +127,7 @@ export async function executeCommand(
             );
             const requirements = service.getRequirements();
             cliBehaviors = extractCLIBehaviors(requirements.annotations);
-            
+
             // Apply force quiet mode if requested
             if (cliBehaviors.forceQuietMode) {
               options.quiet = true;
@@ -167,14 +171,17 @@ export async function executeCommand(
     let services: ServicePlatformInfo[] = [];
     if (command.requiresServices) {
       // Service property is optional in options, default to 'all' if not specified
-      const service = 'service' in options && typeof options.service === 'string' 
-        ? options.service 
+      const service = 'service' in options && typeof options.service === 'string'
+        ? options.service
         : 'all';
       // At this point, environment is guaranteed to be defined if requiresEnvironment is true
       const environment = options.environment!;
+      const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+      const envConfig = loadEnvironmentConfig(projectRoot, environment);
+
       await validateServiceSelector(service, commandName, environment);
       const resolvedServices = await resolveServiceSelector(service, commandName, environment);
-      services = resolveServiceDeployments(resolvedServices, environment);
+      services = resolveServiceDeployments(resolvedServices, envConfig, environment, projectRoot);
     }
     
     // Execute the command handler based on its type
