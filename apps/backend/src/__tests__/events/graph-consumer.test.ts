@@ -133,11 +133,10 @@ describe('GraphDBConsumer', () => {
   });
 
   beforeEach(async () => {
-    process.env.BACKEND_URL = 'http://localhost:4000';
     mockGraphDB = createMockGraphDB();
     consumer = new GraphDBConsumer(testEnv.config);
 
-    // Inject mock GraphDB and backendURL
+    // Inject mock GraphDB
     consumer['graphDb'] = mockGraphDB;
   });
 
