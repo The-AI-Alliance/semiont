@@ -3,26 +3,28 @@
  * Tests multi-body arrays with TextualBody (tagging) and SpecificResource (linking)
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { components } from '@semiont/api-client';
-import type { ResourceCreatedEvent } from '@semiont/core';
+import type { ResourceCreatedEvent, EnvironmentConfig } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 import { createEventStore } from '../../services/event-store-service';
 import { AnnotationQueryService } from '../../services/annotation-queries';
-import { getFilesystemConfig } from '../../config/config';
+import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
 describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => {
   let testBasePath: string;
+  let testEnv: TestEnvironmentConfig;
+  let config: EnvironmentConfig;
   const testDocId = resourceId('test-doc-integration-' + Date.now());
   const testDocId2 = resourceId('test-doc-target-' + Date.now());
 
   beforeAll(async () => {
-    // Use the filesystem path configured by global test setup
-    // This ensures EventStore and AnnotationQueryService use the SAME path
-    testBasePath = getFilesystemConfig().path;
+    testEnv = await setupTestEnvironment();
+    config = testEnv.config;
+    testBasePath = config.services.filesystem!.path;
 
     // Create test resources in event store
     const eventStore = await createEventStore(testBasePath);
@@ -60,7 +62,9 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     await new Promise(resolve => setTimeout(resolve, 100));
   });
 
-  // Cleanup handled by global test setup
+  afterAll(async () => {
+    await testEnv.cleanup();
+  });
 
   describe('Create Annotation with Entity Tags (stub reference)', () => {
     it('should create annotation with empty body array', async () => {
@@ -102,7 +106,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify annotation was created
-      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(annotation.id), testDocId);
+      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(annotation.id), testDocId, config);
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe(annotation.id);
       expect(Array.isArray(retrieved?.body)).toBe(true);
@@ -157,7 +161,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify annotation was created with entity tags
-      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(annotation.id), testDocId);
+      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(annotation.id), testDocId, config);
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe(annotation.id);
       expect(Array.isArray(retrieved?.body)).toBe(true);
@@ -250,7 +254,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify resolved annotation has both entity tags and SpecificResource
-      const resolved = await AnnotationQueryService.getAnnotation(stubId, testDocId);
+      const resolved = await AnnotationQueryService.getAnnotation(stubId, testDocId, config);
       expect(resolved).toBeDefined();
       expect(Array.isArray(resolved?.body)).toBe(true);
 
@@ -342,7 +346,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify has only SpecificResource
-      const resolved = await AnnotationQueryService.getAnnotation(stubId, testDocId);
+      const resolved = await AnnotationQueryService.getAnnotation(stubId, testDocId, config);
       expect(resolved).toBeDefined();
       expect(Array.isArray(resolved?.body)).toBe(true);
 
@@ -355,7 +359,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   describe('List Annotations with Multi-Body', () => {
     it('should list all annotations with proper body structure', async () => {
-      const annotations = await AnnotationQueryService.getAllAnnotations(testDocId);
+      const annotations = await AnnotationQueryService.getAllAnnotations(testDocId, config);
 
       expect(Array.isArray(annotations)).toBe(true);
       expect(annotations.length).toBeGreaterThan(0);
@@ -443,7 +447,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify it exists
-      const beforeDelete = await AnnotationQueryService.getAnnotation(deleteId, testDocId);
+      const beforeDelete = await AnnotationQueryService.getAnnotation(deleteId, testDocId, config);
       expect(beforeDelete).toBeDefined();
 
       // Delete
@@ -460,7 +464,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify it's deleted
-      const afterDelete = await AnnotationQueryService.getAnnotation(deleteId, testDocId);
+      const afterDelete = await AnnotationQueryService.getAnnotation(deleteId, testDocId, config);
       expect(afterDelete).toBeNull();
     });
   });
@@ -503,7 +507,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(w3cId), testDocId);
+      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(w3cId), testDocId, config);
 
       // Verify W3C required fields
       expect(retrieved).toBeDefined();

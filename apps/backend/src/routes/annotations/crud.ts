@@ -28,9 +28,7 @@ import { getTargetSource } from '../../lib/annotation-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { uriToResourceId } from '../../lib/uri-utils';
-
 import { validateRequestBody } from '../../middleware/validate-openapi';
-import { getFilesystemConfig } from '../../config/config';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -53,6 +51,7 @@ crudRouter.post('/api/annotations',
   async (c) => {
     const request = c.get('validatedBody') as CreateAnnotationRequest;
     const user = c.get('user');
+    const config = c.get('config');
 
     // Generate ID - backend-internal, not graph-dependent
     let annotationId: string;
@@ -85,7 +84,7 @@ crudRouter.post('/api/annotations',
     };
 
     // Emit unified annotation.added event (single source of truth)
-    const basePath = getFilesystemConfig().path;
+    const basePath = config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
     const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
       type: 'annotation.added',
@@ -122,11 +121,12 @@ crudRouter.put('/api/annotations/:id/body',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as UpdateAnnotationBodyRequest;
     const user = c.get('user');
+    const config = c.get('config');
 
     console.log(`[BODY UPDATE HANDLER] Called for annotation ${id}, operations:`, request.operations);
 
     // Get annotation from Layer 3 (event store projection)
-    const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), resourceId(request.resourceId));
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), resourceId(request.resourceId), config);
     console.log(`[BODY UPDATE HANDLER] Layer 3 lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
 
     if (!annotation) {
@@ -135,7 +135,7 @@ crudRouter.put('/api/annotations/:id/body',
     }
 
     // Emit annotation.body.updated event to Layer 2 (consumer will update Layer 3 projection)
-    const basePath2 = getFilesystemConfig().path;
+    const basePath2 = config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath2);
     await eventStore.appendEvent({
       type: 'annotation.body.updated',
@@ -199,13 +199,14 @@ crudRouter.get('/api/annotations', async (c) => {
   const resourceId = query.resourceId;
   const offset = Number(query.offset) || 0;
   const limit = Number(query.limit) || 50;
+  const config = c.get('config');
 
   if (!resourceId) {
     throw new HTTPException(400, { message: 'resourceId query parameter is required' });
   }
 
   // O(1) lookup in Layer 3 using resource ID
-  const projection = await AnnotationQueryService.getResourceAnnotations(resourceId);
+  const projection = await AnnotationQueryService.getResourceAnnotations(resourceId, config);
 
   // Apply pagination to all annotations
   const paginatedAnnotations = projection.annotations.slice(offset, offset + limit);
@@ -230,10 +231,11 @@ crudRouter.delete('/api/annotations/:id',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as DeleteAnnotationRequest;
     const user = c.get('user');
+    const config = c.get('config');
 
     // O(1) lookup in Layer 3 using resource ID (extract from URI)
     const resourceId = uriToResourceId(request.resourceId);
-    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId);
+    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId, config);
 
     // Find the annotation in this resource's annotations
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
@@ -243,7 +245,7 @@ crudRouter.delete('/api/annotations/:id',
     }
 
     // Emit unified annotation.removed event (consumer will delete from GraphDB and update Layer 3)
-    const basePath3 = getFilesystemConfig().path;
+    const basePath3 = config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath3);
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({

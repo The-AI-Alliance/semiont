@@ -27,7 +27,8 @@ export function registerGetReferencedBy(router: ResourcesRouterType) {
    */
   router.get('/api/resources/:id/referenced-by', async (c) => {
     const { id } = c.req.param();
-    const graphDb = await getGraphDatabase();
+    const config = c.get('config');
+    const graphDb = await getGraphDatabase(config);
 
     // Get all annotations that reference this resource
     const references = await graphDb.getResourceReferencedBy(makeResourceId(id));

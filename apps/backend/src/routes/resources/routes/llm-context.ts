@@ -13,7 +13,6 @@ import { getGraphDatabase } from '../../../graph/factory';
 import { generateResourceSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/config';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getResourceId, getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
 import { resourceUri, resourceId as makeResourceId } from '@semiont/core';
@@ -36,7 +35,8 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
   router.get('/api/resources/:id/llm-context', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
-    const basePath = getFilesystemConfig().path;
+    const config = c.get('config');
+    const basePath = config.services.filesystem!.path;
 
     // Parse and validate query parameters
     const depth = query.depth ? Number(query.depth) : 2;
@@ -54,7 +54,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "maxResources" must be between 1 and 20' });
     }
 
-    const graphDb = await getGraphDatabase();
+    const graphDb = await getGraphDatabase(config);
     const repStore = new FilesystemRepresentationStore({ basePath });
 
     const mainDoc = await graphDb.getResource(resourceUri(id));

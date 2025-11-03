@@ -11,12 +11,14 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import { initializeJobQueue, getJobQueue } from '../../jobs/job-queue';
 import type { GenerationJob } from '../../jobs/types';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
 };
 
 // Create shared mock Prisma client

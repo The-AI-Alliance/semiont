@@ -20,7 +20,6 @@ import { createEventStore } from '../../../services/event-store-service';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
-import { getFilesystemConfig } from '../../../config/config';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 
 type CreateResourceRequest = components['schemas']['CreateResourceRequest'];
@@ -40,7 +39,8 @@ export function registerCreateResource(router: ResourcesRouterType) {
     async (c) => {
       const body = c.get('validatedBody') as CreateResourceRequest;
       const user = c.get('user');
-      const basePath = getFilesystemConfig().path;
+      const config = c.get('config');
+      const basePath = config.services.filesystem!.path;
       const repStore = new FilesystemRepresentationStore({ basePath });
 
       const rId = resourceId(generateUuid());
@@ -57,7 +57,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
       // This ensures the consumer receives the resource.created event
       try {
         const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
-        const consumer = await getGraphConsumer();
+        const consumer = await getGraphConsumer(config);
         await consumer.subscribeToResource(rId);
       } catch (error) {
         console.error('[CreateResource] Failed to subscribe GraphDB consumer:', error);

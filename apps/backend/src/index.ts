@@ -330,7 +330,7 @@ if (nodeEnv !== 'test') {
       const { GenerationWorker } = await import('./jobs/workers/generation-worker');
 
       const detectionWorker = new DetectionWorker(config);
-      const generationWorker = new GenerationWorker();
+      const generationWorker = new GenerationWorker(config);
 
       // Start workers in background (non-blocking)
       detectionWorker.start().catch((error) => {

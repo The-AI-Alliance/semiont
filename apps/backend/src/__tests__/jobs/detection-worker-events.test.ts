@@ -8,9 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { DetectionWorker } from '../../jobs/workers/detection-worker';
 import type { DetectionJob } from '../../jobs/types';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
 
 // Mock AI detection to avoid external API calls
@@ -36,15 +34,6 @@ vi.mock('../../services/resource-queries', () => ({
       format: 'text/plain'
     })
   }
-}));
-
-// testDir will be set in beforeAll
-let testDir: string;
-
-// Mock getFilesystemConfig to return testDir
-vi.mock('../../config/config', () => ({
-  getFilesystemConfig: () => ({ path: testDir }),
-  getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
 }));
 
 // Cache EventStore instances per basePath to ensure consistency
@@ -86,18 +75,15 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
 
 describe('DetectionWorker - Event Emission', () => {
   let worker: DetectionWorker;
+  let testEnv: TestEnvironmentConfig;
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-test-detection-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
-
-    process.env.BACKEND_URL = 'http://localhost:4000';
-
-    worker = new DetectionWorker();
+    testEnv = await setupTestEnvironment();
+    worker = new DetectionWorker(testEnv.config);
   });
 
   afterAll(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
+    await testEnv.cleanup();
   });
 
   it('should emit job.started event when detection begins', async () => {

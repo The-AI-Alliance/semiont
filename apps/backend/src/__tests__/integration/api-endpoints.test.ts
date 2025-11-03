@@ -6,10 +6,12 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
 };
 
 // Delay app import until after test setup to avoid Prisma validation errors

@@ -54,6 +54,7 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
 
       // User will be available from auth middleware
       const user = c.get('user');
+      const config = c.get('config');
       if (!user) {
         throw new HTTPException(401, { message: 'Authentication required' });
       }
@@ -62,7 +63,7 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
       console.log(`[GenerateResource] Locale from request:`, body.language);
 
       // Validate annotation exists using Layer 3
-      const projection = await AnnotationQueryService.getResourceAnnotations(body.resourceId);
+      const projection = await AnnotationQueryService.getResourceAnnotations(body.resourceId, config);
 
       // Debug: log what annotations exist
       const linkingAnnotations = projection.annotations.filter((a: any) => a.motivation === 'linking');

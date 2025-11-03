@@ -25,7 +25,6 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import { userToAgent } from '../../../utils/id-generator';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/config';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getResourceId } from '../../../utils/resource-helpers';
 
@@ -47,11 +46,12 @@ export function registerCreateResourceFromAnnotation(router: ResourcesRouterType
       const { annotationId } = c.req.param();
       const body = c.get('validatedBody') as CreateFromAnnotationRequest;
       const user = c.get('user');
-      const basePath = getFilesystemConfig().path;
-      const graphDb = await getGraphDatabase();
+      const config = c.get('config');
+      const basePath = config.services.filesystem!.path;
+      const graphDb = await getGraphDatabase(config);
       const repStore = new FilesystemRepresentationStore({ basePath });
 
-      const annotation = await AnnotationQueryService.getAnnotation(makeAnnotationId(annotationId), makeResourceId(body.resourceId));
+      const annotation = await AnnotationQueryService.getAnnotation(makeAnnotationId(annotationId), makeResourceId(body.resourceId), config);
       if (!annotation) {
         throw new HTTPException(404, { message: 'Annotation not found' });
       }

@@ -48,12 +48,13 @@ export function registerGenerateResource(router: AnnotationsRouterType) {
       console.log(`[GenerateResource] Creating generation job for annotation ${annotationId} in resource ${body.resourceId}`);
 
       const user = c.get('user');
+      const config = c.get('config');
       if (!user) {
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
       // Validate annotation exists using Layer 3
-      const projection = await AnnotationQueryService.getResourceAnnotations(body.resourceId);
+      const projection = await AnnotationQueryService.getResourceAnnotations(body.resourceId, config);
       const annotation = projection.annotations.find((a: any) =>
         compareAnnotationIds(a.id, annotationId) && a.motivation === 'linking'
       );

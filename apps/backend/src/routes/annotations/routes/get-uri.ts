@@ -35,6 +35,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
   router.get('/annotations/:id', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
+    const config = c.get('config');
     const resourceUriOrId = query.resourceId;
 
     if (!resourceUriOrId) {
@@ -61,7 +62,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
 
     // Otherwise, return JSON-LD representation
     // O(1) lookup in Layer 3 using resource ID
-    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId);
+    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId, config);
 
     // Find the annotation
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);

@@ -25,9 +25,13 @@ import { getExactText, compareAnnotationIds } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
 
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../config/config';
+import type { EnvironmentConfig } from '@semiont/core';
 
 export class GenerationWorker extends JobWorker {
+  constructor(private config: EnvironmentConfig) {
+    super();
+  }
+
   protected getWorkerName(): string {
     return 'GenerationWorker';
   }
@@ -47,7 +51,7 @@ export class GenerationWorker extends JobWorker {
   private async processGenerationJob(job: GenerationJob): Promise<void> {
     console.log(`[GenerationWorker] Processing generation for reference ${job.referenceId} (job: ${job.id})`);
 
-    const basePath = getFilesystemConfig().path;
+    const basePath = this.config.services.filesystem!.path;
     const repStore = new FilesystemRepresentationStore({ basePath });
 
     // Update progress: fetching
@@ -60,7 +64,7 @@ export class GenerationWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Fetch annotation from Layer 3
-    const projection = await AnnotationQueryService.getResourceAnnotations(job.sourceResourceId);
+    const projection = await AnnotationQueryService.getResourceAnnotations(job.sourceResourceId, this.config);
     // Compare by ID portion (handle both URI and simple ID formats)
     const annotation = projection.annotations.find((a: any) =>
       compareAnnotationIds(a.id, job.referenceId) && a.motivation === 'linking'
@@ -212,7 +216,7 @@ export class GenerationWorker extends JobWorker {
     }
 
     const genJob = job as GenerationJob;
-    const basePath = getFilesystemConfig().path;
+    const basePath = this.config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
 
     const baseEvent = {

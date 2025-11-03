@@ -7,10 +7,12 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/core';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
 };
 
 type ErrorResponse = {

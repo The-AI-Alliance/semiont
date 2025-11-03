@@ -10,9 +10,11 @@
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
+import { loadEnvironmentConfig, type EnvironmentConfig } from '@semiont/core';
 
 export interface TestEnvironmentConfig {
   testDir: string;
+  config: EnvironmentConfig;
   cleanup: () => Promise<void>;
 }
 
@@ -85,8 +87,12 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
   process.env.SEMIONT_ROOT = testDir;
   process.env.SEMIONT_ENV = environment;
 
+  // Load the config we just created
+  const config = loadEnvironmentConfig(testDir, environment);
+
   return {
     testDir,
+    config,
     cleanup: async () => {
       delete process.env.SEMIONT_ROOT;
       delete process.env.SEMIONT_ENV;

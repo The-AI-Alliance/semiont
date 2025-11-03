@@ -16,7 +16,6 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/config';
 import { userId, resourceId } from '@semiont/core';
 
 type UpdateResourceRequest = components['schemas']['UpdateResourceRequest'];
@@ -36,7 +35,8 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as UpdateResourceRequest;
       const user = c.get('user');
-      const basePath = getFilesystemConfig().path;
+      const config = c.get('config');
+      const basePath = config.services.filesystem!.path;
 
       // Check resource exists using Layer 3
       const doc = await ResourceQueryService.getResourceMetadata(id);
@@ -99,7 +99,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       }
 
       // Read annotations from Layer 3
-      const annotations = await AnnotationQueryService.getAllAnnotations(id);
+      const annotations = await AnnotationQueryService.getAllAnnotations(id, config);
       const entityReferences = annotations.filter(a => {
         if (a.motivation !== 'linking') return false;
         const entityTypes = getEntityTypes({ body: a.body });

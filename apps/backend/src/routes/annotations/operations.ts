@@ -14,7 +14,6 @@ import { generateResourceFromTopic, generateText } from '../../inference/factory
 import { userToAgent } from '../../utils/id-generator';
 import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
 import { uriToResourceId } from '../../lib/uri-utils';
-import { getFilesystemConfig } from '../../config/config';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getTextPositionSelector } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
@@ -110,7 +109,8 @@ operationsRouter.post('/api/annotations/:id/create-resource',
     const { id } = c.req.param();
     const body = c.get('validatedBody') as CreateResourceFromSelectionRequest;
     const user = c.get('user');
-    const basePath = getFilesystemConfig().path;
+    const config = c.get('config');
+    const basePath = config.services.filesystem!.path;
     const repStore = new FilesystemRepresentationStore({ basePath });
 
     if (!body.content) {
@@ -122,7 +122,7 @@ operationsRouter.post('/api/annotations/:id/create-resource',
     }
 
     // Get annotation from Layer 3
-    const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(body.resourceId));
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(body.resourceId), config);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
@@ -223,7 +223,8 @@ operationsRouter.post('/api/annotations/:id/generate-resource',
     const { id } = c.req.param();
     const body = c.get('validatedBody') as GenerateResourceFromAnnotationRequest;
     const user = c.get('user');
-    const basePath = getFilesystemConfig().path;
+    const config = c.get('config');
+    const basePath = config.services.filesystem!.path;
     const repStore = new FilesystemRepresentationStore({ basePath });
 
     if (!body.resourceId) {
@@ -231,7 +232,7 @@ operationsRouter.post('/api/annotations/:id/generate-resource',
     }
 
     // Get annotation from Layer 3
-    const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(body.resourceId));
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(body.resourceId), config);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
@@ -361,6 +362,7 @@ operationsRouter.post('/api/annotations/:id/generate-resource',
 operationsRouter.get('/api/annotations/:id/context', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
+  const config = c.get('config');
 
   // Require resourceId query parameter
   const resourceId = query.resourceId;
@@ -380,11 +382,11 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
     throw new HTTPException(400, { message: 'Query parameter "contextAfter" must be between 0 and 5000' });
   }
 
-  const basePath = getFilesystemConfig().path;
+  const basePath = config.services.filesystem!.path;
   const repStore = new FilesystemRepresentationStore({ basePath });
 
   // Get annotation from Layer 3
-  const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(resourceId));
+  const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(resourceId), config);
   if (!annotation) {
     throw new HTTPException(404, { message: 'Annotation not found' });
   }
@@ -438,7 +440,8 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
 operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
-  const basePath = getFilesystemConfig().path;
+  const config = c.get('config');
+  const basePath = config.services.filesystem!.path;
   const repStore = new FilesystemRepresentationStore({ basePath });
 
   // Require resourceId query parameter
@@ -448,7 +451,7 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   }
 
   // Get annotation from Layer 3
-  const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(resourceId));
+  const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(resourceId), config);
   if (!annotation) {
     throw new HTTPException(404, { message: 'Annotation not found' });
   }

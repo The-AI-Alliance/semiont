@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { resourceId, resourceUri, userId } from '@semiont/core';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import { initializeJobQueue, getJobQueue } from '../../jobs/job-queue';
 import { EventStore } from '../../events/event-store';
@@ -21,6 +22,7 @@ import { join } from 'path';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
 };
 
 let testDir: string;

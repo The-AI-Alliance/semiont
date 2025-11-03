@@ -54,7 +54,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       throw new HTTPException(404, { message: 'Token expired' });
     }
 
-    const graphDb = await getGraphDatabase();
+    const config = c.get('config');
+    const graphDb = await getGraphDatabase(config);
     const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Source resource not found' });
@@ -94,7 +95,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Token expired' });
       }
 
-      const graphDb = await getGraphDatabase();
+      const config = c.get('config');
+    const graphDb = await getGraphDatabase(config);
       const repStore = new FilesystemRepresentationStore({ basePath });
 
       // Get source resource
@@ -178,7 +180,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
   router.post('/api/resources/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
     const basePath = getFilesystemConfig().path;
-    const graphDb = await getGraphDatabase();
+    const config = c.get('config');
+    const graphDb = await getGraphDatabase(config);
     const repStore = new FilesystemRepresentationStore({ basePath });
 
     const sourceDoc = await graphDb.getResource(resourceUri(resourceUri(id)));

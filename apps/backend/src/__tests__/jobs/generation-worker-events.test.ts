@@ -8,9 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../jobs/workers/generation-worker';
 import type { GenerationJob } from '../../jobs/types';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
 
 // Mock AI generation to avoid external API calls
@@ -19,16 +17,6 @@ vi.mock('../../inference/factory', () => ({
     content: '# Test Resource\n\nGenerated content about test topic.',
     metadata: { format: 'text/markdown' }
   })
-}));
-
-// testDir will be set in beforeAll
-let testDir: string;
-
-// Mock getFilesystemConfig to return testDir
-vi.mock('../../config/config', () => ({
-  getFilesystemConfig: () => ({ path: testDir }),
-  getInferenceConfig: () => ({ provider: 'test', model: 'test-model' }),
-  getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
 }));
 
 // Cache EventStore instances per basePath to ensure consistency
@@ -99,11 +87,12 @@ const mockLLMContext: any = {
 
 describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
+  let testEnv: TestEnvironmentConfig;
 
   // Helper to create projection for a source resource
   async function createSourceProjection(sourceResourceId: string) {
     const { createProjectionManager } = await import('../../services/storage-service');
-    const projectionManager = createProjectionManager(testDir);
+    const projectionManager = createProjectionManager(testEnv.testDir);
 
     const projection = {
       resource: {
@@ -138,14 +127,12 @@ describe('GenerationWorker - Event Emission', () => {
   }
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-test-generation-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
-    process.env.BACKEND_URL = 'http://localhost:4000';
-    worker = new GenerationWorker();
+    testEnv = await setupTestEnvironment();
+    worker = new GenerationWorker(testEnv.config);
   });
 
   afterAll(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
+    await testEnv.cleanup();
   });
 
   it('should emit job.started event when generation begins', async () => {
@@ -169,7 +156,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testDir);
+    const eventStore = await createEventStore(testEnv.testDir);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-1');
 
@@ -210,7 +197,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testDir);
+    const eventStore = await createEventStore(testEnv.testDir);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-2');
 
@@ -245,7 +232,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testDir);
+    const eventStore = await createEventStore(testEnv.testDir);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-3');
 
@@ -282,7 +269,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testDir);
+    const eventStore = await createEventStore(testEnv.testDir);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-4');
 
@@ -322,7 +309,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Get the resultResourceId from job.completed event
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testDir);
+    const eventStore = await createEventStore(testEnv.testDir);
     const query = createEventQuery(eventStore);
     const sourceEvents = await query.getResourceEvents('source-resource-5');
 
@@ -370,7 +357,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testDir);
+    const eventStore = await createEventStore(testEnv.testDir);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-6');
 
@@ -408,7 +395,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testDir);
+    const eventStore = await createEventStore(testEnv.testDir);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-7');
 

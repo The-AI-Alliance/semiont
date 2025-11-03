@@ -28,7 +28,8 @@ export function registerDiscoverContext(router: ResourcesRouterType) {
     validateRequestBody('DiscoverContextRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const graphDb = await getGraphDatabase();
+      const config = c.get('config');
+      const graphDb = await getGraphDatabase(config);
 
       // Get resource connections
       const connections = await graphDb.getResourceConnections(makeResourceId(id));

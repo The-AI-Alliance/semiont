@@ -14,7 +14,6 @@ import { createEventStore, createEventQuery } from '../../../services/event-stor
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import type { components } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/config';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 
 type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
@@ -29,9 +28,10 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
    */
   router.get('/api/resources/:resourceId/annotations/:annotationId/history', async (c) => {
     const { resourceId, annotationId } = c.req.param();
+    const config = c.get('config');
 
     // Verify annotation exists using Layer 3 (not GraphDB)
-    const annotation = await AnnotationQueryService.getAnnotation(makeAnnotationId(annotationId), makeResourceId(resourceId));
+    const annotation = await AnnotationQueryService.getAnnotation(makeAnnotationId(annotationId), makeResourceId(resourceId), config);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
@@ -40,7 +40,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       throw new HTTPException(404, { message: 'Annotation does not belong to this resource' });
     }
 
-    const basePath = getFilesystemConfig().path;
+    const basePath = config.services.filesystem!.path;
     const eventStore = await createEventStore(basePath);
     const query = createEventQuery(eventStore);
 
