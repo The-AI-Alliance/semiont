@@ -51,7 +51,7 @@ export async function bootstrapEntityTypes(config: EnvironmentConfig): Promise<v
   // System user ID for bootstrap events
   const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
 
-  const eventStore = await createEventStore(basePath, config);
+  const eventStore = await createEventStore( config);
 
   // Emit one entitytype.added event for each default entity type
   for (const entityType of DEFAULT_ENTITY_TYPES) {

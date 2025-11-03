@@ -48,9 +48,7 @@ async function checkServiceSupportsCommand(
     // Get service deployment info
     const deployments = resolveServiceDeployments(
       [serviceName],
-      envConfig,
-      environment,
-      projectRoot
+      envConfig
     );
 
     if (deployments.length === 0) {

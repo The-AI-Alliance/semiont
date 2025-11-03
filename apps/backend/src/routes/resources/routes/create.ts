@@ -71,7 +71,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
         : CREATION_METHODS.API;
 
       // Emit resource.created event (consumer will update GraphDB)
-      const eventStore = await createEventStore(basePath, config);
+      const eventStore = await createEventStore( config);
       await eventStore.appendEvent({
         type: 'resource.created',
         resourceId: rId,

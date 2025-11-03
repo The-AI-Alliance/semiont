@@ -83,7 +83,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     // Otherwise, return JSON-LD metadata (default)
 
     // Read from Layer 2/3: Event store builds/loads projection
-    const eventStore = await createEventStore(basePath, config);
+    const eventStore = await createEventStore( config);
     const query = new EventQuery(eventStore.storage);
     const events = await query.getResourceEvents(id);
     const stored = await eventStore.projector.projectResource(events, resourceId(id));

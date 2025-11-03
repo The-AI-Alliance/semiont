@@ -43,7 +43,7 @@ export class GraphDBConsumer {
    */
   private async subscribeToGlobalEvents() {
     const basePath = this.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath, this.config);
+    const eventStore = await createEventStore( this.config);
 
     this._globalSubscription = eventStore.subscriptions.subscribeGlobal(async (storedEvent) => {
       console.log(`[GraphDBConsumer] Received global event: ${storedEvent.event.type}`);
@@ -67,7 +67,7 @@ export class GraphDBConsumer {
   async subscribeToResource(resourceId: string) {
     this.ensureInitialized();
     const basePath = this.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath, this.config);
+    const eventStore = await createEventStore( this.config);
 
     // Convert plain ID to full URI for subscription (EventSubscriptions uses ResourceUri branded type)
     const publicURL = this.config.services.backend!.publicURL;
@@ -292,7 +292,7 @@ export class GraphDBConsumer {
 
     // Replay all events
     const basePath = this.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath, this.config);
+    const eventStore = await createEventStore( this.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents(resourceId);
 
@@ -316,7 +316,7 @@ export class GraphDBConsumer {
 
     // Get all resource IDs by scanning event shards
     const basePath = this.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath, this.config);
+    const eventStore = await createEventStore( this.config);
     const allResourceIds = await eventStore.storage.getAllResourceIds();
 
     console.log(`[GraphDBConsumer] Found ${allResourceIds.length} resources to rebuild`);
@@ -405,7 +405,7 @@ export async function getGraphConsumer(config: EnvironmentConfig): Promise<Graph
 export async function startGraphConsumer(config: EnvironmentConfig): Promise<void> {
   const consumer = await getGraphConsumer(config);
   const basePath = config.services.filesystem!.path;
-  const eventStore = await createEventStore(basePath, config);
+  const eventStore = await createEventStore( config);
 
   // Get all existing resource IDs
   const allResourceIds = await eventStore.storage.getAllResourceIds();

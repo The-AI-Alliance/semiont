@@ -137,7 +137,7 @@ operationsRouter.post('/api/annotations/:id/create-resource',
     });
 
     // Emit resource.created event (event store updates Layer 3, graph consumer updates Layer 4)
-    const eventStore = await createEventStore(basePath, config);
+    const eventStore = await createEventStore( config);
     await eventStore.appendEvent({
       type: 'resource.created',
       resourceId: rId,
@@ -278,7 +278,7 @@ operationsRouter.post('/api/annotations/:id/generate-resource',
     });
 
     // Emit resource.created event (event store updates Layer 3, graph consumer updates Layer 4)
-    const eventStore = await createEventStore(basePath, config);
+    const eventStore = await createEventStore( config);
     await eventStore.appendEvent({
       type: 'resource.created',
       resourceId: rId,

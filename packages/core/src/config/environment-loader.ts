@@ -17,6 +17,10 @@ import { isObject } from '../index';
  */
 export interface EnvironmentConfig {
   _comment?: string;  // Optional comment for documentation
+  _metadata?: {
+    environment: string;  // Environment name (e.g., "local", "staging", "prod")
+    projectRoot: string;  // Absolute path to project root
+  };
   platform?: {
     default?: PlatformType;  // No fallback - must be explicit
   };
@@ -224,7 +228,16 @@ export function loadEnvironmentConfig(projectRoot: string, environment: string):
       }
     }
 
-    return resolved as EnvironmentConfig;
+    // Add metadata about where this config came from
+    const configWithMetadata = {
+      ...resolved,
+      _metadata: {
+        environment,
+        projectRoot
+      }
+    };
+
+    return configWithMetadata as EnvironmentConfig;
   } catch (error) {
     if (error instanceof ConfigurationError) {
       throw error; // Re-throw our custom errors

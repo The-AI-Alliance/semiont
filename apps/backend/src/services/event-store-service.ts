@@ -18,15 +18,19 @@ import { createProjectionManager } from './storage-service';
  * Create and initialize an EventStore instance
  * This is the ONE place where EventStore is instantiated
  *
- * @param basePath - REQUIRED: Base filesystem path for all storage
  * @param envConfig - REQUIRED: Application environment configuration
- * @param config - Optional additional configuration
+ * @param config - Optional additional configuration (basePath can be provided here, or derived from envConfig)
  */
 export async function createEventStore(
-  basePath: string,
   envConfig: EnvironmentConfig,
-  config?: Omit<EventStorageConfig, 'basePath' | 'dataDir'>
+  config?: Omit<EventStorageConfig, 'basePath' | 'dataDir'> & { basePath?: string }
 ): Promise<EventStore> {
+  // Derive basePath from config or envConfig
+  const basePath = config?.basePath || envConfig.services.filesystem?.path;
+  if (!basePath) {
+    throw new Error('basePath must be provided via config or envConfig.services.filesystem.path');
+  }
+
   if (!envConfig.services?.backend?.publicURL) {
     throw new Error('Backend publicURL not found in configuration');
   }

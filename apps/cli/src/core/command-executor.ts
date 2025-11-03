@@ -105,7 +105,7 @@ export async function executeCommand(
             commandName,
             env
           );
-          const serviceDeployments = resolveServiceDeployments(resolvedServices, envConfig, env, projectRoot);
+          const serviceDeployments = resolveServiceDeployments(resolvedServices, envConfig);
 
           if (serviceDeployments.length > 0) {
             const deployment = serviceDeployments[0];

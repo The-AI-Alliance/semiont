@@ -102,7 +102,7 @@ export class DetectionWorker extends JobWorker {
 
         try {
           const basePath = this.config.services.filesystem!.path;
-          const eventStore = await createEventStore(basePath, this.config);
+          const eventStore = await createEventStore( this.config);
           await eventStore.appendEvent({
             type: 'annotation.added',
             resourceId: job.resourceId,
@@ -189,7 +189,7 @@ export class DetectionWorker extends JobWorker {
 
     const detJob = job as DetectionJob;
     const basePath = this.config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath, this.config);
+    const eventStore = await createEventStore( this.config);
 
     const baseEvent = {
       resourceId: detJob.resourceId,

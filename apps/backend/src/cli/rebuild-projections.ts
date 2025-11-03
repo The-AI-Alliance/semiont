@@ -21,7 +21,7 @@ async function rebuildProjections(rId?: string) {
   const environment = process.env.SEMIONT_ENV || 'development';
   const config = loadEnvironmentConfig(projectRoot, environment);
 
-  const eventStore = await createEventStore(config.services.filesystem!.path, config);
+  const eventStore = await createEventStore( config);
   const query = createEventQuery(eventStore);
   const validator = createEventValidator();
 

@@ -66,7 +66,7 @@ export function registerGetEvents(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "limit" must be between 1 and 1000' });
     }
 
-    const eventStore = await createEventStore(basePath, config);
+    const eventStore = await createEventStore( config);
     const eventQuery = createEventQuery(eventStore);
 
     // Build query filters - type is validated by this point

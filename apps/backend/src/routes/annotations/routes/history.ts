@@ -41,7 +41,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
     }
 
     const basePath = config.services.filesystem!.path;
-    const eventStore = await createEventStore(basePath, config);
+    const eventStore = await createEventStore( config);
     const query = createEventQuery(eventStore);
 
     // Get all events for this resource

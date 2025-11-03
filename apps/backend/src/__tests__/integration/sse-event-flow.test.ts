@@ -28,7 +28,7 @@ describe('SSE Event Flow - End-to-End', () => {
     const config = loadEnvironmentConfig(projectRoot, environment);
 
     const { createEventStore } = await import('../../services/event-store-service');
-    eventStore = await createEventStore(testDir, config, {
+    eventStore = await createEventStore( config, {
       enableSharding: false,
       maxEventsPerFile: 100,
     });

@@ -23,16 +23,15 @@ export interface ServicePlatformInfo {
  * Get platform type for a specific service in an environment
  *
  * @param serviceName - Name of the service
- * @param config - Environment configuration
- * @param environment - Environment name (for error messages)
+ * @param config - Environment configuration (includes _metadata with environment name)
  * @returns Platform type for the service
  * @throws ConfigurationError if service not found or platform not specified
  */
 export function getServicePlatform(
   serviceName: string,
-  config: EnvironmentConfig,
-  environment: string
+  config: EnvironmentConfig
 ): PlatformType {
+  const environment = config._metadata?.environment || 'unknown';
   const serviceConfig = config.services?.[serviceName];
 
   if (!serviceConfig) {
@@ -72,17 +71,15 @@ export function getServicePlatform(
  * Resolve service deployments for requested services
  *
  * @param serviceNames - Array of service names
- * @param config - Environment configuration
- * @param environment - Environment name (for error messages)
- * @param projectRoot - Project root path (for error messages)
+ * @param config - Environment configuration (includes _metadata with environment and projectRoot)
  * @returns Array of service platform information
  */
 export function resolveServiceDeployments(
   serviceNames: string[],
-  config: EnvironmentConfig,
-  environment: string,
-  projectRoot: string
+  config: EnvironmentConfig
 ): ServicePlatformInfo[] {
+  const environment = config._metadata?.environment || 'unknown';
+  const projectRoot = config._metadata?.projectRoot || process.cwd();
   const platformInfos: ServicePlatformInfo[] = [];
 
   for (const serviceName of serviceNames) {
@@ -110,7 +107,7 @@ export function resolveServiceDeployments(
     // Determine platform with proper error handling
     let platform: PlatformType;
     try {
-      platform = getServicePlatform(serviceName, config, environment);
+      platform = getServicePlatform(serviceName, config);
     } catch (error) {
       if (error instanceof ConfigurationError) {
         console.error(error.toString());

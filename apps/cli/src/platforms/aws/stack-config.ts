@@ -23,13 +23,13 @@ export class SemiontStackConfig {
   private environmentConfig: EnvironmentConfig;
   private environment: string;
 
-  constructor(environmentConfig: EnvironmentConfig, environment: string) {
-    this.environment = environment;
+  constructor(environmentConfig: EnvironmentConfig) {
     this.environmentConfig = environmentConfig;
+    this.environment = environmentConfig._metadata?.environment || 'unknown';
 
     // AWS is required for stack configuration
     if (!this.environmentConfig.aws) {
-      throw new Error(`Environment ${environment} does not have AWS configuration`);
+      throw new Error(`Environment ${this.environment} does not have AWS configuration`);
     }
 
     this.cfnClient = new CloudFormationClient({ region: this.environmentConfig.aws.region });

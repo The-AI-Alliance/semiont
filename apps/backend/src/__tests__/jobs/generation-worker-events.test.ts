@@ -156,7 +156,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store using the same path as the worker
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testEnv.config.services.filesystem!.path, testEnv.config);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-1');
 
@@ -197,7 +197,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testEnv.config.services.filesystem!.path, testEnv.config);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-2');
 
@@ -232,7 +232,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testEnv.config.services.filesystem!.path, testEnv.config);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-3');
 
@@ -269,7 +269,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testEnv.config.services.filesystem!.path, testEnv.config);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-4');
 
@@ -309,7 +309,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Get the resultResourceId from job.completed event
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testEnv.config.services.filesystem!.path, testEnv.config);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const sourceEvents = await query.getResourceEvents('source-resource-5');
 
@@ -357,7 +357,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testEnv.config.services.filesystem!.path, testEnv.config);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-6');
 
@@ -395,7 +395,7 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Query events from Event Store
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore(testEnv.config.services.filesystem!.path, testEnv.config);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents('source-resource-7');
 
