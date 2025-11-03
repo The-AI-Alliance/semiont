@@ -198,17 +198,17 @@ crudRouter.put('/api/annotations/:id/body',
  */
 crudRouter.get('/api/annotations', async (c) => {
   const query = c.req.query();
-  const resourceId = query.resourceId;
+  const resourceIdParam = query.resourceId;
   const offset = Number(query.offset) || 0;
   const limit = Number(query.limit) || 50;
   const config = c.get('config');
 
-  if (!resourceId) {
+  if (!resourceIdParam) {
     throw new HTTPException(400, { message: 'resourceId query parameter is required' });
   }
 
   // O(1) lookup in Layer 3 using resource ID
-  const projection = await AnnotationQueryService.getResourceAnnotations(resourceId, config);
+  const projection = await AnnotationQueryService.getResourceAnnotations(resourceId(resourceIdParam), config);
 
   // Apply pagination to all annotations
   const paginatedAnnotations = projection.annotations.slice(offset, offset + limit);

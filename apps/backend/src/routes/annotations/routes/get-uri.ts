@@ -17,6 +17,7 @@ import { ResourceQueryService } from '../../../services/resource-queries';
 import { getBodySource } from '../../../lib/annotation-utils';
 import { uriToResourceId } from '../../../lib/uri-utils';
 import { prefersHtml, getFrontendUrl } from '../../../middleware/content-negotiation';
+import { resourceId as makeResourceId } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type GetAnnotationResponse = components['schemas']['GetAnnotationResponse'];
@@ -62,7 +63,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
 
     // Otherwise, return JSON-LD representation
     // O(1) lookup in Layer 3 using resource ID
-    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId, config);
+    const projection = await AnnotationQueryService.getResourceAnnotations(makeResourceId(resourceId), config);
 
     // Find the annotation
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);

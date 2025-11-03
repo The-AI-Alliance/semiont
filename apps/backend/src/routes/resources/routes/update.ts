@@ -98,7 +98,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       }
 
       // Read annotations from Layer 3
-      const annotations = await AnnotationQueryService.getAllAnnotations(id, config);
+      const annotations = await AnnotationQueryService.getAllAnnotations(resourceId(id), config);
       const entityReferences = annotations.filter(a => {
         if (a.motivation !== 'linking') return false;
         const entityTypes = getEntityTypes({ body: a.body });

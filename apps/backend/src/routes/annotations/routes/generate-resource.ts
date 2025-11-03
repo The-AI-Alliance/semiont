@@ -54,7 +54,7 @@ export function registerGenerateResource(router: AnnotationsRouterType) {
       }
 
       // Validate annotation exists using Layer 3
-      const projection = await AnnotationQueryService.getResourceAnnotations(body.resourceId, config);
+      const projection = await AnnotationQueryService.getResourceAnnotations(resourceId(body.resourceId), config);
       const annotation = projection.annotations.find((a: any) =>
         compareAnnotationIds(a.id, annotationId) && a.motivation === 'linking'
       );

@@ -63,7 +63,7 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
       console.log(`[GenerateResource] Locale from request:`, body.language);
 
       // Validate annotation exists using Layer 3
-      const projection = await AnnotationQueryService.getResourceAnnotations(body.resourceId, config);
+      const projection = await AnnotationQueryService.getResourceAnnotations(resourceId(body.resourceId), config);
 
       // Debug: log what annotations exist
       const linkingAnnotations = projection.annotations.filter((a: any) => a.motivation === 'linking');
