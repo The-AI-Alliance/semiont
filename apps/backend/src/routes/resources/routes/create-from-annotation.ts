@@ -85,7 +85,7 @@ export function registerCreateResourceFromAnnotation(router: ResourcesRouterType
       const savedDoc = await graphDb.createResource(resource);
 
       // Update the annotation to resolve to the new resource
-      await graphDb.resolveReference(makeAnnotationId(annotationId), getResourceId(savedDoc));
+      await graphDb.resolveReference(makeAnnotationId(annotationId), makeResourceId(getResourceId(savedDoc)));
 
       const result = await graphDb.listAnnotations({ resourceId: makeResourceId(getResourceId(savedDoc)) });
 

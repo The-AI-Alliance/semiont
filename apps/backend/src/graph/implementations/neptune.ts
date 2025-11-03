@@ -757,7 +757,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async resolveReference(annotationId: AnnotationId, source: string): Promise<Annotation> {
+  async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
     try {
       // Get target resource name
       const targetDocResult = await this.g.V()
@@ -1147,7 +1147,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
 
 
-  async resolveReferences(inputs: { annotationId: AnnotationId; source: string }[]): Promise<Annotation[]> {
+  async resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]> {
     const results: Annotation[] = [];
 
     try {

@@ -8,6 +8,7 @@
  * - OpenAPI spec is the source of truth
  */
 
+import { HTTPException } from 'hono/http-exception';
 import {
   CREATION_METHODS,
   type CreationMethod,

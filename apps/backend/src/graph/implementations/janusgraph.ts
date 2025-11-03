@@ -592,7 +592,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotations;
   }
 
-  async resolveReference(annotationId: AnnotationId, source: string): Promise<Annotation> {
+  async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
     const publicURL = this.envConfig.services.backend!.publicURL;
     const annotation = await this.getAnnotation(annotationIdToURI(annotationId, publicURL));
     if (!annotation) throw new Error('Annotation not found');
@@ -776,7 +776,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async resolveReferences(inputs: Array<{ annotationId: AnnotationId; source: string }>): Promise<Annotation[]> {
+  async resolveReferences(inputs: Array<{ annotationId: AnnotationId; source: ResourceId }>): Promise<Annotation[]> {
     const results = [];
     for (const input of inputs) {
       results.push(await this.resolveReference(input.annotationId, input.source));

@@ -44,7 +44,7 @@ export interface GraphDatabase {
   getHighlights(resourceId: ResourceId): Promise<Annotation[]>;
 
   // Reference operations
-  resolveReference(annotationId: AnnotationId, source: string): Promise<Annotation>;
+  resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation>;
   getReferences(resourceId: ResourceId): Promise<Annotation[]>;
   getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]>;
 
@@ -70,7 +70,7 @@ export interface GraphDatabase {
   
   // Bulk operations
   createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]>;
-  resolveReferences(inputs: { annotationId: AnnotationId; source: string }[]): Promise<Annotation[]>;
+  resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]>;
 
   // Auto-detection
   detectAnnotations(resourceId: ResourceId): Promise<Annotation[]>;
