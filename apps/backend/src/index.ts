@@ -125,8 +125,9 @@ app.route('/', jobsRouter);
 
 // Test inference route
 app.get('/api/test-inference', async (c) => {
+  const config = c.get('config');
   const { getInferenceClient, getInferenceModel } = await import('./inference/factory');
-  const client = await getInferenceClient();
+  const client = await getInferenceClient(config);
 
   if (!client) {
     return c.json({
@@ -142,7 +143,7 @@ app.get('/api/test-inference', async (c) => {
 
   try {
     const response = await client.messages.create({
-      model: getInferenceModel(),
+      model: getInferenceModel(config),
       max_tokens: 10,
       messages: [{
         role: 'user',
@@ -153,7 +154,7 @@ app.get('/api/test-inference', async (c) => {
     return c.json({
       status: 'success',
       response: response.content[0],
-      model: getInferenceModel()
+      model: getInferenceModel(config)
     });
   } catch (error: any) {
     return c.json({
@@ -291,7 +292,7 @@ if (nodeEnv !== 'test') {
     // Initialize inference client
     try {
       console.log('🤖 Initializing inference client...');
-      await getInferenceClient();
+      await getInferenceClient(config);
       console.log('✅ Inference client initialized');
     } catch (error) {
       console.error('⚠️ Failed to initialize inference client:', error);

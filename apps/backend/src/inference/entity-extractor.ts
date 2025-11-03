@@ -1,4 +1,5 @@
 import { getInferenceClient, getInferenceModel } from './factory';
+import type { EnvironmentConfig } from '@semiont/core';
 
 /**
  * Entity reference extracted from text
@@ -15,18 +16,20 @@ export interface ExtractedEntity {
  *
  * @param text - The text to analyze
  * @param entityTypes - Array of entity types to detect (optionally with examples)
+ * @param config - Application configuration
  * @returns Array of extracted entities with their character offsets
  */
 export async function extractEntities(
   exact: string,
-  entityTypes: string[] | { type: string; examples?: string[] }[]
+  entityTypes: string[] | { type: string; examples?: string[] }[],
+  config: EnvironmentConfig
 ): Promise<ExtractedEntity[]> {
   console.log('extractEntities called with:', {
     textLength: exact.length,
     entityTypes: Array.isArray(entityTypes) ? entityTypes.map(et => typeof et === 'string' ? et : et.type) : []
   });
 
-  const client = await getInferenceClient();
+  const client = await getInferenceClient(config);
 
   // Format entity types for the prompt
   const entityTypesDescription = entityTypes.map(et => {
@@ -57,9 +60,9 @@ Do not include markdown formatting or code fences, just the raw JSON array.
 Example output:
 [{"exact":"Alice","entityType":"Person","startOffset":0,"endOffset":5},{"exact":"Paris","entityType":"Location","startOffset":20,"endOffset":25}]`;
 
-  console.log('Sending entity extraction request to model:', getInferenceModel());
+  console.log('Sending entity extraction request to model:', getInferenceModel(config));
   const response = await client.messages.create({
-    model: getInferenceModel(),
+    model: getInferenceModel(config),
     max_tokens: 4000, // Increased to handle many entities without truncation
     temperature: 0.3, // Lower temperature for more consistent extraction
     messages: [

@@ -122,11 +122,11 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
 
     // Generate summary if requested
     const summary = includeSummary && mainContent ?
-      await generateResourceSummary(mainDoc.name, mainContent, getEntityTypes(mainDoc)) : undefined;
+      await generateResourceSummary(mainDoc.name, mainContent, getEntityTypes(mainDoc), config) : undefined;
 
     // Generate reference suggestions if we have content
     const suggestedReferences = mainContent ?
-      await generateReferenceSuggestions(mainContent) : undefined;
+      await generateReferenceSuggestions(mainContent, config) : undefined;
 
     const response: ResourceLLMContextResponse = {
       mainResource: mainDoc,

@@ -181,7 +181,7 @@ export class AnnotationContextService {
 
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),
-          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc)),
+          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc), config),
         };
       }
     }

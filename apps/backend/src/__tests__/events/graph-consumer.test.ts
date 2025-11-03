@@ -9,7 +9,6 @@ import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 import type { GraphDatabase } from '../../graph/interface';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
-import { resetConfigCache } from '../../config/config';
 
 // Mock GraphDB
 const createMockGraphDB = (): GraphDatabase => ({
@@ -134,7 +133,6 @@ describe('GraphDBConsumer', () => {
   });
 
   beforeEach(async () => {
-    resetConfigCache();
     process.env.BACKEND_URL = 'http://localhost:4000';
     mockGraphDB = createMockGraphDB();
     consumer = new GraphDBConsumer(testEnv.config);

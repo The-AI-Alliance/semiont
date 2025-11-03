@@ -101,6 +101,7 @@ export class GenerationWorker extends JobWorker {
     const generatedContent = await generateResourceFromTopic(
       resourceName,
       job.entityTypes || annotationEntityTypes,
+      this.config,
       prompt,
       job.language
     );

@@ -253,6 +253,7 @@ operationsRouter.post('/api/annotations/:id/generate-resource',
     const { title, content: generatedContent } = await generateResourceFromTopic(
       selectedText,
       body.entityTypes || annotationEntityTypes,
+      config,
       body.prompt,
       body.language
     );
@@ -487,7 +488,7 @@ Context after: "${after.substring(0, 200)}"
 Resource: ${resource.name}
 Entity types: ${annotationEntityTypes.join(', ')}`;
 
-  const summary = await generateText(summaryPrompt, 500, 0.5);
+  const summary = await generateText(summaryPrompt, config, 500, 0.5);
 
   const response: ContextualSummaryResponse = {
     summary,

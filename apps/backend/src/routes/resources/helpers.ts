@@ -54,7 +54,7 @@ export async function detectAnnotationsInResource(
     const content = contentBuffer.toString('utf-8');
 
     // Use AI to extract entities
-    const extractedEntities = await extractEntities(content, entityTypes);
+    const extractedEntities = await extractEntities(content, entityTypes, config);
 
     // Convert extracted entities to annotation format
     for (const entity of extractedEntities) {
