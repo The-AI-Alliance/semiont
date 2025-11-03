@@ -18,7 +18,7 @@ type Annotation = components['schemas']['Annotation'];
 export class AnnotationQueryService {
   /**
    * Get resource annotations from Layer 3 (fast path)
-   * Falls back to GraphDB if projection missing
+   * Throws if projection missing
    */
   static async getResourceAnnotations(resourceId: string): Promise<ResourceAnnotations> {
     const basePath = getFilesystemConfig().path;
@@ -79,21 +79,15 @@ export class AnnotationQueryService {
   /**
    * List annotations with optional filtering
    * @param filters - Optional filters like resourceId and type
+   * @throws Error if resourceId not provided (cross-resource queries not supported in Layer 3)
    */
   static async listAnnotations(filters?: { resourceId?: string; type?: AnnotationCategory }): Promise<any> {
-    if (filters?.resourceId) {
-      // If filtering by resource ID, use Layer 3 directly
-      return await this.getAllAnnotations(filters.resourceId);
+    if (!filters?.resourceId) {
+      throw new Error('resourceId is required for annotation listing - cross-resource queries not supported in Layer 3');
     }
 
-    // For now, fall back to graph for cross-resource listing
-    // TODO: Implement by scanning all projections
-    const graphDb = await getGraphDatabase();
-    const graphFilters = filters?.resourceId
-      ? { resourceId: makeResourceId(filters.resourceId), type: filters.type }
-      : { type: filters?.type };
-    const result = await graphDb.listAnnotations(graphFilters);
-    return result.annotations || [];
+    // Use Layer 3 directly
+    return await this.getAllAnnotations(filters.resourceId);
   }
 
   // ========================================
