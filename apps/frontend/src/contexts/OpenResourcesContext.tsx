@@ -2,9 +2,10 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { arrayMove } from '@dnd-kit/sortable';
+import type { ResourceId } from '@semiont/core';
 
 interface OpenResource {
-  id: string;
+  id: ResourceId;
   name: string;
   openedAt: number;
   order?: number; // Optional for backward compatibility
@@ -12,9 +13,9 @@ interface OpenResource {
 
 interface OpenResourcesContextType {
   openResources: OpenResource[];
-  addResource: (id: string, name: string) => void;
-  removeResource: (id: string) => void;
-  updateResourceName: (id: string, name: string) => void;
+  addResource: (id: ResourceId, name: string) => void;
+  removeResource: (id: ResourceId) => void;
+  updateResourceName: (id: ResourceId, name: string) => void;
   reorderResources: (oldIndex: number, newIndex: number) => void;
 }
 
@@ -74,7 +75,7 @@ export function OpenResourcesProvider({ children }: { children: React.ReactNode 
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
   
-  const addResource = useCallback((id: string, name: string) => {
+  const addResource = useCallback((id: ResourceId, name: string) => {
     setOpenResources(prev => {
       const existing = prev.find(resource => resource.id === id);
       if (existing) {
@@ -91,11 +92,11 @@ export function OpenResourcesProvider({ children }: { children: React.ReactNode 
     });
   }, []);
 
-  const removeResource = useCallback((id: string) => {
+  const removeResource = useCallback((id: ResourceId) => {
     setOpenResources(prev => prev.filter(resource => resource.id !== id));
   }, []);
 
-  const updateResourceName = useCallback((id: string, name: string) => {
+  const updateResourceName = useCallback((id: ResourceId, name: string) => {
     setOpenResources(prev =>
       prev.map(resource => resource.id === id ? { ...resource, name } : resource)
     );

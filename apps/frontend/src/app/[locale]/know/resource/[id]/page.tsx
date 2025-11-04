@@ -42,6 +42,7 @@ import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
 import { CommentsPanel } from '@/components/resource/panels/CommentsPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { extractAnnotationId, compareAnnotationIds } from '@semiont/api-client';
+import { resourceId as makeResourceId, annotationUri, annotationId, resourceUri } from '@semiont/core';
 
 // Loading state component
 function ResourceLoadingState() {
@@ -242,7 +243,7 @@ function ResourceView({
   // Add resource to open tabs when it loads
   useEffect(() => {
     if (resource && resourceId) {
-      addResource(resourceId, resource.name);
+      addResource(makeResourceId(resourceId), resource.name);
       localStorage.setItem('lastViewedDocumentId', resourceId);
     }
   }, [resource, resourceId, addResource]);
@@ -405,14 +406,14 @@ function ResourceView({
     // (it may still be in newAnnotationIds with a 6-second timer from creation)
     // We only want the widget sparkle (✨ emoji) during generation, not the CSS pulse
     // referenceId is already a full W3C-compliant URI from the API
-    clearNewAnnotationId(referenceId);
+    clearNewAnnotationId(annotationUri(referenceId));
 
     // Widget sparkle (✨ emoji) will show automatically during generation via generatingReferenceId
     // Pass language (using locale from Next.js routing) to ensure generated content is in the user's preferred language
     const optionsWithLanguage = { ...options, language: locale };
     // Use full resource URI (W3C Web Annotation spec requires URIs)
-    const resourceUri = resource['@id'];
-    startGeneration(referenceId, resourceUri, optionsWithLanguage);
+    const resourceUriStr = resource['@id'];
+    startGeneration(annotationUri(referenceId), resourceUri(resourceUriStr), optionsWithLanguage);
   }, [startGeneration, resource, clearNewAnnotationId, locale]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
@@ -649,15 +650,15 @@ function ResourceView({
                   setHoveredCommentId(annotation.id);
                   setTimeout(() => setHoveredCommentId(null), 1500);
                 }}
-                onDeleteComment={async (annotationId) => {
-                  await deleteAnnotation(annotationId, resourceId);
+                onDeleteComment={async (annotationIdStr) => {
+                  await deleteAnnotation(annotationId(annotationIdStr), makeResourceId(resourceId));
                 }}
-                onUpdateComment={async (annotationId, newText) => {
+                onUpdateComment={async (annotationIdStr, newText) => {
                   // TODO: Implement update comment mutation
                 }}
                 onCreateComment={async (commentText) => {
                   if (pendingCommentSelection) {
-                    await addComment(resourceId, pendingCommentSelection, commentText);
+                    await addComment(makeResourceId(resourceId), pendingCommentSelection, commentText);
                     setPendingCommentSelection(null);
                   }
                 }}

@@ -6,6 +6,7 @@ import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useOpenResources } from '@/contexts/OpenResourcesContext';
+import { resourceId } from '@semiont/core';
 import {
   DndContext,
   closestCenter,
@@ -70,7 +71,7 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
     e.preventDefault();
     e.stopPropagation();
 
-    removeResource(docId);
+    removeResource(resourceId(docId));
 
     // If we're closing the currently viewed document, navigate to Discover
     if (pathname === `/know/resource/${docId}`) {

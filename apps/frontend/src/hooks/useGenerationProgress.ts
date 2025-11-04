@@ -5,13 +5,14 @@ import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { extractAnnotationId } from '@semiont/api-client';
+import type { AnnotationUri, ResourceUri, ResourceId } from '@semiont/core';
 
 export interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
-  referenceId: string;
+  referenceId: AnnotationUri;
   documentName?: string;
-  resourceId?: string;
-  sourceResourceId?: string;
+  resourceId?: ResourceUri;
+  sourceResourceId?: ResourceId;
   percentage: number;
   message?: string;
 }
@@ -33,8 +34,8 @@ export function useGenerationProgress({
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const startGeneration = useCallback(async (
-    referenceId: string,
-    resourceId: string,
+    referenceId: AnnotationUri,
+    resourceId: ResourceUri,
     options?: { prompt?: string; title?: string; language?: string }
   ) => {
     console.log('[useGenerationProgress] startGeneration called with:', {

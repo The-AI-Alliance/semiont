@@ -12,8 +12,8 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { annotations } from '@/lib/api/annotations';
 import { getResourceId } from '@/lib/resource-helpers';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
-import type { ResourceUri, ResourceId } from '@semiont/core';
-import { extractResourceId } from '@semiont/core';
+import type { ResourceUri, ResourceId, AnnotationUri, AnnotationId } from '@semiont/core';
+import { extractResourceId, resourceId, annotationId, annotationUri } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -27,7 +27,7 @@ interface Props {
   onRefetchAnnotations?: () => void;
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
-  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
+  onGenerateDocument?: (referenceId: AnnotationUri, options: { title: string; prompt?: string }) => void;
   generatingReferenceId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
   onCommentHover?: (commentId: string | null) => void;
@@ -63,10 +63,11 @@ export function ResourceViewer({
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
   // Extract resource ID once at the top - required for all annotation operations
-  const resourceId = getResourceId(resource);
-  if (!resourceId) {
+  const resourceIdStr = getResourceId(resource);
+  if (!resourceIdStr) {
     throw new Error('Cannot extract resource ID from resource');
   }
+  const resourceIdBranded = resourceId(resourceIdStr);
 
   // Use prop directly instead of internal state
   const activeView = curationMode ? 'annotate' : 'browse';
@@ -206,7 +207,7 @@ export function ResourceViewer({
         // If already a highlight, do nothing
       } else {
         // Create new highlight
-        await addHighlight(resourceId, selectedText, annotationPosition);
+        await addHighlight(resourceIdBranded, selectedText, annotationPosition);
       }
 
       // Refetch annotations to update UI
@@ -233,12 +234,12 @@ export function ResourceViewer({
           await convertHighlightToReference(highlights, (editingAnnotation as Annotation).id, targetDocId, entityType, referenceType);
         } else {
           // Update existing reference
-          await deleteAnnotation((editingAnnotation as Annotation).id, resourceId);
-          await addReference(resourceId, selectedText, annotationPosition, targetDocId, entityType, referenceType);
+          await deleteAnnotation(annotationId((editingAnnotation as Annotation).id), resourceIdBranded);
+          await addReference(resourceIdBranded, selectedText, annotationPosition, targetDocId, entityType, referenceType);
         }
       } else {
         // Create new reference
-        const newId = await addReference(resourceId, selectedText, annotationPosition, targetDocId, entityType, referenceType);
+        const newId = await addReference(resourceIdBranded, selectedText, annotationPosition, targetDocId, entityType, referenceType);
       }
 
       // Refetch annotations to update UI
@@ -260,7 +261,7 @@ export function ResourceViewer({
 
     try {
       // Create new assessment
-      await addAssessment(resourceId, selectedText, annotationPosition);
+      await addAssessment(resourceIdBranded, selectedText, annotationPosition);
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -295,9 +296,9 @@ export function ResourceViewer({
   }, [annotationPosition, selectedText, onCommentCreationRequested]);
 
   // Handle deleting annotations - memoized
-  const handleDeleteAnnotation = useCallback(async (id: string) => {
+  const handleDeleteAnnotation = useCallback(async (id: AnnotationId) => {
     try {
-      await deleteAnnotation(id, resourceId);
+      await deleteAnnotation(id, resourceIdBranded);
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -311,7 +312,7 @@ export function ResourceViewer({
 
   // Quick action: Delete annotation from widget
   const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
-    await handleDeleteAnnotation(annotation.id);
+    await handleDeleteAnnotation(annotationId(annotation.id));
   }, [handleDeleteAnnotation]);
 
   // Quick action: Convert annotation from widget
@@ -362,7 +363,7 @@ export function ResourceViewer({
         const position = { start, end };
 
         // Directly create highlight
-        addHighlight(resourceId, text, position);
+        addHighlight(resourceIdBranded, text, position);
 
         // Clear annotation to remove sparkle animation
         selection.removeAllRanges();
@@ -411,7 +412,7 @@ export function ResourceViewer({
     // Find the annotation
     const annotation = [...highlights, ...references].find(a => a.id === focusedAnnotationId);
     if (annotation) {
-      handleDeleteAnnotation(focusedAnnotationId);
+      handleDeleteAnnotation(annotationId(focusedAnnotationId));
       setFocusedAnnotationId(null);
     }
   }, [curationMode, focusedAnnotationId, highlights, references, handleDeleteAnnotation]);
@@ -547,9 +548,9 @@ export function ResourceViewer({
                 // Converting to stub reference (empty body array)
                 if (isBodyResolved(editingAnnotation.body)) {
                   // Unlink document - convert linked reference to stub
-                  await deleteAnnotation(editingAnnotation.id, resourceId);
+                  await deleteAnnotation(annotationId(editingAnnotation.id), resourceIdBranded);
                   const entityTypes = getEntityTypes(editingAnnotation);
-                  await addReference(resourceId, selectedText, annotationPosition!, undefined, entityTypes[0]);
+                  await addReference(resourceIdBranded, selectedText, annotationPosition!, undefined, entityTypes[0]);
                 }
               } else if (updates.body.type === 'SpecificResource') {
                 if (updates.body.source) {
@@ -557,7 +558,7 @@ export function ResourceViewer({
                   await updateAnnotationBodyMutation.mutateAsync({
                     id: editingAnnotation.id,
                     data: {
-                      resourceId: resourceId,
+                      resourceId: resourceIdBranded,
                       operations: [{
                         op: 'add',
                         item: {
@@ -587,10 +588,10 @@ export function ResourceViewer({
             setEditingAnnotation(null);
           }
         }}
-        onDeleteAnnotation={() => editingAnnotation && handleDeleteAnnotation(editingAnnotation.id)}
+        onDeleteAnnotation={() => editingAnnotation && handleDeleteAnnotation(annotationId(editingAnnotation.id))}
         onGenerateDocument={(title, prompt) => {
           if (editingAnnotation && onGenerateDocument) {
-            onGenerateDocument(editingAnnotation.id, {
+            onGenerateDocument(annotationUri(editingAnnotation.id), {
               title,
               ...(prompt && { prompt })
             });
