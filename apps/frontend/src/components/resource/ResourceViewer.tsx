@@ -65,7 +65,6 @@ export function ResourceViewer({
   if (!resourceIdStr) {
     throw new Error('Cannot extract resource ID from resource');
   }
-  const resourceIdStr = resourceIdStr;
 
   // Use prop directly instead of internal state
   const activeView = curationMode ? 'annotate' : 'browse';
