@@ -41,8 +41,7 @@ import { ResourceActionsPanel } from '@/components/resource/panels/ResourceActio
 import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
 import { CommentsPanel } from '@/components/resource/panels/CommentsPanel';
 import { Toolbar } from '@/components/Toolbar';
-import { extractAnnotationId, compareAnnotationIds } from '@semiont/api-client';
-import { resourceId as makeResourceId, annotationUri, annotationId, resourceUri } from '@semiont/core';
+import { extractAnnotationId, annotationUri, resourceUri } from '@semiont/api-client';
 
 // Loading state component
 function ResourceLoadingState() {
@@ -243,7 +242,7 @@ function ResourceView({
   // Add resource to open tabs when it loads
   useEffect(() => {
     if (resource && resourceId) {
-      addResource(makeResourceId(resourceId), resource.name);
+      addResource(resourceId, resource.name);
       localStorage.setItem('lastViewedDocumentId', resourceId);
     }
   }, [resource, resourceId, addResource]);
@@ -266,9 +265,9 @@ function ResourceView({
             format: 'text/markdown',
             entityTypes: []
           });
-          const resourceId = getResourceId(newDoc.resource);
-          if (resourceId) {
-            router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
+          const newResourceId = getResourceId(newDoc.resource);
+          if (newResourceId) {
+            router.push(`/know/resource/${encodeURIComponent(newResourceId)}`);
           }
         }
       }
@@ -438,7 +437,7 @@ function ResourceView({
           ...old,
           annotations: old.annotations.map((annotation: any) => {
             // Match by ID portion (handle both URI and internal ID formats)
-            if (compareAnnotationIds(annotation.id, event.payload.annotationId)) {
+            if (annotation.id === event.payload.annotationId) {
               // Apply body operations
               let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
 
@@ -651,14 +650,14 @@ function ResourceView({
                   setTimeout(() => setHoveredCommentId(null), 1500);
                 }}
                 onDeleteComment={async (annotationIdStr) => {
-                  await deleteAnnotation(annotationId(annotationIdStr), makeResourceId(resourceId));
+                  await deleteAnnotation(annotationIdStr, resourceId);
                 }}
                 onUpdateComment={async (annotationIdStr, newText) => {
                   // TODO: Implement update comment mutation
                 }}
                 onCreateComment={async (commentText) => {
                   if (pendingCommentSelection) {
-                    await addComment(makeResourceId(resourceId), pendingCommentSelection, commentText);
+                    await addComment(resourceId, pendingCommentSelection, commentText);
                     setPendingCommentSelection(null);
                   }
                 }}

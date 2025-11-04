@@ -14,7 +14,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
-import { getExactText, compareAnnotationIds } from '@semiont/api-client';
+import { getExactText } from '@semiont/api-client';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
@@ -72,9 +72,9 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
         console.log(`  [${i}] id: ${a.id}`);
       });
 
-      // Compare by ID portion (handle both URI and simple ID formats)
+      // Compare by ID
       const reference = projection.annotations.find((a: any) =>
-        compareAnnotationIds(a.id, referenceId) && a.motivation === 'linking'
+        a.id === referenceId && a.motivation === 'linking'
       );
 
       if (!reference) {

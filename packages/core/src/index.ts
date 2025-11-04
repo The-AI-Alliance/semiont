@@ -14,20 +14,14 @@
 export { CREATION_METHODS } from './creation-methods';
 export type { CreationMethod } from './creation-methods';
 
-// Identifier types
-export type { ResourceId, ResourceUri, AnnotationId, AnnotationUri, UserId } from './identifiers';
+// Identifier types (only IDs - URIs are in @semiont/api-client)
+export type { ResourceId, AnnotationId, UserId } from './identifiers';
 export {
   resourceId,
-  resourceUri,
   annotationId,
-  annotationUri,
   userId,
   isResourceId,
-  isResourceUri,
   isAnnotationId,
-  isAnnotationUri,
-  extractResourceId,
-  extractAnnotationId,
 } from './identifiers';
 
 // Graph types

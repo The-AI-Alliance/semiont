@@ -7,10 +7,8 @@ import { PopupContainer, PopupHeader, EntityTypeBadges } from './SharedPopupElem
 import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
-import { getBodySource, getEntityTypes } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
-import type { ResourceUri, ResourceId } from '@semiont/core';
-import { extractResourceId } from '@semiont/core';
+import { getBodySource, getEntityTypes, extractResourceId } from '@semiont/api-client';
+import type { components, ResourceUri } from '@semiont/api-client';
 
 type ReferenceAnnotation = components['schemas']['Annotation'];
 type AnnotationUpdate = Partial<components['schemas']['Annotation']>;
@@ -57,7 +55,7 @@ export function ResolvedReferencePopup({
 
   const handleViewDocument = () => {
     if (resolvedDocumentId) {
-      const shortId: ResourceId = extractResourceId(resolvedDocumentId);
+      const shortId: string = extractResourceId(resolvedDocumentId);
       router.push(`/know/resource/${encodeURIComponent(shortId)}`);
       onClose();
     }
@@ -65,7 +63,7 @@ export function ResolvedReferencePopup({
 
   const handleOpenInNewTab = () => {
     if (resolvedDocumentId) {
-      const shortId: ResourceId = extractResourceId(resolvedDocumentId);
+      const shortId: string = extractResourceId(resolvedDocumentId);
       window.open(`/know/resource/${encodeURIComponent(shortId)}`, '_blank');
     }
   };

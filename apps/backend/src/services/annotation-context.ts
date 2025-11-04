@@ -18,11 +18,12 @@ import { FilesystemRepresentationStore } from '../storage/representation/represe
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../utils/resource-helpers';
 import { createProjectionManager } from './storage-service';
 import type { EnvironmentConfig, AnnotationId, ResourceId } from '@semiont/core';
-import { extractResourceId } from '@semiont/core';
+import { extractResourceId } from '@semiont/api-client';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
+type Annotation = components['schemas']['Annotation'];
 
 export interface BuildContextOptions {
   includeSourceContext?: boolean;
@@ -83,10 +84,10 @@ export class AnnotationContextService {
 
     console.log(`[AnnotationContext] Looking for annotation ${annotationId} in resource ${resourceId}`);
     console.log(`[AnnotationContext] Projection has ${sourceProjection.annotations.annotations.length} annotations`);
-    console.log(`[AnnotationContext] First 5 annotation IDs:`, sourceProjection.annotations.annotations.slice(0, 5).map(a => a.id));
+    console.log(`[AnnotationContext] First 5 annotation IDs:`, sourceProjection.annotations.annotations.slice(0, 5).map((a: Annotation) => a.id));
 
     // Find the annotation in the projection
-    const annotation = sourceProjection.annotations.annotations.find(a => a.id === annotationId);
+    const annotation = sourceProjection.annotations.annotations.find((a: Annotation) => a.id === annotationId);
     console.log(`[AnnotationContext] Found annotation:`, !!annotation);
 
     if (!annotation) {

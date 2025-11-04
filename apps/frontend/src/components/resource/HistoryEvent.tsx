@@ -11,7 +11,7 @@ import {
   getEventDisplayContent,
   getEventEntityTypes,
   getResourceCreationDetails,
-  getAnnotationIdFromEvent,
+  getAnnotationUriFromEvent,
 } from '@semiont/api-client';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
@@ -38,7 +38,7 @@ export function HistoryEvent({
   onEventHover
 }: Props) {
   const displayContent = getEventDisplayContent(event, annotations, allEvents);
-  const annotationId = getAnnotationIdFromEvent(event);
+  const annotationUri = getAnnotationUriFromEvent(event);
   const creationDetails = getResourceCreationDetails(event);
   const entityTypes = getEventEntityTypes(event);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -49,7 +49,7 @@ export function HistoryEvent({
 
   // Handle hover on emoji icon with 300ms delay
   const handleEmojiMouseEnter = useCallback(() => {
-    if (!annotationId || !onEventHover) return;
+    if (!annotationUri || !onEventHover) return;
 
     // Clear any existing timeout
     if (hoverTimeoutRef.current) {
@@ -58,9 +58,9 @@ export function HistoryEvent({
 
     // Set new timeout for 300ms delay
     hoverTimeoutRef.current = setTimeout(() => {
-      onEventHover(annotationId);
+      onEventHover(annotationUri);
     }, 300);
-  }, [annotationId, onEventHover]);
+  }, [annotationUri, onEventHover]);
 
   const handleEmojiMouseLeave = useCallback(() => {
     // Clear the timeout if mouse leaves before 500ms
@@ -76,10 +76,10 @@ export function HistoryEvent({
   }, [onEventHover]);
 
   // Interactive events should be buttons for keyboard accessibility
-  const EventWrapper = annotationId ? 'button' : 'div';
-  const eventWrapperProps = annotationId ? {
+  const EventWrapper = annotationUri ? 'button' : 'div';
+  const eventWrapperProps = annotationUri ? {
     type: 'button' as const,
-    onClick: () => onEventClick?.(annotationId),
+    onClick: () => onEventClick?.(annotationUri),
     'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.event.type as ResourceEventType, t) }),
     className: `w-full text-left text-xs ${borderClass} pl-2 py-0.5 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset`
   } : {
@@ -90,7 +90,7 @@ export function HistoryEvent({
     <EventWrapper
       ref={(el: HTMLElement | null) => {
         if (onEventRef) {
-          onEventRef(annotationId, el);
+          onEventRef(annotationUri, el);
         }
       }}
       {...eventWrapperProps}

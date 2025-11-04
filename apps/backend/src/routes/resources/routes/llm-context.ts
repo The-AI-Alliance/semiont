@@ -15,7 +15,8 @@ import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getResourceId, getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
-import { resourceUri, resourceId as makeResourceId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 
 type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
 

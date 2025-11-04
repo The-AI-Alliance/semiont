@@ -10,10 +10,12 @@ import {
 } from '../identifier-service';
 import {
   resourceId,
-  resourceUri,
   annotationId,
-  annotationUri,
 } from '@semiont/core';
+import {
+  resourceUri,
+  annotationUri,
+} from '@semiont/api-client';
 
 describe('Identifier Conversion Functions', () => {
   const config: IdentifierConfig = { baseUrl: 'http://localhost:4000' };

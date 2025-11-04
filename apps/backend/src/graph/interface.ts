@@ -10,10 +10,9 @@ import type {
   UpdateResourceInput,
   CreateAnnotationInternal,
   ResourceId,
-  ResourceUri,
   AnnotationId,
-  AnnotationUri,
 } from '@semiont/core';
+import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];

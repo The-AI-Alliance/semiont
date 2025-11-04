@@ -5,15 +5,13 @@ import { useRouter } from '@/i18n/routing';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
-import type { components } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes } from '@semiont/api-client';
+import type { components, ResourceUri, AnnotationUri } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, extractResourceId, resourceUri, annotationUri } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { annotations } from '@/lib/api/annotations';
 import { getResourceId } from '@/lib/resource-helpers';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
-import type { ResourceUri, ResourceId, AnnotationUri, AnnotationId } from '@semiont/core';
-import { extractResourceId, resourceId, annotationId, annotationUri } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -67,7 +65,7 @@ export function ResourceViewer({
   if (!resourceIdStr) {
     throw new Error('Cannot extract resource ID from resource');
   }
-  const resourceIdBranded = resourceId(resourceIdStr);
+  const resourceIdStr = resourceIdStr;
 
   // Use prop directly instead of internal state
   const activeView = curationMode ? 'annotate' : 'browse';
@@ -121,7 +119,7 @@ export function ResourceViewer({
       // If it's a resolved reference, navigate to it (in both curation and browse mode)
       const bodySource = getBodySource(annotation.body); // returns ResourceUri | null
       if (bodySource) {
-        const shortId: ResourceId = extractResourceId(bodySource);
+        const shortId: string = extractResourceId(bodySource);
         router.push(`/know/resource/${encodeURIComponent(shortId)}`);
       }
     } else if (curationMode) {
@@ -207,7 +205,7 @@ export function ResourceViewer({
         // If already a highlight, do nothing
       } else {
         // Create new highlight
-        await addHighlight(resourceIdBranded, selectedText, annotationPosition);
+        await addHighlight(resourceIdStr, selectedText, annotationPosition);
       }
 
       // Refetch annotations to update UI
@@ -234,12 +232,12 @@ export function ResourceViewer({
           await convertHighlightToReference(highlights, (editingAnnotation as Annotation).id, targetDocId, entityType, referenceType);
         } else {
           // Update existing reference
-          await deleteAnnotation(annotationId((editingAnnotation as Annotation).id), resourceIdBranded);
-          await addReference(resourceIdBranded, selectedText, annotationPosition, targetDocId, entityType, referenceType);
+          await deleteAnnotation((editingAnnotation as Annotation.id), resourceIdStr);
+          await addReference(resourceIdStr, selectedText, annotationPosition, targetDocId, entityType, referenceType);
         }
       } else {
         // Create new reference
-        const newId = await addReference(resourceIdBranded, selectedText, annotationPosition, targetDocId, entityType, referenceType);
+        const newId = await addReference(resourceIdStr, selectedText, annotationPosition, targetDocId, entityType, referenceType);
       }
 
       // Refetch annotations to update UI
@@ -261,7 +259,7 @@ export function ResourceViewer({
 
     try {
       // Create new assessment
-      await addAssessment(resourceIdBranded, selectedText, annotationPosition);
+      await addAssessment(resourceIdStr, selectedText, annotationPosition);
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -296,9 +294,9 @@ export function ResourceViewer({
   }, [annotationPosition, selectedText, onCommentCreationRequested]);
 
   // Handle deleting annotations - memoized
-  const handleDeleteAnnotation = useCallback(async (id: AnnotationId) => {
+  const handleDeleteAnnotation = useCallback(async (id: string) => {
     try {
-      await deleteAnnotation(id, resourceIdBranded);
+      await deleteAnnotation(id, resourceIdStr);
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -312,7 +310,7 @@ export function ResourceViewer({
 
   // Quick action: Delete annotation from widget
   const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
-    await handleDeleteAnnotation(annotationId(annotation.id));
+    await handleDeleteAnnotation(annotation.id);
   }, [handleDeleteAnnotation]);
 
   // Quick action: Convert annotation from widget
@@ -363,7 +361,7 @@ export function ResourceViewer({
         const position = { start, end };
 
         // Directly create highlight
-        addHighlight(resourceIdBranded, text, position);
+        addHighlight(resourceIdStr, text, position);
 
         // Clear annotation to remove sparkle animation
         selection.removeAllRanges();
@@ -412,7 +410,7 @@ export function ResourceViewer({
     // Find the annotation
     const annotation = [...highlights, ...references].find(a => a.id === focusedAnnotationId);
     if (annotation) {
-      handleDeleteAnnotation(annotationId(focusedAnnotationId));
+      handleDeleteAnnotation(focusedAnnotationId);
       setFocusedAnnotationId(null);
     }
   }, [curationMode, focusedAnnotationId, highlights, references, handleDeleteAnnotation]);
@@ -548,9 +546,9 @@ export function ResourceViewer({
                 // Converting to stub reference (empty body array)
                 if (isBodyResolved(editingAnnotation.body)) {
                   // Unlink document - convert linked reference to stub
-                  await deleteAnnotation(annotationId(editingAnnotation.id), resourceIdBranded);
+                  await deleteAnnotation(editingAnnotation.id, resourceIdStr);
                   const entityTypes = getEntityTypes(editingAnnotation);
-                  await addReference(resourceIdBranded, selectedText, annotationPosition!, undefined, entityTypes[0]);
+                  await addReference(resourceIdStr, selectedText, annotationPosition!, undefined, entityTypes[0]);
                 }
               } else if (updates.body.type === 'SpecificResource') {
                 if (updates.body.source) {
@@ -558,7 +556,7 @@ export function ResourceViewer({
                   await updateAnnotationBodyMutation.mutateAsync({
                     id: editingAnnotation.id,
                     data: {
-                      resourceId: resourceIdBranded,
+                      resourceId: resourceIdStr,
                       operations: [{
                         op: 'add',
                         item: {
@@ -588,7 +586,7 @@ export function ResourceViewer({
             setEditingAnnotation(null);
           }
         }}
-        onDeleteAnnotation={() => editingAnnotation && handleDeleteAnnotation(annotationId(editingAnnotation.id))}
+        onDeleteAnnotation={() => editingAnnotation && handleDeleteAnnotation(editingAnnotation.id)}
         onGenerateDocument={(title, prompt) => {
           if (editingAnnotation && onGenerateDocument) {
             onGenerateDocument(annotationUri(editingAnnotation.id), {

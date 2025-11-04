@@ -12,16 +12,18 @@
 
 import {
   type ResourceId,
-  type ResourceUri,
   type AnnotationId,
+  resourceId,
+  annotationId,
+} from '@semiont/core';
+import {
+  type ResourceUri,
   type AnnotationUri,
   resourceUri,
   annotationUri,
-  resourceId,
-  annotationId,
   extractResourceId,
   extractAnnotationId,
-} from '@semiont/core';
+} from '@semiont/api-client';
 
 export interface IdentifierConfig {
   baseUrl: string;
@@ -77,7 +79,7 @@ export function normalizeResourceId(
     );
   }
 
-  return extractResourceId(resourceUri(idOrUri));
+  return resourceId(extractResourceId(resourceUri(idOrUri)));
 }
 
 export function normalizeAnnotationId(
@@ -96,5 +98,5 @@ export function normalizeAnnotationId(
     );
   }
 
-  return extractAnnotationId(annotationUri(idOrUri));
+  return annotationId(extractAnnotationId(annotationUri(idOrUri)));
 }

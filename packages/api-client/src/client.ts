@@ -11,6 +11,7 @@
 
 import ky, { type KyInstance } from 'ky';
 import type { paths } from './types';
+import type { AnnotationUri, ResourceUri } from './uri-types';
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
@@ -135,7 +136,7 @@ export class SemiontApiClient {
   }
 
   // ============================================================================
-  // DOCUMENTS
+  // RESOURCES
   // ============================================================================
 
   async createResource(
@@ -204,37 +205,34 @@ export class SemiontApiClient {
     return this.http.get(`api/annotations/${id}`).json();
   }
 
-  async listAnnotations(params?: {
-    resourceId?: string;
-    motivation?: string;
-  }): Promise<ResponseContent<paths['/api/annotations']['get']>> {
+  async listAnnotations(
+    resourceUri: ResourceUri,
+    motivation?: string
+  ): Promise<ResponseContent<paths['/api/annotations']['get']>> {
     const searchParams = new URLSearchParams();
-    if (params?.resourceId) searchParams.append('resourceId', params.resourceId);
-    if (params?.motivation) searchParams.append('motivation', params.motivation);
+    if (motivation) searchParams.append('motivation', motivation);
 
-    return this.http.get('api/annotations', { searchParams }).json();
+    return this.http.get(`${resourceUri}/annotations`, { searchParams }).json();
   }
 
-  async deleteAnnotation(id: string, resourceId: string): Promise<void> {
-    await this.http.delete(`api/annotations/${id}`, {
-      searchParams: { resourceId },
-    });
+  async deleteAnnotation(annotationUri: AnnotationUri): Promise<void> {
+    await this.http.delete(annotationUri);
   }
 
   async updateAnnotationBody(
-    id: string,
+    annotationUri: AnnotationUri,
     data: RequestContent<paths['/api/annotations/{id}/body']['put']>
   ): Promise<ResponseContent<paths['/api/annotations/{id}/body']['put']>> {
-    return this.http.put(`api/annotations/${id}/body`, {
+    return this.http.put(`${annotationUri}/body`, {
       json: data,
     }).json();
   }
 
   async generateResourceFromAnnotation(
-    id: string,
+    annotationUri: AnnotationUri,
     data: RequestContent<paths['/api/annotations/{id}/generate-resource']['post']>
   ): Promise<ResponseContent<paths['/api/annotations/{id}/generate-resource']['post']>> {
-    return this.http.post(`api/annotations/${id}/generate-resource`, { json: data }).json();
+    return this.http.post(`${annotationUri}/generate-resource`, { json: data }).json();
   }
 
   // ============================================================================

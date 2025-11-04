@@ -13,9 +13,9 @@ import { getGraphDatabase } from '../../../graph/factory';
 import {
   CREATION_METHODS,
   generateUuid,
-  resourceUri,
   resourceId as makeResourceId,
 } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';

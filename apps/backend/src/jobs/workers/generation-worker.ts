@@ -21,7 +21,7 @@ import {
   resourceId,
   annotationId,
 } from '@semiont/core';
-import { getExactText, compareAnnotationIds } from '@semiont/api-client';
+import { getExactText } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
 
 import { getEntityTypes } from '@semiont/api-client';
@@ -65,9 +65,9 @@ export class GenerationWorker extends JobWorker {
 
     // Fetch annotation from Layer 3
     const projection = await AnnotationQueryService.getResourceAnnotations(job.sourceResourceId, this.config);
-    // Compare by ID portion (handle both URI and simple ID formats)
+    // Compare by ID
     const annotation = projection.annotations.find((a: any) =>
-      compareAnnotationIds(a.id, job.referenceId) && a.motivation === 'linking'
+      a.id === job.referenceId && a.motivation === 'linking'
     );
 
     if (!annotation) {

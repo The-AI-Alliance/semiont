@@ -13,11 +13,11 @@ import type {
   UpdateResourceInput,
   CreateAnnotationInternal,
   ResourceId,
-  ResourceUri,
   AnnotationId,
-  AnnotationUri,
 } from '@semiont/core';
-import { resourceUri, resourceId as makeResourceId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
+import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
+import { resourceUri } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
 import { getResourceId, getEntityTypes as getResourceEntityTypes, getPrimaryRepresentation } from '../../utils/resource-helpers';

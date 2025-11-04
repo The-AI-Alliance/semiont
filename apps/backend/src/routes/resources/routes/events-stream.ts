@@ -16,9 +16,9 @@
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { resourceUri } from '@semiont/core';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import { resourceId } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 
 /**
  * Resource-scoped SSE event stream for real-time collaboration

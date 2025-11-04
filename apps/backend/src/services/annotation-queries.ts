@@ -86,7 +86,7 @@ export class AnnotationQueryService {
    */
   static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation | null> {
     const annotations = await this.getResourceAnnotations(resourceId, config);
-    return annotations.annotations.find(a => a.id === annotationId) || null;
+    return annotations.annotations.find((a: Annotation) => a.id === annotationId) || null;
   }
 
   /**

@@ -13,10 +13,9 @@ import type {
   UpdateResourceInput,
   CreateAnnotationInternal,
   ResourceId,
-  ResourceUri,
   AnnotationId,
-  AnnotationUri,
 } from '@semiont/core';
+import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';

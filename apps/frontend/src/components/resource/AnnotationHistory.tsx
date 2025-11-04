@@ -3,7 +3,7 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { resources } from '@/lib/api/resources';
-import { type StoredEvent, isEventRelatedToAnnotation } from '@semiont/api-client';
+import { type StoredEvent, type AnnotationUri, isEventRelatedToAnnotation } from '@semiont/api-client';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
@@ -98,7 +98,7 @@ export function AnnotationHistory({ resourceId, hoveredAnnotationId, onEventHove
       </h3>
       <div ref={containerRef} className="space-y-1.5 overflow-y-auto flex-1 min-h-0">
         {events.map((stored) => {
-          const isRelated = hoveredAnnotationId ? isEventRelatedToAnnotation(stored, hoveredAnnotationId) : false;
+          const isRelated = hoveredAnnotationId ? isEventRelatedToAnnotation(stored, hoveredAnnotationId as AnnotationUri) : false;
 
           return (
             <HistoryEvent

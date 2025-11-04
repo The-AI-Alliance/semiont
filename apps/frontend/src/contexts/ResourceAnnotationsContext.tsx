@@ -3,10 +3,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { annotations } from '@/lib/api/annotations';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { components, paths } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector } from '@semiont/api-client';
-import type { ResourceId, AnnotationId, AnnotationUri } from '@semiont/core';
-import { extractResourceId } from '@semiont/core';
+import type { components, paths, AnnotationUri } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector, extractResourceId } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
@@ -23,11 +21,11 @@ interface ResourceAnnotationsContextType {
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
   // Mutation actions (still in context for consistency)
-  addHighlight: (resourceId: ResourceId, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
-  addReference: (resourceId: ResourceId, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
-  addAssessment: (resourceId: ResourceId, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
-  addComment: (resourceId: ResourceId, selection: SelectionData, commentText: string) => Promise<string | undefined>;
-  deleteAnnotation: (annotationId: AnnotationId, resourceId: ResourceId) => Promise<void>;
+  addHighlight: (resourceId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  addReference: (resourceId: string, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
+  addAssessment: (resourceId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  addComment: (resourceId: string, selection: SelectionData, commentText: string) => Promise<string | undefined>;
+  deleteAnnotation: (annotationId: string, resourceId: string) => Promise<void>;
   convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
 
@@ -48,7 +46,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const deleteAnnotationMutation = annotations.delete.useMutation();
 
   const addHighlight = useCallback(async (
-    resourceId: ResourceId,
+    resourceId: string,
     exact: string,
     position: { start: number; end: number }
   ): Promise<string | undefined> => {
@@ -84,7 +82,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   }, [saveHighlightMutation]);
 
   const addReference = useCallback(async (
-    resourceId: ResourceId,
+    resourceId: string,
     exact: string,
     position: { start: number; end: number },
     targetDocId?: string,
@@ -168,7 +166,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   }, [createAnnotationMutation]);
 
   const addAssessment = useCallback(async (
-    resourceId: ResourceId,
+    resourceId: string,
     exact: string,
     position: { start: number; end: number }
   ): Promise<string | undefined> => {
@@ -225,7 +223,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   }, [createAnnotationMutation]);
 
   const addComment = useCallback(async (
-    resourceId: ResourceId,
+    resourceId: string,
     selection: SelectionData,
     commentText: string
   ): Promise<string | undefined> => {
@@ -286,7 +284,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [createAnnotationMutation]);
 
-  const deleteAnnotation = useCallback(async (annotationId: AnnotationId, resourceId: ResourceId) => {
+  const deleteAnnotation = useCallback(async (annotationId: string, resourceId: string) => {
     try {
       // Backend expects resourceId as a full URI, not just the ID
       const resourceUri = `${process.env.NEXT_PUBLIC_API_URL}/resources/${resourceId}`;

@@ -13,9 +13,9 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { didToAgent } from '../../utils/id-generator';
 import type { components } from '@semiont/api-client';
-import { compareAnnotationIds } from '@semiont/api-client';
 
 type Representation = components['schemas']['Representation'];
+type Annotation = components['schemas']['Annotation'];
 import type {
   ResourceEvent,
   StoredEvent,
@@ -236,14 +236,14 @@ export class EventProjector {
 
       case 'annotation.removed':
         annotations.annotations = annotations.annotations.filter(
-          a => !compareAnnotationIds(a.id, event.payload.annotationId)
+          (a: Annotation) => a.id !== event.payload.annotationId
         );
         break;
 
       case 'annotation.body.updated':
         // Find annotation by ID
-        const annotation = annotations.annotations.find(a =>
-          compareAnnotationIds(a.id, event.payload.annotationId)
+        const annotation = annotations.annotations.find((a: Annotation) =>
+          a.id === event.payload.annotationId
         );
         if (annotation) {
           // Ensure body is an array

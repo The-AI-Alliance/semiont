@@ -13,7 +13,8 @@ import { getExactText } from '@semiont/api-client';
 import { getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { resourceId as makeResourceId, resourceUri } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 

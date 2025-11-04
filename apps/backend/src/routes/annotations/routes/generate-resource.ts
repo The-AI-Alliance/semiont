@@ -18,7 +18,6 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
-import { compareAnnotationIds } from '@semiont/api-client';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
@@ -56,7 +55,7 @@ export function registerGenerateResource(router: AnnotationsRouterType) {
       // Validate annotation exists using Layer 3
       const projection = await AnnotationQueryService.getResourceAnnotations(resourceId(body.resourceId), config);
       const annotation = projection.annotations.find((a: any) =>
-        compareAnnotationIds(a.id, annotationId) && a.motivation === 'linking'
+        a.id === annotationId && a.motivation === 'linking'
       );
 
       if (!annotation) {

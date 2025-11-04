@@ -11,8 +11,8 @@ import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { components } from '@semiont/api-client';
 import type { ResourceEvent, StoredEvent, EnvironmentConfig, ResourceId } from '@semiont/core';
-import { resourceUri, resourceId as makeResourceId } from '@semiont/core';
-import { findBodyItem } from '@semiont/core';
+import { resourceId as makeResourceId, findBodyItem } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 import { resourceIdToURI, annotationIdToURI } from '../../lib/uri-utils';
 
 type Annotation = components['schemas']['Annotation'];

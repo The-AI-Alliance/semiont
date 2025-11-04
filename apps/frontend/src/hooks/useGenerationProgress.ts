@@ -4,15 +4,14 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { extractAnnotationId } from '@semiont/api-client';
-import type { AnnotationUri, ResourceUri, ResourceId } from '@semiont/core';
+import { extractAnnotationId, type AnnotationUri, type ResourceUri } from '@semiont/api-client';
 
 export interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
   referenceId: AnnotationUri;
   documentName?: string;
   resourceId?: ResourceUri;
-  sourceResourceId?: ResourceId;
+  sourceResourceId?: string;
   percentage: number;
   message?: string;
 }

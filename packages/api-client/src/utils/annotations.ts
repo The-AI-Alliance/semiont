@@ -10,8 +10,8 @@
  */
 
 import type { components } from '../types';
-import type { ResourceUri } from '@semiont/core';
-import { resourceUri } from '@semiont/core';
+import type { ResourceUri } from '../uri-types';
+import { resourceUri } from '../uri-types';
 
 type Annotation = components['schemas']['Annotation'];
 type HighlightAnnotation = Annotation;
@@ -223,37 +223,6 @@ export function isStubReference(annotation: Annotation): boolean {
  */
 export function isResolvedReference(annotation: Annotation): annotation is ReferenceAnnotation {
   return isReference(annotation) && isBodyResolved(annotation.body);
-}
-
-/**
- * Extract annotation ID from a full URI or just the ID
- * @param fullUriOrId - Full URI like "urn:uuid:abc-123", "http://host/annotations/abc-123", or just "abc-123"
- * @returns The ID portion (e.g., "abc-123")
- */
-export function extractAnnotationId(fullUriOrId: string): string {
-  // Handle URN format: urn:uuid:abc-123
-  if (fullUriOrId.startsWith('urn:uuid:')) {
-    return fullUriOrId.replace('urn:uuid:', '');
-  }
-
-  // Handle HTTP/HTTPS URLs: http://host/annotations/abc-123
-  if (fullUriOrId.startsWith('http://') || fullUriOrId.startsWith('https://')) {
-    const parts = fullUriOrId.split('/');
-    const lastPart = parts[parts.length - 1];
-    return lastPart || fullUriOrId; // Fallback to full URI if split fails
-  }
-
-  // Already just an ID
-  return fullUriOrId;
-}
-
-/**
- * Compare two annotation IDs, handling both URN format and plain IDs
- */
-export function compareAnnotationIds(id1: string, id2: string): boolean {
-  const extracted1 = extractAnnotationId(id1);
-  const extracted2 = extractAnnotationId(id2);
-  return extracted1 === extracted2;
 }
 
 // =============================================================================

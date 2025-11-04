@@ -15,12 +15,11 @@ import type {
   UpdateResourceInput,
   CreateAnnotationInternal,
   ResourceId,
-  ResourceUri,
   AnnotationId,
-  AnnotationUri,
   EnvironmentConfig,
 } from '@semiont/core';
-import { resourceUri } from '@semiont/core';
+import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
+import { resourceUri } from '@semiont/api-client';
 import { annotationIdToURI } from '../../lib/uri-utils';
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
@@ -334,7 +333,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     // Apply entity type filtering after retrieval since JanusGraph stores as JSON
     if (filter.entityTypes && filter.entityTypes.length > 0) {
       resources = resources.filter(doc =>
-        filter.entityTypes!.some(type => doc.entityTypes?.includes(type))
+        filter.entityTypes!.some((type: string) => doc.entityTypes?.includes(type))
       );
     }
 

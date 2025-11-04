@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
-import { getTargetSource } from '@semiont/api-client';
+import { getTargetSource, extractResourceId } from '@semiont/api-client';
 import type { paths } from '@semiont/api-client';
 import { NEXT_PUBLIC_API_URL } from '../env';
 
@@ -30,9 +30,10 @@ export const annotations = {
             body: JSON.stringify(data),
           }, session?.backendToken),
         onSuccess: (response) => {
-          const resourceId = getTargetSource(response.annotation.target);
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(resourceId) });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(resourceId) });
+          const resourceUri = getTargetSource(response.annotation.target);
+          const resourceIdValue = extractResourceId(resourceUri);
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(resourceIdValue) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(resourceIdValue) });
         },
       });
     },
@@ -75,9 +76,10 @@ export const annotations = {
           }, session?.backendToken);
         },
         onSuccess: (response) => {
-          const resourceId = getTargetSource(response.annotation.target);
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(resourceId) });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(resourceId) });
+          const resourceUri = getTargetSource(response.annotation.target);
+          const resourceIdValue = extractResourceId(resourceUri);
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(resourceIdValue) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(resourceIdValue) });
         },
       });
     },
@@ -99,8 +101,9 @@ export const annotations = {
           }, session?.backendToken);
         },
         onSuccess: (_, variables) => {
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.resourceId) });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(variables.resourceId) });
+          const resourceIdValue = variables.resourceId;
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(resourceIdValue) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(resourceIdValue) });
         },
       });
     },
@@ -142,13 +145,15 @@ export const annotations = {
         onSuccess: (response, variables) => {
           if (response.annotation?.target) {
             const targetSource = getTargetSource(response.annotation.target);
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(targetSource) });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(targetSource) });
+            const resourceIdValue = extractResourceId(targetSource);
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(resourceIdValue) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(resourceIdValue) });
           }
           // Also invalidate the resource specified in the request
           if (variables.data.resourceId) {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.data.resourceId) });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.referencedBy(variables.data.resourceId) });
+            const resourceIdValue = variables.data.resourceId;
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(resourceIdValue) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.referencedBy(resourceIdValue) });
           }
         },
       });

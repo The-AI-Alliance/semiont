@@ -21,6 +21,7 @@ import type {
 import type { CreationMethod } from './creation-methods';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getEntityTypes } from '@semiont/api-client';
+import type { AnnotationId } from './identifiers';
 
 // Import OpenAPI types
 type Annotation = components['schemas']['Annotation'];
@@ -313,7 +314,7 @@ export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
 }
 
 // Check if event relates to the hovered annotation
-export function isEventRelatedToAnnotation(event: StoredEvent, annotationId: string): boolean {
+export function isEventRelatedToAnnotation(event: StoredEvent, annotationId: AnnotationId): boolean {
   const eventAnnotationId = getAnnotationIdFromEvent(event);
   return eventAnnotationId === annotationId;
 }

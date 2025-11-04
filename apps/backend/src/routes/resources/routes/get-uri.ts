@@ -23,6 +23,7 @@ import { ResourceQueryService } from '../../../services/resource-queries';
 import { resourceId } from '@semiont/core';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
+type Annotation = components['schemas']['Annotation'];
 
 export function registerGetResourceUri(router: ResourcesRouterType) {
   /**
@@ -93,7 +94,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     }
 
     const annotations = stored.annotations.annotations;
-    const entityReferences = annotations.filter(a => {
+    const entityReferences = annotations.filter((a: Annotation) => {
       if (a.motivation !== 'linking') return false;
       const entityTypes = getEntityTypes({ body: a.body });
       return entityTypes.length > 0;

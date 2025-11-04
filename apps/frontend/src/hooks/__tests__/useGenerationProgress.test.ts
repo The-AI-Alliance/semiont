@@ -1,4 +1,4 @@
-import { annotationUri, resourceUri } from '@semiont/core';
+import { annotationUri, resourceUri, extractAnnotationId } from '@semiont/api-client';
 
 /**
  * useGenerationProgress Hook Tests
@@ -27,9 +27,7 @@ vi.mock('@/lib/env', () => ({
   NEXT_PUBLIC_API_URL: 'http://localhost:4000'
 }));
 
-// Import the real extractAnnotationId from core instead of mocking with string manipulation
-import { extractAnnotationId } from '@semiont/core';
-
+// Mock extractAnnotationId
 vi.mock('@semiont/api-client', () => ({
   extractAnnotationId
 }));

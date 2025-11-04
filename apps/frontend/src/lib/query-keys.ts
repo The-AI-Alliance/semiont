@@ -3,6 +3,7 @@
  * Following TanStack Query best practices for type-safe cache invalidation
  * @see https://tanstack.com/query/latest/docs/framework/react/guides/query-keys
  */
+
 export const QUERY_KEYS = {
   auth: {
     me: () => ['/api/auth/me'],
