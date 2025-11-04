@@ -140,8 +140,8 @@ export class SemiontApiClient {
   // ============================================================================
 
   async createResource(
-    data: RequestContent<paths['/api/resources']['post']>
-  ): Promise<ResponseContent<paths['/api/resources']['post']>> {
+    data: RequestContent<paths['/resources']['post']>
+  ): Promise<ResponseContent<paths['/resources']['post']>> {
     return this.http.post('resources', { json: data }).json();
   }
 
@@ -153,7 +153,7 @@ export class SemiontApiClient {
     limit?: number,
     archived?: boolean,
     query?: string
-  ): Promise<ResponseContent<paths['/api/resources']['get']>> {
+  ): Promise<ResponseContent<paths['/resources']['get']>> {
     const searchParams = new URLSearchParams();
     if (limit) searchParams.append('limit', limit.toString());
     if (archived !== undefined) searchParams.append('archived', archived.toString());
@@ -179,7 +179,7 @@ export class SemiontApiClient {
 
   async getResourceAnnotations(
     resourceUri: ResourceUri
-  ): Promise<ResponseContent<paths['/api/resources/{id}/annotations']['get']>> {
+  ): Promise<ResponseContent<paths['/resources/{id}/annotations']['get']>> {
     return this.http.get(`${resourceUri}/annotations`).json();
   }
 

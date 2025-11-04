@@ -10,7 +10,7 @@ import { AnnotationUri } from '../uri-types';
 import { getExactText, getTargetSelector } from './annotations';
 
 // Extract StoredEvent type from events endpoint response
-type EventsResponse = paths['/api/resources/{id}/events']['get']['responses'][200]['content']['application/json'];
+type EventsResponse = paths['/resources/{id}/events']['get']['responses'][200]['content']['application/json'];
 export type StoredEvent = EventsResponse['events'][number];
 export type ResourceEvent = StoredEvent['event'];
 export type EventMetadata = StoredEvent['metadata'];

@@ -3823,7 +3823,7 @@
         }
       }
     },
-    "/api/resources": {
+    "/resources": {
       "post": {
         "summary": "Create Resource",
         "description": "Create a new resource",
@@ -3932,60 +3932,20 @@
             "required": false,
             "name": "search",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "q",
+            "in": "query",
+            "description": "Search query"
           }
         ],
         "responses": {
           "200": {
             "description": "Resources listed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListResourcesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/resources/search": {
-      "get": {
-        "summary": "Search Resources",
-        "description": "Search resources by name",
-        "tags": [
-          "Resources"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "name": "q",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "default": 10
-            },
-            "required": false,
-            "name": "limit",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Search results",
             "content": {
               "application/json": {
                 "schema": {
@@ -4042,7 +4002,7 @@
         }
       }
     },
-    "/api/resources/{id}/detect-annotations-stream": {
+    "/resources/{id}/detect-annotations-stream": {
       "post": {
         "summary": "Detect Annotations with Progress (SSE)",
         "description": "Stream real-time entity detection progress via Server-Sent Events",
@@ -4095,7 +4055,7 @@
         }
       }
     },
-    "/api/resources/{id}/detect-entities": {
+    "/resources/{id}/detect-entities": {
       "post": {
         "summary": "Detect Entities (Job)",
         "description": "Create an async entity detection job. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/resources/{id}/detect-annotations-stream instead.",
@@ -4148,7 +4108,7 @@
         }
       }
     },
-    "/api/resources/{id}/llm-context": {
+    "/resources/{id}/llm-context": {
       "get": {
         "summary": "Get Resource LLM Context",
         "description": "Get resource with full context for LLM processing",
@@ -4257,7 +4217,7 @@
         }
       }
     },
-    "/api/resources/{resourceId}/annotations/{annotationId}/llm-context": {
+    "/resources/{resourceId}/annotations/{annotationId}/llm-context": {
       "get": {
         "summary": "Get Annotation LLM Context",
         "description": "Get annotation with full context for LLM processing",
@@ -4363,7 +4323,7 @@
         }
       }
     },
-    "/api/resources/{id}/referenced-by": {
+    "/resources/{id}/referenced-by": {
       "get": {
         "summary": "Get Referenced By",
         "description": "Get resources that reference this resource",
@@ -4400,7 +4360,7 @@
         }
       }
     },
-    "/api/resources/{id}/discover-context": {
+    "/resources/{id}/discover-context": {
       "post": {
         "summary": "Discover Context",
         "description": "Discover related resources and concepts",
@@ -4517,7 +4477,7 @@
         }
       }
     },
-    "/api/resources/{id}/clone-with-token": {
+    "/resources/{id}/clone-with-token": {
       "post": {
         "summary": "Clone Resource with Token",
         "description": "Generate a temporary token for cloning a resource",
@@ -4553,7 +4513,7 @@
         }
       }
     },
-    "/api/resources/{id}/annotations": {
+    "/resources/{id}/annotations": {
       "get": {
         "summary": "Get Resource Annotations",
         "description": "Get all annotations (both highlights and references) in a resource",
@@ -4590,7 +4550,7 @@
         }
       }
     },
-    "/api/resources/{id}/events": {
+    "/resources/{id}/events": {
       "get": {
         "summary": "Get Resource Event History",
         "description": "Get full event history for a resource with optional filtering",
@@ -4666,7 +4626,7 @@
         }
       }
     },
-    "/api/resources/{id}/events/stream": {
+    "/resources/{id}/events/stream": {
       "get": {
         "summary": "Subscribe to Resource Events (SSE)",
         "description": "Open a Server-Sent Events stream to receive real-time resource events",
@@ -5142,7 +5102,7 @@
         }
       }
     },
-    "/api/resources/{resourceId}/annotations/{annotationId}/history": {
+    "/resources/{resourceId}/annotations/{annotationId}/history": {
       "get": {
         "summary": "Get Annotation History",
         "description": "Get full event history for a specific annotation (highlight or reference)",
