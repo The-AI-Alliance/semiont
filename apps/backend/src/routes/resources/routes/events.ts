@@ -11,6 +11,7 @@
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import type { EventQuery, StoredEvent } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 import { HTTPException } from 'hono/http-exception';
 
@@ -71,7 +72,7 @@ export function registerGetEvents(router: ResourcesRouterType) {
     // Build query filters - type is validated by this point
     const validatedType = type && isValidEventType(type) ? type : undefined;
     const filters: EventQuery = {
-      resourceId: id,
+      resourceId: resourceId(id),
       ...(validatedType && { eventTypes: [validatedType] }),
     };
 

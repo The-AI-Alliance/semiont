@@ -107,7 +107,7 @@ describe('DetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-1');
+    const events = await query.getResourceEvents(resourceId('resource-1'));
 
     const startedEvents = events.filter(e => e.event.type === 'job.started');
     expect(startedEvents.length).toBeGreaterThanOrEqual(1);
@@ -144,7 +144,7 @@ describe('DetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-2');
+    const events = await query.getResourceEvents(resourceId('resource-2'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
     expect(progressEvents.length).toBeGreaterThanOrEqual(2); // First two entity types emit progress, last emits completed
@@ -184,7 +184,7 @@ describe('DetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-3');
+    const events = await query.getResourceEvents(resourceId('resource-3'));
 
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
     expect(completedEvents.length).toBeGreaterThanOrEqual(1);
@@ -219,7 +219,7 @@ describe('DetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-4');
+    const events = await query.getResourceEvents(resourceId('resource-4'));
 
     // Note: This test verifies the event schema, not that entities are actually detected
     // The mocked AI detection may return 0 entities, which is fine for testing event emission
@@ -267,7 +267,7 @@ describe('DetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-5');
+    const events = await query.getResourceEvents(resourceId('resource-5'));
 
     const eventTypes = events.map(e => e.event.type);
 
@@ -299,7 +299,7 @@ describe('DetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-6');
+    const events = await query.getResourceEvents(resourceId('resource-6'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
 

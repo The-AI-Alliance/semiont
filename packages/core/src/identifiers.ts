@@ -61,3 +61,22 @@ export function annotationUri(uri: string): AnnotationUri {
 export function userId(id: string): UserId {
   return id as UserId;
 }
+
+// Extract short IDs from URIs
+export function extractResourceId(uri: ResourceUri | string): ResourceId {
+  const parts = (uri as string).split('/');
+  const id = parts[parts.length - 1];
+  if (!id) {
+    throw new Error(`Cannot extract resource ID from URI: ${uri}`);
+  }
+  return resourceId(id);
+}
+
+export function extractAnnotationId(uri: AnnotationUri | string): AnnotationId {
+  const parts = (uri as string).split('/');
+  const id = parts[parts.length - 1];
+  if (!id) {
+    throw new Error(`Cannot extract annotation ID from URI: ${uri}`);
+  }
+  return annotationId(id);
+}

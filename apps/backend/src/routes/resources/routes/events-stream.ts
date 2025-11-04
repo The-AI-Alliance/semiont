@@ -18,6 +18,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { resourceUri } from '@semiont/core';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
+import { resourceId } from '@semiont/core';
 
 /**
  * Resource-scoped SSE event stream for real-time collaboration
@@ -49,7 +50,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
     // Verify resource exists in event store (Layer 2 - source of truth)
     const eventStore = await createEventStore( config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents(id);
+    const events = await query.getResourceEvents(resourceId(id));
     if (events.length === 0) {
       console.log(`[EventStream] Resource ${id} not found - no events exist`);
       throw new HTTPException(404, { message: 'Resource not found - no events exist for this resource' });

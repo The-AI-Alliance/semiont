@@ -161,7 +161,7 @@ describe('GenerationWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('source-resource-1');
+    const events = await query.getResourceEvents(resourceId('source-resource-1'));
 
     const startedEvents = events.filter(e => e.event.type === 'job.started');
     expect(startedEvents.length).toBeGreaterThanOrEqual(1);
@@ -202,7 +202,7 @@ describe('GenerationWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('source-resource-2');
+    const events = await query.getResourceEvents(resourceId('source-resource-2'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
     expect(progressEvents.length).toBeGreaterThanOrEqual(2);
@@ -237,7 +237,7 @@ describe('GenerationWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('source-resource-3');
+    const events = await query.getResourceEvents(resourceId('source-resource-3'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
     const percentages = progressEvents.map(e => (e.event.payload as any).percentage);
@@ -274,7 +274,7 @@ describe('GenerationWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('source-resource-4');
+    const events = await query.getResourceEvents(resourceId('source-resource-4'));
 
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
     expect(completedEvents.length).toBeGreaterThanOrEqual(1);
@@ -314,7 +314,7 @@ describe('GenerationWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const sourceEvents = await query.getResourceEvents('source-resource-5');
+    const sourceEvents = await query.getResourceEvents(resourceId('source-resource-5'));
 
     const completedEvents = sourceEvents.filter(e => e.event.type === 'job.completed');
     expect(completedEvents.length).toBeGreaterThan(0);
@@ -362,7 +362,7 @@ describe('GenerationWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('source-resource-6');
+    const events = await query.getResourceEvents(resourceId('source-resource-6'));
 
     const eventTypes = events.map(e => e.event.type);
 
@@ -400,7 +400,7 @@ describe('GenerationWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('source-resource-7');
+    const events = await query.getResourceEvents(resourceId('source-resource-7'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
 

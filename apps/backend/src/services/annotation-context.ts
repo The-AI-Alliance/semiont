@@ -17,7 +17,8 @@ import type { components } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../utils/resource-helpers';
 import { createProjectionManager } from './storage-service';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, AnnotationId, ResourceId } from '@semiont/core';
+import { extractResourceId } from '@semiont/core';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
@@ -33,7 +34,7 @@ export class AnnotationContextService {
   /**
    * Build LLM context for an annotation
    *
-   * @param annotationId - Annotation ID (with or without URI prefix)
+   * @param annotationId - Annotation ID
    * @param resourceId - Source resource ID
    * @param config - Application configuration
    * @param options - Context building options
@@ -41,8 +42,8 @@ export class AnnotationContextService {
    * @throws Error if annotation or resource not found
    */
   static async buildLLMContext(
-    annotationId: string,
-    resourceId: string,
+    annotationId: AnnotationId,
+    resourceId: ResourceId,
     config: EnvironmentConfig,
     options: BuildContextOptions = {}
   ): Promise<AnnotationLLMContextResponse> {
@@ -59,22 +60,17 @@ export class AnnotationContextService {
 
     console.log(`[AnnotationContext] buildLLMContext called with annotationId=${annotationId}, resourceId=${resourceId}`);
 
-    // Extract short resource ID from URI for filesystem lookups
-    // (e.g., "http://localhost:4000/resources/abc123" -> "abc123")
-    const shortResourceId = resourceId.split('/').pop() || resourceId;
-    console.log(`[AnnotationContext] Short resource ID: ${shortResourceId}`);
-
     const basePath = config.services.filesystem!.path;
     console.log(`[AnnotationContext] basePath=${basePath}`);
 
     const projectionManager = createProjectionManager(basePath);
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    // Get source resource projection (Layer 3) using short ID for filesystem lookup
-    console.log(`[AnnotationContext] Getting projection for shortResourceId=${shortResourceId}`);
+    // Get source resource projection (Layer 3)
+    console.log(`[AnnotationContext] Getting projection for resourceId=${resourceId}`);
     let sourceProjection;
     try {
-      sourceProjection = await projectionManager.get(shortResourceId);
+      sourceProjection = await projectionManager.get(resourceId);
       console.log(`[AnnotationContext] Got projection:`, !!sourceProjection);
 
       if (!sourceProjection) {
@@ -110,9 +106,8 @@ export class AnnotationContextService {
     const bodySource = getBodySource(annotation.body);
     let targetDoc = null;
     if (bodySource) {
-      // Extract short ID from body source URI for filesystem lookup
-      const shortBodySourceId = bodySource.split('/').pop() || bodySource;
-      const targetProjection = await projectionManager.get(shortBodySourceId);
+      const targetResourceId = extractResourceId(bodySource);
+      const targetProjection = await projectionManager.get(targetResourceId);
       targetDoc = targetProjection?.resource || null;
     }
 

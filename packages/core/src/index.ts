@@ -26,6 +26,8 @@ export {
   isResourceUri,
   isAnnotationId,
   isAnnotationUri,
+  extractResourceId,
+  extractAnnotationId,
 } from './identifiers';
 
 // Graph types

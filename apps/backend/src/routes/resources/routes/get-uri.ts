@@ -55,7 +55,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       const repStore = new FilesystemRepresentationStore({ basePath });
 
       // Get resource metadata from Layer 3
-      const resource = await ResourceQueryService.getResourceMetadata(id, config);
+      const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
@@ -85,7 +85,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     // Read from Layer 2/3: Event store builds/loads projection
     const eventStore = await createEventStore( config);
     const query = new EventQuery(eventStore.storage);
-    const events = await query.getResourceEvents(id);
+    const events = await query.getResourceEvents(resourceId(id));
     const stored = await eventStore.projector.projectResource(events, resourceId(id));
 
     if (!stored) {

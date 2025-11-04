@@ -29,7 +29,7 @@ async function rebuildProjections(rId?: string) {
     // Rebuild single resource
     console.log(`📄 Rebuilding projection for resource: ${rId}`);
 
-    const events = await query.getResourceEvents(rId);
+    const events = await query.getResourceEvents(makeResourceId(rId));
     if (events.length === 0) {
       console.error(`❌ No events found for resource: ${rId}`);
       process.exit(1);

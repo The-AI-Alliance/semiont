@@ -11,8 +11,9 @@ import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { annotations } from '@/lib/api/annotations';
 import { getResourceId } from '@/lib/resource-helpers';
-import { extractResourceId } from '@/lib/resource-utils';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import type { ResourceUri, ResourceId } from '@semiont/core';
+import { extractResourceId } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -117,9 +118,9 @@ export function ResourceViewer({
       }
     } else if (annotation.motivation === 'linking' && annotation.body && isBodyResolved(annotation.body)) {
       // If it's a resolved reference, navigate to it (in both curation and browse mode)
-      const bodySource = getBodySource(annotation.body);
+      const bodySource = getBodySource(annotation.body); // returns ResourceUri | null
       if (bodySource) {
-        const shortId = extractResourceId(bodySource);
+        const shortId: ResourceId = extractResourceId(bodySource);
         router.push(`/know/resource/${encodeURIComponent(shortId)}`);
       }
     } else if (curationMode) {

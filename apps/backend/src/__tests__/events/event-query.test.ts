@@ -89,7 +89,7 @@ describe('EventQuery', () => {
 
   describe('Basic Queries', () => {
     it('should get all events for resource', async () => {
-      const events = await query.getResourceEvents('doc1');
+      const events = await query.getResourceEvents(resourceId('doc1'));
 
       expect(events).toHaveLength(5);
       expect(events[0]?.event.type).toBe('resource.created');
@@ -97,20 +97,20 @@ describe('EventQuery', () => {
     });
 
     it('should return empty array for nonexistent resource', async () => {
-      const events = await query.getResourceEvents('doc-nonexistent');
+      const events = await query.getResourceEvents(resourceId('doc-nonexistent'));
 
       expect(events).toEqual([]);
     });
 
     it('should get event count', async () => {
-      const count = await query.getEventCount('doc1');
+      const count = await query.getEventCount(resourceId('doc1'));
 
       expect(count).toBe(5);
     });
 
     it('should check if resource has events', async () => {
-      const hasEvents1 = await query.hasEvents('doc1');
-      const hasEvents2 = await query.hasEvents('doc-nonexistent');
+      const hasEvents1 = await query.hasEvents(resourceId('doc1'));
+      const hasEvents2 = await query.hasEvents(resourceId('doc-nonexistent'));
 
       expect(hasEvents1).toBe(true);
       expect(hasEvents2).toBe(false);
@@ -213,7 +213,7 @@ describe('EventQuery', () => {
   describe('Filter by Timestamp', () => {
     it('should filter by fromTimestamp', async () => {
       // Get all events first
-      const allEvents = await query.getResourceEvents('doc1');
+      const allEvents = await query.getResourceEvents(resourceId('doc1'));
 
       // Use 3rd event's timestamp as cutoff
       const cutoff = allEvents[2]?.event.timestamp!;
@@ -231,7 +231,7 @@ describe('EventQuery', () => {
     });
 
     it('should filter by toTimestamp', async () => {
-      const allEvents = await query.getResourceEvents('doc1');
+      const allEvents = await query.getResourceEvents(resourceId('doc1'));
 
       // Use 2nd event's timestamp as cutoff (sequence 2)
       const cutoff = allEvents[1]?.event.timestamp!;
@@ -256,7 +256,7 @@ describe('EventQuery', () => {
     });
 
     it('should filter by timestamp range', async () => {
-      const allEvents = await query.getResourceEvents('doc1');
+      const allEvents = await query.getResourceEvents(resourceId('doc1'));
 
       const from = allEvents[1]?.event.timestamp!;
       const to = allEvents[3]?.event.timestamp!;
@@ -409,7 +409,7 @@ describe('EventQuery', () => {
     });
 
     it('should combine all filters', async () => {
-      const allEvents = await query.getResourceEvents('doc1');
+      const allEvents = await query.getResourceEvents(resourceId('doc1'));
 
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
@@ -434,7 +434,7 @@ describe('EventQuery', () => {
     });
 
     it('should handle resource with only resource.created', async () => {
-      const events = await query.getResourceEvents('doc2');
+      const events = await query.getResourceEvents(resourceId('doc2'));
 
       expect(events).toHaveLength(1);
       expect(events[0]?.event.type).toBe('resource.created');
@@ -442,14 +442,14 @@ describe('EventQuery', () => {
 
     it('should handle getLastEvent for resource with one file', async () => {
       const files = await storage.getEventFiles(resourceId('doc1'));
-      const last = await query.getLastEvent('doc1', files[0]!);
+      const last = await query.getLastEvent(resourceId('doc1'), files[0]!);
 
       expect(last).not.toBeNull();
       expect(last?.metadata.sequenceNumber).toBe(5);
     });
 
     it('should handle getLastEvent for nonexistent file', async () => {
-      const last = await query.getLastEvent('doc1', 'nonexistent.jsonl');
+      const last = await query.getLastEvent(resourceId('doc1'), 'nonexistent.jsonl');
 
       expect(last).toBeNull();
     });
@@ -490,7 +490,7 @@ describe('EventQuery', () => {
       }
 
       const start = Date.now();
-      const events = await query.getResourceEvents('doc-perf');
+      const events = await query.getResourceEvents(resourceId('doc-perf'));
       const duration = Date.now() - start;
 
       expect(events).toHaveLength(100);

@@ -8,8 +8,9 @@ import { JsonLdButton } from './JsonLdButton';
 import { JsonLdView } from './JsonLdView';
 import { buttonStyles } from '@/lib/button-styles';
 import { getBodySource, getEntityTypes } from '@semiont/api-client';
-import { extractResourceId } from '@/lib/resource-utils';
 import type { components } from '@semiont/api-client';
+import type { ResourceUri, ResourceId } from '@semiont/core';
+import { extractResourceId } from '@semiont/core';
 
 type ReferenceAnnotation = components['schemas']['Annotation'];
 type AnnotationUpdate = Partial<components['schemas']['Annotation']>;
@@ -39,7 +40,7 @@ export function ResolvedReferencePopup({
   const t = useTranslations('ResolvedReferencePopup');
   const router = useRouter();
   const [showJsonLd, setShowJsonLd] = useState(false);
-  const resolvedDocumentId = getBodySource(annotation.body);
+  const resolvedDocumentId = getBodySource(annotation.body); // returns string | null
 
   // Calculate centered position when showing JSON-LD
   const displayPosition = useMemo(() => {
@@ -56,7 +57,7 @@ export function ResolvedReferencePopup({
 
   const handleViewDocument = () => {
     if (resolvedDocumentId) {
-      const shortId = extractResourceId(resolvedDocumentId);
+      const shortId: ResourceId = extractResourceId(resolvedDocumentId);
       router.push(`/know/resource/${encodeURIComponent(shortId)}`);
       onClose();
     }
@@ -64,7 +65,7 @@ export function ResolvedReferencePopup({
 
   const handleOpenInNewTab = () => {
     if (resolvedDocumentId) {
-      const shortId = extractResourceId(resolvedDocumentId);
+      const shortId: ResourceId = extractResourceId(resolvedDocumentId);
       window.open(`/know/resource/${encodeURIComponent(shortId)}`, '_blank');
     }
   };

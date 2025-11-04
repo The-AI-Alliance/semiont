@@ -56,7 +56,7 @@ export class AnnotationQueryService {
    * @returns Version and timestamp info for the annotations
    */
   static async getResourceStats(resourceId: ResourceId, config: EnvironmentConfig): Promise<{
-    resourceId: string;
+    resourceId: ResourceId;
     version: number;
     updatedAt: string;
   }> {

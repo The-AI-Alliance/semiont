@@ -19,6 +19,8 @@ import {
   annotationUri,
   resourceId,
   annotationId,
+  extractResourceId,
+  extractAnnotationId,
 } from '@semiont/core';
 
 export interface IdentifierConfig {
@@ -54,24 +56,8 @@ export function toAnnotationUri(
   return annotationUri(`${config.baseUrl}/annotations/${idString}`);
 }
 
-// Extract IDs from URIs
-export function extractResourceId(uri: ResourceUri | string): ResourceId {
-  const parts = (uri as string).split('/');
-  const id = parts[parts.length - 1];
-  if (!id) {
-    throw new Error(`Cannot extract resource ID from URI: ${uri}`);
-  }
-  return resourceId(id);
-}
-
-export function extractAnnotationId(uri: AnnotationUri | string): AnnotationId {
-  const parts = (uri as string).split('/');
-  const id = parts[parts.length - 1];
-  if (!id) {
-    throw new Error(`Cannot extract annotation ID from URI: ${uri}`);
-  }
-  return annotationId(id);
-}
+// Re-export extraction functions from core for convenience
+export { extractResourceId, extractAnnotationId };
 
 // Defensive helpers - handle both IDs and URIs
 // IMPORTANT: Only accepts URIs that match the configured backend URL

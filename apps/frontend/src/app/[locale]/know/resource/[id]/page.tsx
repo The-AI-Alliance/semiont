@@ -404,11 +404,8 @@ function ResourceView({
     // Clear CSS sparkle animation if reference was recently created
     // (it may still be in newAnnotationIds with a 6-second timer from creation)
     // We only want the widget sparkle (✨ emoji) during generation, not the CSS pulse
-    const apiUrl = NEXT_PUBLIC_API_URL;
-    const fullUri = referenceId.includes('/')
-      ? referenceId
-      : `${apiUrl}/annotations/${referenceId}`;
-    clearNewAnnotationId(fullUri);
+    // referenceId is already a full W3C-compliant URI from the API
+    clearNewAnnotationId(referenceId);
 
     // Widget sparkle (✨ emoji) will show automatically during generation via generatingReferenceId
     // Pass language (using locale from Next.js routing) to ensure generated content is in the user's preferred language

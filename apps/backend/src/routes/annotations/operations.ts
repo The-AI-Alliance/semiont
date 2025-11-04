@@ -241,7 +241,7 @@ operationsRouter.post('/api/annotations/:id/generate-resource',
     }
 
     // Get the original resource metadata from Layer 3
-    const originalDoc = await ResourceQueryService.getResourceMetadata(getTargetSource(annotation.target), config);
+    const originalDoc = await ResourceQueryService.getResourceMetadata(uriToResourceId(getTargetSource(annotation.target)), config);
     if (!originalDoc) {
       throw new HTTPException(404, { message: 'Original resource not found' });
     }
@@ -399,7 +399,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   }
 
   // Get resource metadata from Layer 3
-  const resource = await ResourceQueryService.getResourceMetadata(getTargetSource(annotation.target), config);
+  const resource = await ResourceQueryService.getResourceMetadata(uriToResourceId(getTargetSource(annotation.target)), config);
   if (!resource) {
     throw new HTTPException(404, { message: 'Resource not found' });
   }
@@ -464,7 +464,7 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   }
 
   // Get resource from Layer 3
-  const resource = await ResourceQueryService.getResourceMetadata(getTargetSource(annotation.target), config);
+  const resource = await ResourceQueryService.getResourceMetadata(uriToResourceId(getTargetSource(annotation.target)), config);
   if (!resource) {
     throw new HTTPException(404, { message: 'Resource not found' });
   }

@@ -11,7 +11,6 @@
  */
 
 import type { StoredEvent, EventQuery as EventQueryType, ResourceId } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
 import type { EventStorage } from '../storage/event-storage';
 
 /**
@@ -31,7 +30,7 @@ export class EventQuery {
     }
 
     // Get all events from storage
-    const allEvents = await this.eventStorage.getAllEvents(makeResourceId(query.resourceId));
+    const allEvents = await this.eventStorage.getAllEvents(query.resourceId);
 
     // Apply filters
     let results = allEvents;
@@ -67,15 +66,15 @@ export class EventQuery {
   /**
    * Get all events for a specific resource (no filters)
    */
-  async getResourceEvents(resourceId: string): Promise<StoredEvent[]> {
-    return this.eventStorage.getAllEvents(makeResourceId(resourceId));
+  async getResourceEvents(resourceId: ResourceId): Promise<StoredEvent[]> {
+    return this.eventStorage.getAllEvents(resourceId);
   }
 
   /**
    * Get the last event from a specific file
    * Useful for initializing sequence numbers and last hashes
    */
-  async getLastEvent(resourceId: string, filename: string): Promise<StoredEvent | null> {
+  async getLastEvent(resourceId: ResourceId, filename: string): Promise<StoredEvent | null> {
     return this.eventStorage.getLastEvent(resourceId, filename);
   }
 
@@ -100,7 +99,7 @@ export class EventQuery {
   /**
    * Get event count for a resource
    */
-  async getEventCount(resourceId: string): Promise<number> {
+  async getEventCount(resourceId: ResourceId): Promise<number> {
     const events = await this.getResourceEvents(resourceId);
     return events.length;
   }
@@ -108,8 +107,8 @@ export class EventQuery {
   /**
    * Check if a resource has any events
    */
-  async hasEvents(resourceId: string): Promise<boolean> {
-    const files = await this.eventStorage.getEventFiles(makeResourceId(resourceId));
+  async hasEvents(resourceId: ResourceId): Promise<boolean> {
+    const files = await this.eventStorage.getEventFiles(resourceId);
     return files.length > 0;
   }
 }

@@ -53,7 +53,7 @@ export function registerDetectEntities(router: ResourcesRouterType) {
       }
 
       // Validate resource exists using Layer 3
-      const resource = await ResourceQueryService.getResourceMetadata(id, config);
+      const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }

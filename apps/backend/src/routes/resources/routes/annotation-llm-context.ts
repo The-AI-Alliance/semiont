@@ -11,6 +11,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { AnnotationContextService } from '../../../services/annotation-context';
+import { annotationId, resourceId } from '@semiont/core';
 
 export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   /**
@@ -25,7 +26,7 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
    * - contextWindow: 100-5000 (default: 1000) - characters before/after selection
    */
   router.get('/api/resources/:resourceId/annotations/:annotationId/llm-context', async (c) => {
-    const { resourceId, annotationId } = c.req.param();
+    const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
     const query = c.req.query();
     const config = c.get('config');
 
@@ -40,11 +41,8 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
     }
 
     try {
-      // Construct full resource URI (consistent with W3C Web Annotation spec)
-      const resourceUri = `${config.services.backend!.publicURL}/resources/${resourceId}`;
-
       // Use shared service to build context
-      const response = await AnnotationContextService.buildLLMContext(annotationId, resourceUri, config, {
+      const response = await AnnotationContextService.buildLLMContext(annotationId(annotationIdParam), resourceId(resourceIdParam), config, {
         includeSourceContext,
         includeTargetContext,
         contextWindow

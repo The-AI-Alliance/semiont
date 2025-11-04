@@ -10,7 +10,7 @@ import { getGraphDatabase } from '../../graph/factory';
 import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { components } from '@semiont/api-client';
-import type { ResourceEvent, StoredEvent, EnvironmentConfig } from '@semiont/core';
+import type { ResourceEvent, StoredEvent, EnvironmentConfig, ResourceId } from '@semiont/core';
 import { resourceUri, resourceId as makeResourceId } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
 import { resourceIdToURI, annotationIdToURI } from '../../lib/uri-utils';
@@ -63,7 +63,7 @@ export class GraphDBConsumer {
    * Subscribe to events for a resource
    * Apply each event to GraphDB
    */
-  async subscribeToResource(resourceId: string) {
+  async subscribeToResource(resourceId: ResourceId) {
     this.ensureInitialized();
     const eventStore = await createEventStore( this.config);
 
@@ -276,7 +276,7 @@ export class GraphDBConsumer {
    * Rebuild entire resource from events
    * Useful for recovery or initial sync
    */
-  async rebuildResource(resourceId: string): Promise<void> {
+  async rebuildResource(resourceId: ResourceId): Promise<void> {
     const graphDb = this.ensureInitialized();
     console.log(`[GraphDBConsumer] Rebuilding resource ${resourceId} from events`);
 
@@ -318,7 +318,7 @@ export class GraphDBConsumer {
     console.log(`[GraphDBConsumer] Found ${allResourceIds.length} resources to rebuild`);
 
     for (const resourceId of allResourceIds) {
-      await this.rebuildResource(resourceId);
+      await this.rebuildResource(makeResourceId(resourceId as string));
     }
 
     console.log('[GraphDBConsumer] Rebuild complete');
@@ -342,7 +342,7 @@ export class GraphDBConsumer {
   /**
    * Unsubscribe from resource
    */
-  async unsubscribeFromResource(resourceId: string): Promise<void> {
+  async unsubscribeFromResource(resourceId: ResourceId): Promise<void> {
     const subscription = this.subscriptions.get(resourceId);
     if (subscription) {
       subscription.unsubscribe();
@@ -409,7 +409,7 @@ export async function startGraphConsumer(config: EnvironmentConfig): Promise<voi
 
   // Subscribe to each resource
   for (const resourceId of allResourceIds) {
-    await consumer.subscribeToResource(resourceId);
+    await consumer.subscribeToResource(makeResourceId(resourceId as string));
   }
 
   console.log('[GraphDBConsumer] Consumer started');

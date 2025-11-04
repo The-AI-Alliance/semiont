@@ -58,7 +58,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
       }
 
       // Validate resource exists using Layer 3
-      const resource = await ResourceQueryService.getResourceMetadata(id, config);
+      const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found in Layer 3 projections - resource may need to be recreated' });
       }

@@ -268,7 +268,7 @@ export interface StoredEvent<T extends ResourceEvent = ResourceEvent> {
 
 // Query filters for event retrieval
 export interface EventQuery {
-  resourceId?: string;
+  resourceId?: ResourceId;
   userId?: string;
   eventTypes?: ResourceEvent['type'][];
   fromTimestamp?: string;

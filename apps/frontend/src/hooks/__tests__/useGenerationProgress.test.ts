@@ -25,9 +25,11 @@ vi.mock('@/lib/env', () => ({
   NEXT_PUBLIC_API_URL: 'http://localhost:4000'
 }));
 
-// Mock extractAnnotationId
+// Import the real extractAnnotationId from core instead of mocking with string manipulation
+import { extractAnnotationId } from '@semiont/core';
+
 vi.mock('@semiont/api-client', () => ({
-  extractAnnotationId: (id: string) => id.split('/').pop() || id
+  extractAnnotationId
 }));
 
 describe('useGenerationProgress', () => {

@@ -38,7 +38,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       const config = c.get('config');
 
       // Check resource exists using Layer 3
-      const doc = await ResourceQueryService.getResourceMetadata(id, config);
+      const doc = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!doc) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }

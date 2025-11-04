@@ -45,7 +45,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
 
     // Get all events for this resource
     const allEvents = await query.queryEvents({
-      resourceId,
+      resourceId: makeResourceId(resourceId),
     });
 
     // Filter events related to this annotation

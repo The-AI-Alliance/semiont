@@ -9,7 +9,7 @@
 
 import { createProjectionManager } from './storage-service';
 import type { components } from '@semiont/api-client';
-import { resourceId as makeResourceId, type EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -22,7 +22,7 @@ export class ResourceQueryService {
   /**
    * Get resource metadata from Layer 3 projection
    */
-  static async getResourceMetadata(resourceId: string, config: EnvironmentConfig): Promise<ResourceDescriptor | null> {
+  static async getResourceMetadata(resourceId: ResourceId, config: EnvironmentConfig): Promise<ResourceDescriptor | null> {
     const basePath = config.services.filesystem!.path;
 
     // Use ProjectionManager to get projection (respects configured subNamespace)
@@ -30,7 +30,7 @@ export class ResourceQueryService {
       subNamespace: 'resources',
     });
 
-    const state = await projectionManager.get(makeResourceId(resourceId));
+    const state = await projectionManager.get(resourceId);
     if (!state) {
       return null;
     }

@@ -10,6 +10,8 @@
  */
 
 import type { components } from '../types';
+import type { ResourceUri } from '@semiont/core';
+import { resourceUri } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type HighlightAnnotation = Annotation;
@@ -25,7 +27,7 @@ export type { TextPositionSelector, TextQuoteSelector, Selector };
  * Get the source from an annotation body (null if stub)
  * Search for SpecificResource in body array
  */
-export function getBodySource(body: Annotation['body']): string | null {
+export function getBodySource(body: Annotation['body']): ResourceUri | null {
   if (Array.isArray(body)) {
     // Search for SpecificResource with source
     for (const item of body) {
@@ -39,7 +41,7 @@ export function getBodySource(body: Annotation['body']): string | null {
         const itemSource = (item as { source: unknown }).source;
 
         if (itemType === 'SpecificResource' && typeof itemSource === 'string') {
-          return itemSource;
+          return resourceUri(itemSource);
         }
       }
     }
@@ -57,7 +59,7 @@ export function getBodySource(body: Annotation['body']): string | null {
     const bodySource = (body as { source: unknown }).source;
 
     if (bodyType === 'SpecificResource' && typeof bodySource === 'string') {
-      return bodySource;
+      return resourceUri(bodySource);
     }
   }
 
@@ -104,11 +106,11 @@ export function isBodyResolved(body: Annotation['body']): boolean {
 /**
  * Get the source IRI from target (handles both string and object forms)
  */
-export function getTargetSource(target: Annotation['target']): string {
+export function getTargetSource(target: Annotation['target']): ResourceUri {
   if (typeof target === 'string') {
-    return target;
+    return resourceUri(target);
   }
-  return target.source;
+  return resourceUri(target.source);
 }
 
 /**
