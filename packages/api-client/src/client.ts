@@ -192,19 +192,19 @@ export class SemiontApiClient {
   // ============================================================================
 
   async createAnnotation(
-    data: RequestContent<paths['/api/annotations']['post']>
-  ): Promise<ResponseContent<paths['/api/annotations']['post']>> {
-    return this.http.post('api/annotations', { json: data }).json();
+    data: RequestContent<paths['/annotations']['post']>
+  ): Promise<ResponseContent<paths['/annotations']['post']>> {
+    return this.http.post('annotations', { json: data }).json();
   }
 
-  async getAnnotation(annotationUri: AnnotationUri): Promise<ResponseContent<paths['/api/annotations/{id}']['get']>> {
+  async getAnnotation(annotationUri: AnnotationUri): Promise<ResponseContent<paths['/annotations/{id}']['get']>> {
     return this.http.get(annotationUri).json();
   }
 
   async listAnnotations(
     resourceUri: ResourceUri,
     motivation?: string
-  ): Promise<ResponseContent<paths['/api/annotations']['get']>> {
+  ): Promise<ResponseContent<paths['/annotations']['get']>> {
     const searchParams = new URLSearchParams();
     if (motivation) searchParams.append('motivation', motivation);
 
@@ -217,8 +217,8 @@ export class SemiontApiClient {
 
   async updateAnnotationBody(
     annotationUri: AnnotationUri,
-    data: RequestContent<paths['/api/annotations/{id}/body']['put']>
-  ): Promise<ResponseContent<paths['/api/annotations/{id}/body']['put']>> {
+    data: RequestContent<paths['/annotations/{id}/body']['put']>
+  ): Promise<ResponseContent<paths['/annotations/{id}/body']['put']>> {
     return this.http.put(`${annotationUri}/body`, {
       json: data,
     }).json();
@@ -226,8 +226,8 @@ export class SemiontApiClient {
 
   async generateResourceFromAnnotation(
     annotationUri: AnnotationUri,
-    data: RequestContent<paths['/api/annotations/{id}/generate-resource']['post']>
-  ): Promise<ResponseContent<paths['/api/annotations/{id}/generate-resource']['post']>> {
+    data: RequestContent<paths['/annotations/{id}/generate-resource']['post']>
+  ): Promise<ResponseContent<paths['/annotations/{id}/generate-resource']['post']>> {
     return this.http.post(`${annotationUri}/generate-resource`, { json: data }).json();
   }
 
