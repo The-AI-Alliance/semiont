@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/core';
+import { loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import { initializeJobQueue, getJobQueue } from '../../jobs/job-queue';
 import type { GenerationJob } from '../../jobs/types';
@@ -75,6 +75,12 @@ describe('POST /api/annotations/:id/generate-resource-stream', () => {
 
     // Initialize job queue with test data directory
     await initializeJobQueue({ dataDir: '/tmp/semiont-test-jobs' });
+
+    // Load config and initialize JWT Service
+    const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+    const environment = process.env.SEMIONT_ENV || 'integration';
+    const config = loadEnvironmentConfig(projectRoot, environment);
+    JWTService.initialize(config);
 
     // Import app after environment setup
     const appModule = await import('../../index');
