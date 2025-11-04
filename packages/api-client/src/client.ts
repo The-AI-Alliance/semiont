@@ -142,53 +142,49 @@ export class SemiontApiClient {
   async createResource(
     data: RequestContent<paths['/api/resources']['post']>
   ): Promise<ResponseContent<paths['/api/resources']['post']>> {
-    return this.http.post('api/resources', { json: data }).json();
+    return this.http.post('resources', { json: data }).json();
   }
 
-  async getResource(id: string): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
-    return this.http.get(`resources/${id}`).json();
+  async getResource(resourceUri: ResourceUri): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
+    return this.http.get(resourceUri).json();
   }
 
-  async listResources(params?: {
-    limit?: number;
-    archived?: boolean;
-  }): Promise<ResponseContent<paths['/api/resources']['get']>> {
+  async listResources(
+    limit?: number,
+    archived?: boolean,
+    query?: string
+  ): Promise<ResponseContent<paths['/api/resources']['get']>> {
     const searchParams = new URLSearchParams();
-    if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.archived !== undefined) searchParams.append('archived', params.archived.toString());
+    if (limit) searchParams.append('limit', limit.toString());
+    if (archived !== undefined) searchParams.append('archived', archived.toString());
+    if (query) searchParams.append('q', query);
 
-    return this.http.get('api/resources', { searchParams }).json();
+    return this.http.get('resources', { searchParams }).json();
   }
 
   async updateResource(
-    id: string,
+    resourceUri: ResourceUri,
     data: RequestContent<paths['/resources/{id}']['patch']>
   ): Promise<ResponseContent<paths['/resources/{id}']['patch']>> {
-    return this.http.patch(`resources/${id}`, { json: data }).json();
+    return this.http.patch(resourceUri, { json: data }).json();
   }
 
-  async deleteResource(id: string): Promise<void> {
-    await this.http.delete(`api/resources/${id}`);
+  async deleteResource(resourceUri: ResourceUri): Promise<void> {
+    await this.http.delete(resourceUri);
   }
 
-  async searchResources(query: string, limit: number = 10): Promise<{ resources: any[] }> {
-    return this.http.get('api/resources/search', {
-      searchParams: { q: query, limit: limit.toString() },
-    }).json();
-  }
-
-  async getResourceEvents(id: string): Promise<{ events: any[] }> {
-    return this.http.get(`api/resources/${id}/events`).json();
+  async getResourceEvents(resourceUri: ResourceUri): Promise<{ events: any[] }> {
+    return this.http.get(`${resourceUri}/events`).json();
   }
 
   async getResourceAnnotations(
-    id: string
+    resourceUri: ResourceUri
   ): Promise<ResponseContent<paths['/api/resources/{id}/annotations']['get']>> {
-    return this.http.get(`api/resources/${id}/annotations`).json();
+    return this.http.get(`${resourceUri}/annotations`).json();
   }
 
-  async getResourceReferencedBy(id: string): Promise<{ referencedBy: any[] }> {
-    return this.http.get(`api/resources/${id}/referenced-by`).json();
+  async getResourceReferencedBy(resourceUri: ResourceUri): Promise<{ referencedBy: any[] }> {
+    return this.http.get(`${resourceUri}/referenced-by`).json();
   }
 
   // ============================================================================
@@ -201,8 +197,8 @@ export class SemiontApiClient {
     return this.http.post('api/annotations', { json: data }).json();
   }
 
-  async getAnnotation(id: string): Promise<ResponseContent<paths['/api/annotations/{id}']['get']>> {
-    return this.http.get(`api/annotations/${id}`).json();
+  async getAnnotation(annotationUri: AnnotationUri): Promise<ResponseContent<paths['/api/annotations/{id}']['get']>> {
+    return this.http.get(annotationUri).json();
   }
 
   async listAnnotations(
@@ -259,6 +255,11 @@ export class SemiontApiClient {
     return this.http.get('api/admin/users/stats').json();
   }
 
+  /**
+   * Update a user by ID
+   * Note: Users use DID identifiers (did:web:domain:users:id), not HTTP URIs,
+   * so this method takes a plain string ID rather than a branded URI type.
+   */
   async updateUser(
     id: string,
     data: RequestContent<paths['/api/admin/users/{id}']['patch']>

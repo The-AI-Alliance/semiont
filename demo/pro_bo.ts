@@ -17,7 +17,7 @@
  * 7. Print Results
  */
 
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontApiClient, annotationUri, resourceUri } from '@semiont/api-client';
 
 // Local modules
 import { downloadAndChunkText, type ChunkInfo } from './src/chunking';
@@ -43,12 +43,12 @@ import { getLayer1Path, getLayer2Path, getLayer3Path } from './src/filesystem-ut
 
 // Configuration
 const GUTENBERG_URL = 'https://www.gutenberg.org/cache/epub/8714/pg8714.txt';
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const AUTH_EMAIL = process.env.AUTH_EMAIL;
+const BACKEND_URL = 'http://localhost:4000';
+const FRONTEND_URL = 'http://localhost:3000';
+const AUTH_EMAIL = 'you@example.com';
 const AUTH_CODE = process.env.AUTH_CODE;
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
-const DATA_DIR = process.env.DATA_DIR || '/tmp/semiont/data/uploads';
+const DATA_DIR = '/tmp/semiont/data/uploads';
 const CHUNK_SIZE = 4000;
 
 if (!AUTH_EMAIL && !ACCESS_TOKEN) {
@@ -120,9 +120,10 @@ async function uploadChunks(chunks: ChunkInfo[], client: SemiontApiClient): Prom
     };
 
     const response = await client.createResource(request);
-    documentIds.push(response.document.id);
-    printSuccess(response.document.id, 7);
-    printFilesystemPath('Layer 1', getLayer1Path(response.document.id, DATA_DIR));
+    const resourceId = response.resource.id as string;
+    documentIds.push(resourceId);
+    printSuccess(resourceId, 7);
+    printFilesystemPath('Layer 1', getLayer1Path(resourceId, DATA_DIR));
   }
 
   printSuccess(`All ${chunks.length} chunks uploaded`);
@@ -169,10 +170,11 @@ async function createTableOfContents(
   };
 
   const response = await client.createResource(request);
-  printSuccess(`Created ToC: ${response.document.id}`);
-  printFilesystemPath('Layer 1', getLayer1Path(response.document.id, DATA_DIR));
+  const tocId = response.resource.id as string;
+  printSuccess(`Created ToC: ${tocId}`);
+  printFilesystemPath('Layer 1', getLayer1Path(tocId, DATA_DIR));
 
-  return { tocId: response.document.id, references };
+  return { tocId, references };
 }
 
 // === PASS 4: Create Stub References ===
@@ -237,11 +239,9 @@ async function linkReferences(references: PartReference[], client: SemiontApiCli
     printBatchProgress(i + 1, references.length, `Linking "${ref.text}" → ${shortDocId}...`);
 
     try {
-      // Extract just the annotation ID (remove URL prefix if present)
-      const annotationId = ref.annotationId!.split('/').pop() || ref.annotationId!;
-
-      await client.updateAnnotationBody(annotationId, {
-        documentId: references[i].documentId,
+      // Use the full annotation URI (already includes URL prefix)
+      await client.updateAnnotationBody(annotationUri(ref.annotationId!), {
+        resourceId: references[i].documentId,
         operations: [{
           op: 'add',
           item: {
@@ -267,7 +267,7 @@ async function showDocumentHistory(tocId: string, client: SemiontApiClient): Pro
   printSectionHeader('📜', 6, 'Document History');
 
   try {
-    const data = await client.getDocumentEvents(tocId);
+    const data = await client.getResourceEvents(resourceUri(tocId));
 
     if (!data.events || data.events.length === 0) {
       printWarning('No events found for document');
