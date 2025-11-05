@@ -6,6 +6,7 @@ import '@testing-library/jest-dom';
 import { signIn, useSession, signOut } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
+import { useAuth } from '@/lib/api-hooks';
 import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 
@@ -57,6 +58,11 @@ vi.mock('@/i18n/routing', () => ({
   Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
+// Mock the useAuth hook to avoid ky HTTP client issues in vitest
+vi.mock('@/lib/api-hooks', () => ({
+  useAuth: vi.fn(),
+}));
+
 describe('Sign-Up Flow Integration Tests', () => {
   const mockRouter = {
     push: vi.fn(),
@@ -72,6 +78,25 @@ describe('Sign-Up Flow Integration Tests', () => {
     (useRouter as Mock).mockReturnValue(mockRouter);
     (useSearchParams as Mock).mockReturnValue(mockSearchParams);
     mockSearchParams.get.mockReturnValue(null);
+
+    // Mock useAuth to avoid ky HTTP client issues in vitest
+    (useAuth as Mock).mockReturnValue({
+      me: {
+        useQuery: () => ({
+          data: { termsAcceptedAt: null },
+          isLoading: false,
+          error: null,
+        }),
+      },
+      acceptTerms: {
+        useMutation: () => ({
+          mutateAsync: vi.fn().mockResolvedValue({ success: true }),
+          isPending: false,
+          isError: false,
+          error: null,
+        }),
+      },
+    });
   });
 
   afterEach(() => {
@@ -117,7 +142,7 @@ describe('Sign-Up Flow Integration Tests', () => {
       
       // Mock API response for terms not yet accepted
       server.use(
-        http.get('*/api/auth/me', () => {
+        http.get('*/api/users/me', () => {
           return HttpResponse.json({
             id: 'newuser123',
             email: 'jane@example.com',
@@ -201,26 +226,36 @@ describe('Sign-Up Flow Integration Tests', () => {
         backendToken: 'accepted-user-token',
         isNewUser: true,
       };
-      
+
       (useSession as Mock).mockReturnValue({
         data: mockUserSession,
         status: 'authenticated',
       });
-      
-      // Mock API response for terms already accepted
-      server.use(
-        http.get('*/api/auth/me', () => {
-          return HttpResponse.json({
-            id: 'accepteduser123',
-            email: 'accepted@example.com',
-            name: 'Terms Accepted User',
-            termsAcceptedAt: '2024-01-01T00:00:00Z' // Already accepted
-          });
-        })
-      );
-      
+
+      // Override useAuth mock to return user with accepted terms
+      (useAuth as Mock).mockReturnValue({
+        me: {
+          useQuery: () => ({
+            data: {
+              id: 'accepteduser123',
+              email: 'accepted@example.com',
+              name: 'Terms Accepted User',
+              termsAcceptedAt: '2024-01-01T00:00:00Z' // Already accepted
+            },
+            isLoading: false,
+            error: null,
+          }),
+        },
+        acceptTerms: {
+          useMutation: () => ({
+            mutateAsync: vi.fn(),
+            isPending: false,
+          }),
+        },
+      });
+
       renderWithProviders(<Welcome />);
-      
+
       // Should redirect to home since terms already accepted
       await waitFor(() => {
         expect(mockRouter.push).toHaveBeenCalledWith('/');
@@ -230,30 +265,34 @@ describe('Sign-Up Flow Integration Tests', () => {
 
   describe('Error Recovery Scenarios', () => {
     it('should handle OAuth failure and allow retry', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
       const oauthError = new Error('OAuth provider error');
       (signIn as Mock).mockRejectedValue(oauthError);
-      
+
       render(<SignUp />);
-      
+
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
-      
+
       // Should show loading state initially
       expect(screen.getByText('Creating account...')).toBeInTheDocument();
-      
+
       // After error, should reset to normal state
       await waitFor(() => {
         expect(screen.getByText('Sign Up with Google')).toBeInTheDocument();
         expect(signUpButton).not.toBeDisabled();
       });
-      
+
       // User can retry
       (signIn as Mock).mockResolvedValue(undefined);
       fireEvent.click(signUpButton);
-      
+
       await waitFor(() => {
         expect(signIn).toHaveBeenCalledTimes(2);
       });
+
+      consoleErrorSpy.mockRestore();
     });
 
     it('should handle terms API failure and show error', async () => {
@@ -265,31 +304,44 @@ describe('Sign-Up Flow Integration Tests', () => {
         backendToken: 'error-user-token',
         isNewUser: true,
       };
-      
+
       (useSession as Mock).mockReturnValue({
         data: mockUserSession,
         status: 'authenticated',
       });
-      
-      // Mock API failure for terms acceptance
-      server.use(
-        http.post('*/api/users/accept-terms', () => {
-          return new HttpResponse(null, { status: 500 });
-        })
-      );
-      
+
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
+
+      // Override useAuth mock to make the mutation fail
+      const mockMutateAsync = vi.fn().mockRejectedValue(new Error('API Error'));
+      (useAuth as Mock).mockReturnValue({
+        me: {
+          useQuery: () => ({
+            data: { termsAcceptedAt: null },
+            isLoading: false,
+            error: null,
+          }),
+        },
+        acceptTerms: {
+          useMutation: () => ({
+            mutateAsync: mockMutateAsync,
+            isPending: false,
+            isError: false,
+            error: null,
+          }),
+        },
+      });
+
       renderWithProviders(<Welcome />);
-      
+
       const acceptButton = screen.getByRole('button', { name: 'Accept & Continue' });
       fireEvent.click(acceptButton);
-      
+
       // Should log error to console (toast is shown but hard to test in integration test)
       await waitFor(() => {
         expect(consoleErrorSpy).toHaveBeenCalledWith('Terms acceptance error:', expect.any(Error));
-      });
-      
+      }, { timeout: 3000 });
+
       consoleErrorSpy.mockRestore();
     });
 

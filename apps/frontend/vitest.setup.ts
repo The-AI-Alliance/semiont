@@ -7,6 +7,12 @@ import '@testing-library/jest-dom';
 import { beforeAll, afterEach, afterAll, vi } from 'vitest';
 import { FrontendTestEnvironment } from './src/__tests__/test-environment';
 
+// Ensure we use Node's native AbortController for ky compatibility
+if (typeof global.AbortController === 'undefined') {
+  global.AbortController = AbortController;
+  global.AbortSignal = AbortSignal;
+}
+
 // Mock next-intl globally
 vi.mock('next-intl');
 

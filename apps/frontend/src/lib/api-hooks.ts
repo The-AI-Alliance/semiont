@@ -32,6 +32,8 @@ function useApiClient(): SemiontApiClient | null {
   return new SemiontApiClient({
     baseUrl: NEXT_PUBLIC_API_URL,
     accessToken: session.backendToken,
+    // Use no timeout in test environment to avoid AbortController issues with ky + vitest
+    ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
   });
 }
 

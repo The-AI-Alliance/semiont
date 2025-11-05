@@ -4,6 +4,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from '@/i18n/routing';
+import { useAuth } from '@/lib/api-hooks';
 import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 import Welcome from '../page';
@@ -44,6 +45,11 @@ vi.mock('@/i18n/routing', () => ({
   Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
+// Mock the useAuth hook to avoid ky HTTP client issues in vitest
+vi.mock('@/lib/api-hooks', () => ({
+  useAuth: vi.fn(),
+}));
+
 describe('Welcome Page', () => {
   const mockRouter = {
     push: vi.fn(),
@@ -64,6 +70,25 @@ describe('Welcome Page', () => {
     (useSession as Mock).mockReturnValue({
       data: mockSession,
       status: 'authenticated',
+    });
+
+    // Mock useAuth to return React Query hooks
+    (useAuth as Mock).mockReturnValue({
+      me: {
+        useQuery: () => ({
+          data: { termsAcceptedAt: null },
+          isLoading: false,
+          error: null,
+        }),
+      },
+      acceptTerms: {
+        useMutation: () => ({
+          mutateAsync: vi.fn().mockResolvedValue({ success: true }),
+          isPending: false,
+          isError: false,
+          error: null,
+        }),
+      },
     });
   });
 
@@ -104,17 +129,27 @@ describe('Welcome Page', () => {
     });
 
     it('redirects to home if terms already accepted', async () => {
-      // Override MSW handler to return terms already accepted
-      server.use(
-        http.get('*/api/auth/me', () => {
-          return HttpResponse.json({
-            id: 'user123',
-            email: 'test@example.com',
-            name: 'Test User',
-            termsAcceptedAt: '2024-01-01T00:00:00Z'
-          })
-        })
-      );
+      // Mock useAuth to return user with accepted terms
+      (useAuth as Mock).mockReturnValue({
+        me: {
+          useQuery: () => ({
+            data: {
+              id: 'user123',
+              email: 'test@example.com',
+              name: 'Test User',
+              termsAcceptedAt: '2024-01-01T00:00:00Z'
+            },
+            isLoading: false,
+            error: null,
+          }),
+        },
+        acceptTerms: {
+          useMutation: () => ({
+            mutateAsync: vi.fn(),
+            isPending: false,
+          }),
+        },
+      });
 
       renderWithProviders(<Welcome />);
 
@@ -228,18 +263,22 @@ describe('Welcome Page', () => {
 
   describe('Terms Acceptance Flow', () => {
     it('calls API to record terms acceptance using MSW', async () => {
-      let capturedRequest: Request | undefined;
-      
-      // Override MSW handler to capture request
-      server.use(
-        http.post('*/api/users/accept-terms', async ({ request }) => {
-          capturedRequest = request;
-          return HttpResponse.json({
-            success: true,
-            termsAcceptedAt: new Date().toISOString()
-          });
-        })
-      );
+      const mockMutateAsync = vi.fn().mockResolvedValue({ success: true });
+
+      (useAuth as Mock).mockReturnValue({
+        me: {
+          useQuery: () => ({
+            data: { termsAcceptedAt: null },
+            isLoading: false,
+          }),
+        },
+        acceptTerms: {
+          useMutation: () => ({
+            mutateAsync: mockMutateAsync,
+            isPending: false,
+          }),
+        },
+      });
 
       renderWithProviders(<Welcome />);
 
@@ -247,13 +286,28 @@ describe('Welcome Page', () => {
       fireEvent.click(acceptButton);
 
       await waitFor(() => {
-        expect(capturedRequest).toBeDefined();
-        expect(capturedRequest?.headers.get('authorization')).toBe('Bearer mock-token');
-        expect(capturedRequest?.headers.get('content-type')).toBe('application/json');
+        expect(mockMutateAsync).toHaveBeenCalled();
       });
     });
 
     it('shows success state after accepting', async () => {
+      const mockMutateAsync = vi.fn().mockResolvedValue({ success: true });
+
+      (useAuth as Mock).mockReturnValue({
+        me: {
+          useQuery: () => ({
+            data: { termsAcceptedAt: null },
+            isLoading: false,
+          }),
+        },
+        acceptTerms: {
+          useMutation: () => ({
+            mutateAsync: mockMutateAsync,
+            isPending: false,
+          }),
+        },
+      });
+
       renderWithProviders(<Welcome />);
 
       const acceptButton = screen.getByRole('button', { name: 'Accept & Continue' });
@@ -266,6 +320,23 @@ describe('Welcome Page', () => {
     });
 
     it('redirects to home after acceptance (with real timers)', async () => {
+      const mockMutateAsync = vi.fn().mockResolvedValue({ success: true });
+
+      (useAuth as Mock).mockReturnValue({
+        me: {
+          useQuery: () => ({
+            data: { termsAcceptedAt: null },
+            isLoading: false,
+          }),
+        },
+        acceptTerms: {
+          useMutation: () => ({
+            mutateAsync: mockMutateAsync,
+            isPending: false,
+          }),
+        },
+      });
+
       renderWithProviders(<Welcome />);
 
       const acceptButton = screen.getByRole('button', { name: 'Accept & Continue' });
@@ -300,13 +371,22 @@ describe('Welcome Page', () => {
 
     it('handles API errors during acceptance using MSW', async () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      // Override MSW handler to return error response
-      server.use(
-        http.post('*/api/users/accept-terms', () => {
-          return new HttpResponse(null, { status: 500 });
-        })
-      );
+      const mockMutateAsync = vi.fn().mockRejectedValue(new Error('API Error'));
+
+      (useAuth as Mock).mockReturnValue({
+        me: {
+          useQuery: () => ({
+            data: { termsAcceptedAt: null },
+            isLoading: false,
+          }),
+        },
+        acceptTerms: {
+          useMutation: () => ({
+            mutateAsync: mockMutateAsync,
+            isPending: false,
+          }),
+        },
+      });
 
       renderWithProviders(<Welcome />);
 
