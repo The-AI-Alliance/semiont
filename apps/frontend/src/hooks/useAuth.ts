@@ -1,6 +1,6 @@
 import { useSession } from 'next-auth/react';
 import { useMemo } from 'react';
-import { validateData, JWTTokenSchema } from '@/lib/validation';
+import { validateData, JWTTokenSchema } from '@semiont/api-client';
 
 /**
  * Enhanced authentication hook with validation and user information

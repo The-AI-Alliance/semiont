@@ -258,13 +258,16 @@ export function useEntityTypes() {
   const client = useApiClient();
   const queryClient = useQueryClient();
 
+  type EntityTypesResponse = Awaited<ReturnType<SemiontApiClient['listEntityTypes']>>;
+
   return {
     list: {
-      useQuery: () =>
+      useQuery: (options?: Omit<UseQueryOptions<EntityTypesResponse>, 'queryKey' | 'queryFn'>) =>
         useQuery({
           queryKey: QUERY_KEYS.entityTypes.all(),
           queryFn: () => client!.listEntityTypes(),
           enabled: !!client,
+          ...options,
         }),
     },
 

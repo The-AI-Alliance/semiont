@@ -9,14 +9,14 @@ vi.mock('next-auth/react', () => ({
 }));
 
 // Mock validation
-vi.mock('@/lib/validation', () => ({
+vi.mock('@semiont/api-client', () => ({
   validateData: vi.fn(),
   JWTTokenSchema: {}
 }));
 
 // Import mocked functions
 import { useSession } from 'next-auth/react';
-import { validateData } from '@/lib/validation';
+import { validateData } from '@semiont/api-client';
 
 // Type the mocked functions
 const mockUseSession = useSession as MockedFunction<typeof useSession>;
