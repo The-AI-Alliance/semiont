@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { NEXT_PUBLIC_API_URL } from '@/lib/env';
+import type { ResourceUri } from '@semiont/api-client';
 
 export interface DetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
@@ -17,14 +17,14 @@ export interface DetectionProgress {
 }
 
 interface UseDetectionProgressOptions {
-  resourceId: string;
+  rUri: ResourceUri;
   onComplete?: (progress: DetectionProgress) => void;
   onError?: (error: string) => void;
   onProgress?: (progress: DetectionProgress) => void;
 }
 
 export function useDetectionProgress({
-  resourceId,
+  rUri,
   onComplete,
   onError,
   onProgress
@@ -55,8 +55,8 @@ export function useDetectionProgress({
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    // Build SSE URL
-    const url = `${NEXT_PUBLIC_API_URL}/api/resources/${resourceId}/detect-annotations-stream`;
+    // Build SSE URL - rUri is already the full resource URI
+    const url = `${rUri}/detect-annotations-stream`;
 
     try {
       await fetchEventSource(url, {
@@ -131,7 +131,7 @@ export function useDetectionProgress({
         onError?.('Failed to start detection');
       }
     }
-  }, [resourceId, onComplete, onError, onProgress, session]);
+  }, [rUri, onComplete, onError, onProgress, session]);
 
   const cancelDetection = useCallback(() => {
     if (abortControllerRef.current) {

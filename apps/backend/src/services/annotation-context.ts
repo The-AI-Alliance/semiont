@@ -18,7 +18,6 @@ import { FilesystemRepresentationStore } from '../storage/representation/represe
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../utils/resource-helpers';
 import { createProjectionManager } from './storage-service';
 import type { EnvironmentConfig, AnnotationId, ResourceId } from '@semiont/core';
-import { extractResourceId } from '@semiont/api-client';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];

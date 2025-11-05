@@ -13,7 +13,8 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getResourceId, getPrimaryMediaType } from '@/lib/resource-helpers';
+import { getPrimaryMediaType } from '@/lib/resource-helpers';
+import { resourceUri, type ResourceUri } from '@semiont/api-client';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
@@ -85,14 +86,15 @@ function ComposeDocumentContent() {
 
           // Fetch representation separately
           try {
-            const resourceId = getResourceId(cloneData.sourceResource);
-            if (!resourceId) {
-              throw new Error('Cannot extract resource ID from source resource');
+            const idString = cloneData.sourceResource.id as string;
+            if (!idString) {
+              throw new Error('Source resource has no ID');
             }
+            const rUri = resourceUri(idString);
             // Get the primary representation's mediaType from the source resource
             const mediaType = getPrimaryMediaType(cloneData.sourceResource) || 'text/plain';
 
-            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/resources/${encodeURIComponent(resourceId)}`, {
+            const contentResponse = await fetch(rUri, {
               headers: {
                 'Authorization': `Bearer ${session.backendToken}`,
                 'Accept': mediaType,
@@ -132,7 +134,7 @@ function ComposeDocumentContent() {
 
     setIsCreating(true);
     try {
-      let resourceId: string;
+      let rUri: ResourceUri;
 
       if (isClone && cloneToken) {
         // Create resource from clone token with edited content
@@ -143,11 +145,11 @@ function ComposeDocumentContent() {
           archiveOriginal: archiveOriginal
         });
 
-        const resId = response.resource ? getResourceId(response.resource) : '';
+        const resId = response.resource?.id as string;
         if (!resId) {
           throw new Error('No resource ID returned from server');
         }
-        resourceId = resId;
+        rUri = resourceUri(resId);
       } else {
         // Create a new resource with entity types
         const response = await createDocMutation.mutateAsync({
@@ -158,14 +160,14 @@ function ComposeDocumentContent() {
           creationMethod: 'ui'
         });
 
-        const resId = response.resource ? getResourceId(response.resource) : '';
+        const resId = response.resource?.id as string;
         if (!resId) {
           throw new Error('No resource ID returned from server');
         }
-        resourceId = resId;
+        rUri = resourceUri(resId);
 
         // If this is a reference completion, update the reference to point to the new resource
-        if (isReferenceCompletion && referenceId && resourceId && sourceDocumentId) {
+        if (isReferenceCompletion && referenceId && rUri && sourceDocumentId) {
           try {
             await updateAnnotationBodyMutation.mutateAsync({
               id: referenceId,
@@ -175,7 +177,7 @@ function ComposeDocumentContent() {
                   op: 'add',
                   item: {
                     type: 'SpecificResource',
-                    source: resourceId,
+                    source: rUri,
                     purpose: 'linking'
                   }
                 }]
@@ -191,7 +193,7 @@ function ComposeDocumentContent() {
       }
 
       // Navigate to the new resource (will add to tabs on page load)
-      router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
+      router.push(`/know/resource/${encodeURIComponent(rUri)}`);
     } catch (error) {
       console.error('Failed to save document:', error);
       showError('Failed to save document. Please try again.');

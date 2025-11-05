@@ -1,4 +1,4 @@
-import { annotationUri, resourceUri, extractAnnotationId } from '@semiont/api-client';
+import { annotationUri, resourceUri } from '@semiont/api-client';
 
 /**
  * useGenerationProgress Hook Tests
@@ -25,11 +25,6 @@ vi.mock('@microsoft/fetch-event-source', () => ({
 // Mock environment
 vi.mock('@/lib/env', () => ({
   NEXT_PUBLIC_API_URL: 'http://localhost:4000'
-}));
-
-// Mock extractAnnotationId
-vi.mock('@semiont/api-client', () => ({
-  extractAnnotationId
 }));
 
 describe('useGenerationProgress', () => {

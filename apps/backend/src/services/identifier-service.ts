@@ -21,8 +21,6 @@ import {
   type AnnotationUri,
   resourceUri,
   annotationUri,
-  extractResourceId,
-  extractAnnotationId,
 } from '@semiont/api-client';
 
 export interface IdentifierConfig {
@@ -57,9 +55,6 @@ export function toAnnotationUri(
   }
   return annotationUri(`${config.baseUrl}/annotations/${idString}`);
 }
-
-// Re-export extraction functions from core for convenience
-export { extractResourceId, extractAnnotationId };
 
 // Defensive helpers - handle both IDs and URIs
 // IMPORTANT: Only accepts URIs that match the configured backend URL

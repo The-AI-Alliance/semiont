@@ -4,6 +4,8 @@
  * @see https://tanstack.com/query/latest/docs/framework/react/guides/query-keys
  */
 
+import type { ResourceUri } from '@semiont/api-client';
+
 export const QUERY_KEYS = {
   auth: {
     me: () => ['/api/auth/me'],
@@ -23,11 +25,11 @@ export const QUERY_KEYS = {
   },
   documents: {
     all: (limit?: number, archived?: boolean) => ['/api/resources', limit, archived],
-    detail: (id: string) => ['/api/resources', id],
+    detail: (rUri: ResourceUri) => ['/api/resources', rUri],
     byToken: (token: string) => ['/api/resources/by-token', token],
     search: (query: string, limit: number) => ['/api/resources/search', query, limit],
-    referencedBy: (id: string) => ['/api/resources', id, 'referenced-by'],
-    events: (id: string) => ['/api/resources', id, 'events'],
-    annotations: (resourceId: string) => ['/api/resources', resourceId, 'annotations'],
+    referencedBy: (rUri: ResourceUri) => ['/api/resources', rUri, 'referenced-by'],
+    events: (rUri: ResourceUri) => ['/api/resources', rUri, 'events'],
+    annotations: (rUri: ResourceUri) => ['/api/resources', rUri, 'annotations'],
   },
 };

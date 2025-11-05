@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { fetchAPI } from './fetch-wrapper';
 import { QUERY_KEYS } from '../query-keys';
+import { resourceUri } from '@semiont/api-client';
 import type { paths } from '@semiont/api-client';
 
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : T extends { responses: { 201: { content: { 'application/json': infer R } } } } ? R : never;
@@ -41,7 +42,7 @@ export const resources = {
     useQuery: (id: string) => {
       const { data: session } = useSession();
       return useQuery({
-        queryKey: QUERY_KEYS.documents.detail(id),
+        queryKey: QUERY_KEYS.documents.detail(resourceUri(id)),
         queryFn: () => fetchAPI<GetResourceResponse>(`/resources/${encodeURIComponent(id)}`, {}, session?.backendToken),
         enabled: !!session?.backendToken && !!id,
       });
@@ -78,7 +79,7 @@ export const resources = {
             body: JSON.stringify(data),
           }, session?.backendToken),
         onSuccess: (_, variables) => {
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.id) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(resourceUri(variables.id)) });
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.all() });
         },
       });
@@ -104,7 +105,7 @@ export const resources = {
     useQuery: (id: string) => {
       const { data: session } = useSession();
       return useQuery({
-        queryKey: QUERY_KEYS.documents.referencedBy(id),
+        queryKey: QUERY_KEYS.documents.referencedBy(resourceUri(id)),
         queryFn: () => fetchAPI<{ referencedBy: ReferencedBy[] }>(
           `/resources/${id}/referenced-by`,
           {},
@@ -165,7 +166,7 @@ export const resources = {
     useQuery: (id: string) => {
       const { data: session } = useSession();
       return useQuery({
-        queryKey: QUERY_KEYS.documents.events(id),
+        queryKey: QUERY_KEYS.documents.events(resourceUri(id)),
         queryFn: () => fetchAPI<{ events: any[] }>(
           `/resources/${id}/events`,
           {},
@@ -180,7 +181,7 @@ export const resources = {
     useQuery: (documentId: string) => {
       const { data: session } = useSession();
       return useQuery({
-        queryKey: QUERY_KEYS.documents.annotations(documentId),
+        queryKey: QUERY_KEYS.documents.annotations(resourceUri(documentId)),
         queryFn: () => fetchAPI<GetAnnotationsResponse>(
           `/resources/${documentId}/annotations`,
           {},

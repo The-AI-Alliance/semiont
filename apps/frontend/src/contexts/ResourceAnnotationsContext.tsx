@@ -2,13 +2,17 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { annotations } from '@/lib/api/annotations';
-import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { components, paths, AnnotationUri } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector, extractResourceId } from '@semiont/api-client';
+import type { components, AnnotationUri, ResourceUri } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector, resourceUri } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
-type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
-type CreateAnnotationRequest = RequestContent<paths['/api/annotations']['post']>;
+// Create annotation request type - narrow target to only the object form (not string)
+type CreateAnnotationRequest = Omit<Annotation, 'id' | 'created' | 'modified' | 'creator' | '@context' | 'type' | 'target'> & {
+  target: {
+    source: string;
+    selector: { type: 'TextPositionSelector'; start: number; end: number; } | { type: 'TextQuoteSelector'; exact: string; prefix?: string; suffix?: string; } | ({ type: 'TextPositionSelector'; start: number; end: number; } | { type: 'TextQuoteSelector'; exact: string; prefix?: string; suffix?: string; })[];
+  };
+} & Partial<Pick<Annotation, '@context' | 'type'>>;
 
 export interface SelectionData {
   exact: string;
@@ -21,11 +25,11 @@ interface ResourceAnnotationsContextType {
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
   // Mutation actions (still in context for consistency)
-  addHighlight: (resourceId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
-  addReference: (resourceId: string, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
-  addAssessment: (resourceId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
-  addComment: (resourceId: string, selection: SelectionData, commentText: string) => Promise<string | undefined>;
-  deleteAnnotation: (annotationId: string, resourceId: string) => Promise<void>;
+  addHighlight: (rUri: ResourceUri, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  addReference: (rUri: ResourceUri, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
+  addAssessment: (rUri: ResourceUri, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  addComment: (rUri: ResourceUri, selection: SelectionData, commentText: string) => Promise<string | undefined>;
+  deleteAnnotation: (annotationId: string, rUri: ResourceUri) => Promise<void>;
   convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
 
@@ -46,13 +50,13 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const deleteAnnotationMutation = annotations.delete.useMutation();
 
   const addHighlight = useCallback(async (
-    resourceId: string,
+    rUri: ResourceUri,
     exact: string,
     position: { start: number; end: number }
   ): Promise<string | undefined> => {
     try {
       const result = await saveHighlightMutation.mutateAsync({
-        resourceId,
+        rUri,
         exact,
         position
       });
@@ -82,7 +86,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   }, [saveHighlightMutation]);
 
   const addReference = useCallback(async (
-    resourceId: string,
+    rUri: ResourceUri,
     exact: string,
     position: { start: number; end: number },
     targetDocId?: string,
@@ -92,11 +96,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     try {
       // Build CreateAnnotationRequest following W3C Web Annotation format
       // Backend expects source as a full URI
-      const resourceUri = `${process.env.NEXT_PUBLIC_API_URL}/resources/${resourceId}`;
       const createData: CreateAnnotationRequest = {
         motivation: 'linking',
         target: {
-          source: resourceUri,
+          source: rUri,
           selector: [
             {
               type: 'TextPositionSelector',
@@ -166,7 +169,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   }, [createAnnotationMutation]);
 
   const addAssessment = useCallback(async (
-    resourceId: string,
+    rUri: ResourceUri,
     exact: string,
     position: { start: number; end: number }
   ): Promise<string | undefined> => {
@@ -174,11 +177,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       // Build CreateAnnotationRequest following W3C Web Annotation format
       // Assessment uses motivation: 'assessing'
       // Backend expects source as a full URI
-      const resourceUri = `${process.env.NEXT_PUBLIC_API_URL}/resources/${resourceId}`;
       const createData: CreateAnnotationRequest = {
         motivation: 'assessing',  // W3C motivation for assessments
         target: {
-          source: resourceUri,
+          source: rUri,
           selector: [
             {
               type: 'TextPositionSelector',
@@ -223,7 +225,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   }, [createAnnotationMutation]);
 
   const addComment = useCallback(async (
-    resourceId: string,
+    rUri: ResourceUri,
     selection: SelectionData,
     commentText: string
   ): Promise<string | undefined> => {
@@ -231,11 +233,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       // Build CreateAnnotationRequest following W3C Web Annotation format
       // Comment uses motivation: 'commenting'
       // Backend expects source as a full URI
-      const resourceUri = `${process.env.NEXT_PUBLIC_API_URL}/resources/${resourceId}`;
       const createData: CreateAnnotationRequest = {
         motivation: 'commenting',  // W3C motivation for comments
         target: {
-          source: resourceUri,
+          source: rUri,
           selector: [
             {
               type: 'TextPositionSelector',
@@ -284,11 +285,9 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [createAnnotationMutation]);
 
-  const deleteAnnotation = useCallback(async (annotationId: string, resourceId: string) => {
+  const deleteAnnotation = useCallback(async (annotationId: string, rUri: ResourceUri) => {
     try {
-      // Backend expects resourceId as a full URI, not just the ID
-      const resourceUri = `${process.env.NEXT_PUBLIC_API_URL}/resources/${resourceId}`;
-      await deleteAnnotationMutation.mutateAsync({ id: annotationId, resourceId: resourceUri });
+      await deleteAnnotationMutation.mutateAsync({ id: annotationId, rUri });
     } catch (err) {
       console.error('Failed to delete annotation:', err);
       throw err;
@@ -311,9 +310,12 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
 
       // Delete old highlight (documentId required for Layer 3 lookup)
       const targetSource = getTargetSource(highlight.target);
+      if (!targetSource) {
+        throw new Error('Highlight has no target source');
+      }
       await deleteAnnotationMutation.mutateAsync({
         id: highlightId,
-        resourceId: targetSource
+        rUri: resourceUri(targetSource)
       });
 
       // Create new reference with same position
@@ -323,7 +325,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
         throw new Error('Cannot convert highlight to reference: TextPositionSelector required');
       }
       await addReference(
-        extractResourceId(targetSource),
+        resourceUri(targetSource),
         getExactText(targetSelector),
         { start: posSelector.start, end: posSelector.end },
         targetDocId,
@@ -346,9 +348,12 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
 
       // Delete old reference (documentId required for Layer 3 lookup)
       const targetSource = getTargetSource(reference.target);
+      if (!targetSource) {
+        throw new Error('Reference has no target source');
+      }
       await deleteAnnotationMutation.mutateAsync({
         id: referenceId,
-        resourceId: targetSource
+        rUri: resourceUri(targetSource)
       });
 
       // Create new highlight with same position
@@ -358,7 +363,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
         throw new Error('Cannot convert reference to highlight: TextPositionSelector required');
       }
       await addHighlight(
-        extractResourceId(targetSource),
+        resourceUri(targetSource),
         getExactText(targetSelector),
         { start: posSelector.start, end: posSelector.end }
       );

@@ -20,6 +20,13 @@ import { registerGetResourceAnnotations } from './routes/get-annotations';
 import { registerGetEvents } from './routes/events';
 import { registerGetEventStream } from './routes/events-stream';
 
+// Nested annotation routes
+import { registerCreateAnnotation } from './routes/create-annotation';
+import { registerGetAnnotation } from './routes/get-annotation';
+import { registerDeleteAnnotation } from './routes/delete-annotation';
+import { registerUpdateAnnotationBody } from './routes/update-annotation-body';
+import { registerGenerateResourceFromAnnotation } from './routes/generate-resource-from-annotation';
+
 // Create main resources router
 export const resourcesRouter: ResourcesRouterType = createResourceRouter();
 
@@ -37,6 +44,14 @@ registerGetAnnotationLLMContext(resourcesRouter);
 registerGetReferencedBy(resourcesRouter);
 registerDiscoverContext(resourcesRouter);
 registerTokenRoutes(resourcesRouter);
-registerGetResourceAnnotations(resourcesRouter);
+
+// Annotation routes (nested under resources)
+registerGetResourceAnnotations(resourcesRouter);  // GET /resources/:id/annotations (list)
+registerCreateAnnotation(resourcesRouter);  // POST /resources/:id/annotations
+registerGetAnnotation(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId
+registerUpdateAnnotationBody(resourcesRouter);  // PUT /resources/:resourceId/annotations/:annotationId/body
+registerGenerateResourceFromAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/generate-resource
+registerDeleteAnnotation(resourcesRouter);  // DELETE /resources/:resourceId/annotations/:annotationId
+
 registerGetEvents(resourcesRouter);
 registerGetEventStream(resourcesRouter);

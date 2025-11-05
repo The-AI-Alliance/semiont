@@ -14,7 +14,7 @@ import { ResourceViewer } from '@/components/resource/ResourceViewer';
 import { ResourceTagsInline } from '@/components/ResourceTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
-import type { components } from '@semiont/api-client';
+import type { components, ResourceUri } from '@semiont/api-client';
 import { getResourceId, getLanguage, getPrimaryMediaType } from '@/lib/resource-helpers';
 import { groupAnnotationsByType } from '@/lib/annotation-registry';
 
@@ -41,7 +41,7 @@ import { ResourceActionsPanel } from '@/components/resource/panels/ResourceActio
 import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
 import { CommentsPanel } from '@/components/resource/panels/CommentsPanel';
 import { Toolbar } from '@/components/Toolbar';
-import { extractAnnotationId, annotationUri, resourceUri } from '@semiont/api-client';
+import { annotationUri, resourceUri } from '@semiont/api-client';
 
 // Loading state component
 function ResourceLoadingState() {
@@ -78,7 +78,7 @@ function ResourceErrorState({
 // Main page component with proper early returns
 export default function KnowledgeResourcePage() {
   const params = useParams();
-  const resourceId = decodeURIComponent(params?.id as string);
+  const rUri = resourceUri(params?.id as string);
   const { data: session } = useSession();
 
   // Load resource data - this is the ONLY hook before early returns
@@ -88,14 +88,14 @@ export default function KnowledgeResourcePage() {
     isError,
     error,
     refetch: refetchDocument
-  } = resources.get.useQuery(resourceId);
+  } = resources.get.useQuery(rUri);
 
   // Log error for debugging
   useEffect(() => {
     if (isError && !isLoading) {
-      console.error(`[Document] Failed to load resource ${resourceId}:`, error);
+      console.error(`[Document] Failed to load resource ${rUri}:`, error);
     }
-  }, [isError, isLoading, resourceId, error]);
+  }, [isError, isLoading, rUri, error]);
 
   // Early return: Loading state
   if (isLoading) {
@@ -114,17 +114,17 @@ export default function KnowledgeResourcePage() {
 
   const resource = docData.resource;
 
-  return <ResourceView resource={resource} resourceId={resourceId} refetchDocument={refetchDocument} />;
+  return <ResourceView resource={resource} rUri={rUri} refetchDocument={refetchDocument} />;
 }
 
 // Main resource view - resource is guaranteed to exist
 function ResourceView({
   resource,
-  resourceId,
+  rUri,
   refetchDocument
 }: {
   resource: SemiontResource;
-  resourceId: string;
+  rUri: ResourceUri;
   refetchDocument: () => Promise<unknown>;
 }) {
   const router = useRouter();
@@ -146,7 +146,7 @@ function ResourceView({
         // Get the primary representation's mediaType from the resource
         const mediaType = getPrimaryMediaType(resource) || 'text/plain';
 
-        const response = await fetch(`${NEXT_PUBLIC_API_URL}/resources/${encodeURIComponent(resourceId)}`, {
+        const response = await fetch(`${NEXT_PUBLIC_API_URL}/resources/${encodeURIComponent(rUri)}`, {
           headers: {
             'Authorization': `Bearer ${session?.backendToken}`,
             'Accept': mediaType,
@@ -166,10 +166,10 @@ function ResourceView({
       }
     };
     loadContent();
-  }, [resourceId, resource, session?.backendToken, showError]);
+  }, [rUri, resource, session?.backendToken, showError]);
 
   // Fetch all annotations with a single request
-  const { data: annotationsData, refetch: refetchAnnotations } = resources.annotations.useQuery(resourceId);
+  const { data: annotationsData, refetch: refetchAnnotations } = resources.annotations.useQuery(rUri);
   const annotations = annotationsData?.annotations || [];
 
   // Group annotations by type using centralized registry
@@ -186,12 +186,12 @@ function ResourceView({
   const debouncedInvalidateAnnotations = useDebouncedCallback(
     () => {
       // Invalidate annotations and events queries using type-safe query keys
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(resourceId) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(resourceId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(rUri) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
     },
     500 // Wait 500ms after last event before invalidating (batches rapid updates)
   );
-  const { data: referencedByData, isLoading: referencedByLoading } = resources.referencedBy.useQuery(resourceId);
+  const { data: referencedByData, isLoading: referencedByLoading } = resources.referencedBy.useQuery(rUri);
   const referencedBy = referencedByData?.referencedBy || [];
 
   // Derived state
@@ -241,11 +241,11 @@ function ResourceView({
 
   // Add resource to open tabs when it loads
   useEffect(() => {
-    if (resource && resourceId) {
-      addResource(resourceId, resource.name);
-      localStorage.setItem('lastViewedDocumentId', resourceId);
+    if (resource && rUri) {
+      addResource(rUri, resource.name);
+      localStorage.setItem('lastViewedDocumentId', rUri);
     }
-  }, [resource, resourceId, addResource]);
+  }, [resource, rUri, addResource]);
 
   // Handle wiki link clicks - memoized
   const handleWikiLinkClick = useCallback(async (pageName: string) => {
@@ -281,7 +281,7 @@ function ResourceView({
   const updateDocumentTags = useCallback(async (tags: string[]) => {
     try {
       await updateDocMutation.mutateAsync({
-        id: resourceId,
+        id: rUri,
         data: { entityTypes: tags }
       });
       showSuccess('Document tags updated successfully');
@@ -290,7 +290,7 @@ function ResourceView({
       console.error('Failed to update document tags:', err);
       showError('Failed to update document tags');
     }
-  }, [resourceId, updateDocMutation, refetchDocument, showSuccess, showError]);
+  }, [rUri, updateDocMutation, refetchDocument, showSuccess, showError]);
 
   // Handle archive toggle - memoized
   const handleArchive = useCallback(async () => {
@@ -298,7 +298,7 @@ function ResourceView({
 
     try {
       await updateDocMutation.mutateAsync({
-        id: resourceId,
+        id: rUri,
         data: { archived: true }
       });
       await loadDocument();
@@ -307,14 +307,14 @@ function ResourceView({
       console.error('Failed to archive document:', err);
       showError('Failed to archive document');
     }
-  }, [resource, resourceId, updateDocMutation, loadDocument, showSuccess, showError]);
+  }, [resource, rUri, updateDocMutation, loadDocument, showSuccess, showError]);
 
   const handleUnarchive = useCallback(async () => {
     if (!resource) return;
 
     try {
       await updateDocMutation.mutateAsync({
-        id: resourceId,
+        id: rUri,
         data: { archived: false }
       });
       await loadDocument();
@@ -323,11 +323,11 @@ function ResourceView({
       console.error('Failed to unarchive document:', err);
       showError('Failed to unarchive document');
     }
-  }, [resource, resourceId, updateDocMutation, loadDocument, showSuccess, showError]);
+  }, [resource, rUri, updateDocMutation, loadDocument, showSuccess, showError]);
 
   const handleClone = useCallback(async () => {
     try {
-      const response = await generateCloneTokenMutation.mutateAsync(resourceId);
+      const response = await generateCloneTokenMutation.mutateAsync(rUri);
       if (response.token) {
         // Navigate to compose page with clone token
         router.push(`/know/compose?mode=clone&token=${response.token}`);
@@ -338,7 +338,7 @@ function ResourceView({
       console.error('Failed to generate clone token:', err);
       showError('Failed to clone document');
     }
-  }, [resourceId, generateCloneTokenMutation, router, showError]);
+  }, [rUri, generateCloneTokenMutation, router, showError]);
 
   // Handle annotate mode toggle - memoized
   const handleAnnotateModeToggle = useCallback(() => {
@@ -357,18 +357,18 @@ function ResourceView({
     startDetection,
     cancelDetection
   } = useDetectionProgress({
-    resourceId,
+    rUri,
     onProgress: (progress) => {
       // When an entity type completes, refetch to show new annotations immediately
       // Use both refetch (for immediate document view update) AND invalidate (for Annotation History)
       refetchAnnotations();
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(resourceId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
     },
     onComplete: (progress) => {
       // Don't show toast - the widget already shows completion status
       // Final refetch + invalidation when ALL entity types complete
       refetchAnnotations();
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(resourceId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
     },
     onError: (error) => {
       showError(error);
@@ -417,7 +417,7 @@ function ResourceView({
 
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useResourceEvents({
-    resourceId,
+    rUri,
     autoConnect: true,  // Document exists, safe to connect
 
     // Annotation events - use debounced invalidation to batch rapid updates
@@ -431,7 +431,7 @@ function ResourceView({
 
     onAnnotationBodyUpdated: useCallback((event) => {
       // Optimistically update annotations cache with body operations
-      queryClient.setQueryData(QUERY_KEYS.documents.annotations(resourceId), (old: any) => {
+      queryClient.setQueryData(QUERY_KEYS.documents.annotations(rUri), (old: any) => {
         if (!old) return old;
         return {
           ...old,
@@ -469,8 +469,8 @@ function ResourceView({
       });
 
       // Immediately invalidate events to update History Panel
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(resourceId) });
-    }, [queryClient, resourceId]),
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+    }, [queryClient, rUri]),
 
     // Document status events
     onDocumentArchived: useCallback((event) => {
@@ -633,7 +633,7 @@ function ResourceView({
             {/* History Panel */}
             {activePanel === 'history' && (
               <AnnotationHistory
-                resourceId={resourceId}
+                rUri={rUri}
                 hoveredAnnotationId={hoveredAnnotationId}
                 onEventHover={handleEventHover}
                 onEventClick={handleEventClick}
@@ -650,14 +650,14 @@ function ResourceView({
                   setTimeout(() => setHoveredCommentId(null), 1500);
                 }}
                 onDeleteComment={async (annotationIdStr) => {
-                  await deleteAnnotation(annotationIdStr, resourceId);
+                  await deleteAnnotation(annotationIdStr, rUri);
                 }}
                 onUpdateComment={async (annotationIdStr, newText) => {
                   // TODO: Implement update comment mutation
                 }}
                 onCreateComment={async (commentText) => {
                   if (pendingCommentSelection) {
-                    await addComment(resourceId, pendingCommentSelection, commentText);
+                    await addComment(rUri, pendingCommentSelection, commentText);
                     setPendingCommentSelection(null);
                   }
                 }}

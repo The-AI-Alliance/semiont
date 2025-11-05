@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   toResourceUri,
   toAnnotationUri,
-  extractResourceId,
-  extractAnnotationId,
   normalizeResourceId,
   normalizeAnnotationId,
   type IdentifierConfig,

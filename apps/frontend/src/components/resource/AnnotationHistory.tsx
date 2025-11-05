@@ -3,25 +3,25 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { resources } from '@/lib/api/resources';
-import { type StoredEvent, type AnnotationUri, isEventRelatedToAnnotation } from '@semiont/api-client';
+import { type StoredEvent, type AnnotationUri, type ResourceUri, isEventRelatedToAnnotation } from '@semiont/api-client';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
-  resourceId: string;
+  rUri: ResourceUri;
   hoveredAnnotationId?: string | null;
   onEventHover?: (annotationId: string | null) => void;
   onEventClick?: (annotationId: string | null) => void;
 }
 
-export function AnnotationHistory({ resourceId, hoveredAnnotationId, onEventHover, onEventClick }: Props) {
+export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onEventClick }: Props) {
   const t = useTranslations('AnnotationHistory');
 
   // Load events using React Query
   // React Query will automatically refetch when the query is invalidated by the parent
-  const { data: eventsData, isLoading: loading, isError: error } = resources.events.useQuery(resourceId);
+  const { data: eventsData, isLoading: loading, isError: error } = resources.events.useQuery(rUri);
 
   // Load annotations to look up text for removed/resolved events (single request)
-  const { data: annotationsData } = resources.annotations.useQuery(resourceId);
+  const { data: annotationsData } = resources.annotations.useQuery(rUri);
   const annotations = annotationsData?.annotations || [];
 
   // Refs to track event elements for scrolling
