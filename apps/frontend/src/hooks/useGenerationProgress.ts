@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import type { AnnotationUri, ResourceUri } from '@semiont/api-client';
@@ -62,12 +61,18 @@ export function useGenerationProgress({
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    // Build SSE URL - URL-encode the annotation URI
-    const apiUrl = NEXT_PUBLIC_API_URL;
-    const encodedId = encodeURIComponent(referenceId);
-    const url = `${apiUrl}/api/annotations/${encodedId}/generate-resource-stream`;
+    // Build SSE URL by appending operation to the annotation URI
+    const url = `${referenceId}/generate-resource-stream`;
 
-    const requestBody = { resourceId, ...options };
+    // Extract resource ID from ResourceUri for the request body
+    const resourceIdSegment = resourceId.split('/').pop();
+    if (!resourceIdSegment) {
+      onError?.('Invalid resource URI');
+      setIsGenerating(false);
+      return;
+    }
+
+    const requestBody = { resourceId: resourceIdSegment, ...options };
     console.log('[useGenerationProgress] Sending request to:', url);
     console.log('[useGenerationProgress] Request body:', requestBody);
 

@@ -55,7 +55,7 @@ export function useDetectionProgress({
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    // Build SSE URL - rUri is already the full resource URI
+    // Build SSE URL by appending operation to the resource URI
     const url = `${rUri}/detect-annotations-stream`;
 
     try {

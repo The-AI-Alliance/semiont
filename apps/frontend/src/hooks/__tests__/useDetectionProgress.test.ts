@@ -48,7 +48,7 @@ describe('useDetectionProgress', () => {
   it('should initialize with default state', () => {
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
       })
     );
 
@@ -63,14 +63,14 @@ describe('useDetectionProgress', () => {
 
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
       })
     );
 
     await result.current.startDetection(['Person', 'Organization']);
 
     expect(mockFetchEventSource).toHaveBeenCalledWith(
-      'http://localhost:4000/api/resources/test-resource/detect-annotations-stream',
+      'http://localhost:4000/resources/test-resource/detect-annotations-stream',
       expect.objectContaining({
         method: 'POST',
         headers: {
@@ -88,7 +88,7 @@ describe('useDetectionProgress', () => {
 
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
       })
     );
 
@@ -109,7 +109,7 @@ describe('useDetectionProgress', () => {
     const onProgress = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
         onProgress
       })
     );
@@ -121,7 +121,7 @@ describe('useDetectionProgress', () => {
       event: 'detection-started',
       data: JSON.stringify({
         status: 'started',
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
         totalEntityTypes: 1,
         processedEntityTypes: 0,
         message: 'Starting entity detection...'
@@ -134,7 +134,7 @@ describe('useDetectionProgress', () => {
 
     expect(result.current.progress).toMatchObject({
       status: 'started',
-      rUri: resourceUri('test-resource'),
+      rUri: resourceUri('http://localhost:4000/resources/test-resource'),
       totalEntityTypes: 1,
       processedEntityTypes: 0
     });
@@ -150,7 +150,7 @@ describe('useDetectionProgress', () => {
     const onProgress = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
         onProgress
       })
     );
@@ -162,7 +162,7 @@ describe('useDetectionProgress', () => {
       event: 'detection-progress',
       data: JSON.stringify({
         status: 'scanning',
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
         currentEntityType: 'Person',
         totalEntityTypes: 2,
         processedEntityTypes: 1,
@@ -202,7 +202,7 @@ describe('useDetectionProgress', () => {
     const onComplete = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
         onComplete
       })
     );
@@ -213,7 +213,7 @@ describe('useDetectionProgress', () => {
       event: 'detection-complete',
       data: JSON.stringify({
         status: 'complete',
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
         totalEntityTypes: 1,
         processedEntityTypes: 1,
         message: 'Detection complete!'
@@ -238,7 +238,7 @@ describe('useDetectionProgress', () => {
     const onError = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
         onError
       })
     );
@@ -249,7 +249,7 @@ describe('useDetectionProgress', () => {
       event: 'detection-error',
       data: JSON.stringify({
         status: 'error',
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
         message: 'Detection failed'
       })
     });
@@ -271,7 +271,7 @@ describe('useDetectionProgress', () => {
 
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
       })
     );
 
@@ -319,7 +319,7 @@ describe('useDetectionProgress', () => {
 
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
       })
     );
 
@@ -341,7 +341,7 @@ describe('useDetectionProgress', () => {
     const onError = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
         onError
       })
     );
@@ -360,7 +360,7 @@ describe('useDetectionProgress', () => {
     const onError = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
         onError
       })
     );
@@ -382,7 +382,7 @@ describe('useDetectionProgress', () => {
 
     const { result, unmount } = renderHook(() =>
       useDetectionProgress({
-        rUri: resourceUri('test-resource'),
+        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
       })
     );
 
