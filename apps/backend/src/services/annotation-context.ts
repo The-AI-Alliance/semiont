@@ -18,6 +18,7 @@ import { FilesystemRepresentationStore } from '../storage/representation/represe
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../utils/resource-helpers';
 import { createProjectionManager } from './storage-service';
 import type { EnvironmentConfig, AnnotationId, ResourceId } from '@semiont/core';
+import { resourceId as createResourceId } from '@semiont/core';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
@@ -104,9 +105,17 @@ export class AnnotationContextService {
 
     // Get target resource if annotation is a reference (has resolved body source)
     const bodySource = getBodySource(annotation.body);
+
+    // Extract target document from body source URI if present
     let targetDoc = null;
     if (bodySource) {
-      const targetResourceId = extractResourceId(bodySource);
+      // Inline extraction: "http://localhost:4000/resources/abc123" → "abc123"
+      const parts = (bodySource as string).split('/');
+      const lastPart = parts[parts.length - 1];
+      if (!lastPart) {
+        throw new Error(`Invalid body source URI: ${bodySource}`);
+      }
+      const targetResourceId = createResourceId(lastPart);
       const targetProjection = await projectionManager.get(targetResourceId);
       targetDoc = targetProjection?.resource || null;
     }

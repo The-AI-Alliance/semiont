@@ -13,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { admin } from '@/lib/api/admin';
+import { useAdmin } from '@/lib/api-hooks';
 import type { paths } from '@semiont/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -135,10 +135,14 @@ export default function AdminUsers() {
   }, [isAuthenticated]);
 
   const queryClient = useQueryClient();
+
+  // API hooks
+  const adminAPI = useAdmin();
+
   // Only run queries when authenticated
-  const { data: usersResponse, isLoading: usersLoading, error: usersError } = admin.users.all.useQuery();
-  const { data: statsResponse, isLoading: statsLoading, error: statsError } = admin.users.stats.useQuery();
-  
+  const { data: usersResponse, isLoading: usersLoading, error: usersError } = adminAPI.users.list.useQuery();
+  const { data: statsResponse, isLoading: statsLoading, error: statsError } = adminAPI.users.stats.useQuery();
+
   // Debug logging for API responses
   React.useEffect(() => {
     if (usersError) console.error('Users API Error:', usersError);
@@ -146,8 +150,7 @@ export default function AdminUsers() {
     if (usersResponse) console.log('Users Response:', usersResponse);
     if (statsResponse) console.log('Stats Response:', statsResponse);
   }, [usersError, statsError, usersResponse, statsResponse]);
-  const updateUserMutation = admin.users.update.useMutation();
-  const deleteUserMutation = admin.users.delete.useMutation();
+  const updateUserMutation = adminAPI.users.update.useMutation();
 
   const users = (usersResponse as AdminUsersResponse | undefined)?.users ?? [];
   const userStats = (statsResponse as AdminUserStatsResponse | undefined)?.stats;
@@ -165,19 +168,9 @@ export default function AdminUsers() {
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      await deleteUserMutation.mutateAsync(id);
-      // Refresh the data
-      queryClient.invalidateQueries({ queryKey: ['admin.users.list'] });
-      queryClient.invalidateQueries({ queryKey: ['admin.users.stats'] });
-    } catch (error) {
-      console.error('Failed to delete user:', error);
-      // TODO: Show error toast
-    }
+    // Note: Delete user endpoint not currently available in API
+    console.warn('Delete user not implemented:', id);
+    alert('Delete user functionality is not currently available');
   };
 
   const filteredUsers = users.filter((user: AdminUser) => {

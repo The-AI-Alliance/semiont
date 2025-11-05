@@ -7,15 +7,14 @@ import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { resources } from '@/lib/api/resources';
-import { entityTypes } from '@/lib/api/entity-types';
+import { useResources, useEntityTypes } from '@/lib/api-hooks';
 import { QUERY_KEYS } from '@/lib/query-keys';
 import { ResourceViewer } from '@/components/resource/ResourceViewer';
 import { ResourceTagsInline } from '@/components/ResourceTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components, ResourceUri } from '@semiont/api-client';
-import { getResourceId, getLanguage, getPrimaryMediaType } from '@/lib/resource-helpers';
+import { getResourceId, getLanguage, getPrimaryMediaType } from '@semiont/api-client';
 import { groupAnnotationsByType } from '@/lib/annotation-registry';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -81,6 +80,10 @@ export default function KnowledgeResourcePage() {
   const rUri = resourceUri(params?.id as string);
   const { data: session } = useSession();
 
+  // API hooks
+  const resources = useResources();
+  const entityTypesAPI = useEntityTypes();
+
   // Load resource data - this is the ONLY hook before early returns
   const {
     data: docData,
@@ -88,7 +91,13 @@ export default function KnowledgeResourcePage() {
     isError,
     error,
     refetch: refetchDocument
-  } = resources.get.useQuery(rUri);
+  } = resources.get.useQuery(rUri) as {
+    data: { resource: SemiontResource } | undefined;
+    isLoading: boolean;
+    isError: boolean;
+    error: unknown;
+    refetch: () => Promise<unknown>;
+  };
 
   // Log error for debugging
   useEffect(() => {
@@ -114,18 +123,30 @@ export default function KnowledgeResourcePage() {
 
   const resource = docData.resource;
 
-  return <ResourceView resource={resource} rUri={rUri} refetchDocument={refetchDocument} />;
+  return (
+    <ResourceView
+      resource={resource}
+      rUri={rUri}
+      refetchDocument={refetchDocument}
+      resources={resources}
+      entityTypesAPI={entityTypesAPI}
+    />
+  );
 }
 
 // Main resource view - resource is guaranteed to exist
 function ResourceView({
   resource,
   rUri,
-  refetchDocument
+  refetchDocument,
+  resources,
+  entityTypesAPI
 }: {
   resource: SemiontResource;
   rUri: ResourceUri;
   refetchDocument: () => Promise<unknown>;
+  resources: ReturnType<typeof useResources>;
+  entityTypesAPI: ReturnType<typeof useEntityTypes>;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -198,8 +219,8 @@ function ResourceView({
   const documentEntityTypes = resource.entityTypes || [];
 
   // Get entity types for detection
-  const { data: entityTypesData } = entityTypes.all.useQuery();
-  const allEntityTypes = entityTypesData?.entityTypes || [];
+  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
+  const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Set up mutations
   const updateDocMutation = resources.update.useMutation();
@@ -281,7 +302,7 @@ function ResourceView({
   const updateDocumentTags = useCallback(async (tags: string[]) => {
     try {
       await updateDocMutation.mutateAsync({
-        id: rUri,
+        rUri,
         data: { entityTypes: tags }
       });
       showSuccess('Document tags updated successfully');
@@ -298,7 +319,7 @@ function ResourceView({
 
     try {
       await updateDocMutation.mutateAsync({
-        id: rUri,
+        rUri,
         data: { archived: true }
       });
       await loadDocument();
@@ -314,7 +335,7 @@ function ResourceView({
 
     try {
       await updateDocMutation.mutateAsync({
-        id: rUri,
+        rUri,
         data: { archived: false }
       });
       await loadDocument();
@@ -327,7 +348,7 @@ function ResourceView({
 
   const handleClone = useCallback(async () => {
     try {
-      const response = await generateCloneTokenMutation.mutateAsync(rUri);
+      const response = await generateCloneTokenMutation.mutateAsync(rUri) as { token: string; expiresAt: string; resource: SemiontResource };
       if (response.token) {
         // Navigate to compose page with clone token
         router.push(`/know/compose?mode=clone&token=${response.token}`);

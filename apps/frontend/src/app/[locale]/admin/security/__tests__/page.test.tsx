@@ -1,21 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import type { MockedFunction } from 'vitest'
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '@testing-library/jest-dom'
 import AdminSecurity from '../client'
-import { admin } from '@/lib/api/admin'
+import { useAdmin } from '@/lib/api-hooks'
 
-// Mock the API client
-vi.mock('@/lib/api/admin', () => ({
-  admin: {
-    oauth: {
-      config: {
-        useQuery: vi.fn()
-      }
-    }
-  }
+// Mock the API hooks
+vi.mock('@/lib/api-hooks', () => ({
+  useAdmin: vi.fn()
 }))
 
 // Mock NextAuth useSession
@@ -62,10 +55,23 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('AdminSecurity Page', () => {
-  const mockUseQuery = admin.oauth.config.useQuery as MockedFunction<typeof admin.oauth.config.useQuery>
+  const mockUseQuery = vi.fn()
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Set up default mock return value for useAdmin
+    vi.mocked(useAdmin).mockReturnValue({
+      oauth: {
+        config: {
+          useQuery: mockUseQuery
+        }
+      },
+      users: {
+        list: { useQuery: vi.fn() },
+        stats: { useQuery: vi.fn() },
+        update: { useMutation: vi.fn() }
+      }
+    })
   })
 
   afterEach(() => {

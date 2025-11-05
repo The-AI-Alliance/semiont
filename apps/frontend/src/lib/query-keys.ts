@@ -2,34 +2,56 @@
  * Centralized query keys for React Query
  * Following TanStack Query best practices for type-safe cache invalidation
  * @see https://tanstack.com/query/latest/docs/framework/react/guides/query-keys
+ *
+ * Keys use semantic names (not URL paths) and are properly typed with 'as const'
  */
 
-import type { ResourceUri } from '@semiont/api-client';
+import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 
 export const QUERY_KEYS = {
-  auth: {
-    me: () => ['/api/auth/me'],
+  users: {
+    me: () => ['users', 'me'] as const,
   },
-  health: () => ['/api/health'],
+
+  health: () => ['health'] as const,
+
+  resources: {
+    all: (limit?: number, archived?: boolean) => ['resources', { limit, archived }] as const,
+    detail: (rUri: ResourceUri) => ['resources', rUri] as const,
+    byToken: (token: string) => ['resources', 'by-token', token] as const,
+    search: (query: string, limit: number) => ['resources', 'search', { query, limit }] as const,
+    events: (rUri: ResourceUri) => ['resources', rUri, 'events'] as const,
+    annotations: (rUri: ResourceUri) => ['resources', rUri, 'annotations'] as const,
+    referencedBy: (rUri: ResourceUri) => ['resources', rUri, 'referenced-by'] as const,
+  },
+
+  annotations: {
+    detail: (aUri: AnnotationUri) => ['annotations', aUri] as const,
+  },
+
+  entityTypes: {
+    all: () => ['entity-types'] as const,
+  },
+
   admin: {
     users: {
-      all: () => ['/api/admin/users'],
-      stats: () => ['/api/admin/users/stats'],
+      all: () => ['admin', 'users'] as const,
+      stats: () => ['admin', 'users', 'stats'] as const,
     },
     oauth: {
-      config: () => ['/api/admin/oauth/config'],
+      config: () => ['admin', 'oauth', 'config'] as const,
     },
   },
-  entityTypes: {
-    all: () => ['/api/entity-types'],
-  },
+
+  // Legacy alias for backward compatibility during migration
+  // TODO: Remove after all components migrate to QUERY_KEYS.resources
   documents: {
-    all: (limit?: number, archived?: boolean) => ['/api/resources', limit, archived],
-    detail: (rUri: ResourceUri) => ['/api/resources', rUri],
-    byToken: (token: string) => ['/api/resources/by-token', token],
-    search: (query: string, limit: number) => ['/api/resources/search', query, limit],
-    referencedBy: (rUri: ResourceUri) => ['/api/resources', rUri, 'referenced-by'],
-    events: (rUri: ResourceUri) => ['/api/resources', rUri, 'events'],
-    annotations: (rUri: ResourceUri) => ['/api/resources', rUri, 'annotations'],
+    all: (limit?: number, archived?: boolean) => ['resources', { limit, archived }] as const,
+    detail: (rUri: ResourceUri) => ['resources', rUri] as const,
+    byToken: (token: string) => ['resources', 'by-token', token] as const,
+    search: (query: string, limit: number) => ['resources', 'search', { query, limit }] as const,
+    events: (rUri: ResourceUri) => ['resources', rUri, 'events'] as const,
+    annotations: (rUri: ResourceUri) => ['resources', rUri, 'annotations'] as const,
+    referencedBy: (rUri: ResourceUri) => ['resources', rUri, 'referenced-by'] as const,
   },
 };

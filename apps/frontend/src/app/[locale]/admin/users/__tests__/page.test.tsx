@@ -4,30 +4,20 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AdminUsers from '../client';
-import { admin } from '@/lib/api/admin';
+import { useAdmin } from '@/lib/api-hooks';
 
-// Mock the API client
-vi.mock('@/lib/api/admin', () => ({
-  admin: {
-    users: {
-      all: {
-        useQuery: vi.fn()
-      },
-      stats: {
-        useQuery: vi.fn()
-      },
-      update: {
-        useMutation: vi.fn()
-      },
-      delete: {
-        useMutation: vi.fn()
-      }
-    }
-  }
+// Mock the API hooks
+vi.mock('@/lib/api-hooks', () => ({
+  useAdmin: vi.fn()
 }));
 
-// Mock window.confirm
+// Mock window functions
 Object.defineProperty(window, 'confirm', {
+  writable: true,
+  value: vi.fn()
+});
+
+Object.defineProperty(window, 'alert', {
   writable: true,
   value: vi.fn()
 });
@@ -128,37 +118,49 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('AdminUsers Page', () => {
-  let mockUpdateMutation: { mutateAsync: Mock };
-  let mockDeleteMutation: { mutateAsync: Mock };
+  const mockListQuery = vi.fn();
+  const mockStatsQuery = vi.fn();
+  const mockUpdateMutation = vi.fn();
 
   beforeEach(() => {
     // Reset all mocks
     vi.clearAllMocks();
 
-    // Setup mutation mocks
-    mockUpdateMutation = {
-      mutateAsync: vi.fn(),
-    };
-
-    mockDeleteMutation = {
-      mutateAsync: vi.fn(),
-    };
-
     // Setup default mock implementations
-    (admin.users.all.useQuery as Mock).mockReturnValue({
+    mockListQuery.mockReturnValue({
       data: mockUsersResponse,
       isLoading: false,
       error: null
     });
 
-    (admin.users.stats.useQuery as Mock).mockReturnValue({
+    mockStatsQuery.mockReturnValue({
       data: mockStatsResponse,
       isLoading: false,
       error: null
     });
 
-    (admin.users.update.useMutation as Mock).mockReturnValue(mockUpdateMutation);
-    (admin.users.delete.useMutation as Mock).mockReturnValue(mockDeleteMutation);
+    mockUpdateMutation.mockReturnValue({
+      mutateAsync: vi.fn()
+    });
+
+    vi.mocked(useAdmin).mockReturnValue({
+      users: {
+        list: {
+          useQuery: mockListQuery
+        },
+        stats: {
+          useQuery: mockStatsQuery
+        },
+        update: {
+          useMutation: mockUpdateMutation
+        }
+      },
+      oauth: {
+        config: {
+          useQuery: vi.fn()
+        }
+      }
+    });
 
     (window.confirm as Mock).mockReturnValue(true);
   });
@@ -211,7 +213,7 @@ describe('AdminUsers Page', () => {
 
   describe('Loading States', () => {
     it('should show loading state for stats', () => {
-      (admin.users.stats.useQuery as Mock).mockReturnValue({
+      mockStatsQuery.mockReturnValue({
         data: null,
         isLoading: true,
         error: null
@@ -228,7 +230,7 @@ describe('AdminUsers Page', () => {
     });
 
     it('should show loading state for users table', () => {
-      (admin.users.all.useQuery as Mock).mockReturnValue({
+      mockListQuery.mockReturnValue({
         data: null,
         isLoading: true,
         error: null
@@ -389,7 +391,7 @@ describe('AdminUsers Page', () => {
 
       const searchInput = screen.getByPlaceholderText('Search by name or email...');
       const statusSelect = screen.getByDisplayValue('All Status');
-      
+
       fireEvent.change(searchInput, { target: { value: 'company.com' } });
       fireEvent.change(statusSelect, { target: { value: 'active' } });
 
@@ -416,7 +418,7 @@ describe('AdminUsers Page', () => {
     });
 
     it('should show empty state when no users exist', () => {
-      (admin.users.all.useQuery as Mock).mockReturnValue({
+      mockListQuery.mockReturnValue({
         data: { success: true, users: [] },
         isLoading: false,
         error: null
@@ -434,6 +436,11 @@ describe('AdminUsers Page', () => {
 
   describe('User Actions', () => {
     it('should toggle admin status when shield button is clicked', async () => {
+      const mockMutateAsync = vi.fn();
+      mockUpdateMutation.mockReturnValue({
+        mutateAsync: mockMutateAsync
+      });
+
       render(
         <TestWrapper>
           <AdminUsers />
@@ -442,17 +449,17 @@ describe('AdminUsers Page', () => {
 
       // Find the shield button for the regular user (should make them admin)
       const userRows = screen.getAllByRole('row');
-      const regularUserRow = userRows.find(row => 
+      const regularUserRow = userRows.find(row =>
         row.textContent?.includes('user@company.com')
       );
-      
+
       const shieldButton = regularUserRow?.querySelector('button[title="Make admin"]');
       expect(shieldButton).toBeInTheDocument();
-      
+
       fireEvent.click(shieldButton!);
 
       await waitFor(() => {
-        expect(mockUpdateMutation.mutateAsync).toHaveBeenCalledWith({
+        expect(mockMutateAsync).toHaveBeenCalledWith({
           id: '2',
           data: { isAdmin: true }
         });
@@ -460,6 +467,11 @@ describe('AdminUsers Page', () => {
     });
 
     it('should toggle active status when pencil button is clicked', async () => {
+      const mockMutateAsync = vi.fn();
+      mockUpdateMutation.mockReturnValue({
+        mutateAsync: mockMutateAsync
+      });
+
       render(
         <TestWrapper>
           <AdminUsers />
@@ -468,24 +480,24 @@ describe('AdminUsers Page', () => {
 
       // Find the pencil button for the inactive user (should activate them)
       const userRows = screen.getAllByRole('row');
-      const inactiveUserRow = userRows.find(row => 
+      const inactiveUserRow = userRows.find(row =>
         row.textContent?.includes('inactive@company.com')
       );
-      
+
       const pencilButton = inactiveUserRow?.querySelector('button[title="Activate user"]');
       expect(pencilButton).toBeInTheDocument();
-      
+
       fireEvent.click(pencilButton!);
 
       await waitFor(() => {
-        expect(mockUpdateMutation.mutateAsync).toHaveBeenCalledWith({
+        expect(mockMutateAsync).toHaveBeenCalledWith({
           id: '3',
           data: { isActive: true }
         });
       });
     });
 
-    it('should delete user when trash button is clicked and confirmed', async () => {
+    it('should show alert when delete button is clicked (delete not implemented)', async () => {
       render(
         <TestWrapper>
           <AdminUsers />
@@ -494,49 +506,28 @@ describe('AdminUsers Page', () => {
 
       // Find the trash button for the regular user
       const userRows = screen.getAllByRole('row');
-      const regularUserRow = userRows.find(row => 
+      const regularUserRow = userRows.find(row =>
         row.textContent?.includes('user@company.com')
       );
-      
+
       const trashButton = regularUserRow?.querySelector('button[title="Delete user"]');
       expect(trashButton).toBeInTheDocument();
-      
+
       fireEvent.click(trashButton!);
 
-      expect(window.confirm).toHaveBeenCalledWith(
-        'Are you sure you want to delete this user? This action cannot be undone.'
-      );
-
+      // Delete is not implemented - just shows alert
       await waitFor(() => {
-        expect(mockDeleteMutation.mutateAsync).toHaveBeenCalledWith('2');
+        expect(window.alert).toHaveBeenCalledWith('Delete user functionality is not currently available');
       });
-    });
-
-    it('should not delete user when deletion is cancelled', async () => {
-      (window.confirm as Mock).mockReturnValue(false);
-
-      render(
-        <TestWrapper>
-          <AdminUsers />
-        </TestWrapper>
-      );
-
-      const userRows = screen.getAllByRole('row');
-      const regularUserRow = userRows.find(row => 
-        row.textContent?.includes('user@company.com')
-      );
-      
-      const trashButton = regularUserRow?.querySelector('button[title="Delete user"]');
-      fireEvent.click(trashButton!);
-
-      expect(window.confirm).toHaveBeenCalled();
-      expect(mockDeleteMutation.mutateAsync).not.toHaveBeenCalled();
     });
   });
 
   describe('Error Handling', () => {
     it('should handle update errors gracefully', async () => {
-      mockUpdateMutation.mutateAsync.mockRejectedValue(new Error('Update failed'));
+      const mockMutateAsync = vi.fn().mockRejectedValue(new Error('Update failed'));
+      mockUpdateMutation.mockReturnValue({
+        mutateAsync: mockMutateAsync
+      });
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       render(
@@ -546,40 +537,15 @@ describe('AdminUsers Page', () => {
       );
 
       const userRows = screen.getAllByRole('row');
-      const regularUserRow = userRows.find(row => 
+      const regularUserRow = userRows.find(row =>
         row.textContent?.includes('user@company.com')
       );
-      
+
       const shieldButton = regularUserRow?.querySelector('button[title="Make admin"]');
       fireEvent.click(shieldButton!);
 
       await waitFor(() => {
         expect(consoleSpy).toHaveBeenCalledWith('Failed to update user:', expect.any(Error));
-      });
-
-      consoleSpy.mockRestore();
-    });
-
-    it('should handle delete errors gracefully', async () => {
-      mockDeleteMutation.mutateAsync.mockRejectedValue(new Error('Delete failed'));
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      render(
-        <TestWrapper>
-          <AdminUsers />
-        </TestWrapper>
-      );
-
-      const userRows = screen.getAllByRole('row');
-      const regularUserRow = userRows.find(row => 
-        row.textContent?.includes('user@company.com')
-      );
-      
-      const trashButton = regularUserRow?.querySelector('button[title="Delete user"]');
-      fireEvent.click(trashButton!);
-
-      await waitFor(() => {
-        expect(consoleSpy).toHaveBeenCalledWith('Failed to delete user:', expect.any(Error));
       });
 
       consoleSpy.mockRestore();
@@ -612,10 +578,10 @@ describe('AdminUsers Page', () => {
       );
 
       // Check that we have the expected number of each button type
-      expect(screen.getAllByTitle(/admin/)).toHaveLength(3); // Make admin + Remove admin buttons  
+      expect(screen.getAllByTitle(/admin/)).toHaveLength(3); // Make admin + Remove admin buttons
       expect(screen.getAllByTitle(/user/)).toHaveLength(6); // 2 Deactivate + 1 Activate + 3 Delete user buttons
       expect(screen.getAllByTitle('Delete user')).toHaveLength(3);
-      
+
       // Verify specific button titles exist
       expect(screen.getByTitle('Remove admin')).toBeInTheDocument(); // Admin has "Remove admin"
       expect(screen.getAllByTitle('Make admin')).toHaveLength(2); // 2 non-admin users have "Make admin"

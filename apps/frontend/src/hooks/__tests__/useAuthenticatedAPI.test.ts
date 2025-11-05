@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useAuthenticatedAPI } from '../useAuthenticatedAPI';
-import { APIError } from '@/lib/api';
+import { APIError } from '@semiont/api-client';
 
 // Mock next-auth
 vi.mock('next-auth/react', () => ({

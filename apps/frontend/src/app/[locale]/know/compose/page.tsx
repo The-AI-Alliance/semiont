@@ -5,16 +5,14 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { resources } from '@/lib/api/resources';
-import { annotations } from '@/lib/api/annotations';
-import { entityTypes } from '@/lib/api/entity-types';
+import { useResources, useAnnotations, useEntityTypes } from '@/lib/api-hooks';
 import { buttonStyles } from '@/lib/button-styles';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getPrimaryMediaType } from '@/lib/resource-helpers';
-import { resourceUri, type ResourceUri } from '@semiont/api-client';
+import { getPrimaryMediaType } from '@semiont/api-client';
+import { resourceUri, resourceAnnotationUri, type ResourceUri, type ResourceAnnotationUri } from '@semiont/api-client';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
@@ -49,9 +47,14 @@ function ComposeDocumentContent() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  // API hooks
+  const resources = useResources();
+  const annotations = useAnnotations();
+  const entityTypesAPI = useEntityTypes();
+
   // Fetch available entity types
-  const { data: entityTypesData } = entityTypes.all.useQuery();
-  const availableEntityTypes = entityTypesData?.entityTypes || [];
+  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
+  const availableEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Set up mutation hooks
   const createDocMutation = resources.create.useMutation();
@@ -169,8 +172,11 @@ function ComposeDocumentContent() {
         // If this is a reference completion, update the reference to point to the new resource
         if (isReferenceCompletion && referenceId && rUri && sourceDocumentId) {
           try {
+            // Construct ResourceAnnotationUri from sourceDocumentId and referenceId
+            const annotationUri = resourceAnnotationUri(`${sourceDocumentId}/annotations/${referenceId}`);
+
             await updateAnnotationBodyMutation.mutateAsync({
-              id: referenceId,
+              annotationUri,
               data: {
                 resourceId: sourceDocumentId,
                 operations: [{

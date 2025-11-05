@@ -67,7 +67,8 @@ export async function handleCreateAnnotation(client: SemiontApiClient, args: any
     purpose: 'tagging' as const,
   }));
 
-  const data = await client.createAnnotation({
+  const rUri = resourceUri(args?.resourceId);
+  const data = await client.createAnnotation(rUri, {
     motivation: 'highlighting',
     target: {
       source: args?.resourceId,

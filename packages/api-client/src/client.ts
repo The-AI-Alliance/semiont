@@ -136,6 +136,18 @@ export class SemiontApiClient {
   }
 
   // ============================================================================
+  // USERS
+  // ============================================================================
+
+  async getMe(): Promise<ResponseContent<paths['/api/users/me']['get']>> {
+    return this.http.get('api/users/me').json();
+  }
+
+  async acceptTerms(): Promise<ResponseContent<paths['/api/users/accept-terms']['post']>> {
+    return this.http.post('api/users/accept-terms').json();
+  }
+
+  // ============================================================================
   // RESOURCES
   // ============================================================================
 
@@ -185,6 +197,20 @@ export class SemiontApiClient {
 
   async getResourceReferencedBy(resourceUri: ResourceUri): Promise<{ referencedBy: any[] }> {
     return this.http.get(`${resourceUri}/referenced-by`).json();
+  }
+
+  async generateCloneToken(resourceUri: ResourceUri): Promise<ResponseContent<paths['/resources/{id}/clone-with-token']['post']>> {
+    return this.http.post(`${resourceUri}/clone-with-token`).json();
+  }
+
+  async getResourceByToken(token: string): Promise<ResponseContent<paths['/api/resources/token/{token}']['get']>> {
+    return this.http.get(`api/resources/token/${token}`).json();
+  }
+
+  async createResourceFromToken(
+    data: RequestContent<paths['/api/resources/create-from-token']['post']>
+  ): Promise<ResponseContent<paths['/api/resources/create-from-token']['post']>> {
+    return this.http.post('api/resources/create-from-token', { json: data }).json();
   }
 
   // ============================================================================
@@ -270,6 +296,10 @@ export class SemiontApiClient {
     data: RequestContent<paths['/api/admin/users/{id}']['patch']>
   ): Promise<ResponseContent<paths['/api/admin/users/{id}']['patch']>> {
     return this.http.patch(`api/admin/users/${id}`, { json: data }).json();
+  }
+
+  async getOAuthConfig(): Promise<ResponseContent<paths['/api/admin/oauth/config']['get']>> {
+    return this.http.get('api/admin/oauth/config').json();
   }
 
   // ============================================================================

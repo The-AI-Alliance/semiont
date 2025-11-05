@@ -19,7 +19,8 @@
   "scripts": {
     "copy-spec": "cp ../../specs/openapi.json openapi.json",
     "generate": "npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
-    "build": "tsc",
+    "build": "tsc && npm run copy-types",
+    "copy-types": "cp src/types.ts dist/types.d.ts && cp src/uri-types.ts dist/uri-types.d.ts",
     "prebuild": "npm run generate",
     "watch": "tsc --watch",
     "clean": "rm -rf dist src/types.ts openapi.json"

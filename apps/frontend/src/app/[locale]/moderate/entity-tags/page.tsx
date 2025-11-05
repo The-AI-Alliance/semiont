@@ -9,7 +9,7 @@ import {
   PlusIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
-import { entityTypes as entityTypesAPI } from '@/lib/api/entity-types';
+import { useEntityTypes } from '@/lib/api-hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
@@ -29,16 +29,19 @@ export default function EntityTagsPage() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  // API hooks
+  const entityTypesAPI = useEntityTypes();
+
   // Query entity types with auto-refetch for cross-browser updates
   // When Admin A adds a tag, Admin B's browser will see it within 30s
-  const { data: entityTypesData, isLoading } = entityTypesAPI.all.useQuery({
+  const { data: entityTypesData, isLoading } = entityTypesAPI.list.useQuery({
     refetchInterval: 30000, // Poll every 30 seconds for real-time updates
     refetchIntervalInBackground: true, // Continue polling even when tab is in background
   });
   const entityTypes = entityTypesData?.entityTypes || [];
 
   // Mutation for creating new entity type
-  const createEntityTypeMutation = entityTypesAPI.create.useMutation();
+  const createEntityTypeMutation = entityTypesAPI.add.useMutation();
 
   // Check authentication and moderator/admin status
   useEffect(() => {

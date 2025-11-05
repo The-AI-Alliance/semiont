@@ -3,9 +3,9 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import { useRouter } from '@/i18n/routing';
-import { resources } from '@/lib/api/resources';
+import { useResources } from '@/lib/api-hooks';
 import { useSearchAnnouncements } from '@/components/LiveRegion';
-import { getResourceId } from '@/lib/resource-helpers';
+import { getResourceId } from '@semiont/api-client';
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -37,6 +37,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   }, [query]);
 
   // Use React Query for search
+  const resources = useResources();
   const { data: searchData, isFetching: loading } = resources.search.useQuery(
     debouncedQuery,
     5

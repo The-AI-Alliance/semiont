@@ -2,8 +2,8 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { resources } from '@/lib/api/resources';
-import { type StoredEvent, type AnnotationUri, type ResourceUri, isEventRelatedToAnnotation } from '@semiont/api-client';
+import { useResources } from '@/lib/api-hooks';
+import { type StoredEvent, type AnnotationUri, type ResourceUri, isEventRelatedToAnnotation, annotationUri } from '@semiont/api-client';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
@@ -15,6 +15,9 @@ interface Props {
 
 export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onEventClick }: Props) {
   const t = useTranslations('AnnotationHistory');
+
+  // API hooks
+  const resources = useResources();
 
   // Load events using React Query
   // React Query will automatically refetch when the query is invalidated by the parent
@@ -98,7 +101,7 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
       </h3>
       <div ref={containerRef} className="space-y-1.5 overflow-y-auto flex-1 min-h-0">
         {events.map((stored) => {
-          const isRelated = hoveredAnnotationId ? isEventRelatedToAnnotation(stored, hoveredAnnotationId as AnnotationUri) : false;
+          const isRelated = hoveredAnnotationId ? isEventRelatedToAnnotation(stored, annotationUri(hoveredAnnotationId)) : false;
 
           return (
             <HistoryEvent

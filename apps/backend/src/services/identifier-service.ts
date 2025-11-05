@@ -13,8 +13,6 @@
 import {
   type ResourceId,
   type AnnotationId,
-  resourceId,
-  annotationId,
 } from '@semiont/core';
 import {
   type ResourceUri,
@@ -30,68 +28,21 @@ export interface IdentifierConfig {
 // Convert IDs to URIs
 export function toResourceUri(
   config: IdentifierConfig,
-  id: ResourceId | string
+  id: ResourceId
 ): ResourceUri {
   if (!config.baseUrl) {
     throw new Error('baseUrl is required');
   }
-  const idString = id as string;
-  if (idString.includes('/')) {
-    return resourceUri(idString);
-  }
-  return resourceUri(`${config.baseUrl}/resources/${idString}`);
+  return resourceUri(`${config.baseUrl}/resources/${id}`);
 }
 
 export function toAnnotationUri(
   config: IdentifierConfig,
-  id: AnnotationId | string
+  id: AnnotationId
 ): AnnotationUri {
   if (!config.baseUrl) {
     throw new Error('baseUrl is required');
   }
-  const idString = id as string;
-  if (idString.includes('/')) {
-    return annotationUri(idString);
-  }
-  return annotationUri(`${config.baseUrl}/annotations/${idString}`);
+  return annotationUri(`${config.baseUrl}/annotations/${id}`);
 }
 
-// Defensive helpers - handle both IDs and URIs
-// IMPORTANT: Only accepts URIs that match the configured backend URL
-export function normalizeResourceId(
-  config: IdentifierConfig,
-  idOrUri: string
-): ResourceId {
-  if (!idOrUri.includes('/')) {
-    return resourceId(idOrUri);
-  }
-
-  // Validate that the URI matches our backend URL
-  const expectedPrefix = `${config.baseUrl}/resources/`;
-  if (!idOrUri.startsWith(expectedPrefix)) {
-    throw new Error(
-      `Invalid resource URI: expected ${expectedPrefix}*, got ${idOrUri}`
-    );
-  }
-
-  return resourceId(extractResourceId(resourceUri(idOrUri)));
-}
-
-export function normalizeAnnotationId(
-  config: IdentifierConfig,
-  idOrUri: string
-): AnnotationId {
-  if (!idOrUri.includes('/')) {
-    return annotationId(idOrUri);
-  }
-
-  // Validate that the URI matches our backend URL
-  const expectedPrefix = `${config.baseUrl}/annotations/`;
-  if (!idOrUri.startsWith(expectedPrefix)) {
-    throw new Error(
-      `Invalid annotation URI: expected ${expectedPrefix}*, got ${idOrUri}`
-    );
-  }
-
-  return annotationId(extractAnnotationId(annotationUri(idOrUri)));
-}

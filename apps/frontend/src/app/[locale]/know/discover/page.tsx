@@ -3,10 +3,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { resources } from '@/lib/api/resources';
-import { entityTypes as entityTypesAPI } from '@/lib/api/entity-types';
+import { useResources, useEntityTypes } from '@/lib/api-hooks';
 import type { components } from '@semiont/api-client';
-import { getResourceId } from '@/lib/resource-helpers';
+import { getResourceId } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 import { useOpenResources } from '@/contexts/OpenResourcesContext';
@@ -114,14 +113,17 @@ export default function DiscoverPage() {
   // Debounced search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
+  // API hooks
+  const resources = useResources();
+  const entityTypesAPI = useEntityTypes();
+
   // Load recent documents using React Query
   const { data: recentDocsData, isLoading: isLoadingRecent } = resources.list.useQuery(
-    10,
-    false
+    { limit: 10, archived: false }
   );
 
   // Load entity types using React Query
-  const { data: entityTypesData } = entityTypesAPI.all.useQuery();
+  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
 
   // Search documents using React Query (only when there's a search query)
   const { data: searchData, isFetching: isSearching } = resources.search.useQuery(

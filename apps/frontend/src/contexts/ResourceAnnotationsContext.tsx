@@ -1,9 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { annotations } from '@/lib/api/annotations';
-import type { components, AnnotationUri, ResourceUri } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector, resourceUri } from '@semiont/api-client';
+import { useAnnotations } from '@/lib/api-hooks';
+import type { components, AnnotationUri, ResourceUri, ResourceAnnotationUri } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 // Create annotation request type - narrow target to only the object form (not string)
@@ -44,8 +44,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   // UI state only - no data management
   const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
+  // API hooks
+  const annotations = useAnnotations();
+
   // Set up mutation hooks
-  const saveHighlightMutation = annotations.saveAsHighlight.useMutation();
   const createAnnotationMutation = annotations.create.useMutation();
   const deleteAnnotationMutation = annotations.delete.useMutation();
 
@@ -55,10 +57,28 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     position: { start: number; end: number }
   ): Promise<string | undefined> => {
     try {
-      const result = await saveHighlightMutation.mutateAsync({
+      const createData: CreateAnnotationRequest = {
+        motivation: 'highlighting',
+        target: {
+          source: rUri,
+          selector: [
+            {
+              type: 'TextPositionSelector',
+              start: position.start,
+              end: position.end,
+            },
+            {
+              type: 'TextQuoteSelector',
+              exact: exact,
+            },
+          ],
+        },
+        body: [],
+      };
+
+      const result = await createAnnotationMutation.mutateAsync({
         rUri,
-        exact,
-        position
+        data: createData
       });
 
       // Track this as a new annotation for sparkle animation
@@ -83,7 +103,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       console.error('Failed to create highlight:', err);
       throw err;
     }
-  }, [saveHighlightMutation]);
+  }, [createAnnotationMutation]);
 
   const addReference = useCallback(async (
     rUri: ResourceUri,
@@ -142,7 +162,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       };
 
       // Create the annotation
-      const result = await createAnnotationMutation.mutateAsync(createData);
+      const result = await createAnnotationMutation.mutateAsync({
+        rUri,
+        data: createData
+      });
 
       // Track this as a new annotation for sparkle animation
       let newId: string | undefined;
@@ -198,7 +221,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       };
 
       // Create the annotation
-      const result = await createAnnotationMutation.mutateAsync(createData);
+      const result = await createAnnotationMutation.mutateAsync({
+        rUri,
+        data: createData
+      });
 
       // Track this as a new annotation for sparkle animation
       let newId: string | undefined;
@@ -259,7 +285,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       };
 
       // Create the annotation
-      const result = await createAnnotationMutation.mutateAsync(createData);
+      const result = await createAnnotationMutation.mutateAsync({
+        rUri,
+        data: createData
+      });
 
       // Track this as a new annotation for sparkle animation
       let newId: string | undefined;
@@ -287,7 +316,9 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
 
   const deleteAnnotation = useCallback(async (annotationId: string, rUri: ResourceUri) => {
     try {
-      await deleteAnnotationMutation.mutateAsync({ id: annotationId, rUri });
+      await deleteAnnotationMutation.mutateAsync(
+        resourceAnnotationUri(`${rUri}/annotations/${annotationId}`)
+      );
     } catch (err) {
       console.error('Failed to delete annotation:', err);
       throw err;
@@ -313,10 +344,9 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       if (!targetSource) {
         throw new Error('Highlight has no target source');
       }
-      await deleteAnnotationMutation.mutateAsync({
-        id: highlightId,
-        rUri: resourceUri(targetSource)
-      });
+      await deleteAnnotationMutation.mutateAsync(
+        resourceAnnotationUri(`${targetSource}/annotations/${highlightId}`)
+      );
 
       // Create new reference with same position
       const targetSelector = getTargetSelector(highlight.target);
@@ -351,10 +381,9 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       if (!targetSource) {
         throw new Error('Reference has no target source');
       }
-      await deleteAnnotationMutation.mutateAsync({
-        id: referenceId,
-        rUri: resourceUri(targetSource)
-      });
+      await deleteAnnotationMutation.mutateAsync(
+        resourceAnnotationUri(`${targetSource}/annotations/${referenceId}`)
+      );
 
       // Create new highlight with same position
       const targetSelector = getTargetSelector(reference.target);

@@ -6,10 +6,10 @@ import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
 import type { components, ResourceUri, AnnotationUri } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri, resourceAnnotationUri } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { annotations } from '@/lib/api/annotations';
+import { useAnnotations } from '@/lib/api-hooks';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
@@ -78,7 +78,8 @@ export function ResourceViewer({
   } = useResourceAnnotations();
 
   // API mutations
-  const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
+  const annotationsAPI = useAnnotations();
+  const updateAnnotationBodyMutation = annotationsAPI.updateBody.useMutation();
 
   // Annotation popup state
   const [selectedText, setSelectedText] = useState<string>('');
@@ -552,7 +553,7 @@ export function ResourceViewer({
                 if (updates.body.source) {
                   // Resolve reference to a document
                   await updateAnnotationBodyMutation.mutateAsync({
-                    id: editingAnnotation.id,
+                    annotationUri: resourceAnnotationUri(`${rUri}/annotations/${editingAnnotation.id}`),
                     data: {
                       resourceId: rUri,
                       operations: [{
