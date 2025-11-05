@@ -12,12 +12,15 @@ import { Hono } from 'hono';
 import { User } from '@prisma/client';
 import { createAnnotationRouter } from './shared';
 import { registerGetAnnotationUri } from './routes/get-uri';
+import { operationsRouter } from './operations';
 
 // Create main annotations router
 export const annotationsRouter = new Hono<{ Variables: { user: User } }>();
 
 // Register W3C content negotiation endpoint for annotation URIs
-// This is the ONLY endpoint in this router - all CRUD is now under /resources/{resourceId}/annotations/
 const uriRouter = createAnnotationRouter();
 registerGetAnnotationUri(uriRouter);
 annotationsRouter.route('/', uriRouter);
+
+// Register annotation operations (generate-resource, generate-resource-stream, etc.)
+annotationsRouter.route('/', operationsRouter);

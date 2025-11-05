@@ -108,11 +108,8 @@ export function registerGenerateResourceStream(router: AnnotationsRouterType) {
       const resourceName = body.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
 
       // Stream the job's progress to the client
+      // Note: Hono's streamSSE automatically sets Content-Type: text/event-stream
       return streamSSE(c, async (stream) => {
-        // Set proper SSE headers with charset
-        c.header('Content-Type', 'text/event-stream; charset=utf-8');
-        c.header('Cache-Control', 'no-cache');
-        c.header('Connection', 'keep-alive');
         try {
           // Send initial started event
           await stream.writeSSE({

@@ -218,7 +218,9 @@ describe('POST /api/annotations/:id/generate-resource-stream', () => {
     const contentType = response.headers.get('content-type');
 
     // SSE streams should have text/event-stream content type
-    expect(contentType).toBe('text/event-stream; charset=utf-8');
+    // Note: Hono's streamSSE sets 'text/event-stream' without charset, which is valid per SSE spec
+    // (UTF-8 is implicit for SSE)
+    expect(contentType).toMatch(/^text\/event-stream/);
   });
 
   it('should require authentication', async () => {
