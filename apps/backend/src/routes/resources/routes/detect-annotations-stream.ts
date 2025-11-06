@@ -34,14 +34,14 @@ interface DetectionProgress {
 
 export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
   /**
-   * POST /api/resources/:id/detect-annotations-stream
+   * POST /resources/:id/detect-annotations-stream
    *
    * Stream real-time entity detection progress via Server-Sent Events
    * Requires authentication
    * Validates request body against DetectAnnotationsStreamRequest schema
    * Returns SSE stream with progress updates
    */
-  router.post('/api/resources/:id/detect-annotations-stream',
+  router.post('/resources/:id/detect-annotations-stream',
     validateRequestBody('DetectAnnotationsStreamRequest'),
     async (c) => {
       const { id } = c.req.param();

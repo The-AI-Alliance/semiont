@@ -9,7 +9,7 @@
  *
  * Non-SSE endpoint for creating entity detection jobs
  * For real-time progress updates, use the SSE equivalent:
- * POST /api/resources/{id}/detect-annotations-stream
+ * POST /resources/{id}/detect-annotations-stream
  */
 
 import { HTTPException } from 'hono/http-exception';
@@ -27,17 +27,17 @@ type CreateJobResponse = components['schemas']['CreateJobResponse'];
 
 export function registerDetectEntities(router: ResourcesRouterType) {
   /**
-   * POST /api/resources/:id/detect-entities
+   * POST /resources/:id/detect-entities
    *
    * Create an async entity detection job.
    * Use GET /api/jobs/{jobId} to poll status.
-   * For real-time updates, use POST /api/resources/{id}/detect-annotations-stream instead.
+   * For real-time updates, use POST /resources/{id}/detect-annotations-stream instead.
    *
    * Requires authentication
    * Validates request body against DetectEntitiesRequest schema
    * Returns 201 with job details
    */
-  router.post('/api/resources/:id/detect-entities',
+  router.post('/resources/:id/detect-entities',
     validateRequestBody('DetectEntitiesRequest'),
     async (c) => {
       const { id } = c.req.param();

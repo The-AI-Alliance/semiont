@@ -20,13 +20,13 @@ type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryR
 
 export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
   /**
-   * GET /api/resources/:resourceId/annotations/:annotationId/history
+   * GET /resources/:resourceId/annotations/:annotationId/history
    *
    * Get full event history for a specific annotation (highlight or reference)
    * Requires authentication
    * Returns annotation events sorted by sequence number
    */
-  router.get('/api/resources/:resourceId/annotations/:annotationId/history', async (c) => {
+  router.get('/resources/:resourceId/annotations/:annotationId/history', async (c) => {
     const { resourceId, annotationId } = c.req.param();
     const config = c.get('config');
 

@@ -18,13 +18,13 @@ type DiscoverContextResponse = components['schemas']['DiscoverContextResponse'];
 
 export function registerDiscoverContext(router: ResourcesRouterType) {
   /**
-   * POST /api/resources/:id/discover-context
+   * POST /resources/:id/discover-context
    *
    * Discover related resources and concepts
    * Requires authentication
    * Validates request body against DiscoverContextRequest schema
    */
-  router.post('/api/resources/:id/discover-context',
+  router.post('/resources/:id/discover-context',
     validateRequestBody('DiscoverContextRequest'),
     async (c) => {
       const { id } = c.req.param();

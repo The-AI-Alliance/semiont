@@ -22,7 +22,7 @@ type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextRespo
 
 export function registerGetResourceLLMContext(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/:id/llm-context
+   * GET /resources/:id/llm-context
    *
    * Get resource with full context for LLM processing
    * Includes related resources, annotations, graph representation, and optional summary
@@ -33,7 +33,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
    * - includeContent: true/false (default: true)
    * - includeSummary: true/false (default: false)
    */
-  router.get('/api/resources/:id/llm-context', async (c) => {
+  router.get('/resources/:id/llm-context', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
     const config = c.get('config');

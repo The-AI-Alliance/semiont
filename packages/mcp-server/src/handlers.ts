@@ -134,17 +134,6 @@ export async function handleResolveAnnotation(client: SemiontApiClient, args: an
   };
 }
 
-export async function handleCreateResourceFromAnnotation(_client: SemiontApiClient, _args: any) {
-  // NOTE: This endpoint may have changed - /api/annotations/{id}/create-resource doesn't exist
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Error: The create-resource-from-annotation endpoint needs to be updated.`,
-    }],
-    isError: true,
-  };
-}
-
 export async function handleGenerateResourceFromAnnotation(client: SemiontApiClient, args: any) {
   const data = await client.generateResourceFromAnnotation(args?.selectionId, {
     resourceId: args?.resourceId,

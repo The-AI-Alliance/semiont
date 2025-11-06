@@ -20,13 +20,13 @@ type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
 
 export function registerListResources(router: ResourcesRouterType) {
   /**
-   * GET /api/resources
+   * GET /resources
    *
    * List all resources with optional filters
-   * Query params: offset, limit, entityType, archived, search
+   * Query params: offset, limit, entityType, archived, q
    * Requires authentication
    */
-  router.get('/api/resources', async (c) => {
+  router.get('/resources', async (c) => {
     // Parse query parameters with defaults and coercion
     const query = c.req.query();
     const config = c.get('config');
@@ -45,13 +45,13 @@ export function registerListResources(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Invalid value for archived parameter. Must be "true" or "false".' });
     }
 
-    const search = query.search;
+    const q = query.q;
 
     const repStore = new FilesystemRepresentationStore({ basePath });
 
     // Read from Layer 3 projection storage
     let filteredDocs = await ResourceQueryService.listResources({
-      search,
+      search: q,
       archived,
     }, config);
 
@@ -66,7 +66,7 @@ export function registerListResources(router: ResourcesRouterType) {
     // Optionally add content snippet for search results
     // For search results, include content preview for better UX
     let formattedDocs;
-    if (search) {
+    if (q) {
       formattedDocs = await Promise.all(
         paginatedDocs.map(async (doc) => {
           try {

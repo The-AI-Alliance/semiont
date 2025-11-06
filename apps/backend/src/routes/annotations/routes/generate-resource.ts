@@ -9,7 +9,7 @@
  *
  * Non-SSE endpoint for creating resource generation jobs
  * For real-time progress updates, use the SSE equivalent:
- * POST /api/annotations/{id}/generate-resource-stream
+ * POST /annotations/{id}/generate-resource-stream
  */
 
 import { HTTPException } from 'hono/http-exception';
@@ -28,17 +28,17 @@ type CreateJobResponse = components['schemas']['CreateJobResponse'];
 
 export function registerGenerateResource(router: AnnotationsRouterType) {
   /**
-   * POST /api/annotations/:id/generate-resource
+   * POST /annotations/:id/generate-resource
    *
    * Create an async resource generation job from an annotation.
    * Use GET /api/jobs/{jobId} to poll status.
-   * For real-time updates, use POST /api/annotations/{id}/generate-resource-stream instead.
+   * For real-time updates, use POST /annotations/{id}/generate-resource-stream instead.
    *
    * Requires authentication
    * Validates request body against GenerateResourceRequest schema
    * Returns 201 with job details
    */
-  router.post('/api/annotations/:id/generate-resource',
+  router.post('/annotations/:id/generate-resource',
     validateRequestBody('GenerateResourceRequest'),
     async (c) => {
       const { id: annotationId } = c.req.param();

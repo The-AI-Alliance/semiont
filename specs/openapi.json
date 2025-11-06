@@ -3065,7 +3065,9 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["semiont"]
+              "enum": [
+                "semiont"
+              ]
             },
             "description": "Optional view parameter. If set to 'semiont', redirects to frontend viewer."
           }
@@ -3140,37 +3142,6 @@
                 }
               }
             }
-          },
-          "404": {
-            "description": "Resource not found"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete Resource",
-        "description": "Delete a resource",
-        "tags": [
-          "W3C URIs"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Resource ID"
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Resource deleted successfully"
           },
           "404": {
             "description": "Resource not found"
@@ -3988,51 +3959,6 @@
         }
       }
     },
-    "/api/resources/from-annotation/{annotationId}": {
-      "post": {
-        "summary": "Create Resource from Annotation",
-        "description": "Create a new resource from an annotation/reference",
-        "tags": [
-          "Resources"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "annotationId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateResourceFromAnnotationRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Resource created from annotation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateResourceResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/resources/{id}/detect-annotations-stream": {
       "post": {
         "summary": "Detect Annotations with Progress (SSE)",
@@ -4740,207 +4666,6 @@
         }
       }
     },
-    "/api/annotations/{id}/create-resource": {
-      "post": {
-        "summary": "Create Resource from Annotation",
-        "description": "Create a new resource from an annotation and resolve the annotation to it",
-        "tags": [
-          "Selections"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateResourceRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Resource created and annotation resolved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateResourceFromAnnotationResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/annotations/{id}/context": {
-      "get": {
-        "summary": "Get Annotation Context",
-        "description": "Get the context around an annotation",
-        "tags": [
-          "Selections"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0,
-              "maximum": 5000,
-              "default": 100
-            },
-            "required": false,
-            "name": "contextBefore",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0,
-              "maximum": 5000,
-              "default": 100
-            },
-            "required": false,
-            "name": "contextAfter",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Annotation context",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnnotationContextResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/annotations/{id}/summary": {
-      "get": {
-        "summary": "Get Contextual Summary",
-        "description": "Get an AI-generated summary of the annotation in context",
-        "tags": [
-          "Selections"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Contextual summary",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContextualSummaryResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/annotations/{id}/generate-resource-stream": {
-      "post": {
-        "summary": "Generate Resource from Reference (SSE)",
-        "description": "Stream real-time resource generation progress via Server-Sent Events",
-        "tags": [
-          "Selections",
-          "Resources",
-          "Real-time",
-          "AI"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "description": "Reference/annotation ID"
-            },
-            "required": true,
-            "description": "Reference/annotation ID",
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateResourceRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "SSE stream opened successfully",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "$ref": "#/components/schemas/EventStreamResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "404": {
-            "description": "Reference not found"
-          }
-        }
-      }
-    },
     "/resources/{resourceId}/annotations/{annotationId}": {
       "get": {
         "summary": "Get Annotation",
@@ -5152,6 +4877,70 @@
         }
       }
     },
+    "/resources/{resourceId}/annotations/{annotationId}/generate-resource-stream": {
+      "post": {
+        "summary": "Generate Resource (SSE Stream)",
+        "description": "Stream real-time resource generation progress via Server-Sent Events",
+        "tags": [
+          "Resources",
+          "Annotations",
+          "Real-time",
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "resourceId",
+            "in": "path",
+            "description": "Resource ID"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "annotationId",
+            "in": "path",
+            "description": "Annotation ID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateResourceStreamRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream opened successfully",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventStreamResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
     "/resources/{resourceId}/annotations/{annotationId}/history": {
       "get": {
         "summary": "Get Annotation History",
@@ -5349,6 +5138,107 @@
           },
           "404": {
             "description": "Job not found"
+          }
+        }
+      }
+    },
+    "/annotations/{id}/generate-resource": {
+      "post": {
+        "summary": "Create Resource from Annotation",
+        "description": "Create a new resource from an annotation and resolve the annotation to it",
+        "tags": [
+          "Selections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateResourceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Resource created and annotation resolved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateResourceFromAnnotationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/annotations/{id}/generate-resource-stream": {
+      "post": {
+        "summary": "Generate Resource from Reference (SSE)",
+        "description": "Stream real-time resource generation progress via Server-Sent Events",
+        "tags": [
+          "Selections",
+          "Resources",
+          "Real-time",
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Reference/annotation ID"
+            },
+            "required": true,
+            "description": "Reference/annotation ID",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateResourceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream opened successfully",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventStreamResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Reference not found"
           }
         }
       }

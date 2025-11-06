@@ -37,14 +37,14 @@ interface GenerationProgress {
 
 export function registerGenerateResourceStream(router: AnnotationsRouterType) {
   /**
-   * POST /api/annotations/:id/generate-resource-stream
+   * POST /annotations/:id/generate-resource-stream
    *
    * Generate a resource from an annotation with streaming progress updates via SSE
    * Requires authentication
    * Validates request body against GenerateResourceStreamRequest schema
    * Returns SSE stream with progress updates
    */
-  router.post('/api/annotations/:id/generate-resource-stream',
+  router.post('/annotations/:id/generate-resource-stream',
     validateRequestBody('GenerateResourceStreamRequest'),
     async (c) => {
       const { id: referenceId } = c.req.param();

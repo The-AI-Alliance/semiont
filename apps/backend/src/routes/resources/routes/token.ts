@@ -170,12 +170,12 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
   );
 
   /**
-   * POST /api/resources/:id/clone-with-token
+   * POST /resources/:id/clone-with-token
    *
    * Generate a temporary token for cloning a resource
    * Requires authentication
    */
-  router.post('/api/resources/:id/clone-with-token', async (c) => {
+  router.post('/resources/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
     const config = c.get('config');
     const basePath = config.services.filesystem!.path;
