@@ -72,14 +72,20 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
         console.log(`  [${i}] id: ${a.id}`);
       });
 
-      // Compare by ID
+      // Compare by ID - need to match full annotation URI
+      const expectedAnnotationUri = `${config.services.backend!.publicURL}/annotations/${referenceId}`;
+      console.log(`[GenerateResource] Looking for annotation URI: ${expectedAnnotationUri}`);
+
       const reference = projection.annotations.find((a: any) =>
-        a.id === referenceId && a.motivation === 'linking'
+        a.id === expectedAnnotationUri && a.motivation === 'linking'
       );
 
       if (!reference) {
+        console.log(`[GenerateResource] Reference not found. Expected: ${expectedAnnotationUri}`);
+        console.log(`[GenerateResource] Available IDs:`, projection.annotations.map((a: any) => a.id));
         throw new HTTPException(404, { message: `Reference ${referenceId} not found in resource ${resourceIdParam}` });
       }
+      console.log(`[GenerateResource] Found matching annotation:`, reference.id);
 
       // Create a generation job (this decouples event emission from HTTP client)
       const jobQueue = getJobQueue();
@@ -88,7 +94,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
         type: 'generation',
         status: 'pending',
         userId: userId(user.id),
-        referenceId,
+        referenceId: reference.id, // Use full annotation URI, not just the ID segment
         sourceResourceId: resourceId(resourceIdParam),
         title: body.title,
         prompt: body.prompt,
@@ -115,7 +121,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
           await stream.writeSSE({
             data: JSON.stringify({
               status: 'started',
-              referenceId,
+              referenceId: reference.id,
               resourceName,
               percentage: 0,
               message: 'Starting...'
@@ -157,7 +163,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
                     await stream.writeSSE({
                       data: JSON.stringify({
                         status: statusMap[progress.stage],
-                        referenceId,
+                        referenceId: reference.id,
                         resourceName,
                         percentage: progress.percentage,
                         message: progress.message || `${progress.stage}...`
@@ -182,7 +188,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
               await stream.writeSSE({
                 data: JSON.stringify({
                   status: 'complete',
-                  referenceId,
+                  referenceId: reference.id,
                   resourceName: result?.resourceName || resourceName,
                   resourceId: result?.resourceId,
                   sourceResourceId: resourceId(resourceIdParam),
@@ -199,7 +205,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
               await stream.writeSSE({
                 data: JSON.stringify({
                   status: 'error',
-                  referenceId,
+                  referenceId: reference.id,
                   percentage: 0,
                   message: currentJob.error || 'Generation failed'
                 } as GenerationProgress),
@@ -219,7 +225,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
             await stream.writeSSE({
               data: JSON.stringify({
                 status: 'error',
-                referenceId,
+                referenceId: reference.id,
                 percentage: 0,
                 message: error instanceof Error ? error.message : 'Generation failed'
               } as GenerationProgress),
