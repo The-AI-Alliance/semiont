@@ -12,7 +12,6 @@ import { registerDetectEntities } from './routes/detect-entities';
 import { registerGetResourceLLMContext } from './routes/llm-context';
 import { registerGetAnnotationLLMContext } from './routes/annotation-llm-context';
 import { registerGetReferencedBy } from './routes/referenced-by';
-import { registerDiscoverContext } from './routes/discover-context';
 import { registerTokenRoutes } from './routes/token';
 import { registerGetResourceAnnotations } from './routes/get-annotations';
 import { registerGetEvents } from './routes/events';
@@ -47,7 +46,6 @@ registerDetectEntities(resourcesRouter);  // POST /resources/:id/detect-entities
 registerGetResourceLLMContext(resourcesRouter);  // GET /resources/:id/llm-context
 registerGetAnnotationLLMContext(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/llm-context
 registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by
-registerDiscoverContext(resourcesRouter);  // POST /resources/:id/discover-context
 
 // Annotation routes (nested under resources) - must be before generic :id route
 registerGetResourceAnnotations(resourcesRouter);  // GET /resources/:id/annotations (list)

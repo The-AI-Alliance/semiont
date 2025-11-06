@@ -38,7 +38,7 @@ export function ResolvedReferencePopup({
   const t = useTranslations('ResolvedReferencePopup');
   const router = useRouter();
   const [showJsonLd, setShowJsonLd] = useState(false);
-  const resolvedDocumentId = getBodySource(annotation.body); // returns string | null
+  const resolvedResourceUri = getBodySource(annotation.body); // ResourceUri | null
 
   // Calculate centered position when showing JSON-LD
   const displayPosition = useMemo(() => {
@@ -54,15 +54,21 @@ export function ResolvedReferencePopup({
   }, [showJsonLd, position]);
 
   const handleViewDocument = () => {
-    if (resolvedDocumentId) {
-      router.push(`/know/resource/${encodeURIComponent(resolvedDocumentId)}`);
+    if (resolvedResourceUri) {
+      // Extract resource ID from ResourceUri: "http://localhost:4000/resources/{id}" -> "{id}"
+      // Safe: ResourceUri from API always contains /resources/
+      const resourceId = resolvedResourceUri.split('/resources/')[1]!;
+      router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
       onClose();
     }
   };
 
   const handleOpenInNewTab = () => {
-    if (resolvedDocumentId) {
-      window.open(`/know/resource/${encodeURIComponent(resolvedDocumentId)}`, '_blank');
+    if (resolvedResourceUri) {
+      // Extract resource ID from ResourceUri: "http://localhost:4000/resources/{id}" -> "{id}"
+      // Safe: ResourceUri from API always contains /resources/
+      const resourceId = resolvedResourceUri.split('/resources/')[1]!;
+      window.open(`/know/resource/${encodeURIComponent(resourceId)}`, '_blank');
     }
   };
 
