@@ -77,7 +77,7 @@ vi.mock('../../config/environment-loader', () => ({
 
 let app: Hono<{ Variables: Variables }>;
 
-describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscriptions', () => {
+describe('POST /resources/:id/detect-annotations-stream - Event Store Subscriptions', () => {
   let authToken: string;
   let testUser: User;
   // @ts-ignore - used in multiple test blocks
@@ -171,7 +171,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
   });
 
   it('should return SSE stream with proper content-type', async () => {
-    const response = await app.request('/api/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -192,7 +192,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
     const jobsBefore = await jobQueue.listJobs();
     const countBefore = jobsBefore.length;
 
-    await app.request('/api/resources/test-resource/detect-annotations-stream', {
+    await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -212,7 +212,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
   });
 
   it('should send detection-started event immediately', async () => {
-    const response = await app.request('/api/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -229,7 +229,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
   });
 
   it('should require authentication', async () => {
-    const response = await app.request('/api/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -243,7 +243,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
   });
 
   it('should validate request body has entityTypes', async () => {
-    const response = await app.request('/api/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -260,7 +260,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
     const { ResourceQueryService } = await import('../../services/resource-queries');
     vi.mocked(ResourceQueryService.getResourceMetadata).mockResolvedValueOnce(null);
 
-    const response = await app.request('/api/resources/nonexistent-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/nonexistent-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
