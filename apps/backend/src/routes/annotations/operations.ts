@@ -22,8 +22,6 @@ import {
   resourceId as makeResourceId,
 } from '@semiont/core';
 
-import { registerGenerateResourceStream } from './routes/generate-resource-stream';
-import { registerGenerateResource } from './routes/generate-resource';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { getEntityTypes } from '@semiont/api-client';
@@ -222,8 +220,3 @@ Entity types: ${annotationEntityTypes.join(', ')}`;
 
   return c.json(response);
 });
-
-// Register SSE route for resource generation progress
-registerGenerateResourceStream(operationsRouter);
-// Register non-SSE route for job-based resource generation
-registerGenerateResource(operationsRouter);

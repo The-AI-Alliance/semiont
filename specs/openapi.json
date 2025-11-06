@@ -1921,29 +1921,26 @@
       "GenerateResourceFromAnnotationRequest": {
         "type": "object",
         "properties": {
-          "resourceId": {
-            "type": "string",
-            "description": "ID of the resource containing the annotation"
-          },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional name for the generated resource"
           },
           "entityTypes": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Entity types for the generated resource"
           },
           "prompt": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional AI prompt for generation"
           },
           "language": {
-            "type": "string"
+            "type": "string",
+            "description": "Language code (e.g., 'en', 'es')"
           }
-        },
-        "required": [
-          "resourceId"
-        ]
+        }
       },
       "GenerateResourceStreamRequest": {
         "type": "object",
@@ -4951,12 +4948,11 @@
     },
     "/resources/{resourceId}/annotations/{annotationId}/generate-resource": {
       "post": {
-        "summary": "Generate Resource (Job)",
-        "description": "Create an async resource generation job from an annotation. Use GET /api/jobs/{jobId} to poll status.",
+        "summary": "Generate Resource from Annotation",
+        "description": "Synchronously generate a new resource from an annotation using AI. Returns the created resource and updated annotation immediately.",
         "tags": [
           "Resources",
           "Annotations",
-          "Jobs",
           "AI"
         ],
         "security": [
@@ -4988,18 +4984,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GenerateResourceRequest"
+                "$ref": "#/components/schemas/GenerateResourceFromAnnotationRequest"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Job created successfully",
+            "description": "Resource generated and annotation linked successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AsyncJobResponse"
+                  "$ref": "#/components/schemas/GenerateResourceFromAnnotationResponse"
                 }
               }
             }
@@ -5274,107 +5270,6 @@
           },
           "404": {
             "description": "Job not found"
-          }
-        }
-      }
-    },
-    "/annotations/{id}/generate-resource": {
-      "post": {
-        "summary": "Create Resource from Annotation",
-        "description": "Create a new resource from an annotation and resolve the annotation to it",
-        "tags": [
-          "Selections"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateResourceRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Resource created and annotation resolved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateResourceFromAnnotationResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/annotations/{id}/generate-resource-stream": {
-      "post": {
-        "summary": "Generate Resource from Reference (SSE)",
-        "description": "Stream real-time resource generation progress via Server-Sent Events",
-        "tags": [
-          "Selections",
-          "Resources",
-          "Real-time",
-          "AI"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "description": "Reference/annotation ID"
-            },
-            "required": true,
-            "description": "Reference/annotation ID",
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateResourceRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "SSE stream opened successfully",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "$ref": "#/components/schemas/EventStreamResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "404": {
-            "description": "Reference not found"
           }
         }
       }

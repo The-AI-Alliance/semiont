@@ -136,8 +136,8 @@ export async function handleResolveAnnotation(client: SemiontApiClient, args: an
 
 export async function handleGenerateResourceFromAnnotation(client: SemiontApiClient, args: any) {
   const data = await client.generateResourceFromAnnotation(args?.selectionId, {
-    resourceId: args?.resourceId,
-    title: args?.title,
+    name: args?.name,
+    entityTypes: args?.entityTypes,
     prompt: args?.prompt,
     language: args?.language,
   });
@@ -145,7 +145,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
   return {
     content: [{
       type: 'text' as const,
-      text: `Resource generation job created:\nJob ID: ${data.jobId}\nStatus: ${data.status}\nType: ${data.type}\nCreated: ${data.created}`,
+      text: `Resource generated successfully:\nResource ID: ${data.resource['@id']}\nResource Name: ${data.resource.name}\nAnnotation linked: ${data.annotation.id}`,
     }],
   };
 }

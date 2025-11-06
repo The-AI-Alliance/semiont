@@ -72,7 +72,7 @@ describe('useGenerationProgress', () => {
     });
 
     expect(mockFetchEventSource).toHaveBeenCalledWith(
-      'http://localhost:4000/annotations/test-ref-id/generate-resource-stream',
+      'http://localhost:4000/resources/test-resource/annotations/test-ref-id/generate-resource-stream',
       expect.objectContaining({
         method: 'POST',
         headers: {
@@ -80,7 +80,6 @@ describe('useGenerationProgress', () => {
           'Authorization': 'Bearer test-token'
         },
         body: JSON.stringify({
-          resourceId: 'test-resource',
           title: 'Test Resource',
           prompt: 'Create a resource about testing',
           language: 'en'
@@ -333,7 +332,7 @@ describe('useGenerationProgress', () => {
     );
 
     expect(mockFetchEventSource).toHaveBeenCalledWith(
-      'http://localhost:4000/annotations/test-ref-id/generate-resource-stream',
+      'http://localhost:4000/resources/test-resource/annotations/test-ref-id/generate-resource-stream',
       expect.any(Object)
     );
   });
@@ -386,7 +385,6 @@ describe('useGenerationProgress', () => {
       expect.any(String),
       expect.objectContaining({
         body: JSON.stringify({
-          resourceId: 'test-resource',
           language: 'es'
         })
       })
