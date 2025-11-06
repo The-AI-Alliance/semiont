@@ -3205,6 +3205,142 @@
         }
       }
     },
+    "/api/annotations/{id}/context": {
+      "get": {
+        "summary": "Get Annotation Context",
+        "description": "Get the text context around an annotation with configurable before/after window",
+        "tags": [
+          "Annotations",
+          "Context"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Annotation ID"
+          },
+          {
+            "name": "resourceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource ID containing the annotation"
+          },
+          {
+            "name": "contextBefore",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "default": 100
+            },
+            "description": "Number of characters before the selection"
+          },
+          {
+            "name": "contextAfter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "default": 100
+            },
+            "description": "Number of characters after the selection"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annotation context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationContextResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}/summary": {
+      "get": {
+        "summary": "Get Annotation Summary",
+        "description": "Get an AI-generated summary of the annotation in context",
+        "tags": [
+          "Annotations",
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Annotation ID"
+          },
+          {
+            "name": "resourceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource ID containing the annotation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AI-generated annotation summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextualSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing resourceId parameter"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health Check",
