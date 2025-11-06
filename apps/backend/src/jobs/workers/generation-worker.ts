@@ -175,13 +175,16 @@ export class GenerationWorker extends JobWorker {
       },
     }];
 
+    // Extract annotation ID from full URI (format: http://host/annotations/{id})
+    const annotationIdSegment = job.referenceId.split('/').pop()!;
+
     await eventStore.appendEvent({
       type: 'annotation.body.updated',
       resourceId: job.sourceResourceId,
       userId: job.userId,
       version: 1,
       payload: {
-        annotationId: annotationId(job.referenceId),
+        annotationId: annotationId(annotationIdSegment),
         operations,
       },
     });

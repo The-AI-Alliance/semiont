@@ -1945,9 +1945,6 @@
       "GenerateResourceStreamRequest": {
         "type": "object",
         "properties": {
-          "resourceId": {
-            "type": "string"
-          },
           "title": {
             "type": "string",
             "description": "Custom title for generated resource"
@@ -1960,10 +1957,7 @@
             "type": "string",
             "description": "Language locale for generated content (e.g., \"es\", \"fr\", \"ja\")"
           }
-        },
-        "required": [
-          "resourceId"
-        ]
+        }
       },
       "ResolveAnnotationRequest": {
         "type": "object",

@@ -284,7 +284,9 @@ function ResourceView({
   // Add resource to open tabs when it loads
   useEffect(() => {
     if (resource && rUri) {
-      addResource(rUri, resource.name);
+      // Extract ID segment from full URI (format: http://host/resources/{id})
+      const resourceIdSegment = rUri.split('/').pop() || '';
+      addResource(resourceIdSegment, resource.name);
       localStorage.setItem('lastViewedDocumentId', rUri);
     }
   }, [resource, rUri, addResource]);
