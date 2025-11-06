@@ -6,7 +6,7 @@
  * Keys use semantic names (not URL paths) and are properly typed with 'as const'
  */
 
-import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
+import type { ResourceUri, AnnotationUri, ResourceAnnotationUri } from '@semiont/api-client';
 
 export const QUERY_KEYS = {
   users: {
@@ -14,6 +14,7 @@ export const QUERY_KEYS = {
   },
 
   health: () => ['health'] as const,
+  status: () => ['status'] as const,
 
   resources: {
     all: (limit?: number, archived?: boolean) => ['resources', { limit, archived }] as const,
@@ -27,6 +28,7 @@ export const QUERY_KEYS = {
 
   annotations: {
     detail: (aUri: AnnotationUri) => ['annotations', aUri] as const,
+    history: (aUri: ResourceAnnotationUri) => ['annotations', aUri, 'history'] as const,
   },
 
   entityTypes: {

@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useResources, useAnnotations, useEntityTypes } from '@/lib/api-hooks';
+import { useResources, useAnnotations, useEntityTypes, useApiClient } from '@/lib/api-hooks';
 import { buttonStyles } from '@/lib/button-styles';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
@@ -52,6 +52,7 @@ function ComposeDocumentContent() {
   const resources = useResources();
   const annotations = useAnnotations();
   const entityTypesAPI = useEntityTypes();
+  const client = useApiClient();
 
   // Fetch available entity types
   const { data: entityTypesData } = entityTypesAPI.list.useQuery();
@@ -83,7 +84,7 @@ function ComposeDocumentContent() {
       
       // Handle clone mode - data loaded via React Query
       if (mode === 'clone' && cloneData) {
-        if (cloneData.sourceResource && session?.backendToken) {
+        if (cloneData.sourceResource && client) {
           setIsClone(true);
           setCloneToken(tokenFromUrl || null);
           setNewDocName(cloneData.sourceResource.name);
@@ -95,19 +96,11 @@ function ComposeDocumentContent() {
             // Get the primary representation's mediaType from the source resource
             const mediaType = getPrimaryMediaType(cloneData.sourceResource) || 'text/plain';
 
-            const contentResponse = await fetch(rUri, {
-              headers: {
-                'Authorization': `Bearer ${session.backendToken}`,
-                'Accept': mediaType,
-              },
+            // Use api-client for W3C content negotiation
+            const content = await client.getResourceRepresentation(rUri as ResourceUri, {
+              accept: mediaType,
             });
-
-            if (contentResponse.ok) {
-              const content = await contentResponse.text();
-              setNewDocContent(content);
-            } else {
-              showError('Failed to load document representation');
-            }
+            setNewDocContent(content);
           } catch (error) {
             console.error('Failed to fetch representation:', error);
             showError('Failed to load document representation');

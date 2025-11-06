@@ -22,7 +22,7 @@ import { QUERY_KEYS } from './query-keys';
  * Get authenticated API client instance
  * Returns null if not authenticated
  */
-function useApiClient(): SemiontApiClient | null {
+export function useApiClient(): SemiontApiClient | null {
   const { data: session } = useSession();
 
   if (!session?.backendToken) {
@@ -177,6 +177,15 @@ export function useAnnotations() {
         }),
     },
 
+    history: {
+      useQuery: (annotationUri: ResourceAnnotationUri) =>
+        useQuery({
+          queryKey: QUERY_KEYS.annotations.history(annotationUri),
+          queryFn: () => client!.getAnnotationHistory(annotationUri),
+          enabled: !!client && !!annotationUri,
+        }),
+    },
+
     create: {
       useMutation: () =>
         useMutation({
@@ -272,6 +281,16 @@ export function useEntityTypes() {
           },
         }),
     },
+
+    addBulk: {
+      useMutation: () =>
+        useMutation({
+          mutationFn: (types: string[]) => client!.addEntityTypesBulk(types),
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.entityTypes.all() });
+          },
+        }),
+    },
   };
 }
 
@@ -361,11 +380,22 @@ export function useAuth() {
           mutationFn: () => client!.generateMCPToken(),
         }),
     },
+
+    logout: {
+      useMutation: () =>
+        useMutation({
+          mutationFn: () => client!.logout(),
+          onSuccess: () => {
+            // Clear all queries on logout
+            queryClient.clear();
+          },
+        }),
+    },
   };
 }
 
 /**
- * Health check
+ * Health check and system status
  */
 export function useHealth() {
   const client = useApiClient();
@@ -377,6 +407,16 @@ export function useHealth() {
           queryKey: QUERY_KEYS.health(),
           queryFn: () => client!.healthCheck(),
           enabled: !!client,
+        }),
+    },
+
+    status: {
+      useQuery: (refetchInterval?: number) =>
+        useQuery({
+          queryKey: QUERY_KEYS.status(),
+          queryFn: () => client!.getStatus(),
+          enabled: !!client,
+          ...(refetchInterval && { refetchInterval }),
         }),
     },
   };

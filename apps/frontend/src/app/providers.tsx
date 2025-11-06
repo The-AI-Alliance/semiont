@@ -12,7 +12,7 @@ import { dispatch401Error, dispatch403Error } from '@/lib/auth-events';
 import { APIError } from '@semiont/api-client';
 
 // Create a minimal QueryClient with error handlers and retry logic
-// Authentication is now handled per-request via useAuthenticatedAPI hook
+// Authentication is handled by @semiont/api-client via lib/api-hooks
 function createQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
@@ -39,7 +39,7 @@ function createQueryClient() {
     }),
     defaultOptions: {
       queries: {
-        // No default queryFn - each query provides its own via useAuthenticatedAPI
+        // No default queryFn - each query uses @semiont/api-client via lib/api-hooks
         retry: (failureCount, error) => {
           // Don't retry on client errors (4xx) - these won't fix themselves
           if (error instanceof APIError) {

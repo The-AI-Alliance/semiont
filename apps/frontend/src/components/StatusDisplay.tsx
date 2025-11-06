@@ -1,20 +1,13 @@
 'use client';
 
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
+import { useHealth } from '@/lib/api-hooks';
 
 export function StatusDisplay() {
   const { isFullyAuthenticated, isAuthenticated, hasValidBackendToken } = useAuth();
-  const { fetchAPI } = useAuthenticatedAPI();
-
-  const status = useQuery({
-    queryKey: ['/api/status'],
-    queryFn: () => fetchAPI('/api/status'),
-    enabled: isFullyAuthenticated,
-    refetchInterval: 30000, // Poll every 30 seconds
-  });
+  const health = useHealth();
+  const status = health.status.useQuery(30000); // Poll every 30 seconds
 
   const getStatusContent = () => {
     // Check for users who are logged in but missing backend token (old sessions)

@@ -7,7 +7,7 @@ import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { useResources, useEntityTypes } from '@/lib/api-hooks';
+import { useResources, useEntityTypes, useApiClient } from '@/lib/api-hooks';
 import { QUERY_KEYS } from '@/lib/query-keys';
 import { ResourceViewer } from '@/components/resource/ResourceViewer';
 import { ResourceTagsInline } from '@/components/ResourceTagsInline';
@@ -22,7 +22,6 @@ import { useOpenResources } from '@/contexts/OpenResourcesContext';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useToast } from '@/components/Toast';
-import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import { useDetectionProgress } from '@/hooks/useDetectionProgress';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { useGenerationProgress } from '@/hooks/useGenerationProgress';
@@ -173,7 +172,7 @@ function ResourceView({
   const { addResource } = useOpenResources();
   const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight, deleteAnnotation, addComment } = useResourceAnnotations();
   const { showError, showSuccess } = useToast();
-  const { fetchAPI } = useAuthenticatedAPI();
+  const client = useApiClient();
   const queryClient = useQueryClient();
 
   // Fetch document content separately
@@ -182,24 +181,17 @@ function ResourceView({
 
   useEffect(() => {
     const loadContent = async () => {
+      if (!client) return;
+
       try {
         // Get the primary representation's mediaType from the resource
         const mediaType = getPrimaryMediaType(resource) || 'text/plain';
 
-        // rUri is already a full URI (http://localhost:4000/resources/{id})
-        // Use it directly with Accept header for content negotiation
-        const response = await fetch(rUri, {
-          headers: {
-            'Authorization': `Bearer ${session?.backendToken}`,
-            'Accept': mediaType,
-          },
+        // Use api-client for W3C content negotiation
+        const text = await client.getResourceRepresentation(rUri as ResourceUri, {
+          accept: mediaType,
         });
-        if (response.ok) {
-          const text = await response.text();
-          setContent(text);
-        } else {
-          showError('Failed to load resource representation');
-        }
+        setContent(text);
       } catch (error) {
         console.error('Failed to fetch representation:', error);
         showError('Failed to load resource representation');
@@ -208,7 +200,7 @@ function ResourceView({
       }
     };
     loadContent();
-  }, [rUri, resource, session?.backendToken, showError]);
+  }, [rUri, resource, client, showError]);
 
   // Fetch all annotations with a single request
   const { data: annotationsData, refetch: refetchAnnotations } = resources.annotations.useQuery(rUri);
@@ -293,13 +285,18 @@ function ResourceView({
 
   // Handle wiki link clicks - memoized
   const handleWikiLinkClick = useCallback(async (pageName: string) => {
+    if (!client) return;
+
     try {
-      // Search for the resource using authenticated API
-      const response = await fetchAPI(`/api/resources/search?q=${encodeURIComponent(pageName)}&limit=1`) as any;
+      // Search for the resource using api-client
+      const response = await client.listResources(1, undefined, pageName);
 
       if (response.resources?.length > 0 && response.resources[0]) {
         // Resource found - navigate to it
-        router.push(`/know/resource/${encodeURIComponent(response.resources[0].id)}`);
+        const foundResourceId = getResourceId(response.resources[0]);
+        if (foundResourceId) {
+          router.push(`/know/resource/${encodeURIComponent(foundResourceId)}`);
+        }
       } else {
         // Resource not found - offer to create it
         if (confirm(`Resource "${pageName}" not found. Would you like to create it?`)) {
@@ -319,7 +316,7 @@ function ResourceView({
       console.error('Failed to navigate to wiki link:', err);
       showError('Failed to navigate to wiki link');
     }
-  }, [router, createDocMutation, showError, fetchAPI]);
+  }, [router, createDocMutation, showError, client]);
 
   // Update document tags - memoized
   const updateDocumentTags = useCallback(async (tags: string[]) => {
