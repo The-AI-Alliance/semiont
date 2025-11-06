@@ -466,12 +466,13 @@ describe('SemiontApiClient - Archive Operations', () => {
   describe('System Status', () => {
     test('should get system status', async () => {
       const mockResponse = {
+        status: 'healthy',
         version: '1.0.0',
         features: {
-          oauth: true,
-          entityDetection: true,
+          semanticContent: 'enabled',
+          collaboration: 'enabled',
+          rbac: 'disabled',
         },
-        authenticated: true,
       };
 
       vi.mocked(mockKy.get).mockReturnValue({
@@ -481,7 +482,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       const result = await client.getStatus();
 
       expect(result.version).toBe('1.0.0');
-      expect(result.features.oauth).toBe(true);
+      expect(result.features.semanticContent).toBe('enabled');
       expect(mockKy.get).toHaveBeenCalledWith(`${baseUrl}/api/status`);
     });
   });
@@ -489,8 +490,8 @@ describe('SemiontApiClient - Archive Operations', () => {
   describe('Entity Types Bulk Operations', () => {
     test('should add multiple entity types at once', async () => {
       const mockResponse = {
+        success: true,
         entityTypes: ['concept', 'person', 'organization'],
-        added: 3,
       };
 
       vi.mocked(mockKy.post).mockReturnValue({
@@ -499,7 +500,7 @@ describe('SemiontApiClient - Archive Operations', () => {
 
       const result = await client.addEntityTypesBulk(['concept', 'person', 'organization']);
 
-      expect(result.added).toBe(3);
+      expect(result.success).toBe(true);
       expect(result.entityTypes).toHaveLength(3);
       expect(mockKy.post).toHaveBeenCalledWith(
         `${baseUrl}/api/entity-types/bulk`,
@@ -558,6 +559,72 @@ describe('SemiontApiClient - Archive Operations', () => {
       expect(result.annotationId).toBe('ann-123');
       expect(result.events[0].metadata.sequenceNumber).toBe(1);
       expect(mockKy.get).toHaveBeenCalledWith(`${annotationUri}/history`);
+    });
+  });
+
+  describe('W3C Content Negotiation', () => {
+    test('should get resource representation with default accept header', async () => {
+      const mockText = '# Hello World\n\nThis is markdown content.';
+
+      vi.mocked(mockKy.get).mockReturnValue({
+        text: vi.fn().mockResolvedValue(mockText),
+      } as any);
+
+      const result = await client.getResourceRepresentation(testResourceUri);
+
+      expect(result).toBe(mockText);
+      expect(mockKy.get).toHaveBeenCalledWith(
+        testResourceUri,
+        expect.objectContaining({
+          headers: {
+            Accept: 'text/plain',
+          },
+        })
+      );
+    });
+
+    test('should get resource representation with custom accept header', async () => {
+      const mockMarkdown = '# Title\n\n## Section\n\nContent here.';
+
+      vi.mocked(mockKy.get).mockReturnValue({
+        text: vi.fn().mockResolvedValue(mockMarkdown),
+      } as any);
+
+      const result = await client.getResourceRepresentation(testResourceUri, {
+        accept: 'text/markdown',
+      });
+
+      expect(result).toBe(mockMarkdown);
+      expect(mockKy.get).toHaveBeenCalledWith(
+        testResourceUri,
+        expect.objectContaining({
+          headers: {
+            Accept: 'text/markdown',
+          },
+        })
+      );
+    });
+
+    test('should get resource representation with various media types', async () => {
+      const mockHtml = '<html><body><h1>Hello</h1></body></html>';
+
+      vi.mocked(mockKy.get).mockReturnValue({
+        text: vi.fn().mockResolvedValue(mockHtml),
+      } as any);
+
+      const result = await client.getResourceRepresentation(testResourceUri, {
+        accept: 'text/html',
+      });
+
+      expect(result).toBe(mockHtml);
+      expect(mockKy.get).toHaveBeenCalledWith(
+        testResourceUri,
+        expect.objectContaining({
+          headers: {
+            Accept: 'text/html',
+          },
+        })
+      );
     });
   });
 });

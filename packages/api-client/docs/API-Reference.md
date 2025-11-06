@@ -93,12 +93,40 @@ console.log('Resource ID:', result.resource.id);
 
 ### `getResource(uri: ResourceUri)`
 
-Retrieve a resource by URI.
+Retrieve a resource by URI (returns JSON metadata).
 
 ```typescript
 const result = await client.getResource(resourceUri);
 console.log('Resource:', result.resource);
 ```
+
+### `getResourceRepresentation(uri: ResourceUri, options?)`
+
+Get resource representation using W3C content negotiation. Returns raw text content instead of JSON metadata.
+
+```typescript
+// Get markdown representation
+const markdown = await client.getResourceRepresentation(resourceUri, {
+  accept: 'text/markdown'
+});
+
+// Get plain text representation (default)
+const text = await client.getResourceRepresentation(resourceUri);
+
+// Get HTML representation
+const html = await client.getResourceRepresentation(resourceUri, {
+  accept: 'text/html'
+});
+```
+
+**Options:**
+- `accept` (optional): Media type for content negotiation (default: `'text/plain'`)
+
+**Use Cases:**
+- Getting raw content for editing
+- Cloning resource content
+- Exporting to different formats
+- Client-side rendering of content
 
 ### `listResources(limit?: number, archived?: boolean)`
 

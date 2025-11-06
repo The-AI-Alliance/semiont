@@ -46,6 +46,7 @@ console.log('Created:', result.resource.id);
 - ✅ **Type-Safe** - Full TypeScript types for all operations
 - ✅ **Framework-Agnostic** - Works in Node.js, browser, or any JS environment
 - ✅ **Built-in Auth** - Local, Google OAuth, refresh tokens
+- ✅ **W3C Content Negotiation** - Get raw representations with Accept headers
 - ✅ **W3C Utilities** - Annotation and selector helpers
 - ✅ **Event Utilities** - Formatting and display helpers
 - ✅ **Automatic Retry** - Configurable retry with exponential backoff

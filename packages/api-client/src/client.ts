@@ -171,6 +171,35 @@ export class SemiontApiClient {
     return this.http.get(resourceUri).json();
   }
 
+  /**
+   * Get resource representation using W3C content negotiation
+   * Returns raw response body (text) instead of JSON metadata
+   *
+   * @param resourceUri - Full resource URI
+   * @param options - Options including Accept header for content negotiation
+   * @returns Raw text representation of the resource
+   *
+   * @example
+   * ```typescript
+   * // Get markdown representation
+   * const markdown = await client.getResourceRepresentation(rUri, { accept: 'text/markdown' });
+   *
+   * // Get plain text representation
+   * const text = await client.getResourceRepresentation(rUri, { accept: 'text/plain' });
+   * ```
+   */
+  async getResourceRepresentation(
+    resourceUri: ResourceUri,
+    options?: { accept?: string }
+  ): Promise<string> {
+    // resourceUri is already a full URI, use it directly with Accept header
+    return this.http.get(resourceUri, {
+      headers: {
+        Accept: options?.accept || 'text/plain'
+      }
+    }).text();
+  }
+
   async listResources(
     limit?: number,
     archived?: boolean,

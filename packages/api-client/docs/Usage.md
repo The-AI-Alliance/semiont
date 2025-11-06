@@ -104,7 +104,7 @@ console.log('Created resource:', rUri);
 ### Reading Resources
 
 ```typescript
-// Get full resource with annotations
+// Get full resource with annotations (JSON metadata)
 const resource = await client.getResource(rUri);
 
 console.log('Name:', resource.resource.name);
@@ -112,6 +112,36 @@ console.log('Format:', resource.resource.format);
 console.log('Annotations:', resource.annotations.length);
 console.log('Entity References:', resource.entityReferences.length);
 ```
+
+### Getting Resource Representations
+
+Use W3C content negotiation to get the raw text content of a resource in different formats:
+
+```typescript
+// Get markdown content for editing
+const markdown = await client.getResourceRepresentation(rUri, {
+  accept: 'text/markdown'
+});
+
+console.log('Content:', markdown);
+// Output: "# Introduction\n\nThis paper explores..."
+
+// Get plain text representation
+const plainText = await client.getResourceRepresentation(rUri, {
+  accept: 'text/plain'
+});
+
+// Get HTML representation (if available)
+const html = await client.getResourceRepresentation(rUri, {
+  accept: 'text/html'
+});
+```
+
+**Use Cases:**
+- Load content for editing in a text editor
+- Clone resource content to create new documents
+- Export content to different formats
+- Display raw content in the UI
 
 ### Updating Resources
 
