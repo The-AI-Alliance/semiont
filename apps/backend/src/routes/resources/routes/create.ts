@@ -29,13 +29,13 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export function registerCreateResource(router: ResourcesRouterType) {
   /**
-   * POST /api/resources
+   * POST /resources
    *
    * Create a new resource
    * Requires authentication
    * Validates request body against CreateResourceRequest schema
    */
-  router.post('/api/resources',
+  router.post('/resources',
     validateRequestBody('CreateResourceRequest'),
     async (c) => {
       const body = c.get('validatedBody') as CreateResourceRequest;

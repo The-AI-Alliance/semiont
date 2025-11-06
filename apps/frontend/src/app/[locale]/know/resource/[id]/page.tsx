@@ -77,8 +77,12 @@ function ResourceErrorState({
 // Main page component with proper early returns
 export default function KnowledgeResourcePage() {
   const params = useParams();
-  const rUri = resourceUri(params?.id as string);
-  const { data: session } = useSession();
+
+  // URI construction strategy:
+  // 1. Browser URLs use clean IDs: /know/resource/{uuid}
+  // 2. API calls require full URIs: http://localhost:4000/resources/{uuid}
+  // 3. Construct initial URI from URL param to fetch the resource
+  const initialUri = resourceUri(`${NEXT_PUBLIC_API_URL}/resources/${params?.id}`);
 
   // API hooks
   const resources = useResources();
@@ -91,7 +95,7 @@ export default function KnowledgeResourcePage() {
     isError,
     error,
     refetch: refetchDocument
-  } = resources.get.useQuery(rUri) as {
+  } = resources.get.useQuery(initialUri) as {
     data: { resource: SemiontResource } | undefined;
     isLoading: boolean;
     isError: boolean;
@@ -102,9 +106,9 @@ export default function KnowledgeResourcePage() {
   // Log error for debugging
   useEffect(() => {
     if (isError && !isLoading) {
-      console.error(`[Document] Failed to load resource ${rUri}:`, error);
+      console.error(`[Document] Failed to load resource ${initialUri}:`, error);
     }
-  }, [isError, isLoading, rUri, error]);
+  }, [isError, isLoading, initialUri, error]);
 
   // Early return: Loading state
   if (isLoading) {
@@ -123,10 +127,25 @@ export default function KnowledgeResourcePage() {
 
   const resource = docData.resource;
 
+  // Use the canonical URI from the API response (resource['@id'])
+  // This is the W3C-compliant URI that should match our constructed URI
+  const canonicalUri = resourceUri(resource['@id']);
+
+  // Assert that our constructed URI matches the canonical URI from the API
+  // This ensures the frontend's URL construction matches the backend's URI generation
+  if (canonicalUri !== initialUri) {
+    console.warn(
+      `[Document] URI mismatch:\n` +
+      `  Constructed: ${initialUri}\n` +
+      `  Canonical:   ${canonicalUri}\n` +
+      `This may indicate environment misconfiguration.`
+    );
+  }
+
   return (
     <ResourceView
       resource={resource}
-      rUri={rUri}
+      rUri={canonicalUri}
       refetchDocument={refetchDocument}
       resources={resources}
       entityTypesAPI={entityTypesAPI}
@@ -167,7 +186,9 @@ function ResourceView({
         // Get the primary representation's mediaType from the resource
         const mediaType = getPrimaryMediaType(resource) || 'text/plain';
 
-        const response = await fetch(`${NEXT_PUBLIC_API_URL}/resources/${encodeURIComponent(rUri)}`, {
+        // rUri is already a full URI (http://localhost:4000/resources/{id})
+        // Use it directly with Accept header for content negotiation
+        const response = await fetch(rUri, {
           headers: {
             'Authorization': `Bearer ${session?.backendToken}`,
             'Accept': mediaType,

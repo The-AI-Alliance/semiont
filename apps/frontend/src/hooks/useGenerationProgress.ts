@@ -61,18 +61,20 @@ export function useGenerationProgress({
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    // Build SSE URL by appending operation to the annotation URI
-    const url = `${referenceId}/generate-resource-stream`;
-
-    // Extract resource ID from ResourceUri for the request body
-    const resourceIdSegment = resourceId.split('/').pop();
-    if (!resourceIdSegment) {
-      onError?.('Invalid resource URI');
+    // Extract annotation ID from flat annotation URI
+    // referenceId format: http://localhost:4000/annotations/{id}
+    const annotationIdSegment = referenceId.split('/').pop();
+    if (!annotationIdSegment) {
+      onError?.('Invalid annotation URI');
       setIsGenerating(false);
       return;
     }
 
-    const requestBody = { resourceId: resourceIdSegment, ...options };
+    // Build nested SSE URL using resource context
+    // New nested format: http://localhost:4000/resources/{rid}/annotations/{aid}/generate-resource-stream
+    const url = `${resourceId}/annotations/${annotationIdSegment}/generate-resource-stream`;
+
+    const requestBody = { ...options };
     console.log('[useGenerationProgress] Sending request to:', url);
     console.log('[useGenerationProgress] Request body:', requestBody);
 

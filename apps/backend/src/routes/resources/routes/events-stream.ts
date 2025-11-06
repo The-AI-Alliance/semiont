@@ -31,13 +31,13 @@ import { resourceUri } from '@semiont/api-client';
 
 export function registerGetEventStream(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/:id/events/stream
+   * GET /resources/:id/events/stream
    *
    * Open a Server-Sent Events stream to receive real-time resource events
    * Requires authentication
    * Returns text/event-stream
    */
-  router.get('/api/resources/:id/events/stream', async (c) => {
+  router.get('/resources/:id/events/stream', async (c) => {
     const { id } = c.req.param();
     const config = c.get('config');
 

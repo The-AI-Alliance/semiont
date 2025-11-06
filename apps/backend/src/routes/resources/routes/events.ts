@@ -36,7 +36,7 @@ function isValidEventType(type: string): type is typeof eventTypes[number] {
 
 export function registerGetEvents(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/:id/events
+   * GET /resources/:id/events
    *
    * Get full event history for a resource with optional filtering
    * Requires authentication
@@ -46,7 +46,7 @@ export function registerGetEvents(router: ResourcesRouterType) {
    * - userId: User ID filter (optional)
    * - limit: Maximum number of events (1-1000, default: 100)
    */
-  router.get('/api/resources/:id/events', async (c) => {
+  router.get('/resources/:id/events', async (c) => {
     const { id } = c.req.param();
     const queryParams = c.req.query();
     const config = c.get('config');

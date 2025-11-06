@@ -20,13 +20,13 @@ type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
 export function registerGetReferencedBy(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/:id/referenced-by
+   * GET /resources/:id/referenced-by
    *
    * Get resources that reference this resource
    * Requires authentication
    * Returns list of resources with references to this resource
    */
-  router.get('/api/resources/:id/referenced-by', async (c) => {
+  router.get('/resources/:id/referenced-by', async (c) => {
     const { id } = c.req.param();
     const config = c.get('config');
     const graphDb = await getGraphDatabase(config);

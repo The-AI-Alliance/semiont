@@ -17,13 +17,13 @@ type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
 export function registerGetResourceAnnotations(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/:id/annotations
+   * GET /resources/:id/annotations
    *
    * Get all annotations (both highlights and references) in a resource
    * Requires authentication
    * Uses Layer 3 projections
    */
-  router.get('/api/resources/:id/annotations', async (c) => {
+  router.get('/resources/:id/annotations', async (c) => {
     const { id } = c.req.param();
     const config = c.get('config');
 

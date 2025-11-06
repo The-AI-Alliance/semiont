@@ -11,8 +11,9 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getPrimaryMediaType } from '@semiont/api-client';
+import { getPrimaryMediaType, getResourceId } from '@semiont/api-client';
 import { resourceUri, resourceAnnotationUri, type ResourceUri, type ResourceAnnotationUri } from '@semiont/api-client';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
@@ -89,11 +90,8 @@ function ComposeDocumentContent() {
 
           // Fetch representation separately
           try {
-            const idString = cloneData.sourceResource.id as string;
-            if (!idString) {
-              throw new Error('Source resource has no ID');
-            }
-            const rUri = resourceUri(idString);
+            // Use the canonical URI from the resource descriptor
+            const rUri = resourceUri(cloneData.sourceResource['@id']);
             // Get the primary representation's mediaType from the source resource
             const mediaType = getPrimaryMediaType(cloneData.sourceResource) || 'text/plain';
 
@@ -148,11 +146,11 @@ function ComposeDocumentContent() {
           archiveOriginal: archiveOriginal
         });
 
-        const resId = response.resource?.id as string;
-        if (!resId) {
-          throw new Error('No resource ID returned from server');
+        if (!response.resource?.['@id']) {
+          throw new Error('No resource URI returned from server');
         }
-        rUri = resourceUri(resId);
+        // Use the canonical URI from the API response
+        rUri = resourceUri(response.resource['@id']);
       } else {
         // Create a new resource with entity types
         const response = await createDocMutation.mutateAsync({
@@ -163,11 +161,11 @@ function ComposeDocumentContent() {
           creationMethod: 'ui'
         });
 
-        const resId = response.resource?.id as string;
-        if (!resId) {
-          throw new Error('No resource ID returned from server');
+        if (!response.resource?.['@id']) {
+          throw new Error('No resource URI returned from server');
         }
-        rUri = resourceUri(resId);
+        // Use the canonical URI from the API response
+        rUri = resourceUri(response.resource['@id']);
 
         // If this is a reference completion, update the reference to point to the new resource
         if (isReferenceCompletion && referenceId && rUri && sourceDocumentId) {
@@ -198,8 +196,13 @@ function ComposeDocumentContent() {
         }
       }
 
-      // Navigate to the new resource (will add to tabs on page load)
-      router.push(`/know/resource/${encodeURIComponent(rUri)}`);
+      // Navigate to the new resource using just the ID (browser URLs use clean IDs)
+      // Use getResourceId to extract the ID from the canonical URI
+      const resourceId = getResourceId({ '@id': rUri } as any);
+      if (!resourceId) {
+        throw new Error('Failed to extract resource ID from URI');
+      }
+      router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
     } catch (error) {
       console.error('Failed to save document:', error);
       showError('Failed to save document. Please try again.');

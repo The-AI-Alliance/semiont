@@ -60,11 +60,11 @@ export function ResourceViewer({
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
   // Extract resource URI once at the top - required for all annotation operations
-  const idString = resource.id as string;
-  if (!idString) {
-    throw new Error('Resource has no ID');
+  // Resources have @id (canonical URI), not id
+  if (!resource['@id']) {
+    throw new Error('Resource has no @id');
   }
-  const rUri = resourceUri(idString);
+  const rUri = resourceUri(resource['@id']);
 
   // Use prop directly instead of internal state
   const activeView = curationMode ? 'annotate' : 'browse';
