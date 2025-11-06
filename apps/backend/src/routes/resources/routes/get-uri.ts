@@ -16,13 +16,14 @@ import { EventQuery } from '../../../events/query/event-query';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/environment-loader';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getPrimaryMediaType } from '../../../utils/resource-helpers';
 import { ResourceQueryService } from '../../../services/resource-queries';
+import { resourceId } from '@semiont/core';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
+type Annotation = components['schemas']['Annotation'];
 
 export function registerGetResourceUri(router: ResourcesRouterType) {
   /**
@@ -35,6 +36,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
    */
   router.get('/resources/:id', async (c) => {
     const { id } = c.req.param();
+    const config = c.get('config');
 
     // Check for explicit view=semiont query parameter
     const view = c.req.query('view');
@@ -47,14 +49,14 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
 
     // Check Accept header for content negotiation
     const acceptHeader = c.req.header('Accept') || 'application/ld+json';
-    const basePath = getFilesystemConfig().path;
+    const basePath = config.services.filesystem!.path;
 
     // If requesting raw representation (text/plain, text/markdown, etc.)
     if (acceptHeader.includes('text/') || acceptHeader.includes('application/pdf')) {
       const repStore = new FilesystemRepresentationStore({ basePath });
 
       // Get resource metadata from Layer 3
-      const resource = await ResourceQueryService.getResourceMetadata(id);
+      const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
@@ -82,17 +84,17 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     // Otherwise, return JSON-LD metadata (default)
 
     // Read from Layer 2/3: Event store builds/loads projection
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( config);
     const query = new EventQuery(eventStore.storage);
-    const events = await query.getResourceEvents(id);
-    const stored = await eventStore.projector.projectResource(events, id);
+    const events = await query.getResourceEvents(resourceId(id));
+    const stored = await eventStore.projector.projectResource(events, resourceId(id));
 
     if (!stored) {
       throw new HTTPException(404, { message: 'Resource not found' });
     }
 
     const annotations = stored.annotations.annotations;
-    const entityReferences = annotations.filter(a => {
+    const entityReferences = annotations.filter((a: Annotation) => {
       if (a.motivation !== 'linking') return false;
       const entityTypes = getEntityTypes({ body: a.body });
       return entityTypes.length > 0;

@@ -2,25 +2,36 @@
  * Annotation Query Service
  *
  * Optimized read path for resource annotations
- * - Single-resource queries use Layer 3 (filesystem projections)
- * - Graph queries use Layer 4 (graph database)
+ * - Single-resource queries use filesystem projections
+ * - Graph queries use graph database
  */
 
 import { createProjectionManager } from './storage-service';
 import { getGraphDatabase } from '../graph/factory';
 import type { components } from '@semiont/api-client';
-import type { ResourceAnnotations } from '@semiont/core';
-import { getFilesystemConfig } from '../config/environment-loader';
+import type {
+  ResourceAnnotations,
+  ResourceId,
+  AnnotationId,
+  AnnotationCategory,
+  EnvironmentConfig,
+  GraphConnection,
+  GraphPath,
+} from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class AnnotationQueryService {
   /**
    * Get resource annotations from Layer 3 (fast path)
-   * Falls back to GraphDB if projection missing
+   * Throws if projection missing
    */
-  static async getResourceAnnotations(resourceId: string): Promise<ResourceAnnotations> {
-    const basePath = getFilesystemConfig().path;
+  static async getResourceAnnotations(resourceId: ResourceId, config: EnvironmentConfig): Promise<ResourceAnnotations> {
+    if (!config.services?.filesystem?.path) {
+      throw new Error('Filesystem path not found in configuration');
+    }
+    const basePath = config.services.filesystem.path;
     const projectionManager = createProjectionManager(basePath);
     const stored = await projectionManager.get(resourceId);
 
@@ -35,8 +46,8 @@ export class AnnotationQueryService {
    * Get all annotations
    * @returns Array of all annotation objects
    */
-  static async getAllAnnotations(resourceId: string): Promise<Annotation[]> {
-    const annotations = await this.getResourceAnnotations(resourceId);
+  static async getAllAnnotations(resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation[]> {
+    const annotations = await this.getResourceAnnotations(resourceId, config);
     return annotations.annotations;
   }
 
@@ -44,12 +55,12 @@ export class AnnotationQueryService {
    * Get resource stats (version info)
    * @returns Version and timestamp info for the annotations
    */
-  static async getResourceStats(resourceId: string): Promise<{
-    resourceId: string;
+  static async getResourceStats(resourceId: ResourceId, config: EnvironmentConfig): Promise<{
+    resourceId: ResourceId;
     version: number;
     updatedAt: string;
   }> {
-    const annotations = await this.getResourceAnnotations(resourceId);
+    const annotations = await this.getResourceAnnotations(resourceId, config);
     return {
       resourceId: annotations.resourceId,
       version: annotations.version,
@@ -60,8 +71,11 @@ export class AnnotationQueryService {
   /**
    * Check if resource exists in Layer 3
    */
-  static async resourceExists(resourceId: string): Promise<boolean> {
-    const basePath = getFilesystemConfig().path;
+  static async resourceExists(resourceId: ResourceId, config: EnvironmentConfig): Promise<boolean> {
+    if (!config.services?.filesystem?.path) {
+      throw new Error('Filesystem path not found in configuration');
+    }
+    const basePath = config.services.filesystem.path;
     const projectionManager = createProjectionManager(basePath);
     return await projectionManager.exists(resourceId);
   }
@@ -70,26 +84,23 @@ export class AnnotationQueryService {
    * Get a single annotation by ID
    * O(1) lookup using resource ID to access Layer 3 projection
    */
-  static async getAnnotation(annotationId: string, resourceId: string): Promise<Annotation | null> {
-    const annotations = await this.getResourceAnnotations(resourceId);
-    return annotations.annotations.find(a => a.id === annotationId) || null;
+  static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation | null> {
+    const annotations = await this.getResourceAnnotations(resourceId, config);
+    return annotations.annotations.find((a: Annotation) => a.id === annotationId) || null;
   }
 
   /**
    * List annotations with optional filtering
-   * @param filters - Optional filters like resourceId
+   * @param filters - Optional filters like resourceId and type
+   * @throws Error if resourceId not provided (cross-resource queries not supported in Layer 3)
    */
-  static async listAnnotations(filters?: { resourceId?: string }): Promise<any> {
-    if (filters?.resourceId) {
-      // If filtering by resource ID, use Layer 3 directly
-      return await this.getAllAnnotations(filters.resourceId);
+  static async listAnnotations(filters: { resourceId?: ResourceId; type?: AnnotationCategory } | undefined, config: EnvironmentConfig): Promise<Annotation[]> {
+    if (!filters?.resourceId) {
+      throw new Error('resourceId is required for annotation listing - cross-resource queries not supported in Layer 3');
     }
 
-    // For now, fall back to graph for cross-resource listing
-    // TODO: Implement by scanning all projections
-    const graphDb = await getGraphDatabase();
-    const result = await graphDb.listAnnotations(filters || {});
-    return result.annotations || [];
+    // Use Layer 3 directly
+    return await this.getAllAnnotations(filters.resourceId, config);
   }
 
   // ========================================
@@ -100,8 +111,8 @@ export class AnnotationQueryService {
    * Get all resources referencing this resource (backlinks)
    * Requires graph traversal - must use Layer 4
    */
-  static async getBacklinks(resourceId: string): Promise<any[]> {
-    const graphDb = await getGraphDatabase();
+  static async getBacklinks(resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation[]> {
+    const graphDb = await getGraphDatabase(config);
     return await graphDb.getResourceReferencedBy(resourceId);
   }
 
@@ -110,11 +121,12 @@ export class AnnotationQueryService {
    * Requires graph traversal - must use Layer 4
    */
   static async findPath(
-    fromResourceId: string,
-    toResourceId: string,
+    fromResourceId: ResourceId,
+    toResourceId: ResourceId,
+    config: EnvironmentConfig,
     maxDepth?: number
-  ): Promise<any[]> {
-    const graphDb = await getGraphDatabase();
+  ): Promise<GraphPath[]> {
+    const graphDb = await getGraphDatabase(config);
     return await graphDb.findPath(fromResourceId, toResourceId, maxDepth);
   }
 
@@ -122,8 +134,8 @@ export class AnnotationQueryService {
    * Get resource connections (graph edges)
    * Requires graph traversal - must use Layer 4
    */
-  static async getResourceConnections(resourceId: string): Promise<any[]> {
-    const graphDb = await getGraphDatabase();
+  static async getResourceConnections(resourceId: ResourceId, config: EnvironmentConfig): Promise<GraphConnection[]> {
+    const graphDb = await getGraphDatabase(config);
     return await graphDb.getResourceConnections(resourceId);
   }
 
@@ -131,8 +143,8 @@ export class AnnotationQueryService {
    * Search resources by name (cross-resource query)
    * Requires full-text search - must use Layer 4
    */
-  static async searchResources(query: string, limit?: number): Promise<any[]> {
-    const graphDb = await getGraphDatabase();
+  static async searchResources(query: string, config: EnvironmentConfig, limit?: number): Promise<ResourceDescriptor[]> {
+    const graphDb = await getGraphDatabase(config);
     return await graphDb.searchResources(query, limit);
   }
 }

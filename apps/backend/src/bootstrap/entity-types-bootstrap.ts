@@ -8,9 +8,9 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { getFilesystemConfig } from '../config/environment-loader';
 import { createEventStore } from '../services/event-store-service';
 import { DEFAULT_ENTITY_TYPES } from '../graph/tag-collections';
+import { userId, type EnvironmentConfig } from '@semiont/core';
 
 // Singleton flag to ensure bootstrap only runs once per process
 let bootstrapCompleted = false;
@@ -19,14 +19,13 @@ let bootstrapCompleted = false;
  * Bootstrap entity types projection if it doesn't exist.
  * Uses a system user ID (00000000-0000-0000-0000-000000000000) for bootstrap events.
  */
-export async function bootstrapEntityTypes(): Promise<void> {
+export async function bootstrapEntityTypes(config: EnvironmentConfig): Promise<void> {
   if (bootstrapCompleted) {
     console.log('[EntityTypesBootstrap] Already completed, skipping');
     return;
   }
 
-  const config = getFilesystemConfig();
-  const basePath = config.path;
+  const basePath = config.services.filesystem!.path;
   const projectionPath = path.join(
     basePath,
     'projections',
@@ -50,9 +49,9 @@ export async function bootstrapEntityTypes(): Promise<void> {
   console.log('[EntityTypesBootstrap] Projection does not exist, bootstrapping with DEFAULT_ENTITY_TYPES');
 
   // System user ID for bootstrap events
-  const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+  const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
 
-  const eventStore = await createEventStore(basePath);
+  const eventStore = await createEventStore( config);
 
   // Emit one entitytype.added event for each default entity type
   for (const entityType of DEFAULT_ENTITY_TYPES) {

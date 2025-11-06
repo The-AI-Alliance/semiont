@@ -5,37 +5,32 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { components } from '@semiont/api-client';
-import type { ResourceCreatedEvent } from '@semiont/core';
+import type { ResourceCreatedEvent, EnvironmentConfig } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 import { createEventStore } from '../../services/event-store-service';
 import { AnnotationQueryService } from '../../services/annotation-queries';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { mkdir, rm } from 'fs/promises';
+import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
 describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => {
-  let testBasePath: string;
-  const testDocId = 'test-doc-integration-' + Date.now();
-  const testDocId2 = 'test-doc-target-' + Date.now();
+  let testEnv: TestEnvironmentConfig;
+  let config: EnvironmentConfig;
+  const testDocId = resourceId('test-doc-integration-' + Date.now());
+  const testDocId2 = resourceId('test-doc-target-' + Date.now());
 
   beforeAll(async () => {
-    // Create temp dir ONCE for entire test suite
-    testBasePath = join(tmpdir(), `semiont-integration-${Date.now()}`);
-    await mkdir(testBasePath, { recursive: true });
+    testEnv = await setupTestEnvironment();
+    config = testEnv.config;
 
-    // Set environment variable so getFilesystemConfig() returns our test path
-    // This ensures all services (AnnotationQueryService, etc.) use the SAME path
-    process.env.SEMIONT_TEST_FS_PATH = testBasePath;
-
-    // Create test resources in event store with explicit path
-    const eventStore = await createEventStore(testBasePath);
+    // Create test resources in event store
+    const eventStore = await createEventStore( testEnv.config);
 
     const docEvent1: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
       type: 'resource.created',
       resourceId: testDocId,
-      userId: 'test-user',
+      userId: userId('test-user'),
       version: 1,
       payload: {
         name: 'Test Resource for CRUD',
@@ -48,7 +43,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     const docEvent2: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
       type: 'resource.created',
       resourceId: testDocId2,
-      userId: 'test-user',
+      userId: userId('test-user'),
       version: 1,
       payload: {
         name: 'Test Target Resource',
@@ -66,19 +61,13 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   });
 
   afterAll(async () => {
-    // Clean up environment variable
-    delete process.env.SEMIONT_TEST_FS_PATH;
-
-    // Clean up temp directory
-    if (testBasePath) {
-      await rm(testBasePath, { recursive: true, force: true });
-    }
+    await testEnv.cleanup();
   });
 
   describe('Create Annotation with Entity Tags (stub reference)', () => {
     it('should create annotation with empty body array', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(testBasePath);
+      const eventStore = await createEventStore( testEnv.config);
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -106,7 +95,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation },
       });
@@ -115,7 +104,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify annotation was created
-      const retrieved = await AnnotationQueryService.getAnnotation(annotation.id, testDocId);
+      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(annotation.id), testDocId, config);
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe(annotation.id);
       expect(Array.isArray(retrieved?.body)).toBe(true);
@@ -124,7 +113,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
     it('should create annotation with TextualBody entity tags', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(testBasePath);
+      const eventStore = await createEventStore( testEnv.config);
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -161,7 +150,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation },
       });
@@ -170,7 +159,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify annotation was created with entity tags
-      const retrieved = await AnnotationQueryService.getAnnotation(annotation.id, testDocId);
+      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(annotation.id), testDocId, config);
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe(annotation.id);
       expect(Array.isArray(retrieved?.body)).toBe(true);
@@ -196,10 +185,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Resolve Annotation (add SpecificResource)', () => {
     it('should add SpecificResource to existing entity tags', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(testBasePath);
+      const eventStore = await createEventStore( testEnv.config);
 
       // Create stub annotation with entity tags
-      const stubId = 'test-resolve-stub-' + Date.now();
+      const stubId = annotationId('test-resolve-stub-' + Date.now());
       const stubAnnotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -232,7 +221,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation: stubAnnotation },
       });
@@ -244,7 +233,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.body.updated',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: {
           annotationId: stubId,
@@ -263,7 +252,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify resolved annotation has both entity tags and SpecificResource
-      const resolved = await AnnotationQueryService.getAnnotation(stubId, testDocId);
+      const resolved = await AnnotationQueryService.getAnnotation(stubId, testDocId, config);
       expect(resolved).toBeDefined();
       expect(Array.isArray(resolved?.body)).toBe(true);
 
@@ -296,10 +285,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
     it('should resolve annotation with empty body to have only SpecificResource', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(testBasePath);
+      const eventStore = await createEventStore( testEnv.config);
 
       // Create stub with empty body
-      const stubId = 'test-resolve-empty-' + Date.now();
+      const stubId = annotationId('test-resolve-empty-' + Date.now());
       const stubAnnotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -326,7 +315,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation: stubAnnotation },
       });
@@ -337,7 +326,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.body.updated',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: {
           annotationId: stubId,
@@ -355,7 +344,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify has only SpecificResource
-      const resolved = await AnnotationQueryService.getAnnotation(stubId, testDocId);
+      const resolved = await AnnotationQueryService.getAnnotation(stubId, testDocId, config);
       expect(resolved).toBeDefined();
       expect(Array.isArray(resolved?.body)).toBe(true);
 
@@ -368,7 +357,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   describe('List Annotations with Multi-Body', () => {
     it('should list all annotations with proper body structure', async () => {
-      const annotations = await AnnotationQueryService.getAllAnnotations(testDocId);
+      const annotations = await AnnotationQueryService.getAllAnnotations(testDocId, config);
 
       expect(Array.isArray(annotations)).toBe(true);
       expect(annotations.length).toBeGreaterThan(0);
@@ -407,10 +396,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Delete Annotation', () => {
     it('should delete annotation with multi-body', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(testBasePath);
+      const eventStore = await createEventStore( testEnv.config);
 
       // Create annotation
-      const deleteId = 'test-delete-' + Date.now();
+      const deleteId = annotationId('test-delete-' + Date.now());
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -448,7 +437,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation },
       });
@@ -456,14 +445,14 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify it exists
-      const beforeDelete = await AnnotationQueryService.getAnnotation(deleteId, testDocId);
+      const beforeDelete = await AnnotationQueryService.getAnnotation(deleteId, testDocId, config);
       expect(beforeDelete).toBeDefined();
 
       // Delete
       await eventStore.appendEvent({
         type: 'annotation.removed',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: {
           annotationId: deleteId,
@@ -473,7 +462,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify it's deleted
-      const afterDelete = await AnnotationQueryService.getAnnotation(deleteId, testDocId);
+      const afterDelete = await AnnotationQueryService.getAnnotation(deleteId, testDocId, config);
       expect(afterDelete).toBeNull();
     });
   });
@@ -481,7 +470,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('W3C Compliance in Integration', () => {
     it('should maintain W3C structure through event sourcing', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(testBasePath);
+      const eventStore = await createEventStore( testEnv.config);
 
       const w3cId = 'test-w3c-' + Date.now();
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
@@ -509,14 +498,14 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: testDocId,
-        userId: 'test-user',
+        userId: userId('test-user'),
         version: 1,
         payload: { annotation },
       });
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      const retrieved = await AnnotationQueryService.getAnnotation(w3cId, testDocId);
+      const retrieved = await AnnotationQueryService.getAnnotation(annotationId(w3cId), testDocId, config);
 
       // Verify W3C required fields
       expect(retrieved).toBeDefined();

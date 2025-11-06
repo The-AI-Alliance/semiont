@@ -66,10 +66,9 @@ export class AWSPlatform extends Platform {
     dataStack?: string;
     appStack?: string;
   } {
-    // Load the environment configuration to get AWS settings
-    const { loadEnvironmentConfig } = require('../../core/environment-loader.js');
-    const envConfig = loadEnvironmentConfig(service.environment);
-    
+    // Get environment configuration from service
+    const envConfig = service.environmentConfig;
+
     // Get AWS config from environment file, fallback to env vars
     return {
       region: envConfig.aws?.region || process.env.AWS_REGION || 'us-east-1',

@@ -5,13 +5,11 @@ import { useRouter } from '@/i18n/routing';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
-import type { components } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes } from '@semiont/api-client';
+import type { components, ResourceUri, AnnotationUri } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri, resourceAnnotationUri } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { annotations } from '@/lib/api/annotations';
-import { getResourceId } from '@/lib/resource-helpers';
-import { extractResourceId } from '@/lib/resource-utils';
+import { useAnnotations } from '@/lib/api-hooks';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
@@ -26,7 +24,7 @@ interface Props {
   onRefetchAnnotations?: () => void;
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
-  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
+  onGenerateDocument?: (referenceId: AnnotationUri, options: { title: string; prompt?: string }) => void;
   generatingReferenceId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
   onCommentHover?: (commentId: string | null) => void;
@@ -61,11 +59,12 @@ export function ResourceViewer({
   const router = useRouter();
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
-  // Extract resource ID once at the top - required for all annotation operations
-  const resourceId = getResourceId(resource);
-  if (!resourceId) {
-    throw new Error('Cannot extract resource ID from resource');
+  // Extract resource URI once at the top - required for all annotation operations
+  // Resources have @id (canonical URI), not id
+  if (!resource['@id']) {
+    throw new Error('Resource has no @id');
   }
+  const rUri = resourceUri(resource['@id']);
 
   // Use prop directly instead of internal state
   const activeView = curationMode ? 'annotate' : 'browse';
@@ -79,7 +78,8 @@ export function ResourceViewer({
   } = useResourceAnnotations();
 
   // API mutations
-  const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
+  const annotationsAPI = useAnnotations();
+  const updateAnnotationBodyMutation = annotationsAPI.updateBody.useMutation();
 
   // Annotation popup state
   const [selectedText, setSelectedText] = useState<string>('');
@@ -117,10 +117,9 @@ export function ResourceViewer({
       }
     } else if (annotation.motivation === 'linking' && annotation.body && isBodyResolved(annotation.body)) {
       // If it's a resolved reference, navigate to it (in both curation and browse mode)
-      const bodySource = getBodySource(annotation.body);
+      const bodySource = getBodySource(annotation.body); // returns ResourceUri | null
       if (bodySource) {
-        const shortId = extractResourceId(bodySource);
-        router.push(`/know/resource/${encodeURIComponent(shortId)}`);
+        router.push(`/know/resource/${encodeURIComponent(bodySource)}`);
       }
     } else if (curationMode) {
       // For other annotations in Annotate mode, show the popup
@@ -205,7 +204,7 @@ export function ResourceViewer({
         // If already a highlight, do nothing
       } else {
         // Create new highlight
-        await addHighlight(resourceId, selectedText, annotationPosition);
+        await addHighlight(rUri, selectedText, annotationPosition);
       }
 
       // Refetch annotations to update UI
@@ -219,7 +218,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create highlight:', err);
     }
-  }, [annotationPosition, selectedText, editingAnnotation, resourceId, addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, editingAnnotation, rUri, addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
   
   // Handle creating references - memoized
   const handleCreateReference = useCallback(async (targetDocId?: string, entityType?: string, referenceType?: string) => {
@@ -232,12 +231,12 @@ export function ResourceViewer({
           await convertHighlightToReference(highlights, (editingAnnotation as Annotation).id, targetDocId, entityType, referenceType);
         } else {
           // Update existing reference
-          await deleteAnnotation((editingAnnotation as Annotation).id, resourceId);
-          await addReference(resourceId, selectedText, annotationPosition, targetDocId, entityType, referenceType);
+          await deleteAnnotation((editingAnnotation as Annotation).id, rUri);
+          await addReference(rUri, selectedText, annotationPosition, targetDocId, entityType, referenceType);
         }
       } else {
         // Create new reference
-        const newId = await addReference(resourceId, selectedText, annotationPosition, targetDocId, entityType, referenceType);
+        const newId = await addReference(rUri, selectedText, annotationPosition, targetDocId, entityType, referenceType);
       }
 
       // Refetch annotations to update UI
@@ -251,7 +250,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create reference:', err);
     }
-  }, [annotationPosition, selectedText, editingAnnotation, resourceId, addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, editingAnnotation, rUri, addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
 
   // Handle creating assessments - memoized
   const handleCreateAssessment = useCallback(async () => {
@@ -259,7 +258,7 @@ export function ResourceViewer({
 
     try {
       // Create new assessment
-      await addAssessment(resourceId, selectedText, annotationPosition);
+      await addAssessment(rUri, selectedText, annotationPosition);
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -272,7 +271,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create assessment:', err);
     }
-  }, [annotationPosition, selectedText, resourceId, addAssessment, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, rUri, addAssessment, onRefetchAnnotations]);
 
   const handleCreateComment = useCallback(() => {
     if (!annotationPosition || !selectedText) return;
@@ -296,7 +295,7 @@ export function ResourceViewer({
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
     try {
-      await deleteAnnotation(id, resourceId);
+      await deleteAnnotation(id, rUri);
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -361,13 +360,13 @@ export function ResourceViewer({
         const position = { start, end };
 
         // Directly create highlight
-        addHighlight(resourceId, text, position);
+        addHighlight(rUri, text, position);
 
         // Clear annotation to remove sparkle animation
         selection.removeAllRanges();
       }
     }
-  }, [curationMode, resourceId, addHighlight]);
+  }, [curationMode, rUri, addHighlight]);
 
   const handleQuickReference = useCallback(() => {
     if (!curationMode) return;
@@ -546,17 +545,17 @@ export function ResourceViewer({
                 // Converting to stub reference (empty body array)
                 if (isBodyResolved(editingAnnotation.body)) {
                   // Unlink document - convert linked reference to stub
-                  await deleteAnnotation(editingAnnotation.id, resourceId);
+                  await deleteAnnotation(editingAnnotation.id, rUri);
                   const entityTypes = getEntityTypes(editingAnnotation);
-                  await addReference(resourceId, selectedText, annotationPosition!, undefined, entityTypes[0]);
+                  await addReference(rUri, selectedText, annotationPosition!, undefined, entityTypes[0]);
                 }
               } else if (updates.body.type === 'SpecificResource') {
                 if (updates.body.source) {
                   // Resolve reference to a document
                   await updateAnnotationBodyMutation.mutateAsync({
-                    id: editingAnnotation.id,
+                    annotationUri: resourceAnnotationUri(`${rUri}/annotations/${editingAnnotation.id}`),
                     data: {
-                      resourceId: resourceId,
+                      resourceId: rUri,
                       operations: [{
                         op: 'add',
                         item: {
@@ -589,7 +588,7 @@ export function ResourceViewer({
         onDeleteAnnotation={() => editingAnnotation && handleDeleteAnnotation(editingAnnotation.id)}
         onGenerateDocument={(title, prompt) => {
           if (editingAnnotation && onGenerateDocument) {
-            onGenerateDocument(editingAnnotation.id, {
+            onGenerateDocument(annotationUri(editingAnnotation.id), {
               title,
               ...(prompt && { prompt })
             });

@@ -8,17 +8,19 @@
  * - OpenAPI spec is the source of truth
  */
 
+import { HTTPException } from 'hono/http-exception';
 import {
   CREATION_METHODS,
   type CreationMethod,
   generateUuid,
+  userId,
+  resourceId,
 } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore } from '../../../services/event-store-service';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
-import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 
 type CreateResourceRequest = components['schemas']['CreateResourceRequest'];
@@ -27,21 +29,22 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export function registerCreateResource(router: ResourcesRouterType) {
   /**
-   * POST /api/resources
+   * POST /resources
    *
    * Create a new resource
    * Requires authentication
    * Validates request body against CreateResourceRequest schema
    */
-  router.post('/api/resources',
+  router.post('/resources',
     validateRequestBody('CreateResourceRequest'),
     async (c) => {
       const body = c.get('validatedBody') as CreateResourceRequest;
       const user = c.get('user');
-      const basePath = getFilesystemConfig().path;
+      const config = c.get('config');
+      const basePath = config.services.filesystem!.path;
       const repStore = new FilesystemRepresentationStore({ basePath });
 
-      const resourceId = generateUuid();
+      const rId = resourceId(generateUuid());
 
       // Store representation (Layer 1)
       const contentBuffer = Buffer.from(body.content);
@@ -55,8 +58,8 @@ export function registerCreateResource(router: ResourcesRouterType) {
       // This ensures the consumer receives the resource.created event
       try {
         const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
-        const consumer = await getGraphConsumer();
-        await consumer.subscribeToResource(resourceId);
+        const consumer = await getGraphConsumer(config);
+        await consumer.subscribeToResource(rId);
       } catch (error) {
         console.error('[CreateResource] Failed to subscribe GraphDB consumer:', error);
         // Don't fail the request - consumer can catch up later
@@ -69,11 +72,11 @@ export function registerCreateResource(router: ResourcesRouterType) {
         : CREATION_METHODS.API;
 
       // Emit resource.created event (consumer will update GraphDB)
-      const eventStore = await createEventStore(basePath);
+      const eventStore = await createEventStore( config);
       await eventStore.appendEvent({
         type: 'resource.created',
-        resourceId,
-        userId: user.id,
+        resourceId: rId,
+        userId: userId(user.id),
         version: 1,
         payload: {
           name: body.name,
@@ -89,12 +92,15 @@ export function registerCreateResource(router: ResourcesRouterType) {
       });
 
       // Return optimistic response with W3C-compliant HTTP URI
-      const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+      const backendUrl = config.services.backend?.publicURL;
+      if (!backendUrl) {
+        throw new HTTPException(500, { message: 'Backend publicURL not configured' });
+      }
       const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
 
       const resourceMetadata: ResourceDescriptor = {
         '@context': 'https://schema.org/',
-        '@id': `${normalizedBase}/resources/${resourceId}`,
+        '@id': `${normalizedBase}/resources/${rId}`,
         name: body.name,
         archived: false,
         entityTypes: body.entityTypes || [],

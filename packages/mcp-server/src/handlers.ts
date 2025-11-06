@@ -2,7 +2,7 @@
  * Tool execution handlers using @semiont/api-client
  */
 
-import { SemiontApiClient, getExactText, getBodySource } from '@semiont/api-client';
+import { SemiontApiClient, getExactText, getBodySource, resourceUri } from '@semiont/api-client';
 
 export async function handleCreateResource(client: SemiontApiClient, args: any) {
   const data = await client.createResource({
@@ -21,7 +21,7 @@ export async function handleCreateResource(client: SemiontApiClient, args: any) 
 }
 
 export async function handleGetResource(client: SemiontApiClient, id: string) {
-  const data = await client.getResource(id);
+  const data = await client.getResource(resourceUri(id));
 
   return {
     content: [{
@@ -32,10 +32,10 @@ export async function handleGetResource(client: SemiontApiClient, id: string) {
 }
 
 export async function handleListResources(client: SemiontApiClient, args: any) {
-  const data = await client.listResources({
-    limit: args?.limit,
-    archived: args?.archived ?? false,
-  });
+  const data = await client.listResources(
+    args?.limit,
+    args?.archived ?? false
+  );
 
   return {
     content: [{
@@ -67,7 +67,8 @@ export async function handleCreateAnnotation(client: SemiontApiClient, args: any
     purpose: 'tagging' as const,
   }));
 
-  const data = await client.createAnnotation({
+  const rUri = resourceUri(args?.resourceId);
+  const data = await client.createAnnotation(rUri, {
     motivation: 'highlighting',
     target: {
       source: args?.resourceId,
@@ -133,21 +134,10 @@ export async function handleResolveAnnotation(client: SemiontApiClient, args: an
   };
 }
 
-export async function handleCreateResourceFromAnnotation(_client: SemiontApiClient, _args: any) {
-  // NOTE: This endpoint may have changed - /api/annotations/{id}/create-resource doesn't exist
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Error: The create-resource-from-annotation endpoint needs to be updated.`,
-    }],
-    isError: true,
-  };
-}
-
 export async function handleGenerateResourceFromAnnotation(client: SemiontApiClient, args: any) {
   const data = await client.generateResourceFromAnnotation(args?.selectionId, {
-    resourceId: args?.resourceId,
-    title: args?.title,
+    name: args?.name,
+    entityTypes: args?.entityTypes,
     prompt: args?.prompt,
     language: args?.language,
   });
@@ -155,7 +145,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
   return {
     content: [{
       type: 'text' as const,
-      text: `Resource generation job created:\nJob ID: ${data.jobId}\nStatus: ${data.status}\nType: ${data.type}\nCreated: ${data.created}`,
+      text: `Resource generated successfully:\nResource ID: ${data.resource['@id']}\nResource Name: ${data.resource.name}\nAnnotation linked: ${data.annotation.id}`,
     }],
   };
 }
@@ -217,7 +207,7 @@ export async function handleGetResourceAnnotations(_client: SemiontApiClient, _a
 }
 
 export async function handleGetResourceHighlights(client: SemiontApiClient, args: Record<string, unknown>) {
-  const data = await client.getResourceAnnotations(args?.resourceId as string);
+  const data = await client.getResourceAnnotations(resourceUri(args?.resourceId as string));
   const highlights = data.annotations.filter(a => a.motivation === 'highlighting');
 
   return {
@@ -236,7 +226,7 @@ export async function handleGetResourceHighlights(client: SemiontApiClient, args
 }
 
 export async function handleGetResourceReferences(client: SemiontApiClient, args: Record<string, unknown>) {
-  const data = await client.getResourceAnnotations(args?.resourceId as string);
+  const data = await client.getResourceAnnotations(resourceUri(args?.resourceId as string));
   const references = data.annotations.filter(a => a.motivation === 'linking');
 
   return {

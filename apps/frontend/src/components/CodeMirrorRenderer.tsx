@@ -6,7 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartme
 import { markdown } from '@codemirror/lang-markdown';
 import { getAnnotationClassName } from '@/lib/annotation-registry';
 import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
-import { isHighlight, isReference, isResolvedReference, isComment, compareAnnotationIds, getBodySource } from '@semiont/api-client';
+import { isHighlight, isReference, isResolvedReference, isComment, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import '@/styles/animations.css';
 
@@ -180,7 +180,7 @@ function buildWidgetDecorations(
         : undefined;
       // Compare by ID portion (handle both URI and internal ID formats)
       const isGenerating = generatingReferenceId
-        ? compareAnnotationIds(annotation.id, generatingReferenceId)
+        ? annotation.id === generatingReferenceId
         : false;
       const widget = new ReferenceResolutionWidget(
         annotation,

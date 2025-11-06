@@ -17,6 +17,7 @@
 import type { ResourceState } from './projection-storage-v2';
 import { ProjectionStorage, type ProjectionStorageConfig } from './projection-storage-v2';
 import { ProjectionQuery } from './projection-query';
+import { resourceId as makeResourceId } from '@semiont/core';
 
 export type { ResourceState } from './projection-storage-v2';
 export type { ProjectionStorageConfig as ProjectionManagerConfig };
@@ -43,7 +44,7 @@ export class ProjectionManager {
    * @param projection - Complete resource state
    */
   async save(resourceId: string, projection: ResourceState): Promise<void> {
-    await this.storage.save(resourceId, projection);
+    await this.storage.save(makeResourceId(resourceId), projection);
   }
 
   /**
@@ -53,7 +54,7 @@ export class ProjectionManager {
    * @returns Resource state or null if not found
    */
   async get(resourceId: string): Promise<ResourceState | null> {
-    return this.storage.get(resourceId);
+    return this.storage.get(makeResourceId(resourceId));
   }
 
   /**
@@ -62,7 +63,7 @@ export class ProjectionManager {
    * @param resourceId - Resource identifier
    */
   async delete(resourceId: string): Promise<void> {
-    await this.storage.delete(resourceId);
+    await this.storage.delete(makeResourceId(resourceId));
   }
 
   /**
@@ -72,7 +73,7 @@ export class ProjectionManager {
    * @returns True if projection exists
    */
   async exists(resourceId: string): Promise<boolean> {
-    return this.storage.exists(resourceId);
+    return this.storage.exists(makeResourceId(resourceId));
   }
 
   /**

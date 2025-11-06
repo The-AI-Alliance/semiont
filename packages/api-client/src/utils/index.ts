@@ -8,3 +8,5 @@
 export * from './annotations';
 export * from './events';
 export * from './locales';
+export * from './resources';
+export * from './validation';

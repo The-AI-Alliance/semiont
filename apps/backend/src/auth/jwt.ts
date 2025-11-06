@@ -1,6 +1,7 @@
 import * as jwt from 'jsonwebtoken';
 import { JWTPayloadSchema } from '../types/jwt-types';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
+import type { EnvironmentConfig } from '@semiont/core';
 
 export interface JWTPayload {
   userId: string;
@@ -20,44 +21,36 @@ interface SiteConfig {
 
 export class JWTService {
   private static siteConfig: SiteConfig | null = null;
-  
+
   /**
-   * Get site configuration from environment variables
-   * FAILS HARD if not properly configured (except in test mode)
+   * Initialize JWTService with application configuration
+   * Must be called once at application startup before using any other methods
+   */
+  static initialize(config: EnvironmentConfig): void {
+    if (!config.site?.domain) {
+      throw new Error('site.domain is required in environment config');
+    }
+
+    if (!config.site?.oauthAllowedDomains || !Array.isArray(config.site.oauthAllowedDomains)) {
+      throw new Error('site.oauthAllowedDomains is required in environment config');
+    }
+
+    this.siteConfig = {
+      domain: config.site.domain,
+      oauthAllowedDomains: config.site.oauthAllowedDomains
+    };
+  }
+
+  /**
+   * Get site configuration (must call initialize() first)
    */
   private static getSiteConfig(): SiteConfig {
     if (!this.siteConfig) {
-      const environment = process.env.SEMIONT_ENV;
-      
-      // Test environments use test defaults
-      if (environment === 'unit' || environment === 'test') {
-        this.siteConfig = {
-          domain: 'localhost',
-          oauthAllowedDomains: ['example.com', 'test.example.com']
-        };
-        return this.siteConfig;
-      }
-      
-      // Production/staging must have proper configuration
-      const domain = process.env.SITE_DOMAIN;
-      const allowedDomains = process.env.OAUTH_ALLOWED_DOMAINS;
-      
-      if (!domain) {
-        throw new Error('SITE_DOMAIN environment variable is required for JWT issuer');
-      }
-      
-      if (!allowedDomains) {
-        throw new Error('OAUTH_ALLOWED_DOMAINS environment variable is required for authentication');
-      }
-      
-      this.siteConfig = {
-        domain,
-        oauthAllowedDomains: allowedDomains.split(',').map(d => d.trim())
-      };
+      throw new Error('JWTService not initialized. Call JWTService.initialize(config) at application startup.');
     }
     return this.siteConfig;
   }
-  
+
   /**
    * Override configuration for testing purposes
    * @param config The configuration to use
@@ -65,7 +58,7 @@ export class JWTService {
   static setTestConfig(domain: string, oauthAllowedDomains: string[]): void {
     this.siteConfig = { domain, oauthAllowedDomains };
   }
-  
+
   /**
    * Reset configuration cache (useful for testing)
    */

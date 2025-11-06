@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { PopupContainer, PopupHeader } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
-import { entityTypes as entityTypesAPI } from '@/lib/api/entity-types';
+import { useEntityTypes } from '@/lib/api-hooks';
 
 interface CreateAnnotationPopupProps {
   isOpen: boolean;
@@ -35,7 +35,8 @@ export function CreateAnnotationPopup({
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
 
   // Fetch entity types from backend
-  const { data: entityTypesData } = entityTypesAPI.all.useQuery();
+  const entityTypesAPI = useEntityTypes();
+  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
 
   const entityTypes = entityTypesData?.entityTypes || [];
 

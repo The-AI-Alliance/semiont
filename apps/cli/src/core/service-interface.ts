@@ -8,11 +8,11 @@
  * whether they extend BaseService or provide a custom implementation.
  */
 
-import type { PlatformType } from './platform-types.js';
+import type { PlatformType, EnvironmentConfig } from '@semiont/core';
 import type { ServiceConfig } from './cli-config.js';
-import type { Environment } from './environment-validator.js';
+import type { Environment } from '@semiont/core';
 import type { ServiceName } from './service-discovery.js';
-import type { 
+import type {
   ServiceRequirements,
   StorageRequirement,
   NetworkRequirement,
@@ -29,12 +29,17 @@ export interface Service {
   readonly name: ServiceName;
   readonly platform: PlatformType;
   readonly config: ServiceConfig;
-  readonly environment: Environment;
-  readonly projectRoot: string;
+  readonly environmentConfig: EnvironmentConfig;
+
+  // Runtime flags (not part of environment config)
   readonly verbose: boolean;
   readonly quiet: boolean;
   readonly dryRun?: boolean;
   readonly forceDiscovery?: boolean;
+
+  // Derived properties (from environmentConfig._metadata)
+  readonly environment: Environment;
+  readonly projectRoot: string;
   
   // Service-specific methods that platforms can call
   getPort(): number;

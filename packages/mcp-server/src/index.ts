@@ -175,26 +175,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       // Resource Generation from Selections
       {
-        name: 'semiont_create_resource_from_selection',
-        description: 'Create a new resource from a selection and link the selection to it',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            selectionId: { type: 'string', description: 'Selection ID' },
-            name: { type: 'string', description: 'Resource name' },
-            content: { type: 'string', description: 'Resource content' },
-            entityTypes: { 
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Entity types for the new resource' 
-            },
-            contentType: { type: 'string', description: 'Content type (default: text/plain)' },
-            metadata: { type: 'object', description: 'Additional metadata' },
-          },
-          required: ['selectionId', 'name'],
-        },
-      },
-      {
         name: 'semiont_generate_resource_from_selection',
         description: 'Generate a resource with AI-generated content from a selection',
         inputSchema: {
@@ -348,9 +328,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'semiont_resolve_selection':
         return await handlers.handleResolveAnnotation(apiClient, args);
-
-      case 'semiont_create_resource_from_selection':
-        return await handlers.handleCreateResourceFromAnnotation(apiClient, args);
 
       case 'semiont_generate_resource_from_selection':
         return await handlers.handleGenerateResourceFromAnnotation(apiClient, args);

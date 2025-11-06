@@ -17,6 +17,7 @@ import { ResourceQueryService } from '../../../services/resource-queries';
 import { getBodySource } from '../../../lib/annotation-utils';
 import { uriToResourceId } from '../../../lib/uri-utils';
 import { prefersHtml, getFrontendUrl } from '../../../middleware/content-negotiation';
+import { resourceId as makeResourceId } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type GetAnnotationResponse = components['schemas']['GetAnnotationResponse'];
@@ -35,6 +36,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
   router.get('/annotations/:id', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
+    const config = c.get('config');
     const resourceUriOrId = query.resourceId;
 
     if (!resourceUriOrId) {
@@ -61,7 +63,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
 
     // Otherwise, return JSON-LD representation
     // O(1) lookup in Layer 3 using resource ID
-    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId);
+    const projection = await AnnotationQueryService.getResourceAnnotations(makeResourceId(resourceId), config);
 
     // Find the annotation
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
@@ -71,7 +73,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     }
 
     // Get resource metadata
-    const resource = await ResourceQueryService.getResourceMetadata(resourceId);
+    const resource = await ResourceQueryService.getResourceMetadata(makeResourceId(resourceId), config);
 
     // If it's a linking annotation with a resolved source, get resolved resource
     let resolvedResource = null;
@@ -79,7 +81,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     if (annotation.motivation === 'linking' && bodySource) {
       // Extract ID from body source URI if needed
       const bodyDocId = bodySource.includes('://') ? uriToResourceId(bodySource) : bodySource;
-      resolvedResource = await ResourceQueryService.getResourceMetadata(bodyDocId);
+      resolvedResource = await ResourceQueryService.getResourceMetadata(makeResourceId(bodyDocId), config);
     }
 
     const response: GetAnnotationResponse = {

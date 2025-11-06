@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { getInferenceConfig as getInferenceConfigFromEnv } from '../config/environment-loader';
 import { getLocaleEnglishName } from '@semiont/api-client';
+import type { EnvironmentConfig } from '@semiont/core';
 
 function getLanguageName(locale: string): string {
   return getLocaleEnglishName(locale) || locale;
@@ -13,38 +13,48 @@ let inferenceClient: Anthropic | null = null;
  * Get or create the inference client
  * Following the singleton pattern from graph factory
  */
-export async function getInferenceClient(): Promise<Anthropic> {
+export async function getInferenceClient(config: EnvironmentConfig): Promise<Anthropic> {
   if (inferenceClient) {
     return inferenceClient;
   }
 
-  const config = getInferenceConfigFromEnv();
+  const inferenceConfig = config.services.inference;
+  if (!inferenceConfig) {
+    throw new Error('services.inference is required in environment config');
+  }
+
+  // Expand environment variables in apiKey
+  let apiKey = inferenceConfig.apiKey;
+  if (apiKey?.startsWith('${') && apiKey.endsWith('}')) {
+    const envVarName = apiKey.slice(2, -1);
+    apiKey = process.env[envVarName];
+  }
 
   console.log('Inference config loaded:', {
-    type: config.type,
-    model: config.model,
-    endpoint: config.endpoint,
-    hasApiKey: !!config.apiKey
+    type: inferenceConfig.type,
+    model: inferenceConfig.model,
+    endpoint: inferenceConfig.endpoint,
+    hasApiKey: !!apiKey
   });
 
   inferenceClient = new Anthropic({
-    apiKey: config.apiKey,
-    baseURL: config.endpoint || 'https://api.anthropic.com',
+    apiKey: apiKey,
+    baseURL: inferenceConfig.endpoint || inferenceConfig.baseURL || 'https://api.anthropic.com',
   });
 
-  console.log(`Initialized ${config.type} inference client with model ${config.model}`);
+  console.log(`Initialized ${inferenceConfig.type} inference client with model ${inferenceConfig.model}`);
   return inferenceClient;
 }
 
 /**
  * Get the configured model name
  */
-export function getInferenceModel(): string {
-  const config = getInferenceConfigFromEnv();
-  if (!config?.model) {
+export function getInferenceModel(config: EnvironmentConfig): string {
+  const inferenceConfig = config.services.inference;
+  if (!inferenceConfig?.model) {
     throw new Error('Inference model not configured! Set it in your environment configuration.');
   }
-  return config.model;
+  return inferenceConfig.model;
 }
 
 /**
@@ -52,15 +62,16 @@ export function getInferenceModel(): string {
  */
 export async function generateText(
   prompt: string,
+  config: EnvironmentConfig,
   maxTokens: number = 500,
   temperature: number = 0.7
 ): Promise<string> {
   console.log('generateText called with prompt length:', prompt.length, 'maxTokens:', maxTokens, 'temp:', temperature);
 
-  const client = await getInferenceClient();
+  const client = await getInferenceClient(config);
 
   const response = await client.messages.create({
-    model: getInferenceModel(),
+    model: getInferenceModel(config),
     max_tokens: maxTokens,
     temperature,
     messages: [
@@ -91,6 +102,7 @@ export async function generateText(
 export async function generateResourceFromTopic(
   topic: string,
   entityTypes: string[],
+  config: EnvironmentConfig,
   userPrompt?: string,
   locale?: string
 ): Promise<{ title: string; content: string }> {
@@ -101,9 +113,9 @@ export async function generateResourceFromTopic(
     locale
   });
 
-  const config = getInferenceConfigFromEnv();
-  const provider = config?.type || 'anthropic';
-  console.log('Using provider:', provider, 'with model:', config?.model);
+  const inferenceConfig = config.services.inference;
+  const provider = inferenceConfig?.type || 'anthropic';
+  console.log('Using provider:', provider, 'with model:', inferenceConfig?.model);
 
   // Determine language instruction
   const languageInstruction = locale && locale !== 'en'
@@ -226,7 +238,7 @@ CONTENT:
   }
 
   console.log('Sending prompt to inference (length:', prompt.length, 'chars)');
-  const response = await generateText(prompt, 500, 0.7);
+  const response = await generateText(prompt, config, 500, 0.7);
   console.log('Got raw response (length:', response.length, 'chars)');
 
   const result = parseResponse(response);
@@ -246,7 +258,8 @@ CONTENT:
 export async function generateResourceSummary(
   resourceName: string,
   content: string,
-  entityTypes: string[]
+  entityTypes: string[],
+  config: EnvironmentConfig
 ): Promise<string> {
   // Truncate content if too long
   const truncatedContent = content.length > 2000
@@ -261,7 +274,7 @@ ${truncatedContent}
 
 Write a 2-3 sentence summary that captures the key points and would help someone understand what this resource contains.`;
 
-  return await generateText(prompt, 150, 0.5);
+  return await generateText(prompt, config, 150, 0.5);
 }
 
 /**
@@ -269,6 +282,7 @@ Write a 2-3 sentence summary that captures the key points and would help someone
  */
 export async function generateReferenceSuggestions(
   referenceTitle: string,
+  config: EnvironmentConfig,
   entityType?: string,
   currentContent?: string
 ): Promise<string[] | null> {
@@ -276,7 +290,7 @@ export async function generateReferenceSuggestions(
 
 Format as a simple list, one suggestion per line.`;
 
-  const response = await generateText(prompt, 200, 0.8);
+  const response = await generateText(prompt, config, 200, 0.8);
   if (!response) {
     return null;
   }

@@ -7,7 +7,7 @@ import type { components, paths } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
-type ReferencedBy = ResponseContent<paths['/api/resources/{id}/referenced-by']['get']>['referencedBy'][number];
+type ReferencedBy = ResponseContent<paths['/resources/{id}/referenced-by']['get']>['referencedBy'][number];
 import { formatLocaleDisplay, getBodySource, isBodyResolved, getEntityTypes } from '@semiont/api-client';
 
 interface Props {

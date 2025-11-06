@@ -21,55 +21,64 @@
 
 import { commandRequiresServices } from './command-discovery.js';
 import { getAvailableServices, isValidService, ServiceSelector, ServiceCapability, ServiceName } from './service-discovery.js';
-import { findProjectRoot } from './project-discovery.js';
+import { EnvironmentConfig, parseEnvironment } from '@semiont/core';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { ServiceFactory } from '../services/service-factory.js';
-import { parseEnvironment } from './environment-validator.js';
 import { serviceSupportsCommand } from './service-command-capabilities.js';
 import * as path from 'path';
 
 /**
  * Check if a service supports a command by examining its requirements
- * 
+ *
  * @param serviceName - The service name
  * @param command - The command to check
- * @param environment - The environment
+ * @param envConfig - The environment configuration
  * @returns Whether the service supports the command
  */
 async function checkServiceSupportsCommand(
   serviceName: string,
   command: string,
-  environment: string
+  envConfig: EnvironmentConfig
 ): Promise<boolean> {
   try {
+    const projectRoot = envConfig._metadata?.projectRoot;
+    if (!projectRoot) {
+      throw new Error('Project root is required in envConfig._metadata');
+    }
+    const environment = envConfig._metadata?.environment;
+    if (!environment) {
+      throw new Error('Environment is required in envConfig._metadata');
+    }
+
     // Get service deployment info
     const deployments = resolveServiceDeployments(
       [serviceName],
-      environment
+      envConfig
     );
-    
+
     if (deployments.length === 0) {
       return false;
     }
-    
+
     // Create service instance to check its requirements
     const deployment = deployments[0];
     const service = ServiceFactory.create(
       serviceName as ServiceName,
       deployment.platform,
       {
-        projectRoot: process.env.SEMIONT_ROOT || process.cwd(),
+        projectRoot,
         environment: parseEnvironment(environment),
         verbose: false,
         quiet: true,
         dryRun: false
       },
+      envConfig,
       {
         ...deployment.config,
         platform: deployment.platform
       }
     );
-    
+
     // Check if service declares support for this command
     const requirements = service.getRequirements();
     return serviceSupportsCommand(requirements.annotations, command);
@@ -81,17 +90,18 @@ async function checkServiceSupportsCommand(
 
 /**
  * Get services that support a specific capability
- * 
+ *
  * @param capability - The command capability
- * @param environment - The environment name (optional)
+ * @param envConfig - The environment configuration
  * @returns Array of service names that support the capability
  */
 export async function getServicesWithCapability(
   capability: ServiceCapability,
-  environment?: string
+  envConfig: EnvironmentConfig
 ): Promise<string[]> {
+  const environment = envConfig._metadata?.environment;
   const allServices = await getAvailableServices(environment);
-  
+
   // Check if this capability is actually a service command
   const isServiceCommand = await commandRequiresServices(capability);
   if (!isServiceCommand && capability !== 'restore') {
@@ -99,46 +109,51 @@ export async function getServicesWithCapability(
     // Return empty array for non-service commands
     return [];
   }
-  
+
   // Filter services based on their declared capabilities
   const supportedServices: string[] = [];
-  
+
   for (const serviceName of allServices) {
     const supportsCommand = await checkServiceSupportsCommand(
       serviceName,
       capability,
-      environment || 'development'
+      envConfig
     );
-    
+
     if (supportsCommand) {
       supportedServices.push(serviceName);
     }
   }
-  
+
   return supportedServices;
 }
 
 /**
  * Resolve 'all' to actual service names based on capability and environment
- * 
+ *
  * @param selector - The service selector ('all' or specific service name)
  * @param capability - The command capability
- * @param environment - The environment name (optional)
+ * @param envConfig - The environment configuration
  * @returns Array of resolved service names
  */
 export async function resolveServiceSelector(
   selector: ServiceSelector,
   capability: ServiceCapability,
-  environment?: string
+  envConfig: EnvironmentConfig
 ): Promise<string[]> {
-  if (selector === 'all') {
-    return getServicesWithCapability(capability, environment);
+  const environment = envConfig._metadata?.environment;
+  if (!environment) {
+    throw new Error('Environment is required in envConfig._metadata');
   }
-  
+
+  if (selector === 'all') {
+    return getServicesWithCapability(capability, envConfig);
+  }
+
   // Validate the specific service
   if (await isValidService(selector, environment)) {
     // Check if the service supports the capability
-    const capableServices = await getServicesWithCapability(capability, environment);
+    const capableServices = await getServicesWithCapability(capability, envConfig);
     if (capableServices.includes(selector)) {
       return [selector];
     } else {
@@ -146,38 +161,42 @@ export async function resolveServiceSelector(
     }
   } else {
     const availableServices = await getAvailableServices(environment);
-    const configPath = path.join(findProjectRoot(), 'environments', `${environment}.json`);
-    
+    const projectRoot = envConfig._metadata?.projectRoot;
+    if (!projectRoot) {
+      throw new Error('Project root is required in envConfig._metadata');
+    }
+    const configPath = path.join(projectRoot, 'environments', `${environment}.json`);
+
     const errorMessage = [
       `Unknown service '${selector}' in environment '${environment}'`,
       `Available services: ${availableServices.join(', ')}`,
       `To fix: Add '${selector}' service to ${configPath}`,
       `Or choose from available services: ${availableServices.join(', ')}`
     ].join('\n');
-    
+
     throw new Error(errorMessage);
   }
 }
 
 /**
  * Validate a service selector for a given capability
- * 
+ *
  * @param selector - The service selector
  * @param capability - The command capability
- * @param environment - The environment name (optional)
+ * @param envConfig - The environment configuration
  * @throws Error if validation fails
  */
 export async function validateServiceSelector(
   selector: ServiceSelector,
   capability: ServiceCapability,
-  environment?: string
+  envConfig: EnvironmentConfig
 ): Promise<void> {
   // Check if this capability is actually a service command
   const isServiceCommand = await commandRequiresServices(capability);
   if (!isServiceCommand && capability !== 'restore') {
     throw new Error(`Command '${capability}' does not operate on services`);
   }
-  
+
   // Resolve will throw if invalid
-  await resolveServiceSelector(selector, capability, environment);
+  await resolveServiceSelector(selector, capability, envConfig);
 }

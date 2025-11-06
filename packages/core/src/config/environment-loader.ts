@@ -7,16 +7,20 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConfigurationError } from './configuration-error.js';
-import { findProjectRoot } from './project-discovery.js';
-import { PlatformType } from './platform-types.js';
-import { isObject } from '@semiont/core';
+import { ConfigurationError } from './configuration-error';
+import { findProjectRoot } from './project-discovery';
+import { PlatformType } from './platform-types';
+import { isObject } from '../index';
 
 /**
  * Environment configuration structure
  */
 export interface EnvironmentConfig {
   _comment?: string;  // Optional comment for documentation
+  _metadata?: {
+    environment: string;  // Environment name (e.g., "local", "staging", "prod")
+    projectRoot: string;  // Absolute path to project root
+  };
   platform?: {
     default?: PlatformType;  // No fallback - must be explicit
   };
@@ -166,30 +170,28 @@ function resolveEnvVars(obj: any): any {
 /**
  * Load environment configuration
  * Merges semiont.json with environment-specific config
- * 
- * @param environment - Environment name
- * @param configFile - Optional path to semiont.json
+ *
+ * @param projectRoot - Absolute path to project directory containing semiont.json
+ * @param environment - Environment name (must match a file in environments/)
  * @returns Merged environment configuration
  * @throws ConfigurationError if files are missing or invalid
  */
-export function loadEnvironmentConfig(environment: string, configFile?: string): EnvironmentConfig {
+export function loadEnvironmentConfig(projectRoot: string, environment: string): EnvironmentConfig {
   try {
-    const projectRoot = findProjectRoot();
-    
     // Load base semiont.json
-    const baseConfigPath = configFile || path.join(projectRoot, 'semiont.json');
+    const baseConfigPath = path.join(projectRoot, 'semiont.json');
     let baseConfig: any = {};
     if (fs.existsSync(baseConfigPath)) {
       const baseContent = fs.readFileSync(baseConfigPath, 'utf-8');
       baseConfig = JSON.parse(baseContent);
     }
-    
+
     // Load environment-specific config
     const envPath = path.join(projectRoot, 'environments', `${environment}.json`);
-    
+
     if (!fs.existsSync(envPath)) {
       throw new ConfigurationError(
-        `Environment configuration missing: ${envPath}`, 
+        `Environment configuration missing: ${envPath}`,
         environment,
         `Create the configuration file or use: semiont init`
       );
@@ -226,7 +228,16 @@ export function loadEnvironmentConfig(environment: string, configFile?: string):
       }
     }
 
-    return resolved as EnvironmentConfig;
+    // Add metadata about where this config came from
+    const configWithMetadata = {
+      ...resolved,
+      _metadata: {
+        environment,
+        projectRoot
+      }
+    };
+
+    return configWithMetadata as EnvironmentConfig;
   } catch (error) {
     if (error instanceof ConfigurationError) {
       throw error; // Re-throw our custom errors
@@ -251,27 +262,15 @@ export function loadEnvironmentConfig(environment: string, configFile?: string):
 
 /**
  * Get NODE_ENV value from environment config
- * 
- * @param environment - Environment name
- * @returns NODE_ENV value
- * @throws ConfigurationError if not specified
+ *
+ * @param config - Environment configuration
+ * @returns NODE_ENV value (defaults to 'development' if not specified)
  */
-export function getNodeEnvForEnvironment(environment: string): 'development' | 'production' | 'test' {
-  const config = loadEnvironmentConfig(environment);
+export function getNodeEnvForEnvironment(config: EnvironmentConfig): 'development' | 'production' | 'test' {
   const nodeEnv = config.env?.NODE_ENV;
-  
-  if (!nodeEnv) {
-    throw new ConfigurationError(
-      `NODE_ENV not specified for environment '${environment}'`,
-      environment,
-      `Add NODE_ENV to environments/${environment}.json:
-    "env": {
-      "NODE_ENV": "development" // or "production" or "test"
-    }`
-    );
-  }
-  
-  return nodeEnv;
+
+  // Default to 'development' if not specified
+  return nodeEnv || 'development';
 }
 
 /**

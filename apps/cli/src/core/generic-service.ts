@@ -92,7 +92,7 @@ export class GenericService extends BaseService {
         
       requirements.storage = storage.map(s => ({
         persistent: s.persistent !== false,
-        volumeName: s.volumeName || `${this.name}-data-${this.systemConfig.environment}`,
+        volumeName: s.volumeName || `${this.name}-data-${this.environment}`,
         size: s.size || '1Gi',
         mountPath: s.mountPath || '/data',
         type: s.type || 'volume',

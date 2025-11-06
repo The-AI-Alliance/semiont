@@ -15,8 +15,8 @@ import * as path from 'path';
 import { authMiddleware } from '../middleware/auth';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import { createEventStore } from '../services/event-store-service';
-import { getFilesystemConfig } from '../config/environment-loader';
 import type { components } from '@semiont/api-client';
+import { userId, type EnvironmentConfig } from '@semiont/core';
 
 type AddEntityTypeRequest = components['schemas']['AddEntityTypeRequest'];
 type AddEntityTypeResponse = components['schemas']['AddEntityTypeResponse'];
@@ -26,10 +26,9 @@ type GetEntityTypesResponse = components['schemas']['GetEntityTypesResponse'];
 /**
  * Read entity types from Layer 3 projection
  */
-async function getEntityTypesFromLayer3(): Promise<string[]> {
-  const config = getFilesystemConfig();
+async function getEntityTypesFromLayer3(config: EnvironmentConfig): Promise<string[]> {
   const entityTypesPath = path.join(
-    config.path,
+    config.services.filesystem!.path,
     'projections',
     'entity-types',
     'entity-types.json'
@@ -49,7 +48,7 @@ async function getEntityTypesFromLayer3(): Promise<string[]> {
 }
 
 // Create router with auth middleware
-export const entityTypesRouter = new Hono<{ Variables: { user: User } }>();
+export const entityTypesRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig } }>();
 entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
 /**
@@ -58,7 +57,8 @@ entityTypesRouter.use('/api/entity-types/*', authMiddleware);
  */
 entityTypesRouter.get('/api/entity-types', async (c) => {
   try {
-    const entityTypes = await getEntityTypesFromLayer3();
+    const config = c.get('config');
+    const entityTypes = await getEntityTypesFromLayer3(config);
 
     const response: GetEntityTypesResponse = { entityTypes };
     return c.json(response, 200);
@@ -78,6 +78,7 @@ entityTypesRouter.post('/api/entity-types',
   async (c) => {
     // Check moderation permissions
     const user = c.get('user');
+    const config = c.get('config');
     if (!user.isModerator && !user.isAdmin) {
       return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
     }
@@ -85,12 +86,11 @@ entityTypesRouter.post('/api/entity-types',
     const body = c.get('validatedBody') as AddEntityTypeRequest;
 
     // Emit event (no resourceId for system-level events)
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( config);
     await eventStore.appendEvent({
       type: 'entitytype.added',
       // resourceId: undefined - system-level event
-      userId: user.id,
+      userId: userId(user.id),
       version: 1,
       payload: {
         entityType: body.tag,
@@ -98,7 +98,7 @@ entityTypesRouter.post('/api/entity-types',
     });
 
     // Read from Layer 3
-    const entityTypes = await getEntityTypesFromLayer3();
+    const entityTypes = await getEntityTypesFromLayer3(config);
 
     const response: AddEntityTypeResponse = { success: true, entityTypes };
     return c.json(response, 200);
@@ -115,20 +115,20 @@ entityTypesRouter.post('/api/entity-types/bulk',
   async (c) => {
     // Check moderation permissions
     const user = c.get('user');
+    const config = c.get('config');
     if (!user.isModerator && !user.isAdmin) {
       return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
     }
 
     const body = c.get('validatedBody') as BulkAddEntityTypesRequest;
-    const basePath2 = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath2);
+    const eventStore = await createEventStore( config);
 
     // Emit one event per entity type (no resourceId)
     for (const tag of body.tags) {
       await eventStore.appendEvent({
         type: 'entitytype.added',
         // resourceId: undefined - system-level event
-        userId: user.id,
+        userId: userId(user.id),
         version: 1,
         payload: {
           entityType: tag,
@@ -137,7 +137,7 @@ entityTypesRouter.post('/api/entity-types/bulk',
     }
 
     // Read from Layer 3
-    const entityTypes = await getEntityTypesFromLayer3();
+    const entityTypes = await getEntityTypesFromLayer3(config);
 
     const response: AddEntityTypeResponse = { success: true, entityTypes };
     return c.json(response, 200);

@@ -11,11 +11,14 @@ import type { Session } from 'next-auth';
 const getBackendUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 
-// Mock the validation module
-vi.mock('../validation', () => ({
+// Mock the validation modules
+vi.mock('@semiont/api-client', () => ({
   JWTTokenSchema: 'mock-jwt-schema',
-  OAuthUserSchema: 'mock-oauth-schema',
   validateData: vi.fn(),
+}));
+
+vi.mock('../validation', () => ({
+  OAuthUserSchema: 'mock-oauth-schema',
 }));
 
 // Mock Google Provider
@@ -54,7 +57,7 @@ describe('Auth Configuration', () => {
 
   beforeEach(async () => {
     // Get the mocked validation function
-    const { validateData } = await import('../validation');
+    const { validateData } = await import('@semiont/api-client');
     mockValidateData = vi.mocked(validateData);
     consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});

@@ -5,8 +5,8 @@
  * These are not service-specific but apply to the entire CLI operation.
  */
 
-import type { Environment } from './environment-validator.js';
-import type { PlatformType } from './platform-types.js';
+import type { Environment } from '@semiont/core';
+import type { PlatformType } from '@semiont/core';
 
 /**
  * Global CLI configuration passed to all commands and services

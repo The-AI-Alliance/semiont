@@ -9,7 +9,7 @@ import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { LiveRegionProvider } from '@/components/LiveRegion';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { dispatch401Error, dispatch403Error } from '@/lib/auth-events';
-import { APIError } from '@/lib/api';
+import { APIError } from '@semiont/api-client';
 
 // Create a minimal QueryClient with error handlers and retry logic
 // Authentication is now handled per-request via useAuthenticatedAPI hook

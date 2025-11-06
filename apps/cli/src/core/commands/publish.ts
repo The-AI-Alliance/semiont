@@ -114,9 +114,11 @@ const publishExecutor = new MultiServiceExecutor(publishDescriptor);
  */
 export async function publish(
   serviceDeployments: ServicePlatformInfo[],
-  options: PublishOptions
+  options: PublishOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ) {
-  return publishExecutor.execute(serviceDeployments, options);
+  return publishExecutor.execute(serviceDeployments, options, envConfig);
 }
 
 // PublishResult type alias removed - use CommandResult directly

@@ -2,12 +2,16 @@
 // Direct access to Next.js environment variables - no validation
 
 // API Configuration
-export const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-export const NEXT_PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || '';
+if (!process.env.NEXT_PUBLIC_API_URL) {
+  throw new Error('NEXT_PUBLIC_API_URL environment variable is required');
+}
+export const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // Site Configuration
-export const NEXT_PUBLIC_SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || '';
-export const NEXT_PUBLIC_DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || '';
+if (!process.env.NEXT_PUBLIC_SITE_NAME) {
+  throw new Error('NEXT_PUBLIC_SITE_NAME environment variable is required');
+}
+export const NEXT_PUBLIC_SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME;
 
 // OAuth Configuration
 export const NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || '';

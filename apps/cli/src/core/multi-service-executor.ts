@@ -7,7 +7,7 @@
  */
 
 import { ServicePlatformInfo } from './service-resolver.js';
-import { PlatformType } from './platform-types.js';
+import { PlatformType, EnvironmentConfig } from '@semiont/core';
 import { Service } from './service-interface.js';
 import { ServiceName } from './service-discovery.js';
 import { ServiceFactory } from '../services/service-factory.js';
@@ -19,11 +19,8 @@ import { HandlerRegistry } from './handlers/registry.js';
 import { HandlerContextBuilder } from './handlers/context.js';
 import { HandlerResult } from './handlers/types.js';
 import { Config } from './cli-config.js';
-import { parseEnvironment } from './environment-validator.js';
+import { parseEnvironment } from '@semiont/core';
 import { printError, printInfo } from './io/cli-logger.js';
-
-// Get project root (user's project directory, NOT the Semiont source repo)
-const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
 /**
  * Options that all commands have
@@ -48,24 +45,32 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
   
   /**
    * Execute the command for all service deployments
+   *
+   * @param serviceDeployments - Service deployments to execute command on
+   * @param options - Command options
+   * @param envConfig - Environment configuration (passed from entry point, includes projectRoot in _metadata)
    */
   async execute(
     serviceDeployments: ServicePlatformInfo[],
-    options: TOptions
+    options: TOptions,
+    envConfig: EnvironmentConfig
   ): Promise<CommandResults<CommandResult>> {
     const startTime = Date.now();
-    
-    // Resolve environment: --environment flag takes precedence over SEMIONT_ENV
-    const environment = options.environment || process.env.SEMIONT_ENV;
+
+    // Environment and projectRoot are guaranteed to be in envConfig._metadata
+    const environment = envConfig._metadata?.environment;
     if (!environment) {
-      throw new Error(
-        'Environment is required. Specify --environment flag or set SEMIONT_ENV environment variable'
-      );
+      throw new Error('Environment is required in envConfig._metadata');
     }
-    
+
+    const projectRoot = envConfig._metadata?.projectRoot;
+    if (!projectRoot) {
+      throw new Error('Project root is required in config metadata');
+    }
+
     // Apply defaults and validate
-    const finalOptions = { 
-      ...this.descriptor.defaultOptions, 
+    const finalOptions = {
+      ...this.descriptor.defaultOptions,
       ...options,
       environment  // Ensure environment is always set
     } as TOptions;
@@ -90,7 +95,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     
     for (const serviceInfo of services) {
       try {
-        const result = await this.executeService(serviceInfo, finalOptions);
+        const result = await this.executeService(serviceInfo, finalOptions, envConfig);
         results.push(result);
         
         if (!isStructuredOutput && !finalOptions.quiet && !result.success) {
@@ -152,33 +157,44 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
    */
   private async executeService(
     serviceInfo: ServicePlatformInfo,
-    options: TOptions
+    options: TOptions,
+    envConfig: EnvironmentConfig
   ): Promise<CommandResult> {
     // 1. Get platform strategy
     const { PlatformFactory } = await import('../platforms/index.js');
     const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-    
-    // 2. Create config object (environment is guaranteed to exist from execute())
+
+    // 2. Create config object (environment and projectRoot from envConfig._metadata)
+    const environment = envConfig._metadata?.environment;
+    if (!environment) {
+      throw new Error('Environment is required in envConfig._metadata');
+    }
+    const projectRoot = envConfig._metadata?.projectRoot;
+    if (!projectRoot) {
+      throw new Error('Project root is required in envConfig._metadata');
+    }
+
     const config: Config = {
-      projectRoot: PROJECT_ROOT,
-      environment: parseEnvironment(options.environment!),
+      projectRoot,
+      environment: parseEnvironment(environment),
       verbose: options.verbose || false,
       quiet: options.quiet || false,
       dryRun: options.dryRun || false
     };
-    
+
     // 3. Build service-specific configuration
     const serviceConfig = this.descriptor.buildServiceConfig(options, serviceInfo);
-    
+
     // 4. Create service instance
     const service = ServiceFactory.create(
       serviceInfo.name as ServiceName,
       serviceInfo.platform,
       config,
-      { 
-        ...serviceInfo.config, 
+      envConfig,
+      {
+        ...serviceInfo.config,
         ...serviceConfig,
-        platform: serviceInfo.platform 
+        platform: serviceInfo.platform
       }
     );
     

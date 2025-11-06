@@ -27,32 +27,27 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
+import { loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig } from '@semiont/core';
 
 import { User } from '@prisma/client';
 
-// Configuration is loaded in JWT service when needed
-// For the server itself, we use environment variables
-const CORS_ORIGIN = process.env.CORS_ORIGIN;
-const FRONTEND_URL = process.env.FRONTEND_URL;
-const NODE_ENV = process.env.NODE_ENV;
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
+// Load configuration from semiont.json + environments/{SEMIONT_ENV}.json
+// SEMIONT_ROOT and SEMIONT_ENV are read from environment
+const env = process.env.SEMIONT_ENV || 'local';
+const projectRoot = findProjectRoot();
+const config = loadEnvironmentConfig(projectRoot, env);
 
-if (!CORS_ORIGIN) {
-  throw new Error('CORS_ORIGIN environment variable is required');
+if (!config.services?.backend) {
+  throw new Error('services.backend is required in environment config');
 }
-if (!FRONTEND_URL) {
-  throw new Error('FRONTEND_URL environment variable is required');
+if (!config.services.backend.corsOrigin) {
+  throw new Error('services.backend.corsOrigin is required in environment config');
 }
-if (!NODE_ENV) {
-  throw new Error('NODE_ENV environment variable is required');
+if (!config.services?.frontend?.url) {
+  throw new Error('services.frontend.url is required in environment config');
 }
 
-const CONFIG = {
-  CORS_ORIGIN,
-  FRONTEND_URL,
-  NODE_ENV,
-  PORT,
-};
+const backendService = config.services.backend;
 
 // Import route definitions
 import { healthRouter } from './routes/health';
@@ -75,6 +70,7 @@ import { getInferenceClient } from './inference/factory';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
 };
 
 // Create Hono app with proper typing
@@ -82,9 +78,15 @@ const app = new Hono<{ Variables: Variables }>();
 
 // Add CORS middleware
 app.use('*', cors({
-  origin: CONFIG.CORS_ORIGIN,
+  origin: backendService.corsOrigin,
   credentials: true,
 }));
+
+// Inject config into context for all routes
+app.use('*', async (c, next) => {
+  c.set('config', config);
+  await next();
+});
 
 // Add request/response logging middleware
 app.use('*', async (c, next) => {
@@ -123,8 +125,9 @@ app.route('/', jobsRouter);
 
 // Test inference route
 app.get('/api/test-inference', async (c) => {
+  const config = c.get('config');
   const { getInferenceClient, getInferenceModel } = await import('./inference/factory');
-  const client = await getInferenceClient();
+  const client = await getInferenceClient(config);
 
   if (!client) {
     return c.json({
@@ -140,7 +143,7 @@ app.get('/api/test-inference', async (c) => {
 
   try {
     const response = await client.messages.create({
-      model: getInferenceModel(),
+      model: getInferenceModel(config),
       max_tokens: 10,
       messages: [{
         role: 'user',
@@ -151,7 +154,7 @@ app.get('/api/test-inference', async (c) => {
     return c.json({
       status: 'success',
       response: response.content[0],
-      model: getInferenceModel()
+      model: getInferenceModel(config)
     });
   } catch (error: any) {
     return c.json({
@@ -189,7 +192,8 @@ app.get('/api/openapi.json', (c) => {
   const openApiSpec = JSON.parse(openApiContent);
 
   // Update server URL dynamically
-  const apiUrl = process.env.BACKEND_URL;
+  const port = backendService.port || 4000;
+  const apiUrl = backendService.publicUrl || `http://localhost:${port}`;
   if (apiUrl) {
     openApiSpec.servers = [
       {
@@ -237,19 +241,20 @@ app.all('/api/*', (c) => {
 });
 
 // Start server
-const port = CONFIG.PORT;
+const port = backendService.port || 4000;
+const nodeEnv = config.env?.NODE_ENV || 'development';
 
 console.log(`🚀 Starting Semiont Backend...`);
-console.log(`Environment: ${CONFIG.NODE_ENV}`);
+console.log(`Environment: ${nodeEnv}`);
 console.log(`Port: ${port}`);
 
 // Start server
-if (CONFIG.NODE_ENV !== 'test') {
+if (nodeEnv !== 'test') {
   console.log('🚀 Starting HTTP server...');
 }
 
 // Only start server if not in test environment
-if (CONFIG.NODE_ENV !== 'test') {
+if (nodeEnv !== 'test') {
   serve({
     fetch: app.fetch,
     port: port,
@@ -258,11 +263,22 @@ if (CONFIG.NODE_ENV !== 'test') {
     console.log(`🚀 Server ready at http://localhost:${info.port}`);
     console.log(`📡 API ready at http://localhost:${info.port}/api`);
 
+    // Initialize JWT Service with configuration
+    try {
+      console.log('🔐 Initializing JWT Service...');
+      const { JWTService } = await import('./auth/jwt');
+      JWTService.initialize(config);
+      console.log('✅ JWT Service initialized');
+    } catch (error) {
+      console.error('⚠️ Failed to initialize JWT Service:', error);
+      // Continue running even if JWT initialization fails
+    }
+
     // Bootstrap entity types projection if it doesn't exist
     try {
       console.log('🌱 Bootstrapping entity types...');
       const { bootstrapEntityTypes } = await import('./bootstrap/entity-types-bootstrap');
-      await bootstrapEntityTypes();
+      await bootstrapEntityTypes(config);
       console.log('✅ Entity types bootstrap complete');
     } catch (error) {
       console.error('⚠️ Failed to bootstrap entity types:', error);
@@ -272,7 +288,7 @@ if (CONFIG.NODE_ENV !== 'test') {
     // Initialize graph database and seed tag collections
     try {
       console.log('🔧 Initializing graph database...');
-      const graphDb = await getGraphDatabase();
+      const graphDb = await getGraphDatabase(config);
 
       // Pre-populate tag collections by calling getters
       // This ensures defaults are loaded on startup
@@ -287,7 +303,7 @@ if (CONFIG.NODE_ENV !== 'test') {
     // Initialize inference client
     try {
       console.log('🤖 Initializing inference client...');
-      await getInferenceClient();
+      await getInferenceClient(config);
       console.log('✅ Inference client initialized');
     } catch (error) {
       console.error('⚠️ Failed to initialize inference client:', error);
@@ -298,7 +314,7 @@ if (CONFIG.NODE_ENV !== 'test') {
     try {
       console.log('📊 Starting GraphDB consumer...');
       const { startGraphConsumer } = await import('./events/consumers/graph-consumer');
-      await startGraphConsumer();
+      await startGraphConsumer(config);
       console.log('✅ GraphDB consumer started');
     } catch (error) {
       console.error('⚠️ Failed to start GraphDB consumer:', error);
@@ -309,9 +325,9 @@ if (CONFIG.NODE_ENV !== 'test') {
     try {
       console.log('💼 Initializing job queue...');
       const { initializeJobQueue } = await import('./jobs/job-queue');
-      const dataDir = process.env.DATA_DIR;
+      const dataDir = config.services?.filesystem?.path || process.env.DATA_DIR || './data';
       if (!dataDir) {
-        throw new Error('DATA_DIR environment variable is required for job queue initialization');
+        throw new Error('services.filesystem.path is required in environment config for job queue initialization');
       }
       await initializeJobQueue({ dataDir });
       console.log('✅ Job queue initialized');
@@ -325,8 +341,8 @@ if (CONFIG.NODE_ENV !== 'test') {
       const { DetectionWorker } = await import('./jobs/workers/detection-worker');
       const { GenerationWorker } = await import('./jobs/workers/generation-worker');
 
-      const detectionWorker = new DetectionWorker();
-      const generationWorker = new GenerationWorker();
+      const detectionWorker = new DetectionWorker(config);
+      const generationWorker = new GenerationWorker(config);
 
       // Start workers in background (non-blocking)
       detectionWorker.start().catch((error) => {

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createServiceDeployments, resetMockState } from './_mock-setup';
+import { createServiceDeployments, resetMockState, createMockEnvConfig } from './_mock-setup';
 import type { PublishOptions } from '../publish.js';
 
 // Import mocks (side effects)
@@ -52,7 +52,7 @@ describe('Upublish Command', () => {
         output: 'json'
       });
 
-      const result = await publish(serviceDeployments, options);
+      const result = await publish(serviceDeployments, options, createMockEnvConfig());
 
       expect(result).toMatchObject({
         command: 'publish',

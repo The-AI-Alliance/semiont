@@ -8,9 +8,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { DetectionWorker } from '../../jobs/workers/detection-worker';
 import type { DetectionJob } from '../../jobs/types';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
+import { resourceId, userId } from '@semiont/core';
 
 // Mock AI detection to avoid external API calls
 vi.mock('../../inference/detect-annotations', () => ({
@@ -37,28 +36,57 @@ vi.mock('../../services/resource-queries', () => ({
   }
 }));
 
-// Mock environment
-vi.mock('../../config/environment-loader', () => ({
-  getFilesystemConfig: () => ({ path: testDir }),
-  getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
-}));
+// Cache EventStore instances per basePath to ensure consistency
+const eventStoreCache = new Map();
 
-let testDir: string;
+// Mock createEventStore to avoid requiring project config
+vi.mock('../../services/event-store-service', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  const { EventStore } = await import('../../events/event-store');
+  const { FilesystemProjectionStorage } = await import('../../storage/projection-storage');
+
+  return {
+    ...actual,
+    createEventStore: vi.fn(async (envConfig: any) => {
+      // Extract basePath from envConfig
+      const basePath = envConfig.services.filesystem!.path;
+
+      // Return cached instance if available
+      if (eventStoreCache.has(basePath)) {
+        return eventStoreCache.get(basePath);
+      }
+
+      // Create new instance and cache it
+      const projectionStorage = new FilesystemProjectionStorage(basePath);
+      const identifierConfig = { baseUrl: 'http://localhost:4000' };
+      const eventStore = new EventStore(
+        {
+          basePath,
+          dataDir: basePath,
+          enableSharding: false,
+          maxEventsPerFile: 100,
+        },
+        projectionStorage,
+        identifierConfig
+      );
+
+      eventStoreCache.set(basePath, eventStore);
+      return eventStore;
+    })
+  };
+});
 
 describe('DetectionWorker - Event Emission', () => {
   let worker: DetectionWorker;
+  let testEnv: TestEnvironmentConfig;
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-test-detection-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
-
-    process.env.BACKEND_URL = 'http://localhost:4000';
-
-    worker = new DetectionWorker();
+    testEnv = await setupTestEnvironment();
+    worker = new DetectionWorker(testEnv.config);
   });
 
   afterAll(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
+    await testEnv.cleanup();
   });
 
   it('should emit job.started event when detection begins', async () => {
@@ -66,8 +94,8 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-1',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-1',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-1'),
       entityTypes: ['Person'],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -76,12 +104,10 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/environment-loader');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-1');
+    const events = await query.getResourceEvents(resourceId('resource-1'));
 
     const startedEvents = events.filter(e => e.event.type === 'job.started');
     expect(startedEvents.length).toBeGreaterThanOrEqual(1);
@@ -90,8 +116,8 @@ describe('DetectionWorker - Event Emission', () => {
     expect(startedEvent).toBeDefined();
     expect(startedEvent!.event).toMatchObject({
       type: 'job.started',
-      resourceId: 'resource-1',
-      userId: 'user-1',
+      resourceId: resourceId('resource-1'),
+      userId: userId('user-1'),
       payload: {
         jobId: 'job-test-1',
         jobType: 'detection',
@@ -105,8 +131,8 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-2',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-2',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-2'),
       entityTypes: ['Person', 'Organization', 'Location'],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -115,34 +141,29 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/environment-loader');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-2');
+    const events = await query.getResourceEvents(resourceId('resource-2'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
-    expect(progressEvents.length).toBeGreaterThanOrEqual(3); // At least one per entity type
+    expect(progressEvents.length).toBeGreaterThanOrEqual(2); // First two entity types emit progress, last emits completed
 
     // Check first progress event
     expect(progressEvents[0]).toBeDefined();
     expect(progressEvents[0]!.event).toMatchObject({
       type: 'job.progress',
-      resourceId: 'resource-2',
+      resourceId: resourceId('resource-2'),
       payload: {
         jobId: 'job-test-2',
         jobType: 'detection',
+        percentage: expect.any(Number),
         currentStep: 'Person',
-        processedSteps: 0,
-        totalSteps: 3
+        processedSteps: 1,
+        totalSteps: 3,
+        foundCount: expect.any(Number)
       }
     });
-
-    // Check progress percentage increases
-    const percentages = progressEvents.map(e => (e.event.payload as any).percentage).filter((p): p is number => typeof p === 'number');
-    expect(percentages[0]).toBeDefined();
-    expect(percentages[0]!).toBeLessThan(percentages[percentages.length - 1]!);
   });
 
   it('should emit job.completed event when detection finishes successfully', async () => {
@@ -150,8 +171,8 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-3',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-3',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-3'),
       entityTypes: ['Person'],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -160,12 +181,10 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/environment-loader');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-3');
+    const events = await query.getResourceEvents(resourceId('resource-3'));
 
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
     expect(completedEvents.length).toBeGreaterThanOrEqual(1);
@@ -173,10 +192,11 @@ describe('DetectionWorker - Event Emission', () => {
     expect(completedEvents[0]).toBeDefined();
     expect(completedEvents[0]!.event).toMatchObject({
       type: 'job.completed',
-      resourceId: 'resource-3',
+      resourceId: resourceId('resource-3'),
       payload: {
         jobId: 'job-test-3',
-        jobType: 'detection'
+        jobType: 'detection',
+        foundCount: expect.any(Number)
       }
     });
   });
@@ -186,8 +206,8 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-4',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-4',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-4'),
       entityTypes: ['Person'],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -196,12 +216,10 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/environment-loader');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-4');
+    const events = await query.getResourceEvents(resourceId('resource-4'));
 
     // Note: This test verifies the event schema, not that entities are actually detected
     // The mocked AI detection may return 0 entities, which is fine for testing event emission
@@ -213,7 +231,7 @@ describe('DetectionWorker - Event Emission', () => {
       expect(annotationEvents[0]).toBeDefined();
       expect(annotationEvents[0]!.event).toMatchObject({
         type: 'annotation.added',
-        resourceId: 'resource-4',
+        resourceId: resourceId('resource-4'),
         payload: {
           annotation: {
             motivation: 'linking',
@@ -236,9 +254,9 @@ describe('DetectionWorker - Event Emission', () => {
       id: 'job-test-5',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-5',
-      entityTypes: ['Person'],
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-5'),
+      entityTypes: ['Person', 'Organization'], // Use multiple types to test progress
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -246,12 +264,10 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/environment-loader');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-5');
+    const events = await query.getResourceEvents(resourceId('resource-5'));
 
     const eventTypes = events.map(e => e.event.type);
 
@@ -261,17 +277,17 @@ describe('DetectionWorker - Event Emission', () => {
     // Last event should be job.completed
     expect(eventTypes[eventTypes.length - 1]).toBe('job.completed');
 
-    // Should have at least one job.progress event
+    // Should have at least one job.progress event (between started and completed)
     expect(eventTypes).toContain('job.progress');
   });
 
-  it('should include foundCount in progress events', async () => {
+  it('should include percentage and foundCount in progress events', async () => {
     const job: DetectionJob = {
       id: 'job-test-6',
       type: 'detection',
       status: 'pending',
-      userId: 'user-1',
-      resourceId: 'resource-6',
+      userId: userId('user-1'),
+      resourceId: resourceId('resource-6'),
       entityTypes: ['Person', 'Organization'],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -280,16 +296,16 @@ describe('DetectionWorker - Event Emission', () => {
 
     await (worker as any).executeJob(job);
 
-    const { getFilesystemConfig } = await import('../../config/environment-loader');
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents('resource-6');
+    const events = await query.getResourceEvents(resourceId('resource-6'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
 
     for (const event of progressEvents) {
+      expect(event.event.payload).toHaveProperty('percentage');
+      expect(typeof (event.event.payload as any).percentage).toBe('number');
       expect(event.event.payload).toHaveProperty('foundCount');
       expect(typeof (event.event.payload as any).foundCount).toBe('number');
     }

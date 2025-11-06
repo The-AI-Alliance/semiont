@@ -48,7 +48,7 @@ describe('CLI Environment Validation Logic', () => {
       // Remove environments directory entirely
       fs.rmSync(configDir, { recursive: true, force: true });
       
-      const { getAvailableEnvironments } = await import('../core/environment-loader');
+      const { getAvailableEnvironments } = await import('@semiont/core');
       const environments = getAvailableEnvironments();
       
       expect(environments).toEqual([]);
@@ -71,7 +71,7 @@ describe('CLI Environment Validation Logic', () => {
         );
       }
       
-      const { getAvailableEnvironments, isValidEnvironment } = await import('../core/environment-loader');
+      const { getAvailableEnvironments, isValidEnvironment } = await import('@semiont/core');
       
       const environments = getAvailableEnvironments();
       const isValid = isValidEnvironment('nonexistent');
@@ -101,7 +101,7 @@ describe('CLI Environment Validation Logic', () => {
         );
       }
       
-      const { getAvailableEnvironments } = await import('../core/environment-loader');
+      const { getAvailableEnvironments } = await import('@semiont/core');
       const environments = getAvailableEnvironments();
       
       // This simulates the help text generation
@@ -113,7 +113,7 @@ describe('CLI Environment Validation Logic', () => {
     it('should show "none found" when no environments exist', async () => {
       fs.rmSync(configDir, { recursive: true, force: true });
       
-      const { getAvailableEnvironments } = await import('../core/environment-loader');
+      const { getAvailableEnvironments } = await import('@semiont/core');
       const environments = getAvailableEnvironments();
       
       const helpText = `Environment (${environments.join(', ') || 'none found'})`;
@@ -154,11 +154,11 @@ describe('CLI Environment Validation Logic', () => {
         JSON.stringify(customConfig, null, 2)
       );
       
-      const { loadEnvironmentConfig, isValidEnvironment } = await import('../core/environment-loader');
-      
+      const { loadEnvironmentConfig, isValidEnvironment } = await import('@semiont/core');
+
       expect(isValidEnvironment('demo')).toBe(true);
-      
-      const config = loadEnvironmentConfig('demo');
+
+      const config = loadEnvironmentConfig(testDir, 'demo');
       expect(config.services).toHaveProperty('api');
       expect(config.services).toHaveProperty('web');
       expect(config.services).toHaveProperty('cache');
@@ -205,11 +205,11 @@ describe('CLI Environment Validation Logic', () => {
         JSON.stringify(validConfig, null, 2)
       );
       
-      const { loadEnvironmentConfig, isValidEnvironment } = await import('../core/environment-loader');
-      
+      const { loadEnvironmentConfig, isValidEnvironment } = await import('@semiont/core');
+
       expect(isValidEnvironment('test')).toBe(true);
-      
-      const loaded = loadEnvironmentConfig('test');
+
+      const loaded = loadEnvironmentConfig(testDir, 'test');
       
       // Verify all sections are present
       expect(loaded.platform).toBeDefined();

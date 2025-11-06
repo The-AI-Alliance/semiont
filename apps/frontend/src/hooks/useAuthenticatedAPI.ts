@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
-import { APIError } from '@/lib/api';
+import { APIError } from '@semiont/api-client';
 
 export interface FetchAPIOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>;

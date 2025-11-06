@@ -9,7 +9,7 @@
  *
  * Non-SSE endpoint for creating entity detection jobs
  * For real-time progress updates, use the SSE equivalent:
- * POST /api/resources/{id}/detect-annotations-stream
+ * POST /resources/{id}/detect-annotations-stream
  */
 
 import { HTTPException } from 'hono/http-exception';
@@ -20,28 +20,30 @@ import type { DetectionJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
+import { userId, resourceId } from '@semiont/core';
 
 type DetectEntitiesRequest = components['schemas']['DetectEntitiesRequest'];
 type CreateJobResponse = components['schemas']['CreateJobResponse'];
 
 export function registerDetectEntities(router: ResourcesRouterType) {
   /**
-   * POST /api/resources/:id/detect-entities
+   * POST /resources/:id/detect-entities
    *
    * Create an async entity detection job.
    * Use GET /api/jobs/{jobId} to poll status.
-   * For real-time updates, use POST /api/resources/{id}/detect-annotations-stream instead.
+   * For real-time updates, use POST /resources/{id}/detect-annotations-stream instead.
    *
    * Requires authentication
    * Validates request body against DetectEntitiesRequest schema
    * Returns 201 with job details
    */
-  router.post('/api/resources/:id/detect-entities',
+  router.post('/resources/:id/detect-entities',
     validateRequestBody('DetectEntitiesRequest'),
     async (c) => {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as DetectEntitiesRequest;
       const { entityTypes } = body;
+      const config = c.get('config');
 
       console.log(`[DetectEntities] Creating detection job for resource ${id} with entity types:`, entityTypes);
 
@@ -51,7 +53,7 @@ export function registerDetectEntities(router: ResourcesRouterType) {
       }
 
       // Validate resource exists using Layer 3
-      const resource = await ResourceQueryService.getResourceMetadata(id);
+      const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
@@ -62,8 +64,8 @@ export function registerDetectEntities(router: ResourcesRouterType) {
         id: `job-${nanoid()}`,
         type: 'detection',
         status: 'pending',
-        userId: user.id,
-        resourceId: id,
+        userId: userId(user.id),
+        resourceId: resourceId(id),
         entityTypes,
         created: new Date().toISOString(),
         retryCount: 0,

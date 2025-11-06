@@ -11,6 +11,7 @@
 
 import ky, { type KyInstance } from 'ky';
 import type { paths } from './types';
+import type { AnnotationUri, ResourceUri, ResourceAnnotationUri } from './uri-types';
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
@@ -48,13 +49,18 @@ export interface SemiontApiClientConfig {
  */
 export class SemiontApiClient {
   private http: KyInstance;
+  private baseUrl: string;
   private accessToken: string | null = null;
 
   constructor(config: SemiontApiClientConfig) {
     const { baseUrl, accessToken, timeout = 30000, retry = 2 } = config;
 
+    // Store baseUrl for constructing full URLs
+    // Remove trailing slash for consistent URL construction
+    this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+
+    // Don't use prefixUrl - we'll construct full URLs or use provided full URIs
     this.http = ky.create({
-      prefixUrl: baseUrl,
       timeout,
       retry,
       hooks: {
@@ -107,7 +113,7 @@ export class SemiontApiClient {
   // ============================================================================
 
   async authenticateLocal(email: string, code: string): Promise<ResponseContent<paths['/api/tokens/local']['post']>> {
-    const response = await this.http.post('api/tokens/local', { json: { email, code } }).json<any>();
+    const response = await this.http.post(`${this.baseUrl}/api/tokens/local`, { json: { email, code } }).json<any>();
     if (response.accessToken) {
       this.setAccessToken(response.accessToken);
     }
@@ -115,7 +121,7 @@ export class SemiontApiClient {
   }
 
   async refreshToken(refreshToken: string): Promise<ResponseContent<paths['/api/tokens/refresh']['post']>> {
-    const response = await this.http.post('api/tokens/refresh', { json: { refreshToken } }).json<any>();
+    const response = await this.http.post(`${this.baseUrl}/api/tokens/refresh`, { json: { refreshToken } }).json<any>();
     if (response.accessToken) {
       this.setAccessToken(response.accessToken);
     }
@@ -123,7 +129,7 @@ export class SemiontApiClient {
   }
 
   async authenticateGoogle(credential: string): Promise<ResponseContent<paths['/api/tokens/google']['post']>> {
-    const response = await this.http.post('api/tokens/google', { json: { credential } }).json<any>();
+    const response = await this.http.post(`${this.baseUrl}/api/tokens/google`, { json: { credential } }).json<any>();
     if (response.accessToken) {
       this.setAccessToken(response.accessToken);
     }
@@ -131,63 +137,92 @@ export class SemiontApiClient {
   }
 
   async generateMCPToken(): Promise<ResponseContent<paths['/api/tokens/mcp-generate']['post']>> {
-    return this.http.post('api/tokens/mcp-generate').json();
+    return this.http.post(`${this.baseUrl}/api/tokens/mcp-generate`).json();
   }
 
   // ============================================================================
-  // DOCUMENTS
+  // USERS
+  // ============================================================================
+
+  async getMe(): Promise<ResponseContent<paths['/api/users/me']['get']>> {
+    return this.http.get(`${this.baseUrl}/api/users/me`).json();
+  }
+
+  async acceptTerms(): Promise<ResponseContent<paths['/api/users/accept-terms']['post']>> {
+    return this.http.post(`${this.baseUrl}/api/users/accept-terms`).json();
+  }
+
+  // ============================================================================
+  // RESOURCES
   // ============================================================================
 
   async createResource(
-    data: RequestContent<paths['/api/resources']['post']>
-  ): Promise<ResponseContent<paths['/api/resources']['post']>> {
-    return this.http.post('api/resources', { json: data }).json();
+    data: RequestContent<paths['/resources']['post']>
+  ): Promise<ResponseContent<paths['/resources']['post']>> {
+    return this.http.post(`${this.baseUrl}/resources`, { json: data }).json();
   }
 
-  async getResource(id: string): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
-    return this.http.get(`resources/${id}`).json();
+  async getResource(resourceUri: ResourceUri): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
+    // resourceUri is already a full URI, use it directly
+    return this.http.get(resourceUri).json();
   }
 
-  async listResources(params?: {
-    limit?: number;
-    archived?: boolean;
-  }): Promise<ResponseContent<paths['/api/resources']['get']>> {
+  async listResources(
+    limit?: number,
+    archived?: boolean,
+    query?: string
+  ): Promise<ResponseContent<paths['/resources']['get']>> {
     const searchParams = new URLSearchParams();
-    if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.archived !== undefined) searchParams.append('archived', params.archived.toString());
+    if (limit) searchParams.append('limit', limit.toString());
+    if (archived !== undefined) searchParams.append('archived', archived.toString());
+    if (query) searchParams.append('q', query);
 
-    return this.http.get('api/resources', { searchParams }).json();
+    return this.http.get(`${this.baseUrl}/resources`, { searchParams }).json();
   }
 
   async updateResource(
-    id: string,
+    resourceUri: ResourceUri,
     data: RequestContent<paths['/resources/{id}']['patch']>
   ): Promise<ResponseContent<paths['/resources/{id}']['patch']>> {
-    return this.http.patch(`resources/${id}`, { json: data }).json();
+    // resourceUri is already a full URI, use it directly
+    return this.http.patch(resourceUri, { json: data }).json();
   }
 
-  async deleteResource(id: string): Promise<void> {
-    await this.http.delete(`api/resources/${id}`);
+  async deleteResource(resourceUri: ResourceUri): Promise<void> {
+    // resourceUri is already a full URI, use it directly
+    await this.http.delete(resourceUri);
   }
 
-  async searchResources(query: string, limit: number = 10): Promise<{ resources: any[] }> {
-    return this.http.get('api/resources/search', {
-      searchParams: { q: query, limit: limit.toString() },
-    }).json();
-  }
-
-  async getResourceEvents(id: string): Promise<{ events: any[] }> {
-    return this.http.get(`api/resources/${id}/events`).json();
+  async getResourceEvents(resourceUri: ResourceUri): Promise<{ events: any[] }> {
+    // resourceUri is already a full URI, use it directly
+    return this.http.get(`${resourceUri}/events`).json();
   }
 
   async getResourceAnnotations(
-    id: string
-  ): Promise<ResponseContent<paths['/api/resources/{id}/annotations']['get']>> {
-    return this.http.get(`api/resources/${id}/annotations`).json();
+    resourceUri: ResourceUri
+  ): Promise<ResponseContent<paths['/resources/{id}/annotations']['get']>> {
+    // resourceUri is already a full URI, use it directly
+    return this.http.get(`${resourceUri}/annotations`).json();
   }
 
-  async getResourceReferencedBy(id: string): Promise<{ referencedBy: any[] }> {
-    return this.http.get(`api/resources/${id}/referenced-by`).json();
+  async getResourceReferencedBy(resourceUri: ResourceUri): Promise<{ referencedBy: any[] }> {
+    // resourceUri is already a full URI, use it directly
+    return this.http.get(`${resourceUri}/referenced-by`).json();
+  }
+
+  async generateCloneToken(resourceUri: ResourceUri): Promise<ResponseContent<paths['/resources/{id}/clone-with-token']['post']>> {
+    // resourceUri is already a full URI, use it directly
+    return this.http.post(`${resourceUri}/clone-with-token`).json();
+  }
+
+  async getResourceByToken(token: string): Promise<ResponseContent<paths['/api/resources/token/{token}']['get']>> {
+    return this.http.get(`${this.baseUrl}/api/resources/token/${token}`).json();
+  }
+
+  async createResourceFromToken(
+    data: RequestContent<paths['/api/resources/create-from-token']['post']>
+  ): Promise<ResponseContent<paths['/api/resources/create-from-token']['post']>> {
+    return this.http.post(`${this.baseUrl}/api/resources/create-from-token`, { json: data }).json();
   }
 
   // ============================================================================
@@ -195,46 +230,55 @@ export class SemiontApiClient {
   // ============================================================================
 
   async createAnnotation(
-    data: RequestContent<paths['/api/annotations']['post']>
-  ): Promise<ResponseContent<paths['/api/annotations']['post']>> {
-    return this.http.post('api/annotations', { json: data }).json();
+    resourceUri: ResourceUri,
+    data: RequestContent<paths['/resources/{id}/annotations']['post']>
+  ): Promise<ResponseContent<paths['/resources/{id}/annotations']['post']>> {
+    // resourceUri is already a full URI, use it directly
+    return this.http.post(`${resourceUri}/annotations`, { json: data }).json();
   }
 
-  async getAnnotation(id: string): Promise<ResponseContent<paths['/api/annotations/{id}']['get']>> {
-    return this.http.get(`api/annotations/${id}`).json();
+  async getAnnotation(annotationUri: AnnotationUri): Promise<ResponseContent<paths['/annotations/{id}']['get']>> {
+    // annotationUri is already a full URI, use it directly
+    return this.http.get(annotationUri).json();
   }
 
-  async listAnnotations(params?: {
-    resourceId?: string;
-    motivation?: string;
-  }): Promise<ResponseContent<paths['/api/annotations']['get']>> {
+  async getResourceAnnotation(annotationUri: ResourceAnnotationUri): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}']['get']>> {
+    // annotationUri is already a full URI, use it directly
+    return this.http.get(annotationUri).json();
+  }
+
+  async listAnnotations(
+    resourceUri: ResourceUri,
+    motivation?: string
+  ): Promise<ResponseContent<paths['/resources/{id}/annotations']['get']>> {
     const searchParams = new URLSearchParams();
-    if (params?.resourceId) searchParams.append('resourceId', params.resourceId);
-    if (params?.motivation) searchParams.append('motivation', params.motivation);
+    if (motivation) searchParams.append('motivation', motivation);
 
-    return this.http.get('api/annotations', { searchParams }).json();
+    // resourceUri is already a full URI, use it directly
+    return this.http.get(`${resourceUri}/annotations`, { searchParams }).json();
   }
 
-  async deleteAnnotation(id: string, resourceId: string): Promise<void> {
-    await this.http.delete(`api/annotations/${id}`, {
-      searchParams: { resourceId },
-    });
+  async deleteAnnotation(annotationUri: ResourceAnnotationUri): Promise<void> {
+    // annotationUri is already a full URI, use it directly
+    await this.http.delete(annotationUri);
   }
 
   async updateAnnotationBody(
-    id: string,
-    data: RequestContent<paths['/api/annotations/{id}/body']['put']>
-  ): Promise<ResponseContent<paths['/api/annotations/{id}/body']['put']>> {
-    return this.http.put(`api/annotations/${id}/body`, {
+    annotationUri: ResourceAnnotationUri,
+    data: RequestContent<paths['/resources/{resourceId}/annotations/{annotationId}/body']['put']>
+  ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/body']['put']>> {
+    // annotationUri is already a full URI, use it directly
+    return this.http.put(`${annotationUri}/body`, {
       json: data,
     }).json();
   }
 
   async generateResourceFromAnnotation(
-    id: string,
-    data: RequestContent<paths['/api/annotations/{id}/generate-resource']['post']>
-  ): Promise<ResponseContent<paths['/api/annotations/{id}/generate-resource']['post']>> {
-    return this.http.post(`api/annotations/${id}/generate-resource`, { json: data }).json();
+    annotationUri: ResourceAnnotationUri,
+    data: RequestContent<paths['/resources/{resourceId}/annotations/{annotationId}/generate-resource']['post']>
+  ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/generate-resource']['post']>> {
+    // annotationUri is already a full URI, use it directly
+    return this.http.post(`${annotationUri}/generate-resource`, { json: data }).json();
   }
 
   // ============================================================================
@@ -242,11 +286,11 @@ export class SemiontApiClient {
   // ============================================================================
 
   async addEntityType(type: string): Promise<ResponseContent<paths['/api/entity-types']['post']>> {
-    return this.http.post('api/entity-types', { json: { type } }).json();
+    return this.http.post(`${this.baseUrl}/api/entity-types`, { json: { type } }).json();
   }
 
   async listEntityTypes(): Promise<ResponseContent<paths['/api/entity-types']['get']>> {
-    return this.http.get('api/entity-types').json();
+    return this.http.get(`${this.baseUrl}/api/entity-types`).json();
   }
 
   // ============================================================================
@@ -254,18 +298,27 @@ export class SemiontApiClient {
   // ============================================================================
 
   async listUsers(): Promise<ResponseContent<paths['/api/admin/users']['get']>> {
-    return this.http.get('api/admin/users').json();
+    return this.http.get(`${this.baseUrl}/api/admin/users`).json();
   }
 
   async getUserStats(): Promise<ResponseContent<paths['/api/admin/users/stats']['get']>> {
-    return this.http.get('api/admin/users/stats').json();
+    return this.http.get(`${this.baseUrl}/api/admin/users/stats`).json();
   }
 
+  /**
+   * Update a user by ID
+   * Note: Users use DID identifiers (did:web:domain:users:id), not HTTP URIs,
+   * so this method takes a plain string ID rather than a branded URI type.
+   */
   async updateUser(
     id: string,
     data: RequestContent<paths['/api/admin/users/{id}']['patch']>
   ): Promise<ResponseContent<paths['/api/admin/users/{id}']['patch']>> {
-    return this.http.patch(`api/admin/users/${id}`, { json: data }).json();
+    return this.http.patch(`${this.baseUrl}/api/admin/users/${id}`, { json: data }).json();
+  }
+
+  async getOAuthConfig(): Promise<ResponseContent<paths['/api/admin/oauth/config']['get']>> {
+    return this.http.get(`${this.baseUrl}/api/admin/oauth/config`).json();
   }
 
   // ============================================================================
@@ -273,6 +326,6 @@ export class SemiontApiClient {
   // ============================================================================
 
   async healthCheck(): Promise<ResponseContent<paths['/api/health']['get']>> {
-    return this.http.get('api/health').json();
+    return this.http.get(`${this.baseUrl}/api/health`).json();
   }
 }

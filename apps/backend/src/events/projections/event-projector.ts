@@ -13,13 +13,14 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { didToAgent } from '../../utils/id-generator';
 import type { components } from '@semiont/api-client';
-import { compareAnnotationIds } from '@semiont/api-client';
 
 type Representation = components['schemas']['Representation'];
+type Annotation = components['schemas']['Annotation'];
 import type {
   ResourceEvent,
   StoredEvent,
   ResourceAnnotations,
+  ResourceId,
 } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
 import type { ProjectionStorage, ResourceState } from '../../storage/projection-storage';
@@ -28,6 +29,7 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export interface ProjectorConfig {
   basePath: string;
+  backendUrl: string;
 }
 
 /**
@@ -43,7 +45,7 @@ export class EventProjector {
    * Build resource projection from events
    * Loads from Layer 3 if exists, otherwise rebuilds from Layer 2 events
    */
-  async projectResource(events: StoredEvent[], resourceId: string): Promise<ResourceState | null> {
+  async projectResource(events: StoredEvent[], resourceId: ResourceId): Promise<ResourceState | null> {
     // Try to load existing projection from Layer 3
     const existing = await this.projectionStorage.getProjection(resourceId);
     if (existing) {
@@ -66,7 +68,7 @@ export class EventProjector {
    * Falls back to full rebuild if projection doesn't exist
    */
   async updateProjectionIncremental(
-    resourceId: string,
+    resourceId: ResourceId,
     event: ResourceEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
@@ -97,9 +99,9 @@ export class EventProjector {
   /**
    * Build projection from event list (full rebuild)
    */
-  private buildProjectionFromEvents(events: StoredEvent[], resourceId: string): ResourceState {
+  private buildProjectionFromEvents(events: StoredEvent[], resourceId: ResourceId): ResourceState {
     // Build W3C-compliant HTTP URI for @id
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+    const backendUrl = this.config.backendUrl;
     const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
 
     // Start with empty ResourceDescriptor state
@@ -234,14 +236,14 @@ export class EventProjector {
 
       case 'annotation.removed':
         annotations.annotations = annotations.annotations.filter(
-          a => !compareAnnotationIds(a.id, event.payload.annotationId)
+          (a: Annotation) => a.id !== event.payload.annotationId
         );
         break;
 
       case 'annotation.body.updated':
         // Find annotation by ID
-        const annotation = annotations.annotations.find(a =>
-          compareAnnotationIds(a.id, event.payload.annotationId)
+        const annotation = annotations.annotations.find((a: Annotation) =>
+          a.id === event.payload.annotationId
         );
         if (annotation) {
           // Ensure body is an array

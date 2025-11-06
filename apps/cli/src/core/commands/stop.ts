@@ -90,9 +90,11 @@ const stopExecutor = new MultiServiceExecutor(stopDescriptor);
  */
 export async function stop(
   serviceDeployments: ServicePlatformInfo[],
-  options: StopOptions
+  options: StopOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ) {
-  return stopExecutor.execute(serviceDeployments, options);
+  return stopExecutor.execute(serviceDeployments, options, envConfig);
 }
 
 // =====================================================================

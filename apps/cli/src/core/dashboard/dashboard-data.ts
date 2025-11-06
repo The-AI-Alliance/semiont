@@ -7,7 +7,6 @@
 import { check } from '../commands/check.js';
 import { CommandResult } from '../command-result.js';
 import { type ServicePlatformInfo } from '../service-resolver.js';
-import { Config } from '../cli-config.js';
 import { isPlatformResources } from '../../platforms/platform-resources.js';
 
 import type { ServiceStatus, LogEntry, MetricData } from '../dashboard/dashboard-components.js';
@@ -24,7 +23,7 @@ export class DashboardDataSource {
   constructor(
     private environment: string,
     private serviceDeployments?: ServicePlatformInfo[],
-    private config?: Config
+    private envConfig?: import('@semiont/core').EnvironmentConfig
   ) {}
 
   /**
@@ -32,7 +31,7 @@ export class DashboardDataSource {
    */
   async getDashboardData(): Promise<DashboardData> {
     // If no service deployments provided, return empty data
-    if (!this.serviceDeployments || !this.config) {
+    if (!this.serviceDeployments || !this.envConfig) {
       return {
         services: [],
         logs: [],
@@ -63,7 +62,8 @@ export class DashboardDataSource {
             dryRun: false,
             output: 'json',
             forceDiscovery: false
-          }
+          },
+          this.envConfig
         );
         
         // Extract the first (and only) result from the aggregated results
@@ -259,22 +259,6 @@ export class DashboardDataSource {
     if (log.match(/\b(error|ERROR|Error)\b/)) return 'error';
     if (log.match(/\b(warning|WARNING|Warning|warn|WARN)\b/)) return 'warn';
     return 'info';
-  }
-
-  // Compatibility methods for web-dashboard-server
-  async getServicesStatus() {
-    const data = await this.getDashboardData();
-    return data.services;
-  }
-
-  async getLogs(maxEntries: number = 50) {
-    const data = await this.getDashboardData();
-    return data.logs.slice(0, maxEntries);
-  }
-
-  async getMetrics() {
-    const data = await this.getDashboardData();
-    return data.metrics;
   }
 }
 

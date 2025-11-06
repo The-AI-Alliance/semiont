@@ -31,7 +31,7 @@
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
-import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/environment-loader.js';
+import { getNodeEnvForEnvironment } from '@semiont/core';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
@@ -78,9 +78,9 @@ export class BackendService extends BaseService {
       },
       build: buildConfig || {
         dockerfile: 'Dockerfile.backend',
-        buildContext: path.join(this.systemConfig.projectRoot, 'apps/backend'),
+        buildContext: path.join(this.projectRoot, 'apps/backend'),
         buildArgs: {
-          NODE_ENV: this.systemConfig.environment,
+          NODE_ENV: this.environment,
           VERSION: process.env.VERSION || 'latest'
         },
         prebuilt: false
@@ -88,7 +88,7 @@ export class BackendService extends BaseService {
       resources: {
         memory: this.config.memory || '512Mi',
         cpu: this.config.cpu || '0.25',
-        replicas: this.systemConfig.environment === 'prod' ? 2 : 1
+        replicas: this.environment === 'prod' ? 2 : 1
       },
       security: {
         secrets: ['JWT_SECRET', 'DATABASE_URL', 'API_KEY'],
@@ -117,16 +117,14 @@ export class BackendService extends BaseService {
   }
   
   private buildEnvironment(): Record<string, string> {
-    const envConfig = loadEnvironmentConfig(this.systemConfig.environment);
-    
     return {
       PORT: this.getPort().toString(),
-      NODE_ENV: getNodeEnvForEnvironment(this.systemConfig.environment),
-      SEMIONT_ENV: this.systemConfig.environment,
-      SEMIONT_ENVIRONMENT: this.systemConfig.environment,
-      ...(envConfig.site?.domain && { SITE_DOMAIN: envConfig.site.domain }),
-      ...(envConfig.site?.oauthAllowedDomains && { 
-        OAUTH_ALLOWED_DOMAINS: JSON.stringify(envConfig.site.oauthAllowedDomains) 
+      NODE_ENV: getNodeEnvForEnvironment(this.envConfig),
+      SEMIONT_ENV: this.environment,
+      SEMIONT_ENVIRONMENT: this.environment,
+      ...(this.envConfig.site?.domain && { SITE_DOMAIN: this.envConfig.site.domain }),
+      ...(this.envConfig.site?.oauthAllowedDomains && {
+        OAUTH_ALLOWED_DOMAINS: JSON.stringify(this.envConfig.site.oauthAllowedDomains)
       })
     };
   }
@@ -302,12 +300,11 @@ export class BackendService extends BaseService {
     }
     
     // Try to get database configuration from environment config
-    const envConfig = loadEnvironmentConfig(this.systemConfig.environment);
-    const dbConfig = envConfig.services?.database;
+    const dbConfig = this.envConfig.services?.database;
     
     if (dbConfig && dbConfig.platform?.type === 'external') {
       // Load secrets for database password
-      const secretsPath = path.join(this.systemConfig.projectRoot, '.secrets.json');
+      const secretsPath = path.join(this.projectRoot, '.secrets.json');
       let password = dbConfig.password || 'password';
       
       try {
@@ -322,7 +319,7 @@ export class BackendService extends BaseService {
       const dbUrl = `postgresql://${dbConfig.user}:${password}@${dbConfig.host}:${dbConfig.port}/${dbConfig.name}`;
       
       // Debug logging for CI
-      if (this.systemConfig.environment === 'ci') {
+      if (this.environment === 'ci') {
         console.log(`[DEBUG] Backend DATABASE_URL construction:`);
         console.log(`  - dbConfig: ${JSON.stringify(dbConfig)}`);
         console.log(`  - secretsPath: ${secretsPath}`);

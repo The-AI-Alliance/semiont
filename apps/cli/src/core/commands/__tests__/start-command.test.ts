@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createServiceDeployments, resetMockState } from './_mock-setup';
+import { createServiceDeployments, resetMockState, createMockEnvConfig } from './_mock-setup';
 import type { StartOptions } from '../start.js';
 
 // Import mocks (side effects)
@@ -41,15 +41,15 @@ describe('Start Command', () => {
       const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'mock' },
-        { name: 'backend', type: 'mock' }
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'postgres:15' } },
+        { name: 'backend', type: 'mock', config: { port: 3001 } }
       ]);
 
       const options = createStartOptions({
         output: 'json'
       });
 
-      const result = await start(serviceDeployments, options);
+      const result = await start(serviceDeployments, options, createMockEnvConfig());
 
       // Debug output to see what's happening
       if (result.summary.failed > 0) {
@@ -95,7 +95,7 @@ describe('Start Command', () => {
         dryRun: true
       });
 
-      const result = await start(serviceDeployments, options);
+      const result = await start(serviceDeployments, options, createMockEnvConfig());
 
       expect(result.results[0]!).toMatchObject({
         entity: 'frontend',
@@ -111,7 +111,7 @@ describe('Start Command', () => {
       const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'mock', config: { image: 'invalid-image' } }
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'invalid-image' } }
       ]);
 
       const options = createStartOptions({
@@ -119,7 +119,7 @@ describe('Start Command', () => {
         quiet: true
       });
 
-      const result = await start(serviceDeployments, options);
+      const result = await start(serviceDeployments, options, createMockEnvConfig());
 
       // Even if container fails to start, we should get a result
       expect(result.command).toBe('start');
@@ -140,7 +140,7 @@ describe('Start Command', () => {
         output: 'json'
       });
 
-      const result = await start(serviceDeployments, options);
+      const result = await start(serviceDeployments, options, createMockEnvConfig());
 
       expect(result.results[0]!).toMatchObject({
         entity: 'backend',
@@ -153,7 +153,7 @@ describe('Start Command', () => {
       const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'mock', config: { image: 'postgres:14' } }
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'postgres:14' } }
       ]);
 
       const options = createStartOptions({
@@ -161,7 +161,7 @@ describe('Start Command', () => {
         output: 'summary'
       });
 
-      const result = await start(serviceDeployments, options);
+      const result = await start(serviceDeployments, options, createMockEnvConfig());
 
       expect(result.results).toHaveLength(1);
       expect(result.results[0]).toBeDefined();
@@ -181,7 +181,7 @@ describe('Start Command', () => {
         output: 'json'
       });
 
-      const result = await start(serviceDeployments, options);
+      const result = await start(serviceDeployments, options, createMockEnvConfig());
 
       expect(result.results[0]!).toMatchObject({
         entity: 'backend',
@@ -211,7 +211,7 @@ describe('Start Command', () => {
           dryRun: true
         });
 
-        const result = await start(serviceDeployments, options);
+        const result = await start(serviceDeployments, options, createMockEnvConfig());
         
         expect(result).toBeDefined();
         expect(result.command).toBe('start');
@@ -235,7 +235,7 @@ describe('Start Command', () => {
         dryRun: true
       });
 
-      const result = await start(serviceDeployments, options);
+      const result = await start(serviceDeployments, options, createMockEnvConfig());
 
       expect(result.results).toHaveLength(3);
       expect(result.summary.total).toBe(3);
@@ -253,7 +253,7 @@ describe('Start Command', () => {
         output: 'json'
       });
 
-      const result = await start(serviceDeployments, options);
+      const result = await start(serviceDeployments, options, createMockEnvConfig());
 
       expect(result.results).toHaveLength(1);
       expect(result.results[0]!.entity).toBe('backend');
@@ -298,7 +298,7 @@ describe('Start Command', () => {
         output: 'json'
       });
 
-      const result = await start(serviceDeployments, options);
+      const result = await start(serviceDeployments, options, createMockEnvConfig());
 
       // Command test should only verify command orchestration
       expect(result).toMatchObject({

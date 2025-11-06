@@ -14,6 +14,8 @@
 import type { ResourceState } from './projection-storage-v2';
 import type { ProjectionStorage } from './projection-storage-v2';
 import { getCreator } from '../../utils/resource-helpers';
+import { resourceId as makeResourceId } from '@semiont/core';
+import type { UserId } from '@semiont/core';
 
 /**
  * ProjectionQuery provides query operations on projections
@@ -32,7 +34,7 @@ export class ProjectionQuery {
     const results: ResourceState[] = [];
 
     for (const id of allIds) {
-      const projection = await this.storage.get(id);
+      const projection = await this.storage.get(makeResourceId(id));
       if (projection && projection.resource.entityTypes?.includes(entityType)) {
         results.push(projection);
       }
@@ -47,12 +49,12 @@ export class ProjectionQuery {
    * @param userId - User DID to filter by
    * @returns Array of matching projections
    */
-  async findByCreator(userId: string): Promise<ResourceState[]> {
+  async findByCreator(userId: UserId): Promise<ResourceState[]> {
     const allIds = await this.storage.getAllResourceIds();
     const results: ResourceState[] = [];
 
     for (const id of allIds) {
-      const projection = await this.storage.get(id);
+      const projection = await this.storage.get(makeResourceId(id));
       if (projection) {
         const creator = getCreator(projection.resource);
         if (creator?.['@id'] === userId) {
@@ -74,7 +76,7 @@ export class ProjectionQuery {
     const results: ResourceState[] = [];
 
     for (const id of allIds) {
-      const projection = await this.storage.get(id);
+      const projection = await this.storage.get(makeResourceId(id));
       if (projection && projection.resource.archived) {
         results.push(projection);
       }
@@ -93,7 +95,7 @@ export class ProjectionQuery {
     const results: ResourceState[] = [];
 
     for (const id of allIds) {
-      const projection = await this.storage.get(id);
+      const projection = await this.storage.get(makeResourceId(id));
       if (projection && !projection.resource.archived) {
         results.push(projection);
       }
@@ -109,7 +111,7 @@ export class ProjectionQuery {
    * @returns Number of annotations or 0 if not found
    */
   async getAnnotationCount(resourceId: string): Promise<number> {
-    const projection = await this.storage.get(resourceId);
+    const projection = await this.storage.get(makeResourceId(resourceId));
     return projection?.annotations.annotations.length || 0;
   }
 
@@ -124,7 +126,7 @@ export class ProjectionQuery {
     const results: ResourceState[] = [];
 
     for (const id of allIds) {
-      const projection = await this.storage.get(id);
+      const projection = await this.storage.get(makeResourceId(id));
       if (projection && projection.annotations.annotations.length >= minCount) {
         results.push(projection);
       }
@@ -145,7 +147,7 @@ export class ProjectionQuery {
     const lowerQuery = query.toLowerCase();
 
     for (const id of allIds) {
-      const projection = await this.storage.get(id);
+      const projection = await this.storage.get(makeResourceId(id));
       if (projection && projection.resource.name.toLowerCase().includes(lowerQuery)) {
         results.push(projection);
       }

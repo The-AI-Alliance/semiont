@@ -14,23 +14,24 @@ import { createEventStore, createEventQuery } from '../../../services/event-stor
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getTargetSource } from '../../../lib/annotation-utils';
 import type { components } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 
 type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
 
 export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
   /**
-   * GET /api/resources/:resourceId/annotations/:annotationId/history
+   * GET /resources/:resourceId/annotations/:annotationId/history
    *
    * Get full event history for a specific annotation (highlight or reference)
    * Requires authentication
    * Returns annotation events sorted by sequence number
    */
-  router.get('/api/resources/:resourceId/annotations/:annotationId/history', async (c) => {
+  router.get('/resources/:resourceId/annotations/:annotationId/history', async (c) => {
     const { resourceId, annotationId } = c.req.param();
+    const config = c.get('config');
 
     // Verify annotation exists using Layer 3 (not GraphDB)
-    const annotation = await AnnotationQueryService.getAnnotation(annotationId, resourceId);
+    const annotation = await AnnotationQueryService.getAnnotation(makeAnnotationId(annotationId), makeResourceId(resourceId), config);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
@@ -39,13 +40,12 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       throw new HTTPException(404, { message: 'Annotation does not belong to this resource' });
     }
 
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( config);
     const query = createEventQuery(eventStore);
 
     // Get all events for this resource
     const allEvents = await query.queryEvents({
-      resourceId,
+      resourceId: makeResourceId(resourceId),
     });
 
     // Filter events related to this annotation

@@ -10,20 +10,28 @@
 import { JobWorker } from './job-worker';
 import type { Job, GenerationJob } from '../types';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { AnnotationQueryService } from '../../services/annotation-queries';
+import { ResourceQueryService } from '../../services/resource-queries';
 import { generateResourceFromTopic } from '../../inference/factory';
 import { getTargetSelector } from '../../lib/annotation-utils';
 import {
   CREATION_METHODS,
   generateUuid,
   type BodyOperation,
+  resourceId,
+  annotationId,
 } from '@semiont/core';
 import { getExactText } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
 
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig, getBackendConfig } from '../../config/environment-loader';
+import type { EnvironmentConfig } from '@semiont/core';
 
 export class GenerationWorker extends JobWorker {
+  constructor(private config: EnvironmentConfig) {
+    super();
+  }
+
   protected getWorkerName(): string {
     return 'GenerationWorker';
   }
@@ -43,117 +51,95 @@ export class GenerationWorker extends JobWorker {
   private async processGenerationJob(job: GenerationJob): Promise<void> {
     console.log(`[GenerationWorker] Processing generation for reference ${job.referenceId} (job: ${job.id})`);
 
-    const basePath = getFilesystemConfig().path;
+    const basePath = this.config.services.filesystem!.path;
     const repStore = new FilesystemRepresentationStore({ basePath });
-    const eventStore = await createEventStore(basePath);
 
-    // Emit job.started event
-    await eventStore.appendEvent({
-      type: 'job.started',
-      resourceId: job.sourceResourceId,
-      userId: job.userId,
-      version: 1,
-      payload: {
-        jobId: job.id,
-        jobType: 'generation',
-        totalSteps: 5,  // fetching, generating, creating, linking, complete
-      },
-    });
+    // Update progress: fetching
+    job.progress = {
+      stage: 'fetching',
+      percentage: 20,
+      message: 'Fetching source resource...'
+    };
+    console.log(`[GenerationWorker] 📥 ${job.progress.message}`);
+    await this.updateJobProgress(job);
 
-    // Use pre-fetched LLM context from job payload
-    const llmContext = job.llmContext;
-    if (!llmContext) {
-      throw new Error('LLM context missing from job payload - job may have been created incorrectly');
+    // Fetch annotation from Layer 3
+    const projection = await AnnotationQueryService.getResourceAnnotations(job.sourceResourceId, this.config);
+    // Compare by ID
+    const annotation = projection.annotations.find((a: any) =>
+      a.id === job.referenceId && a.motivation === 'linking'
+    );
+
+    if (!annotation) {
+      throw new Error(`Reference annotation ${job.referenceId} not found in resource ${job.sourceResourceId}`);
     }
 
-    console.log(`[GenerationWorker] Using pre-fetched LLM context with source context: ${!!llmContext.sourceContext}`);
+    const sourceResource = await ResourceQueryService.getResourceMetadata(job.sourceResourceId, this.config);
+    if (!sourceResource) {
+      throw new Error(`Source resource ${job.sourceResourceId} not found`);
+    }
 
     // Determine resource name
-    const targetSelector = getTargetSelector(llmContext.annotation.target);
+    const targetSelector = getTargetSelector(annotation.target);
     const resourceName = job.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
     console.log(`[GenerationWorker] Generating resource: "${resourceName}"`);
 
-    // Emit job.progress event (generating)
-    await eventStore.appendEvent({
-      type: 'job.progress',
-      resourceId: job.sourceResourceId,
-      userId: job.userId,
-      version: 1,
-      payload: {
-        jobId: job.id,
-        jobType: 'generation',
-        percentage: 40,
-        currentStep: 'generating',
-        processedSteps: 2,
-        totalSteps: 5,
-        message: 'Creating content with AI...',
-      },
-    });
+    // Update progress: generating
+    job.progress = {
+      stage: 'generating',
+      percentage: 40,
+      message: 'Creating content with AI...'
+    };
+    console.log(`[GenerationWorker] 🤖 ${job.progress.message}`);
+    await this.updateJobProgress(job);
 
-    // Build enriched prompt with source context
-    let enrichedPrompt = job.prompt || `Create a comprehensive resource about "${resourceName}"`;
-
-    if (llmContext.sourceContext) {
-      const { before, selected, after } = llmContext.sourceContext;
-      enrichedPrompt += `\n\nSource Context:\nThe phrase "${selected}" appears in this context:\n...${before}[${selected}]${after}...`;
-      console.log(`[GenerationWorker] Including source context (${before.length + selected.length + after.length} chars)`);
-    }
-
+    // Generate content using AI
+    const prompt = job.prompt || `Create a comprehensive resource about "${resourceName}"`;
     // Extract entity types from annotation body
-    const annotationEntityTypes = getEntityTypes({ body: llmContext.annotation.body });
+    const annotationEntityTypes = getEntityTypes({ body: annotation.body });
 
     const generatedContent = await generateResourceFromTopic(
       resourceName,
       job.entityTypes || annotationEntityTypes,
-      enrichedPrompt,
+      this.config,
+      prompt,
       job.language
     );
 
     console.log(`[GenerationWorker] ✅ Generated ${generatedContent.content.length} bytes of content`);
 
-    // Generate resource ID
-    const resourceId = generateUuid();
+    // Update progress: creating
+    job.progress = {
+      stage: 'generating',
+      percentage: 70,
+      message: 'Content ready, creating resource...'
+    };
+    await this.updateJobProgress(job);
 
-    // Emit job.progress event (creating)
-    await eventStore.appendEvent({
-      type: 'job.progress',
-      resourceId: job.sourceResourceId,
-      userId: job.userId,
-      version: 1,
-      payload: {
-        jobId: job.id,
-        jobType: 'generation',
-        percentage: 85,
-        currentStep: 'creating',
-        processedSteps: 4,
-        totalSteps: 5,
-        message: 'Saving resource...',
-      },
-    });
+    // Generate resource ID
+    const rId = resourceId(generateUuid());
+
+    // Update progress: creating
+    job.progress = {
+      stage: 'creating',
+      percentage: 85,
+      message: 'Saving resource...'
+    };
+    console.log(`[GenerationWorker] 💾 ${job.progress.message}`);
+    await this.updateJobProgress(job);
 
     // Save content to RepresentationStore
     const storedRep = await repStore.store(Buffer.from(generatedContent.content), {
       mediaType: 'text/markdown',
       rel: 'original',
     });
-    console.log(`[GenerationWorker] ✅ Saved resource representation to filesystem: ${resourceId}`);
-
-    // Subscribe GraphDB consumer to new resource BEFORE emitting event
-    // This ensures the consumer receives the resource.created event
-    try {
-      const { getGraphConsumer } = await import('../../events/consumers/graph-consumer');
-      const consumer = await getGraphConsumer();
-      await consumer.subscribeToResource(resourceId);
-      console.log(`[GenerationWorker] ✅ Subscribed GraphDB consumer to ${resourceId}`);
-    } catch (error) {
-      console.error('[GenerationWorker] Failed to subscribe GraphDB consumer:', error);
-      // Don't fail the job - consumer can catch up later
-    }
+    console.log(`[GenerationWorker] ✅ Saved resource representation to filesystem: ${rId}`);
 
     // Emit resource.created event
+    const eventStore = await createEventStore( this.config);
     await eventStore.appendEvent({
       type: 'resource.created',
-      resourceId,
+      resourceId: rId,
       userId: job.userId,
       version: 1,
       payload: {
@@ -168,22 +154,23 @@ export class GenerationWorker extends JobWorker {
         generationPrompt: undefined,  // Could be added if we track the prompt
       },
     });
-    console.log(`[GenerationWorker] Emitted resource.created event for ${resourceId}`);
+    console.log(`[GenerationWorker] Emitted resource.created event for ${rId}`);
+
+    // Update progress: linking
+    job.progress = {
+      stage: 'linking',
+      percentage: 95,
+      message: 'Linking reference...'
+    };
+    console.log(`[GenerationWorker] 🔗 ${job.progress.message}`);
+    await this.updateJobProgress(job);
 
     // Emit annotation.body.updated event to link the annotation to the new resource
-    const backendConfig = getBackendConfig();
-    const resourceUri = `${backendConfig.publicURL}/resources/${resourceId}`;
-
-    // Construct full annotation URI (Neo4j stores annotations with full URIs)
-    const annotationUri = job.referenceId.includes('/')
-      ? job.referenceId  // Already a full URI
-      : `${backendConfig.publicURL}/annotations/${job.referenceId}`;  // Construct from short ID
-
     const operations: BodyOperation[] = [{
       op: 'add',
       item: {
         type: 'SpecificResource',
-        source: resourceUri,  // Use full URI, not short ID
+        source: rId,
         purpose: 'linking',
       },
     }];
@@ -194,34 +181,86 @@ export class GenerationWorker extends JobWorker {
       userId: job.userId,
       version: 1,
       payload: {
-        annotationId: annotationUri,
+        annotationId: annotationId(job.referenceId),
         operations,
       },
     });
-    console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${annotationUri} → ${resourceId}`);
+    console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${job.referenceId} → ${rId}`);
 
     // Set final result
     job.result = {
-      resourceId,
+      resourceId: rId,
       resourceName
     };
 
-    // Emit job.completed event
-    await eventStore.appendEvent({
-      type: 'job.completed',
-      resourceId: job.sourceResourceId,
-      userId: job.userId,
-      version: 1,
-      payload: {
-        jobId: job.id,
-        jobType: 'generation',
-        totalSteps: 5,
-        resultResourceId: resourceId,
-        annotationId: annotationUri,
-        message: `Generation complete: created resource "${resourceName}"`,
-      },
-    });
+    job.progress = {
+      stage: 'linking',
+      percentage: 100,
+      message: 'Complete!'
+    };
+    await this.updateJobProgress(job);
 
-    console.log(`[GenerationWorker] ✅ Generation complete: created resource ${resourceId}`);
+    console.log(`[GenerationWorker] ✅ Generation complete: created resource ${rId}`);
+  }
+
+  /**
+   * Update job progress and emit events to Event Store
+   * Overrides base class to also emit job progress events
+   */
+  protected override async updateJobProgress(job: Job): Promise<void> {
+    // Call parent to update job queue
+    await super.updateJobProgress(job);
+
+    // Emit events for generation jobs
+    if (job.type !== 'generation') {
+      return;
+    }
+
+    const genJob = job as GenerationJob;
+    const eventStore = await createEventStore( this.config);
+
+    const baseEvent = {
+      resourceId: genJob.sourceResourceId,
+      userId: genJob.userId,
+      version: 1,
+    };
+
+    // Emit appropriate event based on progress stage
+    if (genJob.progress?.stage === 'fetching' && genJob.progress?.percentage === 20) {
+      // First progress update - emit job.started
+      await eventStore.appendEvent({
+        type: 'job.started',
+        ...baseEvent,
+        payload: {
+          jobId: genJob.id,
+          jobType: genJob.type,
+          totalSteps: 5, // fetching, generating, creating, linking, complete
+        },
+      });
+    } else if (genJob.progress?.stage === 'linking' && genJob.progress?.percentage === 100) {
+      // Final progress update - emit job.completed
+      await eventStore.appendEvent({
+        type: 'job.completed',
+        ...baseEvent,
+        payload: {
+          jobId: genJob.id,
+          jobType: genJob.type,
+          resultResourceId: genJob.result?.resourceId,
+        },
+      });
+    } else if (genJob.progress) {
+      // Intermediate progress - emit job.progress
+      await eventStore.appendEvent({
+        type: 'job.progress',
+        ...baseEvent,
+        payload: {
+          jobId: genJob.id,
+          jobType: genJob.type,
+          currentStep: genJob.progress.stage,
+          percentage: genJob.progress.percentage,
+          message: genJob.progress.message,
+        },
+      });
+    }
   }
 }

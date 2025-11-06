@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { validateData, JWTTokenSchema } from '@semiont/api-client';
 import {
   ImageURLSchema,
-  JWTTokenSchema,
   OAuthUserSchema,
   sanitizeImageURL,
-  validateData,
 } from '../validation';
 
 // Use environment variables for URLs

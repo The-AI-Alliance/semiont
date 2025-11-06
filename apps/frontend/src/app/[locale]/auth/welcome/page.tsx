@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { PageLayout } from '@/components/PageLayout';
 import { useToast } from '@/components/Toast';
-import { auth } from '@/lib/api/auth';
+import { useAuth } from '@/lib/api-hooks';
 
 export default function Welcome() {
   const t = useTranslations('AuthWelcome');
@@ -17,11 +17,14 @@ export default function Welcome() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const { showError } = useToast();
 
+  // API hooks
+  const authAPI = useAuth();
+
   // Query user data to check if terms already accepted
-  const { data: userData } = auth.me.useQuery();
+  const { data: userData } = authAPI.me.useQuery();
 
   // Mutation for accepting terms
-  const acceptTermsMutation = auth.acceptTerms.useMutation();
+  const acceptTermsMutation = authAPI.acceptTerms.useMutation();
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {

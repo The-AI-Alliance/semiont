@@ -35,3 +35,6 @@ export * from './client';
 
 // Handwritten utilities
 export * from './utils';
+
+// Branded URI types
+export * from './uri-types';

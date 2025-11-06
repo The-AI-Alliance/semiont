@@ -16,7 +16,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { userId, resourceId } from '@semiont/core';
 
 type UpdateResourceRequest = components['schemas']['UpdateResourceRequest'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
@@ -35,23 +35,23 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as UpdateResourceRequest;
       const user = c.get('user');
-      const basePath = getFilesystemConfig().path;
+      const config = c.get('config');
 
       // Check resource exists using Layer 3
-      const doc = await ResourceQueryService.getResourceMetadata(id);
+      const doc = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!doc) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
 
-      const eventStore = await createEventStore(basePath);
+      const eventStore = await createEventStore( config);
 
       // Emit archived/unarchived events (event store updates Layer 3, graph consumer updates Layer 4)
       if (body.archived !== undefined && body.archived !== doc.archived) {
         if (body.archived) {
           await eventStore.appendEvent({
             type: 'resource.archived',
-            resourceId: id,
-            userId: user.id,
+            resourceId: resourceId(id),
+            userId: userId(user.id),
             version: 1,
             payload: {
               reason: undefined,
@@ -60,8 +60,8 @@ export function registerUpdateResource(router: ResourcesRouterType) {
         } else {
           await eventStore.appendEvent({
             type: 'resource.unarchived',
-            resourceId: id,
-            userId: user.id,
+            resourceId: resourceId(id),
+            userId: userId(user.id),
             version: 1,
             payload: {},
           });
@@ -76,8 +76,8 @@ export function registerUpdateResource(router: ResourcesRouterType) {
         for (const entityType of added) {
           await eventStore.appendEvent({
             type: 'entitytag.added',
-            resourceId: id,
-            userId: user.id,
+            resourceId: resourceId(id),
+            userId: userId(user.id),
             version: 1,
             payload: {
               entityType,
@@ -87,8 +87,8 @@ export function registerUpdateResource(router: ResourcesRouterType) {
         for (const entityType of removed) {
           await eventStore.appendEvent({
             type: 'entitytag.removed',
-            resourceId: id,
-            userId: user.id,
+            resourceId: resourceId(id),
+            userId: userId(user.id),
             version: 1,
             payload: {
               entityType,
@@ -98,7 +98,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       }
 
       // Read annotations from Layer 3
-      const annotations = await AnnotationQueryService.getAllAnnotations(id);
+      const annotations = await AnnotationQueryService.getAllAnnotations(resourceId(id), config);
       const entityReferences = annotations.filter(a => {
         if (a.motivation !== 'linking') return false;
         const entityTypes = getEntityTypes({ body: a.body });

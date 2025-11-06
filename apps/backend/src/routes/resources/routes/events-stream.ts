@@ -17,7 +17,8 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
-import { getFilesystemConfig, getBackendConfig } from '../../../config/environment-loader';
+import { resourceId } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 
 /**
  * Resource-scoped SSE event stream for real-time collaboration
@@ -30,27 +31,26 @@ import { getFilesystemConfig, getBackendConfig } from '../../../config/environme
 
 export function registerGetEventStream(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/:id/events/stream
+   * GET /resources/:id/events/stream
    *
    * Open a Server-Sent Events stream to receive real-time resource events
    * Requires authentication
    * Returns text/event-stream
    */
-  router.get('/api/resources/:id/events/stream', async (c) => {
+  router.get('/resources/:id/events/stream', async (c) => {
     const { id } = c.req.param();
-    const basePath = getFilesystemConfig().path;
+    const config = c.get('config');
 
     // Construct full resource URI for event subscriptions (consistent with W3C Web Annotation spec)
-    const backendConfig = getBackendConfig();
-    const resourceUri = `${backendConfig.publicURL}/resources/${id}`;
+    const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
 
     console.log(`[EventStream] Client connecting to resource events stream for ${id}`);
-    console.log(`[EventStream] Subscribing to events for resource URI: ${resourceUri}`);
+    console.log(`[EventStream] Subscribing to events for resource URI: ${rUri}`);
 
     // Verify resource exists in event store (Layer 2 - source of truth)
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents(id);
+    const events = await query.getResourceEvents(resourceId(id));
     if (events.length === 0) {
       console.log(`[EventStream] Resource ${id} not found - no events exist`);
       throw new HTTPException(404, { message: 'Resource not found - no events exist for this resource' });
@@ -106,14 +106,14 @@ export function registerGetEventStream(router: ResourcesRouterType) {
 
       // Subscribe to events for this resource using full URI
       const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
-      console.log(`[EventStream:${streamId}] Subscribing to events for resource URI ${resourceUri}`);
-      subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
+      console.log(`[EventStream:${streamId}] Subscribing to events for resource URI ${rUri}`);
+      subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
         if (isStreamClosed) {
-          console.log(`[EventStream:${streamId}] Stream already closed for ${resourceUri}, ignoring event ${storedEvent.event.type}`);
+          console.log(`[EventStream:${streamId}] Stream already closed for ${rUri}, ignoring event ${storedEvent.event.type}`);
           return;
         }
 
-        console.log(`[EventStream:${streamId}] Received event ${storedEvent.event.type} for resource ${resourceUri}, attempting to write to SSE stream`);
+        console.log(`[EventStream:${streamId}] Received event ${storedEvent.event.type} for resource ${rUri}, attempting to write to SSE stream`);
 
         try {
           const eventData = {

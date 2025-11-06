@@ -41,8 +41,8 @@ export class HandlerRegistry {
 
   /**
    * Register multiple handlers using descriptors
-   * 
-   * @param platform - Platform name (e.g., 'aws', 'posix') - for backward compatibility
+   *
+   * @param platform - Platform name (e.g., 'aws', 'posix')
    * @param descriptors - Array of handler descriptors
    */
   registerHandlers(
@@ -77,8 +77,7 @@ export class HandlerRegistry {
 
   /**
    * Get a handler descriptor for a specific platform and operation
-   * For backward compatibility with old format
-   * 
+   *
    * @param platform - Platform name
    * @param operation - Operation name (e.g., 'check-ecs' or 'check:ecs')
    * @returns Handler descriptor or undefined if not found

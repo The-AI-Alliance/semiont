@@ -2,33 +2,40 @@
  * Tests for URI utilities
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resourceIdToURI, uriToResourceId, annotationIdToURI, uriToAnnotationId } from '../uri-utils';
+import { resourceId, annotationId } from '@semiont/core';
+import { setupTestEnvironment, type TestEnvironmentConfig } from '../../__tests__/_test-setup';
 
 describe('URI Utilities', () => {
-  beforeEach(() => {
-    // Set BACKEND_URL for tests
-    process.env.BACKEND_URL = 'http://localhost:4000';
+  let testEnv: TestEnvironmentConfig;
+
+  beforeAll(async () => {
+    testEnv = await setupTestEnvironment();
+  });
+
+  afterAll(async () => {
+    await testEnv.cleanup();
   });
 
   describe('resourceIdToURI', () => {
+    const publicURL = 'http://localhost:4000';
+
     it('converts resource ID to URI', () => {
-      expect(resourceIdToURI('doc-abc123')).toBe('http://localhost:4000/resources/doc-abc123');
+      expect(resourceIdToURI(resourceId('doc-abc123'), publicURL)).toBe('http://localhost:4000/resources/doc-abc123');
     });
 
     it('handles BACKEND_URL with trailing slash', () => {
-      process.env.BACKEND_URL = 'http://localhost:4000/';
-      expect(resourceIdToURI('doc-abc123')).toBe('http://localhost:4000/resources/doc-abc123');
+      expect(resourceIdToURI(resourceId('doc-abc123'), 'http://localhost:4000/')).toBe('http://localhost:4000/resources/doc-abc123');
     });
 
     it('handles production URLs', () => {
-      process.env.BACKEND_URL = 'https://api.semiont.app';
-      expect(resourceIdToURI('doc-abc123')).toBe('https://api.semiont.app/resources/doc-abc123');
+      expect(resourceIdToURI(resourceId('doc-abc123'), 'https://api.semiont.app')).toBe('https://api.semiont.app/resources/doc-abc123');
     });
 
     it('handles content-addressable resource IDs', () => {
       const contentId = 'doc-sha256:a1b2c3d4e5f6';
-      expect(resourceIdToURI(contentId)).toBe(`http://localhost:4000/resources/${contentId}`);
+      expect(resourceIdToURI(resourceId(contentId), publicURL)).toBe(`http://localhost:4000/resources/${contentId}`);
     });
   });
 
@@ -64,23 +71,23 @@ describe('URI Utilities', () => {
   });
 
   describe('annotationIdToURI', () => {
+    const publicURL = 'http://localhost:4000';
+
     it('converts annotation ID to URI', () => {
-      expect(annotationIdToURI('anno-xyz789')).toBe('http://localhost:4000/annotations/anno-xyz789');
+      expect(annotationIdToURI(annotationId('anno-xyz789'), publicURL)).toBe('http://localhost:4000/annotations/anno-xyz789');
     });
 
     it('handles BACKEND_URL with trailing slash', () => {
-      process.env.BACKEND_URL = 'http://localhost:4000/';
-      expect(annotationIdToURI('anno-xyz789')).toBe('http://localhost:4000/annotations/anno-xyz789');
+      expect(annotationIdToURI(annotationId('anno-xyz789'), 'http://localhost:4000/')).toBe('http://localhost:4000/annotations/anno-xyz789');
     });
 
     it('handles production URLs', () => {
-      process.env.BACKEND_URL = 'https://api.semiont.app';
-      expect(annotationIdToURI('anno-xyz789')).toBe('https://api.semiont.app/annotations/anno-xyz789');
+      expect(annotationIdToURI(annotationId('anno-xyz789'), 'https://api.semiont.app')).toBe('https://api.semiont.app/annotations/anno-xyz789');
     });
 
     it('handles nanoid-style annotation IDs', () => {
       const nanoidAnnotation = 'anno-V1StGXR8_Z5jdHi6B-myT';
-      expect(annotationIdToURI(nanoidAnnotation)).toBe(`http://localhost:4000/annotations/${nanoidAnnotation}`);
+      expect(annotationIdToURI(annotationId(nanoidAnnotation), publicURL)).toBe(`http://localhost:4000/annotations/${nanoidAnnotation}`);
     });
   });
 
@@ -116,16 +123,18 @@ describe('URI Utilities', () => {
   });
 
   describe('Round-trip conversion', () => {
+    const publicURL = 'http://localhost:4000';
+
     it('resource ID -> URI -> ID', () => {
       const originalId = 'doc-abc123';
-      const uri = resourceIdToURI(originalId);
+      const uri = resourceIdToURI(resourceId(originalId), publicURL);
       const extractedId = uriToResourceId(uri);
       expect(extractedId).toBe(originalId);
     });
 
     it('annotation ID -> URI -> ID', () => {
       const originalId = 'anno-xyz789';
-      const uri = annotationIdToURI(originalId);
+      const uri = annotationIdToURI(annotationId(originalId), publicURL);
       const extractedId = uriToAnnotationId(uri);
       expect(extractedId).toBe(originalId);
     });
@@ -134,13 +143,11 @@ describe('URI Utilities', () => {
       const docId = 'doc-abc123';
 
       // Local
-      process.env.BACKEND_URL = 'http://localhost:4000';
-      const localUri = resourceIdToURI(docId);
+      const localUri = resourceIdToURI(resourceId(docId), 'http://localhost:4000');
       expect(uriToResourceId(localUri)).toBe(docId);
 
       // Production
-      process.env.BACKEND_URL = 'https://api.semiont.app';
-      const prodUri = resourceIdToURI(docId);
+      const prodUri = resourceIdToURI(resourceId(docId), 'https://api.semiont.app');
       expect(uriToResourceId(prodUri)).toBe(docId);
     });
   });

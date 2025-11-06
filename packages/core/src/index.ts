@@ -14,6 +14,16 @@
 export { CREATION_METHODS } from './creation-methods';
 export type { CreationMethod } from './creation-methods';
 
+// Identifier types (only IDs - URIs are in @semiont/api-client)
+export type { ResourceId, AnnotationId, UserId } from './identifiers';
+export {
+  resourceId,
+  annotationId,
+  userId,
+  isResourceId,
+  isAnnotationId,
+} from './identifiers';
+
 // Graph types
 export type {
   GraphConnection,
@@ -75,6 +85,36 @@ export * from './errors';
 export * from './http-client';
 export * from './annotation-history-utils';
 export * from './did-utils';
+
+// Configuration loading
+export {
+  loadEnvironmentConfig,
+  getAvailableEnvironments,
+  getNodeEnvForEnvironment,
+  type EnvironmentConfig,
+  type ServiceConfig,
+  type AWSConfig,
+  type SiteConfig,
+  type AppConfig,
+} from './config/environment-loader';
+export {
+  isValidEnvironment,
+  parseEnvironment,
+  validateEnvironment,
+  type Environment,
+} from './config/environment-validator';
+export { ConfigurationError } from './config/configuration-error';
+export {
+  findProjectRoot,
+  isProjectRoot,
+  getEnvironmentsPath,
+  getSemiontConfigPath,
+} from './config/project-discovery';
+export {
+  type PlatformType,
+  isValidPlatformType,
+  getAllPlatformTypes,
+} from './config/platform-types';
 
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';

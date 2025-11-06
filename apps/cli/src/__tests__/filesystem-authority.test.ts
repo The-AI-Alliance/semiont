@@ -114,7 +114,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     
     // Import the CLI validation functions
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/environment-loader');
+      await import('@semiont/core');
     
     // Test 1: Environment discovery should find 'foo'
     const availableEnvironments = getAvailableEnvironments();
@@ -124,7 +124,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     expect(isValidEnvironment('foo')).toBe(true);
     
     // Test 3: Configuration loading should parse foo.json correctly
-    const loadedConfig = loadEnvironmentConfig('foo');
+    const loadedConfig = loadEnvironmentConfig(testDir, 'foo');
     
     expect(loadedConfig).toBeDefined();
     expect(loadedConfig.site?.domain).toBe('foo.example.com');
@@ -175,7 +175,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../core/environment-loader');
+      await import('@semiont/core');
     
     const available = getAvailableEnvironments();
     
@@ -223,7 +223,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/environment-loader');
+      await import('@semiont/core');
     
     const available = getAvailableEnvironments();
     
@@ -232,7 +232,7 @@ describe('Filesystem Authority for Environment Validation', () => {
       expect(available).toContain(envName);
       expect(isValidEnvironment(envName)).toBe(true);
       
-      const config = loadEnvironmentConfig(envName);
+      const config = loadEnvironmentConfig(testDir, envName);
       expect(config.site?.domain).toBe(`${envName}.test.local`);
     }
   });
@@ -242,7 +242,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     expect(fs.readdirSync(configDir)).toEqual([]);
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../core/environment-loader');
+      await import('@semiont/core');
     
     // Nothing should be valid initially
     expect(getAvailableEnvironments()).toEqual([]);

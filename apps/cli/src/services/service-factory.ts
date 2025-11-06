@@ -8,7 +8,7 @@
 import { Service } from '../core/service-interface.js';
 import { ServiceName } from '../core/service-discovery.js';
 import { Config, ServiceConfig } from '../core/cli-config.js';
-import { PlatformType } from '../core/platform-types.js';
+import { PlatformType, EnvironmentConfig } from '@semiont/core';
 import { BackendService } from './backend-service.js';
 import { FrontendService } from './frontend-service.js';
 import { DatabaseService } from './database-service.js';
@@ -27,35 +27,44 @@ export class ServiceFactory {
     name: ServiceName,
     platform: PlatformType,
     config: Config,
+    envConfig: EnvironmentConfig,
     serviceConfig: ServiceConfig
   ): Service {
+    // Extract runtime flags from config
+    const runtimeFlags = {
+      verbose: config.verbose,
+      quiet: config.quiet,
+      dryRun: config.dryRun,
+      forceDiscovery: config.forceDiscovery
+    };
+
     switch (name) {
       case 'backend':
-        return new BackendService(name, platform, config, serviceConfig);
-        
+        return new BackendService(name, platform, envConfig, serviceConfig, runtimeFlags);
+
       case 'frontend':
-        return new FrontendService(name, platform, config, serviceConfig);
-        
+        return new FrontendService(name, platform, envConfig, serviceConfig, runtimeFlags);
+
       case 'database':
-        return new DatabaseService(name, platform, config, serviceConfig);
-        
+        return new DatabaseService(name, platform, envConfig, serviceConfig, runtimeFlags);
+
       case 'filesystem':
-        return new FilesystemService(name, platform, config, serviceConfig);
-        
+        return new FilesystemService(name, platform, envConfig, serviceConfig, runtimeFlags);
+
       case 'graph':
-        return new GraphService('graph', platform, config, serviceConfig);
-        
+        return new GraphService('graph', platform, envConfig, serviceConfig, runtimeFlags);
+
       case 'mcp':
-        return new MCPService(name, platform, config, serviceConfig);
-        
+        return new MCPService(name, platform, envConfig, serviceConfig, runtimeFlags);
+
       case 'inference':
-        return new InferenceService(name, platform, config, serviceConfig);
-        
+        return new InferenceService(name, platform, envConfig, serviceConfig, runtimeFlags);
+
       default:
         // Use GenericService for unknown service types
         // This allows extending the system with new services without modifying the factory
         printInfo(`Using GenericService for unknown service type: ${name}`);
-        return new GenericService(name as any, platform, config, serviceConfig);
+        return new GenericService(name as any, platform, envConfig, serviceConfig, runtimeFlags);
     }
   }
 }

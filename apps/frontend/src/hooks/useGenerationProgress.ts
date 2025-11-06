@@ -1,16 +1,15 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { extractAnnotationId } from '@semiont/api-client';
+import type { AnnotationUri, ResourceUri } from '@semiont/api-client';
 
 export interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
-  referenceId: string;
+  referenceId: AnnotationUri;
   documentName?: string;
-  resourceId?: string;
+  resourceId?: ResourceUri;
   sourceResourceId?: string;
   percentage: number;
   message?: string;
@@ -33,8 +32,8 @@ export function useGenerationProgress({
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const startGeneration = useCallback(async (
-    referenceId: string,
-    resourceId: string,
+    referenceId: AnnotationUri,
+    resourceId: ResourceUri,
     options?: { prompt?: string; title?: string; language?: string }
   ) => {
     console.log('[useGenerationProgress] startGeneration called with:', {
@@ -62,13 +61,20 @@ export function useGenerationProgress({
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    // Build SSE URL
-    const apiUrl = NEXT_PUBLIC_API_URL;
-    // Extract ID from URI if referenceId is a full URI (Phase 5: URI-based IDs)
-    const id = extractAnnotationId(referenceId);
-    const url = `${apiUrl}/api/annotations/${id}/generate-resource-stream`;
+    // Extract annotation ID from flat annotation URI
+    // referenceId format: http://localhost:4000/annotations/{id}
+    const annotationIdSegment = referenceId.split('/').pop();
+    if (!annotationIdSegment) {
+      onError?.('Invalid annotation URI');
+      setIsGenerating(false);
+      return;
+    }
 
-    const requestBody = { resourceId, ...options };
+    // Build nested SSE URL using resource context
+    // New nested format: http://localhost:4000/resources/{rid}/annotations/{aid}/generate-resource-stream
+    const url = `${resourceId}/annotations/${annotationIdSegment}/generate-resource-stream`;
+
+    const requestBody = { ...options };
     console.log('[useGenerationProgress] Sending request to:', url);
     console.log('[useGenerationProgress] Request body:', requestBody);
 

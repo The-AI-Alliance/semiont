@@ -6,10 +6,11 @@
  */
 
 import type { paths, components } from '../types';
-import { getExactText, compareAnnotationIds, getTargetSelector } from './annotations';
+import { AnnotationUri } from '../uri-types';
+import { getExactText, getTargetSelector } from './annotations';
 
 // Extract StoredEvent type from events endpoint response
-type EventsResponse = paths['/api/resources/{id}/events']['get']['responses'][200]['content']['application/json'];
+type EventsResponse = paths['/resources/{id}/events']['get']['responses'][200]['content']['application/json'];
 export type StoredEvent = EventsResponse['events'][number];
 export type ResourceEvent = StoredEvent['event'];
 export type EventMetadata = StoredEvent['metadata'];
@@ -42,7 +43,7 @@ type TranslateFn = (key: string, params?: Record<string, string | number>) => st
  * Extract annotation ID from event payload
  * Returns null if event is not annotation-related
  */
-export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
+export function getAnnotationUriFromEvent(event: StoredEvent): AnnotationUri | null {
   const eventData = event.event;
   const payload = eventData.payload as any;
 
@@ -54,7 +55,7 @@ export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
     case 'annotation.added':
     case 'annotation.removed':
     case 'annotation.body.updated':
-      return payload.annotation?.id || null;
+      return payload.annotationUri || null;
 
     default:
       return null;
@@ -64,9 +65,9 @@ export function getAnnotationIdFromEvent(event: StoredEvent): string | null {
 /**
  * Check if an event is related to a specific annotation
  */
-export function isEventRelatedToAnnotation(event: StoredEvent, annotationId: string): boolean {
-  const eventAnnotationId = getAnnotationIdFromEvent(event);
-  return eventAnnotationId === annotationId;
+export function isEventRelatedToAnnotation(event: StoredEvent, annotationUri: AnnotationUri): boolean {
+  const eventAnnotationUri = getAnnotationUriFromEvent(event);
+  return eventAnnotationUri === annotationUri;
 }
 
 /**
@@ -229,7 +230,7 @@ export function getEventDisplayContent(
     case 'annotation.body.updated': {
       // Find current annotation to get its text
       const annotation = annotations.find(a =>
-        compareAnnotationIds(a.id, payload.annotationId)
+        a.id === payload.annotationUri
       );
 
       if (annotation?.target) {
@@ -250,7 +251,7 @@ export function getEventDisplayContent(
       // Find the original annotation.added event to get the text
       const addedEvent = allEvents.find(e =>
         e.event.type === 'annotation.added' &&
-        (e.event.payload as any).annotation?.id === payload.annotationId
+        (e.event.payload as any).annotation?.id === payload.annotationUri
       );
       if (addedEvent) {
         const addedPayload = addedEvent.event.payload as any;
@@ -286,9 +287,9 @@ export function getEventDisplayContent(
 
     case 'job.completed': {
       // Find the annotation that was used to generate the resource
-      if (payload.annotationId) {
+      if (payload.annotationUri) {
         const annotation = annotations.find(a =>
-          compareAnnotationIds(a.id, payload.annotationId)
+          a.id === payload.annotationUri
         );
 
         if (annotation?.target) {

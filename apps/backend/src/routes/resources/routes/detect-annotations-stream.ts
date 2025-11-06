@@ -18,9 +18,7 @@ import type { DetectionJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
-import { createEventStore } from '../../../services/event-store-service';
-import { getFilesystemConfig, getBackendConfig } from '../../../config/environment-loader';
-import type { JobProgressEvent, JobCompletedEvent, JobFailedEvent } from '@semiont/core';
+import { userId, resourceId } from '@semiont/core';
 
 type DetectAnnotationsStreamRequest = components['schemas']['DetectAnnotationsStreamRequest'];
 
@@ -36,19 +34,20 @@ interface DetectionProgress {
 
 export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
   /**
-   * POST /api/resources/:id/detect-annotations-stream
+   * POST /resources/:id/detect-annotations-stream
    *
    * Stream real-time entity detection progress via Server-Sent Events
    * Requires authentication
    * Validates request body against DetectAnnotationsStreamRequest schema
    * Returns SSE stream with progress updates
    */
-  router.post('/api/resources/:id/detect-annotations-stream',
+  router.post('/resources/:id/detect-annotations-stream',
     validateRequestBody('DetectAnnotationsStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as DetectAnnotationsStreamRequest;
       const { entityTypes } = body;
+      const config = c.get('config');
 
       console.log(`[DetectAnnotations] Starting detection for resource ${id} with entity types:`, entityTypes);
 
@@ -59,7 +58,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
       }
 
       // Validate resource exists using Layer 3
-      const resource = await ResourceQueryService.getResourceMetadata(id);
+      const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found in Layer 3 projections - resource may need to be recreated' });
       }
@@ -70,8 +69,8 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
         id: `job-${nanoid()}`,
         type: 'detection',
         status: 'pending',
-        userId: user.id,
-        resourceId: id,
+        userId: userId(user.id),
+        resourceId: resourceId(id),
         entityTypes,
         created: new Date().toISOString(),
         retryCount: 0,
@@ -88,7 +87,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
           await stream.writeSSE({
             data: JSON.stringify({
               status: 'started',
-              resourceId: id,
+              resourceId: resourceId(id),
               totalEntityTypes: entityTypes.length,
               processedEntityTypes: 0,
               message: 'Starting entity detection...'
@@ -97,88 +96,92 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
             id: String(Date.now())
           });
 
-          // Subscribe to Event Store for job progress events
+          let lastStatus = job.status;
+          let lastProgress = JSON.stringify(job.progress);
+
+          // Poll job status and stream updates to client
           // The job worker processes independently - if client disconnects, job continues
-          const basePath = getFilesystemConfig().path;
-          const eventStore = await createEventStore(basePath);
+          while (true) {
+            const currentJob = await jobQueue.getJob(job.id);
 
-          // Promise that resolves when the job is done (complete or failed)
-          let jobDoneResolver: (() => void) | null = null;
-          const jobDonePromise = new Promise<void>((resolve) => {
-            jobDoneResolver = resolve;
-          });
-
-          // Construct full resource URI for subscription (consistent with event publication)
-          const backendConfig = getBackendConfig();
-          const resourceUri = `${backendConfig.publicURL}/resources/${id}`;
-
-          // Subscribe to all events for this resource using full URI
-          const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
-            const event = storedEvent.event;
-
-            // Filter events for this specific job
-            if (event.type === 'job.progress' && event.payload.jobId === job.id) {
-              const progressEvent = event as JobProgressEvent;
-              try {
-                await stream.writeSSE({
-                  data: JSON.stringify({
-                    status: 'scanning',
-                    resourceId: id,
-                    currentEntityType: progressEvent.payload.currentStep,
-                    totalEntityTypes: progressEvent.payload.totalSteps || entityTypes.length,
-                    processedEntityTypes: progressEvent.payload.processedSteps || 0,
-                    foundCount: progressEvent.payload.foundCount || 0,
-                    message: progressEvent.payload.message || 'Processing...'
-                  } as DetectionProgress),
-                  event: 'detection-progress',
-                  id: storedEvent.metadata.sequenceNumber.toString()
-                });
-              } catch (sseError) {
-                console.warn(`[DetectAnnotations] Client disconnected, but job ${job.id} will continue processing`);
-                subscription.unsubscribe();
-                if (jobDoneResolver) jobDoneResolver();
-              }
+            if (!currentJob) {
+              throw new Error('Job was deleted');
             }
 
-            // Handle job completion
-            if (event.type === 'job.completed' && event.payload.jobId === job.id) {
-              const completedEvent = event as JobCompletedEvent;
+            const currentProgress = JSON.stringify(currentJob.progress);
+
+            // Send progress updates when job state changes
+            if (currentJob.status !== lastStatus || currentProgress !== lastProgress) {
+              if (currentJob.status === 'running' && currentJob.type === 'detection') {
+                const detectionJob = currentJob as DetectionJob;
+                const progress = detectionJob.progress;
+
+                if (progress) {
+                  // Send scanning progress
+                  try {
+                    await stream.writeSSE({
+                      data: JSON.stringify({
+                        status: 'scanning',
+                        resourceId: resourceId(id),
+                        currentEntityType: progress.currentEntityType,
+                        totalEntityTypes: progress.totalEntityTypes,
+                        processedEntityTypes: progress.processedEntityTypes,
+                        foundCount: progress.entitiesFound,
+                        message: progress.currentEntityType
+                          ? `Scanning for ${progress.currentEntityType}...`
+                          : 'Processing...'
+                      } as DetectionProgress),
+                      event: 'detection-progress',
+                      id: String(Date.now())
+                    });
+                  } catch (sseError) {
+                    console.warn(`[DetectAnnotations] Client disconnected, but job ${job.id} will continue processing`);
+                    break; // Client disconnected, stop streaming (job continues)
+                  }
+                }
+              }
+
+              lastStatus = currentJob.status;
+              lastProgress = currentProgress;
+            }
+
+            // Check if job completed
+            if (currentJob.status === 'complete') {
+              const result = (currentJob as DetectionJob).result;
               await stream.writeSSE({
                 data: JSON.stringify({
                   status: 'complete',
-                  resourceId: id,
+                  resourceId: resourceId(id),
                   totalEntityTypes: entityTypes.length,
                   processedEntityTypes: entityTypes.length,
-                  message: completedEvent.payload.message || 'Detection complete!'
+                  message: result
+                    ? `Detection complete! Found ${result.totalFound} entities, emitted ${result.totalEmitted} events`
+                    : 'Detection complete!'
                 } as DetectionProgress),
                 event: 'detection-complete',
-                id: storedEvent.metadata.sequenceNumber.toString()
+                id: String(Date.now())
               });
-              subscription.unsubscribe();
-              if (jobDoneResolver) jobDoneResolver();
+              break;
             }
 
-            // Handle job failure
-            if (event.type === 'job.failed' && event.payload.jobId === job.id) {
-              const failedEvent = event as JobFailedEvent;
+            if (currentJob.status === 'failed') {
               await stream.writeSSE({
                 data: JSON.stringify({
                   status: 'error',
-                  resourceId: id,
+                  resourceId: resourceId(id),
                   totalEntityTypes: entityTypes.length,
                   processedEntityTypes: 0,
-                  message: failedEvent.payload.error || 'Detection failed'
+                  message: currentJob.error || 'Detection failed'
                 } as DetectionProgress),
                 event: 'detection-error',
-                id: storedEvent.metadata.sequenceNumber.toString()
+                id: String(Date.now())
               });
-              subscription.unsubscribe();
-              if (jobDoneResolver) jobDoneResolver();
+              break;
             }
-          });
 
-          // Keep the connection alive until the job is done
-          await jobDonePromise;
+            // Poll every 500ms
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
 
         } catch (error) {
           // Send error event
@@ -186,7 +189,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
             await stream.writeSSE({
               data: JSON.stringify({
                 status: 'error',
-                resourceId: id,
+                resourceId: resourceId(id),
                 totalEntityTypes: entityTypes.length,
                 processedEntityTypes: 0,
                 message: error instanceof Error ? error.message : 'Detection failed'

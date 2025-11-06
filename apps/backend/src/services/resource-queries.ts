@@ -7,9 +7,9 @@
  * Uses ProjectionManager as single source of truth for paths
  */
 
-import { getFilesystemConfig } from '../config/environment-loader';
 import { createProjectionManager } from './storage-service';
 import type { components } from '@semiont/api-client';
+import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -22,9 +22,8 @@ export class ResourceQueryService {
   /**
    * Get resource metadata from Layer 3 projection
    */
-  static async getResourceMetadata(resourceId: string): Promise<ResourceDescriptor | null> {
-    const config = getFilesystemConfig();
-    const basePath = config.path;
+  static async getResourceMetadata(resourceId: ResourceId, config: EnvironmentConfig): Promise<ResourceDescriptor | null> {
+    const basePath = config.services.filesystem!.path;
 
     // Use ProjectionManager to get projection (respects configured subNamespace)
     const projectionManager = createProjectionManager(basePath, {
@@ -42,9 +41,8 @@ export class ResourceQueryService {
   /**
    * List all resources by scanning Layer 3 projection files
    */
-  static async listResources(filters?: ListResourcesFilters): Promise<ResourceDescriptor[]> {
-    const config = getFilesystemConfig();
-    const basePath = config.path;
+  static async listResources(filters: ListResourcesFilters | undefined, config: EnvironmentConfig): Promise<ResourceDescriptor[]> {
+    const basePath = config.services.filesystem!.path;
 
     // Use ProjectionManager to get all resources (respects configured subNamespace)
     const projectionManager = createProjectionManager(basePath, {

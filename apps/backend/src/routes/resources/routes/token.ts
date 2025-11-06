@@ -13,14 +13,15 @@ import { getGraphDatabase } from '../../../graph/factory';
 import {
   CREATION_METHODS,
   generateUuid,
+  resourceId as makeResourceId,
 } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getResourceId, getEntityTypes } from '../../../utils/resource-helpers';
 
@@ -52,8 +53,9 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       throw new HTTPException(404, { message: 'Token expired' });
     }
 
-    const graphDb = await getGraphDatabase();
-    const sourceDoc = await graphDb.getResource(tokenData.resourceId);
+    const config = c.get('config');
+    const graphDb = await getGraphDatabase(config);
+    const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Source resource not found' });
     }
@@ -80,7 +82,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
     async (c) => {
       const body = c.get('validatedBody') as CreateResourceFromTokenRequest;
       const user = c.get('user');
-      const basePath = getFilesystemConfig().path;
+      const config = c.get('config');
+      const basePath = config.services.filesystem!.path;
 
       const tokenData = cloneTokens.get(body.token);
       if (!tokenData) {
@@ -91,12 +94,11 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         cloneTokens.delete(body.token);
         throw new HTTPException(404, { message: 'Token expired' });
       }
-
-      const graphDb = await getGraphDatabase();
+    const graphDb = await getGraphDatabase(config);
       const repStore = new FilesystemRepresentationStore({ basePath });
 
       // Get source resource
-      const sourceDoc = await graphDb.getResource(tokenData.resourceId);
+      const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
       if (!sourceDoc) {
         throw new HTTPException(404, { message: 'Source resource not found' });
       }
@@ -147,7 +149,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
 
       // Archive original if requested
       if (body.archiveOriginal) {
-        await graphDb.updateResource(tokenData.resourceId, {
+        await graphDb.updateResource(resourceUri(tokenData.resourceId), {
           archived: true
         });
       }
@@ -156,7 +158,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       cloneTokens.delete(body.token);
 
       // Get annotations
-      const result = await graphDb.listAnnotations({ resourceId: getResourceId(savedDoc) });
+      const result = await graphDb.listAnnotations({ resourceId: makeResourceId(getResourceId(savedDoc)) });
 
       const response: CreateResourceFromTokenResponse = {
         resource: savedDoc,
@@ -168,18 +170,19 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
   );
 
   /**
-   * POST /api/resources/:id/clone-with-token
+   * POST /resources/:id/clone-with-token
    *
    * Generate a temporary token for cloning a resource
    * Requires authentication
    */
-  router.post('/api/resources/:id/clone-with-token', async (c) => {
+  router.post('/resources/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
-    const basePath = getFilesystemConfig().path;
-    const graphDb = await getGraphDatabase();
+    const config = c.get('config');
+    const basePath = config.services.filesystem!.path;
+    const graphDb = await getGraphDatabase(config);
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    const sourceDoc = await graphDb.getResource(id);
+    const sourceDoc = await graphDb.getResource(resourceUri(resourceUri(id)));
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Resource not found' });
     }

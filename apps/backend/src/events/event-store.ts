@@ -14,15 +14,15 @@
 import type {
   ResourceEvent,
   StoredEvent,
+  ResourceId,
 } from '@semiont/core';
-import { isSystemEvent } from '@semiont/core';
 import type { ProjectionStorage } from '../storage/projection-storage';
+import { toResourceUri, type IdentifierConfig } from '../services/identifier-service';
 
 // Import extracted modules
 import { EventStorage, type EventStorageConfig } from './storage/event-storage';
 import { EventProjector, type ProjectorConfig } from './projections/event-projector';
 import { getEventSubscriptions, type EventSubscriptions } from './subscriptions/event-subscriptions';
-import { getBackendConfig } from '../config/environment-loader';
 
 /**
  * EventStore orchestrates event sourcing operations
@@ -35,12 +35,17 @@ export class EventStore {
   readonly projector: EventProjector;
   readonly subscriptions: EventSubscriptions;
 
-  constructor(config: EventStorageConfig, projectionStorage: ProjectionStorage) {
+  constructor(
+    config: EventStorageConfig,
+    projectionStorage: ProjectionStorage,
+    private identifierConfig: IdentifierConfig
+  ) {
     // Initialize modules
     this.storage = new EventStorage(config);
 
     const projectorConfig: ProjectorConfig = {
       basePath: config.basePath,
+      backendUrl: identifierConfig.baseUrl,
     };
     this.projector = new EventProjector(projectionStorage, projectorConfig);
 
@@ -54,35 +59,30 @@ export class EventStore {
    * Coordinates: storage → projection → notification
    */
   async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>): Promise<StoredEvent> {
-    // Determine storage location based on event type
-    // System events use special '__system__' shard, resource events use their resourceId
-    const resourceId = event.resourceId || '__system__';
+    // System-level events (entitytype.added) have no resourceId - use __system__
+    const resourceId: ResourceId | '__system__' = event.resourceId || '__system__';
 
     // Storage handles ALL event creation
-    const storedEvent = await this.storage.appendEvent(event, resourceId);
+    const storedEvent = await this.storage.appendEvent(event, resourceId as any);
 
-    // Route to appropriate projection and notification based on event type
-    if (isSystemEvent(storedEvent.event)) {
-      // System-level event: Update global projection
-      await this.projector.updateEntityTypesProjection(storedEvent.event.payload.entityType);
+    // Update projections (Layer 3)
+    if (resourceId === '__system__') {
+      // System projection (entity types)
+      if (storedEvent.event.type === 'entitytype.added') {
+        const payload = storedEvent.event.payload as any;
+        await this.projector.updateEntityTypesProjection(payload.entityType);
+      }
       // Notify global subscribers
       await this.subscriptions.notifyGlobalSubscribers(storedEvent);
     } else {
-      // Resource-scoped event: Update resource projection
-      if (!storedEvent.event.resourceId) {
-        throw new Error(`Resource-scoped event ${storedEvent.event.type} missing resourceId`);
-      }
+      // Resource projection
       await this.projector.updateProjectionIncremental(
-        storedEvent.event.resourceId,
+        resourceId as ResourceId,
         storedEvent.event,
-        () => this.storage.getAllEvents(storedEvent.event.resourceId!)
+        () => this.storage.getAllEvents(resourceId as ResourceId)
       );
-      // Notify resource subscribers using full URI (W3C Web Annotation spec compliance)
-      // Convert short resource ID to full URI at the publication boundary (if not already a URI)
-      const backendConfig = getBackendConfig();
-      const resourceUri = storedEvent.event.resourceId.includes('/')
-        ? storedEvent.event.resourceId  // Already a full URI
-        : `${backendConfig.publicURL}/resources/${storedEvent.event.resourceId}`;  // Short ID, construct URI
+      // Notify resource subscribers - convert ID to URI for type safety
+      const resourceUri = toResourceUri(this.identifierConfig, resourceId as ResourceId);
       await this.subscriptions.notifySubscribers(resourceUri, storedEvent);
     }
 

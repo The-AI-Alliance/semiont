@@ -1,49 +1,17 @@
 /**
- * Native JavaScript validation for frontend
- * Security-focused validation with no external dependencies
+ * Frontend-specific validation utilities
+ *
+ * Browser and Next.js specific validation with security checks.
+ * For generic validation utilities, see @semiont/api-client/utils/validation
  */
 
-/**
- * Validation result types
- */
-type ValidationSuccess<T> = { success: true; data: T };
-type ValidationFailure = { success: false; error: string; details?: string[] };
-type ValidationResult<T> = ValidationSuccess<T> | ValidationFailure;
+import { isValidEmail, type ValidationResult } from '@semiont/api-client';
 
 /**
- * JWT Token validation
- */
-export const JWTTokenSchema = {
-  parse(token: unknown): string {
-    if (typeof token !== 'string') {
-      throw new Error('Token must be a string');
-    }
-    if (!token || token.length === 0) {
-      throw new Error('Token is required');
-    }
-    // JWT format: header.payload.signature
-    const jwtRegex = /^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]*$/;
-    if (!jwtRegex.test(token)) {
-      throw new Error('Invalid JWT token format');
-    }
-    return token;
-  },
-
-  safeParse(token: unknown): ValidationResult<string> {
-    try {
-      const validated = this.parse(token);
-      return { success: true, data: validated };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Invalid JWT token',
-      };
-    }
-  },
-};
-
-/**
- * Image URL validation with security checks (web-specific)
+ * Image URL validation with security checks (browser-specific)
+ *
+ * Validates image URLs for use in browser environments with XSS prevention.
+ * Only allows HTTPS for external images, blocks suspicious patterns.
  */
 export const ImageURLSchema = {
   parse(url: unknown): string {
@@ -105,9 +73,12 @@ export const ImageURLSchema = {
 };
 
 /**
- * OAuth user validation (Next.js auth specific)
+ * OAuth user validation (Next.js NextAuth specific)
+ *
+ * Validates user objects returned from OAuth providers.
+ * Includes domain validation for access control.
  */
-interface OAuthUser {
+export interface OAuthUser {
   id: string;
   email: string;
   name?: string | null;
@@ -189,25 +160,13 @@ export const OAuthUserSchema = {
 };
 
 /**
- * Generic validation helper with error formatting
- */
-export function validateData<T>(
-  schema: { parse(data: unknown): T },
-  data: unknown
-): ValidationResult<T> {
-  try {
-    const validated = schema.parse(data);
-    return { success: true, data: validated };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Validation failed',
-    };
-  }
-}
-
-/**
- * URL sanitization for images (web-specific security)
+ * URL sanitization for images (browser-specific security)
+ *
+ * Sanitizes image URLs by validating and reconstructing with only safe parts.
+ * Returns null if validation fails.
+ *
+ * @param url - Image URL to sanitize
+ * @returns Sanitized URL or null if invalid
  */
 export function sanitizeImageURL(url: string): string | null {
   try {
@@ -227,16 +186,4 @@ export function sanitizeImageURL(url: string): string | null {
     console.error('Error sanitizing image URL:', error);
     return null;
   }
-}
-
-/**
- * Helper: Email validation
- */
-function isValidEmail(email: string): boolean {
-  if (email.length < 1 || email.length > 255) {
-    return false;
-  }
-  // RFC 5322 simplified email regex
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
 }

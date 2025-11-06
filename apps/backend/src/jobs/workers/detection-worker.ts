@@ -13,10 +13,14 @@ import { ResourceQueryService } from '../../services/resource-queries';
 import { detectAnnotationsInResource } from '../../routes/resources/helpers';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
-import { getFilesystemConfig } from '../../config/environment-loader';
 import { resourceIdToURI } from '../../lib/uri-utils';
+import type { EnvironmentConfig } from '@semiont/core';
 
 export class DetectionWorker extends JobWorker {
+  constructor(private config: EnvironmentConfig) {
+    super();
+  }
+
   protected getWorkerName(): string {
     return 'DetectionWorker';
   }
@@ -37,24 +41,8 @@ export class DetectionWorker extends JobWorker {
     console.log(`[DetectionWorker] Processing detection for resource ${job.resourceId} (job: ${job.id})`);
     console.log(`[DetectionWorker] 🔍 Entity types: ${job.entityTypes.join(', ')}`);
 
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
-
-    // Emit job.started event
-    await eventStore.appendEvent({
-      type: 'job.started',
-      resourceId: job.resourceId,
-      userId: job.userId,
-      version: 1,
-      payload: {
-        jobId: job.id,
-        jobType: 'detection',
-        totalSteps: job.entityTypes.length,
-      },
-    });
-
     // Fetch resource content
-    const resource = await ResourceQueryService.getResourceMetadata(job.resourceId);
+    const resource = await ResourceQueryService.getResourceMetadata(job.resourceId, this.config);
 
     if (!resource) {
       throw new Error(`Resource ${job.resourceId} not found`);
@@ -64,6 +52,15 @@ export class DetectionWorker extends JobWorker {
     let totalEmitted = 0;
     let totalErrors = 0;
 
+    // Emit job.started before processing
+    job.progress = {
+      totalEntityTypes: job.entityTypes.length,
+      processedEntityTypes: 0,
+      entitiesFound: 0,
+      entitiesEmitted: 0
+    };
+    await this.updateJobProgress(job);
+
     // Process each entity type
     for (let i = 0; i < job.entityTypes.length; i++) {
       const entityType = job.entityTypes[i];
@@ -72,28 +69,11 @@ export class DetectionWorker extends JobWorker {
 
       console.log(`[DetectionWorker] 🤖 [${i + 1}/${job.entityTypes.length}] Detecting ${entityType}...`);
 
-      // Emit job.progress event to Event Store
-      await eventStore.appendEvent({
-        type: 'job.progress',
-        resourceId: job.resourceId,
-        userId: job.userId,
-        version: 1,
-        payload: {
-          jobId: job.id,
-          jobType: 'detection',
-          percentage: Math.round((i / job.entityTypes.length) * 100),
-          currentStep: entityType,
-          processedSteps: i,
-          totalSteps: job.entityTypes.length,
-          foundCount: totalFound,
-          message: `Scanning for ${entityType}...`,
-        },
-      });
-
       // Detect entities using AI (loads content from filesystem internally)
       const detectedAnnotations = await detectAnnotationsInResource(
         resource,
-        [entityType]
+        [entityType],
+        this.config
       );
 
       totalFound += detectedAnnotations.length;
@@ -111,13 +91,21 @@ export class DetectionWorker extends JobWorker {
 
         let referenceId: string;
         try {
-          referenceId = generateAnnotationId();
+          const backendUrl = this.config.services.backend?.publicURL;
+          if (!backendUrl) {
+            throw new Error('Backend publicURL not configured');
+          }
+          referenceId = generateAnnotationId(backendUrl);
         } catch (error) {
           console.error(`[DetectionWorker] Failed to generate annotation ID:`, error);
-          throw new Error('Configuration error: BACKEND_URL not set');
+          job.status = 'failed';
+          job.error = 'Configuration error: Backend publicURL not set';
+          await this.updateJobProgress(job);
+          return;
         }
 
         try {
+          const eventStore = await createEventStore( this.config);
           await eventStore.appendEvent({
             type: 'annotation.added',
             resourceId: job.resourceId,
@@ -130,7 +118,7 @@ export class DetectionWorker extends JobWorker {
                 id: referenceId,
                 motivation: 'linking' as const,
                 target: {
-                  source: resourceIdToURI(job.resourceId), // Convert to full URI
+                  source: resourceIdToURI(job.resourceId, this.config.services.backend!.publicURL), // Convert to full URI
                   selector: [
                     {
                       type: 'TextPositionSelector',
@@ -167,6 +155,16 @@ export class DetectionWorker extends JobWorker {
       }
 
       console.log(`[DetectionWorker] ✅ Completed ${entityType}: ${detectedAnnotations.length} found, ${detectedAnnotations.length - (totalErrors - (totalFound - totalEmitted))} emitted`);
+
+      // Update progress after processing this entity type
+      job.progress = {
+        totalEntityTypes: job.entityTypes.length,
+        processedEntityTypes: i + 1,
+        currentEntityType: entityType,
+        entitiesFound: totalFound,
+        entitiesEmitted: totalEmitted
+      };
+      await this.updateJobProgress(job);
     }
 
     // Set final result
@@ -176,36 +174,82 @@ export class DetectionWorker extends JobWorker {
       errors: totalErrors
     };
 
-    // Emit job.completed event to Event Store
-    if (totalErrors > 0) {
+    console.log(`[DetectionWorker] ✅ Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted, ${totalErrors} errors`);
+  }
+
+  /**
+   * Update job progress and emit events to Event Store
+   * Overrides base class to also emit job progress events
+   */
+  protected override async updateJobProgress(job: Job): Promise<void> {
+    // Call parent to update job queue
+    await super.updateJobProgress(job);
+
+    // Emit events for detection jobs
+    if (job.type !== 'detection') {
+      return;
+    }
+
+    const detJob = job as DetectionJob;
+    const eventStore = await createEventStore( this.config);
+
+    const baseEvent = {
+      resourceId: detJob.resourceId,
+      userId: detJob.userId,
+      version: 1,
+    };
+
+    // Require progress object to be present
+    if (!detJob.progress) {
+      return;
+    }
+
+    // Determine if this is the first progress update (job.started)
+    const isFirstUpdate = detJob.progress.processedEntityTypes === 0;
+
+    // Determine if this is the final update (job.completed)
+    const isFinalUpdate =
+      detJob.progress.processedEntityTypes === detJob.progress.totalEntityTypes &&
+      detJob.progress.totalEntityTypes > 0;
+
+    if (isFirstUpdate) {
+      // First progress update - emit job.started
       await eventStore.appendEvent({
-        type: 'job.failed',
-        resourceId: job.resourceId,
-        userId: job.userId,
-        version: 1,
+        type: 'job.started',
+        ...baseEvent,
         payload: {
-          jobId: job.id,
-          jobType: 'detection',
-          error: `Detection completed with ${totalErrors} errors`,
-          details: `Found ${totalFound} entities, emitted ${totalEmitted} events, ${totalErrors} errors`,
+          jobId: detJob.id,
+          jobType: detJob.type,
+          totalSteps: detJob.entityTypes.length,
+        },
+      });
+    } else if (isFinalUpdate) {
+      // Final progress update - emit job.completed
+      await eventStore.appendEvent({
+        type: 'job.completed',
+        ...baseEvent,
+        payload: {
+          jobId: detJob.id,
+          jobType: detJob.type,
+          foundCount: detJob.progress.entitiesFound,
         },
       });
     } else {
+      // Intermediate progress - emit job.progress
+      const percentage = Math.round((detJob.progress.processedEntityTypes / detJob.progress.totalEntityTypes) * 100);
       await eventStore.appendEvent({
-        type: 'job.completed',
-        resourceId: job.resourceId,
-        userId: job.userId,
-        version: 1,
+        type: 'job.progress',
+        ...baseEvent,
         payload: {
-          jobId: job.id,
-          jobType: 'detection',
-          totalSteps: job.entityTypes.length,
-          foundCount: totalFound,
-          message: `Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted`,
+          jobId: detJob.id,
+          jobType: detJob.type,
+          percentage,
+          currentStep: detJob.progress.currentEntityType,
+          processedSteps: detJob.progress.processedEntityTypes,
+          totalSteps: detJob.progress.totalEntityTypes,
+          foundCount: detJob.progress.entitiesFound,
         },
       });
     }
-
-    console.log(`[DetectionWorker] ✅ Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted, ${totalErrors} errors`);
   }
 }

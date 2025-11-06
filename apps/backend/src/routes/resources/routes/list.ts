@@ -13,7 +13,6 @@ import { formatSearchResult } from '../helpers';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { ResourceQueryService } from '../../../services/resource-queries';
-import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
 
@@ -21,16 +20,17 @@ type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
 
 export function registerListResources(router: ResourcesRouterType) {
   /**
-   * GET /api/resources
+   * GET /resources
    *
    * List all resources with optional filters
-   * Query params: offset, limit, entityType, archived, search
+   * Query params: offset, limit, entityType, archived, q
    * Requires authentication
    */
-  router.get('/api/resources', async (c) => {
+  router.get('/resources', async (c) => {
     // Parse query parameters with defaults and coercion
     const query = c.req.query();
-    const basePath = getFilesystemConfig().path;
+    const config = c.get('config');
+    const basePath = config.services.filesystem!.path;
     const offset = Number(query.offset) || 0;
     const limit = Number(query.limit) || 50;
     const entityType = query.entityType;
@@ -45,15 +45,15 @@ export function registerListResources(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Invalid value for archived parameter. Must be "true" or "false".' });
     }
 
-    const search = query.search;
+    const q = query.q;
 
     const repStore = new FilesystemRepresentationStore({ basePath });
 
     // Read from Layer 3 projection storage
     let filteredDocs = await ResourceQueryService.listResources({
-      search,
+      search: q,
       archived,
-    });
+    }, config);
 
     // Additional filter by entity type (Layer 3 already handles search and archived)
     if (entityType) {
@@ -66,7 +66,7 @@ export function registerListResources(router: ResourcesRouterType) {
     // Optionally add content snippet for search results
     // For search results, include content preview for better UX
     let formattedDocs;
-    if (search) {
+    if (q) {
       formattedDocs = await Promise.all(
         paginatedDocs.map(async (doc) => {
           try {

@@ -5,7 +5,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
 
 /**
  * Provision handler for MCP (Model Context Protocol) services on POSIX systems
@@ -27,8 +26,9 @@ const provisionMCPService = async (context: PosixProvisionHandlerContext): Promi
       }
     };
   }
-  
-  const envConfig = loadEnvironmentConfig(service.environment);
+
+  // Get environment configuration from service
+  const envConfig = service.environmentConfig;
   const domain = envConfig.site?.domain || 'localhost:3000';
   const protocol = domain.includes('localhost') ? 'http' : 'https';
   const port = 8585; // Default MCP OAuth callback port

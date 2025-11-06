@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } from '../core/environment-loader.js';
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } from '@semiont/core';
 
 describe('Dynamic Environment Validation', () => {
   let testDir: string;
@@ -145,7 +145,7 @@ describe('Dynamic Environment Validation', () => {
         JSON.stringify(customConfig, null, 2)
       );
       
-      const loaded = loadEnvironmentConfig('custom');
+      const loaded = loadEnvironmentConfig(testDir, 'custom');
       
       expect(loaded.platform?.default).toBe('posix');
       expect(loaded.site?.domain).toBe('custom.example.com');
@@ -164,14 +164,14 @@ describe('Dynamic Environment Validation', () => {
         JSON.stringify(configWithoutServices, null, 2)
       );
       
-      const loaded = loadEnvironmentConfig('minimal');
+      const loaded = loadEnvironmentConfig(testDir, 'minimal');
       
       expect(loaded.services).toEqual({});
       expect(loaded.platform?.default).toBe('aws');
     });
     
     it('should throw helpful error for missing config file', () => {
-      expect(() => loadEnvironmentConfig('missing')).toThrow();
+      expect(() => loadEnvironmentConfig(testDir, 'missing')).toThrow();
     });
     
     it('should throw helpful error for invalid JSON', () => {
@@ -180,7 +180,7 @@ describe('Dynamic Environment Validation', () => {
         '{ "services": { invalid json }'
       );
       
-      expect(() => loadEnvironmentConfig('invalid')).toThrow();
+      expect(() => loadEnvironmentConfig(testDir, 'invalid')).toThrow();
     });
   });
 });
@@ -244,7 +244,7 @@ describe('Environment Discovery Integration', () => {
       expect(discovered).toContain(env);
       expect(isValidEnvironment(env)).toBe(true);
       
-      const config = loadEnvironmentConfig(env);
+      const config = loadEnvironmentConfig(testDir, env);
       expect(config.site?.domain).toBe(`${env}.example.com`);
     }
     

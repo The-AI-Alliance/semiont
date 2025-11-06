@@ -5,23 +5,24 @@
  * Full URIs are required by W3C Web Annotation Data Model.
  */
 
-import { getBackendConfig } from '../config/environment-loader';
+import { resourceId, annotationId, type ResourceId, type AnnotationId } from '@semiont/core';
+import { resourceUri, annotationUri, type ResourceUri, type AnnotationUri } from '@semiont/api-client';
 
 /**
  * Convert resource ID to full URI
  *
- * @param resourceId - Short resource ID (e.g., "doc-abc123")
+ * @param id - Short resource ID (e.g., "doc-abc123")
+ * @param publicURL - Backend base URL
  * @returns Full URI (e.g., "https://api.semiont.app/resources/doc-abc123")
  *
  * @example
- * resourceIdToURI("doc-abc123")
+ * resourceIdToURI("doc-abc123", "https://api.semiont.app")
  * // => "https://api.semiont.app/resources/doc-abc123"
  */
-export function resourceIdToURI(resourceId: string): string {
-  const baseURL = getBackendConfig().publicURL;
+export function resourceIdToURI(id: ResourceId, publicURL: string): ResourceUri {
   // Remove trailing slash if present
-  const normalizedBase = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
-  return `${normalizedBase}/resources/${resourceId}`;
+  const normalizedBase = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL;
+  return resourceUri(`${normalizedBase}/resources/${id}` );
 }
 
 /**
@@ -35,30 +36,30 @@ export function resourceIdToURI(resourceId: string): string {
  * uriToResourceId("https://api.semiont.app/resources/doc-abc123")
  * // => "doc-abc123"
  */
-export function uriToResourceId(uri: string): string {
+export function uriToResourceId(uri: string): ResourceId {
   const url = new URL(uri);
   const match = url.pathname.match(/\/resources\/([^/]+)/);
   if (!match || !match[1]) {
     throw new Error(`Invalid resource URI: ${uri}`);
   }
-  return match[1];
+  return resourceId(match[1]);
 }
 
 /**
  * Convert annotation ID to full URI
  *
- * @param annotationId - Short annotation ID (e.g., "anno-xyz789")
+ * @param id - Short annotation ID (e.g., "anno-xyz789")
+ * @param publicURL - Backend base URL
  * @returns Full URI (e.g., "https://api.semiont.app/annotations/anno-xyz789")
  *
  * @example
- * annotationIdToURI("anno-xyz789")
+ * annotationIdToURI("anno-xyz789", "https://api.semiont.app")
  * // => "https://api.semiont.app/annotations/anno-xyz789"
  */
-export function annotationIdToURI(annotationId: string): string {
-  const baseURL = getBackendConfig().publicURL;
+export function annotationIdToURI(id: AnnotationId, publicURL: string): AnnotationUri {
   // Remove trailing slash if present
-  const normalizedBase = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
-  return `${normalizedBase}/annotations/${annotationId}`;
+  const normalizedBase = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL;
+  return annotationUri(`${normalizedBase}/annotations/${id}`);
 }
 
 /**
@@ -72,11 +73,11 @@ export function annotationIdToURI(annotationId: string): string {
  * uriToAnnotationId("https://api.semiont.app/annotations/anno-xyz789")
  * // => "anno-xyz789"
  */
-export function uriToAnnotationId(uri: string): string {
+export function uriToAnnotationId(uri: string): AnnotationId {
   const url = new URL(uri);
   const match = url.pathname.match(/\/annotations\/([^/]+)/);
   if (!match || !match[1]) {
     throw new Error(`Invalid annotation URI: ${uri}`);
   }
-  return match[1];
+  return annotationId(match[1]);
 }

@@ -6,10 +6,12 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import { loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
 };
 
 // Delay app import until after test setup to avoid Prisma validation errors
@@ -172,15 +174,18 @@ vi.mock('../../config', () => ({
 describe('API Endpoints Integration Tests', () => {
   beforeAll(async () => {
     // Set required environment variables before importing app
-    process.env.BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
-    process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
-    process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-    process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+    process.env.NODE_ENV = 'test';
+
+    // Load config and initialize JWT Service
+    const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+    const environment = 'integration';
+    const config = loadEnvironmentConfig(projectRoot, environment);
+    JWTService.initialize(config);
 
     // Import app after test setup has set DATABASE_URL to avoid Prisma validation errors
     const serverModule = await import('../../index');
     app = serverModule.app;
-    
+
     // Generate a test token
     testToken = JWTService.generateToken({
       userId: testUser.id,

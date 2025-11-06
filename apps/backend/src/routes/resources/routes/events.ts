@@ -11,9 +11,9 @@
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import type { EventQuery, StoredEvent } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 import { HTTPException } from 'hono/http-exception';
-import { getFilesystemConfig } from '../../../config/environment-loader';
 
 type GetEventsResponse = components['schemas']['GetEventsResponse'];
 
@@ -36,7 +36,7 @@ function isValidEventType(type: string): type is typeof eventTypes[number] {
 
 export function registerGetEvents(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/:id/events
+   * GET /resources/:id/events
    *
    * Get full event history for a resource with optional filtering
    * Requires authentication
@@ -46,10 +46,10 @@ export function registerGetEvents(router: ResourcesRouterType) {
    * - userId: User ID filter (optional)
    * - limit: Maximum number of events (1-1000, default: 100)
    */
-  router.get('/api/resources/:id/events', async (c) => {
+  router.get('/resources/:id/events', async (c) => {
     const { id } = c.req.param();
     const queryParams = c.req.query();
-    const basePath = getFilesystemConfig().path;
+    const config = c.get('config');
 
     // Parse and validate query parameters
     const type = queryParams.type;
@@ -66,13 +66,13 @@ export function registerGetEvents(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "limit" must be between 1 and 1000' });
     }
 
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( config);
     const eventQuery = createEventQuery(eventStore);
 
     // Build query filters - type is validated by this point
     const validatedType = type && isValidEventType(type) ? type : undefined;
     const filters: EventQuery = {
-      resourceId: id,
+      resourceId: resourceId(id),
       ...(validatedType && { eventTypes: [validatedType] }),
     };
 

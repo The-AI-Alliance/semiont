@@ -10,7 +10,8 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { components } from '@semiont/api-client';
-import type { ResourceAnnotations } from '@semiont/core';
+import type { ResourceAnnotations, ResourceId } from '@semiont/core';
+import { resourceId, userId } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 import { createTestResource } from '../fixtures/resource-fixtures';
@@ -42,7 +43,7 @@ describe('ProjectionQuery', () => {
 
   // Helper to create test resource state
   const createDocState = (
-    id: string,
+    id: ResourceId,
     name: string,
     creator: string,
     entityTypes: string[],
@@ -89,13 +90,13 @@ describe('ProjectionQuery', () => {
 
   async function seedTestData() {
     // Create diverse test resources
-    await storage.save('doc-1', createDocState('doc-1', 'Alice Resource', 'user-alice', ['Person'], false, 3));
-    await storage.save('doc-2', createDocState('doc-2', 'Bob Resource', 'user-bob', ['Organization'], false, 5));
-    await storage.save('doc-3', createDocState('doc-3', 'Alice Report', 'user-alice', ['Person', 'Resource'], false, 0));
-    await storage.save('doc-4', createDocState('doc-4', 'Archived Doc', 'user-charlie', ['Resource'], true, 2));
-    await storage.save('doc-5', createDocState('doc-5', 'Charlie Resource', 'user-charlie', ['Person'], false, 10));
-    await storage.save('doc-6', createDocState('doc-6', 'Empty Annotations', 'user-alice', ['Organization'], false, 0));
-    await storage.save('doc-7', createDocState('doc-7', 'Another Archived', 'user-bob', ['Person'], true, 1));
+    await storage.save(resourceId('doc-1'), createDocState(resourceId('doc-1'), 'Alice Resource', 'user-alice', ['Person'], false, 3));
+    await storage.save(resourceId('doc-2'), createDocState(resourceId('doc-2'), 'Bob Resource', 'user-bob', ['Organization'], false, 5));
+    await storage.save(resourceId('doc-3'), createDocState(resourceId('doc-3'), 'Alice Report', 'user-alice', ['Person', 'Resource'], false, 0));
+    await storage.save(resourceId('doc-4'), createDocState(resourceId('doc-4'), 'Archived Doc', 'user-charlie', ['Resource'], true, 2));
+    await storage.save(resourceId('doc-5'), createDocState(resourceId('doc-5'), 'Charlie Resource', 'user-charlie', ['Person'], false, 10));
+    await storage.save(resourceId('doc-6'), createDocState(resourceId('doc-6'), 'Empty Annotations', 'user-alice', ['Organization'], false, 0));
+    await storage.save(resourceId('doc-7'), createDocState(resourceId('doc-7'), 'Another Archived', 'user-bob', ['Person'], true, 1));
   }
 
   describe('Entity Type Queries', () => {
@@ -149,7 +150,7 @@ describe('ProjectionQuery', () => {
 
   describe('Creator Queries', () => {
     it('should find resources by creator', async () => {
-      const aliceResults = await query.findByCreator('user-alice');
+      const aliceResults = await query.findByCreator(userId('user-alice'));
 
       expect(aliceResults.length).toBe(3); // doc-1, doc-3, doc-6
       const ids = aliceResults.map(r => getResourceId(r.resource));
@@ -159,15 +160,15 @@ describe('ProjectionQuery', () => {
     });
 
     it('should find resources for different creators', async () => {
-      const bobResults = await query.findByCreator('user-bob');
-      const charlieResults = await query.findByCreator('user-charlie');
+      const bobResults = await query.findByCreator(userId('user-bob'));
+      const charlieResults = await query.findByCreator(userId('user-charlie'));
 
       expect(bobResults.length).toBe(2); // doc-2, doc-7
       expect(charlieResults.length).toBe(2); // doc-4, doc-5
     });
 
     it('should return empty array for non-existent creator', async () => {
-      const results = await query.findByCreator('user-nonexistent');
+      const results = await query.findByCreator(userId('user-nonexistent'));
       expect(results).toEqual([]);
     });
   });
@@ -322,7 +323,7 @@ describe('ProjectionQuery', () => {
   describe('Complex Queries', () => {
     it('should combine filters programmatically', async () => {
       // Find active resources by Alice
-      const aliceDocs = await query.findByCreator('user-alice');
+      const aliceDocs = await query.findByCreator(userId('user-alice'));
       const activeDocs = aliceDocs.filter(d => !d.resource.archived);
 
       expect(activeDocs.length).toBe(3); // All Alice's docs are active
@@ -358,8 +359,8 @@ describe('ProjectionQuery', () => {
     });
 
     it('should handle resources with empty entity types array', async () => {
-      const emptyEntityDoc = createDocState('doc-empty', 'No Entities', 'user-test', [], false, 0);
-      await storage.save('doc-empty', emptyEntityDoc);
+      const emptyEntityDoc = createDocState(resourceId('doc-empty'), 'No Entities', 'user-test', [], false, 0);
+      await storage.save(resourceId('doc-empty'), emptyEntityDoc);
 
       const results = await query.findByEntityType('AnyType');
       const ids = results.map(r => getResourceId(r.resource));
@@ -367,8 +368,8 @@ describe('ProjectionQuery', () => {
     });
 
     it('should handle special characters in search', async () => {
-      const specialDoc = createDocState('doc-special', 'Test-Resource_123', 'user-test', [], false, 0);
-      await storage.save('doc-special', specialDoc);
+      const specialDoc = createDocState(resourceId('doc-special'), 'Test-Resource_123', 'user-test', [], false, 0);
+      await storage.save(resourceId('doc-special'), specialDoc);
 
       const results = await query.searchByName('Test-Resource');
       const ids = results.map(r => getResourceId(r.resource));

@@ -69,7 +69,7 @@ describe('Dynamic Environment Discovery', () => {
     
     // Import the modules after setting up the filesystem
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/environment-loader');
+      await import('@semiont/core');
     
     const discovered = getAvailableEnvironments();
     
@@ -86,11 +86,11 @@ describe('Dynamic Environment Discovery', () => {
     expect(isValidEnvironment('staging')).toBe(false);
     
     // Should load configurations correctly
-    const demoConfig = loadEnvironmentConfig('demo');
+    const demoConfig = loadEnvironmentConfig(testDir, 'demo');
     expect(demoConfig.site?.domain).toBe('demo.local');
     expect(demoConfig.services?.backend).toBeDefined();
-    
-    const featureConfig = loadEnvironmentConfig('feature-branch');
+
+    const featureConfig = loadEnvironmentConfig(testDir, 'feature-branch');
     expect(featureConfig.site?.domain).toBe('feature.local');
     expect(featureConfig.services?.api).toBeDefined();
   });
@@ -122,7 +122,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../core/environment-loader');
+      await import('@semiont/core');
     
     const discovered = getAvailableEnvironments();
     
@@ -143,7 +143,7 @@ describe('Dynamic Environment Discovery', () => {
     // Remove config directory entirely
     fs.rmSync(configDir, { recursive: true, force: true });
     
-    const { getAvailableEnvironments } = await import('../core/environment-loader');
+    const { getAvailableEnvironments } = await import('@semiont/core');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual([]);
@@ -155,7 +155,7 @@ describe('Dynamic Environment Discovery', () => {
     fs.writeFileSync(path.join(configDir, 'backup.json.bak'), 'old config');
     fs.writeFileSync(path.join(configDir, 'script.js'), 'console.log("hello")');
     
-    const { getAvailableEnvironments } = await import('../core/environment-loader');
+    const { getAvailableEnvironments } = await import('@semiont/core');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual(['valid']);
@@ -192,7 +192,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/environment-loader');
+      await import('@semiont/core');
     
     // These would have been rejected by hardcoded validation
     expect(isValidEnvironment('sandbox')).toBe(true);
@@ -204,11 +204,11 @@ describe('Dynamic Environment Discovery', () => {
     expect(environments).toContain('integration-testing');
     
     // Should load correctly
-    const sandboxConfig = loadEnvironmentConfig('sandbox');
+    const sandboxConfig = loadEnvironmentConfig(testDir, 'sandbox');
     expect(sandboxConfig.services?.api?.port).toBe(8080);
     expect(sandboxConfig.services?.web?.port).toBe(3000);
-    
-    const integrationConfig = loadEnvironmentConfig('integration-testing');
+
+    const integrationConfig = loadEnvironmentConfig(testDir, 'integration-testing');
     expect(integrationConfig.platform?.default).toBe('aws');
     expect(integrationConfig.site?.domain).toBe('integration.example.com');
   });

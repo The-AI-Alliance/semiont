@@ -14,14 +14,16 @@
 import { generateResourceSummary } from '../inference/factory';
 import { getBodySource, getTargetSource, getTargetSelector } from '../lib/annotation-utils';
 import type { components } from '@semiont/api-client';
-import { getFilesystemConfig } from '../config/environment-loader';
 import { FilesystemRepresentationStore } from '../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../utils/resource-helpers';
 import { createProjectionManager } from './storage-service';
+import type { EnvironmentConfig, AnnotationId, ResourceId } from '@semiont/core';
+import { resourceId as createResourceId } from '@semiont/core';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
+type Annotation = components['schemas']['Annotation'];
 
 export interface BuildContextOptions {
   includeSourceContext?: boolean;
@@ -33,15 +35,17 @@ export class AnnotationContextService {
   /**
    * Build LLM context for an annotation
    *
-   * @param annotationId - Annotation ID (with or without URI prefix)
+   * @param annotationId - Annotation ID
    * @param resourceId - Source resource ID
+   * @param config - Application configuration
    * @param options - Context building options
    * @returns Rich context for LLM processing
    * @throws Error if annotation or resource not found
    */
   static async buildLLMContext(
-    annotationId: string,
-    resourceId: string,
+    annotationId: AnnotationId,
+    resourceId: ResourceId,
+    config: EnvironmentConfig,
     options: BuildContextOptions = {}
   ): Promise<AnnotationLLMContextResponse> {
     const {
@@ -57,22 +61,17 @@ export class AnnotationContextService {
 
     console.log(`[AnnotationContext] buildLLMContext called with annotationId=${annotationId}, resourceId=${resourceId}`);
 
-    // Extract short resource ID from URI for filesystem lookups
-    // (e.g., "http://localhost:4000/resources/abc123" -> "abc123")
-    const shortResourceId = resourceId.split('/').pop() || resourceId;
-    console.log(`[AnnotationContext] Short resource ID: ${shortResourceId}`);
-
-    const basePath = getFilesystemConfig().path;
+    const basePath = config.services.filesystem!.path;
     console.log(`[AnnotationContext] basePath=${basePath}`);
 
     const projectionManager = createProjectionManager(basePath);
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    // Get source resource projection (Layer 3) using short ID for filesystem lookup
-    console.log(`[AnnotationContext] Getting projection for shortResourceId=${shortResourceId}`);
+    // Get source resource projection (Layer 3)
+    console.log(`[AnnotationContext] Getting projection for resourceId=${resourceId}`);
     let sourceProjection;
     try {
-      sourceProjection = await projectionManager.get(shortResourceId);
+      sourceProjection = await projectionManager.get(resourceId);
       console.log(`[AnnotationContext] Got projection:`, !!sourceProjection);
 
       if (!sourceProjection) {
@@ -85,10 +84,10 @@ export class AnnotationContextService {
 
     console.log(`[AnnotationContext] Looking for annotation ${annotationId} in resource ${resourceId}`);
     console.log(`[AnnotationContext] Projection has ${sourceProjection.annotations.annotations.length} annotations`);
-    console.log(`[AnnotationContext] First 5 annotation IDs:`, sourceProjection.annotations.annotations.slice(0, 5).map(a => a.id));
+    console.log(`[AnnotationContext] First 5 annotation IDs:`, sourceProjection.annotations.annotations.slice(0, 5).map((a: Annotation) => a.id));
 
     // Find the annotation in the projection
-    const annotation = sourceProjection.annotations.annotations.find(a => a.id === annotationId);
+    const annotation = sourceProjection.annotations.annotations.find((a: Annotation) => a.id === annotationId);
     console.log(`[AnnotationContext] Found annotation:`, !!annotation);
 
     if (!annotation) {
@@ -106,11 +105,18 @@ export class AnnotationContextService {
 
     // Get target resource if annotation is a reference (has resolved body source)
     const bodySource = getBodySource(annotation.body);
+
+    // Extract target document from body source URI if present
     let targetDoc = null;
     if (bodySource) {
-      // Extract short ID from body source URI for filesystem lookup
-      const shortBodySourceId = bodySource.split('/').pop() || bodySource;
-      const targetProjection = await projectionManager.get(shortBodySourceId);
+      // Inline extraction: "http://localhost:4000/resources/abc123" → "abc123"
+      const parts = (bodySource as string).split('/');
+      const lastPart = parts[parts.length - 1];
+      if (!lastPart) {
+        throw new Error(`Invalid body source URI: ${bodySource}`);
+      }
+      const targetResourceId = createResourceId(lastPart);
+      const targetProjection = await projectionManager.get(targetResourceId);
       targetDoc = targetProjection?.resource || null;
     }
 
@@ -179,7 +185,7 @@ export class AnnotationContextService {
 
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),
-          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc)),
+          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc), config),
         };
       }
     }

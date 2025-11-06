@@ -1,6 +1,7 @@
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { JWTTokenSchema, OAuthUserSchema, validateData } from '@/lib/validation';
+import { validateData, JWTTokenSchema } from '@semiont/api-client';
+import { OAuthUserSchema } from '@/lib/validation';
 import type { NextAuthOptions } from 'next-auth';
 
 // Build providers array based on environment

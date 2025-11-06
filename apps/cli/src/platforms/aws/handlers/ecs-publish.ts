@@ -3,7 +3,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AWSPublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
 
 /**
  * Publish handler for ECS Fargate services
@@ -21,12 +20,9 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
   const { service, awsConfig, resourceName, cfnDiscoveredResources } = context as any;
   const { region, accountId } = awsConfig;
   const requirements = service.getRequirements();
-  
-  // Load environment configuration from the PROJECT ROOT (current working directory)
-  // NOT from the semiont source code repository
-  // The project's semiont.json is ALWAYS in the user's project directory
-  const projectConfigPath = path.join(process.cwd(), 'semiont.json');
-  const envConfig = loadEnvironmentConfig(service.environment, projectConfigPath);
+
+  // Get environment configuration from service
+  const envConfig = service.environmentConfig;
   
   // Determine image tag based on configuration
   let version: string;

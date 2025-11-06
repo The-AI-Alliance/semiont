@@ -1921,29 +1921,26 @@
       "GenerateResourceFromAnnotationRequest": {
         "type": "object",
         "properties": {
-          "resourceId": {
-            "type": "string",
-            "description": "ID of the resource containing the annotation"
-          },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional name for the generated resource"
           },
           "entityTypes": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Entity types for the generated resource"
           },
           "prompt": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional AI prompt for generation"
           },
           "language": {
-            "type": "string"
+            "type": "string",
+            "description": "Language code (e.g., 'en', 'es')"
           }
-        },
-        "required": [
-          "resourceId"
-        ]
+        }
       },
       "GenerateResourceStreamRequest": {
         "type": "object",
@@ -3065,7 +3062,9 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["semiont"]
+              "enum": [
+                "semiont"
+              ]
             },
             "description": "Optional view parameter. If set to 'semiont', redirects to frontend viewer."
           }
@@ -3196,6 +3195,142 @@
           },
           "400": {
             "description": "Missing resourceId parameter"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}/context": {
+      "get": {
+        "summary": "Get Annotation Context",
+        "description": "Get the text context around an annotation with configurable before/after window",
+        "tags": [
+          "Annotations",
+          "Context"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Annotation ID"
+          },
+          {
+            "name": "resourceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource ID containing the annotation"
+          },
+          {
+            "name": "contextBefore",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "default": 100
+            },
+            "description": "Number of characters before the selection"
+          },
+          {
+            "name": "contextAfter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "default": 100
+            },
+            "description": "Number of characters after the selection"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annotation context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationContextResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}/summary": {
+      "get": {
+        "summary": "Get Annotation Summary",
+        "description": "Get an AI-generated summary of the annotation in context",
+        "tags": [
+          "Annotations",
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Annotation ID"
+          },
+          {
+            "name": "resourceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource ID containing the annotation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AI-generated annotation summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextualSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing resourceId parameter"
+          },
+          "401": {
+            "description": "Authentication required"
           },
           "404": {
             "description": "Annotation not found"
@@ -3823,7 +3958,7 @@
         }
       }
     },
-    "/api/resources": {
+    "/resources": {
       "post": {
         "summary": "Create Resource",
         "description": "Create a new resource",
@@ -3932,6 +4067,15 @@
             "required": false,
             "name": "search",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "q",
+            "in": "query",
+            "description": "Search query"
           }
         ],
         "responses": {
@@ -3948,101 +4092,7 @@
         }
       }
     },
-    "/api/resources/search": {
-      "get": {
-        "summary": "Search Resources",
-        "description": "Search resources by name",
-        "tags": [
-          "Resources"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "name": "q",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "default": 10
-            },
-            "required": false,
-            "name": "limit",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Search results",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListResourcesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/resources/from-annotation/{annotationId}": {
-      "post": {
-        "summary": "Create Resource from Annotation",
-        "description": "Create a new resource from an annotation/reference",
-        "tags": [
-          "Resources"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "annotationId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateResourceFromAnnotationRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Resource created from annotation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateResourceResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/resources/{id}/detect-annotations-stream": {
+    "/resources/{id}/detect-annotations-stream": {
       "post": {
         "summary": "Detect Annotations with Progress (SSE)",
         "description": "Stream real-time entity detection progress via Server-Sent Events",
@@ -4095,7 +4145,7 @@
         }
       }
     },
-    "/api/resources/{id}/detect-entities": {
+    "/resources/{id}/detect-entities": {
       "post": {
         "summary": "Detect Entities (Job)",
         "description": "Create an async entity detection job. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/resources/{id}/detect-annotations-stream instead.",
@@ -4148,7 +4198,7 @@
         }
       }
     },
-    "/api/resources/{id}/llm-context": {
+    "/resources/{id}/llm-context": {
       "get": {
         "summary": "Get Resource LLM Context",
         "description": "Get resource with full context for LLM processing",
@@ -4257,7 +4307,7 @@
         }
       }
     },
-    "/api/resources/{resourceId}/annotations/{annotationId}/llm-context": {
+    "/resources/{resourceId}/annotations/{annotationId}/llm-context": {
       "get": {
         "summary": "Get Annotation LLM Context",
         "description": "Get annotation with full context for LLM processing",
@@ -4363,7 +4413,7 @@
         }
       }
     },
-    "/api/resources/{id}/referenced-by": {
+    "/resources/{id}/referenced-by": {
       "get": {
         "summary": "Get Referenced By",
         "description": "Get resources that reference this resource",
@@ -4400,7 +4450,7 @@
         }
       }
     },
-    "/api/resources/{id}/discover-context": {
+    "/resources/{id}/discover-context": {
       "post": {
         "summary": "Discover Context",
         "description": "Discover related resources and concepts",
@@ -4517,7 +4567,7 @@
         }
       }
     },
-    "/api/resources/{id}/clone-with-token": {
+    "/resources/{id}/clone-with-token": {
       "post": {
         "summary": "Clone Resource with Token",
         "description": "Generate a temporary token for cloning a resource",
@@ -4553,7 +4603,7 @@
         }
       }
     },
-    "/api/resources/{id}/annotations": {
+    "/resources/{id}/annotations": {
       "get": {
         "summary": "Get Resource Annotations",
         "description": "Get all annotations (both highlights and references) in a resource",
@@ -4588,9 +4638,54 @@
             }
           }
         }
+      },
+      "post": {
+        "summary": "Create Annotation",
+        "description": "Create a new annotation/reference in a resource",
+        "tags": [
+          "Resources",
+          "Annotations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path",
+            "description": "Resource ID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAnnotationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Annotation created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAnnotationResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
-    "/api/resources/{id}/events": {
+    "/resources/{id}/events": {
       "get": {
         "summary": "Get Resource Event History",
         "description": "Get full event history for a resource with optional filtering",
@@ -4666,7 +4761,7 @@
         }
       }
     },
-    "/api/resources/{id}/events/stream": {
+    "/resources/{id}/events/stream": {
       "get": {
         "summary": "Subscribe to Resource Events (SSE)",
         "description": "Open a Server-Sent Events stream to receive real-time resource events",
@@ -4704,12 +4799,13 @@
         }
       }
     },
-    "/api/annotations/{id}/create-resource": {
-      "post": {
-        "summary": "Create Resource from Annotation",
-        "description": "Create a new resource from an annotation and resolve the annotation to it",
+    "/resources/{resourceId}/annotations/{annotationId}": {
+      "get": {
+        "summary": "Get Annotation",
+        "description": "Get a specific annotation from a resource using nested path",
         "tags": [
-          "Selections"
+          "Resources",
+          "Annotations"
         ],
         "security": [
           {
@@ -4722,42 +4818,42 @@
               "type": "string"
             },
             "required": true,
-            "name": "id",
-            "in": "path"
+            "name": "resourceId",
+            "in": "path",
+            "description": "Resource ID"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "annotationId",
+            "in": "path",
+            "description": "Annotation ID"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateResourceRequest"
-              }
-            }
-          }
-        },
         "responses": {
-          "201": {
-            "description": "Resource created and annotation resolved",
+          "200": {
+            "description": "Annotation retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateResourceFromAnnotationResponse"
+                  "$ref": "#/components/schemas/GetAnnotationResponse"
                 }
               }
             }
+          },
+          "404": {
+            "description": "Annotation not found"
           }
         }
-      }
-    },
-    "/api/annotations/{id}/generate-resource": {
-      "post": {
-        "summary": "Generate Resource (Job)",
-        "description": "Create an async resource generation job from an annotation. Use GET /api/jobs/{jobId} to poll status. For real-time updates, use POST /api/annotations/{id}/generate-resource-stream instead.",
+      },
+      "delete": {
+        "summary": "Delete Annotation",
+        "description": "Delete an annotation from a resource",
         "tags": [
-          "Selections",
           "Resources",
-          "Jobs",
-          "AI"
+          "Annotations"
         ],
         "security": [
           {
@@ -4767,37 +4863,26 @@
         "parameters": [
           {
             "schema": {
-              "type": "string",
-              "description": "Annotation ID"
+              "type": "string"
             },
             "required": true,
-            "description": "Annotation ID",
-            "name": "id",
-            "in": "path"
+            "name": "resourceId",
+            "in": "path",
+            "description": "Resource ID"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "annotationId",
+            "in": "path",
+            "description": "Annotation ID"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateResourceRequest"
-              }
-            }
-          }
-        },
         "responses": {
-          "201": {
-            "description": "Job created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsyncJobResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
+          "204": {
+            "description": "Annotation deleted successfully"
           },
           "404": {
             "description": "Annotation not found"
@@ -4805,262 +4890,12 @@
         }
       }
     },
-    "/api/annotations/{id}/context": {
-      "get": {
-        "summary": "Get Annotation Context",
-        "description": "Get the context around an annotation",
-        "tags": [
-          "Selections"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0,
-              "maximum": 5000,
-              "default": 100
-            },
-            "required": false,
-            "name": "contextBefore",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0,
-              "maximum": 5000,
-              "default": 100
-            },
-            "required": false,
-            "name": "contextAfter",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Annotation context",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnnotationContextResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/annotations/{id}/summary": {
-      "get": {
-        "summary": "Get Contextual Summary",
-        "description": "Get an AI-generated summary of the annotation in context",
-        "tags": [
-          "Selections"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Contextual summary",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContextualSummaryResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/annotations/{id}/generate-resource-stream": {
-      "post": {
-        "summary": "Generate Resource from Reference (SSE)",
-        "description": "Stream real-time resource generation progress via Server-Sent Events",
-        "tags": [
-          "Selections",
-          "Resources",
-          "Real-time",
-          "AI"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "description": "Reference/annotation ID"
-            },
-            "required": true,
-            "description": "Reference/annotation ID",
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateResourceRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "SSE stream opened successfully",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "$ref": "#/components/schemas/EventStreamResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "404": {
-            "description": "Reference not found"
-          }
-        }
-      }
-    },
-    "/api/annotations": {
-      "post": {
-        "summary": "Create Annotation",
-        "description": "Create a new annotation/reference in a resource",
-        "tags": [
-          "Annotations"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateAnnotationRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Annotation created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateAnnotationResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "summary": "List Annotations",
-        "description": "List all annotations for a resource (requires resourceId for O(1) Layer 3 lookup)",
-        "tags": [
-          "Annotations"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "description": "Resource ID to list annotations for"
-            },
-            "required": true,
-            "description": "Resource ID to list annotations for",
-            "name": "resourceId",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "default": 0
-            },
-            "required": false,
-            "name": "offset",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "default": 50
-            },
-            "required": false,
-            "name": "limit",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Annotations listed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListAnnotationsResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/annotations/{id}/body": {
+    "/resources/{resourceId}/annotations/{annotationId}/body": {
       "put": {
         "summary": "Update Annotation Body",
         "description": "Apply fine-grained operations to modify annotation body items (add, remove, or replace TextualBody and SpecificResource items)",
         "tags": [
+          "Resources",
           "Annotations"
         ],
         "security": [
@@ -5074,8 +4909,18 @@
               "type": "string"
             },
             "required": true,
-            "name": "id",
-            "in": "path"
+            "name": "resourceId",
+            "in": "path",
+            "description": "Resource ID"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "annotationId",
+            "in": "path",
+            "description": "Annotation ID"
           }
         ],
         "requestBody": {
@@ -5101,12 +4946,14 @@
         }
       }
     },
-    "/api/annotations/{id}": {
-      "delete": {
-        "summary": "Delete Annotation",
-        "description": "Delete an annotation (requires resourceId in body for O(1) Layer 3 lookup)",
+    "/resources/{resourceId}/annotations/{annotationId}/generate-resource": {
+      "post": {
+        "summary": "Generate Resource from Annotation",
+        "description": "Synchronously generate a new resource from an annotation using AI. Returns the created resource and updated annotation immediately.",
         "tags": [
-          "Annotations"
+          "Resources",
+          "Annotations",
+          "AI"
         ],
         "security": [
           {
@@ -5119,22 +4966,42 @@
               "type": "string"
             },
             "required": true,
-            "name": "id",
-            "in": "path"
+            "name": "resourceId",
+            "in": "path",
+            "description": "Resource ID"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "annotationId",
+            "in": "path",
+            "description": "Annotation ID"
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DeleteAnnotationRequest"
+                "$ref": "#/components/schemas/GenerateResourceFromAnnotationRequest"
               }
             }
           }
         },
         "responses": {
-          "204": {
-            "description": "Annotation deleted successfully"
+          "201": {
+            "description": "Resource generated and annotation linked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateResourceFromAnnotationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
           },
           "404": {
             "description": "Annotation not found"
@@ -5142,7 +5009,71 @@
         }
       }
     },
-    "/api/resources/{resourceId}/annotations/{annotationId}/history": {
+    "/resources/{resourceId}/annotations/{annotationId}/generate-resource-stream": {
+      "post": {
+        "summary": "Generate Resource (SSE Stream)",
+        "description": "Stream real-time resource generation progress via Server-Sent Events",
+        "tags": [
+          "Resources",
+          "Annotations",
+          "Real-time",
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "resourceId",
+            "in": "path",
+            "description": "Resource ID"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "annotationId",
+            "in": "path",
+            "description": "Annotation ID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateResourceStreamRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream opened successfully",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventStreamResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
+    "/resources/{resourceId}/annotations/{annotationId}/history": {
       "get": {
         "summary": "Get Annotation History",
         "description": "Get full event history for a specific annotation (highlight or reference)",

@@ -6,6 +6,7 @@
  */
 
 import type { components } from '@semiont/api-client';
+import type { ResourceId, UserId } from '@semiont/core';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
@@ -19,7 +20,7 @@ export interface BaseJob {
   id: string;
   type: JobType;
   status: JobStatus;
-  userId: string;
+  userId: UserId;
   created: string;
   startedAt?: string;
   completedAt?: string;
@@ -33,7 +34,7 @@ export interface BaseJob {
  */
 export interface DetectionJob extends BaseJob {
   type: 'detection';
-  resourceId: string;
+  resourceId: ResourceId;
   entityTypes: string[];
   progress?: {
     totalEntityTypes: number;
@@ -55,7 +56,7 @@ export interface DetectionJob extends BaseJob {
 export interface GenerationJob extends BaseJob {
   type: 'generation';
   referenceId: string;
-  sourceResourceId: string;
+  sourceResourceId: ResourceId;
   prompt?: string;
   title?: string;
   entityTypes?: string[];
@@ -67,7 +68,7 @@ export interface GenerationJob extends BaseJob {
     message?: string;
   };
   result?: {
-    resourceId: string;
+    resourceId: ResourceId;
     resourceName: string;
   };
 }
@@ -81,13 +82,13 @@ export type Job = DetectionJob | GenerationJob;
  * Job creation request types (without server-generated fields)
  */
 export interface CreateDetectionJobRequest {
-  resourceId: string;
+  resourceId: ResourceId;
   entityTypes: string[];
 }
 
 export interface CreateGenerationJobRequest {
   referenceId: string;
-  sourceResourceId: string;
+  sourceResourceId: ResourceId;
   prompt?: string;
   title?: string;
   entityTypes?: string[];
@@ -99,7 +100,7 @@ export interface CreateGenerationJobRequest {
 export interface JobQueryFilters {
   status?: JobStatus;
   type?: JobType;
-  userId?: string;
+  userId?: UserId;
   limit?: number;
   offset?: number;
 }

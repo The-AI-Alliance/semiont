@@ -23,13 +23,12 @@ import type {
   AnnotationAddedEvent,
   BodyOperation,
 } from '@semiont/core';
+import { resourceId, annotationId, userId } from '@semiont/core';
 import { getTargetSource } from '../../lib/annotation-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { uriToResourceId } from '../../lib/uri-utils';
-
 import { validateRequestBody } from '../../middleware/validate-openapi';
-import { getFilesystemConfig } from '../../config/environment-loader';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -52,11 +51,16 @@ crudRouter.post('/api/annotations',
   async (c) => {
     const request = c.get('validatedBody') as CreateAnnotationRequest;
     const user = c.get('user');
+    const config = c.get('config');
 
     // Generate ID - backend-internal, not graph-dependent
     let annotationId: string;
     try {
-      annotationId = generateAnnotationId();
+      const backendUrl = config.services.backend?.publicURL;
+      if (!backendUrl) {
+        throw new Error('Backend publicURL not configured');
+      }
+      annotationId = generateAnnotationId(backendUrl);
     } catch (error) {
       console.error('Failed to generate annotation ID:', error);
       throw new HTTPException(500, { message: 'Failed to create annotation' });
@@ -84,12 +88,11 @@ crudRouter.post('/api/annotations',
     };
 
     // Emit unified annotation.added event (single source of truth)
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
+    const eventStore = await createEventStore( config);
     const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
       type: 'annotation.added',
       resourceId: uriToResourceId(request.target.source), // Extract ID from URI for indexing
-      userId: user.id,
+      userId: userId(user.id),
       version: 1,
       payload: {
         annotation, // Annotation contains full URIs in target.source
@@ -121,11 +124,12 @@ crudRouter.put('/api/annotations/:id/body',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as UpdateAnnotationBodyRequest;
     const user = c.get('user');
+    const config = c.get('config');
 
     console.log(`[BODY UPDATE HANDLER] Called for annotation ${id}, operations:`, request.operations);
 
     // Get annotation from Layer 3 (event store projection)
-    const annotation = await AnnotationQueryService.getAnnotation(id, request.resourceId);
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), resourceId(request.resourceId), config);
     console.log(`[BODY UPDATE HANDLER] Layer 3 lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
 
     if (!annotation) {
@@ -134,15 +138,14 @@ crudRouter.put('/api/annotations/:id/body',
     }
 
     // Emit annotation.body.updated event to Layer 2 (consumer will update Layer 3 projection)
-    const basePath2 = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath2);
+    const eventStore = await createEventStore( config);
     await eventStore.appendEvent({
       type: 'annotation.body.updated',
       resourceId: uriToResourceId(getTargetSource(annotation.target)), // Extract ID from URI
-      userId: user.id,
+      userId: userId(user.id),
       version: 1,
       payload: {
-        annotationId: id,
+        annotationId: annotationId(id),
         operations: request.operations as BodyOperation[],
       },
     });
@@ -195,16 +198,17 @@ crudRouter.put('/api/annotations/:id/body',
  */
 crudRouter.get('/api/annotations', async (c) => {
   const query = c.req.query();
-  const resourceId = query.resourceId;
+  const resourceIdParam = query.resourceId;
   const offset = Number(query.offset) || 0;
   const limit = Number(query.limit) || 50;
+  const config = c.get('config');
 
-  if (!resourceId) {
+  if (!resourceIdParam) {
     throw new HTTPException(400, { message: 'resourceId query parameter is required' });
   }
 
   // O(1) lookup in Layer 3 using resource ID
-  const projection = await AnnotationQueryService.getResourceAnnotations(resourceId);
+  const projection = await AnnotationQueryService.getResourceAnnotations(resourceId(resourceIdParam), config);
 
   // Apply pagination to all annotations
   const paginatedAnnotations = projection.annotations.slice(offset, offset + limit);
@@ -229,10 +233,11 @@ crudRouter.delete('/api/annotations/:id',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as DeleteAnnotationRequest;
     const user = c.get('user');
+    const config = c.get('config');
 
     // O(1) lookup in Layer 3 using resource ID (extract from URI)
     const resourceId = uriToResourceId(request.resourceId);
-    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId);
+    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId, config);
 
     // Find the annotation in this resource's annotations
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
@@ -242,16 +247,15 @@ crudRouter.delete('/api/annotations/:id',
     }
 
     // Emit unified annotation.removed event (consumer will delete from GraphDB and update Layer 3)
-    const basePath3 = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath3);
+    const eventStore = await createEventStore( config);
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',
       resourceId, // Use extracted short ID for event indexing
-      userId: user.id,
+      userId: userId(user.id),
       version: 1,
       payload: {
-        annotationId: id,
+        annotationId: annotationId(id),
       },
     });
     console.log('[DeleteAnnotation] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);

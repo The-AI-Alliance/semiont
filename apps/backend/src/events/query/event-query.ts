@@ -10,7 +10,7 @@
  * @see docs/EVENT-STORE.md#eventquery for architecture details
  */
 
-import type { StoredEvent, EventQuery as EventQueryType } from '@semiont/core';
+import type { StoredEvent, EventQuery as EventQueryType, ResourceId } from '@semiont/core';
 import type { EventStorage } from '../storage/event-storage';
 
 /**
@@ -66,7 +66,7 @@ export class EventQuery {
   /**
    * Get all events for a specific resource (no filters)
    */
-  async getResourceEvents(resourceId: string): Promise<StoredEvent[]> {
+  async getResourceEvents(resourceId: ResourceId): Promise<StoredEvent[]> {
     return this.eventStorage.getAllEvents(resourceId);
   }
 
@@ -74,14 +74,14 @@ export class EventQuery {
    * Get the last event from a specific file
    * Useful for initializing sequence numbers and last hashes
    */
-  async getLastEvent(resourceId: string, filename: string): Promise<StoredEvent | null> {
+  async getLastEvent(resourceId: ResourceId, filename: string): Promise<StoredEvent | null> {
     return this.eventStorage.getLastEvent(resourceId, filename);
   }
 
   /**
    * Get the latest event for a resource across all files
    */
-  async getLatestEvent(resourceId: string): Promise<StoredEvent | null> {
+  async getLatestEvent(resourceId: ResourceId): Promise<StoredEvent | null> {
     const files = await this.eventStorage.getEventFiles(resourceId);
     if (files.length === 0) return null;
 
@@ -99,7 +99,7 @@ export class EventQuery {
   /**
    * Get event count for a resource
    */
-  async getEventCount(resourceId: string): Promise<number> {
+  async getEventCount(resourceId: ResourceId): Promise<number> {
     const events = await this.getResourceEvents(resourceId);
     return events.length;
   }
@@ -107,7 +107,7 @@ export class EventQuery {
   /**
    * Check if a resource has any events
    */
-  async hasEvents(resourceId: string): Promise<boolean> {
+  async hasEvents(resourceId: ResourceId): Promise<boolean> {
     const files = await this.eventStorage.getEventFiles(resourceId);
     return files.length > 0;
   }

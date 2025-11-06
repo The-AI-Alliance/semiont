@@ -30,7 +30,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
-import { getNodeEnvForEnvironment } from '../core/environment-loader.js';
+import { getNodeEnvForEnvironment } from '@semiont/core';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
@@ -102,13 +102,13 @@ export class FrontendService extends BaseService {
   
   override getEnvironmentVariables(): Record<string, string> {
     const baseEnv = super.getEnvironmentVariables();
-    
+
     return {
       ...baseEnv,
-      NODE_ENV: getNodeEnvForEnvironment(this.config.environment),
+      NODE_ENV: getNodeEnvForEnvironment(this.envConfig),
       PORT: this.getPort().toString(),
       NEXT_PUBLIC_API_URL: this.getBackendUrl(),
-      NEXT_PUBLIC_SITE_NAME: `Semiont ${this.config.environment}`,
+      NEXT_PUBLIC_SITE_NAME: `Semiont ${this.environment}`,
       PUBLIC_URL: this.getPublicUrl()
     };
   }

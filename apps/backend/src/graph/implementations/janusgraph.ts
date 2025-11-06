@@ -14,7 +14,13 @@ import type {
   ResourceFilter,
   UpdateResourceInput,
   CreateAnnotationInternal,
+  ResourceId,
+  AnnotationId,
+  EnvironmentConfig,
 } from '@semiont/core';
+import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
+import { resourceUri } from '@semiont/api-client';
+import { annotationIdToURI } from '../../lib/uri-utils';
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -33,21 +39,24 @@ export class JanusGraphDatabase implements GraphDatabase {
   private entityTypesCollection: Set<string> | null = null;
 
 
-  constructor(private config: {
-    host?: string;
-    port?: number;
-    storageBackend?: 'cassandra' | 'hbase' | 'berkeleydb';
-    indexBackend?: 'elasticsearch' | 'solr' | 'lucene';
-  } = {}) {}
+  constructor(
+    private graphConfig: {
+      host?: string;
+      port?: number;
+      storageBackend?: 'cassandra' | 'hbase' | 'berkeleydb';
+      indexBackend?: 'elasticsearch' | 'solr' | 'lucene';
+    },
+    private envConfig: EnvironmentConfig
+  ) {}
   
   async connect(): Promise<void> {
     // Configuration must be provided via constructor
-    const host = this.config.host;
+    const host = this.graphConfig.host;
     if (!host) {
       throw new Error('JanusGraph host is required: provide in config');
     }
 
-    const port = this.config.port;
+    const port = this.graphConfig.port;
     if (!port) {
       throw new Error('JanusGraph port is required: provide in config');
     }
@@ -264,7 +273,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return resource;
   }
   
-  async getResource(id: string): Promise<ResourceDescriptor | null> {
+  async getResource(id: ResourceUri): Promise<ResourceDescriptor | null> {
     const vertices = await this.g!
       .V()
       .has('Resource', 'id', id)
@@ -277,7 +286,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return this.vertexToResource(vertices[0] as any);
   }
   
-  async updateResource(id: string, input: UpdateResourceInput): Promise<ResourceDescriptor> {
+  async updateResource(id: ResourceUri, input: UpdateResourceInput): Promise<ResourceDescriptor> {
     // Resources are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
       throw new Error('Resources are immutable. Only archiving is allowed.');
@@ -297,7 +306,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return updatedResource;
   }
   
-  async deleteResource(id: string): Promise<void> {
+  async deleteResource(id: ResourceUri): Promise<void> {
     // Delete the vertex and all its edges
     await this.g!
       .V()
@@ -324,7 +333,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     // Apply entity type filtering after retrieval since JanusGraph stores as JSON
     if (filter.entityTypes && filter.entityTypes.length > 0) {
       resources = resources.filter(doc =>
-        filter.entityTypes!.some(type => doc.entityTypes?.includes(type))
+        filter.entityTypes!.some((type: string) => doc.entityTypes?.includes(type))
       );
     }
 
@@ -434,7 +443,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotation;
   }
   
-  async getAnnotation(id: string): Promise<Annotation | null> {
+  async getAnnotation(id: AnnotationUri): Promise<Annotation | null> {
     const vertices = await this.g!
       .V()
       .has('Annotation', 'id', id)
@@ -459,7 +468,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return this.vertexToAnnotation(vertices[0] as any, entityTypes);
   }
   
-  async updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation> {
+  async updateAnnotation(id: AnnotationUri, updates: Partial<Annotation>): Promise<Annotation> {
     const traversalQuery = this.g!
       .V()
       .has('Annotation', 'id', id);
@@ -542,7 +551,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return updatedAnnotation;
   }
   
-  async deleteAnnotation(id: string): Promise<void> {
+  async deleteAnnotation(id: AnnotationUri): Promise<void> {
     await this.g!
       .V()
       .has('Annotation', 'id', id)
@@ -552,7 +561,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     console.log('Deleted annotation from JanusGraph:', id);
   }
   
-  async listAnnotations(filter: { resourceId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
+  async listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     let traversalQuery = this.g!.V().hasLabel('Annotation');
 
     // Apply filters
@@ -574,7 +583,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     };
   }
 
-  async getHighlights(resourceId: string): Promise<Annotation[]> {
+  async getHighlights(resourceId: ResourceId): Promise<Annotation[]> {
     const { annotations } = await this.listAnnotations({
       resourceId,
       type: 'highlight'
@@ -582,13 +591,14 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotations;
   }
 
-  async resolveReference(annotationId: string, source: string): Promise<Annotation> {
-    const annotation = await this.getAnnotation(annotationId);
+  async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
+    const publicURL = this.envConfig.services.backend!.publicURL;
+    const annotation = await this.getAnnotation(annotationIdToURI(annotationId, publicURL));
     if (!annotation) throw new Error('Annotation not found');
 
     // TODO Preserve existing TextualBody entities, add SpecificResource
     // For now, just update with SpecificResource (losing entity tags)
-    await this.updateAnnotation(annotationId, {
+    await this.updateAnnotation(annotationIdToURI(annotationId, publicURL), {
       body: [
         {
           type: 'SpecificResource',
@@ -606,7 +616,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .to(this.g!.V().has('Resource', 'id', source))
       .next();
 
-    const updatedAnnotation = await this.getAnnotation(annotationId);
+    const updatedAnnotation = await this.getAnnotation(annotationIdToURI(annotationId, publicURL));
     if (!updatedAnnotation) {
       throw new Error('Annotation not found after update');
     }
@@ -614,7 +624,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return updatedAnnotation;
   }
 
-  async getReferences(resourceId: string): Promise<Annotation[]> {
+  async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
     const { annotations } = await this.listAnnotations({
       resourceId,
       type: 'reference'
@@ -622,7 +632,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotations;
   }
 
-  async getEntityReferences(resourceId: string, entityTypes?: string[]): Promise<Annotation[]> {
+  async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
     const { annotations } = await this.listAnnotations({
       resourceId,
       type: 'reference'
@@ -639,12 +649,12 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotations.filter(ann => getEntityTypes(ann).length > 0);
   }
 
-  async getResourceAnnotations(resourceId: string): Promise<Annotation[]> {
+  async getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]> {
     const { annotations } = await this.listAnnotations({ resourceId });
     return annotations;
   }
 
-  async getResourceReferencedBy(resourceId: string): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceId: ResourceId): Promise<Annotation[]> {
     // Find annotations that reference this resource
     const vertices = await this.g!
       .V()
@@ -655,7 +665,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return await this.fetchAnnotationsWithEntityTypes(vertices);
   }
   
-  async getResourceConnections(resourceId: string): Promise<GraphConnection[]> {
+  async getResourceConnections(resourceId: ResourceId): Promise<GraphConnection[]> {
     // Use Gremlin to find connected resources
     const paths = await this.g!
       .V()
@@ -679,7 +689,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       // Extract source from body using helper
       const bodySource = getBodySource(ref.body);
       if (bodySource) {
-        const targetDoc = await this.getResource(bodySource);
+        const targetDoc = await this.getResource(resourceUri(bodySource));
         if (targetDoc) {
           const existing = connections.find(c => c.targetResource.id === targetDoc.id);
           if (existing) {
@@ -765,7 +775,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async resolveReferences(inputs: Array<{ annotationId: string; source: string }>): Promise<Annotation[]> {
+  async resolveReferences(inputs: Array<{ annotationId: AnnotationId; source: ResourceId }>): Promise<Annotation[]> {
     const results = [];
     for (const input of inputs) {
       results.push(await this.resolveReference(input.annotationId, input.source));
@@ -773,7 +783,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async detectAnnotations(_resourceId: string): Promise<Annotation[]> {
+  async detectAnnotations(_resourceId: ResourceId): Promise<Annotation[]> {
     // Auto-detection would analyze resource content
     return [];
   }

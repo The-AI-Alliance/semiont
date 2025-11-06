@@ -85,9 +85,11 @@ const startExecutor = new MultiServiceExecutor(startDescriptor);
  */
 export async function start(
   serviceDeployments: ServicePlatformInfo[],
-  options: StartOptions
+  options: StartOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ) {
-  return startExecutor.execute(serviceDeployments, options);
+  return startExecutor.execute(serviceDeployments, options, envConfig);
 }
 
 // StartResult type alias removed - use CommandResult directly

@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventSubscriptions } from '../../events/subscriptions/event-subscriptions';
 import type { StoredEvent, ResourceEvent } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 
 describe('EventSubscriptions', () => {
   let subscriptions: EventSubscriptions;
@@ -41,19 +42,19 @@ describe('EventSubscriptions', () => {
   describe('Resource Subscriptions', () => {
     it('should subscribe to resource events', () => {
       const callback = vi.fn();
-      const sub = subscriptions.subscribe('doc1', callback);
+      const sub = subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), callback);
 
-      expect(sub.resourceId).toBe('doc1');
+      expect(sub.resourceUri).toBe('http://localhost:4000/resources/doc1');
       expect(sub.callback).toBe(callback);
       expect(sub.unsubscribe).toBeTypeOf('function');
     });
 
     it('should notify resource subscribers', async () => {
       const callback = vi.fn();
-      subscriptions.subscribe('doc1', callback);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), callback);
 
       const event = createStoredEvent('annotation.added', 'doc1');
-      await subscriptions.notifySubscribers('doc1', event);
+      await subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc1'), event);
 
       // Fire-and-forget, so wait a tick
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -67,12 +68,12 @@ describe('EventSubscriptions', () => {
       const callback2 = vi.fn();
       const callback3 = vi.fn();
 
-      subscriptions.subscribe('doc1', callback1);
-      subscriptions.subscribe('doc1', callback2);
-      subscriptions.subscribe('doc1', callback3);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), callback1);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), callback2);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), callback3);
 
       const event = createStoredEvent('annotation.added', 'doc1');
-      await subscriptions.notifySubscribers('doc1', event);
+      await subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc1'), event);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -85,11 +86,11 @@ describe('EventSubscriptions', () => {
       const callback1 = vi.fn();
       const callback2 = vi.fn();
 
-      subscriptions.subscribe('doc1', callback1);
-      subscriptions.subscribe('doc2', callback2);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), callback1);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc2'), callback2);
 
       const event = createStoredEvent('annotation.added', 'doc1');
-      await subscriptions.notifySubscribers('doc1', event);
+      await subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc1'), event);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -99,12 +100,12 @@ describe('EventSubscriptions', () => {
 
     it('should unsubscribe from resource events', async () => {
       const callback = vi.fn();
-      const sub = subscriptions.subscribe('doc1', callback);
+      const sub = subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), callback);
 
       sub.unsubscribe();
 
       const event = createStoredEvent('annotation.added', 'doc1');
-      await subscriptions.notifySubscribers('doc1', event);
+      await subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc1'), event);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -112,29 +113,29 @@ describe('EventSubscriptions', () => {
     });
 
     it('should clean up empty subscription sets', () => {
-      const sub = subscriptions.subscribe('doc1', vi.fn());
+      const sub = subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), vi.fn());
 
-      expect(subscriptions.getSubscriptionCount('doc1')).toBe(1);
+      expect(subscriptions.getSubscriptionCount(resourceUri('http://localhost:4000/resources/doc1'))).toBe(1);
 
       sub.unsubscribe();
 
-      expect(subscriptions.getSubscriptionCount('doc1')).toBe(0);
+      expect(subscriptions.getSubscriptionCount(resourceUri('http://localhost:4000/resources/doc1'))).toBe(0);
     });
 
     it('should get subscription count for resource', () => {
-      subscriptions.subscribe('doc1', vi.fn());
-      subscriptions.subscribe('doc1', vi.fn());
-      subscriptions.subscribe('doc2', vi.fn());
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), vi.fn());
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), vi.fn());
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc2'), vi.fn());
 
-      expect(subscriptions.getSubscriptionCount('doc1')).toBe(2);
-      expect(subscriptions.getSubscriptionCount('doc2')).toBe(1);
-      expect(subscriptions.getSubscriptionCount('doc-nonexistent')).toBe(0);
+      expect(subscriptions.getSubscriptionCount(resourceUri('http://localhost:4000/resources/doc1'))).toBe(2);
+      expect(subscriptions.getSubscriptionCount(resourceUri('http://localhost:4000/resources/doc2'))).toBe(1);
+      expect(subscriptions.getSubscriptionCount(resourceUri('http://localhost:4000/resources/doc-nonexistent'))).toBe(0);
     });
 
     it('should get total subscription count', () => {
-      subscriptions.subscribe('doc1', vi.fn());
-      subscriptions.subscribe('doc1', vi.fn());
-      subscriptions.subscribe('doc2', vi.fn());
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), vi.fn());
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), vi.fn());
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc2'), vi.fn());
 
       expect(subscriptions.getTotalSubscriptions()).toBe(3);
     });
@@ -145,7 +146,7 @@ describe('EventSubscriptions', () => {
       const callback = vi.fn();
       const sub = subscriptions.subscribeGlobal(callback);
 
-      expect(sub.resourceId).toBe('__global__');
+      expect(sub.resourceUri).toBe('__global__');
       expect(sub.callback).toBe(callback);
       expect(sub.unsubscribe).toBeTypeOf('function');
     });
@@ -207,12 +208,12 @@ describe('EventSubscriptions', () => {
       const docCallback = vi.fn();
       const globalCallback = vi.fn();
 
-      subscriptions.subscribe('doc1', docCallback);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), docCallback);
       subscriptions.subscribeGlobal(globalCallback);
 
       // Notify resource subscribers
       const docEvent = createStoredEvent('annotation.added', 'doc1');
-      await subscriptions.notifySubscribers('doc1', docEvent);
+      await subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc1'), docEvent);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -240,13 +241,13 @@ describe('EventSubscriptions', () => {
         await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
       });
 
-      subscriptions.subscribe('doc1', fastCallback);
-      subscriptions.subscribe('doc1', slowCallback);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), fastCallback);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), slowCallback);
 
       const event = createStoredEvent('annotation.added', 'doc1');
 
       const start = Date.now();
-      await subscriptions.notifySubscribers('doc1', event);
+      await subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc1'), event);
       const duration = Date.now() - start;
 
       // notifySubscribers should return immediately (< 50ms)
@@ -266,14 +267,14 @@ describe('EventSubscriptions', () => {
       });
       const anotherGoodCallback = vi.fn();
 
-      subscriptions.subscribe('doc1', goodCallback);
-      subscriptions.subscribe('doc1', badCallback);
-      subscriptions.subscribe('doc1', anotherGoodCallback);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), goodCallback);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), badCallback);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), anotherGoodCallback);
 
       const event = createStoredEvent('annotation.added', 'doc1');
 
       // Should not throw - fire-and-forget means errors are caught internally
-      await subscriptions.notifySubscribers('doc1', event);
+      await subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc1'), event);
 
       // Wait for async callbacks to complete
       await new Promise(resolve => setTimeout(resolve, 20));
@@ -290,10 +291,10 @@ describe('EventSubscriptions', () => {
         // Just process the event, don't return anything
       });
 
-      subscriptions.subscribe('doc1', asyncCallback);
+      subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), asyncCallback);
 
       const event = createStoredEvent('annotation.added', 'doc1');
-      await subscriptions.notifySubscribers('doc1', event);
+      await subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc1'), event);
 
       await new Promise(resolve => setTimeout(resolve, 20));
 
@@ -305,7 +306,7 @@ describe('EventSubscriptions', () => {
     it('should handle notification with no subscribers', async () => {
       const event = createStoredEvent('annotation.added', 'doc-nonexistent');
 
-      await expect(subscriptions.notifySubscribers('doc-nonexistent', event)).resolves.toBeUndefined();
+      await expect(subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc-nonexistent'), event)).resolves.toBeUndefined();
     });
 
     it('should handle global notification with no subscribers', async () => {
@@ -317,13 +318,13 @@ describe('EventSubscriptions', () => {
     it('should allow re-subscribing after unsubscribing', async () => {
       const callback = vi.fn();
 
-      const sub1 = subscriptions.subscribe('doc1', callback);
+      const sub1 = subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), callback);
       sub1.unsubscribe();
 
-      const sub2 = subscriptions.subscribe('doc1', callback);
+      const sub2 = subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), callback);
 
       const event = createStoredEvent('annotation.added', 'doc1');
-      await subscriptions.notifySubscribers('doc1', event);
+      await subscriptions.notifySubscribers(resourceUri('http://localhost:4000/resources/doc1'), event);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -333,7 +334,7 @@ describe('EventSubscriptions', () => {
     });
 
     it('should handle unsubscribe called multiple times', () => {
-      const sub = subscriptions.subscribe('doc1', vi.fn());
+      const sub = subscriptions.subscribe(resourceUri('http://localhost:4000/resources/doc1'), vi.fn());
 
       expect(() => {
         sub.unsubscribe();

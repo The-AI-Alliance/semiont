@@ -6,18 +6,24 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { resourceId, userId } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import { initializeJobQueue, getJobQueue } from '../../jobs/job-queue';
 import { EventStore } from '../../events/event-store';
+import type { IdentifierConfig } from '../../services/identifier-service';
 import { FilesystemProjectionStorage } from '../../storage/projection-storage';
+import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
 };
 
 let testDir: string;
@@ -71,36 +77,45 @@ vi.mock('../../config/environment-loader', () => ({
 
 let app: Hono<{ Variables: Variables }>;
 
-describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscriptions', () => {
+describe('POST /resources/:id/detect-annotations-stream - Event Store Subscriptions', () => {
   let authToken: string;
   let testUser: User;
   // @ts-ignore - used in multiple test blocks
   let eventStore: EventStore;
+  let testEnv: TestEnvironmentConfig;
 
   beforeAll(async () => {
+    // Set up test environment with proper config files
+    testEnv = await setupTestEnvironment();
+
+    // Get testDir from environment setup (or create a local one for job queue)
     testDir = join(tmpdir(), `semiont-test-sse-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    // Set required environment variables
+    // Set additional JWT environment variables
     process.env.SITE_DOMAIN = 'test.example.com';
     process.env.OAUTH_ALLOWED_DOMAINS = 'test.example.com,example.com';
     process.env.JWT_SECRET = 'test-secret-key-for-testing-with-at-least-32-characters';
-    process.env.BACKEND_URL = 'http://localhost:4000';
-    process.env.CORS_ORIGIN = 'http://localhost:3000';
-    process.env.FRONTEND_URL = 'http://localhost:3000';
-    process.env.NODE_ENV = 'test';
+
+    // Initialize JWTService with test config
+    JWTService.initialize(testEnv.config);
 
     // Initialize job queue
     await initializeJobQueue({ dataDir: join(testDir, 'jobs') });
 
     // Initialize Event Store
     const projectionStorage = new FilesystemProjectionStorage(testDir);
-    eventStore = new EventStore({
-      basePath: testDir,
-      dataDir: testDir,
-      enableSharding: false,
-      maxEventsPerFile: 100,
-    }, projectionStorage);
+    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
+    eventStore = new EventStore(
+      {
+        basePath: testDir,
+        dataDir: testDir,
+        enableSharding: false,
+        maxEventsPerFile: 100,
+      },
+      projectionStorage,
+      identifierConfig
+    );
 
     // Import app after environment setup
     const appModule = await import('../../index');
@@ -152,10 +167,11 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
 
   afterAll(async () => {
     await fs.rm(testDir, { recursive: true, force: true });
+    await testEnv.cleanup();
   });
 
   it('should return SSE stream with proper content-type', async () => {
-    const response = await app.request('/api/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -176,7 +192,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
     const jobsBefore = await jobQueue.listJobs();
     const countBefore = jobsBefore.length;
 
-    await app.request('/api/resources/test-resource/detect-annotations-stream', {
+    await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -196,7 +212,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
   });
 
   it('should send detection-started event immediately', async () => {
-    const response = await app.request('/api/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -213,7 +229,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
   });
 
   it('should require authentication', async () => {
-    const response = await app.request('/api/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -227,7 +243,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
   });
 
   it('should validate request body has entityTypes', async () => {
-    const response = await app.request('/api/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -244,7 +260,7 @@ describe('POST /api/resources/:id/detect-annotations-stream - Event Store Subscr
     const { ResourceQueryService } = await import('../../services/resource-queries');
     vi.mocked(ResourceQueryService.getResourceMetadata).mockResolvedValueOnce(null);
 
-    const response = await app.request('/api/resources/nonexistent-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/nonexistent-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -267,12 +283,17 @@ describe('Event Store Subscription Pattern', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     const projectionStorage = new FilesystemProjectionStorage(testDir);
-    eventStore = new EventStore({
-      basePath: testDir,
-      dataDir: testDir,
-      enableSharding: false,
-      maxEventsPerFile: 100,
-    }, projectionStorage);
+    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
+    eventStore = new EventStore(
+      {
+        basePath: testDir,
+        dataDir: testDir,
+        enableSharding: false,
+        maxEventsPerFile: 100,
+      },
+      projectionStorage,
+      identifierConfig
+    );
   });
 
   afterAll(async () => {
@@ -280,19 +301,19 @@ describe('Event Store Subscription Pattern', () => {
   });
 
   it('should subscribe to resource events and receive job.progress events', async () => {
-    const resourceId = 'test-resource-1';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
+    const rId = resourceId('test-resource-1');
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
     // Emit a job.progress event
     await eventStore.appendEvent({
       type: 'job.progress',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: 'job-1',
@@ -316,18 +337,18 @@ describe('Event Store Subscription Pattern', () => {
   });
 
   it('should receive job.completed event', async () => {
-    const resourceId = 'test-resource-2';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
+    const rId = resourceId('test-resource-2');
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
     await eventStore.appendEvent({
       type: 'job.completed',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: 'job-2',
@@ -345,18 +366,18 @@ describe('Event Store Subscription Pattern', () => {
   });
 
   it('should receive job.failed event', async () => {
-    const resourceId = 'test-resource-3';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
+    const rId = resourceId('test-resource-3');
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
     await eventStore.appendEvent({
       type: 'job.failed',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: 'job-3',
@@ -376,11 +397,11 @@ describe('Event Store Subscription Pattern', () => {
   });
 
   it('should unsubscribe and stop receiving events', async () => {
-    const resourceId = 'test-resource-4';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
+    const rId = resourceId('test-resource-4');
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent: any) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -390,8 +411,8 @@ describe('Event Store Subscription Pattern', () => {
     // Emit event after unsubscribing
     await eventStore.appendEvent({
       type: 'job.progress',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: 'job-4',

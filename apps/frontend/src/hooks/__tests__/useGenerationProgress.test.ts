@@ -1,3 +1,5 @@
+import { annotationUri, resourceUri } from '@semiont/api-client';
+
 /**
  * useGenerationProgress Hook Tests
  *
@@ -23,11 +25,6 @@ vi.mock('@microsoft/fetch-event-source', () => ({
 // Mock environment
 vi.mock('@/lib/env', () => ({
   NEXT_PUBLIC_API_URL: 'http://localhost:4000'
-}));
-
-// Mock extractAnnotationId
-vi.mock('@semiont/api-client', () => ({
-  extractAnnotationId: (id: string) => id.split('/').pop() || id
 }));
 
 describe('useGenerationProgress', () => {
@@ -68,14 +65,14 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({})
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource', {
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'), {
       title: 'Test Resource',
       prompt: 'Create a resource about testing',
       language: 'en'
     });
 
     expect(mockFetchEventSource).toHaveBeenCalledWith(
-      'http://localhost:4000/api/annotations/test-ref-id/generate-resource-stream',
+      'http://localhost:4000/resources/test-resource/annotations/test-ref-id/generate-resource-stream',
       expect.objectContaining({
         method: 'POST',
         headers: {
@@ -83,7 +80,6 @@ describe('useGenerationProgress', () => {
           'Authorization': 'Bearer test-token'
         },
         body: JSON.stringify({
-          resourceId: 'test-resource',
           title: 'Test Resource',
           prompt: 'Create a resource about testing',
           language: 'en'
@@ -100,7 +96,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({})
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource');
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'));
 
     await waitFor(() => {
       expect(result.current.isGenerating).toBe(true);
@@ -119,7 +115,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({ onProgress })
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource');
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'));
 
     capturedOnMessage!({
       event: 'generation-started',
@@ -154,7 +150,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({ onProgress })
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource');
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'));
 
     const stages = [
       { status: 'fetching', percentage: 20, message: 'Fetching source resource...' },
@@ -199,7 +195,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({ onComplete })
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource');
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'));
 
     capturedOnMessage!({
       event: 'generation-complete',
@@ -237,7 +233,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({ onError })
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource');
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'));
 
     capturedOnMessage!({
       event: 'generation-error',
@@ -266,7 +262,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({})
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource');
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'));
     result.current.cancelGeneration();
 
     expect(abortController.abort).toHaveBeenCalled();
@@ -297,7 +293,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({ onError })
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource');
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'));
 
     expect(onError).toHaveBeenCalledWith('Authentication required');
     expect(mockFetchEventSource).not.toHaveBeenCalled();
@@ -313,7 +309,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({ onError })
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource');
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'));
 
     await waitFor(() => {
       expect(onError).toHaveBeenCalledWith('Connection lost. Please try again.');
@@ -331,12 +327,12 @@ describe('useGenerationProgress', () => {
 
     // Pass a full URI instead of just an ID
     await result.current.startGeneration(
-      'http://localhost:4000/api/annotations/test-ref-id',
-      'test-resource'
+      annotationUri('http://localhost:4000/annotations/test-ref-id'),
+      resourceUri('http://localhost:4000/resources/test-resource')
     );
 
     expect(mockFetchEventSource).toHaveBeenCalledWith(
-      'http://localhost:4000/api/annotations/test-ref-id/generate-resource-stream',
+      'http://localhost:4000/resources/test-resource/annotations/test-ref-id/generate-resource-stream',
       expect.any(Object)
     );
   });
@@ -348,7 +344,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({})
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource');
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'));
 
     expect(mockFetchEventSource).toHaveBeenCalledWith(
       expect.any(String),
@@ -368,7 +364,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({})
     );
 
-    result.current.startGeneration('test-ref-id', 'test-resource');
+    result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'));
     unmount();
 
     expect(abortController.abort).toHaveBeenCalled();
@@ -381,7 +377,7 @@ describe('useGenerationProgress', () => {
       useGenerationProgress({})
     );
 
-    await result.current.startGeneration('test-ref-id', 'test-resource', {
+    await result.current.startGeneration(annotationUri('http://localhost:4000/annotations/test-ref-id'), resourceUri('http://localhost:4000/resources/test-resource'), {
       language: 'es'
     });
 
@@ -389,7 +385,6 @@ describe('useGenerationProgress', () => {
       expect.any(String),
       expect.objectContaining({
         body: JSON.stringify({
-          resourceId: 'test-resource',
           language: 'es'
         })
       })

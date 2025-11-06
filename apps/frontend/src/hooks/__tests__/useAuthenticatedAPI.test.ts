@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useAuthenticatedAPI } from '../useAuthenticatedAPI';
-import { APIError } from '@/lib/api';
+import { APIError } from '@semiont/api-client';
 
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
@@ -204,7 +204,7 @@ describe('useAuthenticatedAPI', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(APIError);
       expect((error as APIError).status).toBe(401);
-      expect((error as APIError).data).toEqual({ error: 'Unauthorized' });
+      expect((error as APIError).details).toEqual({ error: 'Unauthorized' });
     }
   });
 
@@ -228,7 +228,7 @@ describe('useAuthenticatedAPI', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(APIError);
       expect((error as APIError).status).toBe(403);
-      expect((error as APIError).data).toEqual({ error: 'Forbidden' });
+      expect((error as APIError).details).toEqual({ error: 'Forbidden' });
     }
   });
 
@@ -252,7 +252,7 @@ describe('useAuthenticatedAPI', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(APIError);
       expect((error as APIError).status).toBe(500);
-      expect((error as APIError).data).toEqual({ error: 'Internal Server Error' });
+      expect((error as APIError).details).toEqual({ error: 'Internal Server Error' });
     }
   });
 

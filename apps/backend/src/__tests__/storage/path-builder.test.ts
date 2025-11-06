@@ -8,6 +8,7 @@ import { PathBuilder } from '../../storage/shared/path-builder';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { resourceId } from '@semiont/core';
 
 describe('PathBuilder', () => {
   let testDir: string;
@@ -27,7 +28,7 @@ describe('PathBuilder', () => {
         basePath: testDir,
         namespace: 'resources',
       });
-      const docId = 'doc-sha256:abc123def456';
+      const docId = resourceId('doc-sha256:abc123def456');
       const path = builder.buildPath(docId, '.dat');
 
       // Should match pattern: testDir/resources/ab/cd/doc-sha256:abc123def456.dat
@@ -42,7 +43,7 @@ describe('PathBuilder', () => {
         namespace: 'projections',
         subNamespace: 'annotations',
       });
-      const docId = 'doc-sha256:abc123def456';
+      const docId = resourceId('doc-sha256:abc123def456');
       const path = builder.buildPath(docId, '.json');
 
       // Should match pattern: testDir/projections/annotations/ab/cd/doc-sha256:abc123def456.json
@@ -57,7 +58,7 @@ describe('PathBuilder', () => {
         basePath: testDir,
         namespace: 'resources',
       });
-      const docId = 'doc-sha256:test123';
+      const docId = resourceId('doc-sha256:test123');
 
       const datPath = builder.buildPath(docId, '.dat');
       const jsonPath = builder.buildPath(docId, '.json');
@@ -73,7 +74,7 @@ describe('PathBuilder', () => {
         basePath: testDir,
         namespace: 'resources',
       });
-      const docId = 'doc-sha256:consistent123';
+      const docId = resourceId('doc-sha256:consistent123');
 
       const path1 = builder.buildPath(docId, '.dat');
       const path2 = builder.buildPath(docId, '.dat');
@@ -103,7 +104,7 @@ describe('PathBuilder', () => {
   describe('Directory Management', () => {
     it('should create shard directories', async () => {
       const builder = new PathBuilder({ basePath: testDir, namespace: 'test-docs' });
-      const docId = 'doc-sha256:dirtest123';
+      const docId = resourceId('doc-sha256:dirtest123');
       const filePath = builder.buildPath(docId, '.dat');
 
       await builder.ensureDirectory(filePath);
@@ -116,7 +117,7 @@ describe('PathBuilder', () => {
 
     it('should handle nested directory creation', async () => {
       const builder = new PathBuilder({ basePath: testDir, namespace: 'nested', subNamespace: 'deep' });
-      const docId = 'doc-sha256:nested123';
+      const docId = resourceId('doc-sha256:nested123');
       const filePath = builder.buildPath(docId, '.json');
 
       await builder.ensureDirectory(filePath);
@@ -183,7 +184,7 @@ describe('PathBuilder', () => {
       const builder = new PathBuilder({ basePath: testDir, namespace: 'with-sub', subNamespace: 'namespace' });
 
       // Create test resource
-      const docId = 'doc-sub-test';
+      const docId = resourceId('doc-sub-test');
       const filePath = builder.buildPath(docId, '.json');
       await builder.ensureDirectory(filePath);
       await fs.writeFile(filePath, '{}');

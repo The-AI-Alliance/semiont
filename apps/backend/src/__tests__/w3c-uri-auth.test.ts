@@ -4,12 +4,15 @@
  * Tests that W3C-compliant URI endpoints require authentication
  */
 
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/core';
+import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
 };
 
 type ErrorResponse = {
@@ -32,17 +35,20 @@ vi.mock('../db', () => ({
 
 describe('W3C URI Authentication', () => {
   let app: Hono<{ Variables: Variables }>;
+  let testEnv: TestEnvironmentConfig;
 
   beforeAll(async () => {
-    // Set required environment variables before importing app
-    process.env.BACKEND_URL = 'http://localhost:4000';
-    process.env.CORS_ORIGIN = 'http://localhost:3000';
-    process.env.FRONTEND_URL = 'http://localhost:3000';
-    process.env.NODE_ENV = 'test';
+    // Set up test environment with proper config files
+    testEnv = await setupTestEnvironment();
 
-    // Import the app
+    // Import the app after environment is set up
     const { app: importedApp } = await import('../index');
     app = importedApp;
+  });
+
+  afterAll(async () => {
+    // Clean up test environment
+    await testEnv.cleanup();
   });
 
   describe('GET /resources/:id', () => {

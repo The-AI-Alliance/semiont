@@ -11,11 +11,11 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { AnnotationContextService } from '../../../services/annotation-context';
-import { getBackendConfig } from '../../../config/environment-loader';
+import { annotationId, resourceId } from '@semiont/core';
 
 export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/:resourceId/annotations/:annotationId/llm-context
+   * GET /resources/:resourceId/annotations/:annotationId/llm-context
    *
    * Get annotation with full context for LLM processing
    * Includes source context (text around annotation), target context (referenced resource if applicable), and metadata
@@ -25,9 +25,10 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
    * - includeTargetContext: true/false (default: true)
    * - contextWindow: 100-5000 (default: 1000) - characters before/after selection
    */
-  router.get('/api/resources/:resourceId/annotations/:annotationId/llm-context', async (c) => {
-    const { resourceId, annotationId } = c.req.param();
+  router.get('/resources/:resourceId/annotations/:annotationId/llm-context', async (c) => {
+    const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
     const query = c.req.query();
+    const config = c.get('config');
 
     // Parse and validate query parameters
     const includeSourceContext = query.includeSourceContext === 'false' ? false : true;
@@ -40,12 +41,8 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
     }
 
     try {
-      // Construct full resource URI (consistent with W3C Web Annotation spec)
-      const backendConfig = getBackendConfig();
-      const resourceUri = `${backendConfig.publicURL}/resources/${resourceId}`;
-
       // Use shared service to build context
-      const response = await AnnotationContextService.buildLLMContext(annotationId, resourceUri, {
+      const response = await AnnotationContextService.buildLLMContext(annotationId(annotationIdParam), resourceId(resourceIdParam), config, {
         includeSourceContext,
         includeTargetContext,
         contextWindow

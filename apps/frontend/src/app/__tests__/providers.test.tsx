@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { QueryClient } from '@tanstack/react-query';
 import { Providers } from '@/app/providers';
-import { APIError } from '@/lib/api';
+import { APIError } from '@semiont/api-client';
 
 // Mock next-auth
 vi.mock('next-auth/react', () => ({

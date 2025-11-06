@@ -5,17 +5,13 @@
  * to SSE stream delivery.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { resourceId, userId, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 import type { EventStore } from '../../events/event-store';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-
-// Mock environment
-vi.mock('../../config/environment-loader', () => ({
-  getFilesystemConfig: () => ({ path: testDir }),
-  getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
-}));
 
 let testDir: string;
 
@@ -26,8 +22,14 @@ describe('SSE Event Flow - End-to-End', () => {
     testDir = join(tmpdir(), `semiont-test-e2e-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
+    // SEMIONT_ROOT and SEMIONT_ENV are set by the global test setup
+    // Load config to pass to createEventStore
+    const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+    const environment = process.env.SEMIONT_ENV || 'test';
+    const config = loadEnvironmentConfig(projectRoot, environment);
+
     const { createEventStore } = await import('../../services/event-store-service');
-    eventStore = await createEventStore(testDir, {
+    eventStore = await createEventStore( config, {
       enableSharding: false,
       maxEventsPerFile: 100,
     });
@@ -38,13 +40,13 @@ describe('SSE Event Flow - End-to-End', () => {
   });
 
   it('should flow detection events from worker to SSE subscriber', async () => {
-    const resourceId = 'resource-e2e-1';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
-    const jobId = 'job-e2e-1';
+    const rId = resourceId('resource-e2e-1');
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
+    const jobId = resourceId('job-e2e-1');
     const receivedEvents: any[] = [];
 
     // Simulate SSE endpoint subscribing to Event Store
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
       const event = storedEvent.event;
 
       // Filter for this specific job (like SSE endpoint does)
@@ -62,8 +64,8 @@ describe('SSE Event Flow - End-to-End', () => {
     // Simulate worker emitting events
     await eventStore.appendEvent({
       type: 'job.started',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
@@ -74,8 +76,8 @@ describe('SSE Event Flow - End-to-End', () => {
 
     await eventStore.appendEvent({
       type: 'job.progress',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
@@ -91,8 +93,8 @@ describe('SSE Event Flow - End-to-End', () => {
 
     await eventStore.appendEvent({
       type: 'job.progress',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
@@ -108,8 +110,8 @@ describe('SSE Event Flow - End-to-End', () => {
 
     await eventStore.appendEvent({
       type: 'job.completed',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
@@ -135,12 +137,12 @@ describe('SSE Event Flow - End-to-End', () => {
   });
 
   it('should flow generation events from worker to SSE subscriber', async () => {
-    const resourceId = 'resource-e2e-2';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
-    const jobId = 'job-e2e-2';
+    const rId = resourceId('resource-e2e-2');
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
+    const jobId = resourceId('job-e2e-2');
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
       const event = storedEvent.event;
 
       if ((event.type === 'job.started' || event.type === 'job.progress' || event.type === 'job.completed')
@@ -156,8 +158,8 @@ describe('SSE Event Flow - End-to-End', () => {
     // Simulate generation worker emitting events
     await eventStore.appendEvent({
       type: 'job.started',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
@@ -176,8 +178,8 @@ describe('SSE Event Flow - End-to-End', () => {
     for (const stage of stages) {
       await eventStore.appendEvent({
         type: 'job.progress',
-        resourceId,
-        userId: 'user-1',
+        resourceId: rId,
+        userId: userId('user-1'),
         version: 1,
         payload: {
           jobId,
@@ -191,13 +193,13 @@ describe('SSE Event Flow - End-to-End', () => {
 
     await eventStore.appendEvent({
       type: 'job.completed',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
         jobType: 'generation',
-        resultResourceId: 'new-resource-id',
+        resultResourceId: resourceId('new-resource-id'),
         message: 'Draft resource created!'
       }
     });
@@ -216,12 +218,12 @@ describe('SSE Event Flow - End-to-End', () => {
   });
 
   it('should handle job failure events', async () => {
-    const resourceId = 'resource-e2e-3';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
-    const jobId = 'job-e2e-3';
+    const rId = resourceId('resource-e2e-3');
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
+    const jobId = resourceId('job-e2e-3');
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
       const event = storedEvent.event;
 
       if ((event.type === 'job.started' || event.type === 'job.progress' || event.type === 'job.failed')
@@ -236,8 +238,8 @@ describe('SSE Event Flow - End-to-End', () => {
     // Simulate worker starting job
     await eventStore.appendEvent({
       type: 'job.started',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
@@ -249,8 +251,8 @@ describe('SSE Event Flow - End-to-End', () => {
     // Simulate progress
     await eventStore.appendEvent({
       type: 'job.progress',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
@@ -264,8 +266,8 @@ describe('SSE Event Flow - End-to-End', () => {
     // Simulate failure
     await eventStore.appendEvent({
       type: 'job.failed',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
@@ -287,14 +289,14 @@ describe('SSE Event Flow - End-to-End', () => {
   });
 
   it('should filter events by jobId correctly', async () => {
-    const resourceId = 'resource-e2e-4';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
+    const rId = resourceId('resource-e2e-4');
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const jobId1 = 'job-e2e-4a';
     const jobId2 = 'job-e2e-4b';
     const receivedJob1Events: any[] = [];
 
     // Subscribe to events for jobId1 only
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
       const event = storedEvent.event;
 
       if ((event.type === 'job.progress' || event.type === 'job.completed')
@@ -306,8 +308,8 @@ describe('SSE Event Flow - End-to-End', () => {
     // Emit events for both jobs
     await eventStore.appendEvent({
       type: 'job.progress',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: jobId1,
@@ -318,8 +320,8 @@ describe('SSE Event Flow - End-to-End', () => {
 
     await eventStore.appendEvent({
       type: 'job.progress',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: jobId2,
@@ -330,8 +332,8 @@ describe('SSE Event Flow - End-to-End', () => {
 
     await eventStore.appendEvent({
       type: 'job.completed',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: jobId1,
@@ -349,31 +351,31 @@ describe('SSE Event Flow - End-to-End', () => {
   });
 
   it('should handle multiple concurrent subscribers', async () => {
-    const resourceId = 'resource-e2e-5';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
-    const jobId = 'job-e2e-5';
+    const rId = resourceId('resource-e2e-5');
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
+    const jobId = resourceId('job-e2e-5');
     const subscriber1Events: any[] = [];
     const subscriber2Events: any[] = [];
     const subscriber3Events: any[] = [];
 
     // Create multiple subscribers (simulating multiple SSE clients)
-    const sub1 = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
+    const sub1 = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
       subscriber1Events.push(storedEvent.event);
     });
 
-    const sub2 = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
+    const sub2 = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
       subscriber2Events.push(storedEvent.event);
     });
 
-    const sub3 = eventStore.subscriptions.subscribe(resourceUri, async (storedEvent) => {
+    const sub3 = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
       subscriber3Events.push(storedEvent.event);
     });
 
     // Emit events
     await eventStore.appendEvent({
       type: 'job.started',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
@@ -384,8 +386,8 @@ describe('SSE Event Flow - End-to-End', () => {
 
     await eventStore.appendEvent({
       type: 'job.completed',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,
@@ -406,20 +408,20 @@ describe('SSE Event Flow - End-to-End', () => {
   });
 
   it('should maintain low latency (<50ms from emit to notify)', async () => {
-    const resourceId = 'resource-e2e-6';
-    const resourceUri = `http://localhost:4000/resources/${resourceId}`;
-    const jobId = 'job-e2e-6';
+    const rId = resourceId('resource-e2e-6');
+    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
+    const jobId = resourceId('job-e2e-6');
     let notifyTime: number | null = null;
 
-    const subscription = eventStore.subscriptions.subscribe(resourceUri, async () => {
+    const subscription = eventStore.subscriptions.subscribe(rUri, async () => {
       notifyTime = Date.now();
     });
 
     const emitTime = Date.now();
     await eventStore.appendEvent({
       type: 'job.progress',
-      resourceId,
-      userId: 'user-1',
+      resourceId: rId,
+      userId: userId('user-1'),
       version: 1,
       payload: {
         jobId,

@@ -13,15 +13,16 @@ import { getGraphDatabase } from '../../../graph/factory';
 import { generateResourceSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/environment-loader';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
 import { getResourceId, getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
+import { resourceId as makeResourceId } from '@semiont/core';
+import { resourceUri } from '@semiont/api-client';
 
 type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
 
 export function registerGetResourceLLMContext(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/:id/llm-context
+   * GET /resources/:id/llm-context
    *
    * Get resource with full context for LLM processing
    * Includes related resources, annotations, graph representation, and optional summary
@@ -32,10 +33,11 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
    * - includeContent: true/false (default: true)
    * - includeSummary: true/false (default: false)
    */
-  router.get('/api/resources/:id/llm-context', async (c) => {
+  router.get('/resources/:id/llm-context', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
-    const basePath = getFilesystemConfig().path;
+    const config = c.get('config');
+    const basePath = config.services.filesystem!.path;
 
     // Parse and validate query parameters
     const depth = query.depth ? Number(query.depth) : 2;
@@ -53,10 +55,10 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "maxResources" must be between 1 and 20' });
     }
 
-    const graphDb = await getGraphDatabase();
+    const graphDb = await getGraphDatabase(config);
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    const mainDoc = await graphDb.getResource(id);
+    const mainDoc = await graphDb.getResource(resourceUri(id));
     if (!mainDoc) {
       throw new HTTPException(404, { message: 'Resource not found' });
     }
@@ -72,7 +74,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     }
 
     // Get related resources through graph connections
-    const connections = await graphDb.getResourceConnections(id);
+    const connections = await graphDb.getResourceConnections(makeResourceId(id));
     const relatedDocs = connections.map(conn => conn.targetResource);
     const limitedRelatedDocs = relatedDocs.slice(0, maxResources - 1);
 
@@ -93,7 +95,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     }
 
     // Get all annotations for the main resource
-    const result = await graphDb.listAnnotations({ resourceId: id });
+    const result = await graphDb.listAnnotations({ resourceId: makeResourceId(id) });
     const annotations = result.annotations;
 
     // Build graph representation
@@ -121,11 +123,11 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
 
     // Generate summary if requested
     const summary = includeSummary && mainContent ?
-      await generateResourceSummary(mainDoc.name, mainContent, getEntityTypes(mainDoc)) : undefined;
+      await generateResourceSummary(mainDoc.name, mainContent, getEntityTypes(mainDoc), config) : undefined;
 
     // Generate reference suggestions if we have content
     const suggestedReferences = mainContent ?
-      await generateReferenceSuggestions(mainContent) : undefined;
+      await generateReferenceSuggestions(mainContent, config) : undefined;
 
     const response: ResourceLLMContextResponse = {
       mainResource: mainDoc,

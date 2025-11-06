@@ -5,15 +5,15 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { resources } from '@/lib/api/resources';
-import { annotations } from '@/lib/api/annotations';
-import { entityTypes } from '@/lib/api/entity-types';
+import { useResources, useAnnotations, useEntityTypes } from '@/lib/api-hooks';
 import { buttonStyles } from '@/lib/button-styles';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getResourceId, getPrimaryMediaType } from '@/lib/resource-helpers';
+import { getPrimaryMediaType, getResourceId } from '@semiont/api-client';
+import { resourceUri, resourceAnnotationUri, type ResourceUri, type ResourceAnnotationUri } from '@semiont/api-client';
+import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
@@ -48,9 +48,14 @@ function ComposeDocumentContent() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  // API hooks
+  const resources = useResources();
+  const annotations = useAnnotations();
+  const entityTypesAPI = useEntityTypes();
+
   // Fetch available entity types
-  const { data: entityTypesData } = entityTypes.all.useQuery();
-  const availableEntityTypes = entityTypesData?.entityTypes || [];
+  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
+  const availableEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Set up mutation hooks
   const createDocMutation = resources.create.useMutation();
@@ -85,14 +90,12 @@ function ComposeDocumentContent() {
 
           // Fetch representation separately
           try {
-            const resourceId = getResourceId(cloneData.sourceResource);
-            if (!resourceId) {
-              throw new Error('Cannot extract resource ID from source resource');
-            }
+            // Use the canonical URI from the resource descriptor
+            const rUri = resourceUri(cloneData.sourceResource['@id']);
             // Get the primary representation's mediaType from the source resource
             const mediaType = getPrimaryMediaType(cloneData.sourceResource) || 'text/plain';
 
-            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/resources/${encodeURIComponent(resourceId)}`, {
+            const contentResponse = await fetch(rUri, {
               headers: {
                 'Authorization': `Bearer ${session.backendToken}`,
                 'Accept': mediaType,
@@ -132,7 +135,7 @@ function ComposeDocumentContent() {
 
     setIsCreating(true);
     try {
-      let resourceId: string;
+      let rUri: ResourceUri;
 
       if (isClone && cloneToken) {
         // Create resource from clone token with edited content
@@ -143,11 +146,11 @@ function ComposeDocumentContent() {
           archiveOriginal: archiveOriginal
         });
 
-        const resId = response.resource ? getResourceId(response.resource) : '';
-        if (!resId) {
-          throw new Error('No resource ID returned from server');
+        if (!response.resource?.['@id']) {
+          throw new Error('No resource URI returned from server');
         }
-        resourceId = resId;
+        // Use the canonical URI from the API response
+        rUri = resourceUri(response.resource['@id']);
       } else {
         // Create a new resource with entity types
         const response = await createDocMutation.mutateAsync({
@@ -158,24 +161,27 @@ function ComposeDocumentContent() {
           creationMethod: 'ui'
         });
 
-        const resId = response.resource ? getResourceId(response.resource) : '';
-        if (!resId) {
-          throw new Error('No resource ID returned from server');
+        if (!response.resource?.['@id']) {
+          throw new Error('No resource URI returned from server');
         }
-        resourceId = resId;
+        // Use the canonical URI from the API response
+        rUri = resourceUri(response.resource['@id']);
 
         // If this is a reference completion, update the reference to point to the new resource
-        if (isReferenceCompletion && referenceId && resourceId && sourceDocumentId) {
+        if (isReferenceCompletion && referenceId && rUri && sourceDocumentId) {
           try {
+            // Construct ResourceAnnotationUri from sourceDocumentId and referenceId
+            const annotationUri = resourceAnnotationUri(`${sourceDocumentId}/annotations/${referenceId}`);
+
             await updateAnnotationBodyMutation.mutateAsync({
-              id: referenceId,
+              annotationUri,
               data: {
                 resourceId: sourceDocumentId,
                 operations: [{
                   op: 'add',
                   item: {
                     type: 'SpecificResource',
-                    source: resourceId,
+                    source: rUri,
                     purpose: 'linking'
                   }
                 }]
@@ -190,7 +196,12 @@ function ComposeDocumentContent() {
         }
       }
 
-      // Navigate to the new resource (will add to tabs on page load)
+      // Navigate to the new resource using just the ID (browser URLs use clean IDs)
+      // Use getResourceId to extract the ID from the canonical URI
+      const resourceId = getResourceId({ '@id': rUri } as any);
+      if (!resourceId) {
+        throw new Error('Failed to extract resource ID from URI');
+      }
       router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
     } catch (error) {
       console.error('Failed to save document:', error);

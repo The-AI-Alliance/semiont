@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
+import type { ResourceUri } from '@semiont/api-client';
 
 /**
  * Resource event structure from the event store
@@ -28,7 +28,7 @@ export interface ResourceEvent {
 export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 interface UseResourceEventsOptions {
-  resourceId: string;
+  rUri: ResourceUri;
   onEvent?: (event: ResourceEvent) => void;
   onAnnotationAdded?: (event: ResourceEvent) => void;
   onAnnotationRemoved?: (event: ResourceEvent) => void;
@@ -50,7 +50,7 @@ interface UseResourceEventsOptions {
  * @example
  * ```tsx
  * const { status, connect, disconnect } = useResourceEvents({
- *   resourceId: 'doc-123',
+ *   rUri: resourceUri('http://localhost:4000/resources/doc-123'),
  *   onAnnotationAdded: (event) => {
  *     console.log('New annotation:', event.payload);
  *     // Update UI to show new annotation (highlight, reference, or assessment)
@@ -63,7 +63,7 @@ interface UseResourceEventsOptions {
  * ```
  */
 export function useResourceEvents({
-  resourceId,
+  rUri,
   onEvent,
   onAnnotationAdded,
   onAnnotationRemoved,
@@ -126,11 +126,11 @@ export function useResourceEvents({
   ]);
 
   const connect = useCallback(async () => {
-    console.log(`[ResourceEvents] Attempting to connect to resource ${resourceId} events stream`);
+    console.log(`[ResourceEvents] Attempting to connect to resource ${rUri} events stream`);
 
     // Close any existing connection
     if (abortControllerRef.current) {
-      console.log(`[ResourceEvents] Closing existing connection for ${resourceId}`);
+      console.log(`[ResourceEvents] Closing existing connection for ${rUri}`);
       abortControllerRef.current.abort();
     }
 
@@ -142,22 +142,21 @@ export function useResourceEvents({
 
     // Get auth token from session
     if (!session?.backendToken) {
-      console.error(`[ResourceEvents] Cannot connect to ${resourceId}: No auth token`);
+      console.error(`[ResourceEvents] Cannot connect to ${rUri}: No auth token`);
       onError?.('Authentication required');
       setStatus('error');
       return;
     }
 
-    console.log(`[ResourceEvents] Connecting to SSE stream for resource ${resourceId}`);
+    console.log(`[ResourceEvents] Connecting to SSE stream for resource ${rUri}`);
     setStatus('connecting');
 
     // Create new abort controller
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    // Build SSE URL
-    const apiUrl = NEXT_PUBLIC_API_URL;
-    const url = `${apiUrl}/api/resources/${resourceId}/events/stream`;
+    // Build SSE URL - rUri is already the full resource URI
+    const url = `${rUri}/events/stream`;
 
     try {
       await fetchEventSource(url, {
@@ -169,11 +168,11 @@ export function useResourceEvents({
 
         async onopen(response) {
           if (response.ok) {
-            console.log(`[ResourceEvents] Successfully connected to resource ${resourceId} events stream`);
+            console.log(`[ResourceEvents] Successfully connected to resource ${rUri} events stream`);
             setStatus('connected');
             reconnectAttemptsRef.current = 0; // Reset reconnect counter
           } else {
-            console.error(`[ResourceEvents] Failed to open stream for ${resourceId}: ${response.status}`);
+            console.error(`[ResourceEvents] Failed to open stream for ${rUri}: ${response.status}`);
             throw new Error(`Failed to open stream: ${response.status}`);
           }
         },
@@ -186,11 +185,11 @@ export function useResourceEvents({
 
           // Handle stream-connected event
           if (msg.event === 'stream-connected') {
-            console.log(`[ResourceEvents] Stream connected event received for ${resourceId}`);
+            console.log(`[ResourceEvents] Stream connected event received for ${rUri}`);
             return;
           }
 
-          console.log(`[ResourceEvents] Received event for document ${resourceId}:`, msg.event);
+          console.log(`[ResourceEvents] Received event for document ${rUri}:`, msg.event);
 
           // Handle document events
           try {
@@ -211,7 +210,7 @@ export function useResourceEvents({
 
           // Don't retry on 404 - document doesn't exist
           if (err instanceof Error && err.message.includes('404')) {
-            console.error(`[ResourceEvents] Document ${resourceId} not found (404). Stopping reconnection attempts.`);
+            console.error(`[ResourceEvents] Document ${rUri} not found (404). Stopping reconnection attempts.`);
             onError?.('Document not found');
             throw err;
           }
@@ -243,7 +242,7 @@ export function useResourceEvents({
         }
       }
     }
-  }, [resourceId, handleEvent, onError, session]);
+  }, [rUri, handleEvent, onError, session]);
 
   const disconnect = useCallback(() => {
     if (abortControllerRef.current) {
@@ -258,7 +257,7 @@ export function useResourceEvents({
 
     setStatus('disconnected');
     reconnectAttemptsRef.current = 0;
-  }, [resourceId]);
+  }, []);
 
   // Auto-connect on mount if enabled and authenticated
   useEffect(() => {
