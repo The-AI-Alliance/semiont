@@ -21,7 +21,7 @@ import {
   resourceId,
   annotationId,
 } from '@semiont/core';
-import { getExactText } from '@semiont/api-client';
+import { getExactText, resourceUri } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
 
 import { getEntityTypes } from '@semiont/api-client';
@@ -166,11 +166,14 @@ export class GenerationWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Emit annotation.body.updated event to link the annotation to the new resource
+    // Build full resource URI for the annotation body
+    const newResourceUri = resourceUri(`${this.config.services.backend!.publicURL}/resources/${rId}`);
+
     const operations: BodyOperation[] = [{
       op: 'add',
       item: {
         type: 'SpecificResource',
-        source: rId,
+        source: newResourceUri,
         purpose: 'linking',
       },
     }];
