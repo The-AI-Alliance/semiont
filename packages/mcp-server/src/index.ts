@@ -230,25 +230,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['resourceId'],
         },
       },
-      {
-        name: 'semiont_discover_context',
-        description: 'Discover relevant context from the graph for a text block',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            text: { type: 'string', description: 'Text to analyze' },
-            maxResults: { type: 'number', description: 'Max results (default: 10)' },
-            includeSelections: { type: 'boolean', description: 'Include selections (default: true)' },
-            entityTypeFilter: { 
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Filter by entity types' 
-            },
-            confidenceThreshold: { type: 'number', description: 'Min confidence (0-1, default: 0.5)' },
-          },
-          required: ['text'],
-        },
-      },
       // Relationship Queries
       {
         name: 'semiont_get_resource_selections',
@@ -340,9 +321,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'semiont_get_llm_context':
         return await handlers.handleGetLLMContext(apiClient, args);
-
-      case 'semiont_discover_context':
-        return await handlers.handleDiscoverContext(apiClient, args);
 
       case 'semiont_get_resource_selections':
         return await handlers.handleGetResourceAnnotations(apiClient, args);

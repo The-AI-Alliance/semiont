@@ -528,10 +528,6 @@
           }
         }
       },
-      "DiscoverContextRequest": {
-        "type": "object",
-        "properties": {}
-      },
       "UpdateUserRequest": {
         "type": "object",
         "properties": {
@@ -827,48 +823,6 @@
         },
         "required": [
           "referencedBy"
-        ]
-      },
-      "DiscoverContextResponse": {
-        "type": "object",
-        "properties": {
-          "resources": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ResourceDescriptor"
-            }
-          },
-          "connections": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "fromId": {
-                  "type": "string"
-                },
-                "toId": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string"
-                },
-                "metadata": {
-                  "type": "object",
-                  "additionalProperties": {}
-                }
-              },
-              "required": [
-                "fromId",
-                "toId",
-                "type",
-                "metadata"
-              ]
-            }
-          }
-        },
-        "required": [
-          "resources",
-          "connections"
         ]
       },
       "GetResourceByTokenResponse": {
@@ -4437,52 +4391,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetReferencedByResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/resources/{id}/discover-context": {
-      "post": {
-        "summary": "Discover Context",
-        "description": "Discover related resources and concepts",
-        "tags": [
-          "Resources",
-          "Graph"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DiscoverContextRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Context discovery results",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DiscoverContextResponse"
                 }
               }
             }

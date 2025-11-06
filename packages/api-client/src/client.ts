@@ -152,6 +152,10 @@ export class SemiontApiClient {
     return this.http.post(`${this.baseUrl}/api/users/accept-terms`).json();
   }
 
+  async logout(): Promise<ResponseContent<paths['/api/users/logout']['post']>> {
+    return this.http.post(`${this.baseUrl}/api/users/logout`).json();
+  }
+
   // ============================================================================
   // RESOURCES
   // ============================================================================
@@ -186,11 +190,6 @@ export class SemiontApiClient {
   ): Promise<ResponseContent<paths['/resources/{id}']['patch']>> {
     // resourceUri is already a full URI, use it directly
     return this.http.patch(resourceUri, { json: data }).json();
-  }
-
-  async deleteResource(resourceUri: ResourceUri): Promise<void> {
-    // resourceUri is already a full URI, use it directly
-    await this.http.delete(resourceUri);
   }
 
   async getResourceEvents(resourceUri: ResourceUri): Promise<{ events: any[] }> {
@@ -281,12 +280,23 @@ export class SemiontApiClient {
     return this.http.post(`${annotationUri}/generate-resource`, { json: data }).json();
   }
 
+  async getAnnotationHistory(
+    annotationUri: ResourceAnnotationUri
+  ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/history']['get']>> {
+    // annotationUri is already a full URI, use it directly
+    return this.http.get(`${annotationUri}/history`).json();
+  }
+
   // ============================================================================
   // ENTITY TYPES
   // ============================================================================
 
   async addEntityType(type: string): Promise<ResponseContent<paths['/api/entity-types']['post']>> {
     return this.http.post(`${this.baseUrl}/api/entity-types`, { json: { type } }).json();
+  }
+
+  async addEntityTypesBulk(tags: string[]): Promise<ResponseContent<paths['/api/entity-types/bulk']['post']>> {
+    return this.http.post(`${this.baseUrl}/api/entity-types/bulk`, { json: { tags } }).json();
   }
 
   async listEntityTypes(): Promise<ResponseContent<paths['/api/entity-types']['get']>> {
@@ -322,10 +332,111 @@ export class SemiontApiClient {
   }
 
   // ============================================================================
-  // HEALTH
+  // ENTITY DETECTION (ASYNC JOBS)
+  // ============================================================================
+
+  async detectEntities(
+    resourceUri: ResourceUri,
+    entityTypes?: string[]
+  ): Promise<ResponseContent<paths['/resources/{id}/detect-entities']['post']>> {
+    // resourceUri is already a full URI, use it directly
+    return this.http.post(`${resourceUri}/detect-entities`, {
+      json: entityTypes ? { entityTypes } : {},
+    }).json();
+  }
+
+  async getJobStatus(jobId: string): Promise<ResponseContent<paths['/api/jobs/{id}']['get']>> {
+    return this.http.get(`${this.baseUrl}/api/jobs/${jobId}`).json();
+  }
+
+  /**
+   * Poll a job until it completes or fails
+   * @param jobId - The job ID to poll
+   * @param options - Polling options
+   * @returns The final job status
+   */
+  async pollJobUntilComplete(
+    jobId: string,
+    options?: {
+      interval?: number; // Milliseconds between polls (default: 1000)
+      timeout?: number;  // Total timeout in milliseconds (default: 60000)
+      onProgress?: (status: ResponseContent<paths['/api/jobs/{id}']['get']>) => void;
+    }
+  ): Promise<ResponseContent<paths['/api/jobs/{id}']['get']>> {
+    const interval = options?.interval ?? 1000;
+    const timeout = options?.timeout ?? 60000;
+    const startTime = Date.now();
+
+    while (true) {
+      const status = await this.getJobStatus(jobId);
+
+      // Call progress callback if provided
+      if (options?.onProgress) {
+        options.onProgress(status);
+      }
+
+      // Check if job is in a terminal state
+      if (status.status === 'complete' || status.status === 'failed' || status.status === 'cancelled') {
+        return status;
+      }
+
+      // Check timeout
+      if (Date.now() - startTime > timeout) {
+        throw new Error(`Job polling timeout after ${timeout}ms`);
+      }
+
+      // Wait before next poll
+      await new Promise(resolve => setTimeout(resolve, interval));
+    }
+  }
+
+  // ============================================================================
+  // LLM CONTEXT
+  // ============================================================================
+
+  async getResourceLLMContext(
+    resourceUri: ResourceUri,
+    options?: {
+      depth?: number;
+      maxResources?: number;
+      includeContent?: boolean;
+      includeSummary?: boolean;
+    }
+  ): Promise<ResponseContent<paths['/resources/{id}/llm-context']['get']>> {
+    const searchParams = new URLSearchParams();
+    if (options?.depth !== undefined) searchParams.append('depth', options.depth.toString());
+    if (options?.maxResources !== undefined) searchParams.append('maxResources', options.maxResources.toString());
+    if (options?.includeContent !== undefined) searchParams.append('includeContent', options.includeContent.toString());
+    if (options?.includeSummary !== undefined) searchParams.append('includeSummary', options.includeSummary.toString());
+
+    return this.http.get(`${resourceUri}/llm-context`, { searchParams }).json();
+  }
+
+  async getAnnotationLLMContext(
+    annotationUri: ResourceAnnotationUri,
+    options?: {
+      includeSourceContext?: boolean;
+      includeTargetContext?: boolean;
+      contextWindow?: number;
+    }
+  ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/llm-context']['get']>> {
+    const searchParams = new URLSearchParams();
+    if (options?.includeSourceContext !== undefined) searchParams.append('includeSourceContext', options.includeSourceContext.toString());
+    if (options?.includeTargetContext !== undefined) searchParams.append('includeTargetContext', options.includeTargetContext.toString());
+    if (options?.contextWindow !== undefined) searchParams.append('contextWindow', options.contextWindow.toString());
+
+    return this.http.get(`${annotationUri}/llm-context`, { searchParams }).json();
+  }
+
+  // ============================================================================
+  // SYSTEM STATUS
   // ============================================================================
 
   async healthCheck(): Promise<ResponseContent<paths['/api/health']['get']>> {
     return this.http.get(`${this.baseUrl}/api/health`).json();
+  }
+
+  async getStatus(): Promise<ResponseContent<paths['/api/status']['get']>> {
+    return this.http.get(`${this.baseUrl}/api/status`).json();
   }
 }

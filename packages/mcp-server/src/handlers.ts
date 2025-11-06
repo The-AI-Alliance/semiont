@@ -184,17 +184,6 @@ export async function handleGetLLMContext(_client: SemiontApiClient, _args: any)
   };
 }
 
-export async function handleDiscoverContext(_client: SemiontApiClient, _args: any) {
-  // NOTE: Endpoint path may have changed - need to verify correct path
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Error: The discover-context endpoint path needs to be updated.`,
-    }],
-    isError: true,
-  };
-}
-
 export async function handleGetResourceAnnotations(_client: SemiontApiClient, _args: any) {
   // NOTE: Use /api/resources/{id}/annotations instead
   return {

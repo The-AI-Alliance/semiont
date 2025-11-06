@@ -6,14 +6,14 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.js"
     },
     "./utils": {
+      "types": "./dist/utils/index.d.ts",
       "import": "./dist/utils/index.js",
-      "require": "./dist/utils/index.js",
-      "types": "./dist/utils/index.d.ts"
+      "require": "./dist/utils/index.js"
     }
   },
   "scripts": {
@@ -23,7 +23,9 @@
     "copy-types": "cp src/types.ts dist/types.d.ts",
     "prebuild": "npm run generate",
     "watch": "tsc --watch",
-    "clean": "rm -rf dist src/types.ts openapi.json"
+    "clean": "rm -rf dist src/types.ts openapi.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "ky": "^1.2.0"
@@ -31,7 +33,8 @@
   "devDependencies": {
     "openapi-typescript": "^7.10.1",
     "orval": "^6.31.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
   },
   "keywords": [
     "semiont",

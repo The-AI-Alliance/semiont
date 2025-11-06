@@ -122,16 +122,6 @@ export function useResources() {
         }),
     },
 
-    delete: {
-      useMutation: () =>
-        useMutation({
-          mutationFn: (rUri: ResourceUri) => client!.deleteResource(rUri),
-          onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['documents'] });
-          },
-        }),
-    },
-
     generateCloneToken: {
       useMutation: () =>
         useMutation({
