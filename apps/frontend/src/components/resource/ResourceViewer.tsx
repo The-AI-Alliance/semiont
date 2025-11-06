@@ -119,7 +119,11 @@ export function ResourceViewer({
       // If it's a resolved reference, navigate to it (in both curation and browse mode)
       const bodySource = getBodySource(annotation.body); // returns ResourceUri | null
       if (bodySource) {
-        router.push(`/know/resource/${encodeURIComponent(bodySource)}`);
+        // Extract ID segment from full ResourceUri (format: http://host/resources/{id})
+        const resourceIdSegment = bodySource.split('/').pop();
+        if (resourceIdSegment) {
+          router.push(`/know/resource/${resourceIdSegment}`);
+        }
       }
     } else if (curationMode) {
       // For other annotations in Annotate mode, show the popup

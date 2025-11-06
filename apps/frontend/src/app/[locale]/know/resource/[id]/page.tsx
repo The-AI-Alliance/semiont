@@ -481,7 +481,10 @@ function ResourceView({
           ...old,
           annotations: old.annotations.map((annotation: any) => {
             // Match by ID portion (handle both URI and internal ID formats)
-            if (annotation.id === event.payload.annotationId) {
+            // annotation.id is full URI: http://localhost:4000/annotations/{id}
+            // event.payload.annotationId is just the ID segment: {id}
+            const annotationIdSegment = annotation.id.split('/').pop();
+            if (annotationIdSegment === event.payload.annotationId) {
               // Apply body operations
               let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
 
