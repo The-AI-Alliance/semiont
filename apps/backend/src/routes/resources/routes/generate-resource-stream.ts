@@ -21,7 +21,8 @@ import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { getTargetSelector } from '../../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
-import { userId, resourceId } from '@semiont/core';
+import { jobId, entityType } from '@semiont/api-client';
+import { userId, resourceId, annotationId } from '@semiont/core';
 
 type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
 
@@ -90,16 +91,16 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
       // Create a generation job (this decouples event emission from HTTP client)
       const jobQueue = getJobQueue();
       const job: GenerationJob = {
-        id: `job-${nanoid()}`,
+        id: jobId(`job-${nanoid()}`),
         type: 'generation',
         status: 'pending',
         userId: userId(user.id),
-        referenceId: reference.id, // Use full annotation URI, not just the ID segment
+        referenceId: annotationId(reference.id), // Use full annotation URI, not just the ID segment
         sourceResourceId: resourceId(resourceIdParam),
         title: body.title,
         prompt: body.prompt,
         language: body.language,
-        entityTypes: getEntityTypes(reference),
+        entityTypes: getEntityTypes(reference).map(et => entityType(et)),
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3

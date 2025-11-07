@@ -6,7 +6,8 @@
  */
 
 import type { components } from '@semiont/api-client';
-import type { ResourceId, UserId } from '@semiont/core';
+import type { JobId, EntityType } from '@semiont/api-client';
+import type { ResourceId, UserId, AnnotationId } from '@semiont/core';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
@@ -17,7 +18,7 @@ export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancell
  * Base job interface - all jobs extend this
  */
 export interface BaseJob {
-  id: string;
+  id: JobId;
   type: JobType;
   status: JobStatus;
   userId: UserId;
@@ -35,7 +36,7 @@ export interface BaseJob {
 export interface DetectionJob extends BaseJob {
   type: 'detection';
   resourceId: ResourceId;
-  entityTypes: string[];
+  entityTypes: EntityType[];
   progress?: {
     totalEntityTypes: number;
     processedEntityTypes: number;
@@ -55,11 +56,11 @@ export interface DetectionJob extends BaseJob {
  */
 export interface GenerationJob extends BaseJob {
   type: 'generation';
-  referenceId: string;
+  referenceId: AnnotationId;
   sourceResourceId: ResourceId;
   prompt?: string;
   title?: string;
-  entityTypes?: string[];
+  entityTypes?: EntityType[];
   language?: string;
   llmContext?: AnnotationLLMContextResponse;  // Pre-fetched context from annotation-llm-context endpoint
   progress?: {
@@ -83,15 +84,15 @@ export type Job = DetectionJob | GenerationJob;
  */
 export interface CreateDetectionJobRequest {
   resourceId: ResourceId;
-  entityTypes: string[];
+  entityTypes: EntityType[];
 }
 
 export interface CreateGenerationJobRequest {
-  referenceId: string;
+  referenceId: AnnotationId;
   sourceResourceId: ResourceId;
   prompt?: string;
   title?: string;
-  entityTypes?: string[];
+  entityTypes?: EntityType[];
 }
 
 /**
@@ -109,7 +110,7 @@ export interface JobQueryFilters {
  * Job API response types
  */
 export interface CreateJobResponse {
-  jobId: string;
+  jobId: JobId;
 }
 
 export interface ListJobsResponse {

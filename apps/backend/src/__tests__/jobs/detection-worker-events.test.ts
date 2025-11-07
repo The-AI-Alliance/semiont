@@ -10,6 +10,7 @@ import { DetectionWorker } from '../../jobs/workers/detection-worker';
 import type { DetectionJob } from '../../jobs/types';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
+import { jobId, entityType } from '@semiont/api-client';
 
 // Mock AI detection to avoid external API calls
 vi.mock('../../inference/detect-annotations', () => ({
@@ -91,12 +92,12 @@ describe('DetectionWorker - Event Emission', () => {
 
   it('should emit job.started event when detection begins', async () => {
     const job: DetectionJob = {
-      id: 'job-test-1',
+      id: jobId('job-test-1'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
       resourceId: resourceId('resource-1'),
-      entityTypes: ['Person'],
+      entityTypes: [entityType('Person')],
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -128,12 +129,12 @@ describe('DetectionWorker - Event Emission', () => {
 
   it('should emit job.progress events during entity type scanning', async () => {
     const job: DetectionJob = {
-      id: 'job-test-2',
+      id: jobId('job-test-2'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
       resourceId: resourceId('resource-2'),
-      entityTypes: ['Person', 'Organization', 'Location'],
+      entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')],
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -168,12 +169,12 @@ describe('DetectionWorker - Event Emission', () => {
 
   it('should emit job.completed event when detection finishes successfully', async () => {
     const job: DetectionJob = {
-      id: 'job-test-3',
+      id: jobId('job-test-3'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
       resourceId: resourceId('resource-3'),
-      entityTypes: ['Person'],
+      entityTypes: [entityType('Person')],
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -203,12 +204,12 @@ describe('DetectionWorker - Event Emission', () => {
 
   it('should emit annotation.added events for detected entities', async () => {
     const job: DetectionJob = {
-      id: 'job-test-4',
+      id: jobId('job-test-4'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
       resourceId: resourceId('resource-4'),
-      entityTypes: ['Person'],
+      entityTypes: [entityType('Person')],
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -251,12 +252,12 @@ describe('DetectionWorker - Event Emission', () => {
 
   it('should emit events in correct order', async () => {
     const job: DetectionJob = {
-      id: 'job-test-5',
+      id: jobId('job-test-5'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
       resourceId: resourceId('resource-5'),
-      entityTypes: ['Person', 'Organization'], // Use multiple types to test progress
+      entityTypes: [entityType('Person'), entityType('Organization')], // Use multiple types to test progress
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -283,12 +284,12 @@ describe('DetectionWorker - Event Emission', () => {
 
   it('should include percentage and foundCount in progress events', async () => {
     const job: DetectionJob = {
-      id: 'job-test-6',
+      id: jobId('job-test-6'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
       resourceId: resourceId('resource-6'),
-      entityTypes: ['Person', 'Organization'],
+      entityTypes: [entityType('Person'), entityType('Organization')],
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
