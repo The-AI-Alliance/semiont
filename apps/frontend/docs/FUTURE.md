@@ -540,7 +540,7 @@ Start simple, add features incrementally.
 
 ### API Documentation
 - [API Client](../../../packages/api-client/README.md) - Type-safe TypeScript client
-- [OpenAPI Spec](../../../specs/openapi.json) - API specification for client generation
+- [OpenAPI Spec](../../../specs/README.md) - API specification for client generation (source in [../../../specs/src/](../../../specs/src/))
 
 ### System Documentation
 - [System Architecture](../../../docs/ARCHITECTURE.md) - Overall platform design

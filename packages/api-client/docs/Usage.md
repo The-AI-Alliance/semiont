@@ -628,5 +628,5 @@ console.log('Cloned resource:', cloned.resource.id);
 
 - [README.md](../README.md) - Package overview and API reference
 - [Utilities Guide](./Utilities.md) - W3C annotation and event utilities
-- [OpenAPI Specification](../../../specs/openapi.json) - Complete API schema
+- [OpenAPI Specification](../../../specs/README.md) - Complete API schema (source in [../../../specs/src/](../../../specs/src/))
 - [Demo Scripts](../../../demo/) - Complete working examples
