@@ -81,7 +81,7 @@ The SSE implementation (\`client.sse.*\`) follows these design principles:
 ### Three SSE Methods
 
 - **\`client.sse.detectAnnotations()\`** - Entity detection with progress updates
-- **\`client.sse.generateResource()\`** - Resource generation with percentage-based progress
+- **\`client.sse.generateResourceFromAnnotation()\`** - Resource generation with percentage-based progress
 - **\`client.sse.resourceEvents()\`** - Long-lived connection for real-time collaboration
 
 See [SSE Streaming documentation](./docs/Usage.md#sse-streaming) for complete usage guide.

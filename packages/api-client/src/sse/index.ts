@@ -179,7 +179,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.generateResource(
+   * const stream = sseClient.generateResourceFromAnnotation(
    *   'http://localhost:4000/resources/doc-123',
    *   'http://localhost:4000/annotations/ann-456',
    *   { language: 'es', title: 'Spanish Summary' }
@@ -202,7 +202,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  generateResource(
+  generateResourceFromAnnotation(
     resourceId: ResourceUri,
     annotationId: AnnotationUri,
     request: GenerateResourceStreamRequest = {}

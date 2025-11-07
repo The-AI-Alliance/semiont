@@ -52,7 +52,7 @@ export function useGenerationProgress({
 
     try {
       // Start SSE stream using api-client
-      const stream = client.sse.generateResource(resourceId, referenceId, options || {});
+      const stream = client.sse.generateResourceFromAnnotation(resourceId, referenceId, options || {});
       streamRef.current = stream;
 
       // Handle progress events

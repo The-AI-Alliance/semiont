@@ -495,7 +495,7 @@ interface DetectionProgress {
 }
 ```
 
-### `client.sse.generateResource(resourceUri, annotationUri, options)`
+### `client.sse.generateResourceFromAnnotation(resourceUri, annotationUri, options)`
 
 Stream real-time resource generation progress via Server-Sent Events.
 
@@ -505,7 +505,7 @@ import { resourceUri, annotationUri } from '@semiont/api-client';
 const rUri = resourceUri('http://localhost:4000/resources/resource-123');
 const annUri = annotationUri('http://localhost:4000/annotations/annotation-456');
 
-const stream = client.sse.generateResource(rUri, annUri, {
+const stream = client.sse.generateResourceFromAnnotation(rUri, annUri, {
   title: 'Albert Einstein',
   prompt: 'Write a biography',
   language: 'en'

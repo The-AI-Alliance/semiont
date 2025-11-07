@@ -31,10 +31,10 @@ const createMockSSEStream = () => {
 };
 
 // Mock api-client hook
-const mockGenerateResource = vi.fn();
+const mockGenerateResourceFromAnnotation = vi.fn();
 const mockApiClient = {
   sse: {
-    generateResource: mockGenerateResource,
+    generateResourceFromAnnotation: mockGenerateResourceFromAnnotation,
   },
 };
 
@@ -52,7 +52,7 @@ describe('useGenerationProgress', () => {
 
   beforeEach(() => {
     mockStream = createMockSSEStream();
-    mockGenerateResource.mockReturnValue(mockStream);
+    mockGenerateResourceFromAnnotation.mockReturnValue(mockStream);
   });
 
   afterEach(() => {
@@ -86,7 +86,7 @@ describe('useGenerationProgress', () => {
       }
     );
 
-    expect(mockGenerateResource).toHaveBeenCalledWith(
+    expect(mockGenerateResourceFromAnnotation).toHaveBeenCalledWith(
       resourceUri('http://localhost:4000/resources/test-resource'),
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
       {
@@ -317,7 +317,7 @@ describe('useGenerationProgress', () => {
       { language: 'es' }
     );
 
-    expect(mockGenerateResource).toHaveBeenCalledWith(
+    expect(mockGenerateResourceFromAnnotation).toHaveBeenCalledWith(
       resourceUri('http://localhost:4000/resources/test-resource'),
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
       { language: 'es' }
@@ -339,7 +339,7 @@ describe('useGenerationProgress', () => {
 
     // Create new stream for second generation
     mockStream = createMockSSEStream();
-    mockGenerateResource.mockReturnValue(mockStream);
+    mockGenerateResourceFromAnnotation.mockReturnValue(mockStream);
 
     // Start second generation
     await result.current.startGeneration(

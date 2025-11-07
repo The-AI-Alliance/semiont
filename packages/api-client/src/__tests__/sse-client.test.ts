@@ -260,7 +260,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
     });
   });
 
-  describe('generateResource()', () => {
+  describe('generateResourceFromAnnotation()', () => {
     it('should construct correct URL from resource and annotation IDs', () => {
       const client = new SSEClient({
         baseUrl: 'http://localhost:4000'
@@ -271,7 +271,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
         body: createSSEReadableStream('')
       });
 
-      client.generateResource(testResourceUri('doc-123'), testAnnotationUri('ann-456'), {});
+      client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'), {});
 
       expect(fetchMock).toHaveBeenCalledWith(
         'http://localhost:4000/resources/doc-123/annotations/ann-456/generate-resource-stream',
@@ -289,7 +289,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
         body: createSSEReadableStream('')
       });
 
-      client.generateResource(
+      client.generateResourceFromAnnotation(
         testResourceUri('doc-123'),
         testAnnotationUri('ann-456'),
         {}
@@ -311,7 +311,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
         body: createSSEReadableStream('')
       });
 
-      client.generateResource(testResourceUri('doc-123'), testAnnotationUri('ann-456'), {
+      client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'), {
         title: 'Custom Title',
         language: 'es',
         prompt: 'Custom prompt'
@@ -340,7 +340,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
         body: createSSEReadableStream('')
       });
 
-      client.generateResource(testResourceUri('doc-123'), testAnnotationUri('ann-456'));
+      client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'));
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.any(String),
@@ -375,7 +375,7 @@ data: {"status":"complete","referenceId":"ann-456","resourceId":"doc-789","perce
       const progressCallback = vi.fn<(progress: GenerationProgress) => void>();
       const completeCallback = vi.fn<(result: GenerationProgress) => void>();
 
-      const stream = client.generateResource(testResourceUri('doc-123'), testAnnotationUri('ann-456'), {});
+      const stream = client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'), {});
 
       stream.onProgress(progressCallback);
       stream.onComplete(completeCallback);

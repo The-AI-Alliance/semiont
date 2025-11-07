@@ -634,7 +634,7 @@ const rUri = resourceUri('http://localhost:4000/resources/resource-123');
 const annUri = annotationUri('http://localhost:4000/annotations/annotation-456');
 
 // Start generation stream with custom options
-const stream = client.sse.generateResource(rUri, annUri, {
+const stream = client.sse.generateResourceFromAnnotation(rUri, annUri, {
   title: 'Spanish Summary',
   language: 'es',
   prompt: 'Create a concise summary focusing on key findings'
