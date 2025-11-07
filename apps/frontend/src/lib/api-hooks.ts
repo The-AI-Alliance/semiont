@@ -14,6 +14,7 @@
 
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
+import { useMemo } from 'react';
 import {
   SemiontApiClient,
   type ResourceUri,
@@ -32,20 +33,24 @@ import { QUERY_KEYS } from './query-keys';
 /**
  * Get authenticated API client instance
  * Returns null if not authenticated
+ *
+ * IMPORTANT: Memoized to return stable reference - only recreates when token changes
  */
 export function useApiClient(): SemiontApiClient | null {
   const { data: session } = useSession();
 
-  if (!session?.backendToken) {
-    return null;
-  }
+  return useMemo(() => {
+    if (!session?.backendToken) {
+      return null;
+    }
 
-  return new SemiontApiClient({
-    baseUrl: baseUrl(NEXT_PUBLIC_API_URL),
-    accessToken: accessToken(session.backendToken),
-    // Use no timeout in test environment to avoid AbortController issues with ky + vitest
-    ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
-  });
+    return new SemiontApiClient({
+      baseUrl: baseUrl(NEXT_PUBLIC_API_URL),
+      accessToken: accessToken(session.backendToken),
+      // Use no timeout in test environment to avoid AbortController issues with ky + vitest
+      ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
+    });
+  }, [session?.backendToken]);
 }
 
 /**
