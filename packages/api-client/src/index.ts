@@ -52,3 +52,6 @@ export * from './utils';
 
 // Branded URI types
 export * from './uri-types';
+
+// Branded string types for API client parameters
+export * from './branded-types';

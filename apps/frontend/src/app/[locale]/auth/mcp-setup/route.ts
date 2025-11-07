@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
 
 // Mark this route as dynamic to prevent static optimization during build
 export const dynamic = 'force-dynamic';
@@ -45,8 +45,8 @@ export async function GET(request: NextRequest) {
   try {
     // Create api-client with user's token
     const client = new SemiontApiClient({
-      baseUrl: NEXT_PUBLIC_API_URL,
-      accessToken: session.backendToken
+      baseUrl: baseUrl(NEXT_PUBLIC_API_URL),
+      accessToken: accessToken(session.backendToken)
     });
 
     // Generate MCP refresh token using api-client

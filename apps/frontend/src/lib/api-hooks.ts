@@ -14,7 +14,18 @@
 
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { SemiontApiClient, type ResourceUri, type AnnotationUri, type ResourceAnnotationUri } from '@semiont/api-client';
+import {
+  SemiontApiClient,
+  type ResourceUri,
+  type AnnotationUri,
+  type ResourceAnnotationUri,
+  baseUrl,
+  accessToken,
+  searchQuery,
+  cloneToken,
+  entityType,
+  userDID
+} from '@semiont/api-client';
 import { NEXT_PUBLIC_API_URL } from './env';
 import { QUERY_KEYS } from './query-keys';
 
@@ -30,8 +41,8 @@ export function useApiClient(): SemiontApiClient | null {
   }
 
   return new SemiontApiClient({
-    baseUrl: NEXT_PUBLIC_API_URL,
-    accessToken: session.backendToken,
+    baseUrl: baseUrl(NEXT_PUBLIC_API_URL),
+    accessToken: accessToken(session.backendToken),
     // Use no timeout in test environment to avoid AbortController issues with ky + vitest
     ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
   });
@@ -49,7 +60,7 @@ export function useResources() {
       useQuery: (options?: { limit?: number; archived?: boolean; query?: string }) =>
         useQuery({
           queryKey: QUERY_KEYS.documents.all(options?.limit, options?.archived),
-          queryFn: () => client!.listResources(options?.limit, options?.archived, options?.query),
+          queryFn: () => client!.listResources(options?.limit, options?.archived, options?.query ? searchQuery(options.query) : undefined),
           enabled: !!client,
         }),
     },
@@ -95,7 +106,7 @@ export function useResources() {
       useQuery: (query: string, limit: number) =>
         useQuery({
           queryKey: QUERY_KEYS.documents.search(query, limit),
-          queryFn: () => client!.listResources(limit, undefined, query),
+          queryFn: () => client!.listResources(limit, undefined, searchQuery(query)),
           enabled: !!client && !!query,
         }),
     },
@@ -133,7 +144,7 @@ export function useResources() {
       useQuery: (token: string) =>
         useQuery({
           queryKey: ['resources', 'token', token],
-          queryFn: () => client!.getResourceByToken(token),
+          queryFn: () => client!.getResourceByToken(cloneToken(token)),
           enabled: !!client && !!token,
         }),
     },
@@ -275,7 +286,7 @@ export function useEntityTypes() {
     add: {
       useMutation: () =>
         useMutation({
-          mutationFn: (type: string) => client!.addEntityType(type),
+          mutationFn: (type: string) => client!.addEntityType(entityType(type)),
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.entityTypes.all() });
           },
@@ -285,7 +296,7 @@ export function useEntityTypes() {
     addBulk: {
       useMutation: () =>
         useMutation({
-          mutationFn: (types: string[]) => client!.addEntityTypesBulk(types),
+          mutationFn: (types: string[]) => client!.addEntityTypesBulk(types.map(entityType)),
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.entityTypes.all() });
           },
@@ -325,7 +336,7 @@ export function useAdmin() {
         useMutation: () =>
           useMutation({
             mutationFn: ({ id, data }: { id: string; data: Parameters<SemiontApiClient['updateUser']>[1] }) =>
-              client!.updateUser(id, data),
+              client!.updateUser(userDID(id), data),
             onSuccess: () => {
               queryClient.invalidateQueries({ queryKey: QUERY_KEYS.admin.users.all() });
               queryClient.invalidateQueries({ queryKey: QUERY_KEYS.admin.users.stats() });

@@ -13,12 +13,13 @@ import type {
   SSEStream
 } from './types';
 import type { ResourceUri, AnnotationUri } from '../uri-types';
+import type { AccessToken, BaseUrl, EntityType } from '../branded-types';
 
 /**
  * Request body for detection stream
  */
 export interface DetectAnnotationsStreamRequest {
-  entityTypes: string[];
+  entityTypes: EntityType[];
 }
 
 /**
@@ -34,8 +35,8 @@ export interface GenerateResourceStreamRequest {
  * SSE Client configuration
  */
 export interface SSEClientConfig {
-  baseUrl: string;
-  accessToken?: string;
+  baseUrl: BaseUrl;
+  accessToken?: AccessToken;
 }
 
 /**
@@ -62,19 +63,19 @@ export interface SSEClientConfig {
  * ```
  */
 export class SSEClient {
-  private baseUrl: string;
-  private accessToken: string | null = null;
+  private baseUrl: BaseUrl;
+  private accessToken: AccessToken | null = null;
 
   constructor(config: SSEClientConfig) {
     // Remove trailing slash for consistent URL construction
-    this.baseUrl = config.baseUrl.endsWith('/') ? config.baseUrl.slice(0, -1) : config.baseUrl;
+    this.baseUrl = (config.baseUrl.endsWith('/') ? config.baseUrl.slice(0, -1) : config.baseUrl) as BaseUrl;
     this.accessToken = config.accessToken || null;
   }
 
   /**
    * Set the access token for authenticated requests
    */
-  setAccessToken(token: string): void {
+  setAccessToken(token: AccessToken): void {
     this.accessToken = token;
   }
 

@@ -17,7 +17,7 @@
  * 7. Print Results
  */
 
-import { SemiontApiClient, annotationUri, resourceUri } from '@semiont/api-client';
+import { SemiontApiClient, annotationUri, resourceUri, resourceAnnotationUri, baseUrl, accessToken, email, authCode } from '@semiont/api-client';
 
 // Local modules
 import { downloadAndChunkText, type ChunkInfo } from './src/chunking';
@@ -69,11 +69,11 @@ async function authenticateWithBackend(client: SemiontApiClient): Promise<void> 
 
   if (ACCESS_TOKEN) {
     printInfo('Using provided access token...');
-    client.setAccessToken(ACCESS_TOKEN);
+    client.setAccessToken(accessToken(ACCESS_TOKEN));
     printSuccess('Access token configured');
   } else if (AUTH_EMAIL && AUTH_CODE) {
     printInfo(`Authenticating as ${AUTH_EMAIL}...`);
-    await client.authenticateLocal(AUTH_EMAIL, AUTH_CODE);
+    await client.authenticateLocal(email(AUTH_EMAIL), authCode(AUTH_CODE));
     printSuccess(`Authenticated successfully`);
   } else {
     throw new Error('Either ACCESS_TOKEN or both AUTH_EMAIL and AUTH_CODE must be provided');
@@ -192,7 +192,7 @@ async function createStubReferences(
 
     printBatchProgress(i + 1, references.length, `Creating annotation for "${ref.text}"...`);
 
-    const response = await client.createAnnotation({
+    const response = await client.createAnnotation(resourceUri(tocId), {
       motivation: 'linking',
       target: {
         source: tocId,
@@ -240,7 +240,7 @@ async function linkReferences(references: PartReference[], client: SemiontApiCli
 
     try {
       // Use the full annotation URI (already includes URL prefix)
-      await client.updateAnnotationBody(annotationUri(ref.annotationId!), {
+      await client.updateAnnotationBody(resourceAnnotationUri(ref.annotationId!), {
         resourceId: references[i].documentId,
         operations: [{
           op: 'add',
@@ -328,7 +328,7 @@ async function main() {
 
   try {
     const client = new SemiontApiClient({
-      baseUrl: BACKEND_URL,
+      baseUrl: baseUrl(BACKEND_URL),
     });
 
     await authenticateWithBackend(client);

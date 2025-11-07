@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SSEClient } from '../sse';
 import type { DetectionProgress, GenerationProgress, ResourceEvent } from '../sse/types';
 import type { ResourceUri, AnnotationUri } from '../uri-types';
+import { baseUrl, accessToken, entityType } from '../branded-types';
 
 // Helper to create a minimal SSE ReadableStream
 function createSSEReadableStream(sseText: string): ReadableStream<Uint8Array> {
@@ -44,7 +45,7 @@ describe('SSEClient', () => {
   describe('Configuration', () => {
     it('should initialize with baseUrl', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       expect(client).toBeDefined();
@@ -52,7 +53,7 @@ describe('SSEClient', () => {
 
     it('should remove trailing slash from baseUrl', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000/'
+        baseUrl: baseUrl('http://localhost:4000/')
       });
 
       fetchMock.mockResolvedValue({
@@ -60,7 +61,7 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       expect(fetchMock).toHaveBeenCalledWith(
         'http://localhost:4000/resources/doc-123/detect-annotations-stream',
@@ -70,8 +71,8 @@ describe('SSEClient', () => {
 
     it('should accept accessToken in config', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000',
-        accessToken: 'test-token'
+        baseUrl: baseUrl('http://localhost:4000'),
+        accessToken: accessToken('test-token')
       });
 
       fetchMock.mockResolvedValue({
@@ -79,7 +80,7 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.any(String),
@@ -93,17 +94,17 @@ describe('SSEClient', () => {
 
     it('should allow setting access token after construction', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
-      client.setAccessToken('new-token');
+      client.setAccessToken(accessToken('new-token'));
 
       fetchMock.mockResolvedValue({
         ok: true,
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.any(String),
@@ -117,8 +118,8 @@ describe('SSEClient', () => {
 
     it('should allow clearing access token', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000',
-        accessToken: 'test-token'
+        baseUrl: baseUrl('http://localhost:4000'),
+        accessToken: accessToken('test-token')
       });
 
       client.clearAccessToken();
@@ -128,7 +129,7 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       const callHeaders = fetchMock.mock.calls[0][1].headers;
       expect(callHeaders['Authorization']).toBeUndefined();
@@ -138,7 +139,7 @@ describe('SSEClient', () => {
   describe('detectAnnotations()', () => {
     it('should construct correct URL from resource ID', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -146,7 +147,7 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       expect(fetchMock).toHaveBeenCalledWith(
         'http://localhost:4000/resources/doc-123/detect-annotations-stream',
@@ -156,7 +157,7 @@ describe('SSEClient', () => {
 
     it('should extract ID from full URI', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -164,7 +165,7 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       expect(fetchMock).toHaveBeenCalledWith(
         'http://localhost:4000/resources/doc-123/detect-annotations-stream',
@@ -174,7 +175,7 @@ describe('SSEClient', () => {
 
     it('should send correct request body', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -182,20 +183,20 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person', 'Organization'] });
+      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person'), entityType('Organization')] });
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ entityTypes: ['Person', 'Organization'] })
+          body: JSON.stringify({ entityTypes: [entityType('Person'), entityType('Organization')] })
         })
       );
     });
 
     it('should stream detection progress events', async () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       const sseText = `event: detection-started
@@ -217,7 +218,7 @@ data: {"status":"complete","resourceId":"doc-123","totalEntityTypes":1,"processe
       const progressCallback = vi.fn<(progress: DetectionProgress) => void>();
       const completeCallback = vi.fn<(result: DetectionProgress) => void>();
 
-      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       stream.onProgress(progressCallback);
       stream.onComplete(completeCallback);
@@ -234,7 +235,7 @@ data: {"status":"complete","resourceId":"doc-123","totalEntityTypes":1,"processe
 
     it('should handle detection errors', async () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       const sseText = `event: detection-error
@@ -249,7 +250,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
 
       const errorCallback = vi.fn();
 
-      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       stream.onError(errorCallback);
 
@@ -263,7 +264,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
   describe('generateResourceFromAnnotation()', () => {
     it('should construct correct URL from resource and annotation IDs', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -281,7 +282,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
 
     it('should extract IDs from full URIs', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -303,7 +304,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
 
     it('should send correct request body with options', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -332,7 +333,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
 
     it('should allow empty request body', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -353,7 +354,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
 
     it('should stream generation progress events', async () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       const sseText = `event: generation-started
@@ -394,7 +395,7 @@ data: {"status":"complete","referenceId":"ann-456","resourceId":"doc-789","perce
   describe('resourceEvents()', () => {
     it('should construct correct URL from resource ID', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -412,7 +413,7 @@ data: {"status":"complete","referenceId":"ann-456","resourceId":"doc-789","perce
 
     it('should use GET method', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -432,7 +433,7 @@ data: {"status":"complete","referenceId":"ann-456","resourceId":"doc-789","perce
 
     it('should stream resource events', async () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       const sseText = `event: resource.created
@@ -471,7 +472,7 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
 
     it('should not have a complete event (long-lived stream)', async () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       // Stream with many events - should keep processing until explicitly closed
@@ -509,7 +510,7 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
   describe('Error Handling', () => {
     it('should handle HTTP errors', async () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -521,7 +522,7 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
 
       const errorCallback = vi.fn();
 
-      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       stream.onError(errorCallback);
 
@@ -533,14 +534,14 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
 
     it('should handle network errors', async () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockRejectedValue(new Error('Network error'));
 
       const errorCallback = vi.fn();
 
-      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       stream.onError(errorCallback);
 
@@ -554,7 +555,7 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
   describe('Stream Lifecycle', () => {
     it('should support closing the stream', () => {
       const client = new SSEClient({
-        baseUrl: 'http://localhost:4000'
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -562,7 +563,7 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
         body: createSSEReadableStream('')
       });
 
-      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: ['Person'] });
+      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       expect(() => stream.close()).not.toThrow();
     });
