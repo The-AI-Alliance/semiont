@@ -273,7 +273,7 @@ describe('ProjectionManager', () => {
 
       const state = createTestState(resourceId('doc-query-1'));
       state.resource.entityTypes = ['Person'];
-      await manager4.save('doc-query-1', state);
+      await manager4.save(resourceId('doc-query-1'), state);
 
       const results = await manager4.query.findByEntityType('Person');
       expect(results.length).toBe(1);
@@ -328,7 +328,7 @@ describe('ProjectionManager', () => {
         subNamespace: 'compat-getall',
       });
 
-      await manager5.save('doc-compat-1', createTestState(resourceId('doc-compat-1')));
+      await manager5.save(resourceId('doc-compat-1'), createTestState(resourceId('doc-compat-1')));
 
       const all = await manager5.getAllProjections();
       expect(all.length).toBe(1);

@@ -129,7 +129,7 @@ export class ProjectionStorage {
    *
    * @returns Array of resource IDs
    */
-  async getAllResourceIds(): Promise<string[]> {
+  async getAllResourceIds(): Promise<ResourceId[]> {
     return this.pathBuilder.scanForResources('.json');
   }
 

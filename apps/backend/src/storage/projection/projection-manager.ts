@@ -17,7 +17,7 @@
 import type { ResourceState } from './projection-storage-v2';
 import { ProjectionStorage, type ProjectionStorageConfig } from './projection-storage-v2';
 import { ProjectionQuery } from './projection-query';
-import { resourceId as makeResourceId } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 
 export type { ResourceState } from './projection-storage-v2';
 export type { ProjectionStorageConfig as ProjectionManagerConfig };
@@ -43,8 +43,8 @@ export class ProjectionManager {
    * @param resourceId - Resource identifier
    * @param projection - Complete resource state
    */
-  async save(resourceId: string, projection: ResourceState): Promise<void> {
-    await this.storage.save(makeResourceId(resourceId), projection);
+  async save(resourceId: ResourceId, projection: ResourceState): Promise<void> {
+    await this.storage.save(resourceId, projection);
   }
 
   /**
@@ -53,8 +53,8 @@ export class ProjectionManager {
    * @param resourceId - Resource identifier
    * @returns Resource state or null if not found
    */
-  async get(resourceId: string): Promise<ResourceState | null> {
-    return this.storage.get(makeResourceId(resourceId));
+  async get(resourceId: ResourceId): Promise<ResourceState | null> {
+    return this.storage.get(resourceId);
   }
 
   /**
@@ -62,8 +62,8 @@ export class ProjectionManager {
    *
    * @param resourceId - Resource identifier
    */
-  async delete(resourceId: string): Promise<void> {
-    await this.storage.delete(makeResourceId(resourceId));
+  async delete(resourceId: ResourceId): Promise<void> {
+    await this.storage.delete(resourceId);
   }
 
   /**
@@ -72,8 +72,8 @@ export class ProjectionManager {
    * @param resourceId - Resource identifier
    * @returns True if projection exists
    */
-  async exists(resourceId: string): Promise<boolean> {
-    return this.storage.exists(makeResourceId(resourceId));
+  async exists(resourceId: ResourceId): Promise<boolean> {
+    return this.storage.exists(resourceId);
   }
 
   /**
@@ -90,7 +90,7 @@ export class ProjectionManager {
    *
    * @returns Array of resource IDs
    */
-  async getAllResourceIds(): Promise<string[]> {
+  async getAllResourceIds(): Promise<ResourceId[]> {
     return this.storage.getAllResourceIds();
   }
 
@@ -121,28 +121,28 @@ export class ProjectionManager {
   /**
    * @deprecated Use save() instead
    */
-  async saveProjection(resourceId: string, projection: ResourceState): Promise<void> {
+  async saveProjection(resourceId: ResourceId, projection: ResourceState): Promise<void> {
     return this.save(resourceId, projection);
   }
 
   /**
    * @deprecated Use get() instead
    */
-  async getProjection(resourceId: string): Promise<ResourceState | null> {
+  async getProjection(resourceId: ResourceId): Promise<ResourceState | null> {
     return this.get(resourceId);
   }
 
   /**
    * @deprecated Use delete() instead
    */
-  async deleteProjection(resourceId: string): Promise<void> {
+  async deleteProjection(resourceId: ResourceId): Promise<void> {
     return this.delete(resourceId);
   }
 
   /**
    * @deprecated Use exists() instead
    */
-  async projectionExists(resourceId: string): Promise<boolean> {
+  async projectionExists(resourceId: ResourceId): Promise<boolean> {
     return this.exists(resourceId);
   }
 
