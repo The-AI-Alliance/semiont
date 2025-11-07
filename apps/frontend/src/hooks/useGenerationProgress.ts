@@ -1,19 +1,11 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
-import type { AnnotationUri, ResourceUri } from '@semiont/api-client';
+import type { AnnotationUri, ResourceUri, GenerationProgress as ApiGenerationProgress, SSEStream } from '@semiont/api-client';
+import { useApiClient } from '@/lib/api-hooks';
 
-export interface GenerationProgress {
-  status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
-  referenceId: AnnotationUri;
-  documentName?: string;
-  resourceId?: ResourceUri;
-  sourceResourceId?: string;
-  percentage: number;
-  message?: string;
-}
+// Use API type directly (no extensions needed)
+export type GenerationProgress = ApiGenerationProgress;
 
 interface UseGenerationProgressOptions {
   onComplete?: (progress: GenerationProgress) => void;
@@ -26,10 +18,10 @@ export function useGenerationProgress({
   onError,
   onProgress
 }: UseGenerationProgressOptions) {
-  const { data: session } = useSession();
+  const client = useApiClient();
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const streamRef = useRef<SSEStream<ApiGenerationProgress, ApiGenerationProgress> | null>(null);
 
   const startGeneration = useCallback(async (
     referenceId: AnnotationUri,
@@ -43,13 +35,14 @@ export function useGenerationProgress({
       language: options?.language
     });
 
-    // Close any existing connection
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    // Close any existing stream
+    if (streamRef.current) {
+      streamRef.current.close();
+      streamRef.current = null;
     }
 
-    // Get auth token from session
-    if (!session?.backendToken) {
+    // Check if client is available
+    if (!client) {
       onError?.('Authentication required');
       return;
     }
@@ -57,88 +50,46 @@ export function useGenerationProgress({
     setIsGenerating(true);
     setProgress(null);
 
-    // Create new abort controller for this request
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    // Extract annotation ID from flat annotation URI
-    // referenceId format: http://localhost:4000/annotations/{id}
-    const annotationIdSegment = referenceId.split('/').pop();
-    if (!annotationIdSegment) {
-      onError?.('Invalid annotation URI');
-      setIsGenerating(false);
-      return;
-    }
-
-    // Build nested SSE URL using resource context
-    // New nested format: http://localhost:4000/resources/{rid}/annotations/{aid}/generate-resource-stream
-    const url = `${resourceId}/annotations/${annotationIdSegment}/generate-resource-stream`;
-
-    const requestBody = { ...options };
-    console.log('[useGenerationProgress] Sending request to:', url);
-    console.log('[useGenerationProgress] Request body:', requestBody);
-
     try {
-      await fetchEventSource(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.backendToken}`
-        },
-        body: JSON.stringify(requestBody),
-        signal: abortController.signal,
+      // Start SSE stream using api-client
+      const stream = client.sse.generateResource(resourceId, referenceId, options || {});
+      streamRef.current = stream;
 
-        onmessage(ev) {
-          console.log('[useGenerationProgress] Received SSE event:', ev.event, 'data:', ev.data);
-          const data = JSON.parse(ev.data) as GenerationProgress;
-          setProgress(data);
-          onProgress?.(data);
+      // Handle progress events
+      stream.onProgress((apiProgress) => {
+        console.log('[useGenerationProgress] Received progress event:', apiProgress);
+        setProgress(apiProgress);
+        onProgress?.(apiProgress);
+      });
 
-          // Handle specific event types
-          if (ev.event === 'generation-complete') {
-            console.log('[useGenerationProgress] Processing completion event');
-            setIsGenerating(false);
-            // Keep progress visible to show completion state and link
-            onComplete?.(data);
-            abortController.abort(); // Close connection
-            abortControllerRef.current = null;
-          } else if (ev.event === 'generation-error') {
-            setIsGenerating(false);
-            // Keep progress visible to show error state
-            onError?.(data.message || 'Generation failed');
-            abortController.abort();
-            abortControllerRef.current = null;
-          }
-        },
+      // Handle completion
+      stream.onComplete((apiProgress) => {
+        console.log('[useGenerationProgress] Processing completion event');
+        setIsGenerating(false);
+        // Keep progress visible to show completion state and link
+        onComplete?.(apiProgress);
+        streamRef.current = null;
+      });
 
-        onerror(err) {
-          // If the error is due to abort, don't show error
-          if (abortController.signal.aborted) {
-            return;
-          }
-
-          console.error('SSE Connection error:', err);
-          setIsGenerating(false);
-          setProgress(null); // Clear progress to hide widget
-          onError?.('Connection lost. Please try again.');
-          throw err; // Throw to stop reconnection
-        },
-
-        openWhenHidden: true // Keep connection open when tab is in background
+      // Handle errors
+      stream.onError((error) => {
+        console.error('[useGenerationProgress] Stream error:', error);
+        setIsGenerating(false);
+        setProgress(null); // Clear progress to hide widget
+        onError?.(error.message || 'Generation failed');
+        streamRef.current = null;
       });
     } catch (error) {
-      if (!abortController.signal.aborted) {
-        console.error('Failed to start generation:', error);
-        setIsGenerating(false);
-        onError?.('Failed to start resource generation');
-      }
+      console.error('[useGenerationProgress] Failed to start generation:', error);
+      setIsGenerating(false);
+      onError?.('Failed to start resource generation');
     }
-  }, [onComplete, onError, onProgress, session]);
+  }, [client, onComplete, onError, onProgress]);
 
   const cancelGeneration = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    if (streamRef.current) {
+      streamRef.current.close();
+      streamRef.current = null;
     }
     setIsGenerating(false);
     setProgress(null);
@@ -147,8 +98,8 @@ export function useGenerationProgress({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      if (streamRef.current) {
+        streamRef.current.close();
       }
     };
   }, []);

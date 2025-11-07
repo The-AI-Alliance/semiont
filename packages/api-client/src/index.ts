@@ -33,6 +33,20 @@
 export * from './types';
 export * from './client';
 
+// SSE streaming types and client
+export type {
+  DetectionProgress,
+  GenerationProgress,
+  ResourceEvent,
+  SSEStream
+} from './sse/types';
+export { SSEClient } from './sse';
+export type {
+  DetectAnnotationsStreamRequest,
+  GenerateResourceStreamRequest,
+  SSEClientConfig
+} from './sse';
+
 // Handwritten utilities
 export * from './utils';
 

@@ -12,6 +12,7 @@
 import ky, { type KyInstance } from 'ky';
 import type { paths } from './types';
 import type { AnnotationUri, ResourceUri, ResourceAnnotationUri } from './uri-types';
+import { SSEClient } from './sse';
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
@@ -51,6 +52,26 @@ export class SemiontApiClient {
   private http: KyInstance;
   private baseUrl: string;
   private accessToken: string | null = null;
+
+  /**
+   * SSE streaming client for real-time operations
+   *
+   * Separate from the main HTTP client to clearly mark streaming endpoints.
+   * Uses native fetch() instead of ky for SSE support.
+   *
+   * @example
+   * ```typescript
+   * const stream = client.sse.detectAnnotations(
+   *   resourceId,
+   *   { entityTypes: ['Person', 'Organization'] }
+   * );
+   *
+   * stream.onProgress((p) => console.log(p.message));
+   * stream.onComplete((r) => console.log(`Found ${r.foundCount} entities`));
+   * stream.close();
+   * ```
+   */
+  public readonly sse: SSEClient;
 
   constructor(config: SemiontApiClientConfig) {
     const { baseUrl, accessToken, timeout = 30000, retry = 2 } = config;
@@ -92,6 +113,12 @@ export class SemiontApiClient {
     if (accessToken) {
       this.accessToken = accessToken;
     }
+
+    // Initialize SSE client (uses native fetch, not ky)
+    this.sse = new SSEClient({
+      baseUrl: this.baseUrl,
+      accessToken: this.accessToken || undefined
+    });
   }
 
   /**
@@ -99,6 +126,7 @@ export class SemiontApiClient {
    */
   setAccessToken(token: string): void {
     this.accessToken = token;
+    this.sse.setAccessToken(token);
   }
 
   /**
@@ -106,6 +134,7 @@ export class SemiontApiClient {
    */
   clearAccessToken(): void {
     this.accessToken = null;
+    this.sse.clearAccessToken();
   }
 
   // ============================================================================

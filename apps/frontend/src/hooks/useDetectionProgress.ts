@@ -1,18 +1,11 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
-import type { ResourceUri } from '@semiont/api-client';
+import type { ResourceUri, DetectionProgress as ApiDetectionProgress, SSEStream } from '@semiont/api-client';
+import { useApiClient } from '@/lib/api-hooks';
 
-export interface DetectionProgress {
-  status: 'started' | 'scanning' | 'complete' | 'error';
-  resourceId: string;
-  currentEntityType?: string;
-  totalEntityTypes: number;
-  processedEntityTypes: number;
-  message?: string;
-  foundCount?: number;
+// Extend API type with frontend-specific fields
+export interface DetectionProgress extends ApiDetectionProgress {
   completedEntityTypes?: Array<{ entityType: string; foundCount: number }>;
 }
 
@@ -29,20 +22,21 @@ export function useDetectionProgress({
   onError,
   onProgress
 }: UseDetectionProgressOptions) {
-  const { data: session } = useSession();
+  const client = useApiClient();
   const [isDetecting, setIsDetecting] = useState(false);
   const [progress, setProgress] = useState<DetectionProgress | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const streamRef = useRef<SSEStream<ApiDetectionProgress, ApiDetectionProgress> | null>(null);
   const completedEntityTypesRef = useRef<Array<{ entityType: string; foundCount: number }>>([]);
 
   const startDetection = useCallback(async (entityTypes: string[]) => {
-    // Close any existing connection
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    // Close any existing stream
+    if (streamRef.current) {
+      streamRef.current.close();
+      streamRef.current = null;
     }
 
-    // Get auth token from session
-    if (!session?.backendToken) {
+    // Check if client is available
+    if (!client) {
       onError?.('Authentication required');
       return;
     }
@@ -51,92 +45,68 @@ export function useDetectionProgress({
     setProgress(null);
     completedEntityTypesRef.current = [];
 
-    // Create new abort controller for this request
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    // Build SSE URL by appending operation to the resource URI
-    const url = `${rUri}/detect-annotations-stream`;
-
     try {
-      await fetchEventSource(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.backendToken}`
-        },
-        body: JSON.stringify({ entityTypes }),
-        signal: abortController.signal,
+      // Start SSE stream using api-client
+      const stream = client.sse.detectAnnotations(rUri, { entityTypes });
+      streamRef.current = stream;
 
-        onmessage(ev) {
-          const data = JSON.parse(ev.data) as DetectionProgress;
+      // Handle progress events
+      stream.onProgress((apiProgress) => {
+        // Track completed entity types
+        if (apiProgress.foundCount !== undefined && apiProgress.currentEntityType) {
+          completedEntityTypesRef.current.push({
+            entityType: apiProgress.currentEntityType,
+            foundCount: apiProgress.foundCount
+          });
+        }
 
-          // Track completed entity types
-          if (data.foundCount !== undefined && data.currentEntityType) {
-            completedEntityTypesRef.current.push({
-              entityType: data.currentEntityType,
-              foundCount: data.foundCount
-            });
-          }
+        // Add completed entity types to progress data
+        const progressWithHistory: DetectionProgress = {
+          ...apiProgress,
+          completedEntityTypes: [...completedEntityTypesRef.current]
+        };
 
-          // Add completed entity types to progress data
-          const progressWithHistory = {
-            ...data,
-            completedEntityTypes: [...completedEntityTypesRef.current]
-          };
+        setProgress(progressWithHistory);
+        onProgress?.(progressWithHistory);
+      });
 
-          setProgress(progressWithHistory);
-          onProgress?.(progressWithHistory);
+      // Handle completion
+      stream.onComplete((apiProgress) => {
+        const progressWithHistory: DetectionProgress = {
+          ...apiProgress,
+          completedEntityTypes: [...completedEntityTypesRef.current]
+        };
 
-          // Handle specific event types
-          if (ev.event === 'detection-complete') {
-            setIsDetecting(false);
-            setProgress(null); // Clear progress to hide overlay
-            onComplete?.(progressWithHistory);
-            abortController.abort(); // Close connection
-            abortControllerRef.current = null;
-          } else if (ev.event === 'detection-error') {
-            setIsDetecting(false);
-            setProgress(null); // Clear progress to hide overlay
-            onError?.(data.message || 'Detection failed');
-            abortController.abort();
-            abortControllerRef.current = null;
-          }
-        },
+        setIsDetecting(false);
+        setProgress(null); // Clear progress to hide overlay
+        onComplete?.(progressWithHistory);
+        streamRef.current = null;
+      });
 
-        onerror(err) {
-          // If the error is due to abort, don't show error
-          if (abortController.signal.aborted) {
-            return;
-          }
-
-          console.error('SSE Connection error:', err);
-          setIsDetecting(false);
-          setProgress(null); // Clear progress to hide overlay
-          onError?.('Connection lost. Please try again.');
-          throw err; // Throw to stop reconnection
-        },
-
-        openWhenHidden: true // Keep connection open when tab is in background
+      // Handle errors
+      stream.onError((error) => {
+        console.error('[Detection] Stream error:', error);
+        setIsDetecting(false);
+        setProgress(null); // Clear progress to hide overlay
+        onError?.(error.message || 'Detection failed');
+        streamRef.current = null;
       });
     } catch (error) {
-      if (!abortController.signal.aborted) {
-        console.error('[Detection] Failed to start detection:', error);
-        console.error('[Detection] Error details:', {
-          name: (error as Error)?.name,
-          message: (error as Error)?.message,
-          stack: (error as Error)?.stack
-        });
-        setIsDetecting(false);
-        onError?.('Failed to start detection');
-      }
+      console.error('[Detection] Failed to start detection:', error);
+      console.error('[Detection] Error details:', {
+        name: (error as Error)?.name,
+        message: (error as Error)?.message,
+        stack: (error as Error)?.stack
+      });
+      setIsDetecting(false);
+      onError?.('Failed to start detection');
     }
-  }, [rUri, onComplete, onError, onProgress, session]);
+  }, [rUri, client, onComplete, onError, onProgress]);
 
   const cancelDetection = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    if (streamRef.current) {
+      streamRef.current.close();
+      streamRef.current = null;
     }
     setIsDetecting(false);
     setProgress(null);
@@ -146,8 +116,8 @@ export function useDetectionProgress({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      if (streamRef.current) {
+        streamRef.current.close();
       }
     };
   }, []);

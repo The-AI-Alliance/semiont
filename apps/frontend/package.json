@@ -45,7 +45,6 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.2.0",
-    "@microsoft/fetch-event-source": "^2.0.1",
     "@semiont/api-client": "*",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query": "^4.36.1",

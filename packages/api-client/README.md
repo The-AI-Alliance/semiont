@@ -40,12 +40,45 @@ const result = await client.createResource({
 console.log('Created:', result.resource.id);
 ```
 
+## SSE Streaming
+
+For long-running operations, use Server-Sent Events (SSE) streaming for real-time progress updates:
+
+```typescript
+// Stream entity detection progress
+const stream = client.sse.detectAnnotations(
+  resourceId,
+  { entityTypes: ['Person', 'Organization'] }
+);
+
+stream.onProgress((progress) => {
+  console.log(`Scanning: ${progress.currentEntityType}`);
+  console.log(`Progress: ${progress.processedEntityTypes}/${progress.totalEntityTypes}`);
+});
+
+stream.onComplete((result) => {
+  console.log(`Detection complete! Found ${result.foundCount} entities`);
+});
+
+stream.onError((error) => {
+  console.error('Detection failed:', error.message);
+});
+
+// Cleanup when done
+stream.close();
+```
+
+**Note**: SSE methods use native `fetch()` instead of `ky` for better streaming support.
+
+See [SSE Streaming documentation](./docs/Usage.md#sse-streaming) for complete usage guide.
+
 ## Features
 
 - ✅ **Spec-First** - Types generated from OpenAPI specification
 - ✅ **Type-Safe** - Full TypeScript types for all operations
 - ✅ **Framework-Agnostic** - Works in Node.js, browser, or any JS environment
 - ✅ **Built-in Auth** - Local, Google OAuth, refresh tokens
+- ✅ **SSE Streaming** - Real-time progress updates for long-running operations
 - ✅ **W3C Content Negotiation** - Get raw representations with Accept headers
 - ✅ **W3C Utilities** - Annotation and selector helpers
 - ✅ **Event Utilities** - Formatting and display helpers
@@ -64,6 +97,7 @@ console.log('Created:', result.resource.id);
 - [Resources](./docs/Usage.md#resources) - CRUD operations
 - [Annotations](./docs/Usage.md#annotations) - W3C Web Annotation Model
 - [Entity Detection](./docs/Usage.md#entity-detection-and-jobs) - Async jobs
+- [SSE Streaming](./docs/Usage.md#sse-streaming) - Real-time updates for long-running operations
 - [LLM Context](./docs/Usage.md#llm-context) - AI-optimized context
 - [Error Handling](./docs/Usage.md#error-handling) - Error handling patterns
 
