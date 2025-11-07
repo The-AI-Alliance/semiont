@@ -29,7 +29,12 @@ Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructur
 ```text
 semiont/
 ├── specs/                # API specifications (spec-first architecture)
-│   ├── openapi.json      # OpenAPI 3.0 REST API specification (source of truth)
+│   ├── src/              # OpenAPI source files (tracked in git)
+│   │   ├── openapi.json  # Root spec with $ref to all paths/schemas
+│   │   ├── paths/        # Individual endpoint definitions (37 files)
+│   │   └── components/
+│   │       └── schemas/  # Schema definitions (79 files)
+│   ├── openapi.json      # Generated bundle (gitignored, built by Redocly)
 │   └── docs/             # API and W3C annotation documentation
 ├── apps/                 # Application packages
 │   ├── frontend/         # Next.js 14 frontend application
