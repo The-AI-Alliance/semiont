@@ -22,6 +22,12 @@ Comprehensive examples for common operations with the Semiont API Client.
   - [Poll Job Status](#poll-job-status)
   - [Poll Until Complete](#poll-until-complete)
   - [Complete Example: Detect and Wait](#complete-example-detect-and-wait)
+- [SSE Streaming](#sse-streaming)
+  - [Stream Entity Detection](#stream-entity-detection)
+  - [Stream Resource Generation](#stream-resource-generation)
+  - [Subscribe to Resource Events](#subscribe-to-resource-events)
+  - [Stream Lifecycle Management](#stream-lifecycle-management)
+  - [SSE Error Handling](#sse-error-handling)
 - [Event Streams](#event-streams)
 - [Error Handling](#error-handling)
 - [System Status](#system-status)
@@ -487,6 +493,321 @@ if (result.status === 'complete') {
   const entities = resource.annotations.filter(a => a.motivation === 'tagging');
   console.log(`Detected ${entities.length} entities`);
 }
+```
+
+## SSE Streaming
+
+Server-Sent Events (SSE) provide real-time progress updates for long-running operations. Unlike polling (used in `pollJobUntilComplete`), SSE streams push updates as they happen, reducing latency and server load.
+
+### Architecture and Design Principles
+
+The SSE implementation follows five core design principles:
+
+**1. Clear Separation from Request/Response**
+
+SSE streaming uses a **separate namespace** (`client.sse.*`) to distinguish it from standard HTTP request/response methods. This makes it immediately obvious when code is dealing with streaming vs. traditional HTTP.
+
+```typescript
+// Traditional HTTP (ky-based)
+await client.createResource({ ... });
+
+// SSE streaming (fetch-based)
+client.sse.detectAnnotations(...);
+```
+
+**2. Not ky-Based**
+
+SSE methods **do not use `ky`** (the HTTP client used for other methods). Instead, they use:
+- Native `fetch()` for HTTP connection
+- Manual SSE parsing (not `EventSource` API for better control)
+- `AbortController` for cancellation
+
+**Rationale**:
+- `ky` is optimized for request/response, not streaming
+- SSE requires parsing `text/event-stream` format
+- We need fine-grained control over connection lifecycle
+
+**3. Type-Safe Events**
+
+All events have TypeScript interfaces matching the backend's event payloads. Types are derived from OpenAPI schemas where possible.
+
+```typescript
+interface DetectionProgress {
+  status: 'started' | 'scanning' | 'complete' | 'error';
+  resourceId: string;
+  currentEntityType?: string;
+  totalEntityTypes: number;
+  processedEntityTypes: number;
+  foundCount?: number;
+}
+```
+
+**4. Consistent Callback API**
+
+All three SSE methods return stream objects with similar callback patterns:
+- `.onProgress()` - Incremental updates
+- `.onComplete()` - Final result
+- `.onError()` - Error handling
+- `.close()` - Manual cancellation
+
+**5. No Response Validation**
+
+SSE streams are not validated (per `SSE-VALIDATION-CONSIDERATIONS.md`). Request bodies are validated via OpenAPI schemas, but streaming responses are parsed as-is.
+
+### When to Use SSE vs Regular Methods
+
+**When to use SSE:**
+
+- ✅ Long-running operations (detection, generation)
+- ✅ Real-time progress updates
+- ✅ Live collaboration (see events from other users)
+- ✅ Operations that benefit from immediate feedback
+
+**When to use regular methods:**
+
+- ✅ Simple CRUD operations (create, read, update, delete)
+- ✅ One-time requests without progress tracking
+- ✅ Batch operations that don't need real-time feedback
+
+**Note**: SSE methods use native `fetch()` instead of `ky` for better streaming support.
+
+### Stream Entity Detection
+
+Stream real-time progress updates during entity detection:
+
+```typescript
+import { resourceUri } from '@semiont/api-client';
+
+const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+
+// Start detection stream
+const stream = client.sse.detectAnnotations(rUri, {
+  entityTypes: ['Person', 'Organization', 'Location']
+});
+
+// Handle progress events
+stream.onProgress((progress) => {
+  if (progress.status === 'started') {
+    console.log(`Starting detection for ${progress.totalEntityTypes} entity types...`);
+  } else if (progress.status === 'scanning') {
+    console.log(`Scanning for ${progress.currentEntityType}...`);
+    console.log(`Progress: ${progress.processedEntityTypes}/${progress.totalEntityTypes}`);
+  }
+});
+
+// Handle completion
+stream.onComplete((result) => {
+  console.log(`Detection complete!`);
+  console.log(`Found ${result.foundCount} entities`);
+  console.log(`Processed ${result.processedEntityTypes}/${result.totalEntityTypes} entity types`);
+
+  // Fetch updated resource with new annotations
+  client.getResource(rUri).then(resource => {
+    console.log(`Resource now has ${resource.annotations.length} annotations`);
+  });
+});
+
+// Handle errors
+stream.onError((error) => {
+  console.error('Detection failed:', error.message);
+});
+
+// Cleanup when done (e.g., component unmount)
+// stream.close();
+```
+
+**Progress Event Types:**
+
+- `detection-started` - Detection job has started
+- `detection-progress` - Currently scanning an entity type
+- `detection-complete` - All entity types scanned
+- `detection-error` - Detection failed
+
+### Stream Resource Generation
+
+Stream real-time progress updates during resource generation from an annotation:
+
+```typescript
+import { resourceUri, annotationUri } from '@semiont/api-client';
+
+const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+const annUri = annotationUri('http://localhost:4000/annotations/annotation-456');
+
+// Start generation stream with custom options
+const stream = client.sse.generateResourceFromAnnotation(rUri, annUri, {
+  title: 'Spanish Summary',
+  language: 'es',
+  prompt: 'Create a concise summary focusing on key findings'
+});
+
+// Handle progress events (percentage-based)
+stream.onProgress((progress) => {
+  console.log(`${progress.status}: ${progress.percentage}%`);
+
+  if (progress.message) {
+    console.log(`  ${progress.message}`);
+  }
+
+  // Progress stages:
+  // - 'started' (0%)
+  // - 'fetching' (25%)
+  // - 'generating' (50-75%)
+  // - 'creating' (90%)
+});
+
+// Handle completion
+stream.onComplete((result) => {
+  console.log(`Generation complete!`);
+  console.log(`Generated resource: ${result.resourceId}`);
+
+  // Navigate to generated resource or fetch it
+  if (result.resourceId) {
+    const generatedUri = resourceUri(result.resourceId);
+    client.getResource(generatedUri).then(resource => {
+      console.log('Generated resource:', resource.name);
+    });
+  }
+});
+
+// Handle errors
+stream.onError((error) => {
+  console.error('Generation failed:', error.message);
+});
+```
+
+**Generation Options:**
+
+- `title` - Custom title for generated resource (optional)
+- `language` - Language locale (e.g., 'es', 'fr', 'ja') (optional)
+- `prompt` - Custom generation prompt (optional)
+
+**Progress Event Types:**
+
+- `generation-started` - Generation job has started
+- `generation-progress` - Generation in progress (with percentage)
+- `generation-complete` - Resource generated successfully
+- `generation-error` - Generation failed
+
+### Subscribe to Resource Events
+
+Subscribe to real-time events for a resource (long-lived stream for collaboration):
+
+```typescript
+import { resourceUri } from '@semiont/api-client';
+
+const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+
+// Open long-lived event stream
+const stream = client.sse.resourceEvents(rUri);
+
+// Handle all events (uses onProgress for events)
+stream.onProgress((event) => {
+  console.log(`[${event.timestamp}] ${event.type}`);
+  console.log(`  User: ${event.userId}`);
+  console.log(`  Sequence: ${event.metadata.sequenceNumber}`);
+  console.log(`  Payload:`, event.payload);
+
+  // Handle specific event types
+  switch (event.type) {
+    case 'annotation.created':
+      console.log('New annotation added by another user!');
+      break;
+    case 'annotation.updated':
+      console.log('Annotation modified by another user!');
+      break;
+    case 'annotation.deleted':
+      console.log('Annotation removed by another user!');
+      break;
+  }
+});
+
+// Handle stream errors
+stream.onError((error) => {
+  console.error('Event stream error:', error.message);
+  // Implement reconnection logic if needed
+});
+
+// NOTE: This is a long-lived stream with NO completion event
+// It stays open until explicitly closed
+
+// Cleanup on component unmount or when no longer needed
+// stream.close();
+```
+
+**Event Types You'll Receive:**
+
+- `resource.created` - Resource was created
+- `resource.updated` - Resource metadata changed
+- `annotation.created` - New annotation added
+- `annotation.updated` - Annotation modified
+- `annotation.deleted` - Annotation deleted
+- `comment.created` - Comment added
+- `comment.updated` - Comment modified
+- `comment.deleted` - Comment deleted
+
+**Use Cases:**
+
+- Real-time collaboration (see other users' changes)
+- Live annotation feed
+- Activity monitoring
+- Synchronized views across multiple clients
+
+### Stream Lifecycle Management
+
+All SSE streams should be cleaned up when no longer needed:
+
+```typescript
+// React example
+useEffect(() => {
+  const stream = client.sse.detectAnnotations(resourceId, { entityTypes: ['Person'] });
+
+  stream.onProgress((p) => setProgress(p));
+  stream.onComplete((r) => setResult(r));
+  stream.onError((e) => setError(e));
+
+  // Cleanup on unmount
+  return () => stream.close();
+}, [resourceId]);
+```
+
+```typescript
+// Node.js example with timeout
+const stream = client.sse.resourceEvents(resourceId);
+
+stream.onProgress((event) => console.log(event));
+
+// Close after 5 minutes
+setTimeout(() => {
+  console.log('Closing event stream...');
+  stream.close();
+}, 5 * 60 * 1000);
+```
+
+### SSE Error Handling
+
+SSE streams can fail for various reasons. Always implement error handling:
+
+```typescript
+const stream = client.sse.detectAnnotations(resourceId, { entityTypes: ['Person'] });
+
+stream.onError((error) => {
+  console.error('Stream error:', error.message);
+
+  // Common errors:
+  // - Network disconnection
+  // - 401 Unauthorized (token expired)
+  // - 404 Not Found (resource doesn't exist)
+  // - 500 Server Error (backend failure)
+
+  // Implement retry logic if appropriate
+  if (error.message.includes('401')) {
+    // Re-authenticate and retry
+    console.log('Token expired, re-authenticating...');
+  } else if (error.message.includes('Network')) {
+    // Retry with exponential backoff
+    console.log('Network error, retrying...');
+  }
+});
 ```
 
 ## Event Streams

@@ -14,13 +14,14 @@ vi.mock('ky', () => ({
 
 import ky from 'ky';
 import { SemiontApiClient } from '../client';
-import type { ResourceUri, ResourceAnnotationUri } from '../uri-types';
+import type { ResourceUri, ResourceAnnotationUri } from '../branded-types';
+import { baseUrl, entityType, jobId } from '../branded-types';
 
 describe('SemiontApiClient - Archive Operations', () => {
   let client: SemiontApiClient;
   let mockKy: KyInstance;
-  const baseUrl = 'http://localhost:4000';
-  const testResourceUri: ResourceUri = `${baseUrl}/resources/test-resource-id` as ResourceUri;
+  const testBaseUrl = baseUrl('http://localhost:4000');
+  const testResourceUri: ResourceUri = `${testBaseUrl}/resources/test-resource-id` as ResourceUri;
 
   beforeEach(() => {
     // Create mock ky instance with chainable methods
@@ -36,7 +37,7 @@ describe('SemiontApiClient - Archive Operations', () => {
     vi.mocked(ky.create).mockReturnValue(mockKy);
 
     client = new SemiontApiClient({
-      baseUrl,
+      baseUrl: testBaseUrl,
       timeout: 10000,
     });
   });
@@ -154,7 +155,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       expect(result.resources).toHaveLength(2);
       expect(result.resources.every(r => !r.archived)).toBe(true);
       expect(mockKy.get).toHaveBeenCalledWith(
-        `${baseUrl}/resources`,
+        `${testBaseUrl}/resources`,
         expect.objectContaining({
           searchParams: expect.any(URLSearchParams),
         })
@@ -178,7 +179,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       expect(result.resources).toHaveLength(1);
       expect(result.resources.every(r => r.archived)).toBe(true);
       expect(mockKy.get).toHaveBeenCalledWith(
-        `${baseUrl}/resources`,
+        `${testBaseUrl}/resources`,
         expect.objectContaining({
           searchParams: expect.any(URLSearchParams),
         })
@@ -199,7 +200,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.detectEntities(testResourceUri, ['person', 'organization']);
+      const result = await client.detectEntities(testResourceUri, [entityType('person'), entityType('organization')]);
 
       expect(result.jobId).toBe('job-123');
       expect(result.status).toBe('pending');
@@ -251,11 +252,11 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getJobStatus('job-123');
+      const result = await client.getJobStatus(jobId('job-123'));
 
       expect(result.status).toBe('running');
       expect(result.jobId).toBe('job-123');
-      expect(mockKy.get).toHaveBeenCalledWith(`${baseUrl}/api/jobs/job-123`);
+      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/jobs/job-123`);
     });
 
     test('should poll job until complete', async () => {
@@ -271,7 +272,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       } as any));
 
       const progressCalls: any[] = [];
-      const result = await client.pollJobUntilComplete('job-123', {
+      const result = await client.pollJobUntilComplete(jobId('job-123'), {
         interval: 10, // Fast polling for tests
         onProgress: (status) => progressCalls.push(status),
       });
@@ -295,7 +296,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       } as any);
 
       await expect(
-        client.pollJobUntilComplete('job-123', {
+        client.pollJobUntilComplete(jobId('job-123'), {
           interval: 10,
           timeout: 50, // Very short timeout for testing
         })
@@ -459,7 +460,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       const result = await client.logout();
 
       expect(result.message).toBe('Logged out successfully');
-      expect(mockKy.post).toHaveBeenCalledWith(`${baseUrl}/api/users/logout`);
+      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/users/logout`);
     });
   });
 
@@ -483,7 +484,7 @@ describe('SemiontApiClient - Archive Operations', () => {
 
       expect(result.version).toBe('1.0.0');
       expect(result.features.semanticContent).toBe('enabled');
-      expect(mockKy.get).toHaveBeenCalledWith(`${baseUrl}/api/status`);
+      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/status`);
     });
   });
 
@@ -498,14 +499,14 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.addEntityTypesBulk(['concept', 'person', 'organization']);
+      const result = await client.addEntityTypesBulk([entityType('concept'), entityType('person'), entityType('organization')]);
 
       expect(result.success).toBe(true);
       expect(result.entityTypes).toHaveLength(3);
       expect(mockKy.post).toHaveBeenCalledWith(
-        `${baseUrl}/api/entity-types/bulk`,
+        `${testBaseUrl}/api/entity-types/bulk`,
         expect.objectContaining({
-          json: { tags: ['concept', 'person', 'organization'] },
+          json: { tags: [entityType('concept'), entityType('person'), entityType('organization')] },
         })
       );
     });
@@ -605,23 +606,23 @@ describe('SemiontApiClient - Archive Operations', () => {
       );
     });
 
-    test('should get resource representation with various media types', async () => {
-      const mockHtml = '<html><body><h1>Hello</h1></body></html>';
+    test('should get resource representation with text/plain', async () => {
+      const mockText = 'Hello World';
 
       vi.mocked(mockKy.get).mockReturnValue({
-        text: vi.fn().mockResolvedValue(mockHtml),
+        text: vi.fn().mockResolvedValue(mockText),
       } as any);
 
       const result = await client.getResourceRepresentation(testResourceUri, {
-        accept: 'text/html',
+        accept: 'text/plain',
       });
 
-      expect(result).toBe(mockHtml);
+      expect(result).toBe(mockText);
       expect(mockKy.get).toHaveBeenCalledWith(
         testResourceUri,
         expect.objectContaining({
           headers: {
-            Accept: 'text/html',
+            Accept: 'text/plain',
           },
         })
       );

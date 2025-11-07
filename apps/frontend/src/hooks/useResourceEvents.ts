@@ -1,26 +1,14 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
-import type { ResourceUri } from '@semiont/api-client';
+import type { ResourceUri, ResourceEvent as ApiResourceEvent, SSEStream } from '@semiont/api-client';
+import { useApiClient } from '@/lib/api-hooks';
 
 /**
  * Resource event structure from the event store
+ * (Re-exported from api-client for consistency)
  */
-export interface ResourceEvent {
-  id: string;
-  type: string;
-  timestamp: string;
-  userId: string;
-  resourceId: string;
-  payload: Record<string, any>;
-  metadata: {
-    sequenceNumber: number;
-    prevEventHash?: string;
-    checksum?: string;
-  };
-}
+export type ResourceEvent = ApiResourceEvent;
 
 /**
  * Stream connection status
@@ -75,11 +63,11 @@ export function useResourceEvents({
   onError,
   autoConnect = true,
 }: UseResourceEventsOptions) {
-  const { data: session, status: sessionStatus } = useSession();
+  const client = useApiClient();
   const [status, setStatus] = useState<StreamStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<ResourceEvent | null>(null);
   const [eventCount, setEventCount] = useState(0);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const streamRef = useRef<SSEStream<ApiResourceEvent, never> | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
 
@@ -128,10 +116,11 @@ export function useResourceEvents({
   const connect = useCallback(async () => {
     console.log(`[ResourceEvents] Attempting to connect to resource ${rUri} events stream`);
 
-    // Close any existing connection
-    if (abortControllerRef.current) {
+    // Close any existing stream
+    if (streamRef.current) {
       console.log(`[ResourceEvents] Closing existing connection for ${rUri}`);
-      abortControllerRef.current.abort();
+      streamRef.current.close();
+      streamRef.current = null;
     }
 
     // Clear any pending reconnect
@@ -140,9 +129,9 @@ export function useResourceEvents({
       reconnectTimeoutRef.current = null;
     }
 
-    // Get auth token from session
-    if (!session?.backendToken) {
-      console.error(`[ResourceEvents] Cannot connect to ${rUri}: No auth token`);
+    // Check if client is available
+    if (!client) {
+      console.error(`[ResourceEvents] Cannot connect to ${rUri}: No API client available`);
       onError?.('Authentication required');
       setStatus('error');
       return;
@@ -151,103 +140,68 @@ export function useResourceEvents({
     console.log(`[ResourceEvents] Connecting to SSE stream for resource ${rUri}`);
     setStatus('connecting');
 
-    // Create new abort controller
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    // Build SSE URL - rUri is already the full resource URI
-    const url = `${rUri}/events/stream`;
-
     try {
-      await fetchEventSource(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.backendToken}`,
-        },
-        signal: abortController.signal,
+      // Start SSE stream using api-client
+      const stream = client.sse.resourceEvents(rUri);
+      streamRef.current = stream;
 
-        async onopen(response) {
-          if (response.ok) {
-            console.log(`[ResourceEvents] Successfully connected to resource ${rUri} events stream`);
-            setStatus('connected');
-            reconnectAttemptsRef.current = 0; // Reset reconnect counter
-          } else {
-            console.error(`[ResourceEvents] Failed to open stream for ${rUri}: ${response.status}`);
-            throw new Error(`Failed to open stream: ${response.status}`);
+      // Handle progress events (all resource events)
+      stream.onProgress((event) => {
+        // Ignore keep-alive messages (if they come through as events)
+        if (event.type === 'keep-alive') {
+          return;
+        }
+
+        // Handle stream-connected event
+        if (event.type === 'stream-connected') {
+          console.log(`[ResourceEvents] Stream connected event received for ${rUri}`);
+          setStatus('connected');
+          reconnectAttemptsRef.current = 0; // Reset reconnect counter
+          return;
+        }
+
+        console.log(`[ResourceEvents] Received event for document ${rUri}:`, event.type);
+        handleEvent(event);
+      });
+
+      // Handle errors and reconnection
+      stream.onError((error) => {
+        console.error(`[ResourceEvents] Stream error for ${rUri}:`, error);
+        setStatus('error');
+
+        // Don't retry on 404 - document doesn't exist
+        if (error.message.includes('404')) {
+          console.error(`[ResourceEvents] Document ${rUri} not found (404). Stopping reconnection attempts.`);
+          onError?.('Document not found');
+          streamRef.current = null;
+          return;
+        }
+
+        // Exponential backoff for reconnection
+        reconnectAttemptsRef.current++;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
+
+        console.log(`[ResourceEvents] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (!streamRef.current) {
+            // Reconnect - call connect directly to avoid circular dependency
+            connect();
           }
-        },
-
-        onmessage(msg) {
-          // Ignore keep-alive messages
-          if (msg.data === ':keep-alive') {
-            return;
-          }
-
-          // Handle stream-connected event
-          if (msg.event === 'stream-connected') {
-            console.log(`[ResourceEvents] Stream connected event received for ${rUri}`);
-            return;
-          }
-
-          console.log(`[ResourceEvents] Received event for document ${rUri}:`, msg.event);
-
-          // Handle document events
-          try {
-            const event = JSON.parse(msg.data) as ResourceEvent;
-            handleEvent(event);
-          } catch (error) {
-            console.error('[ResourceEvents] Failed to parse event:', error, msg.data);
-          }
-        },
-
-        onerror(err) {
-          // If manually aborted, don't reconnect
-          if (abortController.signal.aborted) {
-            return;
-          }
-
-          setStatus('error');
-
-          // Don't retry on 404 - document doesn't exist
-          if (err instanceof Error && err.message.includes('404')) {
-            console.error(`[ResourceEvents] Document ${rUri} not found (404). Stopping reconnection attempts.`);
-            onError?.('Document not found');
-            throw err;
-          }
-
-          // Exponential backoff for reconnection
-          reconnectAttemptsRef.current++;
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
-
-          console.log(`[ResourceEvents] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            if (!abortController.signal.aborted) {
-              connect();
-            }
-          }, delay);
-
-          throw err; // Throw to stop automatic reconnection by fetchEventSource
-        },
-
-        openWhenHidden: true, // Keep connection open when tab is in background
+        }, delay);
       });
     } catch (error) {
-      if (!abortController.signal.aborted) {
-        // Don't log 404s - already handled in onerror
-        if (!(error instanceof Error && error.message.includes('404'))) {
-          console.error('[ResourceEvents] Failed to connect:', error);
-          setStatus('error');
-          onError?.('Failed to connect to event stream');
-        }
-      }
+      console.error('[ResourceEvents] Failed to connect:', error);
+      setStatus('error');
+      onError?.('Failed to connect to event stream');
     }
-  }, [rUri, handleEvent, onError, session]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rUri, handleEvent, onError, client]);
 
   const disconnect = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    if (streamRef.current) {
+      streamRef.current.close();
+      streamRef.current = null;
     }
 
     if (reconnectTimeoutRef.current) {
@@ -259,9 +213,9 @@ export function useResourceEvents({
     reconnectAttemptsRef.current = 0;
   }, []);
 
-  // Auto-connect on mount if enabled and authenticated
+  // Auto-connect on mount if enabled and client is available
   useEffect(() => {
-    if (autoConnect && sessionStatus === 'authenticated') {
+    if (autoConnect && client) {
       connect();
     }
 
@@ -270,7 +224,7 @@ export function useResourceEvents({
       disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoConnect, sessionStatus]); // Only reconnect when auth status or autoConnect changes, not when connect/disconnect change
+  }, [autoConnect, client]); // Only reconnect when client availability or autoConnect changes, not when connect/disconnect change
 
   return {
     status,

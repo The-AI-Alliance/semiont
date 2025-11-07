@@ -1,0 +1,173 @@
+/**
+ * TypeScript types for Server-Sent Events (SSE) streaming
+ *
+ * These types match the event payloads sent by backend SSE endpoints.
+ * They are not validated (per SSE-VALIDATION-CONSIDERATIONS.md) but provide
+ * type safety for client code consuming the streams.
+ */
+
+/**
+ * Progress event for entity detection stream
+ *
+ * Sent by POST /resources/:id/detect-annotations-stream
+ *
+ * @example
+ * ```typescript
+ * stream.onProgress((progress: DetectionProgress) => {
+ *   if (progress.status === 'scanning') {
+ *     console.log(`Scanning for ${progress.currentEntityType}...`);
+ *     console.log(`Progress: ${progress.processedEntityTypes}/${progress.totalEntityTypes}`);
+ *   }
+ * });
+ * ```
+ */
+export interface DetectionProgress {
+  /** Current status of detection operation */
+  status: 'started' | 'scanning' | 'complete' | 'error';
+  /** Resource ID being scanned */
+  resourceId: string;
+  /** Currently scanning for this entity type (only present during 'scanning') */
+  currentEntityType?: string;
+  /** Total number of entity types to scan */
+  totalEntityTypes: number;
+  /** Number of entity types processed so far */
+  processedEntityTypes: number;
+  /** Human-readable status message */
+  message?: string;
+  /** Total entities found (only present in 'complete') */
+  foundCount?: number;
+}
+
+/**
+ * Progress event for resource generation stream
+ *
+ * Sent by POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
+ *
+ * @example
+ * ```typescript
+ * stream.onProgress((progress: GenerationProgress) => {
+ *   console.log(`${progress.status}: ${progress.percentage}%`);
+ *   console.log(progress.message);
+ * });
+ * ```
+ */
+export interface GenerationProgress {
+  /** Current stage of generation operation */
+  status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
+  /** Annotation ID being used as source */
+  referenceId: string;
+  /** Name of resource being generated */
+  resourceName?: string;
+  /** ID of generated resource (only present in 'complete') */
+  resourceId?: string;
+  /** ID of source resource */
+  sourceResourceId?: string;
+  /** Percentage complete (0-100) */
+  percentage: number;
+  /** Human-readable status message */
+  message?: string;
+}
+
+/**
+ * Resource event from real-time event stream
+ *
+ * Sent by GET /resources/:id/events/stream
+ *
+ * This represents a single event from the event store, broadcast in real-time
+ * as it occurs. Used for real-time collaboration - multiple users see each
+ * other's changes as they happen.
+ *
+ * @example
+ * ```typescript
+ * stream.onEvent((event: ResourceEvent) => {
+ *   console.log(`Event: ${event.type}`);
+ *   console.log(`User: ${event.userId}`);
+ *   console.log(`Payload:`, event.payload);
+ *   console.log(`Sequence: ${event.metadata.sequenceNumber}`);
+ * });
+ * ```
+ */
+export interface ResourceEvent {
+  /** Event ID (unique) */
+  id: string;
+  /** Event type (e.g., 'resource.created', 'annotation.created', etc.) */
+  type: string;
+  /** ISO 8601 timestamp */
+  timestamp: string;
+  /** User ID who triggered the event */
+  userId: string;
+  /** Resource ID this event relates to */
+  resourceId: string;
+  /** Event-specific payload (varies by event type) */
+  payload: any;
+  /** Event store metadata */
+  metadata: {
+    /** Monotonically increasing sequence number */
+    sequenceNumber: number;
+    /** SHA-256 hash of previous event (for integrity) */
+    prevEventHash: string;
+    /** SHA-256 checksum of this event */
+    checksum: string;
+  };
+}
+
+/**
+ * SSE stream controller interface
+ *
+ * Returned by all SSE methods. Provides callback registration and cleanup.
+ *
+ * @typeParam TProgress - Type of progress events
+ * @typeParam TComplete - Type of completion event
+ *
+ * @example
+ * ```typescript
+ * const stream: SSEStream<DetectionProgress, DetectionProgress> =
+ *   client.sse.detectAnnotations(resourceId, { entityTypes: ['Person'] });
+ *
+ * stream.onProgress((p) => console.log(p.message));
+ * stream.onComplete((r) => console.log(`Done! Found ${r.foundCount} entities`));
+ * stream.onError((e) => console.error('Failed:', e.message));
+ *
+ * // Cleanup when done
+ * stream.close();
+ * ```
+ */
+export interface SSEStream<TProgress, TComplete> {
+  /**
+   * Register callback for progress events
+   *
+   * Called for each progress update (e.g., detection-started, detection-progress)
+   */
+  onProgress(callback: (progress: TProgress) => void): void;
+
+  /**
+   * Register callback for completion event
+   *
+   * Called once when operation completes successfully (e.g., detection-complete)
+   */
+  onComplete(callback: (result: TComplete) => void): void;
+
+  /**
+   * Register callback for error events
+   *
+   * Called if operation fails or stream encounters an error
+   */
+  onError(callback: (error: Error) => void): void;
+
+  /**
+   * Close the SSE stream and abort the connection
+   *
+   * Should be called to cleanup resources when stream is no longer needed.
+   * Safe to call multiple times.
+   *
+   * @example
+   * ```typescript
+   * // React cleanup
+   * useEffect(() => {
+   *   const stream = client.sse.detectAnnotations(...);
+   *   return () => stream.close();
+   * }, []);
+   * ```
+   */
+  close(): void;
+}

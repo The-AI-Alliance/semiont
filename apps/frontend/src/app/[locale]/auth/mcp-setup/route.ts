@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
+import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
 
 // Mark this route as dynamic to prevent static optimization during build
 export const dynamic = 'force-dynamic';
@@ -42,28 +43,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Call backend to generate refresh token
-    const backendUrl = NEXT_PUBLIC_API_URL;
-    const response = await fetch(`${backendUrl}/api/tokens/mcp-generate`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.backendToken}`,
-        'Content-Type': 'application/json'
-      }
+    // Create api-client with user's token
+    const client = new SemiontApiClient({
+      baseUrl: baseUrl(NEXT_PUBLIC_API_URL),
+      accessToken: accessToken(session.backendToken)
     });
 
-    if (!response.ok) {
-      console.error('Failed to generate refresh token:', response.status);
-      return NextResponse.json({ error: 'Failed to generate refresh token' }, { status: 500 });
-    }
-
-    const data = await response.json();
+    // Generate MCP refresh token using api-client
+    const data = await client.generateMCPToken();
     const refreshToken = data.refresh_token;
 
     // Redirect to CLI callback with token
     return NextResponse.redirect(`${callback}?token=${refreshToken}`);
   } catch (error) {
     console.error('MCP setup error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to generate refresh token' }, { status: 500 });
   }
 }

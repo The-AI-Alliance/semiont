@@ -7,7 +7,7 @@ import {
   ListResourcesRequestSchema,
   ListPromptsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
 
 /**
  * Semiont MCP Server
@@ -35,8 +35,8 @@ const SEMIONT_ACCESS_TOKEN = process.env.SEMIONT_ACCESS_TOKEN;
 
 // Create the Semiont API client
 const apiClient = new SemiontApiClient({
-  baseUrl: SEMIONT_API_URL,
-  accessToken: SEMIONT_ACCESS_TOKEN,
+  baseUrl: baseUrl(SEMIONT_API_URL),
+  accessToken: accessToken(SEMIONT_ACCESS_TOKEN),
 });
 
 // Create the MCP server

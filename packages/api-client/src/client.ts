@@ -11,7 +11,23 @@
 
 import ky, { type KyInstance } from 'ky';
 import type { paths } from './types';
-import type { AnnotationUri, ResourceUri, ResourceAnnotationUri } from './uri-types';
+import type { AnnotationUri, ResourceUri, ResourceAnnotationUri } from './branded-types';
+import type {
+  AccessToken,
+  AuthCode,
+  BaseUrl,
+  CloneToken,
+  ContentFormat,
+  Email,
+  EntityType,
+  GoogleCredential,
+  JobId,
+  Motivation,
+  RefreshToken,
+  SearchQuery,
+  UserDID
+} from './branded-types';
+import { SSEClient } from './sse';
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
@@ -36,8 +52,8 @@ export class APIError extends Error {
 }
 
 export interface SemiontApiClientConfig {
-  baseUrl: string;
-  accessToken?: string;
+  baseUrl: BaseUrl;
+  accessToken?: AccessToken;
   timeout?: number;
   retry?: number;
 }
@@ -49,15 +65,35 @@ export interface SemiontApiClientConfig {
  */
 export class SemiontApiClient {
   private http: KyInstance;
-  private baseUrl: string;
-  private accessToken: string | null = null;
+  private baseUrl: BaseUrl;
+  private accessToken: AccessToken | null = null;
+
+  /**
+   * SSE streaming client for real-time operations
+   *
+   * Separate from the main HTTP client to clearly mark streaming endpoints.
+   * Uses native fetch() instead of ky for SSE support.
+   *
+   * @example
+   * ```typescript
+   * const stream = client.sse.detectAnnotations(
+   *   resourceId,
+   *   { entityTypes: ['Person', 'Organization'] }
+   * );
+   *
+   * stream.onProgress((p) => console.log(p.message));
+   * stream.onComplete((r) => console.log(`Found ${r.foundCount} entities`));
+   * stream.close();
+   * ```
+   */
+  public readonly sse: SSEClient;
 
   constructor(config: SemiontApiClientConfig) {
     const { baseUrl, accessToken, timeout = 30000, retry = 2 } = config;
 
     // Store baseUrl for constructing full URLs
     // Remove trailing slash for consistent URL construction
-    this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    this.baseUrl = (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) as BaseUrl;
 
     // Don't use prefixUrl - we'll construct full URLs or use provided full URIs
     this.http = ky.create({
@@ -92,13 +128,20 @@ export class SemiontApiClient {
     if (accessToken) {
       this.accessToken = accessToken;
     }
+
+    // Initialize SSE client (uses native fetch, not ky)
+    this.sse = new SSEClient({
+      baseUrl: this.baseUrl,
+      accessToken: this.accessToken || undefined
+    });
   }
 
   /**
    * Set the access token for authenticated requests
    */
-  setAccessToken(token: string): void {
+  setAccessToken(token: AccessToken): void {
     this.accessToken = token;
+    this.sse.setAccessToken(token);
   }
 
   /**
@@ -106,13 +149,14 @@ export class SemiontApiClient {
    */
   clearAccessToken(): void {
     this.accessToken = null;
+    this.sse.clearAccessToken();
   }
 
   // ============================================================================
   // AUTHENTICATION
   // ============================================================================
 
-  async authenticateLocal(email: string, code: string): Promise<ResponseContent<paths['/api/tokens/local']['post']>> {
+  async authenticateLocal(email: Email, code: AuthCode): Promise<ResponseContent<paths['/api/tokens/local']['post']>> {
     const response = await this.http.post(`${this.baseUrl}/api/tokens/local`, { json: { email, code } }).json<any>();
     if (response.accessToken) {
       this.setAccessToken(response.accessToken);
@@ -120,15 +164,15 @@ export class SemiontApiClient {
     return response;
   }
 
-  async refreshToken(refreshToken: string): Promise<ResponseContent<paths['/api/tokens/refresh']['post']>> {
-    const response = await this.http.post(`${this.baseUrl}/api/tokens/refresh`, { json: { refreshToken } }).json<any>();
+  async refreshToken(token: RefreshToken): Promise<ResponseContent<paths['/api/tokens/refresh']['post']>> {
+    const response = await this.http.post(`${this.baseUrl}/api/tokens/refresh`, { json: { refreshToken: token } }).json<any>();
     if (response.accessToken) {
       this.setAccessToken(response.accessToken);
     }
     return response;
   }
 
-  async authenticateGoogle(credential: string): Promise<ResponseContent<paths['/api/tokens/google']['post']>> {
+  async authenticateGoogle(credential: GoogleCredential): Promise<ResponseContent<paths['/api/tokens/google']['post']>> {
     const response = await this.http.post(`${this.baseUrl}/api/tokens/google`, { json: { credential } }).json<any>();
     if (response.accessToken) {
       this.setAccessToken(response.accessToken);
@@ -190,7 +234,7 @@ export class SemiontApiClient {
    */
   async getResourceRepresentation(
     resourceUri: ResourceUri,
-    options?: { accept?: string }
+    options?: { accept?: ContentFormat }
   ): Promise<string> {
     // resourceUri is already a full URI, use it directly with Accept header
     return this.http.get(resourceUri, {
@@ -203,7 +247,7 @@ export class SemiontApiClient {
   async listResources(
     limit?: number,
     archived?: boolean,
-    query?: string
+    query?: SearchQuery
   ): Promise<ResponseContent<paths['/resources']['get']>> {
     const searchParams = new URLSearchParams();
     if (limit) searchParams.append('limit', limit.toString());
@@ -243,7 +287,7 @@ export class SemiontApiClient {
     return this.http.post(`${resourceUri}/clone-with-token`).json();
   }
 
-  async getResourceByToken(token: string): Promise<ResponseContent<paths['/api/resources/token/{token}']['get']>> {
+  async getResourceByToken(token: CloneToken): Promise<ResponseContent<paths['/api/resources/token/{token}']['get']>> {
     return this.http.get(`${this.baseUrl}/api/resources/token/${token}`).json();
   }
 
@@ -277,7 +321,7 @@ export class SemiontApiClient {
 
   async listAnnotations(
     resourceUri: ResourceUri,
-    motivation?: string
+    motivation?: Motivation
   ): Promise<ResponseContent<paths['/resources/{id}/annotations']['get']>> {
     const searchParams = new URLSearchParams();
     if (motivation) searchParams.append('motivation', motivation);
@@ -320,12 +364,12 @@ export class SemiontApiClient {
   // ENTITY TYPES
   // ============================================================================
 
-  async addEntityType(type: string): Promise<ResponseContent<paths['/api/entity-types']['post']>> {
+  async addEntityType(type: EntityType): Promise<ResponseContent<paths['/api/entity-types']['post']>> {
     return this.http.post(`${this.baseUrl}/api/entity-types`, { json: { type } }).json();
   }
 
-  async addEntityTypesBulk(tags: string[]): Promise<ResponseContent<paths['/api/entity-types/bulk']['post']>> {
-    return this.http.post(`${this.baseUrl}/api/entity-types/bulk`, { json: { tags } }).json();
+  async addEntityTypesBulk(types: EntityType[]): Promise<ResponseContent<paths['/api/entity-types/bulk']['post']>> {
+    return this.http.post(`${this.baseUrl}/api/entity-types/bulk`, { json: { tags: types } }).json();
   }
 
   async listEntityTypes(): Promise<ResponseContent<paths['/api/entity-types']['get']>> {
@@ -346,11 +390,10 @@ export class SemiontApiClient {
 
   /**
    * Update a user by ID
-   * Note: Users use DID identifiers (did:web:domain:users:id), not HTTP URIs,
-   * so this method takes a plain string ID rather than a branded URI type.
+   * Note: Users use DID identifiers (did:web:domain:users:id), not HTTP URIs.
    */
   async updateUser(
-    id: string,
+    id: UserDID,
     data: RequestContent<paths['/api/admin/users/{id}']['patch']>
   ): Promise<ResponseContent<paths['/api/admin/users/{id}']['patch']>> {
     return this.http.patch(`${this.baseUrl}/api/admin/users/${id}`, { json: data }).json();
@@ -366,7 +409,7 @@ export class SemiontApiClient {
 
   async detectEntities(
     resourceUri: ResourceUri,
-    entityTypes?: string[]
+    entityTypes?: EntityType[]
   ): Promise<ResponseContent<paths['/resources/{id}/detect-entities']['post']>> {
     // resourceUri is already a full URI, use it directly
     return this.http.post(`${resourceUri}/detect-entities`, {
@@ -374,18 +417,18 @@ export class SemiontApiClient {
     }).json();
   }
 
-  async getJobStatus(jobId: string): Promise<ResponseContent<paths['/api/jobs/{id}']['get']>> {
-    return this.http.get(`${this.baseUrl}/api/jobs/${jobId}`).json();
+  async getJobStatus(id: JobId): Promise<ResponseContent<paths['/api/jobs/{id}']['get']>> {
+    return this.http.get(`${this.baseUrl}/api/jobs/${id}`).json();
   }
 
   /**
    * Poll a job until it completes or fails
-   * @param jobId - The job ID to poll
+   * @param id - The job ID to poll
    * @param options - Polling options
    * @returns The final job status
    */
   async pollJobUntilComplete(
-    jobId: string,
+    id: JobId,
     options?: {
       interval?: number; // Milliseconds between polls (default: 1000)
       timeout?: number;  // Total timeout in milliseconds (default: 60000)
@@ -397,7 +440,7 @@ export class SemiontApiClient {
     const startTime = Date.now();
 
     while (true) {
-      const status = await this.getJobStatus(jobId);
+      const status = await this.getJobStatus(id);
 
       // Call progress callback if provided
       if (options?.onProgress) {

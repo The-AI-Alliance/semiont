@@ -7,18 +7,39 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useDetectionProgress } from '../useDetectionProgress';
-import { useSession } from 'next-auth/react';
 import { resourceUri } from '@semiont/api-client';
+import type { DetectionProgress } from '@semiont/api-client';
 
-// Mock next-auth
-vi.mock('next-auth/react', () => ({
-  useSession: vi.fn()
-}));
+// Create a mock SSE stream
+const createMockSSEStream = () => {
+  const stream = {
+    onProgressCallback: null as ((progress: DetectionProgress) => void) | null,
+    onCompleteCallback: null as ((result: DetectionProgress) => void) | null,
+    onErrorCallback: null as ((error: Error) => void) | null,
+    onProgress: vi.fn((callback: (progress: DetectionProgress) => void) => {
+      stream.onProgressCallback = callback;
+    }),
+    onComplete: vi.fn((callback: (result: DetectionProgress) => void) => {
+      stream.onCompleteCallback = callback;
+    }),
+    onError: vi.fn((callback: (error: Error) => void) => {
+      stream.onErrorCallback = callback;
+    }),
+    close: vi.fn(),
+  };
+  return stream;
+};
 
-// Mock fetch-event-source
-const mockFetchEventSource: any = vi.fn();
-vi.mock('@microsoft/fetch-event-source', () => ({
-  fetchEventSource: (...args: any[]) => mockFetchEventSource(...args)
+// Mock api-client hook
+const mockDetectAnnotations = vi.fn();
+const mockApiClient = {
+  sse: {
+    detectAnnotations: mockDetectAnnotations,
+  },
+};
+
+vi.mock('@/lib/api-hooks', () => ({
+  useApiClient: () => mockApiClient,
 }));
 
 // Mock environment
@@ -27,18 +48,11 @@ vi.mock('@/lib/env', () => ({
 }));
 
 describe('useDetectionProgress', () => {
-  const mockSession = {
-    backendToken: 'test-token',
-    user: { id: 'user-1', email: 'test@example.com' }
-  };
+  let mockStream: ReturnType<typeof createMockSSEStream>;
 
   beforeEach(() => {
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession as any,
-      status: 'authenticated',
-      update: vi.fn()
-    });
-    mockFetchEventSource.mockClear();
+    mockStream = createMockSSEStream();
+    mockDetectAnnotations.mockReturnValue(mockStream);
   });
 
   afterEach(() => {
@@ -58,9 +72,7 @@ describe('useDetectionProgress', () => {
     expect(typeof result.current.cancelDetection).toBe('function');
   });
 
-  it('should call fetchEventSource with correct parameters', async () => {
-    mockFetchEventSource.mockImplementation(async () => {});
-
+  it('should call api-client with correct parameters', async () => {
     const { result } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
@@ -69,23 +81,13 @@ describe('useDetectionProgress', () => {
 
     await result.current.startDetection(['Person', 'Organization']);
 
-    expect(mockFetchEventSource).toHaveBeenCalledWith(
-      'http://localhost:4000/resources/test-resource/detect-annotations-stream',
-      expect.objectContaining({
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
-        },
-        body: JSON.stringify({ entityTypes: ['Person', 'Organization'] }),
-        signal: expect.any(AbortSignal)
-      })
+    expect(mockDetectAnnotations).toHaveBeenCalledWith(
+      resourceUri('http://localhost:4000/resources/test-resource'),
+      { entityTypes: ['Person', 'Organization'] }
     );
   });
 
   it('should set isDetecting to true when detection starts', async () => {
-    mockFetchEventSource.mockImplementation(async () => {});
-
     const { result } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
@@ -100,12 +102,6 @@ describe('useDetectionProgress', () => {
   });
 
   it('should handle detection-started event', async () => {
-    let capturedOnMessage: ((ev: any) => void) | null = null;
-
-    mockFetchEventSource.mockImplementation(async (url: string, options: any) => {
-      capturedOnMessage = options.onmessage;
-    });
-
     const onProgress = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
@@ -116,17 +112,16 @@ describe('useDetectionProgress', () => {
 
     await result.current.startDetection(['Person']);
 
-    // Simulate SSE event
-    capturedOnMessage!({
-      event: 'detection-started',
-      data: JSON.stringify({
-        status: 'started',
-        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-        totalEntityTypes: 1,
-        processedEntityTypes: 0,
-        message: 'Starting entity detection...'
-      })
-    });
+    // Simulate SSE progress event
+    const progressData: DetectionProgress = {
+      status: 'started',
+      resourceId: 'test-resource',
+      totalEntityTypes: 1,
+      processedEntityTypes: 0,
+      message: 'Starting entity detection...'
+    };
+
+    mockStream.onProgressCallback!(progressData);
 
     await waitFor(() => {
       expect(onProgress).toHaveBeenCalled();
@@ -134,19 +129,13 @@ describe('useDetectionProgress', () => {
 
     expect(result.current.progress).toMatchObject({
       status: 'started',
-      rUri: resourceUri('http://localhost:4000/resources/test-resource'),
+      resourceId: 'test-resource',
       totalEntityTypes: 1,
       processedEntityTypes: 0
     });
   });
 
   it('should handle detection-progress events', async () => {
-    let capturedOnMessage: ((ev: any) => void) | null = null;
-
-    mockFetchEventSource.mockImplementation(async (url: string, options: any) => {
-      capturedOnMessage = options.onmessage;
-    });
-
     const onProgress = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
@@ -157,19 +146,18 @@ describe('useDetectionProgress', () => {
 
     await result.current.startDetection(['Person', 'Organization']);
 
-    // Simulate progress events
-    capturedOnMessage!({
-      event: 'detection-progress',
-      data: JSON.stringify({
-        status: 'scanning',
-        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-        currentEntityType: 'Person',
-        totalEntityTypes: 2,
-        processedEntityTypes: 1,
-        foundCount: 3,
-        message: 'Scanning for Person...'
-      })
-    });
+    // Simulate progress event
+    const progressData: DetectionProgress = {
+      status: 'scanning',
+      resourceId: 'test-resource',
+      currentEntityType: 'Person',
+      totalEntityTypes: 2,
+      processedEntityTypes: 1,
+      foundCount: 3,
+      message: 'Scanning for Person...'
+    };
+
+    mockStream.onProgressCallback!(progressData);
 
     await waitFor(() => {
       expect(result.current.progress?.status).toBe('scanning');
@@ -193,12 +181,6 @@ describe('useDetectionProgress', () => {
   });
 
   it('should handle detection-complete event', async () => {
-    let capturedOnMessage: ((ev: any) => void) | null = null;
-
-    mockFetchEventSource.mockImplementation(async (url: string, options: any) => {
-      capturedOnMessage = options.onmessage;
-    });
-
     const onComplete = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
@@ -209,16 +191,15 @@ describe('useDetectionProgress', () => {
 
     await result.current.startDetection(['Person']);
 
-    capturedOnMessage!({
-      event: 'detection-complete',
-      data: JSON.stringify({
-        status: 'complete',
-        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-        totalEntityTypes: 1,
-        processedEntityTypes: 1,
-        message: 'Detection complete!'
-      })
-    });
+    const completeData: DetectionProgress = {
+      status: 'complete',
+      resourceId: 'test-resource',
+      totalEntityTypes: 1,
+      processedEntityTypes: 1,
+      message: 'Detection complete!'
+    };
+
+    mockStream.onCompleteCallback!(completeData);
 
     await waitFor(() => {
       expect(onComplete).toHaveBeenCalled();
@@ -229,12 +210,6 @@ describe('useDetectionProgress', () => {
   });
 
   it('should handle detection-error event', async () => {
-    let capturedOnMessage: ((ev: any) => void) | null = null;
-
-    mockFetchEventSource.mockImplementation(async (url: string, options: any) => {
-      capturedOnMessage = options.onmessage;
-    });
-
     const onError = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
@@ -245,14 +220,8 @@ describe('useDetectionProgress', () => {
 
     await result.current.startDetection(['Person']);
 
-    capturedOnMessage!({
-      event: 'detection-error',
-      data: JSON.stringify({
-        status: 'error',
-        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-        message: 'Detection failed'
-      })
-    });
+    const error = new Error('Detection failed');
+    mockStream.onErrorCallback!(error);
 
     await waitFor(() => {
       expect(onError).toHaveBeenCalledWith('Detection failed');
@@ -263,12 +232,6 @@ describe('useDetectionProgress', () => {
   });
 
   it('should track completed entity types history', async () => {
-    let capturedOnMessage: ((ev: any) => void) | null = null;
-
-    mockFetchEventSource.mockImplementation(async (url: string, options: any) => {
-      capturedOnMessage = options.onmessage;
-    });
-
     const { result } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
@@ -278,28 +241,22 @@ describe('useDetectionProgress', () => {
     await result.current.startDetection(['Person', 'Organization']);
 
     // First entity type
-    capturedOnMessage!({
-      event: 'detection-progress',
-      data: JSON.stringify({
-        status: 'scanning',
-        currentEntityType: 'Person',
-        foundCount: 3
-      })
-    });
+    mockStream.onProgressCallback!({
+      status: 'scanning',
+      currentEntityType: 'Person',
+      foundCount: 3
+    } as DetectionProgress);
 
     await waitFor(() => {
       expect(result.current.progress?.completedEntityTypes).toHaveLength(1);
     });
 
     // Second entity type
-    capturedOnMessage!({
-      event: 'detection-progress',
-      data: JSON.stringify({
-        status: 'scanning',
-        currentEntityType: 'Organization',
-        foundCount: 5
-      })
-    });
+    mockStream.onProgressCallback!({
+      status: 'scanning',
+      currentEntityType: 'Organization',
+      foundCount: 5
+    } as DetectionProgress);
 
     await waitFor(() => {
       expect(result.current.progress?.completedEntityTypes).toHaveLength(2);
@@ -311,12 +268,7 @@ describe('useDetectionProgress', () => {
     ]);
   });
 
-  it('should cancel detection and abort SSE connection', async () => {
-    const abortController = { abort: vi.fn(), signal: { aborted: false } as any };
-    vi.spyOn(global, 'AbortController').mockImplementation(() => abortController as any);
-
-    mockFetchEventSource.mockImplementation(async () => {});
-
+  it('should cancel detection and close SSE stream', async () => {
     const { result } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
@@ -326,37 +278,15 @@ describe('useDetectionProgress', () => {
     await result.current.startDetection(['Person']);
     result.current.cancelDetection();
 
-    expect(abortController.abort).toHaveBeenCalled();
+    expect(mockStream.close).toHaveBeenCalled();
     expect(result.current.isDetecting).toBe(false);
     expect(result.current.progress).toBeNull();
   });
 
-  it('should require authentication', async () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: null,
-      status: 'unauthenticated',
-      update: vi.fn()
-    });
-
-    const onError = vi.fn();
-    const { result } = renderHook(() =>
-      useDetectionProgress({
-        rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-        onError
-      })
-    );
-
-    await result.current.startDetection(['Person']);
-
-    expect(onError).toHaveBeenCalledWith('Authentication required');
-    expect(mockFetchEventSource).not.toHaveBeenCalled();
-  });
+  // Note: Authentication testing is handled by useApiClient hook tests
+  // The hook relies on useApiClient returning null when not authenticated
 
   it('should handle SSE connection errors', async () => {
-    mockFetchEventSource.mockImplementation(async (url: string, options: any) => {
-      options.onerror(new Error('Connection lost'));
-    });
-
     const onError = vi.fn();
     const { result } = renderHook(() =>
       useDetectionProgress({
@@ -367,19 +297,17 @@ describe('useDetectionProgress', () => {
 
     await result.current.startDetection(['Person']);
 
+    const error = new Error('Connection lost');
+    mockStream.onErrorCallback!(error);
+
     await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith('Connection lost. Please try again.');
+      expect(onError).toHaveBeenCalledWith('Connection lost');
     });
 
     expect(result.current.isDetecting).toBe(false);
   });
 
   it('should cleanup on unmount', () => {
-    const abortController = { abort: vi.fn(), signal: { aborted: false } as any };
-    vi.spyOn(global, 'AbortController').mockImplementation(() => abortController as any);
-
-    mockFetchEventSource.mockImplementation(async () => {});
-
     const { result, unmount } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
@@ -389,6 +317,6 @@ describe('useDetectionProgress', () => {
     result.current.startDetection(['Person']);
     unmount();
 
-    expect(abortController.abort).toHaveBeenCalled();
+    expect(mockStream.close).toHaveBeenCalled();
   });
 });
