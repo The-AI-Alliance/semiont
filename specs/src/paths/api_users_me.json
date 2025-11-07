@@ -1,0 +1,36 @@
+{
+  "get": {
+    "summary": "Get Current User",
+    "description": "Get information about the authenticated user",
+    "tags": [
+      "Users"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "User information",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/UserResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

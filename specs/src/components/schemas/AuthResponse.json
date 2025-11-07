@@ -1,0 +1,57 @@
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "user": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "domain": {
+          "type": "string"
+        },
+        "isAdmin": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "name",
+        "image",
+        "domain",
+        "isAdmin"
+      ]
+    },
+    "token": {
+      "type": "string"
+    },
+    "isNewUser": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "success",
+    "user",
+    "token",
+    "isNewUser"
+  ]
+}

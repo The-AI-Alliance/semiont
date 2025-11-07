@@ -1,0 +1,252 @@
+{
+  "type": "object",
+  "description": "Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.",
+  "required": [
+    "@context",
+    "@id",
+    "name",
+    "representations"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "@context": {
+      "description": "JSON-LD context; URI, object, or array of these.",
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "uri"
+        },
+        {
+          "type": "object",
+          "additionalProperties": true
+        },
+        {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "@id": {
+      "type": "string",
+      "format": "uri",
+      "description": "Canonical URI/URN of the resource being described."
+    },
+    "@type": {
+      "description": "Type(s) of the resource (IRIs/CURIEs via @context).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "identifier": {
+      "description": "Persistent identifiers (e.g., DOI, URN).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        {
+          "type": "object",
+          "properties": {
+            "@id": {
+              "type": "string",
+              "format": "uri"
+            },
+            "value": {
+              "type": "string"
+            },
+            "scheme": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "about": {
+      "description": "Topics (IRIs or strings).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      ]
+    },
+    "sameAs": {
+      "description": "Equivalent/authoritative references.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "isPartOf": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "hasPart": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "license": {
+      "type": "string",
+      "format": "uri"
+    },
+    "version": {
+      "type": "string"
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "wasDerivedFrom": {
+      "description": "W3C PROV - source resources this was derived from",
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "uri"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      ]
+    },
+    "wasAttributedTo": {
+      "description": "W3C PROV - agents responsible for this resource",
+      "oneOf": [
+        {
+          "$ref": "./Agent.json"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./Agent.json"
+          }
+        }
+      ]
+    },
+    "conformsTo": {
+      "description": "Profile/shape URI this resource description conforms to.",
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "uri"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      ]
+    },
+    "availableFormats": {
+      "description": "Convenience set summarizing media types across representations.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "representations": {
+      "description": "Managed or referenced byte-level renditions of this resource.",
+      "oneOf": [
+        {
+          "$ref": "./Representation.json"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./Representation.json"
+          }
+        }
+      ]
+    },
+    "archived": {
+      "type": "boolean",
+      "description": "Application-specific: Whether this resource is archived"
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Application-specific: Entity types for this resource"
+    },
+    "isDraft": {
+      "type": "boolean",
+      "description": "Application-specific: Whether this resource is a draft"
+    },
+    "creationMethod": {
+      "type": "string",
+      "enum": [
+        "api",
+        "upload",
+        "ui",
+        "reference",
+        "clone",
+        "generated"
+      ],
+      "description": "Application-specific: How this resource was created"
+    },
+    "sourceAnnotationId": {
+      "type": "string",
+      "description": "Application-specific: ID of annotation that triggered generation"
+    },
+    "sourceResourceId": {
+      "type": "string",
+      "description": "Application-specific: ID of source resource for clones/derivatives"
+    }
+  }
+}

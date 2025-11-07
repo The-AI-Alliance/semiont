@@ -1,0 +1,81 @@
+{
+  "type": "object",
+  "properties": {
+    "annotation": {
+      "$ref": "./Annotation.json"
+    },
+    "sourceResource": {
+      "$ref": "./ResourceDescriptor.json"
+    },
+    "targetResource": {
+      "anyOf": [
+        {
+          "$ref": "./ResourceDescriptor.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceContext": {
+      "type": "object",
+      "properties": {
+        "before": {
+          "type": "string"
+        },
+        "selected": {
+          "type": "string"
+        },
+        "after": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "before",
+        "selected",
+        "after"
+      ]
+    },
+    "targetContext": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ]
+    },
+    "suggestedResolution": {
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "type": "string"
+        },
+        "resourceName": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "reasoning": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "resourceId",
+        "resourceName",
+        "confidence",
+        "reasoning"
+      ]
+    }
+  },
+  "required": [
+    "annotation",
+    "sourceResource"
+  ]
+}

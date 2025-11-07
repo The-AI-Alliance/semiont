@@ -1,0 +1,76 @@
+{
+  "get": {
+    "summary": "Get Resource Event History",
+    "description": "Get full event history for a resource with optional filtering",
+    "tags": [
+      "Resources",
+      "Events"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path"
+      },
+      {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "resource.created",
+            "resource.cloned",
+            "resource.archived",
+            "resource.unarchived",
+            "annotation.added",
+            "annotation.removed",
+            "annotation.body.updated",
+            "entitytag.added",
+            "entitytag.removed",
+            "entitytype.added"
+          ]
+        },
+        "required": false,
+        "name": "type",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": false,
+        "name": "userId",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 100
+        },
+        "required": false,
+        "name": "limit",
+        "in": "query"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Events retrieved successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GetEventsResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

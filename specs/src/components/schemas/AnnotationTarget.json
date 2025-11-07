@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "string",
+      "description": "IRI of the resource being annotated"
+    },
+    "selector": {
+      "anyOf": [
+        {
+          "$ref": "./TextPositionSelector.json"
+        },
+        {
+          "$ref": "./TextQuoteSelector.json"
+        },
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "./TextPositionSelector.json"
+              },
+              {
+                "$ref": "./TextQuoteSelector.json"
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Optional selector to identify a specific segment of the source resource"
+    }
+  },
+  "required": [
+    "source"
+  ],
+  "description": "W3C Web Annotation target object - source is required, selector is optional"
+}

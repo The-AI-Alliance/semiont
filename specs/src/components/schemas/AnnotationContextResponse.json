@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "annotation": {
+      "$ref": "./Annotation.json"
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "before": {
+          "type": "string"
+        },
+        "selected": {
+          "type": "string"
+        },
+        "after": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "selected"
+      ]
+    },
+    "resource": {
+      "$ref": "./ResourceDescriptor.json"
+    }
+  },
+  "required": [
+    "annotation",
+    "context",
+    "resource"
+  ]
+}

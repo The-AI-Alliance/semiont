@@ -1,0 +1,73 @@
+{
+  "type": "object",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "string"
+              },
+              "userId": {
+                "type": "string"
+              },
+              "resourceId": {
+                "type": "string"
+              },
+              "payload": {}
+            },
+            "required": [
+              "id",
+              "type",
+              "timestamp",
+              "userId",
+              "resourceId"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "sequenceNumber": {
+                "type": "number"
+              },
+              "prevEventHash": {
+                "type": "string"
+              },
+              "checksum": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sequenceNumber"
+            ]
+          }
+        },
+        "required": [
+          "event",
+          "metadata"
+        ]
+      }
+    },
+    "total": {
+      "type": "number"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "events",
+    "total",
+    "resourceId"
+  ]
+}

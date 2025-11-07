@@ -1,0 +1,111 @@
+{
+  "type": "object",
+  "properties": {
+    "motivation": {
+      "$ref": "./Motivation.json"
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "selector": {
+          "anyOf": [
+            {
+              "$ref": "./TextPositionSelector.json"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "TextQuoteSelector"
+                  ]
+                },
+                "exact": {
+                  "type": "string"
+                },
+                "prefix": {
+                  "type": "string"
+                },
+                "suffix": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "exact"
+              ]
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "./TextPositionSelector.json"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "TextQuoteSelector"
+                        ]
+                      },
+                      "exact": {
+                        "type": "string"
+                      },
+                      "prefix": {
+                        "type": "string"
+                      },
+                      "suffix": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "exact"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "selector"
+      ]
+    },
+    "body": {
+      "oneOf": [
+        {
+          "type": "array",
+          "maxItems": 0,
+          "description": "Empty array (Phase 1 stub pattern - will be migrated to contain entity tag bodies in Phase 2)"
+        },
+        {
+          "$ref": "./AnnotationBody.json",
+          "description": "Single body (TextualBody or SpecificResource)"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./AnnotationBody.json"
+          },
+          "minItems": 1,
+          "description": "Array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
+        }
+      ]
+    }
+  },
+  "required": [
+    "target",
+    "body",
+    "motivation"
+  ]
+}

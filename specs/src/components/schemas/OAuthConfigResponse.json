@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "properties": {
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "isConfigured": {
+            "type": "boolean"
+          },
+          "clientId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "isConfigured",
+          "clientId"
+        ]
+      }
+    },
+    "allowedDomains": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "providers",
+    "allowedDomains"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "post": {
+    "summary": "Generate Resource from Annotation",
+    "description": "Synchronously generate a new resource from an annotation using AI. Returns the created resource and updated annotation immediately.",
+    "tags": [
+      "Resources",
+      "Annotations",
+      "AI"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "resourceId",
+        "in": "path",
+        "description": "Resource ID"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "annotationId",
+        "in": "path",
+        "description": "Annotation ID"
+      }
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/GenerateResourceFromAnnotationRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "201": {
+        "description": "Resource generated and annotation linked successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GenerateResourceFromAnnotationResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required"
+      },
+      "404": {
+        "description": "Annotation not found"
+      }
+    }
+  }
+}

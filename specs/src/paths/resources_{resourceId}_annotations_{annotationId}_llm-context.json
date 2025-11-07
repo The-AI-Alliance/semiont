@@ -1,0 +1,106 @@
+{
+  "get": {
+    "summary": "Get Annotation LLM Context",
+    "description": "Get annotation with full context for LLM processing",
+    "tags": [
+      "Resources",
+      "AI"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "resourceId",
+        "in": "path"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "annotationId",
+        "in": "path"
+      },
+      {
+        "schema": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "false"
+              ]
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "default": true
+        },
+        "required": false,
+        "name": "includeSourceContext",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "false"
+              ]
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "default": true
+        },
+        "required": false,
+        "name": "includeTargetContext",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 5000,
+          "default": 1000
+        },
+        "required": false,
+        "name": "contextWindow",
+        "in": "query"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Annotation LLM context",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/AnnotationLLMContextResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

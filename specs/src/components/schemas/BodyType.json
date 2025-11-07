@@ -1,0 +1,8 @@
+{
+  "type": "string",
+  "enum": [
+    "TextualBody",
+    "SpecificResource"
+  ],
+  "description": "Annotation body type - TextualBody for textual content, SpecificResource for resource links"
+}

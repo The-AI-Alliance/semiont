@@ -1,0 +1,37 @@
+{
+  "get": {
+    "summary": "Get Referenced By",
+    "description": "Get resources that reference this resource",
+    "tags": [
+      "Resources",
+      "Graph"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Resources that reference this resource",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GetReferencedByResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

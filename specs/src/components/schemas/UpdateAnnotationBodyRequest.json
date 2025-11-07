@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "description": "Resource ID containing the annotation (required for O(1) Layer 3 lookup)"
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "./BodyOperationAdd.json"
+          },
+          {
+            "$ref": "./BodyOperationRemove.json"
+          },
+          {
+            "$ref": "./BodyOperationReplace.json"
+          }
+        ]
+      },
+      "minItems": 1,
+      "description": "Array of body modification operations to apply"
+    }
+  },
+  "required": [
+    "resourceId",
+    "operations"
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "get": {
+    "summary": "Get Resource Annotations",
+    "description": "Get all annotations (both highlights and references) in a resource",
+    "tags": [
+      "Resources",
+      "Annotations"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Resource annotations",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CreateResourceResponse.json"
+            }
+          }
+        }
+      }
+    }
+  },
+  "post": {
+    "summary": "Create Annotation",
+    "description": "Create a new annotation/reference in a resource",
+    "tags": [
+      "Resources",
+      "Annotations"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path",
+        "description": "Resource ID"
+      }
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/CreateAnnotationRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "201": {
+        "description": "Annotation created successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CreateAnnotationResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

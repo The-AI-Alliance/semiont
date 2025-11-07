@@ -1,0 +1,91 @@
+{
+  "get": {
+    "summary": "Get Annotation",
+    "description": "Get a specific annotation from a resource using nested path",
+    "tags": [
+      "Resources",
+      "Annotations"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "resourceId",
+        "in": "path",
+        "description": "Resource ID"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "annotationId",
+        "in": "path",
+        "description": "Annotation ID"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Annotation retrieved successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GetAnnotationResponse.json"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Annotation not found"
+      }
+    }
+  },
+  "delete": {
+    "summary": "Delete Annotation",
+    "description": "Delete an annotation from a resource",
+    "tags": [
+      "Resources",
+      "Annotations"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "resourceId",
+        "in": "path",
+        "description": "Resource ID"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "annotationId",
+        "in": "path",
+        "description": "Annotation ID"
+      }
+    ],
+    "responses": {
+      "204": {
+        "description": "Annotation deleted successfully"
+      },
+      "404": {
+        "description": "Annotation not found"
+      }
+    }
+  }
+}

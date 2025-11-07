@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "op": {
+      "type": "string",
+      "const": "add"
+    },
+    "item": {
+      "oneOf": [
+        {
+          "$ref": "./TextualBody.json"
+        },
+        {
+          "$ref": "./SpecificResource.json"
+        }
+      ]
+    }
+  },
+  "required": [
+    "op",
+    "item"
+  ]
+}

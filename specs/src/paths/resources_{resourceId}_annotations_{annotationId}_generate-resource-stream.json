@@ -1,0 +1,64 @@
+{
+  "post": {
+    "summary": "Generate Resource (SSE Stream)",
+    "description": "Stream real-time resource generation progress via Server-Sent Events",
+    "tags": [
+      "Resources",
+      "Annotations",
+      "Real-time",
+      "AI"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "resourceId",
+        "in": "path",
+        "description": "Resource ID"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "annotationId",
+        "in": "path",
+        "description": "Annotation ID"
+      }
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/GenerateResourceStreamRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "SSE stream opened successfully",
+        "content": {
+          "text/event-stream": {
+            "schema": {
+              "$ref": "../components/schemas/EventStreamResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required"
+      },
+      "404": {
+        "description": "Annotation not found"
+      }
+    }
+  }
+}

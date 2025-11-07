@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Optional name for the generated resource"
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Entity types for the generated resource"
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Optional AI prompt for generation"
+    },
+    "language": {
+      "type": "string",
+      "description": "Language code (e.g., 'en', 'es')"
+    }
+  }
+}

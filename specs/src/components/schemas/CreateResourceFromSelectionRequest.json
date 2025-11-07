@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "description": "ID of the resource containing the annotation"
+    },
+    "content": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "format": {
+      "$ref": "./ContentFormat.json"
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "resourceId",
+    "content",
+    "name",
+    "format"
+  ]
+}

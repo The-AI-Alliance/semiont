@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "annotation": {
+      "$ref": "./Annotation.json"
+    },
+    "targetResource": {
+      "anyOf": [
+        {
+          "$ref": "./ResourceDescriptor.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "annotation"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "get": {
+    "summary": "Get Resource by Clone Token",
+    "description": "Retrieve a resource using a clone token",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "token",
+        "in": "path"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Resource retrieved successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GetResourceByTokenResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}
