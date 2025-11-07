@@ -142,6 +142,13 @@ See [API Reference](./docs/API-Reference.md#utilities) for complete utility docu
 npm run generate
 ```
 
+This command:
+1. Bundles the OpenAPI spec from [../../specs/src/](../../specs/src/) → `../../specs/openapi.json`
+2. Copies the bundled spec to this package
+3. Generates TypeScript types using `openapi-typescript`
+
+**Note**: The OpenAPI specification is maintained as modular files in [../../specs/src/](../../specs/src/). See [../../specs/README.md](../../specs/README.md) for details on editing the spec.
+
 ### Build
 
 ```bash
