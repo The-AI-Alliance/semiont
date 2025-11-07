@@ -1,0 +1,84 @@
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "totalUsers": {
+          "type": "number"
+        },
+        "activeUsers": {
+          "type": "number"
+        },
+        "adminUsers": {
+          "type": "number"
+        },
+        "regularUsers": {
+          "type": "number"
+        },
+        "domainBreakdown": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "domain": {
+                "type": "string"
+              },
+              "count": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "domain",
+              "count"
+            ]
+          }
+        },
+        "recentSignups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "created": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "name",
+              "created"
+            ]
+          }
+        }
+      },
+      "required": [
+        "totalUsers",
+        "activeUsers",
+        "adminUsers",
+        "regularUsers",
+        "domainBreakdown",
+        "recentSignups"
+      ]
+    }
+  },
+  "required": [
+    "success",
+    "stats"
+  ]
+}

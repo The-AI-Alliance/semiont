@@ -1,0 +1,79 @@
+{
+  "type": "object",
+  "properties": {
+    "@context": {
+      "type": "string",
+      "const": "http://www.w3.org/ns/anno.jsonld",
+      "default": "http://www.w3.org/ns/anno.jsonld",
+      "description": "W3C Web Annotation JSON-LD context"
+    },
+    "type": {
+      "type": "string",
+      "const": "Annotation",
+      "default": "Annotation",
+      "description": "W3C Annotation type"
+    },
+    "id": {
+      "type": "string"
+    },
+    "motivation": {
+      "$ref": "./Motivation.json"
+    },
+    "target": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "IRI of the entire resource being annotated"
+        },
+        {
+          "$ref": "./AnnotationTarget.json"
+        }
+      ],
+      "description": "W3C Web Annotation target - can be a simple IRI string (entire resource) or an object with source and optional selector (fragment)"
+    },
+    "body": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./AnnotationBody.json"
+          },
+          "maxItems": 0,
+          "description": "Empty array for stub references (Phase 1 pattern)"
+        },
+        {
+          "$ref": "./AnnotationBody.json",
+          "description": "Single body (TextualBody or SpecificResource)"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./AnnotationBody.json"
+          },
+          "description": "Array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
+        }
+      ],
+      "description": "W3C Web Annotation body - can be empty array, single body, or array of bodies"
+    },
+    "creator": {
+      "$ref": "./Agent.json"
+    },
+    "created": {
+      "type": "string"
+    },
+    "modified": {
+      "type": "string"
+    },
+    "generator": {
+      "$ref": "./Agent.json"
+    }
+  },
+  "required": [
+    "@context",
+    "type",
+    "id",
+    "motivation",
+    "target",
+    "body"
+  ]
+}

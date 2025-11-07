@@ -16,7 +16,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 - **[W3C Web Annotation Implementation](../../specs/docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, projections, graph database)
 - **[API Client Package](../../packages/api-client/)** - Type-safe TypeScript client for consuming the backend API
 - **[Core Package](../../packages/core/)** - Shared types, utilities, and business logic
-- **[OpenAPI Specification](../../specs/openapi.json)** - Hand-written OpenAPI 3.0 schema (spec-first)
+- **[OpenAPI Specification](../../specs/README.md)** - Hand-written OpenAPI 3.0 schema (spec-first, source in [../../specs/src/](../../specs/src/))
 
 ## Quick Start
 
@@ -181,7 +181,7 @@ apps/backend/
 │   └── schema.prisma         # Database schema
 └── README.md                 # This file
 
-Note: OpenAPI specification is maintained at `../../specs/openapi.json` (project root)
+Note: OpenAPI specification source is maintained at `../../specs/src/` (project root)
 ```
 
 ## Core Design Principles
@@ -224,8 +224,8 @@ Features:
 - 📊 Schema visualization
 
 ### OpenAPI Specification
-- **Endpoint**: `/api/openapi.json` - Raw OpenAPI 3.0 spec
-- **File**: [../../specs/openapi.json](../../specs/openapi.json)
+- **Endpoint**: `/api/openapi.json` - Raw OpenAPI 3.0 spec (generated bundle)
+- **Source**: [../../specs/src/](../../specs/src/) - Hand-written specification files
 - **Spec-first approach** - Hand-written specification, backend validates against it
 - **Type generation** - Frontend types generated from spec via `openapi-typescript`
 - **Validation** - Backend uses Ajv to validate requests against schemas

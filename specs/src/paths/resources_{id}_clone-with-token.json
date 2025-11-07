@@ -1,0 +1,36 @@
+{
+  "post": {
+    "summary": "Clone Resource with Token",
+    "description": "Generate a temporary token for cloning a resource",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Clone token generated successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CloneResourceWithTokenResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

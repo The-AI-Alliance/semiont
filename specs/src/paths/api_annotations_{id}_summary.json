@@ -1,0 +1,56 @@
+{
+  "get": {
+    "summary": "Get Annotation Summary",
+    "description": "Get an AI-generated summary of the annotation in context",
+    "tags": [
+      "Annotations",
+      "AI"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Annotation ID"
+      },
+      {
+        "name": "resourceId",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Resource ID containing the annotation"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "AI-generated annotation summary",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ContextualSummaryResponse.json"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "Missing resourceId parameter"
+      },
+      "401": {
+        "description": "Authentication required"
+      },
+      "404": {
+        "description": "Annotation not found"
+      }
+    }
+  }
+}

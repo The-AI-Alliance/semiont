@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "properties": {
+    "annotations": {
+      "type": "array",
+      "items": {
+        "$ref": "./Annotation.json"
+      }
+    },
+    "total": {
+      "type": "number"
+    },
+    "offset": {
+      "type": "number"
+    },
+    "limit": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "annotations",
+    "total",
+    "offset",
+    "limit"
+  ]
+}

@@ -1,0 +1,369 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Semiont API",
+    "version": "0.1.0",
+    "description": "Semantic Knowledge Platform API"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "API Server"
+    }
+  ],
+  "paths": {
+    "/resources/{id}": {
+      "$ref": "paths/resources_{id}.json"
+    },
+    "/annotations/{id}": {
+      "$ref": "paths/annotations_{id}.json"
+    },
+    "/api/annotations/{id}/context": {
+      "$ref": "paths/api_annotations_{id}_context.json"
+    },
+    "/api/annotations/{id}/summary": {
+      "$ref": "paths/api_annotations_{id}_summary.json"
+    },
+    "/api/health": {
+      "$ref": "paths/api_health.json"
+    },
+    "/api/tokens/local": {
+      "$ref": "paths/api_tokens_local.json"
+    },
+    "/api/tokens/google": {
+      "$ref": "paths/api_tokens_google.json"
+    },
+    "/api/tokens/refresh": {
+      "$ref": "paths/api_tokens_refresh.json"
+    },
+    "/api/tokens/mcp-generate": {
+      "$ref": "paths/api_tokens_mcp-generate.json"
+    },
+    "/api/users/me": {
+      "$ref": "paths/api_users_me.json"
+    },
+    "/api/users/accept-terms": {
+      "$ref": "paths/api_users_accept-terms.json"
+    },
+    "/api/users/logout": {
+      "$ref": "paths/api_users_logout.json"
+    },
+    "/api/status": {
+      "$ref": "paths/api_status.json"
+    },
+    "/api/admin/users": {
+      "$ref": "paths/api_admin_users.json"
+    },
+    "/api/admin/users/stats": {
+      "$ref": "paths/api_admin_users_stats.json"
+    },
+    "/api/admin/users/{id}": {
+      "$ref": "paths/api_admin_users_{id}.json"
+    },
+    "/api/admin/oauth/config": {
+      "$ref": "paths/api_admin_oauth_config.json"
+    },
+    "/resources": {
+      "$ref": "paths/resources.json"
+    },
+    "/resources/{id}/detect-annotations-stream": {
+      "$ref": "paths/resources_{id}_detect-annotations-stream.json"
+    },
+    "/resources/{id}/detect-entities": {
+      "$ref": "paths/resources_{id}_detect-entities.json"
+    },
+    "/resources/{id}/llm-context": {
+      "$ref": "paths/resources_{id}_llm-context.json"
+    },
+    "/resources/{resourceId}/annotations/{annotationId}/llm-context": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_llm-context.json"
+    },
+    "/resources/{id}/referenced-by": {
+      "$ref": "paths/resources_{id}_referenced-by.json"
+    },
+    "/api/resources/token/{token}": {
+      "$ref": "paths/api_resources_token_{token}.json"
+    },
+    "/api/resources/create-from-token": {
+      "$ref": "paths/api_resources_create-from-token.json"
+    },
+    "/resources/{id}/clone-with-token": {
+      "$ref": "paths/resources_{id}_clone-with-token.json"
+    },
+    "/resources/{id}/annotations": {
+      "$ref": "paths/resources_{id}_annotations.json"
+    },
+    "/resources/{id}/events": {
+      "$ref": "paths/resources_{id}_events.json"
+    },
+    "/resources/{id}/events/stream": {
+      "$ref": "paths/resources_{id}_events_stream.json"
+    },
+    "/resources/{resourceId}/annotations/{annotationId}": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}.json"
+    },
+    "/resources/{resourceId}/annotations/{annotationId}/body": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_body.json"
+    },
+    "/resources/{resourceId}/annotations/{annotationId}/generate-resource": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_generate-resource.json"
+    },
+    "/resources/{resourceId}/annotations/{annotationId}/generate-resource-stream": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_generate-resource-stream.json"
+    },
+    "/resources/{resourceId}/annotations/{annotationId}/history": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_history.json"
+    },
+    "/api/entity-types": {
+      "$ref": "paths/api_entity-types.json"
+    },
+    "/api/entity-types/bulk": {
+      "$ref": "paths/api_entity-types_bulk.json"
+    },
+    "/api/jobs/{id}": {
+      "$ref": "paths/api_jobs_{id}.json"
+    }
+  },
+  "webhooks": {},
+  "components": {
+    "schemas": {
+      "AcceptTermsResponse": {
+        "$ref": "components/schemas/AcceptTermsResponse.json"
+      },
+      "AddEntityTypeRequest": {
+        "$ref": "components/schemas/AddEntityTypeRequest.json"
+      },
+      "AddEntityTypeResponse": {
+        "$ref": "components/schemas/AddEntityTypeResponse.json"
+      },
+      "AdminUpdateUserResponse": {
+        "$ref": "components/schemas/AdminUpdateUserResponse.json"
+      },
+      "AdminUsersListResponse": {
+        "$ref": "components/schemas/AdminUsersListResponse.json"
+      },
+      "AdminUserStatsResponse": {
+        "$ref": "components/schemas/AdminUserStatsResponse.json"
+      },
+      "Agent": {
+        "$ref": "components/schemas/Agent.json"
+      },
+      "Annotation": {
+        "$ref": "components/schemas/Annotation.json"
+      },
+      "AnnotationBody": {
+        "$ref": "components/schemas/AnnotationBody.json"
+      },
+      "AnnotationContextResponse": {
+        "$ref": "components/schemas/AnnotationContextResponse.json"
+      },
+      "AnnotationLLMContextResponse": {
+        "$ref": "components/schemas/AnnotationLLMContextResponse.json"
+      },
+      "AnnotationTarget": {
+        "$ref": "components/schemas/AnnotationTarget.json"
+      },
+      "AsyncJobResponse": {
+        "$ref": "components/schemas/AsyncJobResponse.json"
+      },
+      "AuthResponse": {
+        "$ref": "components/schemas/AuthResponse.json"
+      },
+      "BodyOperationAdd": {
+        "$ref": "components/schemas/BodyOperationAdd.json"
+      },
+      "BodyOperationRemove": {
+        "$ref": "components/schemas/BodyOperationRemove.json"
+      },
+      "BodyOperationReplace": {
+        "$ref": "components/schemas/BodyOperationReplace.json"
+      },
+      "BodyType": {
+        "$ref": "components/schemas/BodyType.json"
+      },
+      "BulkAddEntityTypesRequest": {
+        "$ref": "components/schemas/BulkAddEntityTypesRequest.json"
+      },
+      "CloneResourceWithTokenResponse": {
+        "$ref": "components/schemas/CloneResourceWithTokenResponse.json"
+      },
+      "ContentFormat": {
+        "$ref": "components/schemas/ContentFormat.json"
+      },
+      "ContextualSummaryResponse": {
+        "$ref": "components/schemas/ContextualSummaryResponse.json"
+      },
+      "CreateAnnotationRequest": {
+        "$ref": "components/schemas/CreateAnnotationRequest.json"
+      },
+      "CreateAnnotationResponse": {
+        "$ref": "components/schemas/CreateAnnotationResponse.json"
+      },
+      "CreateFromAnnotationRequest": {
+        "$ref": "components/schemas/CreateFromAnnotationRequest.json"
+      },
+      "CreateFromAnnotationResponse": {
+        "$ref": "components/schemas/CreateFromAnnotationResponse.json"
+      },
+      "CreateJobResponse": {
+        "$ref": "components/schemas/CreateJobResponse.json"
+      },
+      "CreateResourceFromAnnotationResponse": {
+        "$ref": "components/schemas/CreateResourceFromAnnotationResponse.json"
+      },
+      "CreateResourceFromSelectionRequest": {
+        "$ref": "components/schemas/CreateResourceFromSelectionRequest.json"
+      },
+      "CreateResourceFromSelectionResponse": {
+        "$ref": "components/schemas/CreateResourceFromSelectionResponse.json"
+      },
+      "CreateResourceFromTokenRequest": {
+        "$ref": "components/schemas/CreateResourceFromTokenRequest.json"
+      },
+      "CreateResourceFromTokenResponse": {
+        "$ref": "components/schemas/CreateResourceFromTokenResponse.json"
+      },
+      "CreateResourceRequest": {
+        "$ref": "components/schemas/CreateResourceRequest.json"
+      },
+      "CreateResourceResponse": {
+        "$ref": "components/schemas/CreateResourceResponse.json"
+      },
+      "DeleteAnnotationRequest": {
+        "$ref": "components/schemas/DeleteAnnotationRequest.json"
+      },
+      "DeleteUserResponse": {
+        "$ref": "components/schemas/DeleteUserResponse.json"
+      },
+      "DetectAnnotationsStreamRequest": {
+        "$ref": "components/schemas/DetectAnnotationsStreamRequest.json"
+      },
+      "DetectEntitiesRequest": {
+        "$ref": "components/schemas/DetectEntitiesRequest.json"
+      },
+      "ErrorResponse": {
+        "$ref": "components/schemas/ErrorResponse.json"
+      },
+      "EventStreamResponse": {
+        "$ref": "components/schemas/EventStreamResponse.json"
+      },
+      "GenerateResourceFromAnnotationRequest": {
+        "$ref": "components/schemas/GenerateResourceFromAnnotationRequest.json"
+      },
+      "GenerateResourceFromAnnotationResponse": {
+        "$ref": "components/schemas/GenerateResourceFromAnnotationResponse.json"
+      },
+      "GenerateResourceRequest": {
+        "$ref": "components/schemas/GenerateResourceRequest.json"
+      },
+      "GenerateResourceStreamRequest": {
+        "$ref": "components/schemas/GenerateResourceStreamRequest.json"
+      },
+      "GetAnnotationHistoryResponse": {
+        "$ref": "components/schemas/GetAnnotationHistoryResponse.json"
+      },
+      "GetAnnotationResponse": {
+        "$ref": "components/schemas/GetAnnotationResponse.json"
+      },
+      "GetAnnotationsResponse": {
+        "$ref": "components/schemas/GetAnnotationsResponse.json"
+      },
+      "GetEntityTypesResponse": {
+        "$ref": "components/schemas/GetEntityTypesResponse.json"
+      },
+      "GetEventsResponse": {
+        "$ref": "components/schemas/GetEventsResponse.json"
+      },
+      "GetReferencedByResponse": {
+        "$ref": "components/schemas/GetReferencedByResponse.json"
+      },
+      "GetResourceByTokenResponse": {
+        "$ref": "components/schemas/GetResourceByTokenResponse.json"
+      },
+      "GetResourceResponse": {
+        "$ref": "components/schemas/GetResourceResponse.json"
+      },
+      "GoogleAuthRequest": {
+        "$ref": "components/schemas/GoogleAuthRequest.json"
+      },
+      "HealthResponse": {
+        "$ref": "components/schemas/HealthResponse.json"
+      },
+      "JobStatusResponse": {
+        "$ref": "components/schemas/JobStatusResponse.json"
+      },
+      "ListAnnotationsResponse": {
+        "$ref": "components/schemas/ListAnnotationsResponse.json"
+      },
+      "ListResourcesResponse": {
+        "$ref": "components/schemas/ListResourcesResponse.json"
+      },
+      "LocalAuthRequest": {
+        "$ref": "components/schemas/LocalAuthRequest.json"
+      },
+      "MCPGenerateResponse": {
+        "$ref": "components/schemas/MCPGenerateResponse.json"
+      },
+      "Motivation": {
+        "$ref": "components/schemas/Motivation.json"
+      },
+      "OAuthConfigResponse": {
+        "$ref": "components/schemas/OAuthConfigResponse.json"
+      },
+      "Representation": {
+        "$ref": "components/schemas/Representation.json"
+      },
+      "ResolveAnnotationRequest": {
+        "$ref": "components/schemas/ResolveAnnotationRequest.json"
+      },
+      "ResolveAnnotationResponse": {
+        "$ref": "components/schemas/ResolveAnnotationResponse.json"
+      },
+      "ResourceDescriptor": {
+        "$ref": "components/schemas/ResourceDescriptor.json"
+      },
+      "ResourceLLMContextResponse": {
+        "$ref": "components/schemas/ResourceLLMContextResponse.json"
+      },
+      "SpecificResource": {
+        "$ref": "components/schemas/SpecificResource.json"
+      },
+      "StatusResponse": {
+        "$ref": "components/schemas/StatusResponse.json"
+      },
+      "TextPositionSelector": {
+        "$ref": "components/schemas/TextPositionSelector.json"
+      },
+      "TextQuoteSelector": {
+        "$ref": "components/schemas/TextQuoteSelector.json"
+      },
+      "TextualBody": {
+        "$ref": "components/schemas/TextualBody.json"
+      },
+      "TokenRefreshRequest": {
+        "$ref": "components/schemas/TokenRefreshRequest.json"
+      },
+      "TokenRefreshResponse": {
+        "$ref": "components/schemas/TokenRefreshResponse.json"
+      },
+      "UpdateAnnotationBodyRequest": {
+        "$ref": "components/schemas/UpdateAnnotationBodyRequest.json"
+      },
+      "UpdateAnnotationBodyResponse": {
+        "$ref": "components/schemas/UpdateAnnotationBodyResponse.json"
+      },
+      "UpdateResourceRequest": {
+        "$ref": "components/schemas/UpdateResourceRequest.json"
+      },
+      "UpdateUserRequest": {
+        "$ref": "components/schemas/UpdateUserRequest.json"
+      },
+      "UpdateUserResponse": {
+        "$ref": "components/schemas/UpdateUserResponse.json"
+      },
+      "UserResponse": {
+        "$ref": "components/schemas/UserResponse.json"
+      }
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "put": {
+    "summary": "Update Annotation Body",
+    "description": "Apply fine-grained operations to modify annotation body items (add, remove, or replace TextualBody and SpecificResource items)",
+    "tags": [
+      "Resources",
+      "Annotations"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "resourceId",
+        "in": "path",
+        "description": "Resource ID"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "annotationId",
+        "in": "path",
+        "description": "Annotation ID"
+      }
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/UpdateAnnotationBodyRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "Annotation body updated successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/UpdateAnnotationBodyResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

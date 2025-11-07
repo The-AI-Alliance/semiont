@@ -21,6 +21,9 @@
     "backend:dev": "npm run dev -w semiont-backend",
     "types:build": "npm run build -w @semiont/core -w @semiont/frontend-api -w @semiont/backend-api",
     "types:watch": "npm run watch -w @semiont/core -w @semiont/frontend-api -w @semiont/backend-api",
+    "openapi:bundle": "redocly bundle specs/src/openapi.json -o specs/openapi.json",
+    "openapi:lint": "redocly lint specs/src/openapi.json",
+    "openapi:validate": "redocly lint specs/openapi.json",
     "install:deps": "npm install",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
     "container:build": "node scripts/build-images.js",
@@ -50,6 +53,7 @@
     "@types/react": "^18.3.0"
   },
   "devDependencies": {
+    "@redocly/cli": "^2.11.0",
     "@types/node": "^22.17.0",
     "typescript": "^5.6.3"
   },

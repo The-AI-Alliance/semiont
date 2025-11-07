@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "relevantFields": {
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "before": {
+          "type": "string"
+        },
+        "selected": {
+          "type": "string"
+        },
+        "after": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "selected"
+      ]
+    }
+  },
+  "required": [
+    "summary",
+    "relevantFields",
+    "context"
+  ]
+}

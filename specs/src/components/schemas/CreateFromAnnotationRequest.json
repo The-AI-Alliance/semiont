@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "description": "ID of the resource containing the annotation"
+    },
+    "name": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "format": {
+      "$ref": "./ContentFormat.json"
+    }
+  },
+  "required": [
+    "resourceId",
+    "name",
+    "content",
+    "format"
+  ]
+}

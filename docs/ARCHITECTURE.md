@@ -477,7 +477,7 @@ POST   /api/annotations/{id}/generate-document
 
 The [@semiont/api-client](../packages/api-client/) package provides a fully type-safe SDK:
 
-- Types generated from [OpenAPI specification](../specs/openapi.json)
+- Types generated from [OpenAPI specification](../specs/src/)
 - Automatic request/response validation
 - Streaming support for long-running operations
 - Authentication helpers (JWT, OAuth, MCP tokens)
@@ -487,7 +487,7 @@ The [@semiont/api-client](../packages/api-client/) package provides a fully type
 **Documentation**:
 
 - [API Overview](../specs/docs/API.md) - High-level capabilities
-- [OpenAPI Specification](../specs/openapi.json) - Complete endpoint reference
+- [OpenAPI Specification](../specs/README.md) - Complete endpoint reference (source in [../specs/src/](../specs/src/))
 
 ## Authentication & Security
 

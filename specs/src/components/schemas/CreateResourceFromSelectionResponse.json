@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "properties": {
+    "resource": {
+      "$ref": "./ResourceDescriptor.json"
+    },
+    "annotation": {
+      "$ref": "./Annotation.json"
+    }
+  },
+  "required": [
+    "resource",
+    "annotation"
+  ]
+}

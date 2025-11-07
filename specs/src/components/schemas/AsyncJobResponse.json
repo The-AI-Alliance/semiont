@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "jobId": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "running",
+        "complete",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "detection",
+        "generation"
+      ]
+    },
+    "created": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "jobId",
+    "status",
+    "type",
+    "created"
+  ]
+}

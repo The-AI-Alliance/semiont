@@ -17,8 +17,9 @@
     }
   },
   "scripts": {
+    "bundle-spec": "cd ../.. && npm run openapi:bundle",
     "copy-spec": "cp ../../specs/openapi.json openapi.json",
-    "generate": "npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
+    "generate": "npm run bundle-spec && npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
     "build": "tsc && npm run copy-types",
     "copy-types": "cp src/types.ts dist/types.d.ts",
     "prebuild": "npm run generate",

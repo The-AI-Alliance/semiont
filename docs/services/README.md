@@ -227,7 +227,7 @@ See [Authentication Documentation](../AUTHENTICATION.md) for details.
 ### API Documentation
 
 - [API Overview](../../specs/docs/API.md) - High-level API capabilities
-- [OpenAPI Specification](../../specs/openapi.json) - Complete API reference
+- [OpenAPI Specification](../../specs/README.md) - Complete API reference (source in [../../specs/src/](../../specs/src/))
 - [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation semantics
 
 ### Development Guides

@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "properties": {
+    "jobId": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "detection",
+        "generation"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "running",
+        "complete",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "userId": {
+      "type": "string"
+    },
+    "created": {
+      "type": "string"
+    },
+    "startedAt": {
+      "type": "string"
+    },
+    "completedAt": {
+      "type": "string"
+    },
+    "error": {
+      "type": "string"
+    },
+    "progress": {},
+    "result": {}
+  },
+  "required": [
+    "jobId",
+    "type",
+    "status",
+    "userId",
+    "created"
+  ]
+}

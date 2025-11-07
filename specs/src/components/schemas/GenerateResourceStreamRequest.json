@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Custom title for generated resource"
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Custom prompt for content generation"
+    },
+    "language": {
+      "type": "string",
+      "description": "Language locale for generated content (e.g., \"es\", \"fr\", \"ja\")"
+    }
+  }
+}

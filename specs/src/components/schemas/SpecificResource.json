@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "SpecificResource"
+    },
+    "source": {
+      "type": "string",
+      "description": "IRI of the target resource"
+    },
+    "purpose": {
+      "type": "string",
+      "enum": [
+        "linking"
+      ],
+      "description": "Why this body is included"
+    }
+  },
+  "required": [
+    "type",
+    "source"
+  ]
+}

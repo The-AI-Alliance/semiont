@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+    "annotations": {
+      "type": "array",
+      "items": {
+        "$ref": "./Annotation.json"
+      }
+    },
+    "total": {
+      "type": "number",
+      "description": "Total number of annotations"
+    },
+    "motivation": {
+      "anyOf": [
+        {
+          "$ref": "./Motivation.json"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Motivation filter applied (if any)"
+    }
+  },
+  "required": [
+    "annotations",
+    "total"
+  ]
+}

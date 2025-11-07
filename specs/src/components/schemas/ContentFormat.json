@@ -1,0 +1,8 @@
+{
+  "type": "string",
+  "enum": [
+    "text/plain",
+    "text/markdown"
+  ],
+  "description": "Content format as MIME type"
+}

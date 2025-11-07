@@ -69,18 +69,19 @@ const resource = await client.createResource({
 
 **Features:**
 
-- 🎯 Complete TypeScript types generated from [OpenAPI specification](specs/openapi.json)
+- 🎯 Complete TypeScript types generated from [OpenAPI specification](specs/README.md)
 - 🔌 High-level API client with authentication and error handling
 - ✅ Type-safe request/response handling
-- 🔄 Spec-first development: Types generated from canonical [specs/openapi.json](specs/openapi.json)
+- 🔄 Spec-first development: Types generated from canonical [OpenAPI specification](specs/src/)
 - 🛠️ W3C annotation utilities (selectors, entity types, locales)
 
 **Note:** For external integrations, use **@semiont/api-client**. The **[@semiont/core](packages/core/)** package is for backend internal domain logic only (event sourcing, crypto, DID utilities).
 
 **Documentation:**
+
 - [API Client README](packages/api-client/README.md) - SDK usage and utilities
 - [API Reference](specs/docs/API.md) - Complete HTTP API endpoint documentation
-- [OpenAPI Specification](specs/openapi.json) - Machine-readable API contract
+- [OpenAPI Specification](specs/README.md) - Machine-readable API contract (source in [specs/src/](specs/src/))
 
 ### Demo Scripts
 
@@ -167,7 +168,7 @@ For complete deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 | Document | Description |
 |----------|-------------|
-| [OpenAPI Specification](specs/openapi.json) | REST API specification (OpenAPI 3.0) - source of truth for API contract |
+| [OpenAPI Specification](specs/README.md) | REST API specification (OpenAPI 3.0) - source of truth for API contract (source files in [specs/src/](specs/src/)) |
 | [API Reference](specs/docs/API.md) | Complete HTTP API endpoint documentation |
 | [W3C Web Annotation](specs/docs/W3C-WEB-ANNOTATION.md) | W3C Web Annotation implementation across all layers |
 

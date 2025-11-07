@@ -1,0 +1,48 @@
+{
+  "get": {
+    "summary": "Get Annotation History",
+    "description": "Get full event history for a specific annotation (highlight or reference)",
+    "tags": [
+      "Selections",
+      "Events"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "resourceId",
+        "in": "path"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "annotationId",
+        "in": "path"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Annotation history retrieved successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GetAnnotationHistoryResponse.json"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Annotation not found"
+      }
+    }
+  }
+}

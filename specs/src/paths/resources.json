@@ -1,0 +1,134 @@
+{
+  "post": {
+    "summary": "Create Resource",
+    "description": "Create a new resource",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/CreateResourceRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "201": {
+        "description": "Resource created successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CreateResourceResponse.json"
+            }
+          }
+        }
+      }
+    }
+  },
+  "get": {
+    "summary": "List Resources",
+    "description": "List all resources with optional filters",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": 0
+        },
+        "required": false,
+        "name": "offset",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": 50
+        },
+        "required": false,
+        "name": "limit",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": false,
+        "name": "entityType",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "false"
+              ]
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        },
+        "required": false,
+        "name": "archived",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": false,
+        "name": "search",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": false,
+        "name": "q",
+        "in": "query",
+        "description": "Search query"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Resources listed successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ListResourcesResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

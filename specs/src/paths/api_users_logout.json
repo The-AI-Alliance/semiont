@@ -1,0 +1,26 @@
+{
+  "post": {
+    "summary": "Logout",
+    "description": "Logout the current user",
+    "tags": [
+      "Users"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Logged out successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/AcceptTermsResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

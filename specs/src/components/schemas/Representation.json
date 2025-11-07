@@ -1,0 +1,122 @@
+{
+  "type": "object",
+  "description": "A specific, byte-addressable rendition of a resource (file/asset/variant).",
+  "required": [
+    "mediaType"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "@id": {
+      "type": "string",
+      "format": "uri",
+      "description": "Stable ID for this representation."
+    },
+    "@type": {
+      "description": "Type(s), e.g., schema:MediaObject.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      ]
+    },
+    "mediaType": {
+      "type": "string",
+      "description": "MIME/media type (e.g., text/markdown, image/png)."
+    },
+    "storageUri": {
+      "type": "string",
+      "description": "Where the bytes live (s3://, file://, https://, ipfs://, etc.)."
+    },
+    "filename": {
+      "type": "string"
+    },
+    "byteSize": {
+      "description": "Size of the payload in bytes.",
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "checksum": {
+      "description": "Integrity hash (e.g., sha256:abcd…).",
+      "type": "string"
+    },
+    "encoding": {
+      "type": "string",
+      "description": "Compression/transfer encoding if applicable."
+    },
+    "language": {
+      "type": "string",
+      "description": "IETF BCP 47 language tag (e.g., en, es-ES)."
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Pixels (images/video)."
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Pixels (images/video)."
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Seconds (audio/video)."
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "modified": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "conformsTo": {
+      "description": "Profile/shape the bytes conform to (e.g., a JSON profile or SVG profile).",
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "uri"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rel": {
+      "description": "Semantics of this rendition relative to the resource (e.g., original, thumbnail, preview, derived).",
+      "type": "string",
+      "enum": [
+        "original",
+        "thumbnail",
+        "preview",
+        "optimized",
+        "derived",
+        "other"
+      ]
+    }
+  }
+}

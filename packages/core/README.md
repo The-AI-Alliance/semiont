@@ -225,7 +225,7 @@ import { compareAnnotationIds, getEntityTypes, getBodySource } from '@semiont/ap
 
 Semiont follows a **spec-first architecture**:
 
-1. **OpenAPI Specification** ([specs/openapi.json](../../specs/openapi.json)) is the source of truth
+1. **OpenAPI Specification** ([specs/src/](../../specs/src/)) is the source of truth
 2. **@semiont/api-client** generates types from OpenAPI and provides utilities
 3. **@semiont/core** provides backend-specific domain logic not in the API
 

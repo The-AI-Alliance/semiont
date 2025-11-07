@@ -71,3 +71,6 @@ temp/
 packages/api-client/openapi.json
 packages/api-client/src/types.ts
 packages/api-client/src/client/
+
+# Generated OpenAPI bundle (source is specs/src/)
+specs/openapi.json
