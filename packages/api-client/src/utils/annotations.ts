@@ -10,8 +10,8 @@
  */
 
 import type { components } from '../types';
-import type { ResourceUri } from '../uri-types';
-import { resourceUri } from '../uri-types';
+import type { ResourceUri } from '../branded-types';
+import { resourceUri } from '../branded-types';
 
 type Annotation = components['schemas']['Annotation'];
 type HighlightAnnotation = Annotation;

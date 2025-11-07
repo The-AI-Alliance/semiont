@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SSEClient } from '../sse';
 import type { DetectionProgress, GenerationProgress, ResourceEvent } from '../sse/types';
-import type { ResourceUri, AnnotationUri } from '../uri-types';
+import type { ResourceUri, AnnotationUri } from '../branded-types';
 import { baseUrl, accessToken, entityType } from '../branded-types';
 
 // Helper to create a minimal SSE ReadableStream

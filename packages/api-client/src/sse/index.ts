@@ -12,7 +12,7 @@ import type {
   ResourceEvent,
   SSEStream
 } from './types';
-import type { ResourceUri, AnnotationUri } from '../uri-types';
+import type { ResourceUri, AnnotationUri } from '../branded-types';
 import type { AccessToken, BaseUrl, EntityType } from '../branded-types';
 
 /**

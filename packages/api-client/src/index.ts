@@ -50,8 +50,5 @@ export type {
 // Handwritten utilities
 export * from './utils';
 
-// Branded URI types
-export * from './uri-types';
-
-// Branded string types for API client parameters
+// All branded types (URIs, tokens, identifiers, etc.)
 export * from './branded-types';

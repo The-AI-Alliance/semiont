@@ -11,7 +11,7 @@
 
 import ky, { type KyInstance } from 'ky';
 import type { paths } from './types';
-import type { AnnotationUri, ResourceUri, ResourceAnnotationUri } from './uri-types';
+import type { AnnotationUri, ResourceUri, ResourceAnnotationUri } from './branded-types';
 import type {
   AccessToken,
   AuthCode,

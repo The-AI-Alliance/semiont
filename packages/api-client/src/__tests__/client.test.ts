@@ -14,7 +14,7 @@ vi.mock('ky', () => ({
 
 import ky from 'ky';
 import { SemiontApiClient } from '../client';
-import type { ResourceUri, ResourceAnnotationUri } from '../uri-types';
+import type { ResourceUri, ResourceAnnotationUri } from '../branded-types';
 import { baseUrl, entityType, jobId } from '../branded-types';
 
 describe('SemiontApiClient - Archive Operations', () => {

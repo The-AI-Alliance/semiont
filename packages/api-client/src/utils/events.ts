@@ -6,7 +6,7 @@
  */
 
 import type { paths, components } from '../types';
-import { AnnotationUri } from '../uri-types';
+import { AnnotationUri } from '../branded-types';
 import { getExactText, getTargetSelector } from './annotations';
 
 // Extract StoredEvent type from events endpoint response
