@@ -499,6 +499,63 @@ if (result.status === 'complete') {
 
 Server-Sent Events (SSE) provide real-time progress updates for long-running operations. Unlike polling (used in `pollJobUntilComplete`), SSE streams push updates as they happen, reducing latency and server load.
 
+### Architecture and Design Principles
+
+The SSE implementation follows five core design principles:
+
+**1. Clear Separation from Request/Response**
+
+SSE streaming uses a **separate namespace** (`client.sse.*`) to distinguish it from standard HTTP request/response methods. This makes it immediately obvious when code is dealing with streaming vs. traditional HTTP.
+
+```typescript
+// Traditional HTTP (ky-based)
+await client.createResource({ ... });
+
+// SSE streaming (fetch-based)
+client.sse.detectAnnotations(...);
+```
+
+**2. Not ky-Based**
+
+SSE methods **do not use `ky`** (the HTTP client used for other methods). Instead, they use:
+- Native `fetch()` for HTTP connection
+- Manual SSE parsing (not `EventSource` API for better control)
+- `AbortController` for cancellation
+
+**Rationale**:
+- `ky` is optimized for request/response, not streaming
+- SSE requires parsing `text/event-stream` format
+- We need fine-grained control over connection lifecycle
+
+**3. Type-Safe Events**
+
+All events have TypeScript interfaces matching the backend's event payloads. Types are derived from OpenAPI schemas where possible.
+
+```typescript
+interface DetectionProgress {
+  status: 'started' | 'scanning' | 'complete' | 'error';
+  resourceId: string;
+  currentEntityType?: string;
+  totalEntityTypes: number;
+  processedEntityTypes: number;
+  foundCount?: number;
+}
+```
+
+**4. Consistent Callback API**
+
+All three SSE methods return stream objects with similar callback patterns:
+- `.onProgress()` - Incremental updates
+- `.onComplete()` - Final result
+- `.onError()` - Error handling
+- `.close()` - Manual cancellation
+
+**5. No Response Validation**
+
+SSE streams are not validated (per `SSE-VALIDATION-CONSIDERATIONS.md`). Request bodies are validated via OpenAPI schemas, but streaming responses are parsed as-is.
+
+### When to Use SSE vs Regular Methods
+
 **When to use SSE:**
 
 - ✅ Long-running operations (detection, generation)
