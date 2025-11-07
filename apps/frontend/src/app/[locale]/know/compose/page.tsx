@@ -12,7 +12,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 import { getPrimaryMediaType, getResourceId } from '@semiont/api-client';
-import { resourceUri, resourceAnnotationUri, type ResourceUri, type ResourceAnnotationUri } from '@semiont/api-client';
+import { resourceUri, resourceAnnotationUri, type ResourceUri, type ResourceAnnotationUri, type ContentFormat } from '@semiont/api-client';
 import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
@@ -98,7 +98,7 @@ function ComposeDocumentContent() {
 
             // Use api-client for W3C content negotiation
             const content = await client.getResourceRepresentation(rUri as ResourceUri, {
-              accept: mediaType,
+              accept: mediaType as ContentFormat,
             });
             setNewDocContent(content);
           } catch (error) {

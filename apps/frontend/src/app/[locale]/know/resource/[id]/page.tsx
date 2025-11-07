@@ -13,8 +13,8 @@ import { ResourceViewer } from '@/components/resource/ResourceViewer';
 import { ResourceTagsInline } from '@/components/ResourceTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
-import type { components, ResourceUri } from '@semiont/api-client';
-import { getResourceId, getLanguage, getPrimaryMediaType } from '@semiont/api-client';
+import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
+import { getResourceId, getLanguage, getPrimaryMediaType, searchQuery } from '@semiont/api-client';
 import { groupAnnotationsByType } from '@/lib/annotation-registry';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -189,7 +189,7 @@ function ResourceView({
 
         // Use api-client for W3C content negotiation
         const text = await client.getResourceRepresentation(rUri as ResourceUri, {
-          accept: mediaType,
+          accept: mediaType as ContentFormat,
         });
         setContent(text);
       } catch (error) {
@@ -289,7 +289,7 @@ function ResourceView({
 
     try {
       // Search for the resource using api-client
-      const response = await client.listResources(1, undefined, pageName);
+      const response = await client.listResources(1, undefined, searchQuery(pageName));
 
       if (response.resources?.length > 0 && response.resources[0]) {
         // Resource found - navigate to it

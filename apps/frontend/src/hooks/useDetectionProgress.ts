@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ResourceUri, DetectionProgress as ApiDetectionProgress, SSEStream } from '@semiont/api-client';
+import { entityType } from '@semiont/api-client';
 import { useApiClient } from '@/lib/api-hooks';
 
 // Extend API type with frontend-specific fields
@@ -47,7 +48,7 @@ export function useDetectionProgress({
 
     try {
       // Start SSE stream using api-client
-      const stream = client.sse.detectAnnotations(rUri, { entityTypes });
+      const stream = client.sse.detectAnnotations(rUri, { entityTypes: entityTypes.map(entityType) });
       streamRef.current = stream;
 
       // Handle progress events
