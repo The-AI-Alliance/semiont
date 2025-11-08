@@ -42,7 +42,7 @@ describe('Layered Storage', () => {
       identifierConfig
     );
 
-    query = new EventQuery(eventStore.storage);
+    query = new EventQuery(eventStore.log.storage);
   });
 
   afterAll(async () => {
@@ -317,11 +317,11 @@ describe('Layered Storage', () => {
 
       // First call rebuilds from events
       const events1 = await query.getResourceEvents(docId);
-      const projection1 = await eventStore.projector.projectResource(events1, docId);
+      const projection1 = await eventStore.projections.projector.projectResource(events1, docId);
 
       // Second call should load from Layer 3 (no rebuild)
       const events2 = await query.getResourceEvents(docId);
-      const projection2 = await eventStore.projector.projectResource(events2, docId);
+      const projection2 = await eventStore.projections.projector.projectResource(events2, docId);
 
       expect(projection1).toEqual(projection2);
     });

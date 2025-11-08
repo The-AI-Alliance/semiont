@@ -305,7 +305,7 @@ describe('Event Store Subscription Pattern', () => {
     const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
+    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -341,7 +341,7 @@ describe('Event Store Subscription Pattern', () => {
     const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
+    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -370,7 +370,7 @@ describe('Event Store Subscription Pattern', () => {
     const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
+    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 
@@ -401,7 +401,7 @@ describe('Event Store Subscription Pattern', () => {
     const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent: any) => {
+    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent: any) => {
       receivedEvents.push(storedEvent.event);
     });
 

@@ -47,7 +47,7 @@ async function rebuildProjections(rId?: string) {
     console.log(`   ✅ Event chain valid`);
 
     // Rebuild projection
-    const stored = await eventStore.projector.projectResource(events, makeResourceId(rId));
+    const stored = await eventStore.projections.projector.projectResource(events, makeResourceId(rId));
     if (!stored) {
       console.error(`❌ Failed to build projection`);
       process.exit(1);

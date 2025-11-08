@@ -71,7 +71,7 @@ export async function createEventStore(
  * Consumers use this for read operations
  */
 export function createEventQuery(eventStore: EventStore): EventQuery {
-  return new EventQuery(eventStore.storage);
+  return new EventQuery(eventStore.log.storage);
 }
 
 /**
