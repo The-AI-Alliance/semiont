@@ -211,9 +211,9 @@ describe('ProjectionQuery', () => {
 
   describe('Annotation Count Queries', () => {
     it('should get annotation count for resource', async () => {
-      const count1 = await query.getAnnotationCount('doc-1');
-      const count2 = await query.getAnnotationCount('doc-2');
-      const count5 = await query.getAnnotationCount('doc-5');
+      const count1 = await query.getAnnotationCount(resourceId('doc-1'));
+      const count2 = await query.getAnnotationCount(resourceId('doc-2'));
+      const count5 = await query.getAnnotationCount(resourceId('doc-5'));
 
       expect(count1).toBe(3);
       expect(count2).toBe(5);
@@ -221,15 +221,15 @@ describe('ProjectionQuery', () => {
     });
 
     it('should return 0 for resources with no annotations', async () => {
-      const count3 = await query.getAnnotationCount('doc-3');
-      const count6 = await query.getAnnotationCount('doc-6');
+      const count3 = await query.getAnnotationCount(resourceId('doc-3'));
+      const count6 = await query.getAnnotationCount(resourceId('doc-6'));
 
       expect(count3).toBe(0);
       expect(count6).toBe(0);
     });
 
     it('should return 0 for non-existent resource', async () => {
-      const count = await query.getAnnotationCount('doc-nonexistent');
+      const count = await query.getAnnotationCount(resourceId('doc-nonexistent'));
       expect(count).toBe(0);
     });
 

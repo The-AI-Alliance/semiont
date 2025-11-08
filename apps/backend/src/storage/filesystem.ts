@@ -5,13 +5,14 @@ import * as path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { getShardPath } from './shard-utils';
+import type { ResourceId } from '@semiont/core';
 
 export interface StorageService {
-  saveResource(resourceId: string, content: string | Buffer): Promise<string>;
-  getResource(resourceId: string): Promise<Buffer>;
-  deleteResource(resourceId: string): Promise<void>;
-  resourceExists(resourceId: string): Promise<boolean>;
-  getResourcePath(resourceId: string): string;
+  saveResource(resourceId: ResourceId, content: string | Buffer): Promise<string>;
+  getResource(resourceId: ResourceId): Promise<Buffer>;
+  deleteResource(resourceId: ResourceId): Promise<void>;
+  resourceExists(resourceId: ResourceId): Promise<boolean>;
+  getResourcePath(resourceId: ResourceId): string;
 }
 
 export class FilesystemStorage implements StorageService {
@@ -25,13 +26,13 @@ export class FilesystemStorage implements StorageService {
     await fs.mkdir(this.basePath, { recursive: true });
   }
   
-  getResourcePath(resourceId: string): string {
+  getResourcePath(resourceId: ResourceId): string {
     // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
     const [ab, cd] = getShardPath(resourceId);
     return path.join(this.basePath, 'resources', ab, cd, `${resourceId}.dat`);
   }
-  
-  async saveResource(resourceId: string, content: string | Buffer): Promise<string> {
+
+  async saveResource(resourceId: ResourceId, content: string | Buffer): Promise<string> {
     await this.ensureDirectoryExists();
     
     const docPath = this.getResourcePath(resourceId);
@@ -50,9 +51,9 @@ export class FilesystemStorage implements StorageService {
     return docPath;
   }
   
-  async getResource(resourceId: string): Promise<Buffer> {
+  async getResource(resourceId: ResourceId): Promise<Buffer> {
     const docPath = this.getResourcePath(resourceId);
-    
+
     try {
       return await fs.readFile(docPath);
     } catch (error: any) {
@@ -62,8 +63,8 @@ export class FilesystemStorage implements StorageService {
       throw error;
     }
   }
-  
-  async deleteResource(resourceId: string): Promise<void> {
+
+  async deleteResource(resourceId: ResourceId): Promise<void> {
     const docPath = this.getResourcePath(resourceId);
     
     try {
@@ -76,9 +77,9 @@ export class FilesystemStorage implements StorageService {
     }
   }
   
-  async resourceExists(resourceId: string): Promise<boolean> {
+  async resourceExists(resourceId: ResourceId): Promise<boolean> {
     const docPath = this.getResourcePath(resourceId);
-    
+
     try {
       await fs.access(docPath);
       return true;
@@ -86,24 +87,24 @@ export class FilesystemStorage implements StorageService {
       return false;
     }
   }
-  
+
   // Stream methods for large resources
-  createReadStream(resourceId: string) {
+  createReadStream(resourceId: ResourceId) {
     const docPath = this.getResourcePath(resourceId);
     return createReadStream(docPath);
   }
-  
-  createWriteStream(resourceId: string) {
+
+  createWriteStream(resourceId: ResourceId) {
     const docPath = this.getResourcePath(resourceId);
     const docDir = path.dirname(docPath);
-    
+
     // Ensure directory exists synchronously for stream creation
     mkdirSync(docDir, { recursive: true });
-    
+
     return createWriteStream(docPath);
   }
-  
-  async saveResourceStream(resourceId: string, stream: NodeJS.ReadableStream): Promise<string> {
+
+  async saveResourceStream(resourceId: ResourceId, stream: NodeJS.ReadableStream): Promise<string> {
     await this.ensureDirectoryExists();
     
     const docPath = this.getResourcePath(resourceId);

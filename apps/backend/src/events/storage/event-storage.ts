@@ -213,8 +213,8 @@ export class EventStorage {
   /**
    * Count events in a specific file
    */
-  async countEventsInFile(resourceId: string, filename: string): Promise<number> {
-    const docPath = this.getResourcePath(makeResourceId(resourceId));
+  async countEventsInFile(resourceId: ResourceId, filename: string): Promise<number> {
+    const docPath = this.getResourcePath(resourceId);
     const filePath = path.join(docPath, filename);
 
     try {
@@ -232,8 +232,8 @@ export class EventStorage {
   /**
    * Read all events from a specific file
    */
-  async readEventsFromFile(resourceId: string, filename: string): Promise<StoredEvent[]> {
-    const docPath = this.getResourcePath(makeResourceId(resourceId));
+  async readEventsFromFile(resourceId: ResourceId, filename: string): Promise<StoredEvent[]> {
+    const docPath = this.getResourcePath(resourceId);
     const filePath = path.join(docPath, filename);
 
     const events: StoredEvent[] = [];
@@ -297,8 +297,8 @@ export class EventStorage {
   /**
    * Create a new event file for rotation
    */
-  async createNewEventFile(resourceId: string): Promise<string> {
-    const files = await this.getEventFiles(makeResourceId(resourceId));
+  async createNewEventFile(resourceId: ResourceId): Promise<string> {
+    const files = await this.getEventFiles(resourceId);
 
     // Determine next sequence number
     const lastFile = files[files.length - 1];
@@ -307,7 +307,7 @@ export class EventStorage {
 
     // Create new file
     const filename = this.createEventFilename(newSeq);
-    const docPath = this.getResourcePath(makeResourceId(resourceId));
+    const docPath = this.getResourcePath(resourceId);
     const filePath = path.join(docPath, filename);
 
     await fs.writeFile(filePath, '', 'utf-8');
@@ -320,7 +320,7 @@ export class EventStorage {
   /**
    * Get the last event from a specific file
    */
-  async getLastEvent(resourceId: string, filename: string): Promise<StoredEvent | null> {
+  async getLastEvent(resourceId: ResourceId, filename: string): Promise<StoredEvent | null> {
     const events = await this.readEventsFromFile(resourceId, filename);
     const lastEvent = events.length > 0 ? events[events.length - 1] : undefined;
     return lastEvent ?? null;
@@ -344,9 +344,9 @@ export class EventStorage {
   /**
    * Get all resource IDs by scanning shard directories
    */
-  async getAllResourceIds(): Promise<string[]> {
+  async getAllResourceIds(): Promise<ResourceId[]> {
     const eventsDir = path.join(this.config.dataDir, 'events');
-    const resourceIds: string[] = [];
+    const resourceIds: ResourceId[] = [];
 
     try {
       await fs.access(eventsDir);
@@ -365,7 +365,7 @@ export class EventStorage {
           // Check if this looks like a resource ID (not a shard directory)
           // Shard directories are 2-char hex (00-ff), resource IDs are longer
           if (entry.name.length > 2) {
-            resourceIds.push(entry.name);
+            resourceIds.push(makeResourceId(entry.name));
           } else {
             // Recurse into shard directory
             await scanDir(fullPath);

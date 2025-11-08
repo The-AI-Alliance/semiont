@@ -1,3 +1,4 @@
+import { accessToken, googleCredential, email } from '@semiont/api-client';
 /**
  * Tests for OAuth service
  */
@@ -25,7 +26,7 @@ const mockPrismaUser = vi.mocked(prisma.user);
 describe('OAuth Service', () => {
   const mockGoogleUser = {
     id: 'google-123',
-    email: 'test@example.com',
+    email: email('test@example.com'),
     name: 'Test User',
     picture: 'https://example.com/photo.jpg',
     verified_email: true,
@@ -54,11 +55,11 @@ describe('OAuth Service', () => {
 
   describe('verifyGoogleToken', () => {
     it('should verify valid Google access token', async () => {
-      const result = await OAuthService.verifyGoogleToken('valid-access-token');
+      const result = await OAuthService.verifyGoogleToken(googleCredential('valid-access-token'));
       
       expect(result).toEqual({
         id: 'google-123',
-        email: 'test@example.com',
+        email: email('test@example.com'),
         verified_email: true,
         name: 'Test User',
         given_name: 'Test',
@@ -71,7 +72,7 @@ describe('OAuth Service', () => {
     it('should throw error for invalid token', async () => {
       // This will be handled by MSW returning a 401
       await expect(
-        OAuthService.verifyGoogleToken('invalid-token')
+        OAuthService.verifyGoogleToken(googleCredential('invalid-token'))
       ).rejects.toThrow('Failed to verify Google token');
     });
 
@@ -92,7 +93,7 @@ describe('OAuth Service', () => {
       );
 
       await expect(
-        OAuthService.verifyGoogleToken('unverified-token')
+        OAuthService.verifyGoogleToken(googleCredential('unverified-token'))
       ).rejects.toThrow('Email not verified with Google');
     });
   });
@@ -211,7 +212,7 @@ describe('OAuth Service', () => {
     });
 
     it('should handle email without domain (edge case)', async () => {
-      const userWithInvalidEmail = { ...mockGoogleUser, email: 'invalidemail' };
+      const userWithInvalidEmail = { ...mockGoogleUser, email: email('invalidemail') };
       
       vi.mocked(JWTService.isAllowedDomain).mockReturnValue(true);
       vi.mocked(JWTService.generateToken).mockReturnValue('mock-jwt-token');
@@ -231,7 +232,7 @@ describe('OAuth Service', () => {
     });
 
     it('should handle domain update for existing user with undefined domain', async () => {
-      const userWithUndefinedDomain = { ...mockGoogleUser, email: 'user@' };
+      const userWithUndefinedDomain = { ...mockGoogleUser, email: email('user@') };
       const existingUser = { ...mockUser, domain: 'olddomain.com' };
       
       vi.mocked(JWTService.isAllowedDomain).mockReturnValue(true);
@@ -303,7 +304,7 @@ describe('OAuth Service', () => {
       vi.mocked(JWTService.verifyToken).mockReturnValue(mockPayload);
       mockPrismaUser.findUnique.mockResolvedValue(mockUser);
 
-      const result = await OAuthService.getUserFromToken('valid-jwt-token');
+      const result = await OAuthService.getUserFromToken(accessToken('valid-jwt-token'));
 
       expect(result).toEqual(mockUser);
       expect(JWTService.verifyToken).toHaveBeenCalledWith('valid-jwt-token');
@@ -318,7 +319,7 @@ describe('OAuth Service', () => {
       });
 
       await expect(
-        OAuthService.getUserFromToken('invalid-token')
+        OAuthService.getUserFromToken(accessToken('invalid-token'))
       ).rejects.toThrow('Invalid token');
     });
 
@@ -332,7 +333,7 @@ describe('OAuth Service', () => {
       mockPrismaUser.findUnique.mockResolvedValue(null);
 
       await expect(
-        OAuthService.getUserFromToken('valid-jwt-token')
+        OAuthService.getUserFromToken(accessToken('valid-jwt-token'))
       ).rejects.toThrow('User not found or inactive');
     });
 
@@ -347,7 +348,7 @@ describe('OAuth Service', () => {
       mockPrismaUser.findUnique.mockResolvedValue(inactiveUser);
 
       await expect(
-        OAuthService.getUserFromToken('valid-jwt-token')
+        OAuthService.getUserFromToken(accessToken('valid-jwt-token'))
       ).rejects.toThrow('User not found or inactive');
     });
   });

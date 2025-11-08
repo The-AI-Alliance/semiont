@@ -2,10 +2,12 @@ import { DatabaseConnection } from '../db';
 import { JWTService } from './jwt';
 import { User } from '@prisma/client';
 import { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
+import { type UserId, userId as makeUserId } from '@semiont/core';
+import { type AccessToken, type Email, type GoogleCredential, accessToken as makeAccessToken, email as makeEmail } from '@semiont/api-client';
 
 export interface GoogleUserInfo {
   id: string;
-  email: string;
+  email: Email;
   name: string;
   picture?: string;
   verified_email: boolean;
@@ -13,23 +15,29 @@ export interface GoogleUserInfo {
 
 export interface CreateUserResult {
   user: User;
-  token: string;
+  token: AccessToken;
   isNewUser: boolean;
 }
 
 export class OAuthService {
-  static async verifyGoogleToken(accessToken: string): Promise<GoogleUserInfo> {
+  static async verifyGoogleToken(accessToken: GoogleCredential): Promise<GoogleUserInfo> {
     const response = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${accessToken}`);
-    
+
     if (!response.ok) {
       throw new Error('Failed to verify Google token');
     }
 
-    const userInfo = await response.json() as GoogleUserInfo;
-    
-    if (!userInfo.verified_email) {
+    const rawUserInfo = await response.json() as { id: string; email: string; name: string; picture?: string; verified_email: boolean };
+
+    if (!rawUserInfo.verified_email) {
       throw new Error('Email not verified with Google');
     }
+
+    // Brand the email for type safety
+    const userInfo: GoogleUserInfo = {
+      ...rawUserInfo,
+      email: makeEmail(rawUserInfo.email),
+    };
 
     return userInfo;
   }
@@ -91,26 +99,26 @@ export class OAuthService {
 
     // Generate JWT token
     const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-      userId: user.id,
-      email: user.email,
+      userId: makeUserId(user.id),
+      email: makeEmail(user.email),
       ...(user.name && { name: user.name }),
       domain: user.domain,
       provider: user.provider,
       isAdmin: user.isAdmin,
     };
 
-    const token = JWTService.generateToken(jwtPayload);
+    const token = makeAccessToken(JWTService.generateToken(jwtPayload));
 
     return { user, token, isNewUser };
   }
 
-  static async getUserFromToken(token: string): Promise<User> {
+  static async getUserFromToken(token: AccessToken): Promise<User> {
     const payload = JWTService.verifyToken(token);
-    
+
     if (!payload.userId) {
       throw new Error('Invalid token: missing userId');
     }
-    
+
     const prisma = DatabaseConnection.getClient();
     const user = await prisma.user.findUnique({
       where: { id: payload.userId }
@@ -122,17 +130,17 @@ export class OAuthService {
 
     return user;
   }
-  
-  static async acceptTerms(userId: string): Promise<User> {
+
+  static async acceptTerms(userId: UserId): Promise<User> {
     const prisma = DatabaseConnection.getClient();
-    
+
     const user = await prisma.user.update({
       where: { id: userId },
       data: {
         termsAcceptedAt: new Date(),
       }
     });
-    
+
     return user;
   }
 }

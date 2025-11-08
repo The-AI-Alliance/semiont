@@ -12,6 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import { getJobQueue } from '../../jobs/job-queue';
 import type { components } from '@semiont/api-client';
+import { jobId } from '@semiont/api-client';
 
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 
@@ -29,7 +30,7 @@ jobsRouter.get('/api/jobs/:id', async (c) => {
   const user = c.get('user');
 
   const jobQueue = getJobQueue();
-  const job = await jobQueue.getJob(id);
+  const job = await jobQueue.getJob(jobId(id));
 
   if (!job) {
     throw new HTTPException(404, { message: 'Job not found' });

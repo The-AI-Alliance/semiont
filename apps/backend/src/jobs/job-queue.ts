@@ -8,6 +8,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { Job, JobStatus, JobQueryFilters } from './types';
+import type { JobId } from '@semiont/api-client';
 
 export interface JobQueueConfig {
   dataDir: string;
@@ -46,7 +47,7 @@ export class JobQueue {
   /**
    * Get a job by ID (searches all status directories)
    */
-  async getJob(jobId: string): Promise<Job | null> {
+  async getJob(jobId: JobId): Promise<Job | null> {
     const statuses: JobStatus[] = ['pending', 'running', 'complete', 'failed', 'cancelled'];
 
     for (const status of statuses) {
@@ -162,7 +163,7 @@ export class JobQueue {
   /**
    * Cancel a job
    */
-  async cancelJob(jobId: string): Promise<boolean> {
+  async cancelJob(jobId: JobId): Promise<boolean> {
     const job = await this.getJob(jobId);
 
     if (!job) {
@@ -226,7 +227,7 @@ export class JobQueue {
   /**
    * Get job file path
    */
-  private getJobPath(jobId: string, status: JobStatus): string {
+  private getJobPath(jobId: JobId, status: JobStatus): string {
     return path.join(this.jobsDir, status, `${jobId}.json`);
   }
 

@@ -1,3 +1,5 @@
+import { userId } from '@semiont/core';
+import { email } from '@semiont/api-client';
 /**
  * MCP Authentication Security Tests
  * 
@@ -57,8 +59,8 @@ describe('MCP Authentication security', () => {
     it('security: should not expose refresh tokens in logs', () => {
       // Generate a test refresh token
       const refreshToken = JWTService.generateToken({
-        userId: 'clh0vssng0000356tmf4mt8fb',
-        email: 'test@example.com',
+        userId: userId('clh0vssng0000356tmf4mt8fb'),
+        email: email('test@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false,
@@ -103,8 +105,8 @@ describe('MCP Authentication security', () => {
     it('security: should use secure token generation with sufficient entropy', async () => {
       // Test that refresh tokens have proper length and randomness
       const token1 = JWTService.generateToken({
-        userId: 'clh0vssng0001356tmf4mt8fb',
-        email: 'user1@example.com',
+        userId: userId('clh0vssng0001356tmf4mt8fb'),
+        email: email('user1@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false,
@@ -114,8 +116,8 @@ describe('MCP Authentication security', () => {
       await new Promise(resolve => setTimeout(resolve, 1001));
       
       const token2 = JWTService.generateToken({
-        userId: 'clh0vssng0001356tmf4mt8fb', // Same user
-        email: 'user1@example.com',
+        userId: userId('clh0vssng0001356tmf4mt8fb'), // Same user
+        email: email('user1@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false,
@@ -151,16 +153,16 @@ describe('MCP Authentication security', () => {
       // Access tokens: short-lived (1 hour)
       // Refresh tokens: long-lived (30 days)
       const accessToken = JWTService.generateToken({
-        userId: 'clh0vssng0002356tmf4mt8fb',
-        email: 'test@example.com',
+        userId: userId('clh0vssng0002356tmf4mt8fb'),
+        email: email('test@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false
       }, '1h'); // Access token: 1 hour expiry
       
       const refreshToken = JWTService.generateToken({
-        userId: 'clh0vssng0002356tmf4mt8fb',
-        email: 'test@example.com',
+        userId: userId('clh0vssng0002356tmf4mt8fb'),
+        email: email('test@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false
@@ -186,8 +188,8 @@ describe('MCP Authentication security', () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       
       const refreshToken = JWTService.generateToken({
-        userId: 'clh0vssng0003356tmf4mt8fb',
-        email: 'deleted@example.com',
+        userId: userId('clh0vssng0003356tmf4mt8fb'),
+        email: email('deleted@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false,
@@ -243,7 +245,7 @@ describe('MCP Authentication security', () => {
     it('security: should generate short-lived access tokens from refresh tokens', () => {
       const mockUser: User = {
         id: 'clh0vssng0004356tmf4mt8fb',
-        email: 'test@example.com',
+        email: email('test@example.com'),
         name: 'Test User',
         domain: 'example.com',
         provider: 'google',
@@ -262,8 +264,8 @@ describe('MCP Authentication security', () => {
       
       // Generate access token (would be done by refresh endpoint)
       const accessToken = JWTService.generateToken({
-        userId: mockUser.id,
-        email: mockUser.email,
+        userId: userId(mockUser.id),
+        email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
         provider: mockUser.provider,
@@ -285,8 +287,8 @@ describe('MCP Authentication security', () => {
   describe('Token Security Best Practices', () => {
     it('security: should use secure JWT algorithm', () => {
       const token = JWTService.generateToken({
-        userId: 'clh0vssng0005356tmf4mt8fb',
-        email: 'test@example.com',
+        userId: userId('clh0vssng0005356tmf4mt8fb'),
+        email: email('test@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false
@@ -305,8 +307,8 @@ describe('MCP Authentication security', () => {
 
     it('security: should include proper token claims', () => {
       const token = JWTService.generateToken({
-        userId: 'clh0vssng0002356tmf4mt8fb',
-        email: 'test@example.com',
+        userId: userId('clh0vssng0002356tmf4mt8fb'),
+        email: email('test@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false,
@@ -327,8 +329,8 @@ describe('MCP Authentication security', () => {
       // Access tokens: short-lived (1 hour), used for API calls
       
       const refreshToken = JWTService.generateToken({
-        userId: 'clh0vssng0005356tmf4mt8fb',
-        email: 'test@example.com',
+        userId: userId('clh0vssng0005356tmf4mt8fb'),
+        email: email('test@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false
@@ -338,8 +340,8 @@ describe('MCP Authentication security', () => {
       
       // Access tokens should be used for API calls
       const accessToken = JWTService.generateToken({
-        userId: 'clh0vssng0005356tmf4mt8fb',
-        email: 'test@example.com',
+        userId: userId('clh0vssng0005356tmf4mt8fb'),
+        email: email('test@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false

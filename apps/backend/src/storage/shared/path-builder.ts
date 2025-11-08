@@ -10,6 +10,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from '../shard-utils';
+import { type ResourceId, resourceId as makeResourceId } from '@semiont/core';
 
 export interface PathBuilderConfig {
   basePath: string;
@@ -43,7 +44,7 @@ export class PathBuilder {
    * @param extension - File extension (e.g., '.json', '.dat')
    * @returns Full file path with sharding
    */
-  buildPath(resourceId: string, extension: string): string {
+  buildPath(resourceId: ResourceId, extension: string): string {
     const [ab, cd] = getShardPath(resourceId);
 
     const parts = [this.basePath, this.namespace];
@@ -98,8 +99,8 @@ export class PathBuilder {
    * @param extension - File extension to filter by
    * @returns Array of resource IDs
    */
-  async scanForResources(extension: string): Promise<string[]> {
-    const resourceIds: string[] = [];
+  async scanForResources(extension: string): Promise<ResourceId[]> {
+    const resourceIds: ResourceId[] = [];
     const rootPath = this.getRootPath();
 
     try {
@@ -113,8 +114,8 @@ export class PathBuilder {
             await walkDir(fullPath);
           } else if (entry.isFile() && entry.name.endsWith(extension)) {
             // Extract resource ID from filename
-            const resourceId = entry.name.slice(0, -extension.length);
-            resourceIds.push(resourceId);
+            const id = entry.name.slice(0, -extension.length);
+            resourceIds.push(makeResourceId(id));
           }
         }
       };

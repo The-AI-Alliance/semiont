@@ -1,3 +1,5 @@
+import { userId } from '@semiont/core';
+import { email, accessToken } from '@semiont/api-client';
 /**
  * Integration tests for API endpoints
  * These tests make actual HTTP requests to test API functionality
@@ -188,8 +190,8 @@ describe('API Endpoints Integration Tests', () => {
 
     // Generate a test token
     testToken = JWTService.generateToken({
-      userId: testUser.id,
-      email: testUser.email,
+      userId: userId(testUser.id),
+      email: email(testUser.email),
       name: testUser.name,
       domain: testUser.domain,
       provider: testUser.provider,
@@ -328,13 +330,13 @@ describe('API Endpoints Integration Tests', () => {
       // Mock successful OAuth flow
       vi.mocked(OAuthService.verifyGoogleToken).mockResolvedValue({
         id: 'google-123',
-        email: 'test@example.com',
+        email: email('test@example.com'),
         verified_email: true,
         name: 'Test User',
         picture: 'https://example.com/avatar.jpg',
         // locale: 'en', // Not part of GoogleUserInfo type
       });
-      
+
       vi.mocked(OAuthService.createOrUpdateUser).mockResolvedValue({
         user: {
           id: 'user-123',
@@ -352,7 +354,7 @@ describe('API Endpoints Integration Tests', () => {
           createdAt: new Date(),
           updatedAt: new Date(),
         },
-        token: 'mock-jwt-token',
+        token: accessToken('mock-jwt-token'),
         isNewUser: false,
       });
 

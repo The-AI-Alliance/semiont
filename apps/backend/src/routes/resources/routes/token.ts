@@ -14,8 +14,9 @@ import {
   CREATION_METHODS,
   generateUuid,
   resourceId as makeResourceId,
+  type ResourceId,
 } from '@semiont/core';
-import { resourceUri } from '@semiont/api-client';
+import { resourceUri, type CloneToken, cloneToken as makeCloneToken } from '@semiont/api-client';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
@@ -31,7 +32,7 @@ type CreateResourceFromTokenResponse = components['schemas']['CreateResourceFrom
 type CloneResourceWithTokenResponse = components['schemas']['CloneResourceWithTokenResponse'];
 
 // Simple in-memory token store (replace with Redis/DB in production)
-const cloneTokens = new Map<string, { resourceId: string; expiresAt: Date }>();
+const cloneTokens = new Map<CloneToken, { resourceId: ResourceId; expiresAt: Date }>();
 
 export function registerTokenRoutes(router: ResourcesRouterType) {
   /**
@@ -41,7 +42,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
    * Requires authentication
    */
   router.get('/api/resources/token/:token', async (c) => {
-    const { token } = c.req.param();
+    const { token: tokenStr } = c.req.param();
+    const token = makeCloneToken(tokenStr);
 
     const tokenData = cloneTokens.get(token);
     if (!tokenData) {
@@ -85,13 +87,14 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       const config = c.get('config');
       const basePath = config.services.filesystem!.path;
 
-      const tokenData = cloneTokens.get(body.token);
+      const token = makeCloneToken(body.token);
+      const tokenData = cloneTokens.get(token);
       if (!tokenData) {
         throw new HTTPException(404, { message: 'Invalid or expired token' });
       }
 
       if (new Date() > tokenData.expiresAt) {
-        cloneTokens.delete(body.token);
+        cloneTokens.delete(token);
         throw new HTTPException(404, { message: 'Token expired' });
       }
     const graphDb = await getGraphDatabase(config);
@@ -155,7 +158,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       }
 
       // Clean up token
-      cloneTokens.delete(body.token);
+      cloneTokens.delete(token);
 
       // Get annotations
       const result = await graphDb.listAnnotations({ resourceId: makeResourceId(getResourceId(savedDoc)) });
@@ -200,11 +203,12 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
     }
 
     // Create token
-    const token = `clone_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+    const tokenStr = `clone_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+    const token = makeCloneToken(tokenStr);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     cloneTokens.set(token, {
-      resourceId: id,
+      resourceId: makeResourceId(id),
       expiresAt,
     });
 

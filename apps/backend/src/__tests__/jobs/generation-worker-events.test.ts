@@ -9,7 +9,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../jobs/workers/generation-worker';
 import type { GenerationJob } from '../../jobs/types';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
-import { resourceId, userId } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
+import { jobId, entityType } from '@semiont/api-client';
 
 // Mock AI generation to avoid external API calls
 vi.mock('../../inference/factory', () => ({
@@ -140,14 +141,14 @@ describe('GenerationWorker - Event Emission', () => {
 
   it('should emit job.started event when generation begins', async () => {
     const job: GenerationJob = {
-      id: 'job-gen-1',
+      id: jobId('job-gen-1'),
       type: 'generation',
       status: 'pending',
       userId: userId('user-1'),
-      referenceId: 'test-ref-id',
+      referenceId: annotationId('test-ref-id'),
       sourceResourceId: resourceId('source-resource-1'),  // Unique per test
       title: 'Test Resource',
-      entityTypes: ['Person'],
+      entityTypes: [entityType('Person')],
       llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
@@ -181,14 +182,14 @@ describe('GenerationWorker - Event Emission', () => {
 
   it('should emit job.progress events for each generation stage', async () => {
     const job: GenerationJob = {
-      id: 'job-gen-2',
+      id: jobId('job-gen-2'),
       type: 'generation',
       status: 'pending',
       userId: userId('user-1'),
-      referenceId: 'test-ref-id',
+      referenceId: annotationId('test-ref-id'),
       sourceResourceId: resourceId('source-resource-2'),
       title: 'Test Resource',
-      entityTypes: ['Person'],
+      entityTypes: [entityType('Person')],
       llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
@@ -216,14 +217,14 @@ describe('GenerationWorker - Event Emission', () => {
 
   it('should emit progress events with increasing percentages', async () => {
     const job: GenerationJob = {
-      id: 'job-gen-3',
+      id: jobId('job-gen-3'),
       type: 'generation',
       status: 'pending',
       userId: userId('user-1'),
-      referenceId: 'test-ref-id',
+      referenceId: annotationId('test-ref-id'),
       sourceResourceId: resourceId('source-resource-3'),
       title: 'Test Resource',
-      entityTypes: ['Person'],
+      entityTypes: [entityType('Person')],
       llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
@@ -253,14 +254,14 @@ describe('GenerationWorker - Event Emission', () => {
 
   it('should emit job.completed event with resultResourceId', async () => {
     const job: GenerationJob = {
-      id: 'job-gen-4',
+      id: jobId('job-gen-4'),
       type: 'generation',
       status: 'pending',
       userId: userId('user-1'),
-      referenceId: 'test-ref-id',
+      referenceId: annotationId('test-ref-id'),
       sourceResourceId: resourceId('source-resource-4'),
       title: 'Test Resource',
-      entityTypes: ['Person'],
+      entityTypes: [entityType('Person')],
       llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
@@ -293,14 +294,14 @@ describe('GenerationWorker - Event Emission', () => {
 
   it('should emit resource.created event for new resource', async () => {
     const job: GenerationJob = {
-      id: 'job-gen-5',
+      id: jobId('job-gen-5'),
       type: 'generation',
       status: 'pending',
       userId: userId('user-1'),
-      referenceId: 'test-ref-id',
+      referenceId: annotationId('test-ref-id'),
       sourceResourceId: resourceId('source-resource-5'),
       title: 'Test Resource',
-      entityTypes: ['Person'],
+      entityTypes: [entityType('Person')],
       llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
@@ -341,14 +342,14 @@ describe('GenerationWorker - Event Emission', () => {
 
   it('should emit events in correct order', async () => {
     const job: GenerationJob = {
-      id: 'job-gen-6',
+      id: jobId('job-gen-6'),
       type: 'generation',
       status: 'pending',
       userId: userId('user-1'),
-      referenceId: 'test-ref-id',
+      referenceId: annotationId('test-ref-id'),
       sourceResourceId: resourceId('source-resource-6'),
       title: 'Test Resource',
-      entityTypes: ['Person'],
+      entityTypes: [entityType('Person')],
       llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
@@ -379,14 +380,14 @@ describe('GenerationWorker - Event Emission', () => {
 
   it('should include descriptive messages in progress events', async () => {
     const job: GenerationJob = {
-      id: 'job-gen-7',
+      id: jobId('job-gen-7'),
       type: 'generation',
       status: 'pending',
       userId: userId('user-1'),
-      referenceId: 'test-ref-id',
+      referenceId: annotationId('test-ref-id'),
       sourceResourceId: resourceId('source-resource-7'),
       title: 'Test Resource',
-      entityTypes: ['Person'],
+      entityTypes: [entityType('Person')],
       llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,

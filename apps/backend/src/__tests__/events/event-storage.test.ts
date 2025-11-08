@@ -448,12 +448,12 @@ describe('EventStorage', () => {
     });
 
     it('should count events in file', async () => {
-      const count = await storage.countEventsInFile('doc1', 'events-000001.jsonl');
+      const count = await storage.countEventsInFile(resourceId('doc1'), 'events-000001.jsonl');
       expect(count).toBe(2);
     });
 
     it('should get last event from file', async () => {
-      const last = await storage.getLastEvent('doc1', 'events-000001.jsonl');
+      const last = await storage.getLastEvent(resourceId('doc1'), 'events-000001.jsonl');
       expect(last).not.toBeNull();
       expect(last?.event.type).toBe('annotation.added');
       expect(last?.metadata.sequenceNumber).toBe(2);
@@ -465,7 +465,7 @@ describe('EventStorage', () => {
       await fs.mkdir(docPath, { recursive: true });
       await fs.writeFile(join(docPath, 'events-000001.jsonl'), '', 'utf-8');
 
-      const last = await storage.getLastEvent('doc-empty', 'events-000001.jsonl');
+      const last = await storage.getLastEvent(resourceId('doc-empty'), 'events-000001.jsonl');
       expect(last).toBeNull();
     });
 

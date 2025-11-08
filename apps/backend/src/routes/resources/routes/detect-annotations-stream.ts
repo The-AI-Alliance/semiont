@@ -18,13 +18,14 @@ import type { DetectionJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
-import { userId, resourceId } from '@semiont/core';
+import { jobId, entityType } from '@semiont/api-client';
+import { userId, resourceId, type ResourceId } from '@semiont/core';
 
 type DetectAnnotationsStreamRequest = components['schemas']['DetectAnnotationsStreamRequest'];
 
 interface DetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
-  resourceId: string;
+  resourceId: ResourceId;
   currentEntityType?: string;
   totalEntityTypes: number;
   processedEntityTypes: number;
@@ -66,12 +67,12 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
       // Create a detection job (this decouples event emission from HTTP client)
       const jobQueue = getJobQueue();
       const job: DetectionJob = {
-        id: `job-${nanoid()}`,
+        id: jobId(`job-${nanoid()}`),
         type: 'detection',
         status: 'pending',
         userId: userId(user.id),
         resourceId: resourceId(id),
-        entityTypes,
+        entityTypes: entityTypes.map(et => entityType(et)),
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3

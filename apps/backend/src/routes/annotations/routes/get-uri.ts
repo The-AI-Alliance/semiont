@@ -44,9 +44,9 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     }
 
     // Extract resource ID from URI if provided as full URI
-    let resourceId: string;
+    let extractedResourceId: string;
     try {
-      resourceId = resourceUriOrId.includes('://')
+      extractedResourceId = resourceUriOrId.includes('://')
         ? uriToResourceId(resourceUriOrId)
         : resourceUriOrId;
     } catch (error) {
@@ -57,13 +57,13 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     if (prefersHtml(c)) {
       const frontendUrl = getFrontendUrl();
       const normalizedBase = frontendUrl.endsWith('/') ? frontendUrl.slice(0, -1) : frontendUrl;
-      const redirectUrl = `${normalizedBase}/annotations/${id}?resourceId=${resourceId}`;
+      const redirectUrl = `${normalizedBase}/annotations/${id}?resourceId=${extractedResourceId}`;
       return c.redirect(redirectUrl, 302);
     }
 
     // Otherwise, return JSON-LD representation
     // O(1) lookup in Layer 3 using resource ID
-    const projection = await AnnotationQueryService.getResourceAnnotations(makeResourceId(resourceId), config);
+    const projection = await AnnotationQueryService.getResourceAnnotations(makeResourceId(extractedResourceId), config);
 
     // Find the annotation
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
@@ -73,7 +73,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     }
 
     // Get resource metadata
-    const resource = await ResourceQueryService.getResourceMetadata(makeResourceId(resourceId), config);
+    const resource = await ResourceQueryService.getResourceMetadata(makeResourceId(extractedResourceId), config);
 
     // If it's a linking annotation with a resolved source, get resolved resource
     let resolvedResource = null;

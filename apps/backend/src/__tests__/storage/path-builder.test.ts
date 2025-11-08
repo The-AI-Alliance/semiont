@@ -89,7 +89,7 @@ describe('PathBuilder', () => {
       // Generate 100 resource IDs and check their shard distribution
       for (let i = 0; i < 100; i++) {
         const docId = `doc-sha256:test${i}`;
-        const path = builder.buildPath(docId, '.dat');
+        const path = builder.buildPath(resourceId(docId), '.dat');
         const match = path.match(/\/([0-9a-f]{2})\/([0-9a-f]{2})\//);
         if (match) {
           shards.add(`${match[1]}/${match[2]}`);
@@ -136,7 +136,7 @@ describe('PathBuilder', () => {
       // Create test resources
       const docIds = ['doc-1', 'doc-2', 'doc-3'];
       for (const docId of docIds) {
-        const filePath = builder.buildPath(docId, '.json');
+        const filePath = builder.buildPath(resourceId(docId), '.json');
         await builder.ensureDirectory(filePath);
         await fs.writeFile(filePath, JSON.stringify({ id: docId }));
       }
@@ -154,8 +154,8 @@ describe('PathBuilder', () => {
       const builder = new PathBuilder({ basePath: testDir, namespace: 'filter-test' });
 
       // Create resources with different extensions
-      const doc1Path = builder.buildPath('doc-json', '.json');
-      const doc2Path = builder.buildPath('doc-dat', '.dat');
+      const doc1Path = builder.buildPath(resourceId('doc-json'), '.json');
+      const doc2Path = builder.buildPath(resourceId('doc-dat'), '.dat');
 
       await builder.ensureDirectory(doc1Path);
       await builder.ensureDirectory(doc2Path);
@@ -208,11 +208,11 @@ describe('PathBuilder', () => {
       ];
 
       for (const { id, expectedShard } of testCases) {
-        const path = builder.buildPath(id, '.dat');
+        const path = builder.buildPath(resourceId(id), '.dat');
         expect(path).toMatch(expectedShard);
 
         // Verify consistency
-        const path2 = builder.buildPath(id, '.dat');
+        const path2 = builder.buildPath(resourceId(id), '.dat');
         expect(path).toBe(path2);
       }
     });
@@ -228,7 +228,7 @@ describe('PathBuilder', () => {
       ];
 
       for (const id of formats) {
-        const path = builder.buildPath(id, '.dat');
+        const path = builder.buildPath(resourceId(id), '.dat');
         expect(path).toMatch(/\/[0-9a-f]{2}\/[0-9a-f]{2}\//);
         expect(path).toContain(id);
       }
