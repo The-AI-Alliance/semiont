@@ -19,13 +19,13 @@ import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { jobId, entityType } from '@semiont/api-client';
-import { userId, resourceId } from '@semiont/core';
+import { userId, resourceId, type ResourceId } from '@semiont/core';
 
 type DetectAnnotationsStreamRequest = components['schemas']['DetectAnnotationsStreamRequest'];
 
 interface DetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
-  resourceId: string;
+  resourceId: ResourceId;
   currentEntityType?: string;
   totalEntityTypes: number;
   processedEntityTypes: number;

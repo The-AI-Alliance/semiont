@@ -33,13 +33,13 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
       const config = c.get('config');
 
       // Generate annotation ID
-      let annotationId: string;
+      let newAnnotationId: string;
       try {
         const backendUrl = config.services.backend?.publicURL;
         if (!backendUrl) {
           throw new Error('Backend publicURL not configured');
         }
-        annotationId = generateAnnotationId(backendUrl);
+        newAnnotationId = generateAnnotationId(backendUrl);
       } catch (error) {
         console.error('Failed to generate annotation ID:', error);
         throw new HTTPException(500, { message: 'Failed to create annotation' });
@@ -60,7 +60,7 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: annotationId,
+        id: newAnnotationId,
         motivation: request.motivation,
         target: request.target,
         body: request.body as Annotation['body'],

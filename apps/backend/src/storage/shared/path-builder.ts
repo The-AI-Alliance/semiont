@@ -44,7 +44,7 @@ export class PathBuilder {
    * @param extension - File extension (e.g., '.json', '.dat')
    * @returns Full file path with sharding
    */
-  buildPath(resourceId: string, extension: string): string {
+  buildPath(resourceId: ResourceId, extension: string): string {
     const [ab, cd] = getShardPath(resourceId);
 
     const parts = [this.basePath, this.namespace];

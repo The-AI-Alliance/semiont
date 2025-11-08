@@ -14,8 +14,7 @@
 import type { ResourceState } from './projection-storage-v2';
 import type { ProjectionStorage } from './projection-storage-v2';
 import { getCreator } from '../../utils/resource-helpers';
-import { resourceId as makeResourceId } from '@semiont/core';
-import type { UserId } from '@semiont/core';
+import { resourceId as makeResourceId, type ResourceId, type UserId } from '@semiont/core';
 
 /**
  * ProjectionQuery provides query operations on projections
@@ -110,8 +109,8 @@ export class ProjectionQuery {
    * @param resourceId - Resource identifier
    * @returns Number of annotations or 0 if not found
    */
-  async getAnnotationCount(resourceId: string): Promise<number> {
-    const projection = await this.storage.get(makeResourceId(resourceId));
+  async getAnnotationCount(resourceId: ResourceId): Promise<number> {
+    const projection = await this.storage.get(resourceId);
     return projection?.annotations.annotations.length || 0;
   }
 
