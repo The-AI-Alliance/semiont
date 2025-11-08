@@ -445,7 +445,7 @@ describe('EventProjector', () => {
         getAllEvents
       );
 
-      const projection = await projectionStorage.getProjection(resourceId('doc1'));
+      const projection = await projectionStorage.get(resourceId('doc1'));
       expect(projection).not.toBeNull();
       expect(projection!.resource.name).toBe('Test');
       expect(projection!.annotations.version).toBe(1);
@@ -461,7 +461,7 @@ describe('EventProjector', () => {
       ];
 
       await projector.projectResource(initialEvents, resourceId('doc1'));
-      await projectionStorage.saveProjection(resourceId('doc1'), (await projector.projectResource(initialEvents, resourceId('doc1')))!);
+      await projectionStorage.save(resourceId('doc1'), (await projector.projectResource(initialEvents, resourceId('doc1')))!);
 
       // Apply incremental update
       const newEvent = createStoredEvent({
@@ -474,7 +474,7 @@ describe('EventProjector', () => {
         async () => [...initialEvents, newEvent]
       );
 
-      const projection = await projectionStorage.getProjection(resourceId('doc1'));
+      const projection = await projectionStorage.get(resourceId('doc1'));
       expect(projection!.resource.entityTypes).toContain('Person');
       expect(projection!.annotations.version).toBe(2);
     });
@@ -488,7 +488,7 @@ describe('EventProjector', () => {
       ];
 
       await projector.projectResource(initialEvents, resourceId('doc1'));
-      await projectionStorage.saveProjection(resourceId('doc1'), (await projector.projectResource(initialEvents, resourceId('doc1')))!);
+      await projectionStorage.save(resourceId('doc1'), (await projector.projectResource(initialEvents, resourceId('doc1')))!);
 
       // Apply 3 incremental updates
       const events = [
@@ -504,7 +504,7 @@ describe('EventProjector', () => {
         );
       }
 
-      const projection = await projectionStorage.getProjection(resourceId('doc1'));
+      const projection = await projectionStorage.get(resourceId('doc1'));
       expect(projection!.annotations.version).toBe(4);
     });
   });

@@ -47,7 +47,7 @@ export class EventProjector {
    */
   async projectResource(events: StoredEvent[], resourceId: ResourceId): Promise<ResourceState | null> {
     // Try to load existing projection from Layer 3
-    const existing = await this.projectionStorage.getProjection(resourceId);
+    const existing = await this.projectionStorage.get(resourceId);
     if (existing) {
       return existing;
     }
@@ -58,7 +58,7 @@ export class EventProjector {
     const projection = this.buildProjectionFromEvents(events, resourceId);
 
     // Save rebuilt projection to Layer 3
-    await this.projectionStorage.saveProjection(resourceId, projection);
+    await this.projectionStorage.save(resourceId, projection);
 
     return projection;
   }
@@ -75,7 +75,7 @@ export class EventProjector {
     console.log(`[EventProjector] Updating projection for ${resourceId} with event ${event.type}`);
 
     // Try to load existing projection
-    let projection = await this.projectionStorage.getProjection(resourceId);
+    let projection = await this.projectionStorage.get(resourceId);
 
     if (!projection) {
       // No projection exists - do full rebuild from all events
@@ -92,7 +92,7 @@ export class EventProjector {
     }
 
     // Save updated projection
-    await this.projectionStorage.saveProjection(resourceId, projection);
+    await this.projectionStorage.save(resourceId, projection);
     console.log(`[EventProjector] Projection saved (version ${projection.annotations.version}, ${projection.annotations.annotations.length} annotations)`);
   }
 

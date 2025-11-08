@@ -46,7 +46,7 @@ describe('SSE Event Flow - End-to-End', () => {
     const receivedEvents: any[] = [];
 
     // Simulate SSE endpoint subscribing to Event Store
-    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
+    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
       const event = storedEvent.event;
 
       // Filter for this specific job (like SSE endpoint does)
@@ -142,7 +142,7 @@ describe('SSE Event Flow - End-to-End', () => {
     const jobId = resourceId('job-e2e-2');
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
+    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
       const event = storedEvent.event;
 
       if ((event.type === 'job.started' || event.type === 'job.progress' || event.type === 'job.completed')
@@ -223,7 +223,7 @@ describe('SSE Event Flow - End-to-End', () => {
     const jobId = resourceId('job-e2e-3');
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
+    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
       const event = storedEvent.event;
 
       if ((event.type === 'job.started' || event.type === 'job.progress' || event.type === 'job.failed')
@@ -296,7 +296,7 @@ describe('SSE Event Flow - End-to-End', () => {
     const receivedJob1Events: any[] = [];
 
     // Subscribe to events for jobId1 only
-    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
+    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
       const event = storedEvent.event;
 
       if ((event.type === 'job.progress' || event.type === 'job.completed')
@@ -359,15 +359,15 @@ describe('SSE Event Flow - End-to-End', () => {
     const subscriber3Events: any[] = [];
 
     // Create multiple subscribers (simulating multiple SSE clients)
-    const sub1 = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
+    const sub1 = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
       subscriber1Events.push(storedEvent.event);
     });
 
-    const sub2 = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
+    const sub2 = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
       subscriber2Events.push(storedEvent.event);
     });
 
-    const sub3 = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
+    const sub3 = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
       subscriber3Events.push(storedEvent.event);
     });
 
@@ -413,7 +413,7 @@ describe('SSE Event Flow - End-to-End', () => {
     const jobId = resourceId('job-e2e-6');
     let notifyTime: number | null = null;
 
-    const subscription = eventStore.subscriptions.subscribe(rUri, async () => {
+    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async () => {
       notifyTime = Date.now();
     });
 

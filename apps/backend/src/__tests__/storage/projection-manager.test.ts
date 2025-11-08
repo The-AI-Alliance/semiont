@@ -281,60 +281,6 @@ describe('ProjectionManager', () => {
     });
   });
 
-  describe('Backward Compatibility', () => {
-    it('should support deprecated saveProjection method', async () => {
-      const docId = resourceId('doc-compat-save');
-      const state = createTestState(resourceId(docId));
-
-      await manager.saveProjection(docId, state);
-
-      const exists = await manager.exists(resourceId(docId));
-      expect(exists).toBe(true);
-    });
-
-    it('should support deprecated getProjection method', async () => {
-      const docId = resourceId('doc-compat-get');
-      const state = createTestState(resourceId(docId));
-
-      await manager.save(resourceId(docId), state);
-
-      const loaded = await manager.getProjection(docId);
-      expect(loaded ? getResourceId(loaded.resource) : null).toBe(docId);
-    });
-
-    it('should support deprecated deleteProjection method', async () => {
-      const docId = resourceId('doc-compat-delete');
-      const state = createTestState(resourceId(docId));
-
-      await manager.save(resourceId(docId), state);
-      await manager.deleteProjection(docId);
-
-      expect(await manager.exists(resourceId(docId))).toBe(false);
-    });
-
-    it('should support deprecated projectionExists method', async () => {
-      const docId = resourceId('doc-compat-exists');
-      const state = createTestState(resourceId(docId));
-
-      await manager.save(resourceId(docId), state);
-
-      const exists = await manager.projectionExists(docId);
-      expect(exists).toBe(true);
-    });
-
-    it('should support deprecated getAllProjections method', async () => {
-      const manager5 = new ProjectionManager({
-        basePath: testDir,
-        subNamespace: 'compat-getall',
-      });
-
-      await manager5.save(resourceId('doc-compat-1'), createTestState(resourceId('doc-compat-1')));
-
-      const all = await manager5.getAllProjections();
-      expect(all.length).toBe(1);
-    });
-  });
-
   describe('Error Handling', () => {
     it('should handle errors from storage layer', async () => {
       // Try to get with invalid ID that causes issues

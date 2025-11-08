@@ -75,7 +75,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
 
       // Track if stream is closed to prevent double cleanup
       let isStreamClosed = false;
-      let subscription: ReturnType<typeof eventStore.subscriptions.subscribe> | null = null;
+      let subscription: ReturnType<typeof eventStore.bus.subscriptions.subscribe> | null = null;
       let keepAliveInterval: NodeJS.Timeout | null = null;
       let closeStreamCallback: (() => void) | null = null;
 
@@ -107,7 +107,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
       // Subscribe to events for this resource using full URI
       const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
       console.log(`[EventStream:${streamId}] Subscribing to events for resource URI ${rUri}`);
-      subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
+      subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
         if (isStreamClosed) {
           console.log(`[EventStream:${streamId}] Stream already closed for ${rUri}, ignoring event ${storedEvent.event.type}`);
           return;

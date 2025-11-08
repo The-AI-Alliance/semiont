@@ -44,7 +44,7 @@ export class GraphDBConsumer {
   private async subscribeToGlobalEvents() {
     const eventStore = await createEventStore( this.config);
 
-    this._globalSubscription = eventStore.subscriptions.subscribeGlobal(async (storedEvent) => {
+    this._globalSubscription = eventStore.bus.subscriptions.subscribeGlobal(async (storedEvent) => {
       console.log(`[GraphDBConsumer] Received global event: ${storedEvent.event.type}`);
       await this.processEvent(storedEvent);
     });
@@ -71,7 +71,7 @@ export class GraphDBConsumer {
     const publicURL = this.config.services.backend!.publicURL;
     const rUri = resourceUri(`${publicURL}/resources/${resourceId}`);
 
-    const subscription = eventStore.subscriptions.subscribe(rUri, async (storedEvent) => {
+    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
       await this.processEvent(storedEvent);
     });
 
@@ -313,7 +313,7 @@ export class GraphDBConsumer {
 
     // Get all resource IDs by scanning event shards
     const eventStore = await createEventStore( this.config);
-    const allResourceIds = await eventStore.storage.getAllResourceIds();
+    const allResourceIds = await eventStore.log.getAllResourceIds();
 
     console.log(`[GraphDBConsumer] Found ${allResourceIds.length} resources to rebuild`);
 
@@ -403,7 +403,7 @@ export async function startGraphConsumer(config: EnvironmentConfig): Promise<voi
   const eventStore = await createEventStore( config);
 
   // Get all existing resource IDs
-  const allResourceIds = await eventStore.storage.getAllResourceIds();
+  const allResourceIds = await eventStore.log.getAllResourceIds();
 
   console.log(`[GraphDBConsumer] Starting consumer for ${allResourceIds.length} resources`);
 

@@ -38,7 +38,7 @@ describe('Event Store', () => {
       identifierConfig
     );
 
-    query = new EventQuery(eventStore.storage);
+    query = new EventQuery(eventStore.log.storage);
     validator = new EventValidator();
   });
 
@@ -139,7 +139,7 @@ describe('Event Store', () => {
     });
 
     const events = await query.getResourceEvents(docId);
-    const stored = await eventStore.projector.projectResource(events, docId);
+    const stored = await eventStore.projections.projector.projectResource(events, docId);
 
     expect(stored).toBeDefined();
     expect(stored!.resource.name).toBe('Doc');

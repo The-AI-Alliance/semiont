@@ -113,43 +113,4 @@ export class ProjectionManager {
   async getSystem<T = any>(filename: string): Promise<T | null> {
     return this.storage.getSystem<T>(filename);
   }
-
-  // ============================================================
-  // Backward Compatibility Methods (old ProjectionStorage interface)
-  // ============================================================
-
-  /**
-   * @deprecated Use save() instead
-   */
-  async saveProjection(resourceId: ResourceId, projection: ResourceState): Promise<void> {
-    return this.save(resourceId, projection);
-  }
-
-  /**
-   * @deprecated Use get() instead
-   */
-  async getProjection(resourceId: ResourceId): Promise<ResourceState | null> {
-    return this.get(resourceId);
-  }
-
-  /**
-   * @deprecated Use delete() instead
-   */
-  async deleteProjection(resourceId: ResourceId): Promise<void> {
-    return this.delete(resourceId);
-  }
-
-  /**
-   * @deprecated Use exists() instead
-   */
-  async projectionExists(resourceId: ResourceId): Promise<boolean> {
-    return this.exists(resourceId);
-  }
-
-  /**
-   * @deprecated Use getAll() instead
-   */
-  async getAllProjections(): Promise<ResourceState[]> {
-    return this.getAll();
-  }
 }
