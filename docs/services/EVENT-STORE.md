@@ -118,6 +118,78 @@ The Event Store implements true event sourcing:
 
 ## Component Architecture
 
+### Component Diagram
+
+```mermaid
+graph TB
+    subgraph "EventStore (Coordinator)"
+        ES[EventStore<br/>97 lines<br/>Enforces write invariants]
+    end
+
+    subgraph "Primary Components"
+        LOG[EventLog<br/>80 lines<br/>Persistence]
+        BUS[EventBus<br/>127 lines<br/>Pub/Sub]
+        VIEWS[ViewManager<br/>81 lines<br/>Materialization]
+    end
+
+    subgraph "Internal Modules"
+        STORAGE[EventStorage<br/>306 lines<br/>JSONL + Sharding]
+        SUBS[EventSubscriptions<br/>157 lines<br/>Real-time notifications]
+        MAT[ViewMaterializer<br/>303 lines<br/>Event → View transform]
+        QUERY[EventQuery<br/>112 lines<br/>Read + Filter]
+        VALID[EventValidator<br/>82 lines<br/>Chain integrity]
+    end
+
+    subgraph "Storage Backends"
+        JSONL[(JSONL Files<br/>Event Log)]
+        VIEWDB[(ViewStorage<br/>Materialized Views)]
+    end
+
+    ES -->|1. Persist| LOG
+    ES -->|2. Materialize| VIEWS
+    ES -->|3. Notify| BUS
+
+    LOG --> STORAGE
+    LOG -.->|expose for queries| QUERY
+    LOG -.->|expose for validation| VALID
+
+    BUS --> SUBS
+
+    VIEWS --> MAT
+
+    STORAGE -->|append/read| JSONL
+    MAT -->|save/get| VIEWDB
+
+    classDef coordinator fill:#d4a827,stroke:#8b6914,stroke-width:3px,color:#000
+    classDef primary fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
+    classDef internal fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
+    classDef storage fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+
+    class ES coordinator
+    class LOG,BUS,VIEWS primary
+    class STORAGE,SUBS,MAT,QUERY,VALID internal
+    class JSONL,VIEWDB storage
+```
+
+**Key Relationships**:
+
+- **EventStore** (coordinator) enforces the write-path invariant: persist → materialize → notify
+- **Primary Components** are exposed as public properties (`log`, `bus`, `views`) for independent read access
+- **Internal Modules** are wrapped by primary components (single responsibility, implementation detail)
+- **Storage Backends** are abstracted by internal modules (JSONL for events, ViewStorage for views)
+
+**Write Path** (coordinated):
+
+1. EventStore → EventLog → EventStorage → JSONL files
+2. EventStore → ViewManager → ViewMaterializer → ViewStorage
+3. EventStore → EventBus → EventSubscriptions → Subscribers
+
+**Read Path** (flexible):
+
+- Direct access to any component: `eventStore.log.getEvents()`, `eventStore.bus.subscribe()`, `eventStore.views.getOrMaterialize()`
+- EventQuery provides filtered reads over EventStorage
+- EventValidator provides chain integrity checks
+
 ### EventStore
 
 **Location**: [apps/backend/src/events/event-store.ts](../../apps/backend/src/events/event-store.ts)
