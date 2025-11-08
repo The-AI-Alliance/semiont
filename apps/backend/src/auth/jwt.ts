@@ -1,11 +1,13 @@
 import * as jwt from 'jsonwebtoken';
 import { JWTPayloadSchema } from '../types/jwt-types';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, UserId } from '@semiont/core';
+import { userId as makeUserId } from '@semiont/core';
+import { type Email, email as makeEmail } from '@semiont/api-client';
 
 export interface JWTPayload {
-  userId: string;
-  email: string;
+  userId: UserId;
+  email: Email;
   name?: string;
   domain: string;
   provider: string;
@@ -95,7 +97,7 @@ export class JWTService {
     try {
       // First, verify JWT signature and basic structure
       const decoded = jwt.verify(token, this.getSecret());
-      
+
       // Then validate the payload structure and content
       const result = JWTPayloadSchema.safeParse(decoded);
 
@@ -103,7 +105,12 @@ export class JWTService {
         throw new Error(`Invalid token payload: ${result.error.message}`);
       }
 
-      return result.data;
+      // Brand the string types for type safety
+      return {
+        ...result.data,
+        userId: makeUserId(result.data.userId),
+        email: makeEmail(result.data.email),
+      };
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
         throw new Error('Invalid token signature');
@@ -114,13 +121,13 @@ export class JWTService {
       if (error instanceof jwt.NotBeforeError) {
         throw new Error('Token not active yet');
       }
-      
+
       // Re-throw validation errors or other errors
       throw error;
     }
   }
 
-  static isAllowedDomain(email: string): boolean {
+  static isAllowedDomain(email: Email): boolean {
     const parts = email.split('@');
     if (parts.length !== 2 || !parts[0] || !parts[1]) {
       return false;

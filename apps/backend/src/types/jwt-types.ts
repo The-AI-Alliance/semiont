@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { GoogleAuthRequest } from '@semiont/core';
+import type { GoogleAuthRequest, UserId } from '@semiont/core';
+import type { Email } from '@semiont/api-client';
 
 // JWT Payload schema - backend-specific internal type for JWT validation
 export const JWTPayloadSchema = z.object({
@@ -13,7 +14,14 @@ export const JWTPayloadSchema = z.object({
   exp: z.number().optional(),
 });
 
-export type JWTPayload = z.infer<typeof JWTPayloadSchema>;
+// Base Zod-inferred type
+type JWTPayloadBase = z.infer<typeof JWTPayloadSchema>;
+
+// Branded version for type safety
+export type JWTPayload = Omit<JWTPayloadBase, 'userId' | 'email'> & {
+  userId: UserId;
+  email: Email;
+};
 
 // Re-export GoogleAuthRequest type from SDK
 export type { GoogleAuthRequest };
