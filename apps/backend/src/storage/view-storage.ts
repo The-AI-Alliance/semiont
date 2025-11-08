@@ -92,7 +92,7 @@ export class FilesystemViewStorage implements ViewStorage {
   }
 
   async getAll(): Promise<ResourceView[]> {
-    const projections: ResourceView[] = [];
+    const views: ResourceView[] = [];
     const annotationsPath = path.join(this.basePath, 'projections', 'resources');
 
     try {
@@ -108,11 +108,11 @@ export class FilesystemViewStorage implements ViewStorage {
           } else if (entry.isFile() && entry.name.endsWith('.json')) {
             try {
               const content = await fs.readFile(fullPath, 'utf-8');
-              const projection = JSON.parse(content) as ResourceView;
-              projections.push(projection);
+              const view = JSON.parse(content) as ResourceView;
+              views.push(view);
             } catch (error) {
-              console.error(`[ProjectionStorage] Failed to read projection ${fullPath}:`, error);
-              // Skip invalid projection files
+              console.error(`[ViewStorage] Failed to read view ${fullPath}:`, error);
+              // Skip invalid view files
             }
           }
         }
@@ -121,12 +121,12 @@ export class FilesystemViewStorage implements ViewStorage {
       await walkDir(annotationsPath);
     } catch (error: any) {
       if (error.code === 'ENOENT') {
-        // Projections/annotations directory doesn't exist yet
+        // Views directory doesn't exist yet
         return [];
       }
       throw error;
     }
 
-    return projections;
+    return views;
   }
 }

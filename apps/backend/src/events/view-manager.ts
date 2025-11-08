@@ -29,14 +29,14 @@ export class ViewManager {
   readonly materializer: ViewMaterializer;
 
   constructor(
-    projectionStorage: ViewStorage,
+    viewStorage: ViewStorage,
     config: ViewManagerConfig
   ) {
     const materializerConfig: ViewMaterializerConfig = {
       basePath: config.basePath,
       backendUrl: config.backendUrl,
     };
-    this.materializer = new ViewMaterializer(projectionStorage, materializerConfig);
+    this.materializer = new ViewMaterializer(viewStorage, materializerConfig);
   }
 
   /**

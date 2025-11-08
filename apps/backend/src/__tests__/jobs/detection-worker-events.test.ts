@@ -58,7 +58,7 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
       }
 
       // Create new instance and cache it
-      const projectionStorage = new FilesystemViewStorage(basePath);
+      const viewStorage = new FilesystemViewStorage(basePath);
       const identifierConfig = { baseUrl: 'http://localhost:4000' };
       const eventStore = new EventStore(
         {
@@ -67,7 +67,7 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
           enableSharding: false,
           maxEventsPerFile: 100,
         },
-        projectionStorage,
+        viewStorage,
         identifierConfig
       );
 

@@ -24,7 +24,7 @@ describe('Event Store', () => {
     testDir = join(tmpdir(), `semiont-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    const projectionStorage = new FilesystemViewStorage(testDir);
+    const viewStorage = new FilesystemViewStorage(testDir);
     const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
 
     eventStore = new EventStore(
@@ -34,7 +34,7 @@ describe('Event Store', () => {
         enableSharding: false, // Faster without sharding
         maxEventsPerFile: 100,
       },
-      projectionStorage,
+      viewStorage,
       identifierConfig
     );
 

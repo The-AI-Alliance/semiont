@@ -19,7 +19,7 @@ import { createTestResource } from '../fixtures/resource-fixtures';
 describe('Layered Storage', () => {
   let testDir: string;
   let resourceStorage: FilesystemStorage;
-  let projectionStorage: FilesystemViewStorage;
+  let viewStorage: FilesystemViewStorage;
   let eventStore: EventStore;
   let query: EventQuery;
 
@@ -28,7 +28,7 @@ describe('Layered Storage', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     resourceStorage = new FilesystemStorage(testDir);
-    projectionStorage = new FilesystemViewStorage(testDir);
+    viewStorage = new FilesystemViewStorage(testDir);
     const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
 
     eventStore = new EventStore(
@@ -38,7 +38,7 @@ describe('Layered Storage', () => {
         enableSharding: true,
         maxEventsPerFile: 100,
       },
-      projectionStorage,
+      viewStorage,
       identifierConfig
     );
 
@@ -107,10 +107,10 @@ describe('Layered Storage', () => {
         },
       };
 
-      await projectionStorage.save(docId, stored);
+      await viewStorage.save(docId, stored);
 
       // Verify file was created in correct shard
-      const exists = await projectionStorage.exists(docId);
+      const exists = await viewStorage.exists(docId);
       expect(exists).toBe(true);
     });
 
@@ -169,14 +169,14 @@ describe('Layered Storage', () => {
         },
       };
 
-      await projectionStorage.save(docId, stored);
-      const retrieved = await projectionStorage.get(docId);
+      await viewStorage.save(docId, stored);
+      const retrieved = await viewStorage.get(docId);
 
       expect(retrieved).toEqual(stored);
     });
 
     it('should return null for non-existent projection', async () => {
-      const result = await projectionStorage.get(resourceId('doc-sha256:nonexistent'));
+      const result = await viewStorage.get(resourceId('doc-sha256:nonexistent'));
       expect(result).toBeNull();
     });
 
@@ -207,11 +207,11 @@ describe('Layered Storage', () => {
         },
       };
 
-      await projectionStorage.save(docId, stored);
-      expect(await projectionStorage.exists(docId)).toBe(true);
+      await viewStorage.save(docId, stored);
+      expect(await viewStorage.exists(docId)).toBe(true);
 
-      await projectionStorage.delete(docId);
-      expect(await projectionStorage.exists(docId)).toBe(false);
+      await viewStorage.delete(docId);
+      expect(await viewStorage.exists(docId)).toBe(false);
     });
   });
 
@@ -234,7 +234,7 @@ describe('Layered Storage', () => {
       });
 
       // Projection should be saved to Layer 3
-      const stored = await projectionStorage.get(docId);
+      const stored = await viewStorage.get(docId);
       expect(stored).toBeDefined();
       expect(stored!.resource.name).toBe('Integration Test');
     });
@@ -256,7 +256,7 @@ describe('Layered Storage', () => {
         },
       });
 
-      const before = await projectionStorage.get(docId);
+      const before = await viewStorage.get(docId);
       expect(before!.annotations.annotations).toHaveLength(0);
 
       // Add highlighting annotation
@@ -292,7 +292,7 @@ describe('Layered Storage', () => {
       });
 
       // Projection should be updated
-      const after = await projectionStorage.get(docId);
+      const after = await viewStorage.get(docId);
       expect(after!.annotations.annotations).toHaveLength(1);
       expect(after!.annotations.annotations[0]?.id).toBe('hl1');
       expect(after!.annotations.version).toBe(2);

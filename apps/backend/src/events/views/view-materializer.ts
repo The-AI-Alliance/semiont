@@ -37,7 +37,7 @@ export interface ViewMaterializerConfig {
  */
 export class ViewMaterializer {
   constructor(
-    private projectionStorage: ViewStorage,
+    private viewStorage: ViewStorage,
     private config: ViewMaterializerConfig
   ) {}
 
@@ -47,20 +47,20 @@ export class ViewMaterializer {
    */
   async materialize(events: StoredEvent[], resourceId: ResourceId): Promise<ResourceView | null> {
     // Try to load existing projection from Layer 3
-    const existing = await this.projectionStorage.get(resourceId);
+    const existing = await this.viewStorage.get(resourceId);
     if (existing) {
       return existing;
     }
 
-    // No projection exists - rebuild from Layer 2 events
+    // No view exists - rebuild from Layer 2 events
     if (events.length === 0) return null;
 
-    const projection = this.materializeFromEvents(events, resourceId);
+    const view = this.materializeFromEvents(events, resourceId);
 
-    // Save rebuilt projection to Layer 3
-    await this.projectionStorage.save(resourceId, projection);
+    // Save rebuilt view to Layer 3
+    await this.viewStorage.save(resourceId, view);
 
-    return projection;
+    return view;
   }
 
   /**
@@ -72,28 +72,28 @@ export class ViewMaterializer {
     event: ResourceEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
-    console.log(`[EventProjector] Updating projection for ${resourceId} with event ${event.type}`);
+    console.log(`[EventProjector] Updating view for ${resourceId} with event ${event.type}`);
 
-    // Try to load existing projection
-    let projection = await this.projectionStorage.get(resourceId);
+    // Try to load existing view
+    let view = await this.viewStorage.get(resourceId);
 
-    if (!projection) {
-      // No projection exists - do full rebuild from all events
-      console.log(`[EventProjector] No projection found, rebuilding from scratch`);
+    if (!view) {
+      // No view exists - do full rebuild from all events
+      console.log(`[EventProjector] No view found, rebuilding from scratch`);
       const events = await getAllEvents();
-      projection = this.materializeFromEvents(events, resourceId);
+      view = this.materializeFromEvents(events, resourceId);
     } else {
-      // Apply single event incrementally to existing projection
-      console.log(`[EventProjector] Applying event incrementally to existing projection (version ${projection.annotations.version})`);
-      this.applyEventToResource(projection.resource, event);
-      this.applyEventToAnnotations(projection.annotations, event);
-      projection.annotations.version++;
-      projection.annotations.updatedAt = event.timestamp;
+      // Apply single event incrementally to existing view
+      console.log(`[EventProjector] Applying event incrementally to existing view (version ${view.annotations.version})`);
+      this.applyEventToResource(view.resource, event);
+      this.applyEventToAnnotations(view.annotations, event);
+      view.annotations.version++;
+      view.annotations.updatedAt = event.timestamp;
     }
 
-    // Save updated projection
-    await this.projectionStorage.save(resourceId, projection);
-    console.log(`[EventProjector] Projection saved (version ${projection.annotations.version}, ${projection.annotations.annotations.length} annotations)`);
+    // Save updated view
+    await this.viewStorage.save(resourceId, view);
+    console.log(`[EventProjector] View saved (version ${view.annotations.version}, ${view.annotations.annotations.length} annotations)`);
   }
 
   /**
@@ -306,23 +306,23 @@ export class ViewMaterializer {
     );
 
 
-    // Read current projection
-    let projection = { entityTypes: [] as string[] };
+    // Read current view
+    let view = { entityTypes: [] as string[] };
     try {
       const content = await fs.readFile(entityTypesPath, 'utf-8');
-      projection = JSON.parse(content);
+      view = JSON.parse(content);
     } catch (error: any) {
       if (error.code !== 'ENOENT') throw error;
       // File doesn't exist - will create it
     }
 
     // Add entity type (idempotent - Set ensures uniqueness)
-    const entityTypeSet = new Set(projection.entityTypes);
+    const entityTypeSet = new Set(view.entityTypes);
     entityTypeSet.add(entityType);
-    projection.entityTypes = Array.from(entityTypeSet).sort();
+    view.entityTypes = Array.from(entityTypeSet).sort();
 
-    // Write projection
+    // Write view
     await fs.mkdir(path.dirname(entityTypesPath), { recursive: true });
-    await fs.writeFile(entityTypesPath, JSON.stringify(projection, null, 2));
+    await fs.writeFile(entityTypesPath, JSON.stringify(view, null, 2));
   }
 }

@@ -104,7 +104,7 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
     await initializeJobQueue({ dataDir: join(testDir, 'jobs') });
 
     // Initialize Event Store
-    const projectionStorage = new FilesystemViewStorage(testDir);
+    const viewStorage = new FilesystemViewStorage(testDir);
     const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
     eventStore = new EventStore(
       {
@@ -113,7 +113,7 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
         enableSharding: false,
         maxEventsPerFile: 100,
       },
-      projectionStorage,
+      viewStorage,
       identifierConfig
     );
 
@@ -282,7 +282,7 @@ describe('Event Store Subscription Pattern', () => {
     testDir = join(tmpdir(), `semiont-test-subscription-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    const projectionStorage = new FilesystemViewStorage(testDir);
+    const viewStorage = new FilesystemViewStorage(testDir);
     const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
     eventStore = new EventStore(
       {
@@ -291,7 +291,7 @@ describe('Event Store Subscription Pattern', () => {
         enableSharding: false,
         maxEventsPerFile: 100,
       },
-      projectionStorage,
+      viewStorage,
       identifierConfig
     );
   });

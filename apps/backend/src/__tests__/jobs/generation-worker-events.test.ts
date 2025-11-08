@@ -41,7 +41,7 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
       }
 
       // Create new instance and cache it
-      const projectionStorage = new FilesystemViewStorage(basePath);
+      const viewStorage = new FilesystemViewStorage(basePath);
       const identifierConfig = { baseUrl: 'http://localhost:4000' };
       const eventStore = new EventStore(
         {
@@ -50,7 +50,7 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
           enableSharding: false,
           maxEventsPerFile: 100,
         },
-        projectionStorage,
+        viewStorage,
         identifierConfig
       );
 
@@ -93,12 +93,12 @@ describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
   let testEnv: TestEnvironmentConfig;
 
-  // Helper to create projection for a source resource
-  async function createSourceProjection(sourceResourceId: string) {
+  // Helper to create view for a source resource
+  async function createSourceView(sourceResourceId: string) {
     const { createProjectionManager } = await import('../../services/storage-service');
     const projectionManager = createProjectionManager(testEnv.config.services.filesystem!.path);
 
-    const projection = {
+    const view = {
       resource: {
         '@id': `http://localhost:4000/resources/${sourceResourceId}`,
         id: sourceResourceId,
@@ -127,7 +127,7 @@ describe('GenerationWorker - Event Emission', () => {
       }
     };
 
-    await projectionManager.save(resourceId(sourceResourceId), projection as any);
+    await projectionManager.save(resourceId(sourceResourceId), view as any);
   }
 
   beforeAll(async () => {
@@ -155,7 +155,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await createSourceProjection(job.sourceResourceId);
+    await createSourceView(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store using the same path as the worker
@@ -196,7 +196,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await createSourceProjection(job.sourceResourceId);
+    await createSourceView(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -231,7 +231,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await createSourceProjection(job.sourceResourceId);
+    await createSourceView(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -268,7 +268,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await createSourceProjection(job.sourceResourceId);
+    await createSourceView(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -308,7 +308,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await createSourceProjection(job.sourceResourceId);
+    await createSourceView(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Get the resultResourceId from job.completed event
@@ -356,7 +356,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await createSourceProjection(job.sourceResourceId);
+    await createSourceView(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -394,7 +394,7 @@ describe('GenerationWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await createSourceProjection(job.sourceResourceId);
+    await createSourceView(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
