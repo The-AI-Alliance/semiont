@@ -22,11 +22,11 @@ export interface ResourceState {
 }
 
 export interface ProjectionStorage {
-  saveProjection(resourceId: ResourceId, projection: ResourceState): Promise<void>;
-  getProjection(resourceId: ResourceId): Promise<ResourceState | null>;
-  deleteProjection(resourceId: ResourceId): Promise<void>;
-  projectionExists(resourceId: ResourceId): Promise<boolean>;
-  getAllProjections(): Promise<ResourceState[]>;
+  save(resourceId: ResourceId, projection: ResourceState): Promise<void>;
+  get(resourceId: ResourceId): Promise<ResourceState | null>;
+  delete(resourceId: ResourceId): Promise<void>;
+  exists(resourceId: ResourceId): Promise<boolean>;
+  getAll(): Promise<ResourceState[]>;
 }
 
 export class FilesystemProjectionStorage implements ProjectionStorage {
@@ -42,7 +42,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     return path.join(this.basePath, 'projections', 'resources', ab, cd, `${resourceId}.json`);
   }
 
-  async saveProjection(resourceId: ResourceId, projection: ResourceState): Promise<void> {
+  async save(resourceId: ResourceId, projection: ResourceState): Promise<void> {
     const projPath = this.getProjectionPath(resourceId);
     const projDir = path.dirname(projPath);
 
@@ -53,7 +53,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     await fs.writeFile(projPath, JSON.stringify(projection, null, 2), 'utf-8');
   }
 
-  async getProjection(resourceId: ResourceId): Promise<ResourceState | null> {
+  async get(resourceId: ResourceId): Promise<ResourceState | null> {
     const projPath = this.getProjectionPath(resourceId);
 
     try {
@@ -67,7 +67,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     }
   }
 
-  async deleteProjection(resourceId: ResourceId): Promise<void> {
+  async delete(resourceId: ResourceId): Promise<void> {
     const projPath = this.getProjectionPath(resourceId);
 
     try {
@@ -80,7 +80,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     }
   }
 
-  async projectionExists(resourceId: ResourceId): Promise<boolean> {
+  async exists(resourceId: ResourceId): Promise<boolean> {
     const projPath = this.getProjectionPath(resourceId);
 
     try {
@@ -91,7 +91,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     }
   }
 
-  async getAllProjections(): Promise<ResourceState[]> {
+  async getAll(): Promise<ResourceState[]> {
     const projections: ResourceState[] = [];
     const annotationsPath = path.join(this.basePath, 'projections', 'resources');
 

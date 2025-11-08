@@ -107,10 +107,10 @@ describe('Layered Storage', () => {
         },
       };
 
-      await projectionStorage.saveProjection(docId, stored);
+      await projectionStorage.save(docId, stored);
 
       // Verify file was created in correct shard
-      const exists = await projectionStorage.projectionExists(docId);
+      const exists = await projectionStorage.exists(docId);
       expect(exists).toBe(true);
     });
 
@@ -169,14 +169,14 @@ describe('Layered Storage', () => {
         },
       };
 
-      await projectionStorage.saveProjection(docId, stored);
-      const retrieved = await projectionStorage.getProjection(docId);
+      await projectionStorage.save(docId, stored);
+      const retrieved = await projectionStorage.get(docId);
 
       expect(retrieved).toEqual(stored);
     });
 
     it('should return null for non-existent projection', async () => {
-      const result = await projectionStorage.getProjection(resourceId('doc-sha256:nonexistent'));
+      const result = await projectionStorage.get(resourceId('doc-sha256:nonexistent'));
       expect(result).toBeNull();
     });
 
@@ -207,11 +207,11 @@ describe('Layered Storage', () => {
         },
       };
 
-      await projectionStorage.saveProjection(docId, stored);
-      expect(await projectionStorage.projectionExists(docId)).toBe(true);
+      await projectionStorage.save(docId, stored);
+      expect(await projectionStorage.exists(docId)).toBe(true);
 
-      await projectionStorage.deleteProjection(docId);
-      expect(await projectionStorage.projectionExists(docId)).toBe(false);
+      await projectionStorage.delete(docId);
+      expect(await projectionStorage.exists(docId)).toBe(false);
     });
   });
 
@@ -234,7 +234,7 @@ describe('Layered Storage', () => {
       });
 
       // Projection should be saved to Layer 3
-      const stored = await projectionStorage.getProjection(docId);
+      const stored = await projectionStorage.get(docId);
       expect(stored).toBeDefined();
       expect(stored!.resource.name).toBe('Integration Test');
     });
@@ -256,7 +256,7 @@ describe('Layered Storage', () => {
         },
       });
 
-      const before = await projectionStorage.getProjection(docId);
+      const before = await projectionStorage.get(docId);
       expect(before!.annotations.annotations).toHaveLength(0);
 
       // Add highlighting annotation
@@ -292,7 +292,7 @@ describe('Layered Storage', () => {
       });
 
       // Projection should be updated
-      const after = await projectionStorage.getProjection(docId);
+      const after = await projectionStorage.get(docId);
       expect(after!.annotations.annotations).toHaveLength(1);
       expect(after!.annotations.annotations[0]?.id).toBe('hl1');
       expect(after!.annotations.version).toBe(2);
