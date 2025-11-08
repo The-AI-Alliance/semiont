@@ -1,8 +1,8 @@
 /**
- * Layer 3: View Storage
+ * View Storage - Materialized Views
  *
  * Stores materialized views of resource state and annotations
- * Built from Layer 2 event streams, can be rebuilt at any time
+ * Built from event streams, can be rebuilt at any time
  *
  * Stores both ResourceDescriptor metadata and ResourceAnnotations, but keeps them logically separate
  */
@@ -15,7 +15,7 @@ import type { ResourceAnnotations, ResourceId } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-// Complete state for a resource in Layer 3 (metadata + annotations)
+// Complete state for a resource in materialized view (metadata + annotations)
 export interface ResourceView {
   resource: ResourceDescriptor;
   annotations: ResourceAnnotations;

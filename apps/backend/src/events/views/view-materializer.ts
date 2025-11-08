@@ -1,7 +1,7 @@
 /**
  * View Materializer - Materialized View Management
  *
- * Materializes resource views (Layer 3) from events (Layer 2):
+ * Materializes resource views from events:
  * - Full view materialization from scratch
  * - Incremental view updates
  * - System-level views (entity types)
@@ -33,7 +33,7 @@ export interface ViewMaterializerConfig {
 }
 
 /**
- * ViewMaterializer builds and maintains materialized views (Layer 3) from events (Layer 2)
+ * ViewMaterializer builds and maintains materialized views from events
  */
 export class ViewMaterializer {
   constructor(
@@ -42,49 +42,49 @@ export class ViewMaterializer {
   ) {}
 
   /**
-   * Build resource projection from events
-   * Loads from Layer 3 if exists, otherwise rebuilds from Layer 2 events
+   * Materialize resource view from events
+   * Loads existing view if cached, otherwise rebuilds from events
    */
   async materialize(events: StoredEvent[], resourceId: ResourceId): Promise<ResourceView | null> {
-    // Try to load existing projection from Layer 3
+    // Try to load existing view
     const existing = await this.viewStorage.get(resourceId);
     if (existing) {
       return existing;
     }
 
-    // No view exists - rebuild from Layer 2 events
+    // No view exists - rebuild from events
     if (events.length === 0) return null;
 
     const view = this.materializeFromEvents(events, resourceId);
 
-    // Save rebuilt view to Layer 3
+    // Save rebuilt view
     await this.viewStorage.save(resourceId, view);
 
     return view;
   }
 
   /**
-   * Update projection incrementally with a single event
-   * Falls back to full rebuild if projection doesn't exist
+   * Materialize view incrementally with a single event
+   * Falls back to full rebuild if view doesn't exist
    */
   async materializeIncremental(
     resourceId: ResourceId,
     event: ResourceEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
-    console.log(`[EventProjector] Updating view for ${resourceId} with event ${event.type}`);
+    console.log(`[ViewMaterializer] Updating view for ${resourceId} with event ${event.type}`);
 
     // Try to load existing view
     let view = await this.viewStorage.get(resourceId);
 
     if (!view) {
       // No view exists - do full rebuild from all events
-      console.log(`[EventProjector] No view found, rebuilding from scratch`);
+      console.log(`[ViewMaterializer] No view found, rebuilding from scratch`);
       const events = await getAllEvents();
       view = this.materializeFromEvents(events, resourceId);
     } else {
       // Apply single event incrementally to existing view
-      console.log(`[EventProjector] Applying event incrementally to existing view (version ${view.annotations.version})`);
+      console.log(`[ViewMaterializer] Applying event incrementally to existing view (version ${view.annotations.version})`);
       this.applyEventToResource(view.resource, event);
       this.applyEventToAnnotations(view.annotations, event);
       view.annotations.version++;
@@ -93,11 +93,11 @@ export class ViewMaterializer {
 
     // Save updated view
     await this.viewStorage.save(resourceId, view);
-    console.log(`[EventProjector] View saved (version ${view.annotations.version}, ${view.annotations.annotations.length} annotations)`);
+    console.log(`[ViewMaterializer] View saved (version ${view.annotations.version}, ${view.annotations.annotations.length} annotations)`);
   }
 
   /**
-   * Build projection from event list (full rebuild)
+   * Materialize view from event list (full rebuild)
    */
   private materializeFromEvents(events: StoredEvent[], resourceId: ResourceId): ResourceView {
     // Build W3C-compliant HTTP URI for @id
@@ -295,7 +295,7 @@ export class ViewMaterializer {
   }
 
   /**
-   * Update entity types projection (Layer 3) - System-level projection
+   * Materialize entity types view - System-level view
    */
   async materializeEntityTypes(entityType: string): Promise<void> {
     const entityTypesPath = path.join(

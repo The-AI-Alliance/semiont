@@ -2,7 +2,7 @@
 
 ## Overview
 
-Semiont's Event Store provides event sourcing for resource and annotation changes. It uses an immutable append-only event log as the source of truth, from which materialized projections are built.
+Semiont's Event Store provides event sourcing for resource and annotation changes. It uses an immutable append-only event log as the source of truth, from which materialized views are built.
 
 **Architecture Position**: The Event Store provides the event persistence and sourcing foundation. It works with the RepresentationStore (content storage), Projections (materialized state), and Graph (relationships). See [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md), [ARCHITECTURE.md](../ARCHITECTURE.md), and [W3C-WEB-ANNOTATION.md](../../specs/docs/W3C-WEB-ANNOTATION.md) for complete architectural details.
 
@@ -26,7 +26,7 @@ The Event Store architecture ruthlessly applies Single Responsibility Principle.
 |-----------|-------|----------------------|
 | [EventLog](#eventlog) | 80 | Event persistence only (append, retrieve, query) |
 | [EventBus](#eventbus) | 127 | Pub/sub notifications only (publish, subscribe) |
-| [ProjectionManager](#projectionmanager) | 81 | Projection updates only (resource and system) |
+| [ViewManager](#viewmanager) | 81 | Projection updates only (resource and system) |
 | [EventStore](#eventstore) | 97 | **Coordinate the above three** (write-path invariant enforcement) |
 
 **Internal Modules** (wrapped by components):
@@ -34,7 +34,7 @@ The Event Store architecture ruthlessly applies Single Responsibility Principle.
 | Module | Lines | Single Responsibility |
 |--------|-------|----------------------|
 | [EventStorage](#eventstorage) | 306 | File I/O, sharding, sequence tracking, checksums |
-| [EventProjector](#eventprojector) | 303 | Transform events → projections |
+| [ViewMaterializer](#eventprojector) | 303 | Transform events → views |
 | [EventSubscriptions](#eventsubscriptions) | 157 | Real-time pub/sub notifications |
 | [EventValidator](#eventvalidator) | 82 | Chain integrity validation |
 | [EventQuery](#eventquery) | 112 | Read operations with filtering |
@@ -53,24 +53,24 @@ EventStore is not a monolith or a facade - it's a **Coordinated Container**:
 export class EventStore {
   readonly log: EventLog;              // Persistence component
   readonly bus: EventBus;              // Pub/sub component
-  readonly projections: ProjectionManager;  // Projection component
+  readonly views: ViewManager;  // Projection component
 
   async appendEvent(event): Promise<StoredEvent> {
     const stored = await this.log.append(event, resourceId);  // 1. Persist
-    await this.projections.update(...);                       // 2. Project
+    await this.views.update(...);                       // 2. Project
     await this.bus.publish(stored);                           // 3. Notify
     return stored;
   }
 }
 ```
 
-**Container**: Groups cohesive components (log, bus, projections belong together conceptually)
+**Container**: Groups cohesive components (log, bus, views belong together conceptually)
 **Coordinator**: Enforces write-path invariants (persist → project → notify is non-negotiable)
 **Not a Facade**: Exposes components for independent read access
 
 **The Pattern**:
 - **Write Invariants**: Must be coordinated (enforced by `appendEvent()`)
-- **Read Flexibility**: Can access components independently (via `log`, `bus`, `projections`)
+- **Read Flexibility**: Can access components independently (via `log`, `bus`, `views`)
 - **Honest Design**: Doesn't hide complexity, makes coordination explicit
 
 ### 3. Event Sourcing Architecture
@@ -88,18 +88,18 @@ The Event Store implements true event sourcing:
 - Optimized for fast queries
 - Can be rebuilt at any time from events
 - Stored in filesystem using sharded JSON files
-- See [PROJECTION.md](./PROJECTION.md) for complete projection architecture
+- See [PROJECTION.md](./PROJECTION.md) for complete view architecture
 
 **Graph Database**:
 - Relationship traversal and discovery
-- Built from projections
+- Built from views
 - See [GRAPH.md](./GRAPH.md) for implementation details
 
 **Why This Matters:**
 - Complete audit trail of all changes
 - Time-travel debugging (replay events to any point)
 - Enables eventual consistency patterns
-- Allows multiple projection types from same events
+- Allows multiple view types from same events
 
 ### 4. Zero Cruft Philosophy
 
@@ -129,9 +129,9 @@ The Event Store implements true event sourcing:
 **Pattern**: Coordinated Container (enforces write invariants, exposes read flexibility)
 
 **Responsibilities**:
-- Coordinate persistence → projection → notification flow
+- Coordinate persistence → view → notification flow
 - Handle system events vs resource events branching
-- Enforce write-path invariants (can't skip projection or notification)
+- Enforce write-path invariants (can't skip view or notification)
 - Provide public API surface
 
 **Key Method**:
@@ -143,13 +143,13 @@ async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>): Promise<Store
 1. Determine resourceId (use `'__system__'` for system events)
 2. Call `log.append()` to persist event
 3. Branch on system vs resource:
-   - **System**: Update system projections, publish to global subscribers
-   - **Resource**: Update resource projections, publish to resource subscribers
+   - **System**: Update system views, publish to global subscribers
+   - **Resource**: Update resource views, publish to resource subscribers
 4. Return stored event
 
 **Public API**:
 ```typescript
-const eventStore = new EventStore(config, projectionStorage, identifierConfig);
+const eventStore = new EventStore(config, viewStorage, identifierConfig);
 
 // Write: MUST use coordination (invariant enforced)
 const stored = await eventStore.appendEvent({
@@ -162,14 +162,14 @@ const stored = await eventStore.appendEvent({
 // Read: Access components independently (flexible)
 const events = await eventStore.log.getEvents(resourceId);
 const sub = eventStore.bus.subscribe(resourceId, callback);
-const projection = await eventStore.projections.getResourceProjection(resourceId, events);
+const view = await eventStore.views.getResourceProjection(resourceId, events);
 ```
 
 ### EventLog
 
 **Location**: [apps/backend/src/events/event-log.ts](../../apps/backend/src/events/event-log.ts)
 
-**Purpose**: Event persistence layer (no pub/sub, no projections).
+**Purpose**: Event persistence layer (no pub/sub, no views).
 
 **Size**: 80 lines
 
@@ -181,7 +181,7 @@ const projection = await eventStore.projections.getResourceProjection(resourceId
 
 **Does NOT Handle**:
 - Pub/sub notifications (see EventBus)
-- Projection updates (see ProjectionManager)
+- Projection updates (see ViewManager)
 
 **Key Methods**:
 ```typescript
@@ -219,7 +219,7 @@ const filtered = await log.queryEvents(resourceId, { eventTypes: ['annotation.ad
 
 **Location**: [apps/backend/src/events/event-bus.ts](../../apps/backend/src/events/event-bus.ts)
 
-**Purpose**: Event pub/sub layer (no persistence, no projections).
+**Purpose**: Event pub/sub layer (no persistence, no views).
 
 **Size**: 127 lines
 
@@ -231,7 +231,7 @@ const filtered = await log.queryEvents(resourceId, { eventTypes: ['annotation.ad
 
 **Does NOT Handle**:
 - Event persistence (see EventLog)
-- Projection updates (see ProjectionManager)
+- Projection updates (see ViewManager)
 
 **Key Methods**:
 ```typescript
@@ -277,18 +277,18 @@ const globalSub = bus.subscribeGlobal(async (event) => {
 sub.unsubscribe();
 ```
 
-### ProjectionManager
+### ViewManager
 
-**Location**: [apps/backend/src/events/projection-manager.ts](../../apps/backend/src/events/projection-manager.ts)
+**Location**: [apps/backend/src/events/view-manager.ts](../../apps/backend/src/events/view-manager.ts)
 
 **Purpose**: Projection management layer (no persistence, no pub/sub).
 
 **Size**: 81 lines
 
 **Responsibilities**:
-- Update resource projections from events
-- Update system projections (entity types)
-- Rebuild projections when needed
+- Update resource views from events
+- Update system views (entity types)
+- Rebuild views when needed
 - Expose projector for direct access
 
 **Does NOT Handle**:
@@ -297,34 +297,34 @@ sub.unsubscribe();
 
 **Key Methods**:
 ```typescript
-// Update resource projection with new event
+// Update resource view with new event
 async updateResourceProjection(
   resourceId: ResourceId,
   event: ResourceEvent,
   getAllEvents: () => Promise<StoredEvent[]>
 ): Promise<void>
 
-// Update system-level projection
+// Update system-level view
 async updateSystemProjection(eventType: string, payload: any): Promise<void>
 
-// Get resource projection (builds from events if needed)
+// Get resource view (builds from events if needed)
 async getResourceProjection(resourceId: ResourceId, events: StoredEvent[]): Promise<ResourceState | null>
 ```
 
 **Internal Structure**:
-- Wraps EventProjector with clean API
+- Wraps ViewMaterializer with clean API
 - Exposes `projector` property for direct access
-- Handles both resource and system projections
+- Handles both resource and system views
 
 **Usage**:
 ```typescript
-const projections = eventStore.projections;
+const views = eventStore.views;
 
 // Update (typically via EventStore.appendEvent)
-await projections.updateResourceProjection(resourceId, event, () => log.getEvents(resourceId));
+await views.updateResourceProjection(resourceId, event, () => log.getEvents(resourceId));
 
-// Get projection
-const state = await projections.getResourceProjection(resourceId, events);
+// Get view
+const state = await views.getResourceProjection(resourceId, events);
 ```
 
 ### EventStorage
@@ -384,27 +384,27 @@ const storage = eventStore.log.storage;
 const events = await storage.getAllEvents(resourceId);
 ```
 
-### EventProjector
+### ViewMaterializer
 
-**Location**: [apps/backend/src/events/projections/event-projector.ts](../../apps/backend/src/events/projections/event-projector.ts)
+**Location**: [apps/backend/src/events/views/event-projector.ts](../../apps/backend/src/events/views/event-projector.ts)
 
-**Purpose**: Build and maintain projections from events.
+**Purpose**: Build and maintain views from events.
 
 **Size**: 303 lines
 
-**Wrapped By**: ProjectionManager
+**Wrapped By**: ViewManager
 
 **Responsibilities**:
-- Full projection rebuild from event list
-- Incremental projection updates (apply single event)
-- Resource metadata projection (name, format, entityTypes, etc.)
-- Annotation collection projection (add/remove/update annotations)
-- System projections (entity types collection)
-- Save projections to filesystem and database
+- Full view rebuild from event list
+- Incremental view updates (apply single event)
+- Resource metadata view (name, format, entityTypes, etc.)
+- Annotation collection view (add/remove/update annotations)
+- System views (entity types collection)
+- Save views to filesystem and database
 
 **Key Methods**:
 ```typescript
-// Build projection from events
+// Build view from events
 async projectResource(events: StoredEvent[], resourceId: ResourceId): Promise<ResourceState | null>
 
 // Apply single event incrementally
@@ -414,15 +414,15 @@ async updateProjectionIncremental(
   getAllEvents: () => Promise<StoredEvent[]>
 ): Promise<void>
 
-// Update system-level entity types projection
+// Update system-level entity types view
 async updateEntityTypesProjection(entityType: string): Promise<void>
 ```
 
 **Access**:
 ```typescript
-// Via ProjectionManager
-const projector = eventStore.projections.projector;
-const projection = await projector.projectResource(events, resourceId);
+// Via ViewManager
+const projector = eventStore.views.projector;
+const view = await projector.projectResource(events, resourceId);
 ```
 
 ### EventSubscriptions
@@ -545,7 +545,7 @@ sequenceDiagram
     participant API as API Layer
     participant ES as EventStore
     participant Log as EventLog
-    participant PM as ProjectionManager
+    participant PM as ViewManager
     participant Bus as EventBus
     participant DB as PostgreSQL
     participant Graph as Graph DB
@@ -557,8 +557,8 @@ sequenceDiagram
     Log-->>ES: StoredEvent
 
     ES->>PM: updateResourceProjection()
-    PM->>PM: Apply event to projection
-    PM->>DB: Save projection
+    PM->>PM: Apply event to view
+    PM->>DB: Save view
     DB-->>PM: OK
     PM-->>ES: OK
 
@@ -574,9 +574,9 @@ sequenceDiagram
 1. **API** calls `eventStore.appendEvent()` with event payload
 2. **EventStore** determines resourceId, delegates to EventLog
 3. **EventLog** persists event via EventStorage (ID, timestamp, checksum, JSONL write)
-4. **EventStore** updates projection via ProjectionManager
-5. **ProjectionManager** applies event to existing projection or rebuilds from scratch
-6. **ProjectionManager** saves updated projection to PostgreSQL/filesystem
+4. **EventStore** updates view via ViewManager
+5. **ViewManager** applies event to existing view or rebuilds from scratch
+6. **ViewManager** saves updated view to PostgreSQL/filesystem
 7. **EventStore** publishes event via EventBus
 8. **EventBus** invokes subscribers (e.g., graph consumer updates graph database)
 9. **EventStore** returns stored event to API
@@ -588,7 +588,7 @@ sequenceDiagram
     participant API as API Layer
     participant ES as EventStore
     participant Log as EventLog
-    participant PM as ProjectionManager
+    participant PM as ViewManager
     participant Bus as EventBus
     participant FS as Filesystem
 
@@ -616,7 +616,7 @@ sequenceDiagram
 - EventStore uses `'__system__'` as resourceId
 - Storage bypasses sharding (no hash needed)
 - Stored at `dataDir/events/__system__/events-000001.jsonl`
-- Updates system-level projections (entity types collection)
+- Updates system-level views (entity types collection)
 - Publishes to **global** subscribers (not resource subscribers)
 
 ## Storage Format
@@ -832,12 +832,12 @@ globalSub.unsubscribe();
 
 ```typescript
 const events = await eventStore.log.getEvents(resourceId('resource-456'));
-const projection = await eventStore.projections.projector.projectResource(
+const view = await eventStore.views.projector.projectResource(
   events,
   resourceId('resource-456')
 );
 
-console.log('Rebuilt projection:', projection);
+console.log('Rebuilt view:', view);
 ```
 
 ## Integration Points
@@ -852,7 +852,7 @@ console.log('Rebuilt projection:', projection);
 
 ### Projection Storage
 
-**Database** stores projections built from events:
+**Database** stores views built from events:
 - See [DATABASE.md](./DATABASE.md) for PostgreSQL schema
 - Projections stored in `resources` and `annotations` tables
 - Rebuilt from events on demand or incrementally updated
@@ -862,7 +862,7 @@ console.log('Rebuilt projection:', projection);
 **Graph Consumer** subscribes to events and updates graph:
 - See [GRAPH.md](./GRAPH.md) for graph database implementations
 - Subscribes to resource events to maintain graph state
-- Creates Resource and Annotation vertices from projections
+- Creates Resource and Annotation vertices from views
 - Establishes BELONGS_TO and REFERENCES edges
 
 ### Server-Sent Events (SSE)
@@ -919,7 +919,7 @@ resource-abc123/
 
 **Trade-offs**:
 - More complex logic (apply event to existing state)
-- Requires existing projection (fallback to rebuild)
+- Requires existing view (fallback to rebuild)
 - Small risk of drift (mitigated by validation)
 
 ## Testing
@@ -945,12 +945,12 @@ it('should notify subscribers', async () => {
   expect(notified).toBe(true);
 });
 
-// ProjectionManager
-it('should update projection', async () => {
-  const pm = new ProjectionManager(storage, config);
+// ViewManager
+it('should update view', async () => {
+  const pm = new ViewManager(storage, config);
   await pm.updateResourceProjection(resourceId, event, getAllEvents);
-  const projection = await storage.getProjection(resourceId);
-  expect(projection.annotations.annotations).toHaveLength(1);
+  const view = await storage.getProjection(resourceId);
+  expect(view.annotations.annotations).toHaveLength(1);
 });
 ```
 
@@ -959,8 +959,8 @@ it('should update projection', async () => {
 Test coordination between components:
 
 ```typescript
-it('should coordinate persistence → projection → notification', async () => {
-  const eventStore = new EventStore(config, projectionStorage, identifierConfig);
+it('should coordinate persistence → view → notification', async () => {
+  const eventStore = new EventStore(config, viewStorage, identifierConfig);
 
   let notified = false;
   eventStore.bus.subscribe(resourceId('resource-123'), () => {
@@ -970,8 +970,8 @@ it('should coordinate persistence → projection → notification', async () => 
   await eventStore.appendEvent({ type: 'annotation.added', ... });
 
   expect(notified).toBe(true);
-  const projection = await projectionStorage.getProjection(resourceId('resource-123'));
-  expect(projection.annotations.annotations).toHaveLength(1);
+  const view = await viewStorage.getProjection(resourceId('resource-123'));
+  expect(view.annotations.annotations).toHaveLength(1);
 });
 ```
 
@@ -981,6 +981,6 @@ See [TESTING.md](./TESTING.md) for complete testing strategy.
 
 - [Architecture Overview](./ARCHITECTURE.md) - Complete system architecture
 - [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation event details and layer flow
-- [Database Management](./DATABASE.md) - Layer 3 projection storage
+- [Database Management](./DATABASE.md) - Layer 3 view storage
 - [Graph Implementation](./GRAPH.md) - Layer 4 graph database
 - [Testing Strategy](./TESTING.md) - Testing guidelines

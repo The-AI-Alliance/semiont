@@ -41,7 +41,7 @@ The test suite validates:
 - ✅ Event filtering by type, user, timestamp
 - ✅ Projection rebuilding from events
 - ✅ Document state reconstruction (name, content, highlights, references, entity tags)
-- ✅ Archive/unarchive handling in projections
+- ✅ Archive/unarchive handling in materialized views
 
 ## Architecture
 

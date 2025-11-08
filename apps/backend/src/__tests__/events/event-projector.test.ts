@@ -1,9 +1,9 @@
 /**
- * ViewMaterializer Tests - Projection building from events
+ * ViewMaterializer Tests - View materialization from events
  *
- * Tests Layer 2 → Layer 3 transformation, incremental updates, and system projections
+ * Tests event-to-view transformation, incremental updates, and system views
  *
- * @see docs/EVENT-STORE.md#eventprojector
+ * @see docs/EVENT-STORE.md#viewmaterializer
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';

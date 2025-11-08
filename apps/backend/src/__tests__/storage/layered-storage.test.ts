@@ -1,6 +1,6 @@
 /**
  * Layered Storage Tests
- * Tests for Layer 1 (resources) and Layer 3 (projections) filesystem storage
+ * Tests for content storage (resources) and view storage (materialized views) filesystem operations
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
