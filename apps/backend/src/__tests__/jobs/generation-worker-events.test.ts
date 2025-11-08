@@ -95,8 +95,8 @@ describe('GenerationWorker - Event Emission', () => {
 
   // Helper to create view for a source resource
   async function createSourceView(sourceResourceId: string) {
-    const { createProjectionManager } = await import('../../services/storage-service');
-    const projectionManager = createProjectionManager(testEnv.config.services.filesystem!.path);
+    const { FilesystemViewStorage } = await import('../../storage/view-storage');
+    const viewStorage = new FilesystemViewStorage(testEnv.config.services.filesystem!.path);
 
     const view = {
       resource: {
@@ -127,7 +127,7 @@ describe('GenerationWorker - Event Emission', () => {
       }
     };
 
-    await projectionManager.save(resourceId(sourceResourceId), view as any);
+    await viewStorage.save(resourceId(sourceResourceId), view as any);
   }
 
   beforeAll(async () => {

@@ -2,11 +2,11 @@
  * Annotation Query Service
  *
  * Optimized read path for resource annotations
- * - Single-resource queries use filesystem projections
+ * - Single-resource queries use filesystem view storage
  * - Graph queries use graph database
  */
 
-import { createProjectionManager } from './storage-service';
+import { FilesystemViewStorage } from '../storage/view-storage';
 import { getGraphDatabase } from '../graph/factory';
 import type { components } from '@semiont/api-client';
 import type {
@@ -24,22 +24,22 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class AnnotationQueryService {
   /**
-   * Get resource annotations from Layer 3 (fast path)
-   * Throws if projection missing
+   * Get resource annotations from view storage (fast path)
+   * Throws if view missing
    */
   static async getResourceAnnotations(resourceId: ResourceId, config: EnvironmentConfig): Promise<ResourceAnnotations> {
     if (!config.services?.filesystem?.path) {
       throw new Error('Filesystem path not found in configuration');
     }
     const basePath = config.services.filesystem.path;
-    const projectionManager = createProjectionManager(basePath);
-    const stored = await projectionManager.get(resourceId);
+    const viewStorage = new FilesystemViewStorage(basePath);
+    const view = await viewStorage.get(resourceId);
 
-    if (!stored) {
-      throw new Error(`Resource ${resourceId} not found in Layer 3 projections`);
+    if (!view) {
+      throw new Error(`Resource ${resourceId} not found in view storage`);
     }
 
-    return stored.annotations;
+    return view.annotations;
   }
 
   /**
@@ -69,20 +69,20 @@ export class AnnotationQueryService {
   }
 
   /**
-   * Check if resource exists in Layer 3
+   * Check if resource exists in view storage
    */
   static async resourceExists(resourceId: ResourceId, config: EnvironmentConfig): Promise<boolean> {
     if (!config.services?.filesystem?.path) {
       throw new Error('Filesystem path not found in configuration');
     }
     const basePath = config.services.filesystem.path;
-    const projectionManager = createProjectionManager(basePath);
-    return await projectionManager.exists(resourceId);
+    const viewStorage = new FilesystemViewStorage(basePath);
+    return await viewStorage.exists(resourceId);
   }
 
   /**
    * Get a single annotation by ID
-   * O(1) lookup using resource ID to access Layer 3 projection
+   * O(1) lookup using resource ID to access view storage
    */
   static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation | null> {
     const annotations = await this.getResourceAnnotations(resourceId, config);
@@ -92,24 +92,24 @@ export class AnnotationQueryService {
   /**
    * List annotations with optional filtering
    * @param filters - Optional filters like resourceId and type
-   * @throws Error if resourceId not provided (cross-resource queries not supported in Layer 3)
+   * @throws Error if resourceId not provided (cross-resource queries not supported in view storage)
    */
   static async listAnnotations(filters: { resourceId?: ResourceId; type?: AnnotationCategory } | undefined, config: EnvironmentConfig): Promise<Annotation[]> {
     if (!filters?.resourceId) {
-      throw new Error('resourceId is required for annotation listing - cross-resource queries not supported in Layer 3');
+      throw new Error('resourceId is required for annotation listing - cross-resource queries not supported in view storage');
     }
 
-    // Use Layer 3 directly
+    // Use view storage directly
     return await this.getAllAnnotations(filters.resourceId, config);
   }
 
   // ========================================
-  // Graph Queries (Layer 4 only)
+  // Graph Queries (Graph Database)
   // ========================================
 
   /**
    * Get all resources referencing this resource (backlinks)
-   * Requires graph traversal - must use Layer 4
+   * Requires graph traversal - must use graph database
    */
   static async getBacklinks(resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation[]> {
     const graphDb = await getGraphDatabase(config);
@@ -118,7 +118,7 @@ export class AnnotationQueryService {
 
   /**
    * Find shortest path between two resources
-   * Requires graph traversal - must use Layer 4
+   * Requires graph traversal - must use graph database
    */
   static async findPath(
     fromResourceId: ResourceId,
@@ -132,7 +132,7 @@ export class AnnotationQueryService {
 
   /**
    * Get resource connections (graph edges)
-   * Requires graph traversal - must use Layer 4
+   * Requires graph traversal - must use graph database
    */
   static async getResourceConnections(resourceId: ResourceId, config: EnvironmentConfig): Promise<GraphConnection[]> {
     const graphDb = await getGraphDatabase(config);
@@ -141,7 +141,7 @@ export class AnnotationQueryService {
 
   /**
    * Search resources by name (cross-resource query)
-   * Requires full-text search - must use Layer 4
+   * Requires full-text search - must use graph database
    */
   static async searchResources(query: string, config: EnvironmentConfig, limit?: number): Promise<ResourceDescriptor[]> {
     const graphDb = await getGraphDatabase(config);

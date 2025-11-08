@@ -16,7 +16,7 @@ import { getBodySource, getTargetSource, getTargetSelector } from '../lib/annota
 import type { components } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../utils/resource-helpers';
-import { createProjectionManager } from './storage-service';
+import { FilesystemViewStorage } from '../storage/view-storage';
 import type { EnvironmentConfig, AnnotationId, ResourceId } from '@semiont/core';
 import { resourceId as createResourceId } from '@semiont/core';
 
@@ -64,34 +64,34 @@ export class AnnotationContextService {
     const basePath = config.services.filesystem!.path;
     console.log(`[AnnotationContext] basePath=${basePath}`);
 
-    const projectionManager = createProjectionManager(basePath);
+    const viewStorage = new FilesystemViewStorage(basePath);
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    // Get source resource projection (Layer 3)
-    console.log(`[AnnotationContext] Getting projection for resourceId=${resourceId}`);
-    let sourceProjection;
+    // Get source resource view
+    console.log(`[AnnotationContext] Getting view for resourceId=${resourceId}`);
+    let sourceView;
     try {
-      sourceProjection = await projectionManager.get(resourceId);
-      console.log(`[AnnotationContext] Got projection:`, !!sourceProjection);
+      sourceView = await viewStorage.get(resourceId);
+      console.log(`[AnnotationContext] Got view:`, !!sourceView);
 
-      if (!sourceProjection) {
+      if (!sourceView) {
         throw new Error('Source resource not found');
       }
     } catch (error) {
-      console.error(`[AnnotationContext] Error getting projection:`, error);
+      console.error(`[AnnotationContext] Error getting view:`, error);
       throw error;
     }
 
     console.log(`[AnnotationContext] Looking for annotation ${annotationId} in resource ${resourceId}`);
-    console.log(`[AnnotationContext] Projection has ${sourceProjection.annotations.annotations.length} annotations`);
-    console.log(`[AnnotationContext] First 5 annotation IDs:`, sourceProjection.annotations.annotations.slice(0, 5).map((a: Annotation) => a.id));
+    console.log(`[AnnotationContext] View has ${sourceView.annotations.annotations.length} annotations`);
+    console.log(`[AnnotationContext] First 5 annotation IDs:`, sourceView.annotations.annotations.slice(0, 5).map((a: Annotation) => a.id));
 
-    // Find the annotation in the projection
-    const annotation = sourceProjection.annotations.annotations.find((a: Annotation) => a.id === annotationId);
+    // Find the annotation in the view
+    const annotation = sourceView.annotations.annotations.find((a: Annotation) => a.id === annotationId);
     console.log(`[AnnotationContext] Found annotation:`, !!annotation);
 
     if (!annotation) {
-      throw new Error('Annotation not found in projection');
+      throw new Error('Annotation not found in view');
     }
 
     const targetSource = getTargetSource(annotation.target);
@@ -101,7 +101,7 @@ export class AnnotationContextService {
       throw new Error(`Annotation target source (${targetSource}) does not match expected resource ID (${resourceId})`);
     }
 
-    const sourceDoc = sourceProjection.resource;
+    const sourceDoc = sourceView.resource;
 
     // Get target resource if annotation is a reference (has resolved body source)
     const bodySource = getBodySource(annotation.body);
@@ -116,8 +116,8 @@ export class AnnotationContextService {
         throw new Error(`Invalid body source URI: ${bodySource}`);
       }
       const targetResourceId = createResourceId(lastPart);
-      const targetProjection = await projectionManager.get(targetResourceId);
-      targetDoc = targetProjection?.resource || null;
+      const targetView = await viewStorage.get(targetResourceId);
+      targetDoc = targetView?.resource || null;
     }
 
     // Build source context if requested
