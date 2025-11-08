@@ -3,7 +3,7 @@ import { JWTService } from './jwt';
 import { User } from '@prisma/client';
 import { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 import { type UserId, userId as makeUserId } from '@semiont/core';
-import { type AccessToken, type Email, type GoogleCredential, accessToken as makeAccessToken, email as makeEmail, userId as makeUserId } from '@semiont/api-client';
+import { type AccessToken, type Email, type GoogleCredential, accessToken as makeAccessToken, email as makeEmail } from '@semiont/api-client';
 
 export interface GoogleUserInfo {
   id: string;

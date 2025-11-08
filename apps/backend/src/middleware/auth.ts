@@ -1,6 +1,7 @@
 import { Context, Next } from 'hono';
 import { OAuthService } from '../auth/oauth';
 import { User } from '@prisma/client';
+import { accessToken } from '@semiont/api-client';
 
 interface Variables {
   user: User;
@@ -18,14 +19,14 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const token = authHeader.substring(7).trim(); // Remove 'Bearer ' prefix and trim
-  
-  if (!token) {
+  const tokenStr = authHeader.substring(7).trim(); // Remove 'Bearer ' prefix and trim
+
+  if (!tokenStr) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
   try {
-    const user = await OAuthService.getUserFromToken(token);
+    const user = await OAuthService.getUserFromToken(accessToken(tokenStr));
     
     // Add user to context
     c.set('user', user);
@@ -39,17 +40,17 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
 
 export const optionalAuthMiddleware = async (c: Context, next: Next) => {
   const authHeader = c.req.header('Authorization');
-  
+
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    
+    const tokenStr = authHeader.substring(7);
+
     try {
-      const user = await OAuthService.getUserFromToken(token);
+      const user = await OAuthService.getUserFromToken(accessToken(tokenStr));
       c.set('user', user);
     } catch (error) {
       // Ignore auth errors for optional auth
     }
   }
-  
+
   await next();
 };

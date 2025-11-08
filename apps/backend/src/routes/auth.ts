@@ -17,6 +17,8 @@ import { OAuthService } from '../auth/oauth';
 import type { User } from '@prisma/client';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 import type { components } from '@semiont/api-client';
+import { userId as makeUserId } from '@semiont/core';
+import { email as makeEmail, googleCredential } from '@semiont/api-client';
 
 // Types from OpenAPI spec (generated)
 type LocalAuthRequest = components['schemas']['LocalAuthRequest'];
@@ -74,8 +76,8 @@ authRouter.post('/api/tokens/local',
 
       // Generate JWT token for the user
       const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-        userId: user.id,
-        email: user.email,
+        userId: makeUserId(user.id),
+        email: makeEmail(user.email),
         ...(user.name && { name: user.name }),
         domain: user.domain,
         provider: user.provider,
@@ -137,7 +139,7 @@ authRouter.post('/api/tokens/google',
       }
 
       // Verify Google token and get user info
-      const googleUser = await OAuthService.verifyGoogleToken(access_token);
+      const googleUser = await OAuthService.verifyGoogleToken(googleCredential(access_token));
 
       // Create or update user
       const { user, token, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
@@ -210,8 +212,8 @@ authRouter.post('/api/tokens/refresh',
 
       // Generate new short-lived access token (1 hour)
       const accessTokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-        userId: user.id,
-        email: user.email,
+        userId: makeUserId(user.id),
+        email: makeEmail(user.email),
         domain: user.domain,
         provider: user.provider,
         isAdmin: user.isAdmin,
@@ -284,8 +286,8 @@ authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
   try {
     // Generate long-lived refresh token (30 days) for MCP
     const tokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-      userId: user.id,
-      email: user.email,
+      userId: makeUserId(user.id),
+      email: makeEmail(user.email),
       domain: user.domain,
       provider: user.provider,
       isAdmin: user.isAdmin,
@@ -315,7 +317,7 @@ authRouter.post('/api/users/accept-terms', authMiddleware, async (c) => {
   const user = c.get('user');
 
   // Update the user's terms acceptance
-  await OAuthService.acceptTerms(user.id);
+  await OAuthService.acceptTerms(makeUserId(user.id));
 
   const response: AcceptTermsResponse = {
     success: true,

@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { resourceId, userId } from '@semiont/core';
-import { resourceUri } from '@semiont/api-client';
+import { resourceUri, email } from '@semiont/api-client';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
@@ -140,8 +140,8 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
     };
 
     const tokenPayload = {
-      userId: testUser.id,
-      email: testUser.email,
+      userId: userId(testUser.id),
+      email: email(testUser.email),
       domain: testUser.domain,
       provider: testUser.provider,
       isAdmin: testUser.isAdmin,
