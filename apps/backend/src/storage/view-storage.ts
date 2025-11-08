@@ -1,5 +1,5 @@
 /**
- * Layer 3: Projection Storage
+ * Layer 3: View Storage
  *
  * Stores materialized views of resource state and annotations
  * Built from Layer 2 event streams, can be rebuilt at any time
@@ -16,20 +16,20 @@ import type { ResourceAnnotations, ResourceId } from '@semiont/core';
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 // Complete state for a resource in Layer 3 (metadata + annotations)
-export interface ResourceState {
+export interface ResourceView {
   resource: ResourceDescriptor;
   annotations: ResourceAnnotations;
 }
 
-export interface ProjectionStorage {
-  save(resourceId: ResourceId, projection: ResourceState): Promise<void>;
-  get(resourceId: ResourceId): Promise<ResourceState | null>;
+export interface ViewStorage {
+  save(resourceId: ResourceId, view: ResourceView): Promise<void>;
+  get(resourceId: ResourceId): Promise<ResourceView | null>;
   delete(resourceId: ResourceId): Promise<void>;
   exists(resourceId: ResourceId): Promise<boolean>;
-  getAll(): Promise<ResourceState[]>;
+  getAll(): Promise<ResourceView[]>;
 }
 
-export class FilesystemProjectionStorage implements ProjectionStorage {
+export class FilesystemViewStorage implements ViewStorage {
   private basePath: string;
 
   constructor(basePath: string) {
@@ -42,7 +42,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     return path.join(this.basePath, 'projections', 'resources', ab, cd, `${resourceId}.json`);
   }
 
-  async save(resourceId: ResourceId, projection: ResourceState): Promise<void> {
+  async save(resourceId: ResourceId, projection: ResourceView): Promise<void> {
     const projPath = this.getProjectionPath(resourceId);
     const projDir = path.dirname(projPath);
 
@@ -53,12 +53,12 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     await fs.writeFile(projPath, JSON.stringify(projection, null, 2), 'utf-8');
   }
 
-  async get(resourceId: ResourceId): Promise<ResourceState | null> {
+  async get(resourceId: ResourceId): Promise<ResourceView | null> {
     const projPath = this.getProjectionPath(resourceId);
 
     try {
       const content = await fs.readFile(projPath, 'utf-8');
-      return JSON.parse(content) as ResourceState;
+      return JSON.parse(content) as ResourceView;
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         return null;
@@ -91,8 +91,8 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     }
   }
 
-  async getAll(): Promise<ResourceState[]> {
-    const projections: ResourceState[] = [];
+  async getAll(): Promise<ResourceView[]> {
+    const projections: ResourceView[] = [];
     const annotationsPath = path.join(this.basePath, 'projections', 'resources');
 
     try {
@@ -108,7 +108,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
           } else if (entry.isFile() && entry.name.endsWith('.json')) {
             try {
               const content = await fs.readFile(fullPath, 'utf-8');
-              const projection = JSON.parse(content) as ResourceState;
+              const projection = JSON.parse(content) as ResourceView;
               projections.push(projection);
             } catch (error) {
               console.error(`[ProjectionStorage] Failed to read projection ${fullPath}:`, error);

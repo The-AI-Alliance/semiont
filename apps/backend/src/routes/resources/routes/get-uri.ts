@@ -87,7 +87,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     const eventStore = await createEventStore(config);
     const query = new EventQuery(eventStore.log.storage);
     const events = await query.getResourceEvents(resourceId(id));
-    const stored = await eventStore.projections.projector.projectResource(events, resourceId(id));
+    const stored = await eventStore.views.materializer.materialize(events, resourceId(id));
 
     if (!stored) {
       throw new HTTPException(404, { message: 'Resource not found' });

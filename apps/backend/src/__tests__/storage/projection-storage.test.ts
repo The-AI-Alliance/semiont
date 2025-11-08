@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ProjectionStorage, type ResourceState } from '../../storage/projection/projection-storage-v2';
+import { ProjectionStorage, type ResourceView } from '../../storage/projection/projection-storage-v2';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -32,7 +32,7 @@ describe('ProjectionStorage', () => {
   });
 
   // Helper to create test resource state
-  const createTestResourceState = (docId: ResourceId): ResourceState => {
+  const createTestResourceView = (docId: ResourceId): ResourceView => {
     const resource = createTestResource({
       '@id': `urn:semiont:resource:${docId}`,
       name: `Test Resource ${docId}`,
@@ -63,7 +63,7 @@ describe('ProjectionStorage', () => {
   describe('Save Operations', () => {
     it('should save projection to disk', async () => {
       const docId = resourceId('doc-sha256:save-test-1');
-      const state = createTestResourceState(resourceId(docId));
+      const state = createTestResourceView(resourceId(docId));
 
       await storage.save(resourceId(docId), state);
 
@@ -74,7 +74,7 @@ describe('ProjectionStorage', () => {
 
     it('should create shard directories automatically', async () => {
       const docId = resourceId('doc-sha256:auto-dir-test');
-      const state = createTestResourceState(resourceId(docId));
+      const state = createTestResourceView(resourceId(docId));
 
       await storage.save(resourceId(docId), state);
 
@@ -86,13 +86,13 @@ describe('ProjectionStorage', () => {
 
     it('should overwrite existing projection', async () => {
       const docId = resourceId('doc-sha256:overwrite-test');
-      const state1 = createTestResourceState(resourceId(docId));
+      const state1 = createTestResourceView(resourceId(docId));
       state1.resource.name = 'Original Name';
 
       await storage.save(resourceId(docId), state1);
 
       // Overwrite with new state
-      const state2 = createTestResourceState(resourceId(docId));
+      const state2 = createTestResourceView(resourceId(docId));
       state2.resource.name = 'Updated Name';
       await storage.save(resourceId(docId), state2);
 
@@ -109,7 +109,7 @@ describe('ProjectionStorage', () => {
       ];
 
       for (const docId of docIds) {
-        const state = createTestResourceState(resourceId(docId));
+        const state = createTestResourceView(resourceId(docId));
         await storage.save(resourceId(docId), state);
       }
 
@@ -122,7 +122,7 @@ describe('ProjectionStorage', () => {
 
     it('should preserve resource state exactly', async () => {
       const docId = resourceId('doc-sha256:preserve-test');
-      const original = createTestResourceState(resourceId(docId));
+      const original = createTestResourceView(resourceId(docId));
       original.resource.entityTypes = ['Person', 'Organization'];
       original.annotations.version = 42;
 
@@ -137,7 +137,7 @@ describe('ProjectionStorage', () => {
   describe('Get Operations', () => {
     it('should retrieve saved projection', async () => {
       const docId = resourceId('doc-sha256:get-test-1');
-      const state = createTestResourceState(resourceId(docId));
+      const state = createTestResourceView(resourceId(docId));
 
       await storage.save(resourceId(docId), state);
 
@@ -162,7 +162,7 @@ describe('ProjectionStorage', () => {
       ];
 
       for (const docId of formats) {
-        const state = createTestResourceState(resourceId(docId));
+        const state = createTestResourceView(resourceId(docId));
         await storage.save(resourceId(docId), state);
 
         const loaded = await storage.get(resourceId(docId));
@@ -172,7 +172,7 @@ describe('ProjectionStorage', () => {
 
     it('should parse JSON correctly', async () => {
       const docId = resourceId('doc-sha256:json-test');
-      const state = createTestResourceState(resourceId(docId));
+      const state = createTestResourceView(resourceId(docId));
       state.annotations.annotations = [
         {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -202,7 +202,7 @@ describe('ProjectionStorage', () => {
   describe('Delete Operations', () => {
     it('should delete existing projection', async () => {
       const docId = resourceId('doc-sha256:delete-test-1');
-      const state = createTestResourceState(resourceId(docId));
+      const state = createTestResourceView(resourceId(docId));
 
       await storage.save(resourceId(docId), state);
       expect(await storage.exists(resourceId(docId))).toBe(true);
@@ -220,7 +220,7 @@ describe('ProjectionStorage', () => {
 
     it('should allow re-saving after deletion', async () => {
       const docId = resourceId('doc-sha256:re-save-test');
-      const state = createTestResourceState(resourceId(docId));
+      const state = createTestResourceView(resourceId(docId));
 
       await storage.save(resourceId(docId), state);
       await storage.delete(docId);
@@ -234,7 +234,7 @@ describe('ProjectionStorage', () => {
   describe('Exists Operations', () => {
     it('should return true for existing projection', async () => {
       const docId = resourceId('doc-sha256:exists-test-1');
-      const state = createTestResourceState(resourceId(docId));
+      const state = createTestResourceView(resourceId(docId));
 
       await storage.save(resourceId(docId), state);
 
@@ -249,7 +249,7 @@ describe('ProjectionStorage', () => {
 
     it('should return false after deletion', async () => {
       const docId = resourceId('doc-sha256:exists-then-deleted');
-      const state = createTestResourceState(resourceId(docId));
+      const state = createTestResourceView(resourceId(docId));
 
       await storage.save(resourceId(docId), state);
       await storage.delete(docId);
@@ -267,7 +267,7 @@ describe('ProjectionStorage', () => {
 
       const docIds = ['doc-1', 'doc-2', 'doc-3'];
       for (const docId of docIds) {
-        const state = createTestResourceState(resourceId(docId));
+        const state = createTestResourceView(resourceId(docId));
         await storage2.save(resourceId(docId), state);
       }
 
@@ -286,7 +286,7 @@ describe('ProjectionStorage', () => {
 
       const docIds = ['doc-a', 'doc-b'];
       for (const docId of docIds) {
-        const state = createTestResourceState(resourceId(docId));
+        const state = createTestResourceView(resourceId(docId));
         await storage3.save(resourceId(docId), state);
       }
 
@@ -365,7 +365,7 @@ describe('ProjectionStorage', () => {
       // Create 50 resources
       for (let i = 0; i < 50; i++) {
         const docId = `doc-shard-${i}`;
-        const state = createTestResourceState(resourceId(docId));
+        const state = createTestResourceView(resourceId(docId));
         await storage5.save(resourceId(docId), state);
       }
 
@@ -379,7 +379,7 @@ describe('ProjectionStorage', () => {
 
     it('should use consistent sharding', async () => {
       const docId = resourceId('doc-sha256:consistent-shard');
-      const state = createTestResourceState(resourceId(docId));
+      const state = createTestResourceView(resourceId(docId));
 
       // Save, delete, save again
       await storage.save(resourceId(docId), state);
@@ -395,7 +395,7 @@ describe('ProjectionStorage', () => {
   describe('Error Handling', () => {
     it('should throw on malformed JSON', async () => {
       const docId = resourceId('doc-sha256:bad-json');
-      const state = createTestResourceState(resourceId(docId));
+      const state = createTestResourceView(resourceId(docId));
 
       // Save valid JSON first
       await storage.save(resourceId(docId), state);

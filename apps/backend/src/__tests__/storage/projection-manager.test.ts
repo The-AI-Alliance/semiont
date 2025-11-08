@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ProjectionManager, type ResourceState } from '../../storage/projection/projection-manager';
+import { ProjectionManager, type ResourceView } from '../../storage/projection/projection-manager';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -35,7 +35,7 @@ describe('ProjectionManager', () => {
   });
 
   // Helper to create test resource state
-  const createTestState = (docId: ResourceId): ResourceState => {
+  const createTestState = (docId: ResourceId): ResourceView => {
     const resource: ResourceDescriptor = createTestResource({
       id: docId,
       name: `Test Resource ${docId}`,

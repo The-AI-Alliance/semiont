@@ -1,12 +1,12 @@
 /**
- * Event Projector - Projection Management
+ * View Materializer - Materialized View Management
  *
- * Builds resource state (Layer 3) from events (Layer 2):
- * - Full projection rebuild from scratch
- * - Incremental projection updates
- * - System-level projections (entity types)
+ * Materializes resource views (Layer 3) from events (Layer 2):
+ * - Full view materialization from scratch
+ * - Incremental view updates
+ * - System-level views (entity types)
  *
- * @see docs/EVENT-STORE.md#eventprojector for architecture details
+ * @see docs/EVENT-STORE.md#viewmaterializer for architecture details
  */
 
 import { promises as fs } from 'fs';
@@ -23,29 +23,29 @@ import type {
   ResourceId,
 } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
-import type { ProjectionStorage, ResourceState } from '../../storage/projection-storage';
+import type { ViewStorage, ResourceView } from '../../storage/view-storage';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-export interface ProjectorConfig {
+export interface ViewMaterializerConfig {
   basePath: string;
   backendUrl: string;
 }
 
 /**
- * EventProjector builds and maintains projections (Layer 3) from events (Layer 2)
+ * ViewMaterializer builds and maintains materialized views (Layer 3) from events (Layer 2)
  */
-export class EventProjector {
+export class ViewMaterializer {
   constructor(
-    private projectionStorage: ProjectionStorage,
-    private config: ProjectorConfig
+    private projectionStorage: ViewStorage,
+    private config: ViewMaterializerConfig
   ) {}
 
   /**
    * Build resource projection from events
    * Loads from Layer 3 if exists, otherwise rebuilds from Layer 2 events
    */
-  async projectResource(events: StoredEvent[], resourceId: ResourceId): Promise<ResourceState | null> {
+  async materialize(events: StoredEvent[], resourceId: ResourceId): Promise<ResourceView | null> {
     // Try to load existing projection from Layer 3
     const existing = await this.projectionStorage.get(resourceId);
     if (existing) {
@@ -55,7 +55,7 @@ export class EventProjector {
     // No projection exists - rebuild from Layer 2 events
     if (events.length === 0) return null;
 
-    const projection = this.buildProjectionFromEvents(events, resourceId);
+    const projection = this.materializeFromEvents(events, resourceId);
 
     // Save rebuilt projection to Layer 3
     await this.projectionStorage.save(resourceId, projection);
@@ -67,7 +67,7 @@ export class EventProjector {
    * Update projection incrementally with a single event
    * Falls back to full rebuild if projection doesn't exist
    */
-  async updateProjectionIncremental(
+  async materializeIncremental(
     resourceId: ResourceId,
     event: ResourceEvent,
     getAllEvents: () => Promise<StoredEvent[]>
@@ -81,7 +81,7 @@ export class EventProjector {
       // No projection exists - do full rebuild from all events
       console.log(`[EventProjector] No projection found, rebuilding from scratch`);
       const events = await getAllEvents();
-      projection = this.buildProjectionFromEvents(events, resourceId);
+      projection = this.materializeFromEvents(events, resourceId);
     } else {
       // Apply single event incrementally to existing projection
       console.log(`[EventProjector] Applying event incrementally to existing projection (version ${projection.annotations.version})`);
@@ -99,7 +99,7 @@ export class EventProjector {
   /**
    * Build projection from event list (full rebuild)
    */
-  private buildProjectionFromEvents(events: StoredEvent[], resourceId: ResourceId): ResourceState {
+  private materializeFromEvents(events: StoredEvent[], resourceId: ResourceId): ResourceView {
     // Build W3C-compliant HTTP URI for @id
     const backendUrl = this.config.backendUrl;
     const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
@@ -297,7 +297,7 @@ export class EventProjector {
   /**
    * Update entity types projection (Layer 3) - System-level projection
    */
-  async updateEntityTypesProjection(entityType: string): Promise<void> {
+  async materializeEntityTypes(entityType: string): Promise<void> {
     const entityTypesPath = path.join(
       this.config.basePath,
       'projections',

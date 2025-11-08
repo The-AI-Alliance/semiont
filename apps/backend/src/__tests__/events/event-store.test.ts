@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { EventStore } from '../../events/event-store';
 import { EventQuery } from '../../events/query/event-query';
 import { EventValidator } from '../../events/validation/event-validator';
-import { FilesystemProjectionStorage } from '../../storage/projection-storage';
+import { FilesystemViewStorage } from '../../storage/view-storage';
 import { CREATION_METHODS } from '@semiont/core';
 import { resourceId, userId } from '@semiont/core';
 import type { IdentifierConfig } from '../../services/identifier-service';
@@ -24,7 +24,7 @@ describe('Event Store', () => {
     testDir = join(tmpdir(), `semiont-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    const projectionStorage = new FilesystemProjectionStorage(testDir);
+    const projectionStorage = new FilesystemViewStorage(testDir);
     const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
 
     eventStore = new EventStore(
@@ -139,7 +139,7 @@ describe('Event Store', () => {
     });
 
     const events = await query.getResourceEvents(docId);
-    const stored = await eventStore.projections.projector.projectResource(events, docId);
+    const stored = await eventStore.views.materializer.materialize(events, docId);
 
     expect(stored).toBeDefined();
     expect(stored!.resource.name).toBe('Doc');

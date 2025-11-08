@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FilesystemStorage } from '../../storage/filesystem';
-import { FilesystemProjectionStorage } from '../../storage/projection-storage';
+import { FilesystemViewStorage } from '../../storage/view-storage';
 import { EventStore } from '../../events/event-store';
 import type { IdentifierConfig } from '../../services/identifier-service';
 import { EventQuery } from '../../events/query/event-query';
@@ -19,7 +19,7 @@ import { createTestResource } from '../fixtures/resource-fixtures';
 describe('Layered Storage', () => {
   let testDir: string;
   let resourceStorage: FilesystemStorage;
-  let projectionStorage: FilesystemProjectionStorage;
+  let projectionStorage: FilesystemViewStorage;
   let eventStore: EventStore;
   let query: EventQuery;
 
@@ -28,7 +28,7 @@ describe('Layered Storage', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     resourceStorage = new FilesystemStorage(testDir);
-    projectionStorage = new FilesystemProjectionStorage(testDir);
+    projectionStorage = new FilesystemViewStorage(testDir);
     const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
 
     eventStore = new EventStore(
@@ -317,11 +317,11 @@ describe('Layered Storage', () => {
 
       // First call rebuilds from events
       const events1 = await query.getResourceEvents(docId);
-      const projection1 = await eventStore.projections.projector.projectResource(events1, docId);
+      const projection1 = await eventStore.views.materializer.materialize(events1, docId);
 
       // Second call should load from Layer 3 (no rebuild)
       const events2 = await query.getResourceEvents(docId);
-      const projection2 = await eventStore.projections.projector.projectResource(events2, docId);
+      const projection2 = await eventStore.views.materializer.materialize(events2, docId);
 
       expect(projection1).toEqual(projection2);
     });

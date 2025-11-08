@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ProjectionStorage, type ResourceState } from '../../storage/projection/projection-storage-v2';
+import { ProjectionStorage, type ResourceView } from '../../storage/projection/projection-storage-v2';
 import { ProjectionQuery } from '../../storage/projection/projection-query';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -49,7 +49,7 @@ describe('ProjectionQuery', () => {
     entityTypes: string[],
     archived: boolean,
     annotationCount: number
-  ): ResourceState => {
+  ): ResourceView => {
     const resource: ResourceDescriptor = createTestResource({
       id,
       name,

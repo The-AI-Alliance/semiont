@@ -15,7 +15,7 @@ import { JWTService } from '../../auth/jwt';
 import { initializeJobQueue, getJobQueue } from '../../jobs/job-queue';
 import { EventStore } from '../../events/event-store';
 import type { IdentifierConfig } from '../../services/identifier-service';
-import { FilesystemProjectionStorage } from '../../storage/projection-storage';
+import { FilesystemViewStorage } from '../../storage/view-storage';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -104,7 +104,7 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
     await initializeJobQueue({ dataDir: join(testDir, 'jobs') });
 
     // Initialize Event Store
-    const projectionStorage = new FilesystemProjectionStorage(testDir);
+    const projectionStorage = new FilesystemViewStorage(testDir);
     const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
     eventStore = new EventStore(
       {
@@ -282,7 +282,7 @@ describe('Event Store Subscription Pattern', () => {
     testDir = join(tmpdir(), `semiont-test-subscription-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    const projectionStorage = new FilesystemProjectionStorage(testDir);
+    const projectionStorage = new FilesystemViewStorage(testDir);
     const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
     eventStore = new EventStore(
       {
