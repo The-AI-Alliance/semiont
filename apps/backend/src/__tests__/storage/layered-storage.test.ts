@@ -1,11 +1,11 @@
 /**
  * Layered Storage Tests
- * Tests for Layer 1 (resources) and Layer 3 (projections) filesystem storage
+ * Tests for content storage (resources) and view storage (materialized views) filesystem operations
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FilesystemStorage } from '../../storage/filesystem';
-import { FilesystemProjectionStorage } from '../../storage/projection-storage';
+import { FilesystemViewStorage } from '../../storage/view-storage';
 import { EventStore } from '../../events/event-store';
 import type { IdentifierConfig } from '../../services/identifier-service';
 import { EventQuery } from '../../events/query/event-query';
@@ -19,7 +19,7 @@ import { createTestResource } from '../fixtures/resource-fixtures';
 describe('Layered Storage', () => {
   let testDir: string;
   let resourceStorage: FilesystemStorage;
-  let projectionStorage: FilesystemProjectionStorage;
+  let viewStorage: FilesystemViewStorage;
   let eventStore: EventStore;
   let query: EventQuery;
 
@@ -28,7 +28,7 @@ describe('Layered Storage', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     resourceStorage = new FilesystemStorage(testDir);
-    projectionStorage = new FilesystemProjectionStorage(testDir);
+    viewStorage = new FilesystemViewStorage(testDir);
     const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
 
     eventStore = new EventStore(
@@ -38,7 +38,7 @@ describe('Layered Storage', () => {
         enableSharding: true,
         maxEventsPerFile: 100,
       },
-      projectionStorage,
+      viewStorage,
       identifierConfig
     );
 
@@ -49,7 +49,7 @@ describe('Layered Storage', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  describe('Layer 1: Resource Storage', () => {
+  describe('RepresentationStore: Content Storage', () => {
     it('should use 4-hex sharding for resources', async () => {
       const docId = resourceId('doc-sha256:abc123def456');
       const path = resourceStorage.getResourcePath(docId);
@@ -79,7 +79,7 @@ describe('Layered Storage', () => {
     });
   });
 
-  describe('Layer 3: Projection Storage', () => {
+  describe('ViewStorage: Materialized Views', () => {
     it('should use 4-hex sharding for projections', async () => {
       const docId = resourceId('doc-sha256:xyz789');
       const stored = {
@@ -107,10 +107,10 @@ describe('Layered Storage', () => {
         },
       };
 
-      await projectionStorage.save(docId, stored);
+      await viewStorage.save(docId, stored);
 
       // Verify file was created in correct shard
-      const exists = await projectionStorage.exists(docId);
+      const exists = await viewStorage.exists(docId);
       expect(exists).toBe(true);
     });
 
@@ -169,14 +169,14 @@ describe('Layered Storage', () => {
         },
       };
 
-      await projectionStorage.save(docId, stored);
-      const retrieved = await projectionStorage.get(docId);
+      await viewStorage.save(docId, stored);
+      const retrieved = await viewStorage.get(docId);
 
       expect(retrieved).toEqual(stored);
     });
 
     it('should return null for non-existent projection', async () => {
-      const result = await projectionStorage.get(resourceId('doc-sha256:nonexistent'));
+      const result = await viewStorage.get(resourceId('doc-sha256:nonexistent'));
       expect(result).toBeNull();
     });
 
@@ -207,11 +207,11 @@ describe('Layered Storage', () => {
         },
       };
 
-      await projectionStorage.save(docId, stored);
-      expect(await projectionStorage.exists(docId)).toBe(true);
+      await viewStorage.save(docId, stored);
+      expect(await viewStorage.exists(docId)).toBe(true);
 
-      await projectionStorage.delete(docId);
-      expect(await projectionStorage.exists(docId)).toBe(false);
+      await viewStorage.delete(docId);
+      expect(await viewStorage.exists(docId)).toBe(false);
     });
   });
 
@@ -233,8 +233,8 @@ describe('Layered Storage', () => {
         },
       });
 
-      // Projection should be saved to Layer 3
-      const stored = await projectionStorage.get(docId);
+      // View should be saved to ViewStorage
+      const stored = await viewStorage.get(docId);
       expect(stored).toBeDefined();
       expect(stored!.resource.name).toBe('Integration Test');
     });
@@ -256,7 +256,7 @@ describe('Layered Storage', () => {
         },
       });
 
-      const before = await projectionStorage.get(docId);
+      const before = await viewStorage.get(docId);
       expect(before!.annotations.annotations).toHaveLength(0);
 
       // Add highlighting annotation
@@ -292,13 +292,13 @@ describe('Layered Storage', () => {
       });
 
       // Projection should be updated
-      const after = await projectionStorage.get(docId);
+      const after = await viewStorage.get(docId);
       expect(after!.annotations.annotations).toHaveLength(1);
       expect(after!.annotations.annotations[0]?.id).toBe('hl1');
       expect(after!.annotations.version).toBe(2);
     });
 
-    it('should load from Layer 3 when projection exists', async () => {
+    it('should load from ViewStorage when view exists', async () => {
       const docId = resourceId('doc-test-integration3');
 
       // Create events
@@ -317,11 +317,11 @@ describe('Layered Storage', () => {
 
       // First call rebuilds from events
       const events1 = await query.getResourceEvents(docId);
-      const projection1 = await eventStore.projections.projector.projectResource(events1, docId);
+      const projection1 = await eventStore.views.materializer.materialize(events1, docId);
 
-      // Second call should load from Layer 3 (no rebuild)
+      // Second call should load from ViewStorage (no rebuild)
       const events2 = await query.getResourceEvents(docId);
-      const projection2 = await eventStore.projections.projector.projectResource(events2, docId);
+      const projection2 = await eventStore.views.materializer.materialize(events2, docId);
 
       expect(projection1).toEqual(projection2);
     });

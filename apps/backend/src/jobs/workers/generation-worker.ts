@@ -63,15 +63,17 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] 📥 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
-    // Fetch annotation from Layer 3
+    // Fetch annotation from view storage
     const projection = await AnnotationQueryService.getResourceAnnotations(job.sourceResourceId, this.config);
-    // Compare by ID
+
+    // Construct full annotation URI for comparison
+    const expectedAnnotationUri = `${this.config.services.backend!.publicURL}/annotations/${job.referenceId}`;
     const annotation = projection.annotations.find((a: any) =>
-      a.id === job.referenceId && a.motivation === 'linking'
+      a.id === expectedAnnotationUri && a.motivation === 'linking'
     );
 
     if (!annotation) {
-      throw new Error(`Reference annotation ${job.referenceId} not found in resource ${job.sourceResourceId}`);
+      throw new Error(`Annotation ${job.referenceId} not found in resource ${job.sourceResourceId}`);
     }
 
     const sourceResource = await ResourceQueryService.getResourceMetadata(job.sourceResourceId, this.config);

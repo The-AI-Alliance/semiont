@@ -1,6 +1,6 @@
-# Representation Storage Architecture (Layer 1)
+# Representation Storage Architecture
 
-**Layer 1** of the Semiont data architecture provides W3C-compliant storage of document representations using a filesystem-based approach with checksum-based content addressing.
+Semiont's data architecture provides W3C-compliant storage of document representations using a filesystem-based approach with checksum-based content addressing.
 
 ## Overview
 
@@ -15,16 +15,15 @@ RepresentationStore is the foundation layer that stores document representations
 - **Integrity**: Checksums verify content integrity
 
 **Related Documentation:**
-- [Event Store (Layer 2)](./EVENT-STORE.md) - Immutable event log
-- [Projection Storage (Layer 3)](./PROJECTION.md) - Materialized views
-- [Graph Database (Layer 4)](./GRAPH.md) - Relationship traversal
+- [Event Store](./EVENT-STORE.md) - Immutable event log and materialized views
+- [Graph Database](./GRAPH.md) - Relationship traversal
 - [Architecture Overview](./ARCHITECTURE.md) - Complete system architecture
 
 ## Module Organization
 
 ```
 apps/backend/src/storage/
-├── representation/                    # Layer 1: W3C representations
+├── representation/                    # W3C representations
 │   └── representation-store.ts        # Content-addressed storage
 └── shared/                           # Shared utilities
     ├── path-builder.ts                # Path construction & sharding
@@ -150,21 +149,21 @@ const exists: boolean = await repStore.exists(checksum: string);
 RepresentationStore implements the storage layer for W3C ResourceDescriptor representations:
 
 ```typescript
-// ResourceDescriptor (Layer 3/4 metadata)
+// ResourceDescriptor (Event Store metadata)
 const resource: ResourceDescriptor = {
   '@context': 'https://schema.org/',
   '@id': 'http://localhost:4000/documents/doc-123',
   name: 'My Document',
   representations: [{
     mediaType: 'text/plain',
-    checksum: 'sha256:abc123...',  // Points to Layer 1 storage
+    checksum: 'sha256:abc123...',  // Points to RepresentationStore
     rel: 'original',
     language: 'en'
   }],
   // ... other metadata
 };
 
-// Layer 1: RepresentationStore
+// RepresentationStore
 // Content retrieved by checksum
 const content = await repStore.get('sha256:abc123...');
 ```
@@ -200,7 +199,7 @@ const markdown = await repStore.store(
 ### Save Document (Full Flow)
 
 ```typescript
-// 1. Store representation (Layer 1)
+// 1. Store representation
 const contentBuffer = Buffer.from(documentText);
 const storedRep = await repStore.store(contentBuffer, {
   mediaType: 'text/plain',
@@ -208,7 +207,7 @@ const storedRep = await repStore.store(contentBuffer, {
   rel: 'original'
 });
 
-// 2. Emit event with checksum (Layer 2)
+// 2. Emit event with checksum
 await eventStore.appendEvent({
   type: 'document.created',
   documentId,
@@ -216,25 +215,25 @@ await eventStore.appendEvent({
   payload: {
     name: 'My Document',
     format: 'text/plain',
-    contentChecksum: storedRep.checksum,  // Reference to Layer 1
+    contentChecksum: storedRep.checksum,  // Reference to RepresentationStore
     creationMethod: 'api'
   }
 });
 
-// 3. Event consumer builds ResourceDescriptor (Layer 3/4)
+// 3. Event consumer builds ResourceDescriptor
 // GraphDB stores metadata with checksum reference
 ```
 
 ### Get Document (Full Flow)
 
 ```typescript
-// 1. Get metadata from GraphDB (Layer 4)
+// 1. Get metadata from GraphDB
 const resource = await graphDb.getDocument(documentId);
 
 // 2. Extract checksum from representations
 const checksum = resource.representations[0]?.checksum;
 
-// 3. Retrieve content from RepresentationStore (Layer 1)
+// 3. Retrieve content from RepresentationStore
 const content = await repStore.get(checksum);
 
 // 4. Return to client
@@ -250,7 +249,7 @@ return {
 // 1. Get resource to find checksums
 const resource = await graphDb.getDocument(documentId);
 
-// 2. Delete all representations (Layer 1)
+// 2. Delete all representations
 for (const rep of resource.representations) {
   await repStore.delete(rep.checksum);
 }
@@ -323,9 +322,9 @@ const rep2 = await repStore.store(
 - **Collision Resistance**: Practically impossible collisions
 - **Standard**: Widely supported, well-understood
 
-### Why Layer 1?
+### Design Rationale
 
-RepresentationStore is Layer 1 (not Layer 3) because:
+RepresentationStore is foundational content storage because:
 - **No event dependency**: Direct storage, no event replay needed
 - **Foundation layer**: Other layers build on top
 - **Simple model**: Content in → checksum out
@@ -419,8 +418,7 @@ const retrieved = await repStore.get(stored.checksum);
 
 ## Related Documentation
 
-- [PROJECTION.md](./PROJECTION.md) - Layer 3 projection storage
-- [EVENT-STORE.md](./EVENT-STORE.md) - Layer 2 event sourcing
-- [GRAPH.md](./GRAPH.md) - Layer 4 graph database
+- [EVENT-STORE.md](./EVENT-STORE.md) - Event log and materialized views
+- [GRAPH.md](./GRAPH.md) - Graph database
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Complete system architecture
 - [W3C-RESOURCES.md](../../W3C-RESOURCES.md) - W3C migration details

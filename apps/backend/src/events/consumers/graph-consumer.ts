@@ -2,7 +2,7 @@
  * GraphDB Consumer
  * Subscribes to resource events and updates GraphDB accordingly
  *
- * Makes GraphDB a projection of Layer 2 events (single source of truth)
+ * Makes GraphDB a projection of Event Store events (single source of truth)
  */
 
 import { createEventStore, createEventQuery } from '../../services/event-store-service';

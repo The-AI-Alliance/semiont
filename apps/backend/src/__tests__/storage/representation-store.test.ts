@@ -1,6 +1,6 @@
 /**
  * RepresentationStore Tests
- * Tests for Layer 1 content-addressed representation storage
+ * Tests for content-addressed representation storage
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

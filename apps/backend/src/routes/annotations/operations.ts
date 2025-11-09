@@ -100,13 +100,13 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   const basePath = config.services.filesystem!.path;
   const repStore = new FilesystemRepresentationStore({ basePath });
 
-  // Get annotation from Layer 3
+  // Get annotation from view storage
   const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(resourceId), config);
   if (!annotation) {
     throw new HTTPException(404, { message: 'Annotation not found' });
   }
 
-  // Get resource metadata from Layer 3
+  // Get resource metadata from view storage
   const resource = await ResourceQueryService.getResourceMetadata(uriToResourceId(getTargetSource(annotation.target)), config);
   if (!resource) {
     throw new HTTPException(404, { message: 'Resource not found' });
@@ -165,13 +165,13 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
     throw new HTTPException(400, { message: 'resourceId query parameter is required' });
   }
 
-  // Get annotation from Layer 3
+  // Get annotation from view storage
   const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(resourceId), config);
   if (!annotation) {
     throw new HTTPException(404, { message: 'Annotation not found' });
   }
 
-  // Get resource from Layer 3
+  // Get resource from view storage
   const resource = await ResourceQueryService.getResourceMetadata(uriToResourceId(getTargetSource(annotation.target)), config);
   if (!resource) {
     throw new HTTPException(404, { message: 'Resource not found' });

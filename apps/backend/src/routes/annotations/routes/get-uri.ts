@@ -31,7 +31,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
    * - JSON-LD for machines (default)
    * - HTML redirect to frontend for browsers
    *
-   * Requires resourceId query parameter for O(1) Layer 3 lookup
+   * Requires resourceId query parameter for O(1) view storage lookup
    */
   router.get('/annotations/:id', async (c) => {
     const { id } = c.req.param();
@@ -62,7 +62,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     }
 
     // Otherwise, return JSON-LD representation
-    // O(1) lookup in Layer 3 using resource ID
+    // O(1) lookup in view storage using resource ID
     const projection = await AnnotationQueryService.getResourceAnnotations(makeResourceId(extractedResourceId), config);
 
     // Find the annotation

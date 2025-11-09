@@ -8,7 +8,7 @@
  *
  * Does NOT handle:
  * - Event persistence (see EventLog)
- * - Projection updates (see ProjectionManager)
+ * - View updates (see ViewManager)
  */
 
 import { type StoredEvent, type ResourceId, isResourceEvent, isSystemEvent } from '@semiont/core';

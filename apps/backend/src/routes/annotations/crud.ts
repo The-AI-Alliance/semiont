@@ -128,16 +128,16 @@ crudRouter.put('/api/annotations/:id/body',
 
     console.log(`[BODY UPDATE HANDLER] Called for annotation ${id}, operations:`, request.operations);
 
-    // Get annotation from Layer 3 (event store projection)
+    // Get annotation from view storage (event store projection)
     const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), resourceId(request.resourceId), config);
-    console.log(`[BODY UPDATE HANDLER] Layer 3 lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
+    console.log(`[BODY UPDATE HANDLER] view storage lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
 
     if (!annotation) {
-      console.log(`[BODY UPDATE HANDLER] Throwing 404 - annotation ${id} not found in Layer 3`);
+      console.log(`[BODY UPDATE HANDLER] Throwing 404 - annotation ${id} not found in view storage`);
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
-    // Emit annotation.body.updated event to Layer 2 (consumer will update Layer 3 projection)
+    // Emit annotation.body.updated event to Event Store (consumer will update view storage projection)
     const eventStore = await createEventStore( config);
     await eventStore.appendEvent({
       type: 'annotation.body.updated',
@@ -194,7 +194,7 @@ crudRouter.put('/api/annotations/:id/body',
 
 /**
  * GET /api/annotations
- * List all annotations for a resource (requires resourceId for O(1) Layer 3 lookup)
+ * List all annotations for a resource (requires resourceId for O(1) view storage lookup)
  */
 crudRouter.get('/api/annotations', async (c) => {
   const query = c.req.query();
@@ -207,7 +207,7 @@ crudRouter.get('/api/annotations', async (c) => {
     throw new HTTPException(400, { message: 'resourceId query parameter is required' });
   }
 
-  // O(1) lookup in Layer 3 using resource ID
+  // O(1) lookup in view storage using resource ID
   const projection = await AnnotationQueryService.getResourceAnnotations(resourceId(resourceIdParam), config);
 
   // Apply pagination to all annotations
@@ -225,7 +225,7 @@ crudRouter.get('/api/annotations', async (c) => {
 
 /**
  * DELETE /api/annotations/:id
- * Delete an annotation (requires resourceId in body for O(1) Layer 3 lookup)
+ * Delete an annotation (requires resourceId in body for O(1) view storage lookup)
  */
 crudRouter.delete('/api/annotations/:id',
   validateRequestBody('DeleteAnnotationRequest'),
@@ -235,7 +235,7 @@ crudRouter.delete('/api/annotations/:id',
     const user = c.get('user');
     const config = c.get('config');
 
-    // O(1) lookup in Layer 3 using resource ID (extract from URI)
+    // O(1) lookup in view storage using resource ID (extract from URI)
     const resourceId = uriToResourceId(request.resourceId);
     const projection = await AnnotationQueryService.getResourceAnnotations(resourceId, config);
 
@@ -246,7 +246,7 @@ crudRouter.delete('/api/annotations/:id',
       throw new HTTPException(404, { message: 'Annotation not found in resource' });
     }
 
-    // Emit unified annotation.removed event (consumer will delete from GraphDB and update Layer 3)
+    // Emit unified annotation.removed event (consumer will delete from GraphDB and update view storage)
     const eventStore = await createEventStore( config);
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({

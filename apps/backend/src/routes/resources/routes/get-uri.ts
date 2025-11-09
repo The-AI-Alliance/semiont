@@ -55,7 +55,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     if (acceptHeader.includes('text/') || acceptHeader.includes('application/pdf')) {
       const repStore = new FilesystemRepresentationStore({ basePath });
 
-      // Get resource metadata from Layer 3
+      // Get resource metadata from view storage
       const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
@@ -83,11 +83,11 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
 
     // Otherwise, return JSON-LD metadata (default)
 
-    // Read from Layer 2/3: Event store builds/loads projection
+    // Read from event store: materializes view from events
     const eventStore = await createEventStore(config);
     const query = new EventQuery(eventStore.log.storage);
     const events = await query.getResourceEvents(resourceId(id));
-    const stored = await eventStore.projections.projector.projectResource(events, resourceId(id));
+    const stored = await eventStore.views.materializer.materialize(events, resourceId(id));
 
     if (!stored) {
       throw new HTTPException(404, { message: 'Resource not found' });

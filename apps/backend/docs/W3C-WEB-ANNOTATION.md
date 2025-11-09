@@ -1,6 +1,6 @@
 # W3C Web Annotation Backend Implementation
 
-This document describes how W3C Web Annotations flow through Semiont's 4-layer backend architecture.
+This document describes how W3C Web Annotations flow through Semiont's backend data architecture.
 
 **Related Documentation:**
 
@@ -11,34 +11,27 @@ This document describes how W3C Web Annotations flow through Semiont's 4-layer b
 
 ## Architecture Overview
 
-Semiont implements a **4-layer data architecture** for W3C annotations:
+Semiont's data architecture for W3C annotations:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ Layer 4: Graph Database (Neptune/In-Memory)        │
+│ Graph Database (Neptune/In-Memory)                 │
 │ - Relationships, backlinks, graph traversal        │
 │ - Document → Annotation edges                      │
 │ - Annotation → Document edges (links)              │
 └─────────────────────────────────────────────────────┘
                       ↑
 ┌─────────────────────────────────────────────────────┐
-│ Layer 3: Projection Store (Filesystem - JSONL)     │
+│ Event Store (Filesystem - JSONL)                   │
+│ - Immutable append-only event log                  │
 │ - Materialized views of current state              │
 │ - Fast document + annotations queries              │
-│ - Rebuilt from Layer 2 events                      │
-│ Storage: data/projections/shards/xx/yy/            │
-└─────────────────────────────────────────────────────┘
-                      ↑
-┌─────────────────────────────────────────────────────┐
-│ Layer 2: Event Store (Filesystem - JSONL)          │
-│ - Immutable append-only event log                  │
-│ - Source of truth for all changes                  │
 │ - Event chain with prevEventHash integrity         │
-│ Storage: data/events/shards/xx/yy/                 │
+│ Storage: data/events/ + data/views/                │
 └─────────────────────────────────────────────────────┘
                       ↑
 ┌─────────────────────────────────────────────────────┐
-│ Layer 1: Content Store (Filesystem - .dat files)   │
+│ Content Store (Filesystem - .dat files)            │
 │ - Binary/text documents, content-addressed         │
 │ - Sharded by document hash                         │
 │ Storage: data/documents/shards/xx/yy/              │
@@ -51,65 +44,55 @@ Semiont implements a **4-layer data architecture** for W3C annotations:
 - Job queue status
 - System configuration
 
-**NOT stored in Postgres:** Events, projections, documents, annotations
+**NOT stored in Postgres:** Events, views, documents, annotations
 
-## Data Layer Architecture
-
-The backend implements a 4-layer data architecture, each layer serving a specific purpose:
+## Data Storage Architecture
 
 ```mermaid
 graph TB
-    subgraph "Layer 4: Graph Database"
+    subgraph "Graph Database"
         Graph[Graph Database<br/>Neo4j/Memgraph/ArangoDB<br/>────────<br/>• Relationship traversal<br/>• Backlinks & connections<br/>• Path finding<br/>• Cross-document queries]
     end
 
-    subgraph "Layer 3: Projections"
-        Projections[Projection Storage<br/>Filesystem JSON + PostgreSQL<br/>────────<br/>• Materialized views<br/>• Document metadata<br/>• Annotation collections<br/>• Fast single-doc queries<br/>────────<br/>Rebuild: From Layer 2 events]
-    end
-
-    subgraph "Layer 2: Event Store"
+    subgraph "Event Store"
         EventStore[Event Store<br/>Filesystem JSONL<br/>────────<br/>• Immutable event log<br/>• Append-only writes<br/>• Complete audit trail<br/>• Source of truth]
+        Views[View Storage<br/>Filesystem JSON<br/>────────<br/>• Materialized views<br/>• Document metadata<br/>• Annotation collections<br/>• Fast single-doc queries<br/>────────<br/>Rebuild: From events]
     end
 
-    subgraph "Layer 1: Content Storage"
+    subgraph "Content Storage"
         Content[Content Storage<br/>Filesystem Binary/Text<br/>────────<br/>• Document content files<br/>• PDF, text, images<br/>• Sharded storage<br/>• Stream support<br/>────────<br/>65,536 shards via JCH]
     end
 
-    EventStore -->|Projects to| Projections
-    Projections -->|Syncs to| Graph
-    EventStore -.->|Can rebuild| Projections
-    Projections -.->|Can rebuild| Graph
+    EventStore -->|Materializes to| Views
+    Views -->|Syncs to| Graph
+    EventStore -.->|Can rebuild| Views
+    Views -.->|Can rebuild| Graph
 
     style Content fill:#e1f5ff
     style EventStore fill:#fff4e1
-    style Projections fill:#f0ffe1
+    style Views fill:#f0ffe1
     style Graph fill:#ffe1f5
-
-    classDef layer1 fill:#e1f5ff
-    classDef layer2 fill:#fff4e1
-    classDef layer3 fill:#f0ffe1
-    classDef layer4 fill:#ffe1f5
 ```
 
-### Layer Responsibilities
+### Component Responsibilities
 
-- **Layer 1 (Content Storage)**: Stores raw document content in binary/text format with 4-hex sharding (65,536 shards). Provides fast read/write by document ID.
+- **Content Storage**: Stores raw document content in binary/text format with 4-hex sharding (65,536 shards). Provides fast read/write by document ID.
 
-- **Layer 2 (Event Store)**: Immutable append-only event log (JSONL files). Source of truth for all state changes. Supports event replay and projection rebuilding.
+- **Event Store**: Immutable append-only event log (JSONL files). Source of truth for all state changes. Supports event replay and view rebuilding.
 
-- **Layer 3 (Projections)**: Materialized views of document state built from Layer 2 events. Optimized for fast single-document queries. Can be rebuilt from events at any time.
+- **View Storage**: Materialized views of document state built from events. Optimized for fast single-document queries. Can be rebuilt from events at any time.
 
-- **Layer 4 (Graph Database)**: Relationship and connection data synced from Layer 3. Handles graph traversal, backlinks, path finding, and cross-document queries.
+- **Graph Database**: Relationship and connection data synced from views. Handles graph traversal, backlinks, path finding, and cross-document queries.
 
 ### Data Flow
 
-1. **Write Path**: Content → Layer 1, Events → Layer 2, Events → Layer 3 (projection), Projection → Layer 4 (sync)
-2. **Read Path**: Single-document queries → Layer 3, Graph queries → Layer 4
-3. **Rebuild Path**: Layer 2 events can rebuild Layer 3 projections and Layer 4 graph at any time
+1. **Write Path**: Content → Content Storage, Events → Event Store, Events → Views (materialization), Views → Graph (sync)
+2. **Read Path**: Single-document queries → Views, Graph queries → Graph Database
+3. **Rebuild Path**: Events can rebuild Views and Graph at any time
 
 ## Annotation Lifecycle
 
-### 1. Create Annotation (API → Layer 2)
+### 1. Create Annotation (API → Event Store)
 
 **HTTP Request:**
 
@@ -152,7 +135,7 @@ const annotation: Annotation = {
   body: validated.body
 };
 
-// 3. Emit event to Layer 2 (Event Store)
+// 3. Emit event to Event Store
 await eventStore.emit({
   type: 'annotation.added',
   documentId: targetDocId,
@@ -164,7 +147,7 @@ await eventStore.emit({
 // data/events/shards/ab/cd/documents/doc-sha256:abc123/events-000042-1234567890.jsonl
 ```
 
-### 2. Event Store (Layer 2 → Filesystem)
+### 2. Event Store Persistence
 
 **Event Structure:**
 
@@ -209,7 +192,7 @@ data/events/shards/
 - `annotation.body_updated`
 - `entity_tag.added` / `entity_tag.removed`
 
-### 3. Event Projection (Layer 2 → Layer 3)
+### 3. View Materialization (Events → Views)
 
 **Graph Consumer** listens to events and projects current state:
 
@@ -249,7 +232,7 @@ const projection: DocumentAnnotations = {
 await projectionStore.write(documentId, projection);
 ```
 
-### 4. Graph Database Sync (Layer 3 → Layer 4)
+### 4. Graph Database Sync (Views → Graph)
 
 **Event Projector** syncs to graph database:
 
@@ -259,10 +242,10 @@ class EventProjector {
   async applyAnnotationAdded(event: StoredEvent) {
     const { annotation } = event.event.payload;
 
-    // 1. Update projection (Layer 3)
+    // 1. Update view
     await this.updateProjection(documentId, annotation);
 
-    // 2. Sync to graph database (Layer 4)
+    // 2. Sync to graph database
     await this.graphDb.addAnnotation(annotation);
 
     // Creates graph edges:
@@ -299,7 +282,7 @@ interface GraphOperations {
 ```
 API Request
     ↓
-Layer 3: Read projection from filesystem
+Views: Read materialized view from filesystem
     ↓
 data/projections/shards/ab/cd/doc-sha256:abc123.jsonl
     ↓
@@ -315,7 +298,7 @@ Return: {
 // apps/backend/src/services/document-query-service.ts
 class DocumentQueryService {
   async getDocument(id: string) {
-    // Read from Layer 3 projection
+    // Read from materialized view
     const projection = await projectionStore.read(id);
 
     return {
@@ -331,7 +314,7 @@ class DocumentQueryService {
 ```
 API Request
     ↓
-Layer 4: Query graph database
+Graph Database: Query relationships
     ↓
 Neptune/In-Memory: MATCH (d:Document {id: $id})<-[:LINKS_TO]-(a:Annotation)
     ↓
@@ -343,7 +326,7 @@ Return: Array<Annotation> with full W3C structure
 ```typescript
 // apps/backend/src/routes/documents/routes/backlinks.ts
 async function getBacklinks(documentId: string) {
-  // Query Layer 4 for graph relationships
+  // Query graph database for relationships
   const backlinks = await graphDb.getBacklinks(documentId);
 
   return {
@@ -386,7 +369,7 @@ Projections can be rebuilt from events:
 ```typescript
 // Rebuild projection for a document
 async function rebuildProjection(documentId: string) {
-  // 1. Read all events from Layer 2
+  // 1. Read all events from Event Store
   const events = await eventStore.getEvents(documentId);
 
   // 2. Replay events to rebuild state
@@ -396,7 +379,7 @@ async function rebuildProjection(documentId: string) {
     state = applyEvent(state, event);
   }
 
-  // 3. Write rebuilt projection to Layer 3
+  // 3. Write rebuilt view to ViewStorage
   await projectionStore.write(documentId, state);
 }
 ```
@@ -470,13 +453,13 @@ Response:
 
 ```
 data/
-├── documents/          # Layer 1: Content Store
+├── documents/          # Content Store
 │   └── shards/
 │       ├── ab/
 │       │   └── cd/
 │       │       └── doc-sha256:abcd123.dat
 │       └── ...
-├── events/             # Layer 2: Event Store
+├── events/             # Event Store
 │   └── shards/
 │       ├── ab/
 │       │   └── cd/
@@ -485,7 +468,7 @@ data/
 │       │               ├── events-000000-{timestamp}.jsonl
 │       │               └── events-001000-{timestamp}.jsonl
 │       └── ...
-└── projections/        # Layer 3: Projection Store
+└── views/              # View Storage
     └── shards/
         ├── ab/
         │   └── cd/

@@ -310,7 +310,7 @@ if (nodeEnv !== 'test') {
       // Continue running even if inference initialization fails
     }
 
-    // Initialize GraphDB consumer (event-driven Layer 4)
+    // Initialize GraphDB consumer (syncs from Event Store views)
     try {
       console.log('📊 Starting GraphDB consumer...');
       const { startGraphConsumer } = await import('./events/consumers/graph-consumer');

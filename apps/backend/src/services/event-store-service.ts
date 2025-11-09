@@ -12,7 +12,7 @@ import type { EventStorageConfig } from '../events/storage/event-storage';
 import type { IdentifierConfig } from './identifier-service';
 import { EventQuery } from '../events/query/event-query';
 import { EventValidator } from '../events/validation/event-validator';
-import { createProjectionManager } from './storage-service';
+import { FilesystemViewStorage } from '../storage/view-storage';
 
 /**
  * Create and initialize an EventStore instance
@@ -41,13 +41,11 @@ export async function createEventStore(
     baseUrl,
   };
 
-  // Create ProjectionManager (Layer 3)
+  // Create ViewStorage for materialized views
   // Structure: <basePath>/projections/resources/...
-  const projectionManager = createProjectionManager(basePath, {
-    subNamespace: 'resources',
-  });
+  const viewStorage = new FilesystemViewStorage(basePath);
 
-  // Determine data directory for events (Layer 2)
+  // Determine data directory for events
   // Structure: <basePath>/events/...
   const dataDir = path.join(basePath, 'events');
 
@@ -59,7 +57,7 @@ export async function createEventStore(
       enableSharding: true,
       numShards: 65536,  // 4 hex digits
     },
-    projectionManager,
+    viewStorage,
     identifierConfig
   );
 

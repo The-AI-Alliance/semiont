@@ -2,7 +2,7 @@
 /**
  * CLI Tool: Rebuild Annotation Projections from Events
  *
- * Rebuilds Layer 3 annotation projections from Layer 2 event streams.
+ * Rebuilds materialized views from Event Store event streams.
  * Proves that events are the source of truth.
  *
  * Usage:
@@ -47,7 +47,7 @@ async function rebuildProjections(rId?: string) {
     console.log(`   ✅ Event chain valid`);
 
     // Rebuild projection
-    const stored = await eventStore.projections.projector.projectResource(events, makeResourceId(rId));
+    const stored = await eventStore.views.materializer.materialize(events, makeResourceId(rId));
     if (!stored) {
       console.error(`❌ Failed to build projection`);
       process.exit(1);
@@ -69,8 +69,8 @@ async function rebuildProjections(rId?: string) {
     // For now, show usage message
     console.log(`   To rebuild all projections, you need to:`);
     console.log(`   1. Scan all event shards in ${config.services.filesystem!.path}/events/shards/`);
-    console.log(`   2. For each resource found, call eventStore.projector.projectResource(resourceId)`);
-    console.log(`   3. Projections are automatically saved to Layer 3\n`);
+    console.log(`   2. For each resource found, call eventStore.materializer.materialize(resourceId)`);
+    console.log(`   3. Views are automatically saved to ViewStorage\n`);
     console.log(`   For now, rebuild individual resources by ID.`);
   }
 

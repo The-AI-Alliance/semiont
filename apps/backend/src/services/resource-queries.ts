@@ -1,13 +1,11 @@
 /**
- * Layer 3: Resource Query Service
+ * Resource Query Service
  *
- * Reads resource metadata from projection storage (Layer 3)
+ * Reads resource metadata from view storage
  * Does NOT touch the graph - graph is only for traversals
- *
- * Uses ProjectionManager as single source of truth for paths
  */
 
-import { createProjectionManager } from './storage-service';
+import { FilesystemViewStorage } from '../storage/view-storage';
 import type { components } from '@semiont/api-client';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 
@@ -20,40 +18,34 @@ export interface ListResourcesFilters {
 
 export class ResourceQueryService {
   /**
-   * Get resource metadata from Layer 3 projection
+   * Get resource metadata from view storage
    */
   static async getResourceMetadata(resourceId: ResourceId, config: EnvironmentConfig): Promise<ResourceDescriptor | null> {
     const basePath = config.services.filesystem!.path;
 
-    // Use ProjectionManager to get projection (respects configured subNamespace)
-    const projectionManager = createProjectionManager(basePath, {
-      subNamespace: 'resources',
-    });
+    const viewStorage = new FilesystemViewStorage(basePath);
 
-    const state = await projectionManager.get(resourceId);
-    if (!state) {
+    const view = await viewStorage.get(resourceId);
+    if (!view) {
       return null;
     }
 
-    return state.resource;
+    return view.resource;
   }
 
   /**
-   * List all resources by scanning Layer 3 projection files
+   * List all resources by scanning view storage
    */
   static async listResources(filters: ListResourcesFilters | undefined, config: EnvironmentConfig): Promise<ResourceDescriptor[]> {
     const basePath = config.services.filesystem!.path;
 
-    // Use ProjectionManager to get all resources (respects configured subNamespace)
-    const projectionManager = createProjectionManager(basePath, {
-      subNamespace: 'resources',
-    });
+    const viewStorage = new FilesystemViewStorage(basePath);
 
-    const allStates = await projectionManager.getAll();
+    const allViews = await viewStorage.getAll();
     const resources: ResourceDescriptor[] = [];
 
-    for (const state of allStates) {
-      const doc = state.resource;
+    for (const view of allViews) {
+      const doc = view.resource;
 
       // Apply filters
       if (filters?.archived !== undefined && doc.archived !== filters.archived) {

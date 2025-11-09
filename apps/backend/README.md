@@ -13,7 +13,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 - **[Contributing Guide](./docs/CONTRIBUTING.md)** - Code style, development patterns, PR requirements
 
 ### 🔗 Related Resources
-- **[W3C Web Annotation Implementation](../../specs/docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, projections, graph database)
+- **[W3C Web Annotation Implementation](../../specs/docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, materialized views, graph database)
 - **[API Client Package](../../packages/api-client/)** - Type-safe TypeScript client for consuming the backend API
 - **[Core Package](../../packages/core/)** - Shared types, utilities, and business logic
 - **[OpenAPI Specification](../../specs/README.md)** - Hand-written OpenAPI 3.0 schema (spec-first, source in [../../specs/src/](../../specs/src/))
@@ -73,9 +73,9 @@ npm run dev
 Semiont implements the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) for full interoperability:
 
 - **W3C-compliant annotation CRUD** with multi-body arrays
-- **Event-sourced architecture** with immutable audit trail (Layer 2: Event Store)
-- **Fast query projections** for current state (Layer 3: Projection Store)
-- **Graph database integration** for relationship traversal (Layer 4: Graph Database)
+- **Event-sourced architecture** with immutable audit trail (Event Store)
+- **Fast query views** for current state (Materialized View Storage)
+- **Graph database integration** for relationship traversal (Graph Database)
 
 **Key Features**:
 - Multi-body annotations combining entity type tags (`TextualBody`) and document links (`SpecificResource`)
@@ -85,19 +85,19 @@ Semiont implements the [W3C Web Annotation Data Model](https://www.w3.org/TR/ann
 
 For complete details, see [W3C Web Annotation Implementation](../../docs/W3C-WEB-ANNOTATION.md).
 
-### 4-Layer Data Architecture
+### Data Architecture
 
 ```
-Layer 4: Graph Database (relationships, backlinks, graph traversal)
+Graph Database (relationships, backlinks, graph traversal)
    ↑
-Layer 3: Projections (materialized views, fast queries)
+Materialized Views (fast queries, current state)
    ↑
-Layer 2: Event Store (immutable event log, source of truth)
+Event Store (immutable event log, source of truth)
    ↑
-Layer 1: Content Storage (binary/text documents, sharded)
+Content Storage (binary/text documents, sharded)
 ```
 
-**Job Worker Integration**: Background workers process long-running AI operations (entity detection, document generation) and emit events to Layer 2, which flow through to Layers 3 and 4 via the event-driven architecture.
+**Job Worker Integration**: Background workers process long-running AI operations (entity detection, document generation) and emit events to the Event Store, which materializes views and updates the graph database via the event-driven architecture.
 
 See [Architecture Overview](../../docs/ARCHITECTURE.md) for complete details.
 
@@ -115,7 +115,7 @@ Asynchronous job processing for long-running AI operations that can't block HTTP
 - Filesystem-based job queue with atomic operations
 - FIFO job processing with automatic retry logic
 - Progress tracking with Server-Sent Events (SSE) streaming
-- Workers emit events to Layer 2 (Event Store)
+- Workers emit events to Event Store
 - Jobs continue even if client disconnects
 
 **Key Benefits**:
@@ -164,18 +164,19 @@ apps/backend/
 │   ├── middleware/           # HTTP middleware
 │   ├── types/                # Type definitions
 │   ├── validation/           # Zod validation schemas
-│   ├── events/               # Event sourcing (Layer 2)
+│   ├── events/               # Event sourcing
 │   │   ├── event-store.ts   # Immutable event log
-│   │   ├── event-projector.ts # Layer 2 → Layer 3 projection
+│   │   ├── view-manager.ts  # View management
+│   │   ├── views/           # View materialization
 │   │   └── consumers/       # Event subscription (e.g., graph sync)
 │   ├── jobs/                 # Background job workers (prototype)
 │   │   ├── job-queue.ts     # Filesystem-based job queue
 │   │   ├── types.ts         # Job type definitions
 │   │   └── workers/         # Detection & generation workers
 │   ├── services/             # Business logic services
-│   ├── storage/              # Storage layers (1, 2, 3)
-│   │   ├── content/         # Layer 1: Content store
-│   │   └── projection/      # Layer 3: Projections
+│   ├── storage/              # Storage layers
+│   │   ├── filesystem.ts    # Content store
+│   │   └── view-storage.ts  # Materialized views
 │   └── index.ts              # Main application
 ├── prisma/
 │   └── schema.prisma         # Database schema
@@ -328,9 +329,8 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 ### System Documentation
 - [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
 - [W3C Web Annotation](../../docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
-- [Event Store](../../docs/services/EVENT-STORE.md) - Layer 2 event sourcing
-- [Projection Storage](../../docs/services/PROJECTION.md) - Layer 3 materialized views
-- [Graph Database](../../docs/services/GRAPH.md) - Layer 4 relationships
+- [Event Store](../../docs/services/EVENT-STORE.md) - Event log and materialized views
+- [Graph Database](../../docs/services/GRAPH.md) - Relationship traversal
 - [Job Worker](../../docs/services/JOB-WORKER.md) - Background job processing (prototype)
 
 ### External Resources

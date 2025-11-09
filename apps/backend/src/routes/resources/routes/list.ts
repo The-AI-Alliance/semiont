@@ -49,13 +49,13 @@ export function registerListResources(router: ResourcesRouterType) {
 
     const repStore = new FilesystemRepresentationStore({ basePath });
 
-    // Read from Layer 3 projection storage
+    // Read from view storage projection storage
     let filteredDocs = await ResourceQueryService.listResources({
       search: q,
       archived,
     }, config);
 
-    // Additional filter by entity type (Layer 3 already handles search and archived)
+    // Additional filter by entity type (view storage already handles search and archived)
     if (entityType) {
       filteredDocs = filteredDocs.filter(doc => getEntityTypes(doc).includes(entityType));
     }

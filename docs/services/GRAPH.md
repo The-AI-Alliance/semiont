@@ -9,9 +9,8 @@ The system supports four different graph database implementations that share a c
 For complete details on how data flows through the system:
 
 - [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) - Raw document content storage
-- [EVENT-STORE.md](./EVENT-STORE.md) - Event sourcing architecture
-- [PROJECTION.md](./PROJECTION.md) - Projection storage and queries
-- [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) - Complete annotation flow (UI, API, Event Store, Projection, Graph)
+- [EVENT-STORE.md](./EVENT-STORE.md) - Event log and materialized views
+- [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) - Complete annotation flow (UI, API, Event Store, Graph)
 
 ## Graph Architecture
 

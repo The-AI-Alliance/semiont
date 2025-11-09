@@ -47,7 +47,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
     console.log(`[EventStream] Client connecting to resource events stream for ${id}`);
     console.log(`[EventStream] Subscribing to events for resource URI: ${rUri}`);
 
-    // Verify resource exists in event store (Layer 2 - source of truth)
+    // Verify resource exists in event store (Event Store - source of truth)
     const eventStore = await createEventStore( config);
     const query = createEventQuery(eventStore);
     const events = await query.getResourceEvents(resourceId(id));

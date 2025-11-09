@@ -58,10 +58,10 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      // Validate resource exists using Layer 3
+      // Validate resource exists using view storage
       const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!resource) {
-        throw new HTTPException(404, { message: 'Resource not found in Layer 3 projections - resource may need to be recreated' });
+        throw new HTTPException(404, { message: 'Resource not found in view storage projections - resource may need to be recreated' });
       }
 
       // Create a detection job (this decouples event emission from HTTP client)

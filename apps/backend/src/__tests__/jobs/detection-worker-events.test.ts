@@ -44,7 +44,7 @@ const eventStoreCache = new Map();
 vi.mock('../../services/event-store-service', async (importOriginal) => {
   const actual = await importOriginal() as any;
   const { EventStore } = await import('../../events/event-store');
-  const { FilesystemProjectionStorage } = await import('../../storage/projection-storage');
+  const { FilesystemViewStorage } = await import('../../storage/view-storage');
 
   return {
     ...actual,
@@ -58,7 +58,7 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
       }
 
       // Create new instance and cache it
-      const projectionStorage = new FilesystemProjectionStorage(basePath);
+      const viewStorage = new FilesystemViewStorage(basePath);
       const identifierConfig = { baseUrl: 'http://localhost:4000' };
       const eventStore = new EventStore(
         {
@@ -67,7 +67,7 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
           enableSharding: false,
           maxEventsPerFile: 100,
         },
-        projectionStorage,
+        viewStorage,
         identifierConfig
       );
 

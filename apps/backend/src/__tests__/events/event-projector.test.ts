@@ -1,14 +1,14 @@
 /**
- * EventProjector Tests - Projection building from events
+ * ViewMaterializer Tests - View materialization from events
  *
- * Tests Layer 2 → Layer 3 transformation, incremental updates, and system projections
+ * Tests event-to-view transformation, incremental updates, and system views
  *
- * @see docs/EVENT-STORE.md#eventprojector
+ * @see docs/EVENT-STORE.md#viewmaterializer
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { EventProjector } from '../../events/projections/event-projector';
-import { FilesystemProjectionStorage } from '../../storage/projection-storage';
+import { ViewMaterializer } from '../../events/views/view-materializer';
+import { FilesystemViewStorage } from '../../storage/view-storage';
 import type { StoredEvent, ResourceEvent } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { promises as fs } from 'fs';
@@ -16,17 +16,17 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 
-describe('EventProjector', () => {
+describe('ViewMaterializer', () => {
   let testDir: string;
-  let projector: EventProjector;
-  let projectionStorage: FilesystemProjectionStorage;
+  let projector: ViewMaterializer;
+  let viewStorage: FilesystemViewStorage;
 
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-projector-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    projectionStorage = new FilesystemProjectionStorage(testDir);
-    projector = new EventProjector(projectionStorage, {
+    viewStorage = new FilesystemViewStorage(testDir);
+    projector = new ViewMaterializer(viewStorage, {
       basePath: testDir,
       backendUrl: 'http://localhost:4000'
     });
@@ -75,17 +75,17 @@ describe('EventProjector', () => {
         }, 1),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      expect(projection).not.toBeNull();
-      expect(projection!.resource['@id']).toContain('doc1'); // @id is HTTP URI containing doc1
-      expect(projection!.resource.name).toBe('Test Resource');
-      const primaryRep = getPrimaryRepresentation(projection!.resource);
+      expect(view).not.toBeNull();
+      expect(view!.resource['@id']).toContain('doc1'); // @id is HTTP URI containing doc1
+      expect(view!.resource.name).toBe('Test Resource');
+      const primaryRep = getPrimaryRepresentation(view!.resource);
       expect(primaryRep?.mediaType).toBe('text/markdown');
-      expect(projection!.resource.entityTypes).toEqual(['note']);
-      expect(projection!.resource.archived).toBe(false);
-      expect(projection!.annotations.version).toBe(1);
-      expect(projection!.annotations.annotations).toHaveLength(0);
+      expect(view!.resource.entityTypes).toEqual(['note']);
+      expect(view!.resource.archived).toBe(false);
+      expect(view!.annotations.version).toBe(1);
+      expect(view!.annotations.annotations).toHaveLength(0);
     });
 
     it('should apply resource.archived event', async () => {
@@ -100,10 +100,10 @@ describe('EventProjector', () => {
         }, 2),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      expect(projection!.resource.archived).toBe(true);
-      expect(projection!.annotations.version).toBe(2);
+      expect(view!.resource.archived).toBe(true);
+      expect(view!.annotations.version).toBe(2);
     });
 
     it('should apply resource.unarchived event', async () => {
@@ -122,10 +122,10 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      expect(projection!.resource.archived).toBe(false);
-      expect(projection!.annotations.version).toBe(3);
+      expect(view!.resource.archived).toBe(false);
+      expect(view!.annotations.version).toBe(3);
     });
 
     it('should apply entitytag.added event', async () => {
@@ -144,10 +144,10 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      expect(projection!.resource.entityTypes).toEqual(['Person', 'Organization']);
-      expect(projection!.annotations.version).toBe(3);
+      expect(view!.resource.entityTypes).toEqual(['Person', 'Organization']);
+      expect(view!.annotations.version).toBe(3);
     });
 
     it('should apply entitytag.removed event', async () => {
@@ -162,10 +162,10 @@ describe('EventProjector', () => {
         }, 2),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      expect(projection!.resource.entityTypes).toEqual(['Organization']);
-      expect(projection!.annotations.version).toBe(2);
+      expect(view!.resource.entityTypes).toEqual(['Organization']);
+      expect(view!.annotations.version).toBe(2);
     });
 
     it('should apply annotation.added event', async () => {
@@ -203,13 +203,13 @@ describe('EventProjector', () => {
         }, 2),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      expect(projection!.annotations.annotations).toHaveLength(1);
-      expect(projection!.annotations.annotations[0]?.id).toBe('anno1');
-      expect(projection!.annotations.annotations[0]?.creator).toBeDefined();
-      expect(projection!.annotations.annotations[0]?.created).toBeDefined();
-      expect(projection!.annotations.version).toBe(2);
+      expect(view!.annotations.annotations).toHaveLength(1);
+      expect(view!.annotations.annotations[0]?.id).toBe('anno1');
+      expect(view!.annotations.annotations[0]?.creator).toBeDefined();
+      expect(view!.annotations.annotations[0]?.created).toBeDefined();
+      expect(view!.annotations.version).toBe(2);
     });
 
     it('should apply annotation.removed event', async () => {
@@ -238,10 +238,10 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      expect(projection!.annotations.annotations).toHaveLength(0);
-      expect(projection!.annotations.version).toBe(3);
+      expect(view!.annotations.annotations).toHaveLength(0);
+      expect(view!.annotations.version).toBe(3);
     });
 
     it('should apply annotation.body.updated event - add operation', async () => {
@@ -275,17 +275,17 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      const body = projection!.annotations.annotations[0]?.body;
+      const body = view!.annotations.annotations[0]?.body;
       expect(Array.isArray(body) ? body : []).toHaveLength(1);
       expect(Array.isArray(body) ? body[0] : null).toEqual({
         type: 'TextualBody',
         value: 'Person',
         purpose: 'tagging',
       });
-      expect(projection!.annotations.annotations[0]?.modified).toBeDefined();
-      expect(projection!.annotations.version).toBe(3);
+      expect(view!.annotations.annotations[0]?.modified).toBeDefined();
+      expect(view!.annotations.version).toBe(3);
     });
 
     it('should apply annotation.body.updated event - remove operation', async () => {
@@ -322,9 +322,9 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      const body = projection!.annotations.annotations[0]?.body;
+      const body = view!.annotations.annotations[0]?.body;
       expect(Array.isArray(body) ? body : []).toHaveLength(1);
       expect(Array.isArray(body) ? body[0] : null).toEqual({
         type: 'TextualBody',
@@ -370,9 +370,9 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      const body = projection!.annotations.annotations[0]?.body;
+      const body = view!.annotations.annotations[0]?.body;
       expect(Array.isArray(body) ? body : []).toHaveLength(1);
       expect(Array.isArray(body) ? body[0] : null).toEqual({
         type: 'TextualBody',
@@ -417,15 +417,15 @@ describe('EventProjector', () => {
         }, 3),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
-      expect(projection!.annotations.annotations).toHaveLength(2);
-      expect(projection!.annotations.version).toBe(3);
+      expect(view!.annotations.annotations).toHaveLength(2);
+      expect(view!.annotations.version).toBe(3);
     });
 
     it('should return null for empty event list', async () => {
-      const projection = await projector.projectResource([], resourceId('doc1'));
-      expect(projection).toBeNull();
+      const view = await projector.materialize([], resourceId('doc1'));
+      expect(view).toBeNull();
     });
   });
 
@@ -440,15 +440,15 @@ describe('EventProjector', () => {
 
       const getAllEvents = async () => events;
 
-      await projector.updateProjectionIncremental(resourceId('doc1'),
+      await projector.materializeIncremental(resourceId('doc1'),
         events[0]!.event,
         getAllEvents
       );
 
-      const projection = await projectionStorage.get(resourceId('doc1'));
-      expect(projection).not.toBeNull();
-      expect(projection!.resource.name).toBe('Test');
-      expect(projection!.annotations.version).toBe(1);
+      const view = await viewStorage.get(resourceId('doc1'));
+      expect(view).not.toBeNull();
+      expect(view!.resource.name).toBe('Test');
+      expect(view!.annotations.version).toBe(1);
     });
 
     it('should apply event incrementally to existing projection', async () => {
@@ -460,8 +460,8 @@ describe('EventProjector', () => {
         }, 1),
       ];
 
-      await projector.projectResource(initialEvents, resourceId('doc1'));
-      await projectionStorage.save(resourceId('doc1'), (await projector.projectResource(initialEvents, resourceId('doc1')))!);
+      await projector.materialize(initialEvents, resourceId('doc1'));
+      await viewStorage.save(resourceId('doc1'), (await projector.materialize(initialEvents, resourceId('doc1')))!);
 
       // Apply incremental update
       const newEvent = createStoredEvent({
@@ -469,14 +469,14 @@ describe('EventProjector', () => {
         payload: { entityType: 'Person' },
       }, 2);
 
-      await projector.updateProjectionIncremental(resourceId('doc1'),
+      await projector.materializeIncremental(resourceId('doc1'),
         newEvent.event,
         async () => [...initialEvents, newEvent]
       );
 
-      const projection = await projectionStorage.get(resourceId('doc1'));
-      expect(projection!.resource.entityTypes).toContain('Person');
-      expect(projection!.annotations.version).toBe(2);
+      const view = await viewStorage.get(resourceId('doc1'));
+      expect(view!.resource.entityTypes).toContain('Person');
+      expect(view!.annotations.version).toBe(2);
     });
 
     it('should increment version on each update', async () => {
@@ -487,8 +487,8 @@ describe('EventProjector', () => {
         }, 1),
       ];
 
-      await projector.projectResource(initialEvents, resourceId('doc1'));
-      await projectionStorage.save(resourceId('doc1'), (await projector.projectResource(initialEvents, resourceId('doc1')))!);
+      await projector.materialize(initialEvents, resourceId('doc1'));
+      await viewStorage.save(resourceId('doc1'), (await projector.materialize(initialEvents, resourceId('doc1')))!);
 
       // Apply 3 incremental updates
       const events = [
@@ -498,52 +498,52 @@ describe('EventProjector', () => {
       ];
 
       for (const event of events) {
-        await projector.updateProjectionIncremental(resourceId('doc1'),
+        await projector.materializeIncremental(resourceId('doc1'),
           event.event,
           async () => [...initialEvents, ...events.slice(0, event.metadata.sequenceNumber)]
         );
       }
 
-      const projection = await projectionStorage.get(resourceId('doc1'));
-      expect(projection!.annotations.version).toBe(4);
+      const view = await viewStorage.get(resourceId('doc1'));
+      expect(view!.annotations.version).toBe(4);
     });
   });
 
   describe('System Projections', () => {
     it('should update entity types projection', async () => {
-      await projector.updateEntityTypesProjection('Person');
-      await projector.updateEntityTypesProjection('Organization');
+      await projector.materializeEntityTypes('Person');
+      await projector.materializeEntityTypes('Organization');
 
       const path = join(testDir, 'projections', 'entity-types', 'entity-types.json');
       const content = await fs.readFile(path, 'utf-8');
-      const projection = JSON.parse(content);
+      const view = JSON.parse(content);
 
-      expect(projection.entityTypes).toContain('Person');
-      expect(projection.entityTypes).toContain('Organization');
+      expect(view.entityTypes).toContain('Person');
+      expect(view.entityTypes).toContain('Organization');
     });
 
     it('should maintain sorted entity types', async () => {
-      await projector.updateEntityTypesProjection('Zebra');
-      await projector.updateEntityTypesProjection('Apple');
-      await projector.updateEntityTypesProjection('Mango');
+      await projector.materializeEntityTypes('Zebra');
+      await projector.materializeEntityTypes('Apple');
+      await projector.materializeEntityTypes('Mango');
 
       const path = join(testDir, 'projections', 'entity-types', 'entity-types.json');
       const content = await fs.readFile(path, 'utf-8');
-      const projection = JSON.parse(content);
+      const view = JSON.parse(content);
 
-      expect(projection.entityTypes).toEqual(['Apple', 'Mango', 'Zebra']);
+      expect(view.entityTypes).toEqual(['Apple', 'Mango', 'Zebra']);
     });
 
     it('should be idempotent (adding same type multiple times)', async () => {
-      await projector.updateEntityTypesProjection('Person');
-      await projector.updateEntityTypesProjection('Person');
-      await projector.updateEntityTypesProjection('Person');
+      await projector.materializeEntityTypes('Person');
+      await projector.materializeEntityTypes('Person');
+      await projector.materializeEntityTypes('Person');
 
       const path = join(testDir, 'projections', 'entity-types', 'entity-types.json');
       const content = await fs.readFile(path, 'utf-8');
-      const projection = JSON.parse(content);
+      const view = JSON.parse(content);
 
-      expect(projection.entityTypes.filter((t: string) => t === 'Person')).toHaveLength(1);
+      expect(view.entityTypes.filter((t: string) => t === 'Person')).toHaveLength(1);
     });
   });
 
@@ -571,12 +571,12 @@ describe('EventProjector', () => {
         }, 1),
       ];
 
-      const projection = await projector.projectResource(events, resourceId('doc1'));
+      const view = await projector.materialize(events, resourceId('doc1'));
 
       // Should apply resource.created first (sequence 1), then annotation.added (sequence 2)
-      expect(projection!.resource.name).toBe('Test');
-      expect(projection!.annotations.annotations).toHaveLength(1);
-      expect(projection!.annotations.version).toBe(2);
+      expect(view!.resource.name).toBe('Test');
+      expect(view!.annotations.annotations).toHaveLength(1);
+      expect(view!.annotations.version).toBe(2);
     });
   });
 });

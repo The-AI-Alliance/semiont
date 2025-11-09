@@ -24,7 +24,7 @@ export function registerGetAnnotation(router: ResourcesRouterType) {
     const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
     const config = c.get('config');
 
-    // Get annotation from Layer 3
+    // Get annotation from view storage
     const annotation = await AnnotationQueryService.getAnnotation(
       annotationId(annotationIdParam),
       makeResourceId(resourceIdParam),

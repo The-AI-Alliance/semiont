@@ -9,14 +9,14 @@ Semiont transforms unstructured text into a queryable knowledge graph using W3C 
 **Core Principles:**
 
 - **Event Sourcing**: Immutable event log as source of truth, enabling audit trails and temporal queries
-- **4-Layer Data Model**: Clean separation of content, events, projections, and relationships
+- **Data Architecture**: Separation of content (representations), events (Event Store), and relationships (Graph Database)
 - **W3C Standards**: Full Web Annotation Data Model compliance ensures data portability
 - **Spec-First Development**: Types generated from OpenAPI specification, not the reverse
 - **Platform Agnostic**: Services run on local processes, containers, or cloud infrastructure
 
 This is a knowledge management system designed to outlive specific vendors or platforms. W3C compliance means your data exports as standard JSON-LD that any compatible system can consume.
 
-Event sourcing provides complete audit trails. The 4-layer model allows rebuilding any downstream state from the immutable event log. All services communicate via REST APIs with OpenAPI contracts.
+Event sourcing provides complete audit trails. Event Store maintains materialized views automatically (like database indexes), enabling fast queries without replaying events. All services communicate via REST APIs with OpenAPI contracts.
 
 ## System Architecture
 
@@ -39,8 +39,7 @@ graph TB
 
     subgraph "Data"
         REP[RepresentationStore]
-        EVENTS[Event Store]
-        PROJ[Projections]
+        EVENTS[Event Store<br/>with Views]
         GRAPH[Graph]
         DB[(Database<br/>Users Only)]
         SEC[Secrets]
@@ -72,12 +71,11 @@ graph TB
     BE -.->|Future| SEC
 
     %% Event-driven flow
-    EVENTS -.->|Project| PROJ
-    PROJ -.->|Sync| GRAPH
+    EVENTS -.->|Sync| GRAPH
 
     %% Backend reads
     BE -->|Get by Checksum| REP
-    BE -->|Query State| PROJ
+    BE -->|Query Views| EVENTS
     BE -->|Graph Queries| GRAPH
 
     %% Compute services
@@ -100,7 +98,7 @@ graph TB
     class USER,AI,MCP client
     class OAUTH identity
     class FE,BE app
-    class REP,EVENTS,PROJ,GRAPH,DB,SEC data
+    class REP,EVENTS,GRAPH,DB,SEC data
     class INF,JW compute
 ```
 
@@ -111,10 +109,9 @@ graph TB
 - **Backend API**: Hono server with JWT validation implementing W3C Web Annotation Data Model, provides SSE streams for real-time updates
 - **MCP Server**: Model Context Protocol for AI agent integration (uses JWT refresh tokens)
 - **RepresentationStore**: Content-addressed storage, W3C compliant, checksum-based
-- **Event Store**: Immutable JSONL event log, source of truth
-- **Projections**: Materialized views in sharded JSON files
+- **Event Store**: Immutable JSONL event log (source of truth), maintains materialized views automatically for fast queries
 - **Graph**: Neo4j/Neptune for relationship queries
-- **Database**: PostgreSQL for user authentication ONLY (not document/annotation metadata)
+- **Database**: PostgreSQL for user authentication ONLY (not resource/annotation metadata)
 - **Secrets**: Planned credential management integration
 - **Inference**: External LLM APIs (Anthropic Claude, OpenAI)
 - **Job Worker**: Background job processing (prototype, embedded in backend)
@@ -123,12 +120,12 @@ graph TB
 
 - **Authentication**: Browser → Google OAuth → Frontend Server (NextAuth.js exchanges token) → Backend (verify + generate JWT) → Database (create/update user) → JWT stored in browser session
 - **API Calls**: Browser → Backend (validate JWT) → Data layers
-- **Write Path**: Browser → Backend (validate JWT) → RepresentationStore + Event Store → Projections → Graph
-- **Read Path**: Browser → Backend (validate JWT) → Projections or Graph → RepresentationStore → Response
+- **Write Path**: Browser → Backend (validate JWT) → RepresentationStore + Event Store (updates views) → Graph (synced via events)
+- **Read Path**: Browser → Backend (validate JWT) → Event Store views or Graph → RepresentationStore → Response
 - **Job Processing**: Browser → Backend → Job Worker → Inference → Event Store (emits completion events)
 - **Real-Time Events (SSE)**: Job Worker emits events → Event Store → Backend subscribes → SSE stream → Browser
 - **Job Progress (SSE)**: Browser → Backend SSE stream → Polls Job Worker filesystem queue (500ms) → Browser receives progress updates
-- **Event Sourcing**: All writes create immutable events, projections rebuilt from events
+- **Event Sourcing**: All writes create immutable events, Event Store maintains views automatically
 - **Graph Sync**: Graph database updated automatically via event subscriptions
 
 ## Application Services
@@ -143,7 +140,7 @@ The application layer consists of server-side services that handle user requests
 
 - Server-side rendering and static page generation
 - OAuth 2.0 authentication with domain restrictions
-- W3C annotation UI (highlight text, create entity tags, link documents)
+- W3C annotation UI (highlight text, create entity tags, link resources)
 - Real-time collaboration via Server-Sent Events
 - Export annotations as JSON-LD
 
@@ -162,8 +159,8 @@ The application layer consists of server-side services that handle user requests
 **Responsibilities**:
 
 - REST API implementing W3C Web Annotation Data Model
-- Event sourcing for all document and annotation mutations
-- 4-layer data architecture (detailed below)
+- Event sourcing for all resource and annotation mutations
+- Data management across Event Store, Graph, and RepresentationStore
 - JWT validation and role-based access control
 - Request validation against OpenAPI specification
 
@@ -173,7 +170,7 @@ The application layer consists of server-side services that handle user requests
 - OpenAPI specification is hand-written (spec-first approach)
 - Backend validates requests against spec, not vice versa
 - Event Store is source of truth, not database
-- Projections rebuilt from events on demand
+- Event Store maintains materialized views automatically for fast queries
 - Graph database maintained via event subscriptions
 
 **Documentation**: [Backend README](../apps/backend/README.md)
@@ -185,7 +182,7 @@ The application layer consists of server-side services that handle user requests
 **Responsibilities**:
 
 - Expose Semiont knowledge graph to AI systems (Claude Desktop, etc.)
-- Provide tools for document search, annotation, and graph traversal
+- Provide tools for resource search, annotation, and graph traversal
 - Handle long-lived refresh token authentication
 
 **Key Architectural Decisions**:
@@ -198,24 +195,24 @@ The application layer consists of server-side services that handle user requests
 
 ## Data Architecture
 
-The 4-layer architecture separates concerns while maintaining a clear dependency hierarchy.
+The data architecture separates content storage, event log, and relationship graph while maintaining clear dependencies.
 
-### RepresentationStore (Layer 1)
+### RepresentationStore
 
-**Purpose**: W3C-compliant storage of document representations (content)
+**Purpose**: W3C-compliant storage of resource representations (content)
 
 **Technology**: Content-addressed filesystem storage (SHA-256 checksums)
 
 **Key Characteristics**:
 
-- Content-addressed: Files stored by checksum, not document ID
+- Content-addressed: Files stored by checksum, not resource ID
 - W3C compliant: Implements W3C representation metadata model
 - Deduplication: Identical content stored once
 - Integrity verification: Built-in checksum validation
 - Sharded storage: 4-hex sharding for scalability
 - Platform-agnostic: (local filesystem, EFS, S3)
 
-**Why This Matters**: Content-addressed storage enables automatic deduplication (100 documents with identical content = 1 file) and integrity verification. Storing by checksum rather than document ID aligns with W3C standards where resources can have multiple representations. Content is completely separate from metadata—a 1GB PDF doesn't bloat Event Store or Projections.
+**Why This Matters**: Content-addressed storage enables automatic deduplication (100 resources with identical content = 1 file) and integrity verification. Storing by checksum rather than resource ID aligns with W3C standards where resources can have multiple representations. Content is completely separate from metadata—a 1GB PDF doesn't bloat Event Store views.
 
 **Filesystem Backend**: RepresentationStore uses the [Filesystem](./services/FILESYSTEM.md) service for physical storage (local filesystem, AWS S3, AWS EFS).
 
@@ -223,50 +220,37 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 ### Event Store
 
-**Purpose**: Immutable event log (source of truth for all changes)
+**Purpose**: Immutable event log (source of truth), maintains materialized views for fast queries
 
-**Technology**: Append-only JSONL files, sharded filesystem storage
+**Technology**: Append-only JSONL files for events, sharded JSON files for views
 
 **Event Types**:
 
-- Resource lifecycle: `document.created`, `document.archived`
+- Resource lifecycle: `resource.created`, `resource.archived`
 - Annotations: `annotation.added`, `annotation.removed`, `annotation.body.updated`
 - Entity types: `entitytype.added`, `entitytag.added`
 
 **Key Characteristics**:
 
+**Event Log:**
+
 - Events never modified or deleted (append-only)
 - Cryptographic chain integrity (each event references previous event hash)
 - Sequence numbers for ordering guarantees
-- File rotation at 10,000 events per document
+- File rotation at 10,000 events per resource
 
-**Why This Matters**: Event sourcing provides a complete audit trail. You can replay events to any point in time. Projections can be rebuilt if corrupted. New projection types can be added without schema migrations.
+**Materialized Views:**
 
-**Documentation**: [EVENT-STORE.md](./services/EVENT-STORE.md)
-
-### Projection Store
-
-**Purpose**: Materialized views of current state (optimized for queries)
-
-**Technology**: Sharded JSON files (filesystem-based)
-
-**Storage**:
-
-- Document projections in sharded JSON files (`data/projections/documents/`)
-- Annotation collections in sharded JSON files (`data/projections/annotations/`)
-- System projections (entity types) in JSON files (`data/projections/system/`)
-
-**Key Characteristics**:
-
-- Rebuilt from Event Store (not authoritative)
-- All metadata flows through Event Store → Projections
+- Maintained automatically by Event Store (like database indexes)
+- Resource views in sharded JSON files (`data/projections/resources/`)
+- System views (entity types) in JSON files (`data/projections/entity-types/`)
 - Optimized for fast queries without event replay
 - Incremental updates for performance
-- Can be deleted and reconstructed at any time
+- Can be deleted and reconstructed at any time from event log
 
-**Why This Matters**: You don't query the event log for "get document by ID"—that would be slow. Projections are the read-optimized view. If they're corrupted or you change the schema, replay events to rebuild. PostgreSQL is NOT used for document/annotation metadata—all metadata is in JSON projections.
+**Why This Matters**: Event sourcing provides a complete audit trail. You can replay events to any point in time. Views can be rebuilt if corrupted. New view types can be added without schema migrations. Like a traditional database, you write to the log and the database maintains indexes automatically—views are those indexes. PostgreSQL is NOT used for resource/annotation metadata—all metadata is in Event Store.
 
-**Documentation**: [PROJECTION.md](./services/PROJECTION.md)
+**Documentation**: [EVENT-STORE.md](./services/EVENT-STORE.md)
 
 ### Graph Database
 
@@ -276,22 +260,22 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Graph Model**:
 
-- **Vertices**: Documents, Annotations, EntityTypes
-- **Edges**: `BELONGS_TO` (annotation → document), `REFERENCES` (annotation → linked document), `TAGGED_AS` (annotation → entity type)
+- **Vertices**: Resources, Annotations, EntityTypes
+- **Edges**: `BELONGS_TO` (annotation → resource), `REFERENCES` (annotation → linked resource), `TAGGED_AS` (annotation → entity type)
 
 **Key Characteristics**:
 
-- Built from Projections via event subscriptions
-- Enables graph queries (backlinks, entity co-occurrence, document clusters)
+- Built from Event Store via event subscriptions
+- Enables graph queries (backlinks, entity co-occurrence, resource clusters)
 - Supports multiple implementations (Neo4j Cypher, Gremlin, in-memory)
 
-**Why This Matters**: Graph databases excel at relationship queries. "Find all documents linking to this one" is a single Cypher query. In SQL, that's multiple joins. The graph is maintained automatically via event subscriptions—no manual sync required.
+**Why This Matters**: Graph databases excel at relationship queries. "Find all resources linking to this one" is a single Cypher query. In SQL, that's multiple joins. The graph is maintained automatically via event subscriptions—no manual sync required.
 
 **Documentation**: [GRAPH.md](./services/GRAPH.md)
 
 ### Database - PostgreSQL
 
-**Purpose**: User authentication only (NOT document/annotation metadata)
+**Purpose**: User authentication only (NOT resource/annotation metadata)
 
 **Technology**: PostgreSQL 15 (AWS RDS in production), Prisma ORM
 
@@ -306,9 +290,9 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 - Automatic migrations via Prisma on backend startup
 - No manual migration files (schema is source of truth)
 - Connection pooling via Prisma Client
-- **Document/annotation metadata NOT stored here** - all metadata flows through Event Store → Projections
+- **Resource/annotation metadata NOT stored here** - all metadata flows through Event Store (and its materialized views)
 
-**Why This Matters**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata lives entirely in the Event Store and Projections (JSON files). This separation keeps the database small and focused on its core responsibility: user management.
+**Why This Matters**: PostgreSQL is used ONLY for user authentication. Resource and annotation metadata lives entirely in the Event Store (including its materialized views as JSON files). This separation keeps the database small and focused on its core responsibility: user management.
 
 **Documentation**: [DATABASE.md](./services/DATABASE.md)
 
@@ -326,14 +310,14 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 ### Inference - AI/ML Service
 
-**Purpose**: LLM-powered document generation and entity detection
+**Purpose**: LLM-powered resource generation and entity detection
 
 **Technology**: External APIs (Anthropic Claude, OpenAI)
 
 **Capabilities**:
 
-- Generate documents from annotated text selections
-- Detect entities in document content
+- Generate resources from annotated text selections
+- Detect entities in resource content
 - Extract graph context for AI consumption
 - Streaming text generation
 
@@ -355,8 +339,8 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 
 **Capabilities**:
 
-- Entity detection jobs (find entities in documents using AI)
-- Document generation jobs (create new documents from annotations)
+- Entity detection jobs (find entities in resources using AI)
+- Resource generation jobs (create new resources from annotations)
 - Progress tracking with SSE streaming to clients
 - Automatic retry logic for failed jobs
 - Event emission to Event Store
@@ -369,7 +353,7 @@ The 4-layer architecture separates concerns while maintaining a clear dependency
 - Graceful shutdown (waits for in-flight jobs)
 - No CLI integration or environment configuration (yet)
 
-**Why This Matters**: Long-running AI operations (entity detection across large documents, document generation) can't block HTTP requests. Job workers decouple processing from client connections—jobs continue even if the client disconnects. This is a temporary embedded implementation; future versions will be independently scalable services.
+**Why This Matters**: Long-running AI operations (entity detection across large resources, resource generation) can't block HTTP requests. Job workers decouple processing from client connections—jobs continue even if the client disconnects. This is a temporary embedded implementation; future versions will be independently scalable services.
 
 **Current Limitations**: Not yet a proper service—no CLI integration, no platform abstraction, no independent deployment. Workers start automatically with the backend. This will eventually become a standalone service with Redis/SQS queue options and ECS deployment.
 
@@ -382,26 +366,31 @@ Services run on different platforms depending on the deployment environment. The
 ### Platform Types
 
 **POSIX** - Native OS processes
+
 - **Use Case**: Local development
 - **Services**: Backend, Frontend, MCP
 - **Management**: Process spawning via Node.js `child_process`
 
 **Container** - Docker/Podman
+
 - **Use Case**: Isolated services (databases, graph)
 - **Services**: Database, Graph
 - **Management**: Container runtime via CLI
 
 **AWS** - Managed cloud services
+
 - **Use Case**: Production deployment
 - **Services**: ECS (backend), RDS (database), Neptune (graph), S3/EFS (storage)
 - **Management**: CloudFormation, ECS task definitions
 
 **External** - Third-party APIs
+
 - **Use Case**: External dependencies
 - **Services**: Inference (LLM APIs), Graph (Neo4j Aura)
 - **Management**: Health checks only (no lifecycle control)
 
 **Mock** - Test doubles
+
 - **Use Case**: CI/CD testing
 - **Services**: Any service (simulated behavior)
 - **Management**: Instant success responses
@@ -416,50 +405,36 @@ The Semiont API is RESTful with semantic extensions for knowledge graph operatio
 
 ### Core Resources
 
-**Documents** - Markdown content with entity type tags
+**Resources** - Markdown content with entity type tags
 
+```http
+POST   /resources
+GET    /resources/{id}
+PATCH  /resources/{id}
 ```
 
-POST   /api/documents
-GET    /api/documents/{id}
-PATCH  /api/documents/{id}
-DELETE /api/documents/{id}
+**Annotations** - W3C Web Annotations linking text to entities or resources
 
+```http
+POST   /resources/{id}/annotations
+GET    /resources/{id}/annotations
+PATCH  /resources/{resourceId}/annotations/{annotationId}
+DELETE /resources/{resourceId}/annotations/{annotationId}
 ```
-
-
-**Annotations** - W3C Web Annotations linking text to entities or documents
-
-```
-
-POST   /api/documents/{id}/annotations
-GET    /api/documents/{id}/annotations
-PATCH  /api/documents/{id}/annotations/{annotationId}
-DELETE /api/documents/{id}/annotations/{annotationId}
-
-```
-
 
 **Entity Types** - Semantic classifications (Person, Organization, etc.)
 
-```
-
+```http
 GET    /api/entity-types
 POST   /api/entity-types
-
 ```
 
+**Graph & AI Operations** - Relationship queries and resource generation
 
-**Graph Operations** - Relationship queries
-
+```http
+GET    /resources/{id}/referenced-by
+POST   /resources/{resourceId}/annotations/{annotationId}/generate-resource
 ```
-
-GET    /api/documents/{id}/backlinks
-GET    /api/documents/{id}/context
-POST   /api/annotations/{id}/generate-document
-
-```
-
 
 ### API Characteristics
 
@@ -469,7 +444,7 @@ POST   /api/annotations/{id}/generate-document
 
 **Event-Sourced Mutations**: All writes (`POST`, `PATCH`, `DELETE`) create immutable events
 
-**Streaming Support**: Long-running operations (document generation, entity detection) support SSE
+**Streaming Support**: Long-running operations (resource generation, entity detection) support SSE
 
 **Type Safety**: OpenAPI specification is source of truth—TypeScript types generated from spec
 
@@ -523,6 +498,7 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 **Environment Files**: `environments/*.json` define service configuration per deployment
 
 **Example** (`local.json`):
+
 ```json
 {
   "services": {
@@ -538,9 +514,7 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
     }
   }
 }
-
 ```
-
 
 **Key Principle**: Configuration is data, not code. Changing platforms (POSIX → AWS) is a config change, not a code change.
 
@@ -554,11 +528,11 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 - Frontend: Serverless (Next.js on Vercel or S3+CloudFront)
 - Database: Read replicas for read-heavy workloads
 
-**Data Layer Scaling**:
+**Data Storage Scaling**:
 
 - RepresentationStore: Content-addressed storage deduplicates automatically, shard across EFS volumes or S3 buckets
 - Event Store: Sharding already built-in (65,536 shards)
-- Projections: Filesystem-based JSON files (sharded)
+- Event Store Views: Filesystem-based JSON files (sharded)
 - Graph: Neptune cluster or Neo4j enterprise
 
 **Documentation**: [SCALING.md](./SCALING.md)
@@ -574,12 +548,12 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 **Event Store Maintenance**:
 
 - Event file rotation (automatic at 10,000 events)
-- Projection rebuilds (on-demand via CLI)
+- View rebuilds (on-demand via CLI)
 - Chain validation (periodic integrity checks)
 
 **Graph Database Maintenance**:
 
-- Full graph rebuild from projections (rare, event-driven)
+- Full graph rebuild from Event Store (rare, event-driven)
 - Index optimization (database-specific)
 
 **Documentation**: [MAINTENANCE.md](./MAINTENANCE.md)
@@ -602,13 +576,13 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 
 **Trade-off**: Some W3C complexity (selectors, motivations) vs. vendor lock-in avoidance
 
-### Why 4-Layer Architecture?
+### Why Event Store with Internal Views?
 
-**Alternative Considered**: 2-layer (database + graph)
+**Alternative Considered**: Separate projection storage component independent of Event Store
 
-**Decision**: Separating content, events, projections, and relationships allows independent scaling and evolution. Each layer optimized for its access pattern.
+**Decision**: Following database orthodoxy—Event Store is the database, views are its indexes. Just as PostgreSQL maintains indexes automatically, Event Store maintains views automatically. This simplifies the mental model and clarifies ownership.
 
-**Trade-off**: Architectural complexity vs. operational flexibility
+**Trade-off**: Tighter coupling (views bound to Event Store) vs. conceptual clarity and simpler operations
 
 ### Why Spec-First OpenAPI?
 
@@ -623,8 +597,7 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 ### Service Deep Dives
 
 - [RepresentationStore](./services/REPRESENTATION-STORE.md) - W3C-compliant content storage
-- [Event Store](./services/EVENT-STORE.md) - Immutable event log
-- [Projection Store](./services/PROJECTION.md) - Materialized views
+- [Event Store](./services/EVENT-STORE.md) - Immutable event log with materialized views
 - [Graph Database](./services/GRAPH.md) - Relationship traversal
 - [Database](./services/DATABASE.md) - PostgreSQL schema and migrations
 - [Filesystem](./services/FILESYSTEM.md) - File upload and storage

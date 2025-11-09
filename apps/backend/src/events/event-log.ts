@@ -8,7 +8,7 @@
  *
  * Does NOT handle:
  * - Pub/sub notifications (see EventBus)
- * - Projection updates (see ProjectionManager)
+ * - View updates (see ViewManager)
  */
 
 import { type ResourceId, type StoredEvent, type ResourceEvent, type EventQuery } from '@semiont/core';

@@ -1,8 +1,8 @@
 /**
- * Layer 3: Projection Storage
+ * View Storage - Materialized Views
  *
  * Stores materialized views of resource state and annotations
- * Built from Layer 2 event streams, can be rebuilt at any time
+ * Built from event streams, can be rebuilt at any time
  *
  * Stores both ResourceDescriptor metadata and ResourceAnnotations, but keeps them logically separate
  */
@@ -15,21 +15,21 @@ import type { ResourceAnnotations, ResourceId } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-// Complete state for a resource in Layer 3 (metadata + annotations)
-export interface ResourceState {
+// Complete state for a resource in materialized view (metadata + annotations)
+export interface ResourceView {
   resource: ResourceDescriptor;
   annotations: ResourceAnnotations;
 }
 
-export interface ProjectionStorage {
-  save(resourceId: ResourceId, projection: ResourceState): Promise<void>;
-  get(resourceId: ResourceId): Promise<ResourceState | null>;
+export interface ViewStorage {
+  save(resourceId: ResourceId, view: ResourceView): Promise<void>;
+  get(resourceId: ResourceId): Promise<ResourceView | null>;
   delete(resourceId: ResourceId): Promise<void>;
   exists(resourceId: ResourceId): Promise<boolean>;
-  getAll(): Promise<ResourceState[]>;
+  getAll(): Promise<ResourceView[]>;
 }
 
-export class FilesystemProjectionStorage implements ProjectionStorage {
+export class FilesystemViewStorage implements ViewStorage {
   private basePath: string;
 
   constructor(basePath: string) {
@@ -42,7 +42,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     return path.join(this.basePath, 'projections', 'resources', ab, cd, `${resourceId}.json`);
   }
 
-  async save(resourceId: ResourceId, projection: ResourceState): Promise<void> {
+  async save(resourceId: ResourceId, projection: ResourceView): Promise<void> {
     const projPath = this.getProjectionPath(resourceId);
     const projDir = path.dirname(projPath);
 
@@ -53,12 +53,12 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     await fs.writeFile(projPath, JSON.stringify(projection, null, 2), 'utf-8');
   }
 
-  async get(resourceId: ResourceId): Promise<ResourceState | null> {
+  async get(resourceId: ResourceId): Promise<ResourceView | null> {
     const projPath = this.getProjectionPath(resourceId);
 
     try {
       const content = await fs.readFile(projPath, 'utf-8');
-      return JSON.parse(content) as ResourceState;
+      return JSON.parse(content) as ResourceView;
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         return null;
@@ -91,8 +91,8 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     }
   }
 
-  async getAll(): Promise<ResourceState[]> {
-    const projections: ResourceState[] = [];
+  async getAll(): Promise<ResourceView[]> {
+    const views: ResourceView[] = [];
     const annotationsPath = path.join(this.basePath, 'projections', 'resources');
 
     try {
@@ -108,11 +108,11 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
           } else if (entry.isFile() && entry.name.endsWith('.json')) {
             try {
               const content = await fs.readFile(fullPath, 'utf-8');
-              const projection = JSON.parse(content) as ResourceState;
-              projections.push(projection);
+              const view = JSON.parse(content) as ResourceView;
+              views.push(view);
             } catch (error) {
-              console.error(`[ProjectionStorage] Failed to read projection ${fullPath}:`, error);
-              // Skip invalid projection files
+              console.error(`[ViewStorage] Failed to read view ${fullPath}:`, error);
+              // Skip invalid view files
             }
           }
         }
@@ -121,12 +121,12 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
       await walkDir(annotationsPath);
     } catch (error: any) {
       if (error.code === 'ENOENT') {
-        // Projections/annotations directory doesn't exist yet
+        // Views directory doesn't exist yet
         return [];
       }
       throw error;
     }
 
-    return projections;
+    return views;
   }
 }

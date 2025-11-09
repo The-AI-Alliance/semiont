@@ -1,7 +1,7 @@
 /**
- * PathBuilder - Centralized Path Management for Layer 3
+ * PathBuilder - Centralized Path Management for ViewStorage
  *
- * Builds sharded paths for all storage types (projections, content, etc.)
+ * Builds sharded paths for all storage types (views, content, etc.)
  * Single source of truth for path construction and sharding strategy
  *
  * Replaces duplicate path logic in FilesystemProjectionStorage and FilesystemStorage

@@ -24,7 +24,7 @@ type BulkAddEntityTypesRequest = components['schemas']['BulkAddEntityTypesReques
 type GetEntityTypesResponse = components['schemas']['GetEntityTypesResponse'];
 
 /**
- * Read entity types from Layer 3 projection
+ * Read entity types from view storage projection
  */
 async function getEntityTypesFromLayer3(config: EnvironmentConfig): Promise<string[]> {
   const entityTypesPath = path.join(
@@ -53,7 +53,7 @@ entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
 /**
  * GET /api/entity-types
- * Get list of available entity types from Layer 3 projection
+ * Get list of available entity types from view storage projection
  */
 entityTypesRouter.get('/api/entity-types', async (c) => {
   try {
@@ -71,7 +71,7 @@ entityTypesRouter.get('/api/entity-types', async (c) => {
 /**
  * POST /api/entity-types
  * Add a new entity type to the collection (append-only, requires moderator/admin)
- * Emits entitytype.added event → Layer 2 → Layer 3 projection → Layer 4 (graph)
+ * Emits entitytype.added event → Event Store → view storage projection → Graph Database (graph)
  */
 entityTypesRouter.post('/api/entity-types',
   validateRequestBody('AddEntityTypeRequest'),
@@ -97,7 +97,7 @@ entityTypesRouter.post('/api/entity-types',
       },
     });
 
-    // Read from Layer 3
+    // Read from view storage
     const entityTypes = await getEntityTypesFromLayer3(config);
 
     const response: AddEntityTypeResponse = { success: true, entityTypes };
@@ -108,7 +108,7 @@ entityTypesRouter.post('/api/entity-types',
 /**
  * POST /api/entity-types/bulk
  * Add multiple entity types to the collection (append-only, requires moderator/admin)
- * Emits one entitytype.added event per tag → Layer 2 → Layer 3 projection → Layer 4 (graph)
+ * Emits one entitytype.added event per tag → Event Store → view storage projection → Graph Database (graph)
  */
 entityTypesRouter.post('/api/entity-types/bulk',
   validateRequestBody('BulkAddEntityTypesRequest'),
@@ -136,7 +136,7 @@ entityTypesRouter.post('/api/entity-types/bulk',
       });
     }
 
-    // Read from Layer 3
+    // Read from view storage
     const entityTypes = await getEntityTypesFromLayer3(config);
 
     const response: AddEntityTypeResponse = { success: true, entityTypes };

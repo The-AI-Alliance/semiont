@@ -37,7 +37,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       const user = c.get('user');
       const config = c.get('config');
 
-      // Check resource exists using Layer 3
+      // Check resource exists using view storage
       const doc = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!doc) {
         throw new HTTPException(404, { message: 'Resource not found' });
@@ -45,7 +45,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
 
       const eventStore = await createEventStore( config);
 
-      // Emit archived/unarchived events (event store updates Layer 3, graph consumer updates Layer 4)
+      // Emit archived/unarchived events (event store updates view storage, graph consumer updates Graph Database)
       if (body.archived !== undefined && body.archived !== doc.archived) {
         if (body.archived) {
           await eventStore.appendEvent({
@@ -68,7 +68,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
         }
       }
 
-      // Emit entity tag change events (event store updates Layer 3, graph consumer updates Layer 4)
+      // Emit entity tag change events (event store updates view storage, graph consumer updates Graph Database)
       if (body.entityTypes && doc.entityTypes) {
         const added = body.entityTypes.filter((et: string) => !(doc.entityTypes || []).includes(et));
         const removed = (doc.entityTypes || []).filter((et: string) => !body.entityTypes!.includes(et));
@@ -97,7 +97,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
         }
       }
 
-      // Read annotations from Layer 3
+      // Read annotations from view storage
       const annotations = await AnnotationQueryService.getAllAnnotations(resourceId(id), config);
       const entityReferences = annotations.filter(a => {
         if (a.motivation !== 'linking') return false;

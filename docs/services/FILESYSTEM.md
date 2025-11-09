@@ -18,9 +18,9 @@ The Filesystem service provides persistent storage for user-uploaded files, docu
 
 ### Storage Layers
 
-The filesystem integrates with Semiont's 4-layer architecture:
+The filesystem integrates with Semiont's data architecture:
 
-**Layer 1 (RepresentationStore)**:
+**RepresentationStore**:
 - Raw document binary/text files
 - Sharded storage (65,536 shards via Jump Consistent Hash)
 - Content-addressed with document IDs
@@ -39,7 +39,7 @@ data/
 │   ├── profiles/     # User profile images
 │   ├── documents/    # Document attachments
 │   └── temp/         # Temporary files
-└── documents/        # Content store (Layer 1)
+└── documents/        # Content store (RepresentationStore)
     └── shards/       # 65,536 sharded directories
         ├── 00/
         │   ├── 00/
@@ -182,7 +182,7 @@ For production content store:
 
 ### RepresentationStore Integration
 
-The filesystem service works with Layer 1 (RepresentationStore):
+The filesystem service works with RepresentationStore:
 
 **Content Manager**: [apps/backend/src/storage/content/content-manager.ts](../../apps/backend/src/storage/content/content-manager.ts)
 - Handles document binary storage
@@ -311,7 +311,7 @@ npm run cleanup:orphans
 
 ## Related Documentation
 
-- [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) - Layer 1 content storage details
+- [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) - Content storage details
 - [Backend README](../../apps/backend/README.md) - API implementation
 - [CLI Service Implementation](../../apps/cli/src/services/filesystem-service.ts) - CLI integration
 - [AWS Deployment](../platforms/AWS.md) - S3 and EFS setup

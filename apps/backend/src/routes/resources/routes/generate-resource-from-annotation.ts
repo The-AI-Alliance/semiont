@@ -64,7 +64,7 @@ export function registerGenerateResourceFromAnnotation(router: ResourcesRouterTy
       const basePath = config.services.filesystem!.path;
       const repStore = new FilesystemRepresentationStore({ basePath });
 
-      // Get annotation from Layer 3
+      // Get annotation from view storage
       const annotation = await AnnotationQueryService.getAnnotation(
         annotationId(annotationIdParam),
         makeResourceId(resourceIdParam),
@@ -74,7 +74,7 @@ export function registerGenerateResourceFromAnnotation(router: ResourcesRouterTy
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
 
-      // Get the original resource metadata from Layer 3
+      // Get the original resource metadata from view storage
       const targetSource = getTargetSource(annotation.target);
       const targetResourceId = targetSource.split('/').pop()!;
       const originalDoc = await ResourceQueryService.getResourceMetadata(

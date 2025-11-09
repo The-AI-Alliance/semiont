@@ -46,7 +46,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
 
       const rId = resourceId(generateUuid());
 
-      // Store representation (Layer 1)
+      // Store representation (content storage)
       const contentBuffer = Buffer.from(body.content);
       const storedRep = await repStore.store(contentBuffer, {
         mediaType: body.format,
