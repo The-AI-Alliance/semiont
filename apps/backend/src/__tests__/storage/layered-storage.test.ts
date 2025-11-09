@@ -49,7 +49,7 @@ describe('Layered Storage', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  describe('Layer 1: Resource Storage', () => {
+  describe('RepresentationStore: Content Storage', () => {
     it('should use 4-hex sharding for resources', async () => {
       const docId = resourceId('doc-sha256:abc123def456');
       const path = resourceStorage.getResourcePath(docId);
@@ -79,7 +79,7 @@ describe('Layered Storage', () => {
     });
   });
 
-  describe('Layer 3: Projection Storage', () => {
+  describe('ViewStorage: Materialized Views', () => {
     it('should use 4-hex sharding for projections', async () => {
       const docId = resourceId('doc-sha256:xyz789');
       const stored = {
@@ -233,7 +233,7 @@ describe('Layered Storage', () => {
         },
       });
 
-      // Projection should be saved to Layer 3
+      // View should be saved to ViewStorage
       const stored = await viewStorage.get(docId);
       expect(stored).toBeDefined();
       expect(stored!.resource.name).toBe('Integration Test');
@@ -298,7 +298,7 @@ describe('Layered Storage', () => {
       expect(after!.annotations.version).toBe(2);
     });
 
-    it('should load from Layer 3 when projection exists', async () => {
+    it('should load from ViewStorage when view exists', async () => {
       const docId = resourceId('doc-test-integration3');
 
       // Create events
@@ -319,7 +319,7 @@ describe('Layered Storage', () => {
       const events1 = await query.getResourceEvents(docId);
       const projection1 = await eventStore.views.materializer.materialize(events1, docId);
 
-      // Second call should load from Layer 3 (no rebuild)
+      // Second call should load from ViewStorage (no rebuild)
       const events2 = await query.getResourceEvents(docId);
       const projection2 = await eventStore.views.materializer.materialize(events2, docId);
 

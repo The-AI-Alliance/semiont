@@ -30,7 +30,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
     const { resourceId, annotationId } = c.req.param();
     const config = c.get('config');
 
-    // Verify annotation exists using Layer 3 (not GraphDB)
+    // Verify annotation exists using view storage (not GraphDB)
     const annotation = await AnnotationQueryService.getAnnotation(makeAnnotationId(annotationId), makeResourceId(resourceId), config);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });

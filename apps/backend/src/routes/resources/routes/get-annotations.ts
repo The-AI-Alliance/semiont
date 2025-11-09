@@ -21,7 +21,7 @@ export function registerGetResourceAnnotations(router: ResourcesRouterType) {
    *
    * Get all annotations (both highlights and references) in a resource
    * Requires authentication
-   * Uses Layer 3 projections
+   * Uses view storage projections
    */
   router.get('/resources/:id/annotations', async (c) => {
     const { id } = c.req.param();

@@ -32,16 +32,16 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
 
       console.log(`[BODY UPDATE HANDLER] Called for annotation ${annotationIdParam}, operations:`, request.operations);
 
-      // Get annotation from Layer 3
+      // Get annotation from view storage
       const annotation = await AnnotationQueryService.getAnnotation(
         annotationId(annotationIdParam),
         resourceId(resourceIdParam),
         config
       );
-      console.log(`[BODY UPDATE HANDLER] Layer 3 lookup result for ${annotationIdParam}:`, annotation ? 'FOUND' : 'NOT FOUND');
+      console.log(`[BODY UPDATE HANDLER] view storage lookup result for ${annotationIdParam}:`, annotation ? 'FOUND' : 'NOT FOUND');
 
       if (!annotation) {
-        console.log(`[BODY UPDATE HANDLER] Throwing 404 - annotation ${annotationIdParam} not found in Layer 3`);
+        console.log(`[BODY UPDATE HANDLER] Throwing 404 - annotation ${annotationIdParam} not found in view storage`);
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
 

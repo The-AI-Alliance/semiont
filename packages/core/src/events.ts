@@ -277,7 +277,7 @@ export interface EventQuery {
   limit?: number;
 }
 
-// Annotation collections for a resource (Layer 3 projection)
+// Annotation collections for a resource (view storage projection)
 // Annotations are NOT part of the resource - they reference the resource
 export interface ResourceAnnotations {
   resourceId: ResourceId;       // Which resource these annotations belong to (branded type)

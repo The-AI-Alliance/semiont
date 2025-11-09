@@ -55,7 +55,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     if (acceptHeader.includes('text/') || acceptHeader.includes('application/pdf')) {
       const repStore = new FilesystemRepresentationStore({ basePath });
 
-      // Get resource metadata from Layer 3
+      // Get resource metadata from view storage
       const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });

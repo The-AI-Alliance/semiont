@@ -63,7 +63,7 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] 📥 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
-    // Fetch annotation from Layer 3
+    // Fetch annotation from view storage
     const projection = await AnnotationQueryService.getResourceAnnotations(job.sourceResourceId, this.config);
     // Compare by ID
     const annotation = projection.annotations.find((a: any) =>
