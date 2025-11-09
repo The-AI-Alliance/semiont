@@ -2,7 +2,9 @@
   "type": "string",
   "enum": [
     "text/plain",
-    "text/markdown"
+    "text/markdown",
+    "image/png",
+    "image/jpeg"
   ],
   "description": "Content format as MIME type"
 }

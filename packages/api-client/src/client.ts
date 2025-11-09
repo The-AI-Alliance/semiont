@@ -204,10 +204,64 @@ export class SemiontApiClient {
   // RESOURCES
   // ============================================================================
 
-  async createResource(
-    data: RequestContent<paths['/resources']['post']>
-  ): Promise<ResponseContent<paths['/resources']['post']>> {
-    return this.http.post(`${this.baseUrl}/resources`, { json: data }).json();
+  /**
+   * Create a new resource with binary content support
+   *
+   * @param data - Resource creation data
+   * @param data.name - Resource name
+   * @param data.file - File object or Buffer with binary content
+   * @param data.format - MIME type (e.g., 'text/markdown', 'image/png')
+   * @param data.entityTypes - Optional array of entity types
+   * @param data.language - Optional ISO 639-1 language code
+   * @param data.creationMethod - Optional creation method
+   * @param data.sourceAnnotationId - Optional source annotation ID
+   * @param data.sourceResourceId - Optional source resource ID
+   */
+  async createResource(data: {
+    name: string;
+    file: File | Buffer;
+    format: string;
+    entityTypes?: string[];
+    language?: string;
+    creationMethod?: string;
+    sourceAnnotationId?: string;
+    sourceResourceId?: string;
+  }): Promise<ResponseContent<paths['/resources']['post']>> {
+    // Build FormData
+    const formData = new FormData();
+    formData.append('name', data.name);
+    formData.append('format', data.format);
+
+    // Handle File or Buffer
+    if (data.file instanceof File) {
+      formData.append('file', data.file);
+    } else if (Buffer.isBuffer(data.file)) {
+      // Node.js environment: convert Buffer to Blob
+      const blob = new Blob([data.file], { type: data.format });
+      formData.append('file', blob, data.name);
+    } else {
+      throw new Error('file must be a File or Buffer');
+    }
+
+    // Optional fields
+    if (data.entityTypes && data.entityTypes.length > 0) {
+      formData.append('entityTypes', JSON.stringify(data.entityTypes));
+    }
+    if (data.language) {
+      formData.append('language', data.language);
+    }
+    if (data.creationMethod) {
+      formData.append('creationMethod', data.creationMethod);
+    }
+    if (data.sourceAnnotationId) {
+      formData.append('sourceAnnotationId', data.sourceAnnotationId);
+    }
+    if (data.sourceResourceId) {
+      formData.append('sourceResourceId', data.sourceResourceId);
+    }
+
+    // POST with multipart/form-data (ky automatically sets Content-Type)
+    return this.http.post(`${this.baseUrl}/resources`, { body: formData }).json();
   }
 
   async getResource(resourceUri: ResourceUri): Promise<ResponseContent<paths['/resources/{id}']['get']>> {

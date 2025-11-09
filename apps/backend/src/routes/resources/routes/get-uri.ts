@@ -51,9 +51,10 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     const acceptHeader = c.req.header('Accept') || 'application/ld+json';
     const basePath = config.services.filesystem!.path;
 
-    // If requesting raw representation (text/plain, text/markdown, etc.)
-    if (acceptHeader.includes('text/') || acceptHeader.includes('application/pdf')) {
-      const repStore = new FilesystemRepresentationStore({ basePath });
+    // If requesting raw representation (text/plain, text/markdown, images, etc.)
+    if (acceptHeader.includes('text/') || acceptHeader.includes('image/') || acceptHeader.includes('application/pdf')) {
+      const projectRoot = config._metadata?.projectRoot;
+      const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
       // Get resource metadata from view storage
       const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
@@ -78,7 +79,14 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       if (mediaType) {
         c.header('Content-Type', mediaType);
       }
-      return c.text(content.toString('utf-8'));
+
+      // For images, return binary data; for text, convert to UTF-8
+      if (mediaType?.startsWith('image/')) {
+        // Convert Buffer to Uint8Array for Hono compatibility
+        return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType });
+      } else {
+        return c.text(content.toString('utf-8'));
+      }
     }
 
     // Otherwise, return JSON-LD metadata (default)

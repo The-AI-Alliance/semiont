@@ -237,7 +237,6 @@ function ResourceView({
 
   // Set up mutations
   const updateDocMutation = resources.update.useMutation();
-  const createDocMutation = resources.create.useMutation();
   const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
 
   const [annotateMode, setAnnotateMode] = useState(() => {
@@ -298,25 +297,14 @@ function ResourceView({
           router.push(`/know/resource/${encodeURIComponent(foundResourceId)}`);
         }
       } else {
-        // Resource not found - offer to create it
-        if (confirm(`Resource "${pageName}" not found. Would you like to create it?`)) {
-          const newDoc = await createDocMutation.mutateAsync({
-            name: pageName,
-            content: `# ${pageName}\n\nThis page was created from a wiki link.`,
-            format: 'text/markdown',
-            entityTypes: []
-          });
-          const newResourceId = getResourceId(newDoc.resource);
-          if (newResourceId) {
-            router.push(`/know/resource/${encodeURIComponent(newResourceId)}`);
-          }
-        }
+        // Resource not found - fail hard
+        throw new Error(`Resource "${pageName}" not found`);
       }
     } catch (err) {
       console.error('Failed to navigate to wiki link:', err);
       showError('Failed to navigate to wiki link');
     }
-  }, [router, createDocMutation, showError, client]);
+  }, [router, showError, client]);
 
   // Update document tags - memoized
   const updateDocumentTags = useCallback(async (tags: string[]) => {

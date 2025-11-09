@@ -62,7 +62,8 @@ export function registerGenerateResourceFromAnnotation(router: ResourcesRouterTy
       const user = c.get('user');
       const config = c.get('config');
       const basePath = config.services.filesystem!.path;
-      const repStore = new FilesystemRepresentationStore({ basePath });
+      const projectRoot = config._metadata?.projectRoot;
+      const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
       // Get annotation from view storage
       const annotation = await AnnotationQueryService.getAnnotation(

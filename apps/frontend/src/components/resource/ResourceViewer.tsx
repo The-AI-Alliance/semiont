@@ -66,6 +66,17 @@ export function ResourceViewer({
   }
   const rUri = resourceUri(resource['@id']);
 
+  // Helper to get MIME type from resource
+  const getMimeType = (): string => {
+    const reps = resource.representations;
+    if (Array.isArray(reps) && reps.length > 0 && reps[0]) {
+      return reps[0].mediaType;
+    }
+    return 'text/plain';
+  };
+
+  const mimeType = getMimeType();
+
   // Use prop directly instead of internal state
   const activeView = curationMode ? 'annotate' : 'browse';
   const {
@@ -450,6 +461,8 @@ export function ResourceViewer({
         resource.archived ? (
           <AnnotateView
             content={resource.content}
+            mimeType={mimeType}
+            resourceUri={resource['@id']}
             highlights={highlights}
             references={references}
             assessments={assessments}
@@ -479,6 +492,8 @@ export function ResourceViewer({
         ) : (
           <AnnotateView
             content={resource.content}
+            mimeType={mimeType}
+            resourceUri={resource['@id']}
             highlights={highlights}
             references={references}
             assessments={assessments}
@@ -511,6 +526,8 @@ export function ResourceViewer({
       ) : (
         <BrowseView
           content={resource.content}
+          mimeType={mimeType}
+          resourceUri={resource['@id']}
           highlights={highlights}
           references={references}
           assessments={assessments}

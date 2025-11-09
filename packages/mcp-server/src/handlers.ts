@@ -5,10 +5,16 @@
 import { SemiontApiClient, getExactText, getBodySource, resourceUri } from '@semiont/api-client';
 
 export async function handleCreateResource(client: SemiontApiClient, args: any) {
+  // Create File from content string for multipart/form-data upload
+  const format = args?.contentType || 'text/plain';
+  const content = args?.content || '';
+  const blob = new Blob([content], { type: format });
+  const file = new File([blob], args?.name + '.txt', { type: format });
+
   const data = await client.createResource({
     name: args?.name,
-    content: args?.content,
-    format: args?.contentType || 'text/plain',
+    file: file,
+    format: format,
     entityTypes: args?.entityTypes || [],
   });
 

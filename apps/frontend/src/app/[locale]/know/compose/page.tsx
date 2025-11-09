@@ -11,12 +11,13 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getPrimaryMediaType, getResourceId } from '@semiont/api-client';
+import { getPrimaryMediaType, getResourceId, getMimeCategory, isImageMimeType } from '@semiont/api-client';
 import { resourceUri, resourceAnnotationUri, type ResourceUri, type ResourceAnnotationUri, type ContentFormat } from '@semiont/api-client';
 import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
+import { ImageViewer } from '@/components/viewers';
 
 function ComposeDocumentContent() {
   const t = useTranslations('Compose');
@@ -42,6 +43,11 @@ function ComposeDocumentContent() {
   const [cloneToken, setCloneToken] = useState<string | null>(null);
   const [archiveOriginal, setArchiveOriginal] = useState(true);
   const [isReferenceCompletion, setIsReferenceCompletion] = useState(false);
+
+  // File upload state
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [fileMimeType, setFileMimeType] = useState<string>('text/markdown');
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
   // Toolbar and settings state
   const { activePanel, togglePanel } = useToolbar();
@@ -122,6 +128,51 @@ function ComposeDocumentContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, tokenFromUrl, cloneData, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, session?.backendToken]);
 
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate MIME type - only allow our 4 supported types
+    const allowedTypes = ['text/plain', 'text/markdown', 'image/png', 'image/jpeg'];
+    if (!allowedTypes.includes(file.type)) {
+      showError(`Unsupported file type: ${file.type}. Please upload text/plain, text/markdown, image/png, or image/jpeg files.`);
+      return;
+    }
+
+    setUploadedFile(file);
+    setFileMimeType(file.type);
+
+    // Set file name as default resource name if empty
+    if (!newDocName) {
+      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+      setNewDocName(nameWithoutExt);
+    }
+
+    // For images, create preview URL
+    if (isImageMimeType(file.type)) {
+      const previewUrl = URL.createObjectURL(file);
+      setFilePreviewUrl(previewUrl);
+    } else {
+      // For text files, read content
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        setNewDocContent(content);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  // Cleanup preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (filePreviewUrl) {
+        URL.revokeObjectURL(filePreviewUrl);
+      }
+    };
+  }, [filePreviewUrl]);
+
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDocName.trim()) return;
@@ -146,10 +197,25 @@ function ComposeDocumentContent() {
         rUri = resourceUri(response.resource['@id']);
       } else {
         // Create a new resource with entity types
+        // Prepare file for upload
+        let fileToUpload: File;
+        let mimeType: string;
+
+        if (uploadedFile) {
+          // Use uploaded file
+          fileToUpload = uploadedFile;
+          mimeType = fileMimeType;
+        } else {
+          // Create File from text content
+          const blob = new Blob([newDocContent], { type: 'text/markdown' });
+          fileToUpload = new File([blob], newDocName + '.md', { type: 'text/markdown' });
+          mimeType = 'text/markdown';
+        }
+
         const response = await createDocMutation.mutateAsync({
           name: newDocName,
-          content: newDocContent,
-          format: 'text/markdown',
+          file: fileToUpload,
+          format: mimeType,
           entityTypes: selectedEntityTypes,
           creationMethod: 'ui'
         });
@@ -332,22 +398,80 @@ function ComposeDocumentContent() {
             </div>
           )}
 
-          {/* Content editor */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {isClone ? t('resourceContent') : t('content')}
-            </label>
-            <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-              <CodeMirrorRenderer
-                content={newDocContent}
-                segments={[]}
-                editable={!isCreating}
-                sourceView={true}
-                showLineNumbers={showLineNumbers}
-                onChange={(newContent) => setNewDocContent(newContent)}
-              />
+          {/* File Upload */}
+          {!isClone && !isReferenceCompletion && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Upload File (optional)
+              </label>
+              <div className="flex items-center gap-4">
+                <label className="flex-1 cursor-pointer">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+                    <input
+                      type="file"
+                      accept="text/plain,text/markdown,image/png,image/jpeg"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      disabled={isCreating}
+                    />
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {uploadedFile ? uploadedFile.name : 'Click to upload or drag and drop'}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      Supported: text/plain, text/markdown, image/png, image/jpeg
+                    </p>
+                  </div>
+                </label>
+                {uploadedFile && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadedFile(null);
+                      setFilePreviewUrl(null);
+                      setFileMimeType('text/markdown');
+                    }}
+                    className="px-3 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                    disabled={isCreating}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Image Preview */}
+              {uploadedFile && filePreviewUrl && isImageMimeType(fileMimeType) && (
+                <div className="mt-4 border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preview:</p>
+                  <div className="max-h-96 overflow-hidden rounded">
+                    <img
+                      src={filePreviewUrl}
+                      alt="Upload preview"
+                      className="max-w-full h-auto"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
+
+          {/* Content editor - only show for text or when no file uploaded */}
+          {(!uploadedFile || !isImageMimeType(fileMimeType)) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {isClone ? t('resourceContent') : t('content')}
+              </label>
+              <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                <CodeMirrorRenderer
+                  content={newDocContent}
+                  segments={[]}
+                  editable={!isCreating}
+                  sourceView={true}
+                  showLineNumbers={showLineNumbers}
+                  onChange={(newContent) => setNewDocContent(newContent)}
+                />
+              </div>
+            </div>
+          )}
 
           {isClone && (
             <div className="flex items-center">

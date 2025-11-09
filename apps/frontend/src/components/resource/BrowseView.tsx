@@ -6,8 +6,9 @@ import remarkGfm from 'remark-gfm';
 import { remarkAnnotations, type PreparedAnnotation } from '@/lib/remark-annotations';
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
 import type { components } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource, getMimeCategory, type MimeCategory } from '@semiont/api-client';
 import { getAnnotationInternalType, getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import { ImageViewer } from '@/components/viewers';
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
@@ -15,6 +16,8 @@ import '@/styles/animations.css';
 
 interface Props {
   content: string;
+  mimeType: string;
+  resourceUri: string;
   highlights: Annotation[];
   references: Annotation[];
   assessments: Annotation[];
@@ -55,6 +58,8 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
 
 export function BrowseView({
   content,
+  mimeType,
+  resourceUri,
   highlights,
   references,
   assessments,
@@ -67,6 +72,8 @@ export function BrowseView({
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const category = getMimeCategory(mimeType);
 
   const allAnnotations = useMemo(() =>
     [...highlights, ...references, ...assessments, ...comments],
@@ -202,19 +209,52 @@ export function BrowseView({
     return undefined;
   }, [hoveredCommentId]);
 
-  return (
-    <div ref={containerRef} className="prose prose-lg dark:prose-invert max-w-none p-4">
-      <ReactMarkdown
-        remarkPlugins={[
-          remarkGfm,
-          [remarkAnnotations, { annotations: preparedAnnotations }]
-        ]}
-        rehypePlugins={[
-          rehypeRenderAnnotations
-        ]}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
+  // Route to appropriate viewer based on MIME type category
+  switch (category) {
+    case 'text':
+      return (
+        <div ref={containerRef} className="prose prose-lg dark:prose-invert max-w-none p-4">
+          <ReactMarkdown
+            remarkPlugins={[
+              remarkGfm,
+              [remarkAnnotations, { annotations: preparedAnnotations }]
+            ]}
+            rehypePlugins={[
+              rehypeRenderAnnotations
+            ]}
+          >
+            {content}
+          </ReactMarkdown>
+        </div>
+      );
+
+    case 'image':
+      return (
+        <div ref={containerRef} className="w-full h-full">
+          <ImageViewer
+            resourceUri={resourceUri as any}
+            mimeType={mimeType}
+            alt="Resource content"
+          />
+        </div>
+      );
+
+    case 'unsupported':
+      return (
+        <div ref={containerRef} className="flex items-center justify-center h-full p-8">
+          <div className="text-center space-y-4">
+            <p className="text-gray-600 dark:text-gray-400">
+              Preview not available for {mimeType}
+            </p>
+            <a
+              href={resourceUri}
+              download
+              className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Download File
+            </a>
+          </div>
+        </div>
+      );
+  }
 }

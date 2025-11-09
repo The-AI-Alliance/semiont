@@ -98,7 +98,8 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
   }
 
   const basePath = config.services.filesystem!.path;
-  const repStore = new FilesystemRepresentationStore({ basePath });
+  const projectRoot = config._metadata?.projectRoot;
+  const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
   // Get annotation from view storage
   const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(resourceId), config);
@@ -157,7 +158,8 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const query = c.req.query();
   const config = c.get('config');
   const basePath = config.services.filesystem!.path;
-  const repStore = new FilesystemRepresentationStore({ basePath });
+  const projectRoot = config._metadata?.projectRoot;
+  const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
   // Require resourceId query parameter
   const resourceId = query.resourceId;

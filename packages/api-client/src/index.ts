@@ -49,6 +49,13 @@ export type {
 
 // Handwritten utilities
 export * from './utils';
+export {
+  getExtensionForMimeType,
+  isImageMimeType,
+  isTextMimeType,
+  getMimeCategory,
+  type MimeCategory
+} from './mime-utils';
 
 // All branded types (URIs, tokens, identifiers, etc.)
 export * from './branded-types';
