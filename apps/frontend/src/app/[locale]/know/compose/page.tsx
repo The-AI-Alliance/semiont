@@ -264,7 +264,8 @@ function ComposeDocumentContent() {
       router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
     } catch (error) {
       console.error('Failed to save document:', error);
-      showError('Failed to save document. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save document. Please try again.';
+      showError(errorMessage);
     } finally {
       setIsCreating(false);
     }
