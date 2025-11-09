@@ -11,13 +11,10 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getPrimaryMediaType, getResourceId, getMimeCategory, isImageMimeType } from '@semiont/api-client';
-import { resourceUri, resourceAnnotationUri, type ResourceUri, type ResourceAnnotationUri, type ContentFormat } from '@semiont/api-client';
-import { NEXT_PUBLIC_API_URL } from '@/lib/env';
+import { getPrimaryMediaType, getResourceId, isImageMimeType, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat } from '@semiont/api-client';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
-import { ImageViewer } from '@/components/viewers';
 
 function ComposeDocumentContent() {
   const t = useTranslations('Compose');
@@ -28,14 +25,13 @@ function ComposeDocumentContent() {
   const mode = searchParams?.get('mode');
   const tokenFromUrl = searchParams?.get('token');
 
-  // Authentication guard - redirect to sign in if not authenticated
+  // Authentication guard - redirect to home if not authenticated
   useEffect(() => {
     if (status === 'loading') return; // Still checking auth
     if (!session?.backendToken) {
-      showError('Please sign in to create resources');
       router.push('/');
     }
-  }, [session, status, router, showError]);
+  }, [session, status, router]);
   
   // Reference completion parameters
   const referenceId = searchParams?.get('referenceId');

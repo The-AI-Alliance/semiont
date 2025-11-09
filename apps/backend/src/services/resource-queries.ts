@@ -22,8 +22,9 @@ export class ResourceQueryService {
    */
   static async getResourceMetadata(resourceId: ResourceId, config: EnvironmentConfig): Promise<ResourceDescriptor | null> {
     const basePath = config.services.filesystem!.path;
+    const projectRoot = config._metadata?.projectRoot;
 
-    const viewStorage = new FilesystemViewStorage(basePath);
+    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
 
     const view = await viewStorage.get(resourceId);
     if (!view) {
@@ -38,8 +39,9 @@ export class ResourceQueryService {
    */
   static async listResources(filters: ListResourcesFilters | undefined, config: EnvironmentConfig): Promise<ResourceDescriptor[]> {
     const basePath = config.services.filesystem!.path;
+    const projectRoot = config._metadata?.projectRoot;
 
-    const viewStorage = new FilesystemViewStorage(basePath);
+    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
 
     const allViews = await viewStorage.getAll();
     const resources: ResourceDescriptor[] = [];

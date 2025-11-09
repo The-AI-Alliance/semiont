@@ -32,7 +32,8 @@ export class AnnotationQueryService {
       throw new Error('Filesystem path not found in configuration');
     }
     const basePath = config.services.filesystem.path;
-    const viewStorage = new FilesystemViewStorage(basePath);
+    const projectRoot = config._metadata?.projectRoot;
+    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
     const view = await viewStorage.get(resourceId);
 
     if (!view) {
@@ -76,7 +77,8 @@ export class AnnotationQueryService {
       throw new Error('Filesystem path not found in configuration');
     }
     const basePath = config.services.filesystem.path;
-    const viewStorage = new FilesystemViewStorage(basePath);
+    const projectRoot = config._metadata?.projectRoot;
+    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
     return await viewStorage.exists(resourceId);
   }
 

@@ -65,7 +65,7 @@ export class AnnotationContextService {
     console.log(`[AnnotationContext] basePath=${basePath}`);
 
     const projectRoot = config._metadata?.projectRoot;
-    const viewStorage = new FilesystemViewStorage(basePath);
+    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
     const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     // Get source resource view
