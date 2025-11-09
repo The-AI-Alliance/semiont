@@ -339,7 +339,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
         throw new Error('Highlight not found');
       }
 
-      // Delete old highlight (documentId required for Layer 3 lookup)
+      // Delete old highlight (documentId required for view storage lookup)
       const targetSource = getTargetSource(highlight.target);
       if (!targetSource) {
         throw new Error('Highlight has no target source');
@@ -376,7 +376,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
         throw new Error('Reference not found');
       }
 
-      // Delete old reference (documentId required for Layer 3 lookup)
+      // Delete old reference (documentId required for view storage lookup)
       const targetSource = getTargetSource(reference.target);
       if (!targetSource) {
         throw new Error('Reference has no target source');
