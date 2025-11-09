@@ -109,7 +109,7 @@ describe('GenerationWorker - Event Emission', () => {
         version: 1,
         updatedAt: new Date().toISOString(),
         annotations: [{
-          id: 'test-ref-id',
+          id: 'http://localhost:4000/annotations/test-ref-id',
           motivation: 'linking',
           body: [{
             type: 'TextualBody',
