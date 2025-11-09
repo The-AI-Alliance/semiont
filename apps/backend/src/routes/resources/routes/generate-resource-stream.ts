@@ -22,7 +22,7 @@ import { nanoid } from 'nanoid';
 import { getTargetSelector } from '../../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
 import { jobId, entityType } from '@semiont/api-client';
-import { userId, resourceId, annotationId } from '@semiont/core';
+import { userId, resourceId, annotationId as makeAnnotationId } from '@semiont/core';
 
 type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
 
@@ -48,7 +48,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
   router.post('/resources/:resourceId/annotations/:annotationId/generate-resource-stream',
     validateRequestBody('GenerateResourceStreamRequest'),
     async (c) => {
-      const { resourceId: resourceIdParam, annotationId: referenceId } = c.req.param();
+      const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
       const body = c.get('validatedBody') as GenerateResourceStreamRequest;
 
       console.log('[GenerateResourceStream] Received request body:', body);
@@ -60,7 +60,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      console.log(`[GenerateResource] Starting generation for reference ${referenceId} in resource ${resourceIdParam}`);
+      console.log(`[GenerateResource] Starting generation for annotation ${annotationIdParam} in resource ${resourceIdParam}`);
       console.log(`[GenerateResource] Locale from request:`, body.language);
 
       // Validate annotation exists using view storage
@@ -74,7 +74,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
       });
 
       // Compare by ID - need to match full annotation URI
-      const expectedAnnotationUri = `${config.services.backend!.publicURL}/annotations/${referenceId}`;
+      const expectedAnnotationUri = `${config.services.backend!.publicURL}/annotations/${annotationIdParam}`;
       console.log(`[GenerateResource] Looking for annotation URI: ${expectedAnnotationUri}`);
 
       const reference = projection.annotations.find((a: any) =>
@@ -82,9 +82,9 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
       );
 
       if (!reference) {
-        console.log(`[GenerateResource] Reference not found. Expected: ${expectedAnnotationUri}`);
+        console.log(`[GenerateResource] Annotation not found. Expected: ${expectedAnnotationUri}`);
         console.log(`[GenerateResource] Available IDs:`, projection.annotations.map((a: any) => a.id));
-        throw new HTTPException(404, { message: `Reference ${referenceId} not found in resource ${resourceIdParam}` });
+        throw new HTTPException(404, { message: `Annotation ${annotationIdParam} not found in resource ${resourceIdParam}` });
       }
       console.log(`[GenerateResource] Found matching annotation:`, reference.id);
 
@@ -95,7 +95,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
         type: 'generation',
         status: 'pending',
         userId: userId(user.id),
-        referenceId: annotationId(reference.id), // Use full annotation URI, not just the ID segment
+        referenceId: makeAnnotationId(annotationIdParam),
         sourceResourceId: resourceId(resourceIdParam),
         title: body.title,
         prompt: body.prompt,
@@ -107,7 +107,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
       };
 
       await jobQueue.createJob(job);
-      console.log(`[GenerateResource] Created job ${job.id} for reference ${referenceId}`);
+      console.log(`[GenerateResource] Created job ${job.id} for annotation ${annotationIdParam}`);
       console.log(`[GenerateResource] Job includes locale:`, job.language);
 
       // Determine resource name for progress messages
