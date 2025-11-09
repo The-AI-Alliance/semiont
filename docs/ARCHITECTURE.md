@@ -408,19 +408,18 @@ The Semiont API is RESTful with semantic extensions for knowledge graph operatio
 **Resources** - Markdown content with entity type tags
 
 ```http
-POST   /api/resources
-GET    /api/resources/{id}
-PATCH  /api/resources/{id}
-DELETE /api/resources/{id}
+POST   /resources
+GET    /resources/{id}
+PATCH  /resources/{id}
 ```
 
 **Annotations** - W3C Web Annotations linking text to entities or resources
 
 ```http
-POST   /api/resources/{id}/annotations
-GET    /api/resources/{id}/annotations
-PATCH  /api/resources/{id}/annotations/{annotationId}
-DELETE /api/resources/{id}/annotations/{annotationId}
+POST   /resources/{id}/annotations
+GET    /resources/{id}/annotations
+PATCH  /resources/{resourceId}/annotations/{annotationId}
+DELETE /resources/{resourceId}/annotations/{annotationId}
 ```
 
 **Entity Types** - Semantic classifications (Person, Organization, etc.)
@@ -430,12 +429,11 @@ GET    /api/entity-types
 POST   /api/entity-types
 ```
 
-**Graph Operations** - Relationship queries
+**Graph & AI Operations** - Relationship queries and resource generation
 
 ```http
-GET    /api/resources/{id}/backlinks
-GET    /api/resources/{id}/context
-POST   /api/annotations/{id}/generate-resource
+GET    /resources/{id}/referenced-by
+POST   /resources/{resourceId}/annotations/{annotationId}/generate-resource
 ```
 
 ### API Characteristics
