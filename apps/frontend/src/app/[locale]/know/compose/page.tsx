@@ -23,10 +23,19 @@ function ComposeDocumentContent() {
   const t = useTranslations('Compose');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { showError, showSuccess } = useToast();
   const mode = searchParams?.get('mode');
   const tokenFromUrl = searchParams?.get('token');
+
+  // Authentication guard - redirect to sign in if not authenticated
+  useEffect(() => {
+    if (status === 'loading') return; // Still checking auth
+    if (!session?.backendToken) {
+      showError('Please sign in to create resources');
+      router.push('/');
+    }
+  }, [session, status, router, showError]);
   
   // Reference completion parameters
   const referenceId = searchParams?.get('referenceId');
@@ -271,16 +280,22 @@ function ComposeDocumentContent() {
     }
   };
 
-  if (isLoading) {
+  // Show loading state while checking authentication or loading clone data
+  if (status === 'loading' || isLoading) {
     return (
       <div className="px-4 py-8">
         <div className="flex items-center justify-center py-20">
           <p className="text-gray-600 dark:text-gray-300">
-            Loading cloned document...
+            {status === 'loading' ? 'Checking authentication...' : 'Loading cloned document...'}
           </p>
         </div>
       </div>
     );
+  }
+
+  // Don't render form if not authenticated (will redirect in useEffect)
+  if (!session?.backendToken) {
+    return null;
   }
 
   return (
