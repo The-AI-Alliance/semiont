@@ -4,7 +4,7 @@
 
 The Semiont annotation system enables users to mark up documents with highlights, comments, assessments, and references, creating a rich knowledge graph. Built on the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/), annotations are standards-compliant objects with motivations following the W3C specification.
 
-This document describes the frontend UI patterns, component architecture, user workflows, and the annotation registry system. For the complete W3C implementation across all layers (API, event store, projection, and graph database), see [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md).
+This document describes the frontend UI patterns, component architecture, user workflows, and the annotation registry system. For the complete W3C implementation across all backend components (API, Event Store, and Graph Database), see [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md).
 
 ## Supported Annotation Types
 
@@ -77,10 +77,10 @@ ResourceViewer (Container)
 4. **Popup Display** → Contextual popup based on selection state
 5. **User Decision** → Choose annotation type and properties
 6. **Optimistic Update** → Immediate UI update with sparkle animation
-7. **Server Sync** → Background API call to Layer 1 (API), persisted to Layer 2 (Event Store), Layer 3 (Projection), and Layer 4 (Graph Database)
-8. **Confirmation** → Animation complete, W3C-compliant annotation persisted across all layers
+7. **Server Sync** → Background API call persisted to Event Store (with materialized views) and Graph Database
+8. **Confirmation** → Animation complete, W3C-compliant annotation persisted across all backend components
 
-For complete architecture details on how annotations flow through the event-sourced backend layers, see [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md).
+For complete architecture details on how annotations flow through the backend data storage components, see [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md).
 
 ## Annotation Registry
 
@@ -643,7 +643,7 @@ The modular architecture ensures maintainability and extensibility, while the pr
 - [src/lib/annotation-registry.ts](../src/lib/annotation-registry.ts) - Source code for the Annotation Registry
 
 ### W3C Web Annotation Implementation
-- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers (UI, API, Event Store, Projection, Graph)
+- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all components (UI, API, Event Store, Graph)
 
 ### Frontend Documentation
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - Document rendering and editor implementation
@@ -653,5 +653,5 @@ The modular architecture ensures maintainability and extensibility, while the pr
 
 ### System Documentation
 - [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) - Overall system architecture
-- [DATABASE.md](../../../docs/services/DATABASE.md) - PostgreSQL event store and projection layers
+- [DATABASE.md](../../../docs/services/DATABASE.md) - PostgreSQL for user accounts and job queue
 - [GRAPH.md](../../../docs/services/GRAPH.md) - Graph database implementations (Neo4j, Neptune, JanusGraph)

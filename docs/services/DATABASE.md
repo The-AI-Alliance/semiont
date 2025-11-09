@@ -14,11 +14,11 @@ Semiont uses PostgreSQL **exclusively for user authentication**, managed through
 - **Connection Management**: Connection pooling via Prisma Client
 - **Scope**: User authentication ONLY - no document/annotation metadata
 
-**Event-Sourced Architecture**: Semiont uses an event-sourced architecture where all document and annotation metadata flows through:
+**Data Architecture**: Semiont uses an immutable event log with materialized views where all document and annotation metadata flows through:
 - **Event Store**: Immutable event log in JSONL files - source of truth for all changes (see [EVENT-STORE.md](./EVENT-STORE.md))
-- **Projections**: Materialized current state in sharded JSON files on filesystem - optimized for fast queries (see [PROJECTION.md](./PROJECTION.md))
+- **ViewStorage**: Materialized current state optimized for fast queries (see [EVENT-STORE.md](./EVENT-STORE.md))
 
-**PostgreSQL does NOT store document or annotation metadata** - it only stores user authentication data (users table). See [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md), [EVENT-STORE.md](./EVENT-STORE.md), and [PROJECTION.md](./PROJECTION.md) for how annotations flow through the system.
+**PostgreSQL does NOT store document or annotation metadata** - it only stores user authentication data (users table). See [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) and [EVENT-STORE.md](./EVENT-STORE.md) for how annotations flow through the system.
 
 ## Database Architecture
 

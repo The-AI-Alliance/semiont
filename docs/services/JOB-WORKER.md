@@ -17,7 +17,7 @@ The Job Worker service provides asynchronous background processing for computati
 - Two worker implementations (entity detection, document generation)
 - Progress tracking and SSE streaming
 - Retry logic and graceful shutdown
-- Event emission to Layer 2 (Event Store)
+- Event emission to Event Store
 
 **What's Missing**:
 - CLI service integration (no environment config)
@@ -124,13 +124,13 @@ abstract class JobWorker {
 **Worker Implementation**: [apps/backend/src/jobs/workers/detection-worker.ts](../../apps/backend/src/jobs/workers/detection-worker.ts)
 
 **Processing Flow**:
-1. Fetch document content from RepresentationStore (Layer 1)
+1. Fetch document content from RepresentationStore
 2. For each entity type:
    - Call AI inference to detect entities
    - Update progress with current entity type
 3. For each detected annotation:
    - Generate W3C TextPositionSelector and TextQuoteSelector
-   - Emit `annotation.added` event to Event Store (Layer 2)
+   - Emit `annotation.added` event to Event Store
 4. Track total found, emitted, and errors in result
 5. Mark job complete with final statistics
 
@@ -183,7 +183,7 @@ abstract class JobWorker {
 **Processing Flow**:
 1. **Fetching Stage**: Fetch source annotation and document metadata (25% progress)
 2. **Generating Stage**: Call AI inference to generate document content (50% progress)
-3. **Creating Stage**: Save generated content to RepresentationStore (Layer 1), emit `document.created` event to Event Store (Layer 2) (75% progress)
+3. **Creating Stage**: Save generated content to RepresentationStore, emit `document.created` event to Event Store (75% progress)
 4. **Linking Stage**: Emit `annotation.body.updated` event to link reference annotation to new document (100% progress)
 5. Return `documentId` and `documentName` in job result
 
@@ -223,7 +223,7 @@ generationWorker.start().catch((error) => {
 
 ### Event Emission
 
-Workers emit events to the Event Store (Layer 2):
+Workers emit events to the Event Store:
 
 **Detection Worker Events**:
 - `annotation.added` - For each detected entity
@@ -236,7 +236,7 @@ Workers emit events to the Event Store (Layer 2):
 
 **Implementation**: [apps/backend/src/events/consumers/graph-consumer.ts](../../apps/backend/src/events/consumers/graph-consumer.ts)
 
-The GraphDB Consumer subscribes to events emitted by workers and updates Layer 4 (Graph Database):
+The GraphDB Consumer subscribes to events emitted by workers and updates the Graph Database:
 
 **Subscribed Events**:
 - `document.created` - Add document vertex to graph
@@ -410,7 +410,7 @@ Tests verify real job queue usage (not stubs) for document generation streaming.
 
 ### Job Processing Flow
 - [Backend README](../../apps/backend/README.md) - Backend architecture overview
-- [Event Store](./EVENT-STORE.md) - Layer 2 event log that workers write to
+- [Event Store](./EVENT-STORE.md) - Event log that workers write to
 - [Graph Consumer](../../apps/backend/src/events/consumers/graph-consumer.ts) - Event subscription
 
 ### AI Integration

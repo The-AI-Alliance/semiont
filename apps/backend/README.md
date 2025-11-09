@@ -115,7 +115,7 @@ Asynchronous job processing for long-running AI operations that can't block HTTP
 - Filesystem-based job queue with atomic operations
 - FIFO job processing with automatic retry logic
 - Progress tracking with Server-Sent Events (SSE) streaming
-- Workers emit events to Layer 2 (Event Store)
+- Workers emit events to Event Store
 - Jobs continue even if client disconnects
 
 **Key Benefits**:
@@ -329,9 +329,8 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 ### System Documentation
 - [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
 - [W3C Web Annotation](../../docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
-- [Event Store](../../docs/services/EVENT-STORE.md) - Layer 2 event sourcing
-- [Projection Storage](../../docs/services/PROJECTION.md) - Layer 3 materialized views
-- [Graph Database](../../docs/services/GRAPH.md) - Layer 4 relationships
+- [Event Store](../../docs/services/EVENT-STORE.md) - Event log and materialized views
+- [Graph Database](../../docs/services/GRAPH.md) - Relationship traversal
 - [Job Worker](../../docs/services/JOB-WORKER.md) - Background job processing (prototype)
 
 ### External Resources

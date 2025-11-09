@@ -578,7 +578,7 @@ Semiont uses OAuth 2.0 for user authentication and JWT for API authorization.
 
 ### Why Event Store with Internal Views?
 
-**Alternative Considered**: Separate projection layer (4-layer architecture)
+**Alternative Considered**: Separate projection storage component independent of Event Store
 
 **Decision**: Following database orthodoxy—Event Store is the database, views are its indexes. Just as PostgreSQL maintains indexes automatically, Event Store maintains views automatically. This simplifies the mental model and clarifies ownership.
 

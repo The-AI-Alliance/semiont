@@ -30,24 +30,19 @@ Semiont's architecture consists of multiple services that work together to provi
 - **Implementation**: [packages/mcp-server/](../../packages/mcp-server/)
 - **CLI Service**: [mcp-service.ts](../../apps/cli/src/services/mcp-service.ts)
 
-### Data Layer Services (4-Layer Architecture)
+### Data Storage Services
 
-**Layer 1: RepresentationStore** - Binary/text document storage
+**RepresentationStore** - Binary/text document storage
 - **Documentation**: [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md)
 - **Implementation**: [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/)
 - **Storage**: Sharded filesystem (65,536 shards)
 
-**Layer 2: Event Store** - Immutable event log
+**Event Store** - Immutable event log + materialized views
 - **Documentation**: [EVENT-STORE.md](./EVENT-STORE.md)
-- **Implementation**: [apps/backend/src/events/](../../apps/backend/src/events/)
-- **Storage**: Append-only JSONL files
+- **Implementation**: [apps/backend/src/events/](../../apps/backend/src/events/), [apps/backend/src/storage/view-storage.ts](../../apps/backend/src/storage/view-storage.ts)
+- **Storage**: Append-only JSONL files (events) + ViewStorage (materialized views)
 
-**Layer 3: Projection Store** - Materialized views
-- **Documentation**: [PROJECTION.md](./PROJECTION.md)
-- **Implementation**: [apps/backend/src/storage/projection/](../../apps/backend/src/storage/projection/)
-- **Storage**: Filesystem JSONL + PostgreSQL
-
-**Layer 4: Graph Database** - Relationship traversal
+**Graph Database** - Relationship traversal
 - **Documentation**: [GRAPH.md](./GRAPH.md)
 - **Implementation**: [apps/backend/src/graph/](../../apps/backend/src/graph/)
 - **Storage**: Neo4j, AWS Neptune, or in-memory
@@ -97,10 +92,9 @@ Semiont's architecture consists of multiple services that work together to provi
 | **Frontend** | Application | [apps/frontend/README.md](../../apps/frontend/README.md) | [apps/frontend/](../../apps/frontend/) |
 | **Backend** | Application | [apps/backend/README.md](../../apps/backend/README.md) | [apps/backend/](../../apps/backend/) |
 | **MCP Server** | Application | [packages/mcp-server/README.md](../../packages/mcp-server/README.md) | [packages/mcp-server/](../../packages/mcp-server/) |
-| **RepresentationStore** | Data Layer 1 | [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) | [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/) |
-| **Event Store** | Data Layer 2 | [EVENT-STORE.md](./EVENT-STORE.md) | [apps/backend/src/events/](../../apps/backend/src/events/) |
-| **Projection Store** | Data Layer 3 | [PROJECTION.md](./PROJECTION.md) | [apps/backend/src/storage/projection/](../../apps/backend/src/storage/projection/) |
-| **Graph Database** | Data Layer 4 | [GRAPH.md](./GRAPH.md) | [apps/backend/src/graph/](../../apps/backend/src/graph/) |
+| **RepresentationStore** | Data Storage | [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) | [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/) |
+| **Event Store** | Data Storage | [EVENT-STORE.md](./EVENT-STORE.md) | [apps/backend/src/events/](../../apps/backend/src/events/), [apps/backend/src/storage/view-storage.ts](../../apps/backend/src/storage/view-storage.ts) |
+| **Graph Database** | Data Storage | [GRAPH.md](./GRAPH.md) | [apps/backend/src/graph/](../../apps/backend/src/graph/) |
 | **Database** | Infrastructure | [DATABASE.md](./DATABASE.md) | [apps/backend/prisma/](../../apps/backend/prisma/) |
 | **Filesystem** | Infrastructure | [FILESYSTEM.md](./FILESYSTEM.md) | [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/) |
 | **Inference** | Infrastructure | [INFERENCE.md](./INFERENCE.md) | [apps/backend/src/jobs/](../../apps/backend/src/jobs/) |
@@ -177,28 +171,26 @@ See [CLI README](../../apps/cli/README.md) for complete CLI documentation.
 
 ## Architecture References
 
-### 4-Layer Data Architecture
+### Data Storage Architecture
 
-The data layer services implement a 4-layer architecture:
+The data storage architecture:
 
 ```
-Layer 4: Graph Database (Relationships & Traversal)
+Graph Database (Relationships & Traversal)
            ↑
-Layer 3: Projection Store (Materialized Views)
+Event Store (Immutable Event Log + Materialized Views)
            ↑
-Layer 2: Event Store (Immutable Event Log)
-           ↑
-Layer 1: RepresentationStore (Binary/Text Files)
+RepresentationStore (Binary/Text Files)
 ```
 
 **Benefits**:
-- **Event Sourcing**: Complete audit trail and time-travel capability
+- **Immutable Log**: Complete audit trail and time-travel capability
 - **Rebuildable**: Projections and graph can be rebuilt from events
-- **Separation of Concerns**: Each layer optimized for its access pattern
+- **Separation of Concerns**: Each component optimized for its access pattern
 
 **Complete Documentation**:
 - [Architecture Overview](../ARCHITECTURE.md) - High-level system design
-- [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md#data-layer-architecture) - Detailed layer implementation
+- [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md#data-storage-architecture) - Detailed implementation
 
 ### Service Communication
 
