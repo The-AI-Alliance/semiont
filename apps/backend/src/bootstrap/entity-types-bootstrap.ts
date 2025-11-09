@@ -25,7 +25,18 @@ export async function bootstrapEntityTypes(config: EnvironmentConfig): Promise<v
     return;
   }
 
-  const basePath = config.services.filesystem!.path;
+  // Resolve basePath against project root if relative
+  const configuredPath = config.services.filesystem!.path;
+  const projectRoot = config._metadata?.projectRoot;
+  let basePath: string;
+  if (path.isAbsolute(configuredPath)) {
+    basePath = configuredPath;
+  } else if (projectRoot) {
+    basePath = path.resolve(projectRoot, configuredPath);
+  } else {
+    basePath = path.resolve(configuredPath);
+  }
+
   const projectionPath = path.join(
     basePath,
     'projections',

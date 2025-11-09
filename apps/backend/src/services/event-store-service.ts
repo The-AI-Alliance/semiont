@@ -55,7 +55,8 @@ export async function createEventStore(
 
   // Create ViewStorage for materialized views
   // Structure: <basePath>/projections/resources/...
-  const viewStorage = new FilesystemViewStorage(basePath);
+  // basePath is already resolved, pass projectRoot for safety
+  const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
 
   // Determine data directory for events
   // Structure: <basePath>/events/...
