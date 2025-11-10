@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { resourceId, userId } from '@semiont/core';
-import { resourceUri, email } from '@semiont/api-client';
+import { resourceUri, email, jobId } from '@semiont/api-client';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
@@ -316,7 +316,7 @@ describe('Event Store Subscription Pattern', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId: 'job-1',
+        jobId: jobId('job-1'),
         jobType: 'detection',
         percentage: 50,
         currentStep: 'Person',
@@ -331,7 +331,7 @@ describe('Event Store Subscription Pattern', () => {
 
     expect(receivedEvents).toHaveLength(1);
     expect(receivedEvents[0].type).toBe('job.progress');
-    expect(receivedEvents[0].payload.jobId).toBe('job-1');
+    expect(receivedEvents[0].payload.jobId).toBe(jobId('job-1'));
 
     subscription.unsubscribe();
   });
@@ -351,7 +351,7 @@ describe('Event Store Subscription Pattern', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId: 'job-2',
+        jobId: jobId('job-2'),
         jobType: 'detection',
         message: 'Detection complete!'
       }
@@ -380,7 +380,7 @@ describe('Event Store Subscription Pattern', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId: 'job-3',
+        jobId: jobId('job-3'),
         jobType: 'detection',
         error: 'Test error',
         details: 'Test error details'
@@ -415,7 +415,7 @@ describe('Event Store Subscription Pattern', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId: 'job-4',
+        jobId: jobId('job-4'),
         jobType: 'detection',
         percentage: 50
       }

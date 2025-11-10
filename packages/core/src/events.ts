@@ -12,7 +12,7 @@
  */
 
 import type { CreationMethod } from './creation-methods';
-import type { components, AnnotationUri } from '@semiont/api-client';
+import type { components, AnnotationUri, JobId } from '@semiont/api-client';
 import type { ResourceId, AnnotationId, UserId } from './identifiers';
 
 // Import OpenAPI types
@@ -115,7 +115,7 @@ export interface JobStartedEvent extends BaseEvent {
   type: 'job.started';
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
-    jobId: string;
+    jobId: JobId;
     jobType: 'detection' | 'generation';
     totalSteps?: number;  // Optional - total number of steps if known
   };
@@ -125,7 +125,7 @@ export interface JobProgressEvent extends BaseEvent {
   type: 'job.progress';
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
-    jobId: string;
+    jobId: JobId;
     jobType: 'detection' | 'generation';
     percentage: number;  // 0-100
     currentStep?: string;  // Human-readable current step (e.g., "Scanning for Person")
@@ -140,7 +140,7 @@ export interface JobCompletedEvent extends BaseEvent {
   type: 'job.completed';
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
-    jobId: string;
+    jobId: JobId;
     jobType: 'detection' | 'generation';
     totalSteps?: number;  // Total steps completed
     foundCount?: number;  // For detection: total entities found
@@ -154,7 +154,7 @@ export interface JobFailedEvent extends BaseEvent {
   type: 'job.failed';
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
-    jobId: string;
+    jobId: JobId;
     jobType: 'detection' | 'generation';
     error: string;  // Error message
     details?: string;  // Optional detailed error information
