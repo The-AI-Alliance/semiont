@@ -54,6 +54,14 @@ const KNOWN_CATCH_ALL_ROUTES = [
   '/api/jobs/*',  // Jobs routes auth middleware
 ] as const;
 
+// Create a Set for efficient lookup (and proper typing)
+const KNOWN_CATCH_ALL_SET = new Set<string>(KNOWN_CATCH_ALL_ROUTES);
+
+// Type-safe helper to check if a route is a known catch-all
+function isKnownCatchAll(path: string): boolean {
+  return KNOWN_CATCH_ALL_SET.has(path);
+}
+
 // Helper to check if a path matches a public route
 function isPublicRoute(path: string): boolean {
   return PUBLIC_ROUTES.some(publicRoute => {
@@ -131,7 +139,7 @@ describe('Route Authentication Coverage', () => {
         // Handle catch-all routes (routes with /*)
         if (pattern.includes('/*')) {
           // Only allow known catch-all routes
-          if (!KNOWN_CATCH_ALL_ROUTES.includes(pattern as any)) {
+          if (!isKnownCatchAll(pattern)) {
             failures.push({
               method,
               path: pattern,
@@ -210,7 +218,7 @@ describe('Route Authentication Coverage', () => {
         const pattern = route.path;
 
         // Skip public routes and known catch-all handlers
-        if (isPublicRoute(pattern) || KNOWN_CATCH_ALL_ROUTES.includes(pattern as any)) {
+        if (isPublicRoute(pattern) || isKnownCatchAll(pattern)) {
           continue;
         }
 
@@ -272,7 +280,7 @@ describe('Route Authentication Coverage', () => {
           const method = route.method;
           const pattern = route.path;
 
-          if (isPublicRoute(pattern) || KNOWN_CATCH_ALL_ROUTES.includes(pattern as any)) {
+          if (isPublicRoute(pattern) || isKnownCatchAll(pattern)) {
             continue;
           }
 
@@ -325,7 +333,7 @@ describe('Route Authentication Coverage', () => {
       const routes = app.routes;
       const publicCount = routes.filter(r => isPublicRoute(r.path)).length;
       const catchAllCount = routes.filter(r => r.path.includes('/*')).length;
-      const knownCatchAllCount = routes.filter(r => KNOWN_CATCH_ALL_ROUTES.includes(r.path as any)).length;
+      const knownCatchAllCount = routes.filter(r => isKnownCatchAll(r.path)).length;
       const unknownCatchAllCount = catchAllCount - knownCatchAllCount;
       const protectedCount = routes.filter(r => !isPublicRoute(r.path) && !r.path.includes('/*')).length;
       const totalCount = routes.length;
@@ -363,8 +371,8 @@ describe('Route Authentication Coverage', () => {
     it('should list all known catch-all routes for audit', () => {
       const routes = app.routes;
       const catchAllRoutes = routes.filter(r => r.path.includes('/*'));
-      const knownRoutes = catchAllRoutes.filter(r => KNOWN_CATCH_ALL_ROUTES.includes(r.path as any));
-      const unknownRoutes = catchAllRoutes.filter(r => !KNOWN_CATCH_ALL_ROUTES.includes(r.path as any));
+      const knownRoutes = catchAllRoutes.filter(r => isKnownCatchAll(r.path));
+      const unknownRoutes = catchAllRoutes.filter(r => !isKnownCatchAll(r.path));
 
       console.log(`\n🎯 Catch-All Routes:`);
       console.log(`   Known (approved):`);
