@@ -308,6 +308,61 @@ export class SemiontApiClient {
     return { data, contentType };
   }
 
+  /**
+   * Get resource representation as a stream using W3C content negotiation
+   * Returns streaming binary content (for large files: videos, large PDFs, etc.)
+   *
+   * Use this for large files to avoid loading entire content into memory.
+   * The stream is consumed incrementally and the backend connection stays open
+   * until the stream is fully consumed or closed.
+   *
+   * @param resourceUri - Full resource URI
+   * @param options - Options including Accept header for content negotiation
+   * @returns Object with stream (ReadableStream) and contentType (string)
+   *
+   * @example
+   * ```typescript
+   * // Stream large file
+   * const { stream, contentType } = await client.getResourceRepresentationStream(rUri, {
+   *   accept: 'video/mp4'
+   * });
+   *
+   * // Consume stream chunk by chunk (never loads entire file into memory)
+   * for await (const chunk of stream) {
+   *   // Process chunk
+   *   console.log(`Received ${chunk.length} bytes`);
+   * }
+   *
+   * // Or pipe to a file in Node.js
+   * const fileStream = fs.createWriteStream('output.mp4');
+   * const reader = stream.getReader();
+   * while (true) {
+   *   const { done, value } = await reader.read();
+   *   if (done) break;
+   *   fileStream.write(value);
+   * }
+   * ```
+   */
+  async getResourceRepresentationStream(
+    resourceUri: ResourceUri,
+    options?: { accept?: ContentFormat }
+  ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
+    // resourceUri is already a full URI, use it directly with Accept header
+    const response = await this.http.get(resourceUri, {
+      headers: {
+        Accept: options?.accept || 'text/plain'
+      }
+    });
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+
+    if (!response.body) {
+      throw new Error('Response body is null - cannot create stream');
+    }
+
+    return { stream: response.body, contentType };
+  }
+
   async listResources(
     limit?: number,
     archived?: boolean,

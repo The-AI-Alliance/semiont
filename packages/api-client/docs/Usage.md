@@ -154,11 +154,46 @@ const { data, contentType } = await client.getResourceRepresentation(rUri, {
 ```
 
 **Use Cases:**
+- Small to medium files (< 10MB)
 - Load text content for editing in a text editor
 - Clone resource content to create new documents
-- Download binary files (images, PDFs)
 - Create object URLs for displaying media with correct MIME type
 - Display raw content in the UI
+
+**For large files (videos, large PDFs, datasets), use streaming instead:**
+
+```typescript
+// Stream large video file (never loads entire file into memory)
+const { stream, contentType } = await client.getResourceRepresentationStream(rUri, {
+  accept: 'video/mp4'
+});
+
+// Option 1: Process chunks as they arrive
+const reader = stream.getReader();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+
+  // Process chunk (value is Uint8Array)
+  console.log(`Received ${value.length} bytes`);
+  processChunk(value);
+}
+
+// Option 2: Use async iteration
+for await (const chunk of stream) {
+  processChunk(chunk);
+}
+
+// Option 3: Pipe directly to a file (Node.js)
+const fileStream = fs.createWriteStream('large-file.mp4');
+await stream.pipeTo(Writable.toWeb(fileStream));
+```
+
+**Streaming benefits:**
+- Never loads entire file into memory
+- Backend connection stays open until stream consumed
+- Lower latency - starts processing immediately
+- Perfect for proxying large content
 
 ### Updating Resources
 

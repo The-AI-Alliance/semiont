@@ -49,13 +49,15 @@ export async function GET(
       accessToken: session.backendToken as AccessToken,
     });
 
-    // Get resource representation using api-client
+    // Get resource representation as stream (avoids loading entire file into memory)
     const rUri = resourceUri(`${backendUrl}/resources/${id}`);
-    const { data, contentType } = await client.getResourceRepresentation(rUri as ResourceUri, {
+    const { stream, contentType } = await client.getResourceRepresentationStream(rUri as ResourceUri, {
       accept: acceptHeader as ContentFormat,
     });
 
-    return new NextResponse(data, {
+    // Stream through to client - NextResponse accepts ReadableStream
+    // Backend connection stays open until stream is fully consumed
+    return new NextResponse(stream, {
       status: 200,
       headers: {
         'Content-Type': contentType,

@@ -14,7 +14,7 @@ vi.mock('ky', () => ({
 
 import ky from 'ky';
 import { SemiontApiClient } from '../client';
-import type { ResourceUri, ResourceAnnotationUri } from '../branded-types';
+import type { ResourceUri, ResourceAnnotationUri, ContentFormat } from '../branded-types';
 import { baseUrl, entityType, jobId } from '../branded-types';
 
 describe('SemiontApiClient - Archive Operations', () => {
@@ -644,6 +644,79 @@ describe('SemiontApiClient - Archive Operations', () => {
           },
         })
       );
+    });
+  });
+
+  describe('Streaming Content Negotiation', () => {
+    test('should get resource representation as stream', async () => {
+      const mockData = new Uint8Array([1, 2, 3, 4, 5]);
+      const mockStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(mockData);
+          controller.close();
+        }
+      });
+
+      vi.mocked(mockKy.get).mockReturnValue({
+        headers: {
+          get: vi.fn((header: string) => header === 'content-type' ? 'video/mp4' : null)
+        },
+        body: mockStream,
+      } as any);
+
+      const result = await client.getResourceRepresentationStream(testResourceUri, {
+        accept: 'video/mp4' as ContentFormat,
+      });
+
+      expect(result.stream).toBeInstanceOf(ReadableStream);
+      expect(result.contentType).toBe('video/mp4');
+      expect(mockKy.get).toHaveBeenCalledWith(
+        testResourceUri,
+        expect.objectContaining({
+          headers: {
+            Accept: 'video/mp4',
+          },
+        })
+      );
+
+      // Verify stream can be consumed
+      const reader = result.stream.getReader();
+      const { value, done } = await reader.read();
+      expect(done).toBe(false);
+      expect(value).toEqual(mockData);
+    });
+
+    test('should throw error if response body is null', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        headers: {
+          get: vi.fn(() => 'text/plain')
+        },
+        body: null,
+      } as any);
+
+      await expect(
+        client.getResourceRepresentationStream(testResourceUri)
+      ).rejects.toThrow('Response body is null - cannot create stream');
+    });
+
+    test('should use default content type if header missing', async () => {
+      const mockStream = new ReadableStream({
+        start(controller) {
+          controller.close();
+        }
+      });
+
+      vi.mocked(mockKy.get).mockReturnValue({
+        headers: {
+          get: vi.fn(() => null)
+        },
+        body: mockStream,
+      } as any);
+
+      const result = await client.getResourceRepresentationStream(testResourceUri);
+
+      expect(result.contentType).toBe('application/octet-stream');
+      expect(result.stream).toBeInstanceOf(ReadableStream);
     });
   });
 });
