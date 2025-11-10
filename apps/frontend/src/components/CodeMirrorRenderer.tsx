@@ -5,7 +5,7 @@ import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, lineNumb
 import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { getAnnotationClassName } from '@/lib/annotation-registry';
-import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
+import { ReferenceResolutionWidget } from '@/lib/codemirror-widgets';
 import { isHighlight, isReference, isResolvedReference, isComment, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import '@/styles/animations.css';
@@ -34,8 +34,7 @@ interface Props {
   scrollToAnnotationId?: string | null;
   sourceView?: boolean; // If true, show raw source (no markdown rendering)
   showLineNumbers?: boolean; // If true, show line numbers
-  enableWidgets?: boolean; // If true, show inline widgets (wiki links, reference previews, entity badges)
-  onWikiLinkClick?: (pageName: string) => void;
+  enableWidgets?: boolean; // If true, show inline widgets (reference previews, entity badges)
   onEntityTypeClick?: (entityType: string) => void;
   onReferenceNavigate?: (documentId: string) => void;
   onUnresolvedReferenceClick?: (annotation: Annotation) => void;
@@ -59,7 +58,6 @@ interface WidgetUpdate {
   segments: TextSegment[];
   generatingReferenceId?: string | null | undefined;
   callbacks: {
-    onWikiLinkClick?: (pageName: string) => void;
     onEntityTypeClick?: (entityType: string) => void;
     onReferenceNavigate?: (documentId: string) => void;
     onUnresolvedReferenceClick?: (annotation: Annotation) => void;
@@ -147,7 +145,6 @@ function buildWidgetDecorations(
   segments: TextSegment[],
   generatingReferenceId: string | null | undefined,
   callbacks: {
-    onWikiLinkClick?: (pageName: string) => void;
     onEntityTypeClick?: (entityType: string) => void;
     onReferenceNavigate?: (documentId: string) => void;
     onUnresolvedReferenceClick?: (annotation: Annotation) => void;
@@ -241,7 +238,6 @@ export function CodeMirrorRenderer({
   sourceView = false,
   showLineNumbers = false,
   enableWidgets = false,
-  onWikiLinkClick,
   onEntityTypeClick,
   onReferenceNavigate,
   onUnresolvedReferenceClick,
@@ -274,7 +270,6 @@ export function CodeMirrorRenderer({
   // Update callbacks ref when they change
   useEffect(() => {
     callbacksRef.current = {
-      ...(onWikiLinkClick && { onWikiLinkClick }),
       ...(onEntityTypeClick && { onEntityTypeClick }),
       ...(onReferenceNavigate && { onReferenceNavigate }),
       ...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick }),
@@ -285,7 +280,7 @@ export function CodeMirrorRenderer({
       ...(onAnnotationRightClick && { onAnnotationRightClick }),
       ...(onAnnotationHover && { onAnnotationHover })
     };
-  }, [onWikiLinkClick, onEntityTypeClick, onReferenceNavigate, onUnresolvedReferenceClick, getTargetDocumentName, onDeleteAnnotation, onConvertAnnotation, onAnnotationClick, onAnnotationRightClick, onAnnotationHover]);
+  }, [onEntityTypeClick, onReferenceNavigate, onUnresolvedReferenceClick, getTargetDocumentName, onDeleteAnnotation, onConvertAnnotation, onAnnotationClick, onAnnotationRightClick, onAnnotationHover]);
 
   // Initialize CodeMirror view once
   useEffect(() => {

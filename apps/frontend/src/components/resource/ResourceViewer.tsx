@@ -22,7 +22,6 @@ interface Props {
   assessments: Annotation[];
   comments: Annotation[];
   onRefetchAnnotations?: () => void;
-  onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
   onGenerateDocument?: (referenceId: AnnotationUri, options: { title: string; prompt?: string }) => void;
   generatingReferenceId?: string | null;
@@ -43,7 +42,6 @@ export function ResourceViewer({
   assessments,
   comments,
   onRefetchAnnotations,
-  onWikiLinkClick,
   curationMode = false,
   onGenerateDocument,
   generatingReferenceId,
@@ -474,7 +472,6 @@ export function ResourceViewer({
             {...(hoveredCommentId !== undefined && { hoveredCommentId })}
             {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
             enableWidgets={true}
-            {...(onWikiLinkClick && { onWikiLinkClick })}
             onEntityTypeClick={(entityType) => {
               router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
             }}
@@ -507,7 +504,6 @@ export function ResourceViewer({
             {...(hoveredCommentId !== undefined && { hoveredCommentId })}
             {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
             enableWidgets={true}
-            {...(onWikiLinkClick && { onWikiLinkClick })}
             onEntityTypeClick={(entityType) => {
               router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
             }}
@@ -535,7 +531,6 @@ export function ResourceViewer({
           onAnnotationClick={handleAnnotationClick}
           {...(onCommentHover && { onCommentHover })}
           {...(hoveredCommentId !== undefined && { hoveredCommentId })}
-          {...(onWikiLinkClick && { onWikiLinkClick })}
         />
       )}
       

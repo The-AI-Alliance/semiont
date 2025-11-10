@@ -243,7 +243,8 @@ export function useAnnotations() {
           },
           onSuccess: () => {
             // Invalidate all annotation and event queries
-            queryClient.invalidateQueries({ queryKey: ['documents'] });
+            // Use 'resources' not 'documents' since all keys start with 'resources'
+            queryClient.invalidateQueries({ queryKey: ['resources'] });
             queryClient.invalidateQueries({ queryKey: ['annotations'] });
           },
         }),

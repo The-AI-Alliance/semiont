@@ -237,15 +237,19 @@ export class ViewMaterializer {
         break;
 
       case 'annotation.removed':
+        // payload.annotationId is just the UUID, but a.id might be full URI or plain ID
+        // Handle both: plain ID ('anno1') and full URI ('http://.../annotations/anno1')
         annotations.annotations = annotations.annotations.filter(
-          (a: Annotation) => a.id !== event.payload.annotationId
+          (a: Annotation) => a.id !== event.payload.annotationId && !a.id.endsWith(`/annotations/${event.payload.annotationId}`)
         );
         break;
 
       case 'annotation.body.updated':
         // Find annotation by ID
+        // payload.annotationId is just the UUID, but a.id might be full URI or plain ID
+        // Handle both: plain ID ('anno1') and full URI ('http://.../annotations/anno1')
         const annotation = annotations.annotations.find((a: Annotation) =>
-          a.id === event.payload.annotationId
+          a.id === event.payload.annotationId || a.id.endsWith(`/annotations/${event.payload.annotationId}`)
         );
         if (annotation) {
           // Ensure body is an array

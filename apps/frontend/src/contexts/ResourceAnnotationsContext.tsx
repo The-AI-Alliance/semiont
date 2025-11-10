@@ -316,8 +316,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
 
   const deleteAnnotation = useCallback(async (annotationId: string, rUri: ResourceUri) => {
     try {
+      // annotationId might be a full URI or just a UUID - extract the UUID
+      const annotationIdSegment = annotationId.split('/').pop() || annotationId;
       await deleteAnnotationMutation.mutateAsync(
-        resourceAnnotationUri(`${rUri}/annotations/${annotationId}`)
+        resourceAnnotationUri(`${rUri}/annotations/${annotationIdSegment}`)
       );
     } catch (err) {
       console.error('Failed to delete annotation:', err);
@@ -344,8 +346,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       if (!targetSource) {
         throw new Error('Highlight has no target source');
       }
+      // highlightId might be a full URI or just a UUID - extract the UUID
+      const highlightIdSegment = highlightId.split('/').pop() || highlightId;
       await deleteAnnotationMutation.mutateAsync(
-        resourceAnnotationUri(`${targetSource}/annotations/${highlightId}`)
+        resourceAnnotationUri(`${targetSource}/annotations/${highlightIdSegment}`)
       );
 
       // Create new reference with same position
@@ -381,8 +385,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       if (!targetSource) {
         throw new Error('Reference has no target source');
       }
+      // referenceId might be a full URI or just a UUID - extract the UUID
+      const referenceIdSegment = referenceId.split('/').pop() || referenceId;
       await deleteAnnotationMutation.mutateAsync(
-        resourceAnnotationUri(`${targetSource}/annotations/${referenceId}`)
+        resourceAnnotationUri(`${targetSource}/annotations/${referenceIdSegment}`)
       );
 
       // Create new highlight with same position

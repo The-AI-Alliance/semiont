@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resourceId, userId, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
-import { resourceUri } from '@semiont/api-client';
+import { resourceUri, jobId } from '@semiont/api-client';
 import type { EventStore } from '../../events/event-store';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -42,7 +42,7 @@ describe('SSE Event Flow - End-to-End', () => {
   it('should flow detection events from worker to SSE subscriber', async () => {
     const rId = resourceId('resource-e2e-1');
     const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
-    const jobId = resourceId('job-e2e-1');
+    const testJobId = jobId('job-e2e-1');
     const receivedEvents: any[] = [];
 
     // Simulate SSE endpoint subscribing to Event Store
@@ -50,13 +50,13 @@ describe('SSE Event Flow - End-to-End', () => {
       const event = storedEvent.event;
 
       // Filter for this specific job (like SSE endpoint does)
-      if (event.type === 'job.started' && event.payload.jobId === jobId) {
+      if (event.type === 'job.started' && event.payload.jobId === testJobId) {
         receivedEvents.push({ type: 'job.started', event: event });
       }
-      if (event.type === 'job.progress' && event.payload.jobId === jobId) {
+      if (event.type === 'job.progress' && event.payload.jobId === testJobId) {
         receivedEvents.push({ type: 'job.progress', event: event });
       }
-      if (event.type === 'job.completed' && event.payload.jobId === jobId) {
+      if (event.type === 'job.completed' && event.payload.jobId === testJobId) {
         receivedEvents.push({ type: 'job.completed', event: event });
       }
     });
@@ -68,7 +68,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'detection',
         totalSteps: 3
       }
@@ -80,7 +80,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'detection',
         percentage: 33,
         currentStep: 'Person',
@@ -97,7 +97,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'detection',
         percentage: 66,
         currentStep: 'Organization',
@@ -114,7 +114,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'detection',
         totalSteps: 3,
         foundCount: 7,
@@ -139,14 +139,14 @@ describe('SSE Event Flow - End-to-End', () => {
   it('should flow generation events from worker to SSE subscriber', async () => {
     const rId = resourceId('resource-e2e-2');
     const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
-    const jobId = resourceId('job-e2e-2');
+    const testJobId = jobId('job-e2e-2');
     const receivedEvents: any[] = [];
 
     const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
       const event = storedEvent.event;
 
       if ((event.type === 'job.started' || event.type === 'job.progress' || event.type === 'job.completed')
-          && event.payload.jobId === jobId) {
+          && event.payload.jobId === testJobId) {
         receivedEvents.push({
           type: event.type,
           stage: event.type === 'job.progress' ? event.payload.currentStep : null,
@@ -162,7 +162,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'generation',
         totalSteps: 5
       }
@@ -182,7 +182,7 @@ describe('SSE Event Flow - End-to-End', () => {
         userId: userId('user-1'),
         version: 1,
         payload: {
-          jobId,
+          jobId: testJobId,
           jobType: 'generation',
           percentage: stage.percentage,
           currentStep: stage.step,
@@ -197,7 +197,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'generation',
         resultResourceId: resourceId('new-resource-id'),
         message: 'Draft resource created!'
@@ -220,14 +220,14 @@ describe('SSE Event Flow - End-to-End', () => {
   it('should handle job failure events', async () => {
     const rId = resourceId('resource-e2e-3');
     const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
-    const jobId = resourceId('job-e2e-3');
+    const testJobId = jobId('job-e2e-3');
     const receivedEvents: any[] = [];
 
     const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
       const event = storedEvent.event;
 
       if ((event.type === 'job.started' || event.type === 'job.progress' || event.type === 'job.failed')
-          && event.payload.jobId === jobId) {
+          && event.payload.jobId === testJobId) {
         receivedEvents.push({
           type: event.type,
           error: event.type === 'job.failed' ? event.payload.error : null
@@ -242,7 +242,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'detection',
         totalSteps: 3
       }
@@ -255,7 +255,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'detection',
         percentage: 50,
         currentStep: 'Person',
@@ -270,7 +270,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'detection',
         error: 'AI service unavailable',
         details: 'Connection timeout after 30s'
@@ -291,8 +291,8 @@ describe('SSE Event Flow - End-to-End', () => {
   it('should filter events by jobId correctly', async () => {
     const rId = resourceId('resource-e2e-4');
     const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
-    const jobId1 = 'job-e2e-4a';
-    const jobId2 = 'job-e2e-4b';
+    const jobId1 = jobId('job-e2e-4a');
+    const jobId2 = jobId('job-e2e-4b');
     const receivedJob1Events: any[] = [];
 
     // Subscribe to events for jobId1 only
@@ -353,7 +353,7 @@ describe('SSE Event Flow - End-to-End', () => {
   it('should handle multiple concurrent subscribers', async () => {
     const rId = resourceId('resource-e2e-5');
     const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
-    const jobId = resourceId('job-e2e-5');
+    const testJobId = jobId('job-e2e-5');
     const subscriber1Events: any[] = [];
     const subscriber2Events: any[] = [];
     const subscriber3Events: any[] = [];
@@ -378,7 +378,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'detection',
         totalSteps: 2
       }
@@ -390,7 +390,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'detection'
       }
     });
@@ -410,7 +410,7 @@ describe('SSE Event Flow - End-to-End', () => {
   it('should maintain low latency (<50ms from emit to notify)', async () => {
     const rId = resourceId('resource-e2e-6');
     const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
-    const jobId = resourceId('job-e2e-6');
+    const testJobId = jobId('job-e2e-6');
     let notifyTime: number | null = null;
 
     const subscription = eventStore.bus.subscriptions.subscribe(rUri, async () => {
@@ -424,7 +424,7 @@ describe('SSE Event Flow - End-to-End', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        jobId,
+        jobId: testJobId,
         jobType: 'detection',
         percentage: 50
       }

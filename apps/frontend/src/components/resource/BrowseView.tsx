@@ -27,7 +27,6 @@ interface Props {
   onCommentHover?: (commentId: string | null) => void;
   hoveredAnnotationId?: string | null;
   hoveredCommentId?: string | null;
-  onWikiLinkClick?: (pageName: string) => void;
 }
 
 /**

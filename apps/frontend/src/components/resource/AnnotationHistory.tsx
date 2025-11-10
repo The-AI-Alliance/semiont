@@ -3,7 +3,7 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useResources } from '@/lib/api-hooks';
-import { type StoredEvent, type AnnotationUri, type ResourceUri, isEventRelatedToAnnotation, annotationUri } from '@semiont/api-client';
+import { type StoredEvent, type ResourceUri, getAnnotationUriFromEvent } from '@semiont/api-client';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
@@ -32,13 +32,13 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sort events by oldest first (most recent at bottom)
-  // Filter out job.started and job.progress events (only show job.completed)
+  // Filter out all job events - they're represented by annotation.body.updated events instead
   const events = useMemo(() => {
     if (!eventsData?.events) return [];
     return [...eventsData.events]
       .filter((e: StoredEvent) => {
         const eventType = e.event.type;
-        return eventType !== 'job.started' && eventType !== 'job.progress';
+        return eventType !== 'job.started' && eventType !== 'job.progress' && eventType !== 'job.completed';
       })
       .sort((a: StoredEvent, b: StoredEvent) =>
         a.metadata.sequenceNumber - b.metadata.sequenceNumber
@@ -101,7 +101,13 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
       </h3>
       <div ref={containerRef} className="space-y-1.5 overflow-y-auto flex-1 min-h-0">
         {events.map((stored) => {
-          const isRelated = hoveredAnnotationId ? isEventRelatedToAnnotation(stored, annotationUri(hoveredAnnotationId)) : false;
+          // Check if event is related to the hovered annotation
+          const isRelated = hoveredAnnotationId ? (() => {
+            const eventUri = getAnnotationUriFromEvent(stored);
+            if (!eventUri) return false;
+            // Direct comparison - both should be full URIs
+            return eventUri === hoveredAnnotationId;
+          })() : false;
 
           return (
             <HistoryEvent
