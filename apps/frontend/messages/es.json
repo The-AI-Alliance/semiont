@@ -287,7 +287,9 @@
     "saveClonedResource": "Guardar Recurso Clonado",
     "createAndLinkResource": "Crear y Vincular Recurso",
     "createResource": "Crear Recurso",
-    "loading": "Cargando..."
+    "loading": "Cargando...",
+    "language": "Idioma",
+    "languageHint": "Selecciona el idioma de este recurso"
   },
   "Toolbar": {
     "browseMode": "Modo Exploración",

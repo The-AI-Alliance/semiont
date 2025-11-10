@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -11,13 +11,14 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getPrimaryMediaType, getResourceId, isImageMimeType, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat } from '@semiont/api-client';
+import { getPrimaryMediaType, getResourceId, isImageMimeType, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat, LOCALES } from '@semiont/api-client';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 
 function ComposeDocumentContent() {
   const t = useTranslations('Compose');
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
@@ -53,6 +54,9 @@ function ComposeDocumentContent() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [fileMimeType, setFileMimeType] = useState<string>('text/markdown');
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+
+  // Language selection - default to current user locale
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(locale);
 
   // Toolbar and settings state
   const { activePanel, togglePanel } = useToolbar();
@@ -222,6 +226,7 @@ function ComposeDocumentContent() {
           file: fileToUpload,
           format: mimeType,
           entityTypes: selectedEntityTypes,
+          language: selectedLanguage,
           creationMethod: 'ui'
         });
 
@@ -336,80 +341,6 @@ function ComposeDocumentContent() {
             />
           </div>
 
-          {/* Entity Types Selection */}
-          {(!isReferenceCompletion || selectedEntityTypes.length === 0) && (
-            <fieldset>
-              <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('entityTypes')}
-              </legend>
-              <div
-                className="flex flex-wrap gap-2 mb-2"
-                role="group"
-                aria-describedby="entity-types-description"
-              >
-                {availableEntityTypes.map((type: string) => {
-                  const isSelected = selectedEntityTypes.includes(type);
-                  return (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => {
-                        setSelectedEntityTypes(prev =>
-                          prev.includes(type)
-                            ? prev.filter(t => t !== type)
-                            : [...prev, type]
-                        );
-                      }}
-                      className={`px-3 py-1 rounded-full text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                        isSelected
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                      disabled={isCreating}
-                      aria-pressed={isSelected}
-                      aria-label={`${type} entity type, ${isSelected ? 'selected' : 'not selected'}`}
-                    >
-                      {type}
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedEntityTypes.length > 0 && (
-                <div
-                  className="sr-only"
-                  aria-live="polite"
-                  aria-atomic="true"
-                >
-                  {selectedEntityTypes.length} entity type{selectedEntityTypes.length !== 1 ? 's' : ''} selected: {selectedEntityTypes.join(', ')}
-                </div>
-              )}
-            </fieldset>
-          )}
-
-          {/* Entity Types Display for reference completion */}
-          {isReferenceCompletion && selectedEntityTypes.length > 0 && (
-            <div role="region" aria-labelledby="selected-entity-types-label">
-              <h3 id="selected-entity-types-label" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('entityTypes')}
-              </h3>
-              <div className="flex flex-wrap gap-2" role="list">
-                {selectedEntityTypes.map((type) => (
-                  <span
-                    key={type}
-                    role="listitem"
-                    className="px-3 py-1 rounded-full text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700"
-                    aria-label={`Entity type: ${type}`}
-                  >
-                    {type}
-                  </span>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400" id="reference-entity-types-description">
-                These entity types were selected when creating the reference
-              </p>
-            </div>
-          )}
-
           {/* File Upload */}
           {!isClone && !isReferenceCompletion && (
             <div>
@@ -485,6 +416,80 @@ function ComposeDocumentContent() {
             </div>
           )}
 
+          {/* Entity Types Selection */}
+          {(!isReferenceCompletion || selectedEntityTypes.length === 0) && (
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t('entityTypes')}
+              </legend>
+              <div
+                className="flex flex-wrap gap-2 mb-2"
+                role="group"
+                aria-describedby="entity-types-description"
+              >
+                {availableEntityTypes.map((type: string) => {
+                  const isSelected = selectedEntityTypes.includes(type);
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        setSelectedEntityTypes(prev =>
+                          prev.includes(type)
+                            ? prev.filter(t => t !== type)
+                            : [...prev, type]
+                        );
+                      }}
+                      className={`px-3 py-1 rounded-full text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                        isSelected
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                      disabled={isCreating}
+                      aria-pressed={isSelected}
+                      aria-label={`${type} entity type, ${isSelected ? 'selected' : 'not selected'}`}
+                    >
+                      {type}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedEntityTypes.length > 0 && (
+                <div
+                  className="sr-only"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {selectedEntityTypes.length} entity type{selectedEntityTypes.length !== 1 ? 's' : ''} selected: {selectedEntityTypes.join(', ')}
+                </div>
+              )}
+            </fieldset>
+          )}
+
+          {/* Entity Types Display for reference completion */}
+          {isReferenceCompletion && selectedEntityTypes.length > 0 && (
+            <div role="region" aria-labelledby="selected-entity-types-label">
+              <h3 id="selected-entity-types-label" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t('entityTypes')}
+              </h3>
+              <div className="flex flex-wrap gap-2" role="list">
+                {selectedEntityTypes.map((type) => (
+                  <span
+                    key={type}
+                    role="listitem"
+                    className="px-3 py-1 rounded-full text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700"
+                    aria-label={`Entity type: ${type}`}
+                  >
+                    {type}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400" id="reference-entity-types-description">
+                These entity types were selected when creating the reference
+              </p>
+            </div>
+          )}
+
           {isClone && (
             <div className="flex items-center">
               <input
@@ -501,24 +506,46 @@ function ComposeDocumentContent() {
             </div>
           )}
 
-          <div className="flex gap-4 justify-end">
-            <button
-              type="button"
-              onClick={() => router.push('/know/discover')}
-              disabled={isCreating}
-              className={buttonStyles.tertiary.base}
-            >
-              {t('cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={isCreating || !newDocName.trim()}
-              className={buttonStyles.primary.base}
-            >
-              {isCreating
-                ? (isClone ? t('saving') : isReferenceCompletion ? t('creatingAndLinking') : t('creating'))
-                : (isClone ? t('saveClonedResource') : isReferenceCompletion ? t('createAndLinkResource') : t('createResource'))}
-            </button>
+          <div className="flex gap-4 justify-between items-center">
+            {/* Language/Locale Selector */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="language-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                {t('language')}:
+              </label>
+              <select
+                id="language-select"
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                disabled={isCreating}
+                className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+              >
+                {LOCALES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.nativeName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => router.push('/know/discover')}
+                disabled={isCreating}
+                className={buttonStyles.tertiary.base}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={isCreating || !newDocName.trim()}
+                className={buttonStyles.primary.base}
+              >
+                {isCreating
+                  ? (isClone ? t('saving') : isReferenceCompletion ? t('creatingAndLinking') : t('creating'))
+                  : (isClone ? t('saveClonedResource') : isReferenceCompletion ? t('createAndLinkResource') : t('createResource'))}
+              </button>
+            </div>
           </div>
         </form>
       </div>
