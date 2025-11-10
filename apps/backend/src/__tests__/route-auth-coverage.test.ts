@@ -36,6 +36,24 @@ const PUBLIC_ROUTES = [
   '/api/openapi.json',
 ] as const;
 
+// Known catch-all routes (middleware, 404 handlers, etc.)
+// If you add one here, justify it in a comment
+const KNOWN_CATCH_ALL_ROUTES = [
+  // 404 handler for non-existent API routes
+  '/api/*',
+
+  // Auth middleware routes (applied via router.use())
+  // These don't handle requests directly - they run middleware before specific routes
+  '/*',  // Global middleware (CORS, config injection, logging)
+  '/api/admin/*',  // Admin routes auth middleware
+  '/api/resources/*',  // API resource routes auth middleware
+  '/resources/*',  // W3C resource URI routes auth middleware
+  '/api/annotations/*',  // API annotation routes auth middleware
+  '/annotations/*',  // W3C annotation URI routes auth middleware
+  '/api/entity-types/*',  // Entity types routes auth middleware
+  '/api/jobs/*',  // Jobs routes auth middleware
+] as const;
+
 // Helper to check if a path matches a public route
 function isPublicRoute(path: string): boolean {
   return PUBLIC_ROUTES.some(publicRoute => {
@@ -110,9 +128,18 @@ describe('Route Authentication Coverage', () => {
           continue;
         }
 
-        // Skip catch-all 404 handlers
+        // Handle catch-all routes (routes with /*)
         if (pattern.includes('/*')) {
-          skipped.push({ method, path: pattern, reason: 'catch-all handler' });
+          // Only allow known catch-all routes
+          if (!KNOWN_CATCH_ALL_ROUTES.includes(pattern as any)) {
+            failures.push({
+              method,
+              path: pattern,
+              status: 0,
+              body: `SECURITY ERROR: Unexpected catch-all route "${pattern}" detected. If this is intentional, add it to KNOWN_CATCH_ALL_ROUTES with a justification comment.`,
+            });
+          }
+          skipped.push({ method, path: pattern, reason: 'known catch-all handler' });
           continue;
         }
 
@@ -182,8 +209,18 @@ describe('Route Authentication Coverage', () => {
         const method = route.method;
         const pattern = route.path;
 
-        // Skip public routes and catch-all handlers
-        if (isPublicRoute(pattern) || pattern.includes('/*')) {
+        // Skip public routes and known catch-all handlers
+        if (isPublicRoute(pattern) || KNOWN_CATCH_ALL_ROUTES.includes(pattern as any)) {
+          continue;
+        }
+
+        // Fail on unknown catch-all routes
+        if (pattern.includes('/*')) {
+          failures.push({
+            method,
+            path: pattern,
+            status: 0,
+          });
           continue;
         }
 
@@ -235,7 +272,17 @@ describe('Route Authentication Coverage', () => {
           const method = route.method;
           const pattern = route.path;
 
-          if (isPublicRoute(pattern) || pattern.includes('/*')) {
+          if (isPublicRoute(pattern) || KNOWN_CATCH_ALL_ROUTES.includes(pattern as any)) {
+            continue;
+          }
+
+          // Fail on unknown catch-all routes
+          if (pattern.includes('/*')) {
+            failures.push({
+              method,
+              path: pattern,
+              status: 0,
+            });
             continue;
           }
 
@@ -278,6 +325,8 @@ describe('Route Authentication Coverage', () => {
       const routes = app.routes;
       const publicCount = routes.filter(r => isPublicRoute(r.path)).length;
       const catchAllCount = routes.filter(r => r.path.includes('/*')).length;
+      const knownCatchAllCount = routes.filter(r => KNOWN_CATCH_ALL_ROUTES.includes(r.path as any)).length;
+      const unknownCatchAllCount = catchAllCount - knownCatchAllCount;
       const protectedCount = routes.filter(r => !isPublicRoute(r.path) && !r.path.includes('/*')).length;
       const totalCount = routes.length;
 
@@ -285,11 +334,17 @@ describe('Route Authentication Coverage', () => {
       console.log(`   Total routes: ${totalCount}`);
       console.log(`   Public routes: ${publicCount} (${Math.round(publicCount / totalCount * 100)}%)`);
       console.log(`   Protected routes: ${protectedCount} (${Math.round(protectedCount / totalCount * 100)}%)`);
-      console.log(`   Catch-all handlers: ${catchAllCount}`);
+      console.log(`   Known catch-all handlers: ${knownCatchAllCount}`);
+      if (unknownCatchAllCount > 0) {
+        console.log(`   ⚠️  UNKNOWN catch-all handlers: ${unknownCatchAllCount}`);
+      }
 
       // Verify we have a reasonable ratio (most routes should be protected)
       expect(protectedCount).toBeGreaterThan(publicCount);
       expect(protectedCount).toBeGreaterThan(10); // Should have at least 10 protected routes
+
+      // SECURITY: No unknown catch-all routes allowed
+      expect(unknownCatchAllCount).toBe(0);
     });
 
     it('should list all public routes for audit', () => {
@@ -303,6 +358,29 @@ describe('Route Authentication Coverage', () => {
 
       // Verify public routes match our documented list (approximately)
       expect(publicRoutes.length).toBeLessThanOrEqual(PUBLIC_ROUTES.length + 5); // Allow some flexibility for route patterns
+    });
+
+    it('should list all known catch-all routes for audit', () => {
+      const routes = app.routes;
+      const catchAllRoutes = routes.filter(r => r.path.includes('/*'));
+      const knownRoutes = catchAllRoutes.filter(r => KNOWN_CATCH_ALL_ROUTES.includes(r.path as any));
+      const unknownRoutes = catchAllRoutes.filter(r => !KNOWN_CATCH_ALL_ROUTES.includes(r.path as any));
+
+      console.log(`\n🎯 Catch-All Routes:`);
+      console.log(`   Known (approved):`);
+      knownRoutes.forEach(r => {
+        console.log(`      ${r.method.padEnd(6)} ${r.path}`);
+      });
+
+      if (unknownRoutes.length > 0) {
+        console.log(`   ⚠️  UNKNOWN (requires approval):`);
+        unknownRoutes.forEach(r => {
+          console.log(`      ${r.method.padEnd(6)} ${r.path}`);
+        });
+      }
+
+      // All catch-all routes must be in the known list
+      expect(unknownRoutes.length).toBe(0);
     });
   });
 
