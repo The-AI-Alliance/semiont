@@ -32,13 +32,13 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sort events by oldest first (most recent at bottom)
-  // Filter out job.started and job.progress events (only show job.completed)
+  // Filter out all job events - they're represented by annotation.body.updated events instead
   const events = useMemo(() => {
     if (!eventsData?.events) return [];
     return [...eventsData.events]
       .filter((e: StoredEvent) => {
         const eventType = e.event.type;
-        return eventType !== 'job.started' && eventType !== 'job.progress';
+        return eventType !== 'job.started' && eventType !== 'job.progress' && eventType !== 'job.completed';
       })
       .sort((a: StoredEvent, b: StoredEvent) =>
         a.metadata.sequenceNumber - b.metadata.sequenceNumber

@@ -12,7 +12,7 @@
  */
 
 import type { CreationMethod } from './creation-methods';
-import type { components } from '@semiont/api-client';
+import type { components, AnnotationUri } from '@semiont/api-client';
 import type { ResourceId, AnnotationId, UserId } from './identifiers';
 
 // Import OpenAPI types
@@ -145,6 +145,7 @@ export interface JobCompletedEvent extends BaseEvent {
     totalSteps?: number;  // Total steps completed
     foundCount?: number;  // For detection: total entities found
     resultResourceId?: ResourceId;  // For generation: ID of generated resource (branded type)
+    annotationUri?: AnnotationUri;  // For generation: URI of annotation that triggered generation
     message?: string;  // Optional completion message
   };
 }

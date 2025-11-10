@@ -229,8 +229,9 @@ export function getEventDisplayContent(
     // Unified annotation events
     case 'annotation.body.updated': {
       // Find current annotation to get its text
+      // payload.annotationId is just the UUID, but annotation.id is the full URI
       const annotation = annotations.find(a =>
-        a.id === payload.annotationUri
+        a.id.endsWith(`/annotations/${payload.annotationId}`)
       );
 
       if (annotation?.target) {
@@ -249,9 +250,10 @@ export function getEventDisplayContent(
 
     case 'annotation.removed': {
       // Find the original annotation.added event to get the text
+      // payload.annotationId is just the UUID, but annotation.id in the added event is the full URI
       const addedEvent = allEvents.find(e =>
         e.event.type === 'annotation.added' &&
-        (e.event.payload as any).annotation?.id === payload.annotationUri
+        (e.event.payload as any).annotation?.id?.endsWith(`/annotations/${payload.annotationId}`)
       );
       if (addedEvent) {
         const addedPayload = addedEvent.event.payload as any;

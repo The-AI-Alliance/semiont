@@ -21,7 +21,7 @@ import {
   resourceId,
   annotationId,
 } from '@semiont/core';
-import { getExactText, resourceUri } from '@semiont/api-client';
+import { getExactText, resourceUri, annotationUri } from '@semiont/api-client';
 import { createEventStore } from '../../services/event-store-service';
 
 import { getEntityTypes } from '@semiont/api-client';
@@ -255,6 +255,7 @@ export class GenerationWorker extends JobWorker {
           jobId: genJob.id,
           jobType: genJob.type,
           resultResourceId: genJob.result?.resourceId,
+          annotationUri: annotationUri(`${this.config.services.backend!.publicURL}/annotations/${genJob.referenceId}`),
         },
       });
     } else if (genJob.progress) {
