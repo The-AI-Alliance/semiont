@@ -237,15 +237,23 @@ export class ViewMaterializer {
         break;
 
       case 'annotation.removed':
+        // payload.annotationId is just the UUID, but a.id is the full URI
+        console.log('[ViewMaterializer] Removing annotation:', event.payload.annotationId);
+        console.log('[ViewMaterializer] Annotations before filter:', annotations.annotations.map(a => a.id));
+        const beforeCount = annotations.annotations.length;
         annotations.annotations = annotations.annotations.filter(
-          (a: Annotation) => a.id !== event.payload.annotationId
+          (a: Annotation) => !a.id.endsWith(`/annotations/${event.payload.annotationId}`)
         );
+        const afterCount = annotations.annotations.length;
+        console.log('[ViewMaterializer] Annotations after filter:', annotations.annotations.map(a => a.id));
+        console.log('[ViewMaterializer] Removed count:', beforeCount - afterCount);
         break;
 
       case 'annotation.body.updated':
         // Find annotation by ID
+        // payload.annotationId is just the UUID, but a.id is the full URI
         const annotation = annotations.annotations.find((a: Annotation) =>
-          a.id === event.payload.annotationId
+          a.id.endsWith(`/annotations/${event.payload.annotationId}`)
         );
         if (annotation) {
           // Ensure body is an array

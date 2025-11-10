@@ -9,6 +9,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
+import { annotationUri } from '@semiont/api-client';
 import { resourceId, annotationId, userId } from '@semiont/core';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 
@@ -31,8 +32,10 @@ export function registerDeleteAnnotation(router: ResourcesRouterType) {
     );
 
     // Find the annotation in this resource's annotations
+    // Annotation IDs in the projection are full URIs, so construct the full URI for comparison
+    const fullAnnotationUri = annotationUri(`${config.services.backend!.publicURL}/annotations/${annotationIdParam}`);
     const annotation = projection.annotations.find(
-      (a: Annotation) => a.id === annotationIdParam
+      (a: Annotation) => a.id === fullAnnotationUri
     );
 
     if (!annotation) {
