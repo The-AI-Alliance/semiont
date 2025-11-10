@@ -1,24 +1,25 @@
 # @semiont/api-client
 
-**Primary TypeScript SDK for Semiont**
+## TypeScript SDK for Semiont
 
-> 🎯 **Use this package for all external integrations, demos, MCP servers, and frontend applications.**
->
-> This package provides a type-safe, spec-first SDK that includes:
-> - **API Client**: HTTP client for all backend endpoints
-> - **TypeScript Types**: Generated from OpenAPI specification
-> - **W3C Utilities**: Helpers for annotations, selectors, entity types, and locales
-> - **Event Utilities**: Formatting and display helpers for event streams
+🎯 **Use this package for all external integrations, demos, MCP servers, and frontend applications.**
+
+This package provides a type-safe, spec-first SDK that includes:
+
+- **API Client**: HTTP client for all backend endpoints
+- **TypeScript Types**: Generated from OpenAPI specification
+- **W3C Utilities**: Helpers for annotations, selectors, entity types, and locales
+- **Event Utilities**: Formatting and display helpers for event streams
 
 ## Installation
 
-\`\`\`bash
+```bash
 npm install @semiont/api-client
-\`\`\`
+```
 
 ## Quick Start
 
-\`\`\`typescript
+```typescript
 import { SemiontApiClient } from '@semiont/api-client';
 
 // Create client
@@ -38,13 +39,13 @@ const result = await client.createResource({
 });
 
 console.log('Created:', result.resource.id);
-\`\`\`
+```
 
 ## SSE Streaming
 
 For long-running operations, use Server-Sent Events (SSE) streaming for real-time progress updates:
 
-\`\`\`typescript
+```typescript
 // Stream entity detection progress
 const stream = client.sse.detectAnnotations(
   resourceId,
@@ -66,23 +67,23 @@ stream.onError((error) => {
 
 // Cleanup when done
 stream.close();
-\`\`\`
+```
 
 ### SSE Design Principles
 
 The SSE implementation (\`client.sse.*\`) follows these design principles:
 
 1. **Clear Separation**: SSE methods live in a separate namespace to distinguish streaming from request/response
-2. **Not ky-Based**: Uses native \`fetch()\` with manual SSE parsing for fine-grained control (ky is optimized for request/response, not streaming)
+2. **Not ky-Based**: Uses native `fetch()` with manual SSE parsing for fine-grained control (ky is optimized for request/response, not streaming)
 3. **Type-Safe Events**: All events have TypeScript interfaces derived from the OpenAPI specification
-4. **Consistent Callbacks**: All three methods use \`.onProgress()\`, \`.onComplete()\`, \`.onError()\`, and \`.close()\`
+4. **Consistent Callbacks**: All three methods use `.onProgress()`, `.onComplete()`, `.onError()`, and `.close()`
 5. **No Response Validation**: SSE streams are not validated (only request bodies are validated via OpenAPI schemas)
 
 ### Three SSE Methods
 
-- **\`client.sse.detectAnnotations()\`** - Entity detection with progress updates
-- **\`client.sse.generateResourceFromAnnotation()\`** - Resource generation with percentage-based progress
-- **\`client.sse.resourceEvents()\`** - Long-lived connection for real-time collaboration
+- **`client.sse.detectAnnotations()`** - Entity detection with progress updates
+- **`client.sse.generateResourceFromAnnotation()`** - Resource generation with percentage-based progress
+- **`client.sse.resourceEvents()`** - Long-lived connection for real-time collaboration
 
 See [SSE Streaming documentation](./docs/Usage.md#sse-streaming) for complete usage guide.
 
@@ -125,24 +126,24 @@ See [SSE Streaming documentation](./docs/Usage.md#sse-streaming) for complete us
 
 ## Who Should NOT Use This
 
-- ❌ **Backend Internal Code** - Use [\`@semiont/core\`](../core/) for backend domain logic
+- ❌ **Backend Internal Code** - Use [`@semiont/core`](../core/) for backend domain logic
 
-**Note**: If you need backend-specific utilities (event sourcing, crypto, type guards), use [\`@semiont/core\`](../core/). For API consumption and W3C annotation utilities, use this package.
+**Note**: If you need backend-specific utilities (event sourcing, crypto, type guards), use [`@semiont/core`](../core/). For API consumption and W3C annotation utilities, use this package.
 
 ## Configuration
 
-\`\`\`typescript
+```typescript
 const client = new SemiontApiClient({
   baseUrl: 'http://localhost:4000',  // Required
   accessToken: 'your-token',         // Optional
   timeout: 30000,                    // Optional (default: 30000ms)
   retry: 2,                          // Optional (default: 2)
 });
-\`\`\`
+```
 
 ## Error Handling
 
-\`\`\`typescript
+```typescript
 import { SemiontApiClient, APIError } from '@semiont/api-client';
 
 try {
@@ -153,13 +154,13 @@ try {
     console.error('Status:', error.status);
   }
 }
-\`\`\`
+```
 
 ## Utilities
 
 The SDK includes framework-agnostic utilities:
 
-\`\`\`typescript
+```typescript
 import {
   // Annotation utilities
   isReference,
@@ -178,7 +179,7 @@ import {
   getEventEmoji,
   formatRelativeTime,
 } from '@semiont/api-client';
-\`\`\`
+```
 
 See [API Reference](./docs/API-Reference.md#utilities) for complete utility documentation.
 
@@ -186,40 +187,42 @@ See [API Reference](./docs/API-Reference.md#utilities) for complete utility docu
 
 ### Regenerate Types from OpenAPI
 
-\`\`\`bash
+```bash
 npm run generate
-\`\`\`
+```
 
 This command:
-1. Bundles the OpenAPI spec from [../../specs/src/](../../specs/src/) → \`../../specs/openapi.json\`
+1. Bundles the OpenAPI spec from [../../specs/src/](../../specs/src/) → `../../specs/openapi.json`
 2. Copies the bundled spec to this package
-3. Generates TypeScript types using \`openapi-typescript\`
+3. Generates TypeScript types using `openapi-typescript`
 
 **Note**: The OpenAPI specification is maintained as modular files in [../../specs/src/](../../specs/src/). See [../../specs/README.md](../../specs/README.md) for details on editing the spec.
 
 ### Build
 
-\`\`\`bash
+```bash
 npm run build
-\`\`\`
+```
 
 ### Test
 
-\`\`\`bash
+```bash
 npm test
-\`\`\`
+```
 
 ## Architecture
 
 This package enforces the API boundary between:
+
 - **Internal** (backend, CLI) - Direct system access
-- **External** (frontend, MCP, demos) - Uses \`@semiont/api-client\`
+- **External** (frontend, MCP, demos) - Uses `@semiont/api-client`
 
 See [ARCHITECTURE-API-BOUNDARY.md](../../ARCHITECTURE-API-BOUNDARY.md) for details.
 
 ## Examples
 
 See [demo scripts](../../demo/) for complete examples:
+
 - Authentication flows
 - Resource creation and management
 - Annotation creation and linking

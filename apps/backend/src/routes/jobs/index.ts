@@ -10,6 +10,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
+import { authMiddleware } from '../../middleware/auth';
 import { getJobQueue } from '../../jobs/job-queue';
 import type { components } from '@semiont/api-client';
 import { jobId } from '@semiont/api-client';
@@ -18,6 +19,9 @@ type JobStatusResponse = components['schemas']['JobStatusResponse'];
 
 // Create jobs router
 export const jobsRouter = new Hono<{ Variables: { user: User } }>();
+
+// Apply auth middleware to all jobs routes
+jobsRouter.use('/api/jobs/*', authMiddleware);
 
 /**
  * GET /api/jobs/:id
