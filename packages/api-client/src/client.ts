@@ -271,31 +271,41 @@ export class SemiontApiClient {
 
   /**
    * Get resource representation using W3C content negotiation
-   * Returns raw response body (text) instead of JSON metadata
+   * Returns raw binary content (images, PDFs, text, etc.) with content type
    *
    * @param resourceUri - Full resource URI
    * @param options - Options including Accept header for content negotiation
-   * @returns Raw text representation of the resource
+   * @returns Object with data (ArrayBuffer) and contentType (string)
    *
    * @example
    * ```typescript
    * // Get markdown representation
-   * const markdown = await client.getResourceRepresentation(rUri, { accept: 'text/markdown' });
+   * const { data, contentType } = await client.getResourceRepresentation(rUri, { accept: 'text/markdown' });
+   * const markdown = new TextDecoder().decode(data);
    *
-   * // Get plain text representation
-   * const text = await client.getResourceRepresentation(rUri, { accept: 'text/plain' });
+   * // Get image representation
+   * const { data, contentType } = await client.getResourceRepresentation(rUri, { accept: 'image/png' });
+   * const blob = new Blob([data], { type: contentType });
+   *
+   * // Get PDF representation
+   * const { data, contentType } = await client.getResourceRepresentation(rUri, { accept: 'application/pdf' });
    * ```
    */
   async getResourceRepresentation(
     resourceUri: ResourceUri,
     options?: { accept?: ContentFormat }
-  ): Promise<string> {
+  ): Promise<{ data: ArrayBuffer; contentType: string }> {
     // resourceUri is already a full URI, use it directly with Accept header
-    return this.http.get(resourceUri, {
+    const response = await this.http.get(resourceUri, {
       headers: {
         Accept: options?.accept || 'text/plain'
       }
-    }).text();
+    });
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    const data = await response.arrayBuffer();
+
+    return { data, contentType };
   }
 
   async listResources(

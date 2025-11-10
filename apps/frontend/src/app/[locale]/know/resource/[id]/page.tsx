@@ -188,9 +188,11 @@ function ResourceView({
         const mediaType = getPrimaryMediaType(resource) || 'text/plain';
 
         // Use api-client for W3C content negotiation
-        const text = await client.getResourceRepresentation(rUri as ResourceUri, {
+        const { data } = await client.getResourceRepresentation(rUri as ResourceUri, {
           accept: mediaType as ContentFormat,
         });
+        // Decode ArrayBuffer to string
+        const text = new TextDecoder().decode(data);
         setContent(text);
       } catch (error) {
         console.error('Failed to fetch representation:', error);

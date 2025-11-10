@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { SemiontApiClient, resourceUri, type ResourceUri, type AccessToken, type BaseUrl, type ContentFormat } from '@semiont/api-client';
 
 export async function GET(
   request: NextRequest,
@@ -30,7 +31,7 @@ export async function GET(
   }
 
   // Get Accept header and strip JSON-LD/JSON values
-  // This proxy is for raw representations only - JSON metadata should use the API client
+  // This proxy is for raw representations only - JSON metadata should use the API client directly
   let acceptHeader = request.headers.get('accept') || '*/*';
 
   // Remove application/ld+json and application/json from Accept header
@@ -42,25 +43,17 @@ export async function GET(
     .join(', ') || '*/*';
 
   try {
-    // Forward request to backend with authentication
-    const response = await fetch(`${backendUrl}/resources/${id}`, {
-      headers: {
-        'Authorization': `Bearer ${session.backendToken}`,
-        'Accept': acceptHeader,
-      },
+    // Create api-client with session token
+    const client = new SemiontApiClient({
+      baseUrl: backendUrl as BaseUrl,
+      accessToken: session.backendToken as AccessToken,
     });
 
-    if (!response.ok) {
-      return new NextResponse(`Backend error: ${response.statusText}`, {
-        status: response.status
-      });
-    }
-
-    // Get the content type from backend response
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
-
-    // Stream the resource data back to client
-    const data = await response.arrayBuffer();
+    // Get resource representation using api-client
+    const rUri = resourceUri(`${backendUrl}/resources/${id}`);
+    const { data, contentType } = await client.getResourceRepresentation(rUri as ResourceUri, {
+      accept: acceptHeader as ContentFormat,
+    });
 
     return new NextResponse(data, {
       status: 200,

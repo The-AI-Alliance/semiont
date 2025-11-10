@@ -566,14 +566,20 @@ describe('SemiontApiClient - Archive Operations', () => {
   describe('W3C Content Negotiation', () => {
     test('should get resource representation with default accept header', async () => {
       const mockText = '# Hello World\n\nThis is markdown content.';
+      const mockBuffer = new TextEncoder().encode(mockText).buffer;
 
       vi.mocked(mockKy.get).mockReturnValue({
-        text: vi.fn().mockResolvedValue(mockText),
+        headers: {
+          get: vi.fn((header: string) => header === 'content-type' ? 'text/plain' : null)
+        },
+        arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
       } as any);
 
       const result = await client.getResourceRepresentation(testResourceUri);
 
-      expect(result).toBe(mockText);
+      expect(result.data).toBeInstanceOf(ArrayBuffer);
+      expect(result.contentType).toBe('text/plain');
+      expect(new TextDecoder().decode(result.data)).toBe(mockText);
       expect(mockKy.get).toHaveBeenCalledWith(
         testResourceUri,
         expect.objectContaining({
@@ -586,16 +592,22 @@ describe('SemiontApiClient - Archive Operations', () => {
 
     test('should get resource representation with custom accept header', async () => {
       const mockMarkdown = '# Title\n\n## Section\n\nContent here.';
+      const mockBuffer = new TextEncoder().encode(mockMarkdown).buffer;
 
       vi.mocked(mockKy.get).mockReturnValue({
-        text: vi.fn().mockResolvedValue(mockMarkdown),
+        headers: {
+          get: vi.fn((header: string) => header === 'content-type' ? 'text/markdown' : null)
+        },
+        arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
       } as any);
 
       const result = await client.getResourceRepresentation(testResourceUri, {
         accept: 'text/markdown',
       });
 
-      expect(result).toBe(mockMarkdown);
+      expect(result.data).toBeInstanceOf(ArrayBuffer);
+      expect(result.contentType).toBe('text/markdown');
+      expect(new TextDecoder().decode(result.data)).toBe(mockMarkdown);
       expect(mockKy.get).toHaveBeenCalledWith(
         testResourceUri,
         expect.objectContaining({
@@ -608,16 +620,22 @@ describe('SemiontApiClient - Archive Operations', () => {
 
     test('should get resource representation with text/plain', async () => {
       const mockText = 'Hello World';
+      const mockBuffer = new TextEncoder().encode(mockText).buffer;
 
       vi.mocked(mockKy.get).mockReturnValue({
-        text: vi.fn().mockResolvedValue(mockText),
+        headers: {
+          get: vi.fn((header: string) => header === 'content-type' ? 'text/plain; charset=utf-8' : null)
+        },
+        arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
       } as any);
 
       const result = await client.getResourceRepresentation(testResourceUri, {
         accept: 'text/plain',
       });
 
-      expect(result).toBe(mockText);
+      expect(result.data).toBeInstanceOf(ArrayBuffer);
+      expect(result.contentType).toBe('text/plain; charset=utf-8');
+      expect(new TextDecoder().decode(result.data)).toBe(mockText);
       expect(mockKy.get).toHaveBeenCalledWith(
         testResourceUri,
         expect.objectContaining({

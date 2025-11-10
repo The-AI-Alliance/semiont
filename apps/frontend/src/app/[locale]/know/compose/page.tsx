@@ -112,9 +112,11 @@ function ComposeDocumentContent() {
             const mediaType = getPrimaryMediaType(cloneData.sourceResource) || 'text/plain';
 
             // Use api-client for W3C content negotiation
-            const content = await client.getResourceRepresentation(rUri as ResourceUri, {
+            const { data } = await client.getResourceRepresentation(rUri as ResourceUri, {
               accept: mediaType as ContentFormat,
             });
+            // Decode ArrayBuffer to string
+            const content = new TextDecoder().decode(data);
             setNewDocContent(content);
           } catch (error) {
             console.error('Failed to fetch representation:', error);

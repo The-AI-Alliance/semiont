@@ -102,25 +102,37 @@ console.log('Resource:', result.resource);
 
 ### `getResourceRepresentation(uri: ResourceUri, options?)`
 
-Get resource representation using W3C content negotiation. Returns raw text content instead of JSON metadata.
+Get resource representation using W3C content negotiation. Returns raw binary content (images, PDFs, text, etc.) with content type.
 
 ```typescript
-// Get markdown representation
-const markdown = await client.getResourceRepresentation(resourceUri, {
+// Get markdown representation (decode to text)
+const { data, contentType } = await client.getResourceRepresentation(resourceUri, {
   accept: 'text/markdown'
 });
+const markdown = new TextDecoder().decode(data);
+console.log(contentType); // 'text/markdown'
 
 // Get plain text representation (default)
-const text = await client.getResourceRepresentation(resourceUri);
+const { data, contentType } = await client.getResourceRepresentation(resourceUri);
+const text = new TextDecoder().decode(data);
 
-// Get HTML representation
-const html = await client.getResourceRepresentation(resourceUri, {
-  accept: 'text/html'
+// Get image representation (use as binary)
+const { data, contentType } = await client.getResourceRepresentation(resourceUri, {
+  accept: 'image/png'
+});
+const blob = new Blob([data], { type: contentType });
+const url = URL.createObjectURL(blob);
+
+// Get PDF representation
+const { data, contentType } = await client.getResourceRepresentation(resourceUri, {
+  accept: 'application/pdf'
 });
 ```
 
 **Options:**
 - `accept` (optional): Media type for content negotiation (default: `'text/plain'`)
+
+**Returns:** `Promise<{ data: ArrayBuffer; contentType: string }>` - Binary content and actual content type from server
 
 **Use Cases:**
 - Getting raw content for editing

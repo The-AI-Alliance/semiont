@@ -121,32 +121,43 @@ console.log('Entity References:', resource.entityReferences.length);
 
 ### Getting Resource Representations
 
-Use W3C content negotiation to get the raw text content of a resource in different formats:
+Use W3C content negotiation to get the raw binary content of a resource (images, PDFs, text, etc.) with content type:
 
 ```typescript
-// Get markdown content for editing
-const markdown = await client.getResourceRepresentation(rUri, {
+// Get markdown content for editing (decode to text)
+const { data, contentType } = await client.getResourceRepresentation(rUri, {
   accept: 'text/markdown'
 });
+const markdown = new TextDecoder().decode(data);
 
 console.log('Content:', markdown);
 // Output: "# Introduction\n\nThis paper explores..."
+console.log('Type:', contentType); // 'text/markdown'
 
 // Get plain text representation
-const plainText = await client.getResourceRepresentation(rUri, {
+const { data, contentType } = await client.getResourceRepresentation(rUri, {
   accept: 'text/plain'
 });
+const plainText = new TextDecoder().decode(data);
 
-// Get HTML representation (if available)
-const html = await client.getResourceRepresentation(rUri, {
-  accept: 'text/html'
+// Get image as binary
+const { data, contentType } = await client.getResourceRepresentation(rUri, {
+  accept: 'image/png'
+});
+const blob = new Blob([data], { type: contentType });
+const imageUrl = URL.createObjectURL(blob);
+
+// Get PDF as binary
+const { data, contentType } = await client.getResourceRepresentation(rUri, {
+  accept: 'application/pdf'
 });
 ```
 
 **Use Cases:**
-- Load content for editing in a text editor
+- Load text content for editing in a text editor
 - Clone resource content to create new documents
-- Export content to different formats
+- Download binary files (images, PDFs)
+- Create object URLs for displaying media with correct MIME type
 - Display raw content in the UI
 
 ### Updating Resources
