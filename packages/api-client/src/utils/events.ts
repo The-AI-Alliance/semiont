@@ -42,6 +42,9 @@ type TranslateFn = (key: string, params?: Record<string, string | number>) => st
 /**
  * Extract annotation ID from event payload
  * Returns null if event is not annotation-related
+ *
+ * For annotation.added: extracts full URI from payload.annotation.id
+ * For annotation.removed/body.updated: constructs full URI from payload.annotationId (UUID) + resourceId
  */
 export function getAnnotationUriFromEvent(event: StoredEvent): AnnotationUri | null {
   const eventData = event.event;
@@ -53,9 +56,24 @@ export function getAnnotationUriFromEvent(event: StoredEvent): AnnotationUri | n
 
   switch (eventData.type) {
     case 'annotation.added':
+      // annotation.added has the full annotation object with id as full URI
+      return payload.annotation?.id || null;
+
     case 'annotation.removed':
     case 'annotation.body.updated':
-      return payload.annotationUri || null;
+      // These events have annotationId (UUID only), need to construct full URI
+      // Extract base URL from resourceId (format: http://host/resources/id)
+      if (payload.annotationId && eventData.resourceId) {
+        try {
+          const resourceUri = eventData.resourceId;
+          // Extract base URL by removing the /resources/{id} part
+          const baseUrl = resourceUri.substring(0, resourceUri.lastIndexOf('/resources/'));
+          return `${baseUrl}/annotations/${payload.annotationId}` as AnnotationUri;
+        } catch (e) {
+          return null;
+        }
+      }
+      return null;
 
     default:
       return null;
