@@ -572,6 +572,149 @@ describe('Route Authentication Coverage', () => {
     });
   });
 
+  describe('OpenAPI Spec Cross-Reference', () => {
+    it('should validate PUBLIC_ROUTES against OpenAPI spec security declarations', async () => {
+      // Read OpenAPI spec
+      const fs = await import('fs/promises');
+      const path = await import('path');
+
+      const specPath = path.join(process.cwd(), '../../specs/openapi.json');
+      const specContent = await fs.readFile(specPath, 'utf-8');
+      const spec = JSON.parse(specContent);
+
+      // Extract public routes from OpenAPI spec (routes without security requirements)
+      const publicRoutesFromSpec = new Set<string>();
+
+      for (const [routePath, pathItem] of Object.entries(spec.paths || {})) {
+        for (const [method, operation] of Object.entries(pathItem as Record<string, any>)) {
+          // Skip non-operation keys (like 'parameters', 'summary', etc.)
+          if (!['get', 'post', 'put', 'patch', 'delete', 'options', 'head'].includes(method.toLowerCase())) {
+            continue;
+          }
+
+          // If operation has no security field, it's public
+          // If operation has empty security array [], it's public
+          // If operation has security requirements, it's protected
+          const security = operation.security;
+          const isPublic = !security || (Array.isArray(security) && security.length === 0);
+
+          if (isPublic) {
+            publicRoutesFromSpec.add(`${method.toUpperCase()} ${routePath}`);
+          }
+        }
+      }
+
+      // Convert PUBLIC_ROUTES to a comparable format
+      const publicRoutesFromCode = new Set<string>();
+
+      // For each route in PUBLIC_ROUTES, we need to determine which HTTP methods apply
+      // In the real app, some routes might support multiple methods
+      for (const route of PUBLIC_ROUTES) {
+        // Get all registered routes that match this path
+        const matchingRoutes = app.routes.filter(r => {
+          if (r.path === route) return true;
+          // Handle prefix matches for documentation routes
+          if (route === '/api' && r.path === '/api') return true;
+          return false;
+        });
+
+        if (matchingRoutes.length > 0) {
+          matchingRoutes.forEach(r => {
+            publicRoutesFromCode.add(`${r.method} ${r.path}`);
+          });
+        } else {
+          // If not found in registered routes, assume GET (common for docs)
+          publicRoutesFromCode.add(`GET ${route}`);
+        }
+      }
+
+      // Find mismatches
+      const inSpecNotInCode: string[] = [];
+      const inCodeNotInSpec: string[] = [];
+
+      // Check routes in spec that aren't in code
+      for (const specRoute of publicRoutesFromSpec) {
+        const found = Array.from(publicRoutesFromCode).some(codeRoute => {
+          // Exact match
+          if (codeRoute === specRoute) return true;
+
+          // Handle OpenAPI path params vs Hono path params
+          // OpenAPI: /api/resources/{id}
+          // Hono: /api/resources/:id
+          const normalizedCodeRoute = codeRoute.replace(/:\w+/g, (match) => `{${match.slice(1)}}`);
+          if (normalizedCodeRoute === specRoute) return true;
+
+          return false;
+        });
+
+        if (!found) {
+          inSpecNotInCode.push(specRoute);
+        }
+      }
+
+      // Check routes in code that aren't in spec
+      for (const codeRoute of publicRoutesFromCode) {
+        const found = Array.from(publicRoutesFromSpec).some(specRoute => {
+          // Exact match
+          if (codeRoute === specRoute) return true;
+
+          // Handle OpenAPI path params vs Hono path params
+          const normalizedCodeRoute = codeRoute.replace(/:\w+/g, (match) => `{${match.slice(1)}}`);
+          if (normalizedCodeRoute === specRoute) return true;
+
+          return false;
+        });
+
+        if (!found) {
+          inCodeNotInSpec.push(codeRoute);
+        }
+      }
+
+      // Report findings
+      console.log(`\n🔍 OpenAPI Spec Cross-Reference:`);
+      console.log(`   Public routes in OpenAPI spec: ${publicRoutesFromSpec.size}`);
+      console.log(`   Public routes in PUBLIC_ROUTES: ${publicRoutesFromCode.size}`);
+
+      if (inSpecNotInCode.length > 0) {
+        console.log(`\n   ⚠️  Routes marked public in spec but NOT in PUBLIC_ROUTES (${inSpecNotInCode.length}):`);
+        inSpecNotInCode.forEach(route => console.log(`      ${route}`));
+      }
+
+      if (inCodeNotInSpec.length > 0) {
+        console.log(`\n   ⚠️  Routes in PUBLIC_ROUTES but NOT marked public in spec (${inCodeNotInSpec.length}):`);
+        inCodeNotInSpec.forEach(route => console.log(`      ${route}`));
+      }
+
+      if (inSpecNotInCode.length === 0 && inCodeNotInSpec.length === 0) {
+        console.log(`   ✅ All public routes match between spec and code`);
+      }
+
+      // CRITICAL: OpenAPI spec is the source of truth
+      // All routes marked public in spec MUST be in PUBLIC_ROUTES
+      expect(inSpecNotInCode).toEqual([]);
+
+      // Routes in PUBLIC_ROUTES should generally be in spec
+      // (allow some flexibility for meta-routes like /api/swagger that redirect)
+      const allowedCodeOnlyRoutes = [
+        'GET /api/swagger',      // Redirects to /api/docs
+        'GET /api',              // Redirects to /api/docs
+        'GET /api/docs',         // Swagger UI (self-referential, not in spec)
+        'GET /api/openapi.json', // OpenAPI spec itself (self-referential, not in spec)
+      ];
+
+      const unexpectedCodeOnlyRoutes = inCodeNotInSpec.filter(
+        route => !allowedCodeOnlyRoutes.includes(route)
+      );
+
+      if (unexpectedCodeOnlyRoutes.length > 0) {
+        console.log(`\n   ❌ Unexpected public routes in code not in spec:`);
+        unexpectedCodeOnlyRoutes.forEach(route => console.log(`      ${route}`));
+      }
+
+      expect(unexpectedCodeOnlyRoutes).toEqual([]);
+    });
+  });
+
   describe('Security Requirements', () => {
     it('should not leak information about resource existence without auth', async () => {
       const testPaths = [
