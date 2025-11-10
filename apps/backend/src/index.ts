@@ -67,6 +67,8 @@ import * as path from 'path';
 import { getGraphDatabase } from './graph/factory';
 // Import inference client for initialization
 import { getInferenceClient } from './inference/factory';
+// Import security headers middleware
+import { securityHeaders } from './middleware/security-headers';
 
 type Variables = {
   user: User;
@@ -81,6 +83,9 @@ app.use('*', cors({
   origin: backendService.corsOrigin,
   credentials: true,
 }));
+
+// Add security headers middleware (after CORS, before other middleware)
+app.use('*', securityHeaders());
 
 // Inject config into context for all routes
 app.use('*', async (c, next) => {
