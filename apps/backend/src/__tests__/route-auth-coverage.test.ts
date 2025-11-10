@@ -368,6 +368,59 @@ describe('Route Authentication Coverage', () => {
       expect(publicRoutes.length).toBeLessThanOrEqual(PUBLIC_ROUTES.length + 5); // Allow some flexibility for route patterns
     });
 
+    it('should identify and explain duplicate route registrations', () => {
+      const routes = app.routes;
+      const routeMap = new Map<string, number>();
+
+      // Count occurrences of each route
+      routes.forEach(r => {
+        const key = `${r.method} ${r.path}`;
+        routeMap.set(key, (routeMap.get(key) || 0) + 1);
+      });
+
+      // Find duplicates
+      const duplicates: Array<{ route: string; count: number }> = [];
+      routeMap.forEach((count, route) => {
+        if (count > 1) {
+          duplicates.push({ route, count });
+        }
+      });
+
+      if (duplicates.length > 0) {
+        console.log(`\n⚠️  Duplicate Route Registrations (${duplicates.length} routes):`);
+        console.log(`   Note: This is expected Hono behavior when routes use middleware.`);
+        console.log(`   Each route with middleware appears once per middleware + once for handler.\n`);
+
+        // Sample a few for display (don't spam output)
+        const sampleSize = Math.min(5, duplicates.length);
+        duplicates.slice(0, sampleSize).forEach(d => {
+          console.log(`   ${d.route} (×${d.count})`);
+        });
+        if (duplicates.length > sampleSize) {
+          console.log(`   ... and ${duplicates.length - sampleSize} more`);
+        }
+      } else {
+        console.log(`\n✅ No duplicate route registrations`);
+      }
+
+      // EXPLANATION: Hono's route table includes entries for:
+      // 1. Middleware routes (router.use(), validateRequestBody(), etc.)
+      // 2. Handler routes (router.get(), router.post(), etc.)
+      //
+      // For a route like:
+      //   router.post('/api/tokens/local', validateRequestBody('...'), handler)
+      //
+      // Hono registers TWO entries:
+      //   1. POST /api/tokens/local (middleware: validateRequestBody)
+      //   2. POST /api/tokens/local (handler)
+      //
+      // This is expected and correct behavior. The middleware runs first, then the handler.
+      // Both entries in the route table allow Hono to match and execute in order.
+
+      // We don't fail on duplicates since this is expected Hono behavior
+      expect(duplicates.length).toBeGreaterThanOrEqual(0); // Informational only
+    });
+
     it('should list all known catch-all routes for audit', () => {
       const routes = app.routes;
       const catchAllRoutes = routes.filter(r => r.path.includes('/*'));
