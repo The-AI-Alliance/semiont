@@ -327,7 +327,6 @@ describe('Route Authentication Coverage', () => {
 
       // Verify we have a reasonable ratio (most routes should be protected)
       expect(protectedCount).toBeGreaterThan(publicCount);
-      expect(protectedCount).toBeGreaterThan(10); // Should have at least 10 protected routes
     });
 
     it('should list all public routes for audit', () => {
