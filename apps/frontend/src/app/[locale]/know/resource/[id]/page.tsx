@@ -14,7 +14,7 @@ import { ResourceTagsInline } from '@/components/ResourceTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
-import { getResourceId, getLanguage, getPrimaryMediaType, searchQuery } from '@semiont/api-client';
+import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery } from '@semiont/api-client';
 import { groupAnnotationsByType } from '@/lib/annotation-registry';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -188,9 +188,11 @@ function ResourceView({
         const mediaType = getPrimaryMediaType(resource) || 'text/plain';
 
         // Use api-client for W3C content negotiation
-        const text = await client.getResourceRepresentation(rUri as ResourceUri, {
+        const { data } = await client.getResourceRepresentation(rUri as ResourceUri, {
           accept: mediaType as ContentFormat,
         });
+        // Decode ArrayBuffer to string
+        const text = new TextDecoder().decode(data);
         setContent(text);
       } catch (error) {
         console.error('Failed to fetch representation:', error);
@@ -231,13 +233,17 @@ function ResourceView({
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];
 
+  // Get primary representation metadata
+  const primaryRep = getPrimaryRepresentation(resource);
+  const primaryMediaType = primaryRep?.mediaType;
+  const primaryByteSize = primaryRep?.byteSize;
+
   // Get entity types for detection
   const { data: entityTypesData } = entityTypesAPI.list.useQuery();
   const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Set up mutations
   const updateDocMutation = resources.update.useMutation();
-  const createDocMutation = resources.create.useMutation();
   const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
 
   const [annotateMode, setAnnotateMode] = useState(() => {
@@ -298,25 +304,14 @@ function ResourceView({
           router.push(`/know/resource/${encodeURIComponent(foundResourceId)}`);
         }
       } else {
-        // Resource not found - offer to create it
-        if (confirm(`Resource "${pageName}" not found. Would you like to create it?`)) {
-          const newDoc = await createDocMutation.mutateAsync({
-            name: pageName,
-            content: `# ${pageName}\n\nThis page was created from a wiki link.`,
-            format: 'text/markdown',
-            entityTypes: []
-          });
-          const newResourceId = getResourceId(newDoc.resource);
-          if (newResourceId) {
-            router.push(`/know/resource/${encodeURIComponent(newResourceId)}`);
-          }
-        }
+        // Resource not found - fail hard
+        throw new Error(`Resource "${pageName}" not found`);
       }
     } catch (err) {
       console.error('Failed to navigate to wiki link:', err);
       showError('Failed to navigate to wiki link');
     }
-  }, [router, createDocMutation, showError, client]);
+  }, [router, showError, client]);
 
   // Update document tags - memoized
   const updateDocumentTags = useCallback(async (tags: string[]) => {
@@ -724,6 +719,8 @@ function ResourceView({
                 referencedByLoading={referencedByLoading}
                 documentEntityTypes={documentEntityTypes}
                 documentLocale={getLanguage(resource)}
+                primaryMediaType={primaryMediaType}
+                primaryByteSize={primaryByteSize}
               />
             )}
 

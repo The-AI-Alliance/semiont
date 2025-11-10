@@ -32,8 +32,19 @@ export interface ViewStorage {
 export class FilesystemViewStorage implements ViewStorage {
   private basePath: string;
 
-  constructor(basePath: string) {
-    this.basePath = basePath;
+  constructor(basePath: string, projectRoot?: string) {
+    // If path is absolute, use it directly
+    if (path.isAbsolute(basePath)) {
+      this.basePath = basePath;
+    }
+    // If projectRoot provided, resolve relative paths against it
+    else if (projectRoot) {
+      this.basePath = path.resolve(projectRoot, basePath);
+    }
+    // Otherwise fall back to resolving against cwd (backward compat)
+    else {
+      this.basePath = path.resolve(basePath);
+    }
   }
 
   private getProjectionPath(resourceId: ResourceId): string {

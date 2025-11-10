@@ -287,7 +287,9 @@
     "saveClonedResource": "Save Cloned Resource",
     "createAndLinkResource": "Create & Link Resource",
     "createResource": "Create Resource",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "language": "Language",
+    "languageHint": "Select the language of this resource"
   },
   "Toolbar": {
     "browseMode": "Browse Mode",
@@ -315,6 +317,10 @@
     "locale": "Locale",
     "notSpecified": "Not specified",
     "entityTypeTags": "Entity Type Tags",
+    "representation": "Representation",
+    "mediaType": "Media Type",
+    "byteSize": "Size",
+    "bytes": "{count} bytes",
     "statistics": "Statistics",
     "highlights": "Highlights",
     "comments": "Comments",

@@ -204,10 +204,64 @@ export class SemiontApiClient {
   // RESOURCES
   // ============================================================================
 
-  async createResource(
-    data: RequestContent<paths['/resources']['post']>
-  ): Promise<ResponseContent<paths['/resources']['post']>> {
-    return this.http.post(`${this.baseUrl}/resources`, { json: data }).json();
+  /**
+   * Create a new resource with binary content support
+   *
+   * @param data - Resource creation data
+   * @param data.name - Resource name
+   * @param data.file - File object or Buffer with binary content
+   * @param data.format - MIME type (e.g., 'text/markdown', 'image/png')
+   * @param data.entityTypes - Optional array of entity types
+   * @param data.language - Optional ISO 639-1 language code
+   * @param data.creationMethod - Optional creation method
+   * @param data.sourceAnnotationId - Optional source annotation ID
+   * @param data.sourceResourceId - Optional source resource ID
+   */
+  async createResource(data: {
+    name: string;
+    file: File | Buffer;
+    format: string;
+    entityTypes?: string[];
+    language?: string;
+    creationMethod?: string;
+    sourceAnnotationId?: string;
+    sourceResourceId?: string;
+  }): Promise<ResponseContent<paths['/resources']['post']>> {
+    // Build FormData
+    const formData = new FormData();
+    formData.append('name', data.name);
+    formData.append('format', data.format);
+
+    // Handle File or Buffer
+    if (data.file instanceof File) {
+      formData.append('file', data.file);
+    } else if (Buffer.isBuffer(data.file)) {
+      // Node.js environment: convert Buffer to Blob
+      const blob = new Blob([data.file], { type: data.format });
+      formData.append('file', blob, data.name);
+    } else {
+      throw new Error('file must be a File or Buffer');
+    }
+
+    // Optional fields
+    if (data.entityTypes && data.entityTypes.length > 0) {
+      formData.append('entityTypes', JSON.stringify(data.entityTypes));
+    }
+    if (data.language) {
+      formData.append('language', data.language);
+    }
+    if (data.creationMethod) {
+      formData.append('creationMethod', data.creationMethod);
+    }
+    if (data.sourceAnnotationId) {
+      formData.append('sourceAnnotationId', data.sourceAnnotationId);
+    }
+    if (data.sourceResourceId) {
+      formData.append('sourceResourceId', data.sourceResourceId);
+    }
+
+    // POST with multipart/form-data (ky automatically sets Content-Type)
+    return this.http.post(`${this.baseUrl}/resources`, { body: formData }).json();
   }
 
   async getResource(resourceUri: ResourceUri): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
@@ -217,31 +271,96 @@ export class SemiontApiClient {
 
   /**
    * Get resource representation using W3C content negotiation
-   * Returns raw response body (text) instead of JSON metadata
+   * Returns raw binary content (images, PDFs, text, etc.) with content type
    *
    * @param resourceUri - Full resource URI
    * @param options - Options including Accept header for content negotiation
-   * @returns Raw text representation of the resource
+   * @returns Object with data (ArrayBuffer) and contentType (string)
    *
    * @example
    * ```typescript
    * // Get markdown representation
-   * const markdown = await client.getResourceRepresentation(rUri, { accept: 'text/markdown' });
+   * const { data, contentType } = await client.getResourceRepresentation(rUri, { accept: 'text/markdown' });
+   * const markdown = new TextDecoder().decode(data);
    *
-   * // Get plain text representation
-   * const text = await client.getResourceRepresentation(rUri, { accept: 'text/plain' });
+   * // Get image representation
+   * const { data, contentType } = await client.getResourceRepresentation(rUri, { accept: 'image/png' });
+   * const blob = new Blob([data], { type: contentType });
+   *
+   * // Get PDF representation
+   * const { data, contentType } = await client.getResourceRepresentation(rUri, { accept: 'application/pdf' });
    * ```
    */
   async getResourceRepresentation(
     resourceUri: ResourceUri,
     options?: { accept?: ContentFormat }
-  ): Promise<string> {
+  ): Promise<{ data: ArrayBuffer; contentType: string }> {
     // resourceUri is already a full URI, use it directly with Accept header
-    return this.http.get(resourceUri, {
+    const response = await this.http.get(resourceUri, {
       headers: {
         Accept: options?.accept || 'text/plain'
       }
-    }).text();
+    });
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    const data = await response.arrayBuffer();
+
+    return { data, contentType };
+  }
+
+  /**
+   * Get resource representation as a stream using W3C content negotiation
+   * Returns streaming binary content (for large files: videos, large PDFs, etc.)
+   *
+   * Use this for large files to avoid loading entire content into memory.
+   * The stream is consumed incrementally and the backend connection stays open
+   * until the stream is fully consumed or closed.
+   *
+   * @param resourceUri - Full resource URI
+   * @param options - Options including Accept header for content negotiation
+   * @returns Object with stream (ReadableStream) and contentType (string)
+   *
+   * @example
+   * ```typescript
+   * // Stream large file
+   * const { stream, contentType } = await client.getResourceRepresentationStream(rUri, {
+   *   accept: 'video/mp4'
+   * });
+   *
+   * // Consume stream chunk by chunk (never loads entire file into memory)
+   * for await (const chunk of stream) {
+   *   // Process chunk
+   *   console.log(`Received ${chunk.length} bytes`);
+   * }
+   *
+   * // Or pipe to a file in Node.js
+   * const fileStream = fs.createWriteStream('output.mp4');
+   * const reader = stream.getReader();
+   * while (true) {
+   *   const { done, value } = await reader.read();
+   *   if (done) break;
+   *   fileStream.write(value);
+   * }
+   * ```
+   */
+  async getResourceRepresentationStream(
+    resourceUri: ResourceUri,
+    options?: { accept?: ContentFormat }
+  ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
+    // resourceUri is already a full URI, use it directly with Accept header
+    const response = await this.http.get(resourceUri, {
+      headers: {
+        Accept: options?.accept || 'text/plain'
+      }
+    });
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+
+    if (!response.body) {
+      throw new Error('Response body is null - cannot create stream');
+    }
+
+    return { stream: response.body, contentType };
   }
 
   async listResources(

@@ -62,7 +62,8 @@ export function registerGenerateResourceFromAnnotation(router: ResourcesRouterTy
       const user = c.get('user');
       const config = c.get('config');
       const basePath = config.services.filesystem!.path;
-      const repStore = new FilesystemRepresentationStore({ basePath });
+      const projectRoot = config._metadata?.projectRoot;
+      const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
       // Get annotation from view storage
       const annotation = await AnnotationQueryService.getAnnotation(
@@ -133,6 +134,7 @@ export function registerGenerateResourceFromAnnotation(router: ResourcesRouterTy
           name: resourceName,
           format: 'text/markdown',
           contentChecksum: storedRep.checksum,
+          contentByteSize: storedRep.byteSize,
           creationMethod: CREATION_METHODS.GENERATED,
           entityTypes: body.entityTypes || annotationEntityTypes,
           language: body.language,
@@ -175,6 +177,7 @@ export function registerGenerateResourceFromAnnotation(router: ResourcesRouterTy
         representations: [{
           mediaType: 'text/markdown',
           checksum: storedRep.checksum,
+          byteSize: storedRep.byteSize,
           rel: 'original' as const,
           language: body.language,
         }],

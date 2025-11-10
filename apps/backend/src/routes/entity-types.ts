@@ -27,8 +27,20 @@ type GetEntityTypesResponse = components['schemas']['GetEntityTypesResponse'];
  * Read entity types from view storage projection
  */
 async function getEntityTypesFromLayer3(config: EnvironmentConfig): Promise<string[]> {
+  // Resolve basePath against project root if relative
+  const configuredPath = config.services.filesystem!.path;
+  const projectRoot = config._metadata?.projectRoot;
+  let basePath: string;
+  if (path.isAbsolute(configuredPath)) {
+    basePath = configuredPath;
+  } else if (projectRoot) {
+    basePath = path.resolve(projectRoot, configuredPath);
+  } else {
+    basePath = path.resolve(configuredPath);
+  }
+
   const entityTypesPath = path.join(
-    config.services.filesystem!.path,
+    basePath,
     'projections',
     'entity-types',
     'entity-types.json'

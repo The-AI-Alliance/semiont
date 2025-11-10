@@ -121,33 +121,79 @@ console.log('Entity References:', resource.entityReferences.length);
 
 ### Getting Resource Representations
 
-Use W3C content negotiation to get the raw text content of a resource in different formats:
+Use W3C content negotiation to get the raw binary content of a resource (images, PDFs, text, etc.) with content type:
 
 ```typescript
-// Get markdown content for editing
-const markdown = await client.getResourceRepresentation(rUri, {
+// Get markdown content for editing (decode to text)
+const { data, contentType } = await client.getResourceRepresentation(rUri, {
   accept: 'text/markdown'
 });
+const markdown = new TextDecoder().decode(data);
 
 console.log('Content:', markdown);
 // Output: "# Introduction\n\nThis paper explores..."
+console.log('Type:', contentType); // 'text/markdown'
 
 // Get plain text representation
-const plainText = await client.getResourceRepresentation(rUri, {
+const { data, contentType } = await client.getResourceRepresentation(rUri, {
   accept: 'text/plain'
 });
+const plainText = new TextDecoder().decode(data);
 
-// Get HTML representation (if available)
-const html = await client.getResourceRepresentation(rUri, {
-  accept: 'text/html'
+// Get image as binary
+const { data, contentType } = await client.getResourceRepresentation(rUri, {
+  accept: 'image/png'
+});
+const blob = new Blob([data], { type: contentType });
+const imageUrl = URL.createObjectURL(blob);
+
+// Get PDF as binary
+const { data, contentType } = await client.getResourceRepresentation(rUri, {
+  accept: 'application/pdf'
 });
 ```
 
 **Use Cases:**
-- Load content for editing in a text editor
+- Small to medium files (< 10MB)
+- Load text content for editing in a text editor
 - Clone resource content to create new documents
-- Export content to different formats
+- Create object URLs for displaying media with correct MIME type
 - Display raw content in the UI
+
+**For large files (videos, large PDFs, datasets), use streaming instead:**
+
+```typescript
+// Stream large video file (never loads entire file into memory)
+const { stream, contentType } = await client.getResourceRepresentationStream(rUri, {
+  accept: 'video/mp4'
+});
+
+// Option 1: Process chunks as they arrive
+const reader = stream.getReader();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+
+  // Process chunk (value is Uint8Array)
+  console.log(`Received ${value.length} bytes`);
+  processChunk(value);
+}
+
+// Option 2: Use async iteration
+for await (const chunk of stream) {
+  processChunk(chunk);
+}
+
+// Option 3: Pipe directly to a file (Node.js)
+const fileStream = fs.createWriteStream('large-file.mp4');
+await stream.pipeTo(Writable.toWeb(fileStream));
+```
+
+**Streaming benefits:**
+- Never loads entire file into memory
+- Backend connection stays open until stream consumed
+- Lower latency - starts processing immediately
+- Perfect for proxying large content
 
 ### Updating Resources
 

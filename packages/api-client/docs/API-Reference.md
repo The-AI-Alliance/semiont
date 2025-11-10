@@ -102,31 +102,92 @@ console.log('Resource:', result.resource);
 
 ### `getResourceRepresentation(uri: ResourceUri, options?)`
 
-Get resource representation using W3C content negotiation. Returns raw text content instead of JSON metadata.
+Get resource representation using W3C content negotiation. Returns raw binary content (images, PDFs, text, etc.) with content type.
 
 ```typescript
-// Get markdown representation
-const markdown = await client.getResourceRepresentation(resourceUri, {
+// Get markdown representation (decode to text)
+const { data, contentType } = await client.getResourceRepresentation(resourceUri, {
   accept: 'text/markdown'
 });
+const markdown = new TextDecoder().decode(data);
+console.log(contentType); // 'text/markdown'
 
 // Get plain text representation (default)
-const text = await client.getResourceRepresentation(resourceUri);
+const { data, contentType } = await client.getResourceRepresentation(resourceUri);
+const text = new TextDecoder().decode(data);
 
-// Get HTML representation
-const html = await client.getResourceRepresentation(resourceUri, {
-  accept: 'text/html'
+// Get image representation (use as binary)
+const { data, contentType } = await client.getResourceRepresentation(resourceUri, {
+  accept: 'image/png'
+});
+const blob = new Blob([data], { type: contentType });
+const url = URL.createObjectURL(blob);
+
+// Get PDF representation
+const { data, contentType } = await client.getResourceRepresentation(resourceUri, {
+  accept: 'application/pdf'
 });
 ```
 
 **Options:**
 - `accept` (optional): Media type for content negotiation (default: `'text/plain'`)
 
+**Returns:** `Promise<{ data: ArrayBuffer; contentType: string }>` - Binary content and actual content type from server
+
 **Use Cases:**
+- Small to medium files (< 10MB)
 - Getting raw content for editing
 - Cloning resource content
-- Exporting to different formats
 - Client-side rendering of content
+
+**Note:** For large files (videos, large PDFs), use `getResourceRepresentationStream()` to avoid loading entire content into memory.
+
+### `getResourceRepresentationStream(uri: ResourceUri, options?)`
+
+Get resource representation as a stream using W3C content negotiation. Use this for large files to avoid memory issues.
+
+```typescript
+// Stream large video file (never loads entire file into memory)
+const { stream, contentType } = await client.getResourceRepresentationStream(resourceUri, {
+  accept: 'video/mp4'
+});
+
+// Consume stream chunk by chunk
+const reader = stream.getReader();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  console.log(`Received ${value.length} bytes`);
+  // Process chunk...
+}
+
+// Or use async iteration
+for await (const chunk of stream) {
+  // Process chunk
+}
+
+// Or pipe directly to Response (in Next.js API routes)
+return new Response(stream, {
+  headers: { 'Content-Type': contentType }
+});
+```
+
+**Options:**
+- `accept` (optional): Media type for content negotiation (default: `'text/plain'`)
+
+**Returns:** `Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>` - Streaming binary content and content type
+
+**Use Cases:**
+- Large files (videos, large PDFs, datasets)
+- Proxying content without buffering
+- Downloading files incrementally
+- Processing large files chunk by chunk
+
+**Benefits:**
+- Backend connection stays open until stream is consumed
+- Never loads entire file into memory
+- Lower latency (starts sending data immediately)
+- Better for proxying large content
 
 ### `listResources(limit?: number, archived?: boolean)`
 

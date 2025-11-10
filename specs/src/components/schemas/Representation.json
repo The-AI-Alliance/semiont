@@ -39,15 +39,8 @@
     },
     "byteSize": {
       "description": "Size of the payload in bytes.",
-      "oneOf": [
-        {
-          "type": "integer",
-          "minimum": 0
-        },
-        {
-          "type": "string"
-        }
-      ]
+      "type": "integer",
+      "minimum": 0
     },
     "checksum": {
       "description": "Integrity hash (e.g., sha256:abcd…).",

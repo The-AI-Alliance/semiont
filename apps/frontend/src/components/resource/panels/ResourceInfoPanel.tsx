@@ -19,6 +19,8 @@ interface Props {
   referencedByLoading: boolean;
   documentEntityTypes: string[];
   documentLocale?: string | undefined;
+  primaryMediaType?: string | undefined;
+  primaryByteSize?: number | undefined;
 }
 
 export function ResourceInfoPanel({
@@ -29,7 +31,9 @@ export function ResourceInfoPanel({
   referencedBy,
   referencedByLoading,
   documentEntityTypes,
-  documentLocale
+  documentLocale,
+  primaryMediaType,
+  primaryByteSize
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
 
@@ -72,6 +76,31 @@ export function ResourceInfoPanel({
           </div>
         )}
       </div>
+
+      {/* Representation Section */}
+      {(primaryMediaType || primaryByteSize !== undefined) && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('representation')}</h3>
+          <div className="space-y-2 text-xs">
+            {primaryMediaType && (
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">{t('mediaType')}</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {primaryMediaType}
+                </span>
+              </div>
+            )}
+            {primaryByteSize !== undefined && (
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">{t('byteSize')}</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {primaryByteSize.toLocaleString()} bytes
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Entity Type Tags Section */}
       {documentEntityTypes.length > 0 && (

@@ -98,7 +98,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Token expired' });
       }
     const graphDb = await getGraphDatabase(config);
-      const repStore = new FilesystemRepresentationStore({ basePath });
+      const projectRoot = config._metadata?.projectRoot;
+      const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
       // Get source resource
       const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
@@ -183,7 +184,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
     const config = c.get('config');
     const basePath = config.services.filesystem!.path;
     const graphDb = await getGraphDatabase(config);
-    const repStore = new FilesystemRepresentationStore({ basePath });
+    const projectRoot = config._metadata?.projectRoot;
+    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     const sourceDoc = await graphDb.getResource(resourceUri(resourceUri(id)));
     if (!sourceDoc) {

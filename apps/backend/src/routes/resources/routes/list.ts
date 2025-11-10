@@ -47,7 +47,8 @@ export function registerListResources(router: ResourcesRouterType) {
 
     const q = query.q;
 
-    const repStore = new FilesystemRepresentationStore({ basePath });
+    const projectRoot = config._metadata?.projectRoot;
+    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     // Read from view storage projection storage
     let filteredDocs = await ResourceQueryService.listResources({

@@ -56,7 +56,8 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     }
 
     const graphDb = await getGraphDatabase(config);
-    const repStore = new FilesystemRepresentationStore({ basePath });
+    const projectRoot = config._metadata?.projectRoot;
+    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     const mainDoc = await graphDb.getResource(resourceUri(id));
     if (!mainDoc) {

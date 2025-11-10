@@ -3,8 +3,9 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector, getMimeCategory } from '@semiont/api-client';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import { ImageViewer } from '@/components/viewers';
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
@@ -14,6 +15,8 @@ import '@/styles/animations.css';
 
 interface Props {
   content: string;
+  mimeType?: string;
+  resourceUri?: string;
   highlights: Annotation[];
   references: Annotation[];
   assessments: Annotation[];
@@ -102,6 +105,8 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
 
 export function AnnotateView({
   content,
+  mimeType = 'text/plain',
+  resourceUri,
   highlights,
   references,
   assessments,
@@ -135,6 +140,8 @@ export function AnnotateView({
     end: number;
     rects: DOMRect[];
   } | null>(null);
+
+  const category = getMimeCategory(mimeType);
 
   // Combine annotations
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments];
@@ -248,85 +255,132 @@ export function AnnotateView({
     }
   }, [annotationState, onTextSelect]);
 
-  return (
-    <div className="relative h-full" ref={containerRef} onContextMenu={handleContextMenu}>
-      <CodeMirrorRenderer
-        content={content}
-        segments={segments}
-        {...(onAnnotationClick && { onAnnotationClick })}
-        {...(onAnnotationRightClick && { onAnnotationRightClick })}
-        onAnnotationHover={handleAnnotationHover}
-        editable={false}
-        newAnnotationIds={newAnnotationIds}
-        {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
-        {...(hoveredCommentId !== undefined && { hoveredCommentId })}
-        {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
-        sourceView={true}
-        showLineNumbers={showLineNumbers}
-        enableWidgets={enableWidgets}
-        {...(onWikiLinkClick && { onWikiLinkClick })}
-        {...(onEntityTypeClick && { onEntityTypeClick })}
-        {...(onReferenceNavigate && { onReferenceNavigate })}
-        {...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick })}
-        {...(getTargetDocumentName && { getTargetDocumentName })}
-        {...(generatingReferenceId !== undefined && { generatingReferenceId })}
-        {...(onDeleteAnnotation && { onDeleteAnnotation })}
-        {...(onConvertAnnotation && { onConvertAnnotation })}
-      />
-      
-      {/* Sparkle UI - THE GOOD STUFF WE'RE KEEPING! */}
-      {annotationState && onTextSelect && (
-        <>
-          {/* Dashed ring around selection */}
-          {annotationState.rects.map((rect, index) => (
-            <div
-              key={index}
-              className="absolute pointer-events-none z-40"
-              style={{
-                left: `${rect.left - containerRef.current!.getBoundingClientRect().left}px`,
-                top: `${rect.top - containerRef.current!.getBoundingClientRect().top}px`,
-                width: `${rect.width}px`,
-                height: `${rect.height}px`,
-                border: '2px dashed rgba(250, 204, 21, 0.6)',
-                borderRadius: '3px',
-                backgroundColor: 'rgba(254, 240, 138, 0.2)',
-                animation: 'pulse 2s ease-in-out infinite'
-              }}
-            />
-          ))}
-          
-          {/* Sparkle at the end */}
-          {(() => {
-            const lastRect = annotationState.rects[annotationState.rects.length - 1];
-            const containerRect = containerRef.current?.getBoundingClientRect();
-            if (!lastRect || !containerRect) return null;
-            
-            return (
-              <button
-                onClick={handleSparkleClick}
-                className="absolute z-50 hover:scale-125 transition-transform cursor-pointer animate-bounce focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
-                style={{
-                  left: `${lastRect.right - containerRect.left + 5}px`,
-                  top: `${lastRect.top - containerRect.top + lastRect.height / 2}px`,
-                  transform: 'translateY(-50%)'
-                }}
-                aria-label={t('ariaLabel')}
-                title={t('tooltip')}
-                data-annotation-ui
+  // Route to appropriate viewer based on MIME type category
+  switch (category) {
+    case 'text':
+      return (
+        <div className="relative h-full" ref={containerRef} onContextMenu={handleContextMenu}>
+          <CodeMirrorRenderer
+            content={content}
+            segments={segments}
+            {...(onAnnotationClick && { onAnnotationClick })}
+            {...(onAnnotationRightClick && { onAnnotationRightClick })}
+            onAnnotationHover={handleAnnotationHover}
+            editable={false}
+            newAnnotationIds={newAnnotationIds}
+            {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+            {...(hoveredCommentId !== undefined && { hoveredCommentId })}
+            {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
+            sourceView={true}
+            showLineNumbers={showLineNumbers}
+            enableWidgets={enableWidgets}
+            {...(onWikiLinkClick && { onWikiLinkClick })}
+            {...(onEntityTypeClick && { onEntityTypeClick })}
+            {...(onReferenceNavigate && { onReferenceNavigate })}
+            {...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick })}
+            {...(getTargetDocumentName && { getTargetDocumentName })}
+            {...(generatingReferenceId !== undefined && { generatingReferenceId })}
+            {...(onDeleteAnnotation && { onDeleteAnnotation })}
+            {...(onConvertAnnotation && { onConvertAnnotation })}
+          />
+
+          {/* Sparkle UI - THE GOOD STUFF WE'RE KEEPING! */}
+          {annotationState && onTextSelect && (
+            <>
+              {/* Dashed ring around selection */}
+              {annotationState.rects.map((rect, index) => (
+                <div
+                  key={index}
+                  className="absolute pointer-events-none z-40"
+                  style={{
+                    left: `${rect.left - containerRef.current!.getBoundingClientRect().left}px`,
+                    top: `${rect.top - containerRef.current!.getBoundingClientRect().top}px`,
+                    width: `${rect.width}px`,
+                    height: `${rect.height}px`,
+                    border: '2px dashed rgba(250, 204, 21, 0.6)',
+                    borderRadius: '3px',
+                    backgroundColor: 'rgba(254, 240, 138, 0.2)',
+                    animation: 'pulse 2s ease-in-out infinite'
+                  }}
+                />
+              ))}
+
+              {/* Sparkle at the end */}
+              {(() => {
+                const lastRect = annotationState.rects[annotationState.rects.length - 1];
+                const containerRect = containerRef.current?.getBoundingClientRect();
+                if (!lastRect || !containerRect) return null;
+
+                return (
+                  <button
+                    onClick={handleSparkleClick}
+                    className="absolute z-50 hover:scale-125 transition-transform cursor-pointer animate-bounce focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+                    style={{
+                      left: `${lastRect.right - containerRect.left + 5}px`,
+                      top: `${lastRect.top - containerRect.top + lastRect.height / 2}px`,
+                      transform: 'translateY(-50%)'
+                    }}
+                    aria-label={t('ariaLabel')}
+                    title={t('tooltip')}
+                    data-annotation-ui
+                  >
+                    <span className="relative inline-flex items-center justify-center">
+                      {/* Pulsing ring animation */}
+                      <span className="absolute inset-0 rounded-full bg-yellow-400 dark:bg-yellow-500 opacity-75 animate-ping" aria-hidden="true"></span>
+                      {/* Solid background circle */}
+                      <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-gray-800 ring-2 ring-yellow-400 dark:ring-yellow-500 shadow-lg">
+                        <span className="text-xl" aria-hidden="true">✨</span>
+                      </span>
+                    </span>
+                  </button>
+                );
+              })()}
+            </>
+          )}
+        </div>
+      );
+
+    case 'image':
+      return (
+        <div className="relative h-full" ref={containerRef}>
+          {/* Warning banner */}
+          <div className="absolute top-0 left-0 right-0 z-50 bg-yellow-100 dark:bg-yellow-900 border-b border-yellow-200 dark:border-yellow-800 p-3">
+            <p className="text-sm text-yellow-800 dark:text-yellow-200 text-center">
+              Image annotation is not yet supported. Switch to Browse mode to view the image.
+            </p>
+          </div>
+          {/* Image viewer offset by banner */}
+          <div className="pt-12 h-full">
+            {resourceUri && (
+              <ImageViewer
+                resourceUri={resourceUri as any}
+                mimeType={mimeType}
+                alt="Resource content"
+              />
+            )}
+          </div>
+        </div>
+      );
+
+    case 'unsupported':
+    default:
+      return (
+        <div ref={containerRef} className="flex items-center justify-center h-full p-8">
+          <div className="text-center space-y-4">
+            <p className="text-gray-600 dark:text-gray-400">
+              Annotation not supported for {mimeType}
+            </p>
+            {resourceUri && (
+              <a
+                href={resourceUri}
+                download
+                className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
-                <span className="relative inline-flex items-center justify-center">
-                  {/* Pulsing ring animation */}
-                  <span className="absolute inset-0 rounded-full bg-yellow-400 dark:bg-yellow-500 opacity-75 animate-ping" aria-hidden="true"></span>
-                  {/* Solid background circle */}
-                  <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-gray-800 ring-2 ring-yellow-400 dark:ring-yellow-500 shadow-lg">
-                    <span className="text-xl" aria-hidden="true">✨</span>
-                  </span>
-                </span>
-              </button>
-            );
-          })()}
-        </>
-      )}
-    </div>
-  );
+                Download File
+              </a>
+            )}
+          </div>
+        </div>
+      );
+  }
 }

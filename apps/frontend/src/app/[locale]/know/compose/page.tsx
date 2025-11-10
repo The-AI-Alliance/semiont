@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -11,21 +11,28 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getPrimaryMediaType, getResourceId } from '@semiont/api-client';
-import { resourceUri, resourceAnnotationUri, type ResourceUri, type ResourceAnnotationUri, type ContentFormat } from '@semiont/api-client';
-import { NEXT_PUBLIC_API_URL } from '@/lib/env';
+import { getPrimaryMediaType, getResourceId, isImageMimeType, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat, LOCALES } from '@semiont/api-client';
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 
 function ComposeDocumentContent() {
   const t = useTranslations('Compose');
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { showError, showSuccess } = useToast();
   const mode = searchParams?.get('mode');
   const tokenFromUrl = searchParams?.get('token');
+
+  // Authentication guard - redirect to home if not authenticated
+  useEffect(() => {
+    if (status === 'loading') return; // Still checking auth
+    if (!session?.backendToken) {
+      router.push('/');
+    }
+  }, [session, status, router]);
   
   // Reference completion parameters
   const referenceId = searchParams?.get('referenceId');
@@ -42,6 +49,14 @@ function ComposeDocumentContent() {
   const [cloneToken, setCloneToken] = useState<string | null>(null);
   const [archiveOriginal, setArchiveOriginal] = useState(true);
   const [isReferenceCompletion, setIsReferenceCompletion] = useState(false);
+
+  // File upload state
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [fileMimeType, setFileMimeType] = useState<string>('text/markdown');
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+
+  // Language selection - default to current user locale
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(locale);
 
   // Toolbar and settings state
   const { activePanel, togglePanel } = useToolbar();
@@ -97,9 +112,11 @@ function ComposeDocumentContent() {
             const mediaType = getPrimaryMediaType(cloneData.sourceResource) || 'text/plain';
 
             // Use api-client for W3C content negotiation
-            const content = await client.getResourceRepresentation(rUri as ResourceUri, {
+            const { data } = await client.getResourceRepresentation(rUri as ResourceUri, {
               accept: mediaType as ContentFormat,
             });
+            // Decode ArrayBuffer to string
+            const content = new TextDecoder().decode(data);
             setNewDocContent(content);
           } catch (error) {
             console.error('Failed to fetch representation:', error);
@@ -121,6 +138,51 @@ function ComposeDocumentContent() {
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, tokenFromUrl, cloneData, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, session?.backendToken]);
+
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate MIME type - only allow our 4 supported types
+    const allowedTypes = ['text/plain', 'text/markdown', 'image/png', 'image/jpeg'];
+    if (!allowedTypes.includes(file.type)) {
+      showError(`Unsupported file type: ${file.type}. Please upload text/plain, text/markdown, image/png, or image/jpeg files.`);
+      return;
+    }
+
+    setUploadedFile(file);
+    setFileMimeType(file.type);
+
+    // Set file name as default resource name if empty
+    if (!newDocName) {
+      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+      setNewDocName(nameWithoutExt);
+    }
+
+    // For images, create preview URL
+    if (isImageMimeType(file.type)) {
+      const previewUrl = URL.createObjectURL(file);
+      setFilePreviewUrl(previewUrl);
+    } else {
+      // For text files, read content
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        setNewDocContent(content);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  // Cleanup preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (filePreviewUrl) {
+        URL.revokeObjectURL(filePreviewUrl);
+      }
+    };
+  }, [filePreviewUrl]);
 
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,11 +208,27 @@ function ComposeDocumentContent() {
         rUri = resourceUri(response.resource['@id']);
       } else {
         // Create a new resource with entity types
+        // Prepare file for upload
+        let fileToUpload: File;
+        let mimeType: string;
+
+        if (uploadedFile) {
+          // Use uploaded file
+          fileToUpload = uploadedFile;
+          mimeType = fileMimeType;
+        } else {
+          // Create File from text content
+          const blob = new Blob([newDocContent], { type: 'text/markdown' });
+          fileToUpload = new File([blob], newDocName + '.md', { type: 'text/markdown' });
+          mimeType = 'text/markdown';
+        }
+
         const response = await createDocMutation.mutateAsync({
           name: newDocName,
-          content: newDocContent,
-          format: 'text/markdown',
+          file: fileToUpload,
+          format: mimeType,
           entityTypes: selectedEntityTypes,
+          language: selectedLanguage,
           creationMethod: 'ui'
         });
 
@@ -198,22 +276,29 @@ function ComposeDocumentContent() {
       router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
     } catch (error) {
       console.error('Failed to save document:', error);
-      showError('Failed to save document. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save document. Please try again.';
+      showError(errorMessage);
     } finally {
       setIsCreating(false);
     }
   };
 
-  if (isLoading) {
+  // Show loading state while checking authentication or loading clone data
+  if (status === 'loading' || isLoading) {
     return (
       <div className="px-4 py-8">
         <div className="flex items-center justify-center py-20">
           <p className="text-gray-600 dark:text-gray-300">
-            Loading cloned document...
+            {status === 'loading' ? 'Checking authentication...' : 'Loading cloned document...'}
           </p>
         </div>
       </div>
     );
+  }
+
+  // Don't render form if not authenticated (will redirect in useEffect)
+  if (!session?.backendToken) {
+    return null;
   }
 
   return (
@@ -257,6 +342,81 @@ function ComposeDocumentContent() {
               disabled={isCreating}
             />
           </div>
+
+          {/* File Upload */}
+          {!isClone && !isReferenceCompletion && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Upload File (optional)
+              </label>
+              <div className="flex items-center gap-4">
+                <label className="flex-1 cursor-pointer">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+                    <input
+                      type="file"
+                      accept="text/plain,text/markdown,image/png,image/jpeg"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      disabled={isCreating}
+                    />
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {uploadedFile ? uploadedFile.name : 'Click to upload or drag and drop'}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      Supported: text/plain, text/markdown, image/png, image/jpeg
+                    </p>
+                  </div>
+                </label>
+                {uploadedFile && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadedFile(null);
+                      setFilePreviewUrl(null);
+                      setFileMimeType('text/markdown');
+                    }}
+                    className="px-3 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                    disabled={isCreating}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Image Preview */}
+              {uploadedFile && filePreviewUrl && isImageMimeType(fileMimeType) && (
+                <div className="mt-4 border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preview:</p>
+                  <div className="max-h-96 overflow-hidden rounded">
+                    <img
+                      src={filePreviewUrl}
+                      alt="Upload preview"
+                      className="max-w-full h-auto"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Content editor - only show for text or when no file uploaded */}
+          {(!uploadedFile || !isImageMimeType(fileMimeType)) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {isClone ? t('resourceContent') : t('content')}
+              </label>
+              <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                <CodeMirrorRenderer
+                  content={newDocContent}
+                  segments={[]}
+                  editable={!isCreating}
+                  sourceView={true}
+                  showLineNumbers={showLineNumbers}
+                  onChange={(newContent) => setNewDocContent(newContent)}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Entity Types Selection */}
           {(!isReferenceCompletion || selectedEntityTypes.length === 0) && (
@@ -332,23 +492,6 @@ function ComposeDocumentContent() {
             </div>
           )}
 
-          {/* Content editor */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {isClone ? t('resourceContent') : t('content')}
-            </label>
-            <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-              <CodeMirrorRenderer
-                content={newDocContent}
-                segments={[]}
-                editable={!isCreating}
-                sourceView={true}
-                showLineNumbers={showLineNumbers}
-                onChange={(newContent) => setNewDocContent(newContent)}
-              />
-            </div>
-          </div>
-
           {isClone && (
             <div className="flex items-center">
               <input
@@ -365,24 +508,46 @@ function ComposeDocumentContent() {
             </div>
           )}
 
-          <div className="flex gap-4 justify-end">
-            <button
-              type="button"
-              onClick={() => router.push('/know/discover')}
-              disabled={isCreating}
-              className={buttonStyles.tertiary.base}
-            >
-              {t('cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={isCreating || !newDocName.trim()}
-              className={buttonStyles.primary.base}
-            >
-              {isCreating
-                ? (isClone ? t('saving') : isReferenceCompletion ? t('creatingAndLinking') : t('creating'))
-                : (isClone ? t('saveClonedResource') : isReferenceCompletion ? t('createAndLinkResource') : t('createResource'))}
-            </button>
+          <div className="flex gap-4 justify-between items-center">
+            {/* Language/Locale Selector */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="language-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                {t('language')}:
+              </label>
+              <select
+                id="language-select"
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                disabled={isCreating}
+                className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+              >
+                {LOCALES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.nativeName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => router.push('/know/discover')}
+                disabled={isCreating}
+                className={buttonStyles.tertiary.base}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={isCreating || !newDocName.trim()}
+                className={buttonStyles.primary.base}
+              >
+                {isCreating
+                  ? (isClone ? t('saving') : isReferenceCompletion ? t('creatingAndLinking') : t('creating'))
+                  : (isClone ? t('saveClonedResource') : isReferenceCompletion ? t('createAndLinkResource') : t('createResource'))}
+              </button>
+            </div>
           </div>
         </form>
       </div>

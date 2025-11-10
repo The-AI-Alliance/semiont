@@ -11,10 +11,47 @@
       }
     ],
     "requestBody": {
+      "required": true,
       "content": {
-        "application/json": {
+        "multipart/form-data": {
           "schema": {
-            "$ref": "../components/schemas/CreateResourceRequest.json"
+            "type": "object",
+            "required": ["name", "file", "format"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Resource name"
+              },
+              "file": {
+                "type": "string",
+                "format": "binary",
+                "description": "Binary content of the resource"
+              },
+              "format": {
+                "type": "string",
+                "description": "MIME type (e.g., text/markdown, image/png)"
+              },
+              "entityTypes": {
+                "type": "string",
+                "description": "JSON-encoded array of entity types"
+              },
+              "language": {
+                "type": "string",
+                "description": "ISO 639-1 language code"
+              },
+              "creationMethod": {
+                "type": "string",
+                "description": "How the resource was created"
+              },
+              "sourceAnnotationId": {
+                "type": "string",
+                "description": "Source annotation ID (for generated resources)"
+              },
+              "sourceResourceId": {
+                "type": "string",
+                "description": "Source resource ID (for cloned resources)"
+              }
+            }
           }
         }
       }

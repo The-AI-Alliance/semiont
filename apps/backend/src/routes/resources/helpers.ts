@@ -49,7 +49,8 @@ export async function detectAnnotationsInResource(
     if (!primaryRep.checksum || !primaryRep.mediaType) return detectedAnnotations;
 
     const basePath = config.services.filesystem!.path;
-    const repStore = new FilesystemRepresentationStore({ basePath });
+    const projectRoot = config._metadata?.projectRoot;
+    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
     const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
     const content = contentBuffer.toString('utf-8');
 

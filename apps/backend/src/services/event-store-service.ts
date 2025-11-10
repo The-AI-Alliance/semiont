@@ -26,9 +26,21 @@ export async function createEventStore(
   config?: Omit<EventStorageConfig, 'basePath' | 'dataDir'> & { basePath?: string }
 ): Promise<EventStore> {
   // Derive basePath from config or envConfig
-  const basePath = config?.basePath || envConfig.services.filesystem?.path;
-  if (!basePath) {
+  const configuredPath = config?.basePath || envConfig.services.filesystem?.path;
+  if (!configuredPath) {
     throw new Error('basePath must be provided via config or envConfig.services.filesystem.path');
+  }
+
+  // Resolve basePath against project root if relative
+  const projectRoot = envConfig._metadata?.projectRoot;
+  let basePath: string;
+  if (path.isAbsolute(configuredPath)) {
+    basePath = configuredPath;
+  } else if (projectRoot) {
+    basePath = path.resolve(projectRoot, configuredPath);
+  } else {
+    // Fallback to resolving against cwd (backward compat)
+    basePath = path.resolve(configuredPath);
   }
 
   if (!envConfig.services?.backend?.publicURL) {
@@ -43,7 +55,8 @@ export async function createEventStore(
 
   // Create ViewStorage for materialized views
   // Structure: <basePath>/projections/resources/...
-  const viewStorage = new FilesystemViewStorage(basePath);
+  // basePath is already resolved, pass projectRoot for safety
+  const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
 
   // Determine data directory for events
   // Structure: <basePath>/events/...

@@ -52,7 +52,8 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] Processing generation for reference ${job.referenceId} (job: ${job.id})`);
 
     const basePath = this.config.services.filesystem!.path;
-    const repStore = new FilesystemRepresentationStore({ basePath });
+    const projectRoot = this.config._metadata?.projectRoot;
+    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     // Update progress: fetching
     job.progress = {
