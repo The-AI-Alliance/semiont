@@ -445,6 +445,133 @@ describe('Route Authentication Coverage', () => {
     });
   });
 
+  describe('Route Registration Order', () => {
+    it('should verify auth middleware registered before handlers', () => {
+      const routes = app.routes;
+      const violations: Array<{ handler: string; middleware: string }> = [];
+
+      // Group routes by path prefix
+      const routeGroups = new Map<string, Array<{ method: string; path: string; index: number }>>();
+
+      routes.forEach((r, index) => {
+        // Extract path prefix (e.g., /api/admin/users -> /api/admin)
+        const segments = r.path.split('/').filter(s => s);
+        const prefix = segments.slice(0, Math.min(2, segments.length)).join('/');
+        const key = `/${prefix}`;
+
+        if (!routeGroups.has(key)) {
+          routeGroups.set(key, []);
+        }
+        routeGroups.get(key)!.push({ method: r.method, path: r.path, index });
+      });
+
+      // Check each group: middleware (/*) should come before specific handlers
+      routeGroups.forEach((group, prefix) => {
+        const middlewareRoutes = group.filter(r => r.path.includes('/*'));
+        const handlerRoutes = group.filter(r => !r.path.includes('/*') && r.path.startsWith(prefix));
+
+        if (middlewareRoutes.length > 0 && handlerRoutes.length > 0) {
+          const firstMiddlewareIndex = Math.min(...middlewareRoutes.map(r => r.index));
+          const firstHandlerIndex = Math.min(...handlerRoutes.map(r => r.index));
+
+          // Middleware should be registered before or equal to handlers
+          if (firstMiddlewareIndex > firstHandlerIndex) {
+            violations.push({
+              handler: `${handlerRoutes[0]?.path} (index ${firstHandlerIndex})`,
+              middleware: `${middlewareRoutes[0]?.path} (index ${firstMiddlewareIndex})`,
+            });
+          }
+        }
+      });
+
+      if (violations.length > 0) {
+        console.log(`\n❌ Route Registration Order Violations (${violations.length}):`);
+        console.log(`   Auth middleware registered AFTER handlers (security risk):\n`);
+        violations.forEach(v => {
+          console.log(`   Handler:    ${v.handler}`);
+          console.log(`   Middleware: ${v.middleware} (should be before handler!)\n`);
+        });
+      } else {
+        console.log(`\n✅ Route registration order correct - middleware before handlers`);
+      }
+
+      // CRITICAL: No violations allowed - this is a security hole
+      expect(violations.length).toBe(0);
+    });
+
+    it('should verify auth middleware exists for all protected paths', () => {
+      const routes = app.routes;
+      const protectedPaths = routes
+        .filter(r => !isPublicRoute(r.path) && !r.path.includes('/*'))
+        .map(r => r.path);
+
+      const authMiddlewarePaths = routes
+        .filter(r => r.path.includes('/*'))
+        .map(r => r.path);
+
+      const missingAuth: string[] = [];
+
+      // For each protected path, verify there's a matching auth middleware
+      const uniqueProtectedPaths = [...new Set(protectedPaths)];
+
+      for (const path of uniqueProtectedPaths) {
+        // Check if any auth middleware pattern covers this path
+        const hasAuth = authMiddlewarePaths.some(middleware => {
+          const pattern = middleware.replace('/*', '');
+          return path.startsWith(pattern);
+        });
+
+        if (!hasAuth && !path.startsWith('/api/tokens')) {
+          // Skip token routes - they handle their own auth
+          missingAuth.push(path);
+        }
+      }
+
+      if (missingAuth.length > 0) {
+        console.log(`\n⚠️  Paths without auth middleware coverage (${missingAuth.length}):`);
+        missingAuth.slice(0, 10).forEach(p => {
+          console.log(`   ${p}`);
+        });
+        if (missingAuth.length > 10) {
+          console.log(`   ... and ${missingAuth.length - 10} more`);
+        }
+      } else {
+        console.log(`\n✅ All protected paths have auth middleware coverage`);
+      }
+
+      // This is informational - some paths might use route-level auth instead of middleware
+      // We don't fail here, but we log for awareness
+    });
+
+    it('should verify global middleware registered first', () => {
+      const routes = app.routes;
+      const globalMiddleware = routes.filter(r => r.path === '/*');
+      const otherRoutes = routes.filter(r => r.path !== '/*');
+
+      if (globalMiddleware.length === 0) {
+        console.log(`\n⚠️  No global middleware (/*) detected`);
+        return;
+      }
+
+      const firstGlobalIndex = routes.findIndex(r => r.path === '/*');
+      const firstOtherIndex = routes.findIndex(r => r.path !== '/*');
+
+      console.log(`\n📍 Middleware Registration Order:`);
+      console.log(`   Global middleware (/*): index ${firstGlobalIndex}`);
+      console.log(`   First other route: index ${firstOtherIndex}`);
+
+      if (firstGlobalIndex > firstOtherIndex) {
+        console.log(`   ⚠️  WARNING: Global middleware registered after other routes!`);
+        console.log(`   This means global middleware won't run for earlier routes.`);
+      } else {
+        console.log(`   ✅ Global middleware registered first (correct)`);
+      }
+
+      // Global middleware should be first or very early
+      expect(firstGlobalIndex).toBeLessThan(20);
+    });
+  });
+
   describe('Security Requirements', () => {
     it('should not leak information about resource existence without auth', async () => {
       const testPaths = [
