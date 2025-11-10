@@ -134,6 +134,7 @@ export function registerGenerateResourceFromAnnotation(router: ResourcesRouterTy
           name: resourceName,
           format: 'text/markdown',
           contentChecksum: storedRep.checksum,
+          contentByteSize: storedRep.byteSize,
           creationMethod: CREATION_METHODS.GENERATED,
           entityTypes: body.entityTypes || annotationEntityTypes,
           language: body.language,
@@ -176,6 +177,7 @@ export function registerGenerateResourceFromAnnotation(router: ResourcesRouterTy
         representations: [{
           mediaType: 'text/markdown',
           checksum: storedRep.checksum,
+          byteSize: storedRep.byteSize,
           rel: 'original' as const,
           language: body.language,
         }],

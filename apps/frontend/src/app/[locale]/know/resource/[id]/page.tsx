@@ -14,7 +14,7 @@ import { ResourceTagsInline } from '@/components/ResourceTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
-import { getResourceId, getLanguage, getPrimaryMediaType, searchQuery } from '@semiont/api-client';
+import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery } from '@semiont/api-client';
 import { groupAnnotationsByType } from '@/lib/annotation-registry';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -230,6 +230,11 @@ function ResourceView({
 
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];
+
+  // Get primary representation metadata
+  const primaryRep = getPrimaryRepresentation(resource);
+  const primaryMediaType = primaryRep?.mediaType;
+  const primaryByteSize = primaryRep?.byteSize;
 
   // Get entity types for detection
   const { data: entityTypesData } = entityTypesAPI.list.useQuery();
@@ -712,6 +717,8 @@ function ResourceView({
                 referencedByLoading={referencedByLoading}
                 documentEntityTypes={documentEntityTypes}
                 documentLocale={getLanguage(resource)}
+                primaryMediaType={primaryMediaType}
+                primaryByteSize={primaryByteSize}
               />
             )}
 

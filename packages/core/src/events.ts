@@ -35,6 +35,7 @@ export interface ResourceCreatedEvent extends BaseEvent {
     name: string;
     format: ContentFormat;       // MIME type (validated enum)
     contentChecksum: string;     // SHA-256 of content (should match resourceId)
+    contentByteSize?: number;    // Size of content in bytes
     creationMethod: CreationMethod;  // How the resource was created
     entityTypes?: string[];
 
@@ -52,6 +53,7 @@ export interface ResourceClonedEvent extends BaseEvent {
     name: string;
     format: ContentFormat;       // MIME type (validated enum)
     contentChecksum: string;     // SHA-256 of new content
+    contentByteSize?: number;    // Size of content in bytes
     parentResourceId: string;   // Content hash of parent resource
     creationMethod: CreationMethod;  // How the resource was created
     entityTypes?: string[];

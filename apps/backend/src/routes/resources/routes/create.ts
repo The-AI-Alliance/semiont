@@ -112,6 +112,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
         name,
         format,
         contentChecksum: storedRep.checksum,
+        contentByteSize: storedRep.byteSize,
         creationMethod: validatedCreationMethod,
         entityTypes,
         language: language || undefined,
@@ -140,6 +141,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
       representations: [{
         mediaType: format,
         checksum: storedRep.checksum,
+        byteSize: storedRep.byteSize,
         rel: 'original',
         language: language || undefined,
       }],

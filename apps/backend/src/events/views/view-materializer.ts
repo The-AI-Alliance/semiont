@@ -154,6 +154,7 @@ export class ViewMaterializer {
         reps.push({
           mediaType: event.payload.format,
           checksum: event.payload.contentChecksum,
+          byteSize: event.payload.contentByteSize,
           rel: 'original',
           language: event.payload.language,
         } as Representation);
@@ -178,6 +179,7 @@ export class ViewMaterializer {
         reps2.push({
           mediaType: event.payload.format,
           checksum: event.payload.contentChecksum,
+          byteSize: event.payload.contentByteSize,
           rel: 'original',
           language: event.payload.language,
         } as Representation);
