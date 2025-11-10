@@ -289,30 +289,6 @@ function ResourceView({
     }
   }, [resource, rUri, addResource]);
 
-  // Handle wiki link clicks - memoized
-  const handleWikiLinkClick = useCallback(async (pageName: string) => {
-    if (!client) return;
-
-    try {
-      // Search for the resource using api-client
-      const response = await client.listResources(1, undefined, searchQuery(pageName));
-
-      if (response.resources?.length > 0 && response.resources[0]) {
-        // Resource found - navigate to it
-        const foundResourceId = getResourceId(response.resources[0]);
-        if (foundResourceId) {
-          router.push(`/know/resource/${encodeURIComponent(foundResourceId)}`);
-        }
-      } else {
-        // Resource not found - fail hard
-        throw new Error(`Resource "${pageName}" not found`);
-      }
-    } catch (err) {
-      console.error('Failed to navigate to wiki link:', err);
-      showError('Failed to navigate to wiki link');
-    }
-  }, [router, showError, client]);
-
   // Update document tags - memoized
   const updateDocumentTags = useCallback(async (tags: string[]) => {
     try {
@@ -594,7 +570,6 @@ function ResourceView({
                   // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
                   // This prevents race condition where we refetch before the event is processed
                 }}
-                onWikiLinkClick={handleWikiLinkClick}
                 curationMode={annotateMode}
                 onCommentCreationRequested={(selection) => {
                   // Store the selection and ensure the Comments Panel is open

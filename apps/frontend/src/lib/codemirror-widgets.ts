@@ -224,25 +224,3 @@ export class ReferenceResolutionWidget extends WidgetType {
     return event.type === 'click';
   }
 }
-
-/**
- * Find wiki links in content and return decoration positions
- */
-export function findWikiLinks(content: string): Array<{ from: number; to: number; pageName: string }> {
-  const wikiLinkRegex = /\[\[([^\]]+)\]\]/g;
-  const links: Array<{ from: number; to: number; pageName: string }> = [];
-
-  let match;
-  while ((match = wikiLinkRegex.exec(content)) !== null) {
-    const pageName = match[1];
-    if (!pageName) continue; // Skip if capture group is undefined
-
-    links.push({
-      from: match.index,
-      to: match.index + match[0].length,
-      pageName
-    });
-  }
-
-  return links;
-}

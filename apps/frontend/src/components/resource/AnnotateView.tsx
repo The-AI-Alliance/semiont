@@ -31,7 +31,6 @@ interface Props {
   scrollToAnnotationId?: string | null;
   editable?: boolean;
   enableWidgets?: boolean;
-  onWikiLinkClick?: (pageName: string) => void;
   onEntityTypeClick?: (entityType: string) => void;
   onReferenceNavigate?: (documentId: string) => void;
   onUnresolvedReferenceClick?: (annotation: Annotation) => void;
@@ -121,7 +120,6 @@ export function AnnotateView({
   scrollToAnnotationId,
   editable = false,
   enableWidgets = false,
-  onWikiLinkClick,
   onEntityTypeClick,
   onReferenceNavigate,
   onUnresolvedReferenceClick,
@@ -274,7 +272,6 @@ export function AnnotateView({
             sourceView={true}
             showLineNumbers={showLineNumbers}
             enableWidgets={enableWidgets}
-            {...(onWikiLinkClick && { onWikiLinkClick })}
             {...(onEntityTypeClick && { onEntityTypeClick })}
             {...(onReferenceNavigate && { onReferenceNavigate })}
             {...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick })}
