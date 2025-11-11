@@ -13,22 +13,22 @@ Comprehensive examples for common operations with the Semiont API Client.
   - [Listing Resources](#listing-resources)
 - [Annotations](#annotations)
   - [Annotation History](#annotation-history)
-- [LLM Context](#llm-context)
-  - [Get Resource LLM Context](#get-resource-llm-context)
-  - [Get Annotation LLM Context](#get-annotation-llm-context)
-- [Entity Detection and Jobs](#entity-detection-and-jobs)
-  - [Managing Entity Types](#managing-entity-types)
-  - [Start Entity Detection Job](#start-entity-detection-job)
-  - [Poll Job Status](#poll-job-status)
-  - [Poll Until Complete](#poll-until-complete)
-  - [Complete Example: Detect and Wait](#complete-example-detect-and-wait)
+- [Event Streams](#event-streams)
 - [SSE Streaming](#sse-streaming)
   - [Stream Entity Detection](#stream-entity-detection)
   - [Stream Resource Generation](#stream-resource-generation)
   - [Subscribe to Resource Events](#subscribe-to-resource-events)
   - [Stream Lifecycle Management](#stream-lifecycle-management)
   - [SSE Error Handling](#sse-error-handling)
-- [Event Streams](#event-streams)
+- [Entity Detection and Jobs](#entity-detection-and-jobs)
+  - [Managing Entity Types](#managing-entity-types)
+  - [Start Entity Detection Job](#start-entity-detection-job)
+  - [Poll Job Status](#poll-job-status)
+  - [Poll Until Complete](#poll-until-complete)
+  - [Complete Example: Detect and Wait](#complete-example-detect-and-wait)
+- [LLM Context](#llm-context)
+  - [Get Resource LLM Context](#get-resource-llm-context)
+  - [Get Annotation LLM Context](#get-annotation-llm-context)
 - [Error Handling](#error-handling)
 - [System Status](#system-status)
 
@@ -374,171 +374,30 @@ history.events.forEach(event => {
 });
 ```
 
-## LLM Context
+## Event Streams
 
-### Get Resource LLM Context
-
-Get a resource with full context optimized for LLM processing. This includes the resource, related resources, annotations, and a graph representation.
+### Get Resource Events
 
 ```typescript
-import { resourceUri } from '@semiont/api-client';
+const events = await client.getResourceEvents(rUri);
 
-const rUri = resourceUri('http://localhost:4000/resources/resource-123');
-
-// Get with default options
-const context = await client.getResourceLLMContext(rUri);
-
-console.log('Main resource:', context.mainResource);
-console.log('Related resources:', context.relatedResources);
-console.log('Annotations:', context.annotations);
-console.log('Graph:', context.graph);
-
-// Get with custom options
-const contextWithOptions = await client.getResourceLLMContext(rUri, {
-  depth: 3,              // Graph traversal depth (1-3, default: 2)
-  maxResources: 15,      // Max related resources (1-20, default: 10)
-  includeContent: true,  // Include full content (default: true)
-  includeSummary: true,  // Generate AI summary (default: false)
+// Format events for display
+events.events.forEach(event => {
+  console.log(`[${event.timestamp}] ${event.type}`);
+  console.log('  Payload:', JSON.stringify(event.payload, null, 2));
 });
-
-console.log('Context for LLM:', contextWithOptions);
 ```
 
-### Get Annotation LLM Context
-
-Get an annotation with surrounding text context for LLM processing. Useful for understanding what text was selected and the context around it.
+### Get Referenced By
 
 ```typescript
-import { resourceAnnotationUri } from '@semiont/api-client';
+// Find all resources that reference this resource
+const refs = await client.getResourceReferencedBy(rUri);
 
-const annUri = resourceAnnotationUri(
-  'http://localhost:4000/resources/resource-123/annotations/ann-456'
-);
-
-// Get with default options
-const context = await client.getAnnotationLLMContext(annUri);
-
-console.log('Annotation:', context.annotation);
-console.log('Source resource:', context.sourceResource);
-console.log('Target resource:', context.targetResource);
-console.log('Source context:', context.sourceContext);
-
-// Get with custom options
-const contextWithWindow = await client.getAnnotationLLMContext(annUri, {
-  includeSourceContext: true,   // Include source text context (default: true)
-  includeTargetContext: true,   // Include target resource context (default: true)
-  contextWindow: 500,           // Characters of context (100-5000, default: 1000)
+console.log(`Referenced by ${refs.referencedBy.length} resources`);
+refs.referencedBy.forEach(ref => {
+  console.log(`- ${ref.name} (${ref.id})`);
 });
-
-// Source context includes text before/after the selection
-console.log('Before:', contextWithWindow.sourceContext?.before);
-console.log('Selected:', contextWithWindow.sourceContext?.selected);
-console.log('After:', contextWithWindow.sourceContext?.after);
-```
-
-## Entity Detection and Jobs
-
-### Managing Entity Types
-
-Add entity types that can be used for annotations and detection.
-
-```typescript
-// Add a single entity type
-await client.addEntityType('concept');
-
-// Add multiple entity types at once
-const result = await client.addEntityTypesBulk(['concept', 'person', 'organization']);
-console.log(`Added ${result.added} entity types`);
-console.log('All entity types:', result.entityTypes);
-
-// List all available entity types
-const types = await client.listEntityTypes();
-console.log('Available entity types:', types.entityTypes);
-```
-
-### Start Entity Detection Job
-
-Start an async entity detection job on a resource. The backend will analyze the resource content and create annotations for detected entities.
-
-```typescript
-import { resourceUri } from '@semiont/api-client';
-
-const rUri = resourceUri('http://localhost:4000/resources/resource-123');
-
-// Detect specific entity types
-const job = await client.detectEntities(rUri, ['person', 'organization', 'location']);
-console.log('Job ID:', job.jobId);
-console.log('Status:', job.status); // 'pending'
-
-// Detect all available entity types
-const job2 = await client.detectEntities(rUri);
-```
-
-### Poll Job Status
-
-Check the status of a running job:
-
-```typescript
-const status = await client.getJobStatus(job.jobId);
-
-console.log('Status:', status.status);      // 'pending' | 'running' | 'complete' | 'failed'
-console.log('Type:', status.type);          // 'detection' | 'generation'
-console.log('Progress:', status.progress);  // { current: 50, total: 100, message: '...' }
-
-if (status.status === 'complete') {
-  console.log('Result:', status.result);
-} else if (status.status === 'failed') {
-  console.error('Error:', status.error);
-}
-```
-
-### Poll Until Complete
-
-Use the helper method to automatically poll until the job completes:
-
-```typescript
-const result = await client.pollJobUntilComplete(job.jobId, {
-  interval: 1000,  // Poll every second (default: 1000ms)
-  timeout: 60000,  // Fail after 60 seconds (default: 60000ms)
-  onProgress: (status) => {
-    if (status.progress) {
-      console.log(`Progress: ${status.progress.current}/${status.progress.total}`);
-      console.log(status.progress.message);
-    }
-  },
-});
-
-if (result.status === 'complete') {
-  console.log('Entity detection complete!');
-  console.log('Detected entities:', result.result);
-
-  // Fetch the resource again to see the new annotations
-  const updated = await client.getResource(rUri);
-  console.log(`Found ${updated.annotations.length} annotations`);
-} else if (result.status === 'failed') {
-  console.error('Job failed:', result.error);
-}
-```
-
-### Complete Example: Detect and Wait
-
-```typescript
-// Start detection job
-const job = await client.detectEntities(resourceUri, ['person', 'organization']);
-
-// Wait for completion with progress updates
-const result = await client.pollJobUntilComplete(job.jobId, {
-  onProgress: (status) => {
-    console.log(`Status: ${status.status}`);
-  },
-});
-
-// Process results
-if (result.status === 'complete') {
-  const resource = await client.getResource(resourceUri);
-  const entities = resource.annotations.filter(a => a.motivation === 'tagging');
-  console.log(`Detected ${entities.length} entities`);
-}
 ```
 
 ## SSE Streaming
@@ -856,30 +715,171 @@ stream.onError((error) => {
 });
 ```
 
-## Event Streams
+## Entity Detection and Jobs
 
-### Get Resource Events
+### Managing Entity Types
+
+Add entity types that can be used for annotations and detection.
 
 ```typescript
-const events = await client.getResourceEvents(rUri);
+// Add a single entity type
+await client.addEntityType('concept');
 
-// Format events for display
-events.events.forEach(event => {
-  console.log(`[${event.timestamp}] ${event.type}`);
-  console.log('  Payload:', JSON.stringify(event.payload, null, 2));
-});
+// Add multiple entity types at once
+const result = await client.addEntityTypesBulk(['concept', 'person', 'organization']);
+console.log(`Added ${result.added} entity types`);
+console.log('All entity types:', result.entityTypes);
+
+// List all available entity types
+const types = await client.listEntityTypes();
+console.log('Available entity types:', types.entityTypes);
 ```
 
-### Get Referenced By
+### Start Entity Detection Job
+
+Start an async entity detection job on a resource. The backend will analyze the resource content and create annotations for detected entities.
 
 ```typescript
-// Find all resources that reference this resource
-const refs = await client.getResourceReferencedBy(rUri);
+import { resourceUri } from '@semiont/api-client';
 
-console.log(`Referenced by ${refs.referencedBy.length} resources`);
-refs.referencedBy.forEach(ref => {
-  console.log(`- ${ref.name} (${ref.id})`);
+const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+
+// Detect specific entity types
+const job = await client.detectEntities(rUri, ['person', 'organization', 'location']);
+console.log('Job ID:', job.jobId);
+console.log('Status:', job.status); // 'pending'
+
+// Detect all available entity types
+const job2 = await client.detectEntities(rUri);
+```
+
+### Poll Job Status
+
+Check the status of a running job:
+
+```typescript
+const status = await client.getJobStatus(job.jobId);
+
+console.log('Status:', status.status);      // 'pending' | 'running' | 'complete' | 'failed'
+console.log('Type:', status.type);          // 'detection' | 'generation'
+console.log('Progress:', status.progress);  // { current: 50, total: 100, message: '...' }
+
+if (status.status === 'complete') {
+  console.log('Result:', status.result);
+} else if (status.status === 'failed') {
+  console.error('Error:', status.error);
+}
+```
+
+### Poll Until Complete
+
+Use the helper method to automatically poll until the job completes:
+
+```typescript
+const result = await client.pollJobUntilComplete(job.jobId, {
+  interval: 1000,  // Poll every second (default: 1000ms)
+  timeout: 60000,  // Fail after 60 seconds (default: 60000ms)
+  onProgress: (status) => {
+    if (status.progress) {
+      console.log(`Progress: ${status.progress.current}/${status.progress.total}`);
+      console.log(status.progress.message);
+    }
+  },
 });
+
+if (result.status === 'complete') {
+  console.log('Entity detection complete!');
+  console.log('Detected entities:', result.result);
+
+  // Fetch the resource again to see the new annotations
+  const updated = await client.getResource(rUri);
+  console.log(`Found ${updated.annotations.length} annotations`);
+} else if (result.status === 'failed') {
+  console.error('Job failed:', result.error);
+}
+```
+
+### Complete Example: Detect and Wait
+
+```typescript
+// Start detection job
+const job = await client.detectEntities(resourceUri, ['person', 'organization']);
+
+// Wait for completion with progress updates
+const result = await client.pollJobUntilComplete(job.jobId, {
+  onProgress: (status) => {
+    console.log(`Status: ${status.status}`);
+  },
+});
+
+// Process results
+if (result.status === 'complete') {
+  const resource = await client.getResource(resourceUri);
+  const entities = resource.annotations.filter(a => a.motivation === 'tagging');
+  console.log(`Detected ${entities.length} entities`);
+}
+```
+
+## LLM Context
+
+### Get Resource LLM Context
+
+Get a resource with full context optimized for LLM processing. This includes the resource, related resources, annotations, and a graph representation.
+
+```typescript
+import { resourceUri } from '@semiont/api-client';
+
+const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+
+// Get with default options
+const context = await client.getResourceLLMContext(rUri);
+
+console.log('Main resource:', context.mainResource);
+console.log('Related resources:', context.relatedResources);
+console.log('Annotations:', context.annotations);
+console.log('Graph:', context.graph);
+
+// Get with custom options
+const contextWithOptions = await client.getResourceLLMContext(rUri, {
+  depth: 3,              // Graph traversal depth (1-3, default: 2)
+  maxResources: 15,      // Max related resources (1-20, default: 10)
+  includeContent: true,  // Include full content (default: true)
+  includeSummary: true,  // Generate AI summary (default: false)
+});
+
+console.log('Context for LLM:', contextWithOptions);
+```
+
+### Get Annotation LLM Context
+
+Get an annotation with surrounding text context for LLM processing. Useful for understanding what text was selected and the context around it.
+
+```typescript
+import { resourceAnnotationUri } from '@semiont/api-client';
+
+const annUri = resourceAnnotationUri(
+  'http://localhost:4000/resources/resource-123/annotations/ann-456'
+);
+
+// Get with default options
+const context = await client.getAnnotationLLMContext(annUri);
+
+console.log('Annotation:', context.annotation);
+console.log('Source resource:', context.sourceResource);
+console.log('Target resource:', context.targetResource);
+console.log('Source context:', context.sourceContext);
+
+// Get with custom options
+const contextWithWindow = await client.getAnnotationLLMContext(annUri, {
+  includeSourceContext: true,   // Include source text context (default: true)
+  includeTargetContext: true,   // Include target resource context (default: true)
+  contextWindow: 500,           // Characters of context (100-5000, default: 1000)
+});
+
+// Source context includes text before/after the selection
+console.log('Before:', contextWithWindow.sourceContext?.before);
+console.log('Selected:', contextWithWindow.sourceContext?.selected);
+console.log('After:', contextWithWindow.sourceContext?.after);
 ```
 
 ## Error Handling

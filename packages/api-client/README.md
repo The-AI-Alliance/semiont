@@ -1,15 +1,19 @@
 # @semiont/api-client
 
-## TypeScript SDK for Semiont
+TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) - a knowledge management system for semantic annotations, AI-powered entity detection, and collaborative document analysis.
 
-🎯 **Use this package for all external integrations, demos, MCP servers, and frontend applications.**
+## What is Semiont?
 
-This package provides a type-safe, spec-first SDK that includes:
+Semiont lets you:
 
-- **API Client**: HTTP client for all backend endpoints
-- **TypeScript Types**: Generated from OpenAPI specification
-- **W3C Utilities**: Helpers for annotations, selectors, entity types, and locales
-- **Event Utilities**: Formatting and display helpers for event streams
+- **Store and manage documents** (text, markdown, code)
+- **Create semantic annotations** using W3C Web Annotation standard
+- **Link and reference** between documents
+- **Track provenance** with event sourcing
+- **Collaborate in real-time** via SSE streams
+- **Detect entities** using AI (people, organizations, concepts)
+- **Retrieve context** for LLMs via graph traversal
+- **Generate new documents** from annotations with AI
 
 ## Installation
 
@@ -17,12 +21,13 @@ This package provides a type-safe, spec-first SDK that includes:
 npm install @semiont/api-client
 ```
 
+**Prerequisites**: Semiont backend running. See [Running the Backend](../../apps/backend/README.md#quick-start) for setup.
+
 ## Quick Start
 
 ```typescript
 import { SemiontApiClient } from '@semiont/api-client';
 
-// Create client
 const client = new SemiontApiClient({
   baseUrl: 'http://localhost:4000',
 });
@@ -30,204 +35,52 @@ const client = new SemiontApiClient({
 // Authenticate
 await client.authenticateLocal('user@example.com', '123456');
 
-// Create a resource
-const result = await client.createResource({
-  name: 'My Resource',
-  content: 'Hello World',
+// Create a document
+const { resource } = await client.createResource({
+  name: 'My Document',
+  content: 'The quick brown fox jumps over the lazy dog.',
   format: 'text/plain',
   entityTypes: ['example']
 });
 
-console.log('Created:', result.resource.id);
+// Detect entities with AI
+const stream = client.sse.detectAnnotations(resource['@id'], {
+  entityTypes: ['Animal', 'Color']
+});
+
+stream.onProgress((p) => console.log(`Scanning: ${p.currentEntityType}`));
+stream.onComplete(() => console.log('Detection complete!'));
+
+// Generate new document from annotation
+const generation = client.sse.generateResourceFromAnnotation(annotationUri, {
+  title: 'Analysis of the fox',
+  prompt: 'Write a detailed analysis of this animal.'
+});
+
+generation.onProgress((p) => console.log(`Generating... ${p.percentage}%`));
+generation.onComplete((result) => console.log('New document:', result.resourceId));
 ```
-
-## SSE Streaming
-
-For long-running operations, use Server-Sent Events (SSE) streaming for real-time progress updates:
-
-```typescript
-// Stream entity detection progress
-const stream = client.sse.detectAnnotations(
-  resourceId,
-  { entityTypes: ['Person', 'Organization'] }
-);
-
-stream.onProgress((progress) => {
-  console.log(\`Scanning: \${progress.currentEntityType}\`);
-  console.log(\`Progress: \${progress.processedEntityTypes}/\${progress.totalEntityTypes}\`);
-});
-
-stream.onComplete((result) => {
-  console.log(\`Detection complete! Found \${result.foundCount} entities\`);
-});
-
-stream.onError((error) => {
-  console.error('Detection failed:', error.message);
-});
-
-// Cleanup when done
-stream.close();
-```
-
-### SSE Design Principles
-
-The SSE implementation (\`client.sse.*\`) follows these design principles:
-
-1. **Clear Separation**: SSE methods live in a separate namespace to distinguish streaming from request/response
-2. **Not ky-Based**: Uses native `fetch()` with manual SSE parsing for fine-grained control (ky is optimized for request/response, not streaming)
-3. **Type-Safe Events**: All events have TypeScript interfaces derived from the OpenAPI specification
-4. **Consistent Callbacks**: All three methods use `.onProgress()`, `.onComplete()`, `.onError()`, and `.close()`
-5. **No Response Validation**: SSE streams are not validated (only request bodies are validated via OpenAPI schemas)
-
-### Three SSE Methods
-
-- **`client.sse.detectAnnotations()`** - Entity detection with progress updates
-- **`client.sse.generateResourceFromAnnotation()`** - Resource generation with percentage-based progress
-- **`client.sse.resourceEvents()`** - Long-lived connection for real-time collaboration
-
-See [SSE Streaming documentation](./docs/Usage.md#sse-streaming) for complete usage guide.
-
-## Features
-
-- ✅ **Spec-First** - Types generated from OpenAPI specification
-- ✅ **Type-Safe** - Full TypeScript types for all operations
-- ✅ **Framework-Agnostic** - Works in Node.js, browser, or any JS environment
-- ✅ **Built-in Auth** - Local, Google OAuth, refresh tokens
-- ✅ **SSE Streaming** - Real-time progress updates for long-running operations
-- ✅ **W3C Content Negotiation** - Get raw representations with Accept headers
-- ✅ **W3C Utilities** - Annotation and selector helpers
-- ✅ **Event Utilities** - Formatting and display helpers
-- ✅ **Automatic Retry** - Configurable retry with exponential backoff
-- ✅ **Error Handling** - Structured \`APIError\` class
 
 ## Documentation
 
-📚 **[Complete Usage Guide](./docs/Usage.md)** - Step-by-step examples
-
+📚 **[Usage Guide](./docs/Usage.md)** - Authentication, resources, annotations, SSE streaming
 📖 **[API Reference](./docs/API-Reference.md)** - Complete method documentation
 
-### Quick Links
+## Key Features
 
-- [Authentication](./docs/Usage.md#authentication) - All auth methods
-- [Resources](./docs/Usage.md#resources) - CRUD operations
-- [Annotations](./docs/Usage.md#annotations) - W3C Web Annotation Model
-- [Entity Detection](./docs/Usage.md#entity-detection-and-jobs) - Async jobs
-- [SSE Streaming](./docs/Usage.md#sse-streaming) - Real-time updates for long-running operations
-- [LLM Context](./docs/Usage.md#llm-context) - AI-optimized context
-- [Error Handling](./docs/Usage.md#error-handling) - Error handling patterns
+- **Type-safe** - Generated from OpenAPI spec
+- **W3C compliant** - Web Annotation standard
+- **Real-time** - SSE streaming for long operations
+- **Framework-agnostic** - Works everywhere JavaScript runs
 
-## Who Uses This
+## Use Cases
 
-- ✅ **MCP Server** - Model Context Protocol integration
-- ✅ **Frontend** - Web application (can wrap with React hooks)
-- ✅ **Demo Scripts** - Example scripts and automation
-- ✅ **External Applications** - Third-party integrations
-- ✅ **CLI Tools** - Command-line utilities
+- ✅ MCP servers and AI integrations
+- ✅ Frontend applications (wrap with React hooks)
+- ✅ CLI tools and automation scripts
+- ✅ Third-party integrations
 
-## Who Should NOT Use This
-
-- ❌ **Backend Internal Code** - Use [`@semiont/core`](../core/) for backend domain logic
-
-**Note**: If you need backend-specific utilities (event sourcing, crypto, type guards), use [`@semiont/core`](../core/). For API consumption and W3C annotation utilities, use this package.
-
-## Configuration
-
-```typescript
-const client = new SemiontApiClient({
-  baseUrl: 'http://localhost:4000',  // Required
-  accessToken: 'your-token',         // Optional
-  timeout: 30000,                    // Optional (default: 30000ms)
-  retry: 2,                          // Optional (default: 2)
-});
-```
-
-## Error Handling
-
-```typescript
-import { SemiontApiClient, APIError } from '@semiont/api-client';
-
-try {
-  const resource = await client.getResource(uri);
-} catch (error) {
-  if (error instanceof APIError) {
-    console.error('API Error:', error.message);
-    console.error('Status:', error.status);
-  }
-}
-```
-
-## Utilities
-
-The SDK includes framework-agnostic utilities:
-
-```typescript
-import {
-  // Annotation utilities
-  isReference,
-  isHighlight,
-  getBodySource,
-  getTargetSource,
-  getEntityTypes,
-
-  // Selector utilities
-  getExactText,
-  getTextPositionSelector,
-  getTextQuoteSelector,
-
-  // Event utilities
-  formatEventType,
-  getEventEmoji,
-  formatRelativeTime,
-} from '@semiont/api-client';
-```
-
-See [API Reference](./docs/API-Reference.md#utilities) for complete utility documentation.
-
-## Development
-
-### Regenerate Types from OpenAPI
-
-```bash
-npm run generate
-```
-
-This command:
-1. Bundles the OpenAPI spec from [../../specs/src/](../../specs/src/) → `../../specs/openapi.json`
-2. Copies the bundled spec to this package
-3. Generates TypeScript types using `openapi-typescript`
-
-**Note**: The OpenAPI specification is maintained as modular files in [../../specs/src/](../../specs/src/). See [../../specs/README.md](../../specs/README.md) for details on editing the spec.
-
-### Build
-
-```bash
-npm run build
-```
-
-### Test
-
-```bash
-npm test
-```
-
-## Architecture
-
-This package enforces the API boundary between:
-
-- **Internal** (backend, CLI) - Direct system access
-- **External** (frontend, MCP, demos) - Uses `@semiont/api-client`
-
-See [ARCHITECTURE-API-BOUNDARY.md](../../ARCHITECTURE-API-BOUNDARY.md) for details.
-
-## Examples
-
-See [demo scripts](../../demo/) for complete examples:
-
-- Authentication flows
-- Resource creation and management
-- Annotation creation and linking
-- Event history retrieval
-- Entity detection
+❌ **Not for backend internal code** - Use [`@semiont/core`](../core/) instead
 
 ## License
 
