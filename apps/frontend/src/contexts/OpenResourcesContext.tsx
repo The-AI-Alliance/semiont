@@ -8,11 +8,12 @@ interface OpenResource {
   name: string;
   openedAt: number;
   order?: number; // Optional for backward compatibility
+  mediaType?: string; // Optional media type for icon display
 }
 
 interface OpenResourcesContextType {
   openResources: OpenResource[];
-  addResource: (id: string, name: string) => void;
+  addResource: (id: string, name: string, mediaType?: string) => void;
   removeResource: (id: string) => void;
   updateResourceName: (id: string, name: string) => void;
   reorderResources: (oldIndex: number, newIndex: number) => void;
@@ -74,20 +75,20 @@ export function OpenResourcesProvider({ children }: { children: React.ReactNode 
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
   
-  const addResource = useCallback((id: string, name: string) => {
+  const addResource = useCallback((id: string, name: string, mediaType?: string) => {
     setOpenResources(prev => {
       const existing = prev.find(resource => resource.id === id);
       if (existing) {
-        // Update name if resource already exists
+        // Update name and mediaType if resource already exists
         return prev.map(resource =>
-          resource.id === id ? { ...resource, name } : resource
+          resource.id === id ? { ...resource, name, ...(mediaType && { mediaType }) } : resource
         );
       }
       // Add new resource with order = max order + 1
       const maxOrder = prev.length > 0
         ? Math.max(...prev.map(r => r.order ?? r.openedAt))
         : 0;
-      return [...prev, { id, name, openedAt: Date.now(), order: maxOrder + 1 }];
+      return [...prev, { id, name, openedAt: Date.now(), order: maxOrder + 1, ...(mediaType && { mediaType }) }];
     });
   }, []);
 
