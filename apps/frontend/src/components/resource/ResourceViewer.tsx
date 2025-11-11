@@ -589,24 +589,19 @@ export function ResourceViewer({
       )}
       
       
-      {/* Unified Annotation Popup */}
-      <AnnotationPopup
-        isOpen={showAnnotationPopup}
-        onClose={handleClosePopup}
-        position={popupPosition}
-        selection={selectedText && annotationPosition ? {
-          exact: selectedText,
-          start: annotationPosition.start,
-          end: annotationPosition.end
-        } : null}
-        {...(editingAnnotation && {
-          annotation: editingAnnotation
-        })}
-        onCreateHighlight={handleCreateHighlight}
-        onCreateReference={handleCreateReference}
-        onCreateAssessment={handleCreateAssessment}
-        onCreateComment={handleCreateComment}
-        onUpdateAnnotation={async (updates) => {
+      {/* Unified Annotation Popup - only for existing annotations */}
+      {editingAnnotation && (
+        <AnnotationPopup
+          isOpen={showAnnotationPopup}
+          onClose={handleClosePopup}
+          position={popupPosition}
+          selection={selectedText && annotationPosition ? {
+            exact: selectedText,
+            start: annotationPosition.start,
+            end: annotationPosition.end
+          } : null}
+          annotation={editingAnnotation}
+          onUpdateAnnotation={async (updates) => {
           if (editingAnnotation) {
             // Handle body updates
             if (updates.body !== undefined) {
@@ -656,6 +651,7 @@ export function ResourceViewer({
           }
         }}
       />
+      )}
 
       {/* Quick Reference Popup */}
       {quickReferenceSelection && (
