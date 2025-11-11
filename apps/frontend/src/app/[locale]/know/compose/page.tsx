@@ -463,15 +463,17 @@ function ComposeResourceContent() {
                   type="button"
                   onClick={() => setInputMethod('upload')}
                   disabled={isCreating}
-                  className={`flex-1 p-4 rounded-lg border-2 transition-colors ${
+                  className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
                     inputMethod === 'upload'
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-700'
                   } ${isCreating ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <div className="text-2xl mb-2">📎</div>
-                  <div className="font-medium text-gray-900 dark:text-white">{t('uploadFile')}</div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <span className="text-xl">📎</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{t('uploadFile')}</span>
+                  </div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
                     {t('uploadFileDescription')}
                   </div>
                 </button>
@@ -480,15 +482,17 @@ function ComposeResourceContent() {
                   type="button"
                   onClick={() => setInputMethod('write')}
                   disabled={isCreating}
-                  className={`flex-1 p-4 rounded-lg border-2 transition-colors ${
+                  className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
                     inputMethod === 'write'
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-700'
                   } ${isCreating ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <div className="text-2xl mb-2">✍️</div>
-                  <div className="font-medium text-gray-900 dark:text-white">{t('writeContent')}</div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <span className="text-xl">✍️</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{t('writeContent')}</span>
+                  </div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
                     {t('writeContentDescription')}
                   </div>
                 </button>
