@@ -17,7 +17,7 @@
  * 7. Print Results
  */
 
-import { SemiontApiClient, annotationUri, resourceUri, resourceAnnotationUri, baseUrl, accessToken, email, authCode } from '@semiont/api-client';
+import { SemiontApiClient, resourceUri, resourceAnnotationUri, baseUrl, accessToken, email, authCode } from '@semiont/api-client';
 
 // Local modules
 import { downloadAndChunkText, type ChunkInfo } from './src/chunking';
@@ -114,7 +114,7 @@ async function uploadChunks(chunks: ChunkInfo[], client: SemiontApiClient): Prom
 
     const request = {
       name: chunk.title,
-      content: chunk.content,
+      file: Buffer.from(chunk.content),
       format: 'text/plain' as const,
       entityTypes: ['literature', 'ancient-greek-drama'],
     };
@@ -164,7 +164,7 @@ async function createTableOfContents(
 
   const request = {
     name: 'Prometheus Bound: Table of Contents',
-    content,
+    file: Buffer.from(content),
     format: 'text/markdown' as const,
     entityTypes: ['literature', 'ancient-greek-drama', 'table-of-contents'],
   };

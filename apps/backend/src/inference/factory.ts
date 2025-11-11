@@ -119,123 +119,48 @@ export async function generateResourceFromTopic(
 
   // Determine language instruction
   const languageInstruction = locale && locale !== 'en'
-    ? `\n\nIMPORTANT: Write the entire resource in ${getLanguageName(locale)}. Both the title and all content must be in ${getLanguageName(locale)}.`
+    ? `\n\nIMPORTANT: Write the entire resource in ${getLanguageName(locale)}.`
     : '';
 
-  // Provider-agnostic base requirements
-  const basePrompt = `Generate a concise, informative resource about "${topic}".
+  // Simple, direct prompt - just ask for markdown content
+  const prompt = `Generate a concise, informative resource about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
 ${userPrompt ? `Additional context: ${userPrompt}` : ''}${languageInstruction}
 
 Requirements:
-- Create a clear, descriptive title
+- Start with a clear heading (# Title)
 - Write 2-3 paragraphs of substantive content
 - Be factual and informative
-- Use markdown formatting`;
+- Use markdown formatting
+- Return ONLY the markdown content, no JSON, no code fences, no additional wrapper`;
 
-  // Provider-specific formatting instructions
-  let prompt: string;
-  let parseResponse: (response: string) => { title: string; content: string };
+  // Simple parser - just use the response directly as markdown
+  const parseResponse = (response: string): { title: string; content: string } => {
+    // Clean up any markdown code fences if present
+    let content = response.trim();
+    if (content.startsWith('```markdown') || content.startsWith('```md')) {
+      content = content.slice(content.indexOf('\n') + 1);
+      const endIndex = content.lastIndexOf('```');
+      if (endIndex !== -1) {
+        content = content.slice(0, endIndex);
+      }
+    } else if (content.startsWith('```')) {
+      content = content.slice(3);
+      const endIndex = content.lastIndexOf('```');
+      if (endIndex !== -1) {
+        content = content.slice(0, endIndex);
+      }
+    }
 
-  switch (provider) {
-    case 'anthropic':
-      // Claude handles JSON output very reliably
-      prompt = `${basePrompt}
+    content = content.trim();
 
-Return ONLY valid JSON with no markdown formatting, no code fences, no additional text.
-Output exactly this structure:
-{
-  "title": "Your descriptive title here",
-  "content": "Your markdown-formatted content here\\nWith multiple paragraphs"
-}
-
-IMPORTANT: Return raw JSON only. Do not wrap in \`\`\`json or any other markdown.`;
-
-      parseResponse = (response: string) => {
-        try {
-          // Strip markdown code fences if present
-          let jsonStr = response.trim();
-          if (jsonStr.startsWith('```json')) {
-            jsonStr = jsonStr.slice(7); // Remove ```json
-            const endIndex = jsonStr.lastIndexOf('```');
-            if (endIndex !== -1) {
-              jsonStr = jsonStr.slice(0, endIndex);
-            }
-          } else if (jsonStr.startsWith('```')) {
-            jsonStr = jsonStr.slice(3); // Remove ```
-            const endIndex = jsonStr.lastIndexOf('```');
-            if (endIndex !== -1) {
-              jsonStr = jsonStr.slice(0, endIndex);
-            }
-          }
-
-          const parsed = JSON.parse(jsonStr.trim());
-          if (!parsed.title || !parsed.content) {
-            throw new Error('Missing title or content in JSON response');
-          }
-          return {
-            title: parsed.title.trim(),
-            content: parsed.content.trim()
-          };
-        } catch (e: any) {
-          throw new Error(`Failed to parse Claude JSON response: ${e.message}. Got: ${response.slice(0, 200)}...`);
-        }
-      };
-      break;
-
-    case 'openai':
-      // OpenAI also handles JSON well, especially with response_format parameter
-      // For now, use same as Claude, but we can customize later
-      prompt = `${basePrompt}
-
-Return your response as valid JSON with this exact structure:
-{
-  "title": "Your descriptive title here",
-  "content": "Your markdown-formatted content here\\nWith multiple paragraphs"
-}`;
-
-      parseResponse = (response: string) => {
-        try {
-          const parsed = JSON.parse(response);
-          return {
-            title: parsed.title?.trim() || topic,
-            content: parsed.content?.trim() || response
-          };
-        } catch (e) {
-          // OpenAI might not always return perfect JSON, fallback to text parsing
-          const titleMatch = response.match(/["\']?title["\']?\s*:\s*["\']([^"\']+)["\']?/i);
-          const contentMatch = response.match(/["\']?content["\']?\s*:\s*["\']?([\s\S]+)/i);
-          return {
-            title: titleMatch?.[1]?.trim() || topic,
-            content: contentMatch?.[1]?.trim() || response
-          };
-        }
-      };
-      break;
-
-    default:
-      // Generic fallback using simple markers
-      prompt = `${basePrompt}
-
-Format your response as:
-TITLE: [your title here]
-CONTENT:
-[your content here]`;
-
-      parseResponse = (response: string) => {
-        const titleMatch = response.match(/^TITLE:\s*(.+)$/m);
-        const contentMatch = response.match(/^CONTENT:\s*([\s\S]+)$/m);
-
-        if (!titleMatch || !contentMatch || !titleMatch[1] || !contentMatch[1]) {
-          throw new Error(`Failed to parse response with TITLE/CONTENT markers. Got: ${response.slice(0, 200)}...`);
-        }
-
-        return {
-          title: titleMatch[1].trim(),
-          content: contentMatch[1].trim()
-        };
-      };
-  }
+    // Title is provided by the caller (topic), not extracted from generated content
+    // This matches how it's actually used in generation-worker.ts line 87
+    return {
+      title: topic,
+      content: content
+    };
+  };
 
   console.log('Sending prompt to inference (length:', prompt.length, 'chars)');
   const response = await generateText(prompt, config, 500, 0.7);

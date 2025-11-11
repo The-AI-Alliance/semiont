@@ -25,6 +25,35 @@ import { resourceId } from '@semiont/core';
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type Annotation = components['schemas']['Annotation'];
 
+/**
+ * Map charset names to Node.js Buffer encoding names
+ * Node.js Buffer.toString() supports: 'utf8', 'utf16le', 'latin1', 'base64', 'hex', 'ascii', 'binary', 'ucs2'
+ */
+function getNodeEncoding(charset: string): BufferEncoding {
+  const normalized = charset.toLowerCase().replace(/[-_]/g, '');
+
+  // Map common charset names to Node.js encodings
+  const charsetMap: Record<string, BufferEncoding> = {
+    'utf8': 'utf8',
+    'utf-8': 'utf8',
+    'iso88591': 'latin1',
+    'iso-8859-1': 'latin1',
+    'latin1': 'latin1',
+    'ascii': 'ascii',
+    'usascii': 'ascii',
+    'us-ascii': 'ascii',
+    'utf16le': 'utf16le',
+    'utf-16le': 'utf16le',
+    'ucs2': 'ucs2',
+    'ucs-2': 'ucs2',
+    'binary': 'binary',
+    'windows1252': 'latin1', // Windows-1252 is a superset of Latin-1
+    'cp1252': 'latin1',
+  };
+
+  return charsetMap[normalized] || 'utf8';
+}
+
 export function registerGetResourceUri(router: ResourcesRouterType) {
   /**
    * GET /resources/:id
@@ -74,18 +103,25 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Resource representation not found' });
       }
 
-      // Set Content-Type header from representation mediaType
+      // Set Content-Type header from representation mediaType (includes charset if specified)
       const mediaType = getPrimaryMediaType(resource);
       if (mediaType) {
         c.header('Content-Type', mediaType);
       }
 
-      // For images, return binary data; for text, convert to UTF-8
+      // For images, return binary data; for text, decode with correct charset
       if (mediaType?.startsWith('image/')) {
         // Convert Buffer to Uint8Array for Hono compatibility
         return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType });
       } else {
-        return c.text(content.toString('utf-8'));
+        // Extract charset from mediaType (e.g., "text/plain; charset=iso-8859-1")
+        const charsetMatch = mediaType?.match(/charset=([^\s;]+)/i);
+        const charset = (charsetMatch?.[1] || 'utf-8').toLowerCase();
+
+        // Map common charset names to Node.js Buffer encoding names
+        const encoding = getNodeEncoding(charset);
+
+        return c.text(content.toString(encoding));
       }
     }
 

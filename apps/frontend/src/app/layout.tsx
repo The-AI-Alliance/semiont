@@ -5,9 +5,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <html suppressHydrationWarning>
-      <body suppressHydrationWarning>{children}</body>
-    </html>
-  );
+  // Just pass through children - locale layout handles <html> and <body> tags
+  return children;
 }

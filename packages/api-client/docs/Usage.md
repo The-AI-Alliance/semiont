@@ -92,20 +92,93 @@ console.log('User logged out successfully');
 
 ### Creating Resources
 
+#### Creating Text Resources
+
 ```typescript
 import { resourceUri } from '@semiont/api-client';
 
+// Simple text/markdown example
+const textBlob = new Blob(['# Introduction\n\nThis paper explores...']);
 const result = await client.createResource({
   name: 'My Research Paper',
-  content: '# Introduction\n\nThis paper explores...',
+  file: textBlob,
   format: 'text/markdown',
   entityTypes: ['research', 'paper'],
   language: 'en',
 });
 
-const rUri = resourceUri(result.resource.id);
+const rUri = resourceUri(result.resource['@id']);
 console.log('Created resource:', rUri);
 ```
+
+#### Creating Image Resources
+
+```typescript
+// Browser: from file input
+const fileInput = document.querySelector('input[type="file"]');
+const imageFile = fileInput.files[0];
+
+const { resource } = await client.createResource({
+  name: 'Team Photo',
+  file: imageFile,
+  format: 'image/jpeg',
+  entityTypes: ['photo'],
+  language: 'en'
+});
+
+console.log('Uploaded image:', resource['@id']);
+
+// Node.js: from filesystem
+import { readFileSync } from 'fs';
+
+const imageBuffer = readFileSync('/path/to/photo.jpg');
+const { resource } = await client.createResource({
+  name: 'Team Photo',
+  file: imageBuffer,
+  format: 'image/jpeg',
+  entityTypes: ['photo']
+});
+```
+
+#### Character Encoding Support
+
+By default, text resources are assumed to be UTF-8. To specify a different character encoding, include a `charset` parameter in the `format` field:
+
+```typescript
+// Default UTF-8 (no charset parameter needed)
+const utf8Blob = new Blob(['Hello World']);
+await client.createResource({
+  name: 'Modern Document',
+  file: utf8Blob,
+  format: 'text/plain'  // Defaults to UTF-8
+});
+
+// Legacy document with ISO-8859-1 encoding
+const legacyBlob = new Blob([legacyContent]);
+await client.createResource({
+  name: 'Legacy Document',
+  file: legacyBlob,
+  format: 'text/plain; charset=iso-8859-1'
+});
+
+// Windows-1252 encoded text
+const windowsBlob = new Blob([windowsContent]);
+await client.createResource({
+  name: 'Windows Document',
+  file: windowsBlob,
+  format: 'text/markdown; charset=windows-1252'
+});
+```
+
+**Supported charsets:**
+
+- `utf-8` (default)
+- `iso-8859-1` / `latin1`
+- `windows-1252` / `cp1252`
+- `ascii` / `us-ascii`
+- `utf-16le`
+
+The charset is preserved in the resource metadata and used for correct decoding when retrieving the content.
 
 ### Reading Resources
 
@@ -123,6 +196,8 @@ console.log('Entity References:', resource.entityReferences.length);
 
 Use W3C content negotiation to get the raw binary content of a resource (images, PDFs, text, etc.) with content type:
 
+#### Fetching Text Content
+
 ```typescript
 // Get markdown content for editing (decode to text)
 const { data, contentType } = await client.getResourceRepresentation(rUri, {
@@ -139,18 +214,33 @@ const { data, contentType } = await client.getResourceRepresentation(rUri, {
   accept: 'text/plain'
 });
 const plainText = new TextDecoder().decode(data);
+```
 
-// Get image as binary
-const { data, contentType } = await client.getResourceRepresentation(rUri, {
-  accept: 'image/png'
+#### Fetching Image Content
+
+```typescript
+// Get JPEG image
+const { data, contentType } = await client.getResourceRepresentation(imageUri, {
+  accept: 'image/jpeg'
 });
+
+// Browser: Create object URL for display
 const blob = new Blob([data], { type: contentType });
 const imageUrl = URL.createObjectURL(blob);
 
-// Get PDF as binary
-const { data, contentType } = await client.getResourceRepresentation(rUri, {
-  accept: 'application/pdf'
+// Use in img tag
+const img = document.querySelector('img');
+img.src = imageUrl;
+
+// Node.js: Save to file
+import { writeFileSync } from 'fs';
+writeFileSync('/path/to/output.jpg', Buffer.from(data));
+
+// Get PNG image
+const { data: pngData, contentType: pngType } = await client.getResourceRepresentation(imageUri, {
+  accept: 'image/png'
 });
+const pngBlob = new Blob([pngData], { type: pngType });
 ```
 
 **Use Cases:**
