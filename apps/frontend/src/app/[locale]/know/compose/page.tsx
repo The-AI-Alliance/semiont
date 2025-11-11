@@ -16,7 +16,7 @@ import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 
-function ComposeDocumentContent() {
+function ComposeResourceContent() {
   const t = useTranslations('Compose');
   const locale = useLocale();
   const router = useRouter();
@@ -33,15 +33,15 @@ function ComposeDocumentContent() {
       router.push('/');
     }
   }, [session, status, router]);
-  
+
   // Reference completion parameters
   const referenceId = searchParams?.get('referenceId');
   const sourceDocumentId = searchParams?.get('sourceDocumentId');
   const nameFromUrl = searchParams?.get('name');
   const entityTypesFromUrl = searchParams?.get('entityTypes');
-  
-  const [newDocName, setNewDocName] = useState('');
-  const [newDocContent, setNewDocContent] = useState('');
+
+  const [newResourceName, setNewResourceName] = useState('');
+  const [newResourceContent, setNewResourceContent] = useState('');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,10 +50,16 @@ function ComposeDocumentContent() {
   const [archiveOriginal, setArchiveOriginal] = useState(true);
   const [isReferenceCompletion, setIsReferenceCompletion] = useState(false);
 
+  // Content input method selection
+  const [inputMethod, setInputMethod] = useState<'upload' | 'write'>('write');
+
   // File upload state
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [fileMimeType, setFileMimeType] = useState<string>('text/markdown');
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+
+  // Format selection for manual content entry
+  const [selectedFormat, setSelectedFormat] = useState<string>('text/markdown');
 
   // Language selection - default to current user locale
   const [selectedLanguage, setSelectedLanguage] = useState<string>(locale);
@@ -77,20 +83,20 @@ function ComposeDocumentContent() {
   const availableEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Set up mutation hooks
-  const createDocMutation = resources.create.useMutation();
+  const createResourceMutation = resources.create.useMutation();
   const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
 
-  // Fetch cloned document data if in clone mode
+  // Fetch cloned resource data if in clone mode
   const { data: cloneData } = resources.getByToken.useQuery(tokenFromUrl || '');
   const createFromTokenMutation = resources.createFromToken.useMutation();
 
-  // Load cloned document data if in clone mode or pre-fill reference completion data
+  // Load cloned resource data if in clone mode or pre-fill reference completion data
   useEffect(() => {
     const loadInitialData = async () => {
       // Handle reference completion mode
       if (referenceId && sourceDocumentId && nameFromUrl) {
         setIsReferenceCompletion(true);
-        setNewDocName(nameFromUrl);
+        setNewResourceName(nameFromUrl);
         const entityTypes = entityTypesFromUrl ? entityTypesFromUrl.split(',') : [];
         if (entityTypes.length > 0) {
           setSelectedEntityTypes(entityTypes);
@@ -105,7 +111,7 @@ function ComposeDocumentContent() {
         if (cloneData.sourceResource && client) {
           setIsClone(true);
           setCloneToken(tokenFromUrl || null);
-          setNewDocName(cloneData.sourceResource.name);
+          setNewResourceName(cloneData.sourceResource.name);
 
           // Fetch representation separately
           try {
@@ -120,10 +126,10 @@ function ComposeDocumentContent() {
             });
             // Decode ArrayBuffer to string
             const content = new TextDecoder().decode(data);
-            setNewDocContent(content);
+            setNewResourceContent(content);
           } catch (error) {
             console.error('Failed to fetch representation:', error);
-            showError('Failed to load document representation');
+            showError('Failed to load resource representation');
           }
         } else {
           showError('Invalid or expired clone token');
@@ -156,11 +162,12 @@ function ComposeDocumentContent() {
 
     setUploadedFile(file);
     setFileMimeType(file.type);
+    setInputMethod('upload'); // Switch to upload mode
 
     // Set file name as default resource name if empty
-    if (!newDocName) {
+    if (!newResourceName) {
       const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-      setNewDocName(nameWithoutExt);
+      setNewResourceName(nameWithoutExt);
     }
 
     // For images, create preview URL
@@ -172,7 +179,7 @@ function ComposeDocumentContent() {
       const reader = new FileReader();
       reader.onload = (event) => {
         const content = event.target?.result as string;
-        setNewDocContent(content);
+        setNewResourceContent(content);
       };
       reader.readAsText(file);
     }
@@ -187,9 +194,9 @@ function ComposeDocumentContent() {
     };
   }, [filePreviewUrl]);
 
-  const handleSaveDocument = async (e: React.FormEvent) => {
+  const handleSaveResource = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDocName.trim()) return;
+    if (!newResourceName.trim()) return;
 
     setIsCreating(true);
     try {
@@ -199,8 +206,8 @@ function ComposeDocumentContent() {
         // Create resource from clone token with edited content
         const response = await createFromTokenMutation.mutateAsync({
           token: cloneToken,
-          name: newDocName,
-          content: newDocContent,
+          name: newResourceName,
+          content: newResourceContent,
           archiveOriginal: archiveOriginal
         });
 
@@ -220,17 +227,18 @@ function ComposeDocumentContent() {
           fileToUpload = uploadedFile;
           mimeType = fileMimeType;
         } else {
-          // Create File from text content
-          const blob = new Blob([newDocContent], { type: 'text/markdown' });
-          fileToUpload = new File([blob], newDocName + '.md', { type: 'text/markdown' });
-          mimeType = 'text/markdown';
+          // Create File from text content using selected format
+          const blob = new Blob([newResourceContent], { type: selectedFormat });
+          const extension = selectedFormat === 'text/plain' ? '.txt' : selectedFormat === 'text/html' ? '.html' : '.md';
+          fileToUpload = new File([blob], newResourceName + extension, { type: selectedFormat });
+          mimeType = selectedFormat;
         }
 
-        // Construct format with charset if specified
-        const format = selectedCharset ? `${mimeType}; charset=${selectedCharset}` : mimeType;
+        // Construct format with charset if specified (only for text types)
+        const format = selectedCharset && !uploadedFile ? `${mimeType}; charset=${selectedCharset}` : mimeType;
 
-        const response = await createDocMutation.mutateAsync({
-          name: newDocName,
+        const response = await createResourceMutation.mutateAsync({
+          name: newResourceName,
           file: fileToUpload,
           format,
           entityTypes: selectedEntityTypes,
@@ -281,8 +289,8 @@ function ComposeDocumentContent() {
       }
       router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
     } catch (error) {
-      console.error('Failed to save document:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save document. Please try again.';
+      console.error('Failed to save resource:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save resource. Please try again.';
       showError(errorMessage);
     } finally {
       setIsCreating(false);
@@ -295,7 +303,7 @@ function ComposeDocumentContent() {
       <div className="px-4 py-8">
         <div className="flex items-center justify-center py-20">
           <p className="text-gray-600 dark:text-gray-300">
-            {status === 'loading' ? 'Checking authentication...' : 'Loading cloned document...'}
+            {status === 'loading' ? 'Checking authentication...' : 'Loading cloned resource...'}
           </p>
         </div>
       </div>
@@ -332,104 +340,30 @@ function ComposeDocumentContent() {
 
       {/* Create Form */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
-        <form onSubmit={handleSaveDocument} className="space-y-6">
-          <div>
-            <label htmlFor="docName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <form onSubmit={handleSaveResource} className="space-y-4">
+          {/* Name */}
+          <div className="flex items-center gap-4">
+            <label htmlFor="docName" className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0">
               {t('resourceName')}
             </label>
             <input
               id="docName"
               type="text"
-              value={newDocName}
-              onChange={(e) => setNewDocName(e.target.value)}
+              value={newResourceName}
+              onChange={(e) => setNewResourceName(e.target.value)}
               placeholder={t('resourceNamePlaceholder')}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
               disabled={isCreating}
             />
           </div>
 
-          {/* File Upload */}
-          {!isClone && !isReferenceCompletion && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Upload File (optional)
-              </label>
-              <div className="flex items-center gap-4">
-                <label className="flex-1 cursor-pointer">
-                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
-                    <input
-                      type="file"
-                      accept="text/plain,text/markdown,image/png,image/jpeg"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      disabled={isCreating}
-                    />
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {uploadedFile ? uploadedFile.name : 'Click to upload or drag and drop'}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                      Supported: text/plain, text/markdown, image/png, image/jpeg
-                    </p>
-                  </div>
-                </label>
-                {uploadedFile && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUploadedFile(null);
-                      setFilePreviewUrl(null);
-                      setFileMimeType('text/markdown');
-                    }}
-                    className="px-3 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-                    disabled={isCreating}
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {/* Image Preview */}
-              {uploadedFile && filePreviewUrl && isImageMimeType(fileMimeType) && (
-                <div className="mt-4 border border-gray-300 dark:border-gray-600 rounded-lg p-4">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preview:</p>
-                  <div className="max-h-96 overflow-hidden rounded">
-                    <img
-                      src={filePreviewUrl}
-                      alt="Upload preview"
-                      className="max-w-full h-auto"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Content editor - only show for text or when no file uploaded */}
-          {(!uploadedFile || !isImageMimeType(fileMimeType)) && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {isClone ? t('resourceContent') : t('content')}
-              </label>
-              <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                <CodeMirrorRenderer
-                  content={newDocContent}
-                  segments={[]}
-                  editable={!isCreating}
-                  sourceView={true}
-                  showLineNumbers={showLineNumbers}
-                  onChange={(newContent) => setNewDocContent(newContent)}
-                />
-              </div>
-            </div>
-          )}
-
           {/* Entity Types Selection */}
           {(!isReferenceCompletion || selectedEntityTypes.length === 0) && (
-            <fieldset>
-              <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="flex gap-4">
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0 pt-2">
                 {t('entityTypes')}
-              </legend>
+              </div>
               <div
                 className="flex flex-wrap gap-2 mb-2"
                 role="group"
@@ -471,7 +405,7 @@ function ComposeDocumentContent() {
                   {selectedEntityTypes.length} entity type{selectedEntityTypes.length !== 1 ? 's' : ''} selected: {selectedEntityTypes.join(', ')}
                 </div>
               )}
-            </fieldset>
+            </div>
           )}
 
           {/* Entity Types Display for reference completion */}
@@ -498,50 +432,185 @@ function ComposeDocumentContent() {
             </div>
           )}
 
-          {isClone && (
-            <div className="flex items-center">
-              <input
-                id="archiveOriginal"
-                type="checkbox"
-                checked={archiveOriginal}
-                onChange={(e) => setArchiveOriginal(e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                disabled={isCreating}
-              />
-              <label htmlFor="archiveOriginal" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                {t('archiveOriginal')}
+          {/* Language Selector */}
+          <div className="flex items-center gap-4">
+            <label htmlFor="language-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0">
+              {t('language')}
+            </label>
+            <select
+              id="language-select"
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              disabled={isCreating}
+              className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+            >
+              {LOCALES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.nativeName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Content Source Toggle - only show for new resources */}
+          {!isClone && !isReferenceCompletion && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                {t('contentSource')}
               </label>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setInputMethod('upload')}
+                  disabled={isCreating}
+                  className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
+                    inputMethod === 'upload'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-700'
+                  } ${isCreating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <span className="text-xl">📎</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{t('uploadFile')}</span>
+                  </div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                    {t('uploadFileDescription')}
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setInputMethod('write')}
+                  disabled={isCreating}
+                  className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
+                    inputMethod === 'write'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-700'
+                  } ${isCreating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <span className="text-xl">✍️</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{t('writeContent')}</span>
+                  </div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                    {t('writeContentDescription')}
+                  </div>
+                </button>
+              </div>
             </div>
           )}
 
-          <div className="flex gap-4 justify-between items-center">
-            {/* Language/Locale and Charset Selectors */}
-            <div className="flex items-center gap-4">
-              {/* Language Selector */}
-              <div className="flex items-center gap-2">
-                <label htmlFor="language-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                  {t('language')}:
-                </label>
-                <select
-                  id="language-select"
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  disabled={isCreating}
-                  className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                >
-                  {LOCALES.map((lang) => (
-                    <option key={lang.code} value={lang.code}>
-                      {lang.nativeName}
-                    </option>
-                  ))}
-                </select>
+          {/* Upload File Section */}
+          {!isClone && !isReferenceCompletion && inputMethod === 'upload' && (
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center gap-4">
+                  <label className="flex-1 cursor-pointer">
+                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+                      <input
+                        type="file"
+                        accept="text/plain,text/markdown,image/png,image/jpeg"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        disabled={isCreating}
+                      />
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {uploadedFile ? uploadedFile.name : t('dropFileOrClick')}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                        {t('supportedFormats')}
+                      </p>
+                    </div>
+                  </label>
+                  {uploadedFile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadedFile(null);
+                        setFilePreviewUrl(null);
+                        setFileMimeType('text/markdown');
+                      }}
+                      className="px-3 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                      disabled={isCreating}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Charset Selector - only show for text files */}
-              {(!uploadedFile || !isImageMimeType(fileMimeType)) && (
-                <div className="flex items-center gap-2">
-                  <label htmlFor="charset-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                    Encoding:
+              {/* Media Type Display - Auto-detected */}
+              {uploadedFile && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">{t('mediaType')}:</span>
+                  <code className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-gray-900 dark:text-gray-100">
+                    {fileMimeType}
+                  </code>
+                  <span className="text-gray-500" title={t('autoDetected')}>🔒</span>
+                </div>
+              )}
+
+              {/* Image Preview */}
+              {uploadedFile && filePreviewUrl && isImageMimeType(fileMimeType) && (
+                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preview:</p>
+                  <div className="max-h-96 overflow-hidden rounded">
+                    <img
+                      src={filePreviewUrl}
+                      alt="Upload preview"
+                      className="max-w-full h-auto"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Write Content Section */}
+          {(isClone || isReferenceCompletion || inputMethod === 'write') && (
+            <div className="space-y-4">
+              {/* Format Selector - only for manual entry, not clones */}
+              {!isClone && !isReferenceCompletion && (
+                <div className="flex items-center gap-4">
+                  <label htmlFor="format-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0">
+                    {t('format')}
+                  </label>
+                  <select
+                    id="format-select"
+                    value={selectedFormat}
+                    onChange={(e) => setSelectedFormat(e.target.value)}
+                    disabled={isCreating}
+                    className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                  >
+                    <option value="text/markdown">Markdown (text/markdown)</option>
+                    <option value="text/plain">Plain Text (text/plain)</option>
+                    <option value="text/html">HTML (text/html)</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Content Editor */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {isClone ? t('resourceContent') : t('content')}
+                </label>
+                <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                  <CodeMirrorRenderer
+                    content={newResourceContent}
+                    segments={[]}
+                    editable={!isCreating}
+                    sourceView={true}
+                    showLineNumbers={showLineNumbers}
+                    onChange={(newContent) => setNewResourceContent(newContent)}
+                  />
+                </div>
+              </div>
+
+              {/* Encoding Selector - only for manual text entry */}
+              {!isClone && !isReferenceCompletion && (
+                <div className="flex items-center gap-4">
+                  <label htmlFor="charset-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0">
+                    {t('encoding')}
                   </label>
                   <select
                     id="charset-select"
@@ -559,26 +628,44 @@ function ComposeDocumentContent() {
                 </div>
               )}
             </div>
+          )}
 
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => router.push('/know/discover')}
+          {/* Archive Original Checkbox (for clones only) */}
+          {isClone && (
+            <div className="flex items-center">
+              <input
+                id="archiveOriginal"
+                type="checkbox"
+                checked={archiveOriginal}
+                onChange={(e) => setArchiveOriginal(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 disabled={isCreating}
-                className={buttonStyles.tertiary.base}
-              >
-                {t('cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={isCreating || !newDocName.trim()}
-                className={buttonStyles.primary.base}
-              >
-                {isCreating
-                  ? (isClone ? t('saving') : isReferenceCompletion ? t('creatingAndLinking') : t('creating'))
-                  : (isClone ? t('saveClonedResource') : isReferenceCompletion ? t('createAndLinkResource') : t('createResource'))}
-              </button>
+              />
+              <label htmlFor="archiveOriginal" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                {t('archiveOriginal')}
+              </label>
             </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-4 justify-end">
+            <button
+              type="button"
+              onClick={() => router.push('/know/discover')}
+              disabled={isCreating}
+              className={buttonStyles.tertiary.base}
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="submit"
+              disabled={isCreating || !newResourceName.trim()}
+              className={buttonStyles.primary.base}
+            >
+              {isCreating
+                ? (isClone ? t('saving') : isReferenceCompletion ? t('creatingAndLinking') : t('creating'))
+                : (isClone ? t('saveClonedResource') : isReferenceCompletion ? t('createAndLinkResource') : t('createResource'))}
+            </button>
           </div>
         </form>
       </div>
@@ -606,7 +693,7 @@ function ComposeDocumentContent() {
   );
 }
 
-export default function ComposeDocumentPage() {
+export default function ComposeResourcePage() {
   const t = useTranslations('Compose');
 
   return (
@@ -617,7 +704,7 @@ export default function ComposeDocumentPage() {
         </div>
       </div>
     }>
-      <ComposeDocumentContent />
+      <ComposeResourceContent />
     </Suspense>
   );
 }

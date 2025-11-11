@@ -6,12 +6,35 @@ import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { DocumentTextIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 
 interface OpenDocument {
   id: string;
   name: string;
   openedAt: number;
+  mediaType?: string;
+}
+
+// Helper function to get icon based on media type
+function getResourceIcon(mediaType: string | undefined): string {
+  if (!mediaType) return '📄';
+
+  const baseType = mediaType.split(';')[0]?.trim().toLowerCase() || '';
+
+  if (baseType.startsWith('image/')) {
+    return '🖼️';
+  }
+
+  switch (baseType) {
+    case 'text/markdown':
+      return '📝';
+    case 'text/html':
+      return '🌐';
+    case 'text/plain':
+      return '📄';
+    default:
+      return '📄';
+  }
 }
 
 interface SortableResourceTabProps {
@@ -40,6 +63,8 @@ export function SortableResourceTab({ doc, isCollapsed, onClose }: SortableResou
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  const resourceIcon = getResourceIcon(doc.mediaType);
 
   return (
     <div
@@ -78,23 +103,11 @@ export function SortableResourceTab({ doc, isCollapsed, onClose }: SortableResou
               }
             }}
           >
-            <DocumentTextIcon
-              className={`h-5 w-5 ${
-                isActive
-                  ? 'text-blue-500 dark:text-blue-400'
-                  : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
-              }`}
-            />
+            <span className="text-base" aria-hidden="true">{resourceIcon}</span>
           </div>
         ) : (
           // When collapsed, icon is clickable for navigation
-          <DocumentTextIcon
-            className={`flex-shrink-0 h-5 w-5 ${
-              isActive
-                ? 'text-blue-500 dark:text-blue-400'
-                : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
-            }`}
-          />
+          <span className="flex-shrink-0 text-base" aria-hidden="true">{resourceIcon}</span>
         )}
         {!isCollapsed && <span className="truncate">{doc.name}</span>}
       </Link>

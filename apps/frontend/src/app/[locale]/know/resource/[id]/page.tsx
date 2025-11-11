@@ -284,7 +284,8 @@ function ResourceView({
     if (resource && rUri) {
       // Extract ID segment from full URI (format: http://host/resources/{id})
       const resourceIdSegment = rUri.split('/').pop() || '';
-      addResource(resourceIdSegment, resource.name);
+      const mediaType = getPrimaryMediaType(resource);
+      addResource(resourceIdSegment, resource.name, mediaType || undefined);
       localStorage.setItem('lastViewedDocumentId', resourceIdSegment);
     }
   }, [resource, rUri, addResource]);
