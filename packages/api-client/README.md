@@ -35,10 +35,11 @@ const client = new SemiontApiClient({
 // Authenticate
 await client.authenticateLocal('user@example.com', '123456');
 
-// Create a document
+// Create a text document
+const textBlob = new Blob(['The quick brown fox jumps over the lazy dog.']);
 const { resource } = await client.createResource({
   name: 'My Document',
-  content: 'The quick brown fox jumps over the lazy dog.',
+  file: textBlob,
   format: 'text/plain',
   entityTypes: ['example']
 });
