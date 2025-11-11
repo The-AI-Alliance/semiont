@@ -6,26 +6,29 @@
  * Supports multiple storage backends (filesystem, S3, IPFS, etc.)
  *
  * Storage structure (filesystem):
- * basePath/representations/{mediaType}/{ab}/{cd}/rep-{checksum}.dat
+ * basePath/representations/{mediaType}/{ab}/{cd}/rep-{checksum}{extension}
  *
  * Where:
  * - {mediaType} is MIME type with "/" encoded as "~1" (e.g., "text~1markdown")
  * - {ab}/{cd} are first 4 hex digits of checksum for sharding
  * - {checksum} is the raw SHA-256 hex hash (e.g., "5aaa0b72abc123...")
+ * - {extension} is derived from MIME type (.md, .txt, .png, etc.)
  *
  * Example:
  * For content with checksum "5aaa0b72abc123..." and mediaType "text/markdown":
- * basePath/representations/text~1markdown/5a/aa/rep-5aaa0b72abc123....dat
+ * basePath/representations/text~1markdown/5a/aa/rep-5aaa0b72abc123....md
  *
  * This design provides:
  * - O(1) content retrieval by checksum + mediaType
  * - Automatic deduplication (identical content = same file)
  * - Idempotent storage operations
+ * - Proper file extensions for filesystem browsing
  */
 
 import { promises as fs } from 'fs';
 import path from 'path';
 import { calculateChecksum } from '@semiont/core';
+import { getExtensionForMimeType } from './mime-extensions';
 
 /**
  * Metadata for a representation being stored
@@ -99,6 +102,7 @@ export class FilesystemRepresentationStore implements RepresentationStore {
     // Compute checksum (raw hex) - this will be used as the content address
     const checksum = calculateChecksum(content);
     const mediaTypePath = this.encodeMediaType(metadata.mediaType);
+    const extension = getExtensionForMimeType(metadata.mediaType);
 
     if (!checksum || checksum.length < 4) {
       throw new Error(`Invalid checksum: ${checksum}`);
@@ -108,14 +112,14 @@ export class FilesystemRepresentationStore implements RepresentationStore {
     const ab = checksum.substring(0, 2);
     const cd = checksum.substring(2, 4);
 
-    // Build file path using raw hex checksum as filename
+    // Build file path using raw hex checksum as filename with proper extension
     const filePath = path.join(
       this.basePath,
       'representations',
       mediaTypePath,
       ab,
       cd,
-      `rep-${checksum}.dat`
+      `rep-${checksum}${extension}`
     );
 
     // Create directory structure programmatically
@@ -135,6 +139,7 @@ export class FilesystemRepresentationStore implements RepresentationStore {
 
   async retrieve(checksum: string, mediaType: string): Promise<Buffer> {
     const mediaTypePath = this.encodeMediaType(mediaType);
+    const extension = getExtensionForMimeType(mediaType);
 
     if (!checksum || checksum.length < 4) {
       throw new Error(`Invalid checksum: ${checksum}`);
@@ -144,14 +149,14 @@ export class FilesystemRepresentationStore implements RepresentationStore {
     const ab = checksum.substring(0, 2);
     const cd = checksum.substring(2, 4);
 
-    // Build file path from raw hex checksum
+    // Build file path from raw hex checksum with proper extension
     const filePath = path.join(
       this.basePath,
       'representations',
       mediaTypePath,
       ab,
       cd,
-      `rep-${checksum}.dat`
+      `rep-${checksum}${extension}`
     );
 
     try {
