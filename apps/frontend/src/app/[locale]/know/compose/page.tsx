@@ -16,7 +16,7 @@ import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 
-function ComposeDocumentContent() {
+function ComposeResourceContent() {
   const t = useTranslations('Compose');
   const locale = useLocale();
   const router = useRouter();
@@ -33,15 +33,15 @@ function ComposeDocumentContent() {
       router.push('/');
     }
   }, [session, status, router]);
-  
+
   // Reference completion parameters
   const referenceId = searchParams?.get('referenceId');
   const sourceDocumentId = searchParams?.get('sourceDocumentId');
   const nameFromUrl = searchParams?.get('name');
   const entityTypesFromUrl = searchParams?.get('entityTypes');
-  
-  const [newDocName, setNewDocName] = useState('');
-  const [newDocContent, setNewDocContent] = useState('');
+
+  const [newResourceName, setNewResourceName] = useState('');
+  const [newResourceContent, setNewResourceContent] = useState('');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -83,20 +83,20 @@ function ComposeDocumentContent() {
   const availableEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Set up mutation hooks
-  const createDocMutation = resources.create.useMutation();
+  const createResourceMutation = resources.create.useMutation();
   const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
 
-  // Fetch cloned document data if in clone mode
+  // Fetch cloned resource data if in clone mode
   const { data: cloneData } = resources.getByToken.useQuery(tokenFromUrl || '');
   const createFromTokenMutation = resources.createFromToken.useMutation();
 
-  // Load cloned document data if in clone mode or pre-fill reference completion data
+  // Load cloned resource data if in clone mode or pre-fill reference completion data
   useEffect(() => {
     const loadInitialData = async () => {
       // Handle reference completion mode
       if (referenceId && sourceDocumentId && nameFromUrl) {
         setIsReferenceCompletion(true);
-        setNewDocName(nameFromUrl);
+        setNewResourceName(nameFromUrl);
         const entityTypes = entityTypesFromUrl ? entityTypesFromUrl.split(',') : [];
         if (entityTypes.length > 0) {
           setSelectedEntityTypes(entityTypes);
@@ -111,7 +111,7 @@ function ComposeDocumentContent() {
         if (cloneData.sourceResource && client) {
           setIsClone(true);
           setCloneToken(tokenFromUrl || null);
-          setNewDocName(cloneData.sourceResource.name);
+          setNewResourceName(cloneData.sourceResource.name);
 
           // Fetch representation separately
           try {
@@ -126,10 +126,10 @@ function ComposeDocumentContent() {
             });
             // Decode ArrayBuffer to string
             const content = new TextDecoder().decode(data);
-            setNewDocContent(content);
+            setNewResourceContent(content);
           } catch (error) {
             console.error('Failed to fetch representation:', error);
-            showError('Failed to load document representation');
+            showError('Failed to load resource representation');
           }
         } else {
           showError('Invalid or expired clone token');
@@ -165,9 +165,9 @@ function ComposeDocumentContent() {
     setInputMethod('upload'); // Switch to upload mode
 
     // Set file name as default resource name if empty
-    if (!newDocName) {
+    if (!newResourceName) {
       const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-      setNewDocName(nameWithoutExt);
+      setNewResourceName(nameWithoutExt);
     }
 
     // For images, create preview URL
@@ -179,7 +179,7 @@ function ComposeDocumentContent() {
       const reader = new FileReader();
       reader.onload = (event) => {
         const content = event.target?.result as string;
-        setNewDocContent(content);
+        setNewResourceContent(content);
       };
       reader.readAsText(file);
     }
@@ -194,9 +194,9 @@ function ComposeDocumentContent() {
     };
   }, [filePreviewUrl]);
 
-  const handleSaveDocument = async (e: React.FormEvent) => {
+  const handleSaveResource = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDocName.trim()) return;
+    if (!newResourceName.trim()) return;
 
     setIsCreating(true);
     try {
@@ -206,8 +206,8 @@ function ComposeDocumentContent() {
         // Create resource from clone token with edited content
         const response = await createFromTokenMutation.mutateAsync({
           token: cloneToken,
-          name: newDocName,
-          content: newDocContent,
+          name: newResourceName,
+          content: newResourceContent,
           archiveOriginal: archiveOriginal
         });
 
@@ -228,17 +228,17 @@ function ComposeDocumentContent() {
           mimeType = fileMimeType;
         } else {
           // Create File from text content using selected format
-          const blob = new Blob([newDocContent], { type: selectedFormat });
+          const blob = new Blob([newResourceContent], { type: selectedFormat });
           const extension = selectedFormat === 'text/plain' ? '.txt' : selectedFormat === 'text/html' ? '.html' : '.md';
-          fileToUpload = new File([blob], newDocName + extension, { type: selectedFormat });
+          fileToUpload = new File([blob], newResourceName + extension, { type: selectedFormat });
           mimeType = selectedFormat;
         }
 
         // Construct format with charset if specified (only for text types)
         const format = selectedCharset && !uploadedFile ? `${mimeType}; charset=${selectedCharset}` : mimeType;
 
-        const response = await createDocMutation.mutateAsync({
-          name: newDocName,
+        const response = await createResourceMutation.mutateAsync({
+          name: newResourceName,
           file: fileToUpload,
           format,
           entityTypes: selectedEntityTypes,
@@ -289,8 +289,8 @@ function ComposeDocumentContent() {
       }
       router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
     } catch (error) {
-      console.error('Failed to save document:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save document. Please try again.';
+      console.error('Failed to save resource:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save resource. Please try again.';
       showError(errorMessage);
     } finally {
       setIsCreating(false);
@@ -303,7 +303,7 @@ function ComposeDocumentContent() {
       <div className="px-4 py-8">
         <div className="flex items-center justify-center py-20">
           <p className="text-gray-600 dark:text-gray-300">
-            {status === 'loading' ? 'Checking authentication...' : 'Loading cloned document...'}
+            {status === 'loading' ? 'Checking authentication...' : 'Loading cloned resource...'}
           </p>
         </div>
       </div>
@@ -340,7 +340,7 @@ function ComposeDocumentContent() {
 
       {/* Create Form */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
-        <form onSubmit={handleSaveDocument} className="space-y-4">
+        <form onSubmit={handleSaveResource} className="space-y-4">
           {/* Name */}
           <div className="flex items-center gap-4">
             <label htmlFor="docName" className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0">
@@ -349,8 +349,8 @@ function ComposeDocumentContent() {
             <input
               id="docName"
               type="text"
-              value={newDocName}
-              onChange={(e) => setNewDocName(e.target.value)}
+              value={newResourceName}
+              onChange={(e) => setNewResourceName(e.target.value)}
               placeholder={t('resourceNamePlaceholder')}
               className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
@@ -592,12 +592,12 @@ function ComposeDocumentContent() {
                 </label>
                 <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
                   <CodeMirrorRenderer
-                    content={newDocContent}
+                    content={newResourceContent}
                     segments={[]}
                     editable={!isCreating}
                     sourceView={true}
                     showLineNumbers={showLineNumbers}
-                    onChange={(newContent) => setNewDocContent(newContent)}
+                    onChange={(newContent) => setNewResourceContent(newContent)}
                   />
                 </div>
               </div>
@@ -655,7 +655,7 @@ function ComposeDocumentContent() {
             </button>
             <button
               type="submit"
-              disabled={isCreating || !newDocName.trim()}
+              disabled={isCreating || !newResourceName.trim()}
               className={buttonStyles.primary.base}
             >
               {isCreating
@@ -689,7 +689,7 @@ function ComposeDocumentContent() {
   );
 }
 
-export default function ComposeDocumentPage() {
+export default function ComposeResourcePage() {
   const t = useTranslations('Compose');
 
   return (
@@ -700,7 +700,7 @@ export default function ComposeDocumentPage() {
         </div>
       </div>
     }>
-      <ComposeDocumentContent />
+      <ComposeResourceContent />
     </Suspense>
   );
 }
