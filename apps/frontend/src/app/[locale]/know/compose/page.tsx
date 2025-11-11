@@ -58,6 +58,9 @@ function ComposeDocumentContent() {
   // Language selection - default to current user locale
   const [selectedLanguage, setSelectedLanguage] = useState<string>(locale);
 
+  // Character encoding selection - default to UTF-8 (empty string means use default)
+  const [selectedCharset, setSelectedCharset] = useState<string>('');
+
   // Toolbar and settings state
   const { activePanel, togglePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
@@ -223,10 +226,13 @@ function ComposeDocumentContent() {
           mimeType = 'text/markdown';
         }
 
+        // Construct format with charset if specified
+        const format = selectedCharset ? `${mimeType}; charset=${selectedCharset}` : mimeType;
+
         const response = await createDocMutation.mutateAsync({
           name: newDocName,
           file: fileToUpload,
-          format: mimeType,
+          format,
           entityTypes: selectedEntityTypes,
           language: selectedLanguage,
           creationMethod: 'ui'
@@ -509,24 +515,49 @@ function ComposeDocumentContent() {
           )}
 
           <div className="flex gap-4 justify-between items-center">
-            {/* Language/Locale Selector */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="language-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                {t('language')}:
-              </label>
-              <select
-                id="language-select"
-                value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value)}
-                disabled={isCreating}
-                className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-              >
-                {LOCALES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.nativeName}
-                  </option>
-                ))}
-              </select>
+            {/* Language/Locale and Charset Selectors */}
+            <div className="flex items-center gap-4">
+              {/* Language Selector */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="language-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                  {t('language')}:
+                </label>
+                <select
+                  id="language-select"
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  disabled={isCreating}
+                  className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                >
+                  {LOCALES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.nativeName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Charset Selector - only show for text files */}
+              {(!uploadedFile || !isImageMimeType(fileMimeType)) && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="charset-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                    Encoding:
+                  </label>
+                  <select
+                    id="charset-select"
+                    value={selectedCharset}
+                    onChange={(e) => setSelectedCharset(e.target.value)}
+                    disabled={isCreating}
+                    className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                  >
+                    <option value="">UTF-8 (default)</option>
+                    <option value="iso-8859-1">ISO-8859-1 (Latin-1)</option>
+                    <option value="windows-1252">Windows-1252</option>
+                    <option value="ascii">ASCII</option>
+                    <option value="utf-16le">UTF-16LE</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4">

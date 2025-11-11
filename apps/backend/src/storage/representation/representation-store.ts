@@ -9,20 +9,27 @@
  * basePath/representations/{mediaType}/{ab}/{cd}/rep-{checksum}{extension}
  *
  * Where:
- * - {mediaType} is MIME type with "/" encoded as "~1" (e.g., "text~1markdown")
+ * - {mediaType} is base MIME type with "/" encoded as "~1" (e.g., "text~1markdown")
  * - {ab}/{cd} are first 4 hex digits of checksum for sharding
  * - {checksum} is the raw SHA-256 hex hash (e.g., "5aaa0b72abc123...")
- * - {extension} is derived from MIME type (.md, .txt, .png, etc.)
+ * - {extension} is derived from base MIME type (.md, .txt, .png, etc.)
  *
  * Example:
- * For content with checksum "5aaa0b72abc123..." and mediaType "text/markdown":
- * basePath/representations/text~1markdown/5a/aa/rep-5aaa0b72abc123....md
+ * For content with checksum "5aaa0b72abc123..." and mediaType "text/markdown; charset=iso-8859-1":
+ * - Storage path: basePath/representations/text~1markdown/5a/aa/rep-5aaa0b72abc123....md
+ * - Stored mediaType: "text/markdown; charset=iso-8859-1" (full type with charset preserved)
+ *
+ * Character Encoding:
+ * - Charset parameters in mediaType are preserved in metadata (e.g., "text/plain; charset=iso-8859-1")
+ * - Storage path uses only base MIME type (strips charset for directory structure)
+ * - Content stored as raw bytes - charset only affects decoding on retrieval
  *
  * This design provides:
  * - O(1) content retrieval by checksum + mediaType
  * - Automatic deduplication (identical content = same file)
  * - Idempotent storage operations
  * - Proper file extensions for filesystem browsing
+ * - Faithful preservation of character encoding metadata
  */
 
 import { promises as fs } from 'fs';
@@ -101,8 +108,12 @@ export class FilesystemRepresentationStore implements RepresentationStore {
   async store(content: Buffer, metadata: RepresentationMetadata): Promise<StoredRepresentation> {
     // Compute checksum (raw hex) - this will be used as the content address
     const checksum = calculateChecksum(content);
-    const mediaTypePath = this.encodeMediaType(metadata.mediaType);
-    const extension = getExtensionForMimeType(metadata.mediaType);
+
+    // Strip charset/parameters for path - only use base MIME type for directory structure
+    // e.g., "text/plain; charset=iso-8859-1" -> "text/plain"
+    const baseMediaType = metadata.mediaType.split(';')[0]!.trim();
+    const mediaTypePath = this.encodeMediaType(baseMediaType);
+    const extension = getExtensionForMimeType(baseMediaType);
 
     if (!checksum || checksum.length < 4) {
       throw new Error(`Invalid checksum: ${checksum}`);
@@ -138,8 +149,11 @@ export class FilesystemRepresentationStore implements RepresentationStore {
   }
 
   async retrieve(checksum: string, mediaType: string): Promise<Buffer> {
-    const mediaTypePath = this.encodeMediaType(mediaType);
-    const extension = getExtensionForMimeType(mediaType);
+    // Strip charset/parameters for path - only use base MIME type for directory lookup
+    // e.g., "text/plain; charset=iso-8859-1" -> "text/plain"
+    const baseMediaType = mediaType.split(';')[0]!.trim();
+    const mediaTypePath = this.encodeMediaType(baseMediaType);
+    const extension = getExtensionForMimeType(baseMediaType);
 
     if (!checksum || checksum.length < 4) {
       throw new Error(`Invalid checksum: ${checksum}`);

@@ -107,6 +107,43 @@ const rUri = resourceUri(result.resource.id);
 console.log('Created resource:', rUri);
 ```
 
+#### Character Encoding Support
+
+By default, text resources are assumed to be UTF-8. To specify a different character encoding, include a `charset` parameter in the `format` field:
+
+```typescript
+// Default UTF-8 (no charset parameter needed)
+await client.createResource({
+  name: 'Modern Document',
+  content: 'Hello World',
+  format: 'text/plain'  // Defaults to UTF-8
+});
+
+// Legacy document with ISO-8859-1 encoding
+await client.createResource({
+  name: 'Legacy Document',
+  content: legacyContent,
+  format: 'text/plain; charset=iso-8859-1'
+});
+
+// Windows-1252 encoded text
+await client.createResource({
+  name: 'Windows Document',
+  content: windowsContent,
+  format: 'text/markdown; charset=windows-1252'
+});
+```
+
+**Supported charsets:**
+
+- `utf-8` (default)
+- `iso-8859-1` / `latin1`
+- `windows-1252` / `cp1252`
+- `ascii` / `us-ascii`
+- `utf-16le`
+
+The charset is preserved in the resource metadata and used for correct decoding when retrieving the content.
+
 ### Reading Resources
 
 ```typescript
