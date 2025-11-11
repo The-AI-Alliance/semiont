@@ -37,21 +37,22 @@ apps/backend/src/storage/
 ```
 {basePath}/
 └── representations/                  # Representation namespace
-    ├── 00/
-    │   ├── 00/
-    │   │   └── sha256-abc123def.dat # Shard [00,00]
-    │   ├── 01/
-    │   │   └── sha256-def456ghi.dat # Shard [00,01]
-    │   └── ff/
-    │       └── sha256-ghi789jkl.dat # Shard [00,ff]
-    ├── ab/
-    │   ├── cd/
-    │   │   └── sha256-jkl012mno.dat # Shard [ab,cd]
-    │   └── ef/
-    │       └── sha256-mno345pqr.dat # Shard [ab,ef]
-    └── ff/
+    ├── text~1plain/
+    │   └── 00/
+    │       └── 00/
+    │           └── rep-abc123def.txt # Text file
+    ├── text~1markdown/
+    │   └── ab/
+    │       └── cd/
+    │           └── rep-jkl012mno.md # Markdown file
+    ├── image~1png/
+    │   └── 5a/
+    │       └── aa/
+    │           └── rep-5aaa0b72.png # PNG image
+    └── application~1json/
         └── ff/
-            └── sha256-pqr678stu.dat # Shard [ff,ff]
+            └── ff/
+                └── rep-pqr678stu.json # JSON file
 ```
 
 ### Content-Addressed Storage
@@ -60,23 +61,24 @@ apps/backend/src/storage/
 
 1. **Input**: Content buffer (any format)
 2. **Calculate**: SHA-256 checksum
-3. **Hash**: Jump Consistent Hash on checksum → bucket (0-65535)
-4. **Path**: `basePath/representations/ab/cd/sha256-{checksum}.dat`
+3. **Determine**: File extension from MIME type (e.g., .md, .txt, .png)
+4. **Path**: `basePath/representations/{mediaType}/ab/cd/rep-{checksum}{extension}`
 
 **Benefits:**
 - **Deduplication**: Identical content stored once
 - **Integrity**: Checksum verifies content hasn't changed
 - **Content-Addressed**: Natural key for retrieval
 - **W3C Compliance**: Follows W3C representation model
+- **Filesystem Browsing**: Proper extensions enable file managers and tools
 
 ### File Format
 
-Representation files (`.dat`) store raw content:
+Representation files use proper extensions based on MIME type:
 
-- **Text**: UTF-8 encoded strings
-- **Binary**: Raw bytes (PDFs, images, etc.)
+- **Text**: UTF-8 encoded strings (`.txt`, `.md`, `.html`, etc.)
+- **Binary**: Raw bytes with proper extensions (`.pdf`, `.png`, `.jpg`, etc.)
 - **No wrapping**: Pure content
-- **Checksum as key**: Filename is `sha256-{checksum}.dat`
+- **Checksum as key**: Filename is `rep-{checksum}{extension}`
 
 ## API Reference
 
