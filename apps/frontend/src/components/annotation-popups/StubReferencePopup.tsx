@@ -89,14 +89,6 @@ export function StubReferencePopup({
     }
   };
 
-  const handleConvertToHighlight = () => {
-    // Convert to highlighting motivation with empty body
-    onUpdateAnnotation({
-      motivation: 'highlighting',
-      body: [],
-    });
-  };
-
   const handleDelete = () => {
     onDeleteAnnotation();
     onClose();
@@ -155,12 +147,6 @@ export function StubReferencePopup({
 
             {/* Other Actions */}
             <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={handleConvertToHighlight}
-                className={`${buttonStyles.secondary.base} w-full justify-center`}
-              >
-                🟡 {t('convertToHighlight')}
-              </button>
               <button
                 onClick={handleDelete}
                 className={`${buttonStyles.danger.base} w-full justify-center`}

@@ -90,7 +90,6 @@ export function AnnotationPopup({
           position={position}
           selection={selection}
           annotation={annotation as HighlightAnnotation}
-          onUpdateAnnotation={onUpdateAnnotation!}
           onDeleteAnnotation={onDeleteAnnotation!}
         />
       );

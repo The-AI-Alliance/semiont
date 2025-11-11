@@ -9,7 +9,6 @@ import { buttonStyles } from '@/lib/button-styles';
 import type { components } from '@semiont/api-client';
 
 type HighlightAnnotation = components['schemas']['Annotation'];
-type AnnotationUpdate = Partial<components['schemas']['Annotation']>;
 type TextSelection = { exact: string; start: number; end: number };
 
 interface HighlightPopupProps {
@@ -18,7 +17,6 @@ interface HighlightPopupProps {
   position: { x: number; y: number };
   selection: TextSelection;
   annotation: HighlightAnnotation;
-  onUpdateAnnotation: (updates: AnnotationUpdate) => void;
   onDeleteAnnotation: () => void;
 }
 
@@ -28,7 +26,6 @@ export function HighlightPopup({
   position,
   selection,
   annotation,
-  onUpdateAnnotation,
   onDeleteAnnotation,
 }: HighlightPopupProps) {
   const t = useTranslations('HighlightPopup');
@@ -47,14 +44,6 @@ export function HighlightPopup({
     };
   }, [showJsonLd, position]);
 
-  const handleConvertToReference = () => {
-    // Convert to linking motivation with stub body (empty array)
-    onUpdateAnnotation({
-      motivation: 'linking',
-      body: [],
-    });
-  };
-
   const handleDelete = () => {
     onDeleteAnnotation();
     onClose();
@@ -70,13 +59,6 @@ export function HighlightPopup({
 
           {/* Actions */}
           <div className="space-y-2">
-            <button
-              onClick={handleConvertToReference}
-              className={`${buttonStyles.primary.base} w-full justify-center`}
-            >
-              🔗 {t('convertToReference')}
-            </button>
-
             <button
               onClick={handleDelete}
               className={`${buttonStyles.danger.base} w-full justify-center`}

@@ -5,8 +5,9 @@ import { useRouter } from '@/i18n/routing';
 import { AnnotateView, type AnnotationMotivation } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
+import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferencePopup';
 import type { components, ResourceUri, AnnotationUri } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri, resourceAnnotationUri } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri, resourceAnnotationUri } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useAnnotations } from '@/lib/api-hooks';
@@ -81,9 +82,7 @@ export function ResourceViewer({
     addHighlight,
     addReference,
     addAssessment,
-    deleteAnnotation,
-    convertHighlightToReference,
-    convertReferenceToHighlight
+    deleteAnnotation
   } = useResourceAnnotations();
 
   // API mutations
@@ -92,6 +91,15 @@ export function ResourceViewer({
 
   // Annotation toolbar state
   const [selectedMotivation, setSelectedMotivation] = useState<AnnotationMotivation>('linking');
+
+  // Quick reference popup state
+  const [showQuickReferencePopup, setShowQuickReferencePopup] = useState(false);
+  const [quickReferenceSelection, setQuickReferenceSelection] = useState<{
+    exact: string;
+    start: number;
+    end: number;
+  } | null>(null);
+  const [quickReferencePosition, setQuickReferencePosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Annotation popup state
   const [selectedText, setSelectedText] = useState<string>('');
@@ -212,16 +220,8 @@ export function ResourceViewer({
     if (!annotationPosition || !selectedText) return;
 
     try {
-      if (editingAnnotation) {
-        if (isReference(editingAnnotation)) {
-          // Convert reference to highlight
-          await convertReferenceToHighlight(references, editingAnnotation.id);
-        }
-        // If already a highlight, do nothing
-      } else {
-        // Create new highlight
-        await addHighlight(rUri, selectedText, annotationPosition);
-      }
+      // Create new highlight
+      await addHighlight(rUri, selectedText, annotationPosition);
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -234,7 +234,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create highlight:', err);
     }
-  }, [annotationPosition, selectedText, editingAnnotation, rUri, addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, rUri, addHighlight, onRefetchAnnotations]);
 
   // Handle immediate highlight creation (no popup)
   const handleImmediateHighlight = useCallback(async (exact: string, position: { start: number; end: number }) => {
@@ -249,20 +249,15 @@ export function ResourceViewer({
   // Handle creating references - memoized
   const handleCreateReference = useCallback(async (targetDocId?: string, entityType?: string, referenceType?: string) => {
     if (!annotationPosition || !selectedText) return;
-    
+
     try {
       if (editingAnnotation) {
-        if (isHighlight(editingAnnotation)) {
-          // Convert highlight to reference
-          await convertHighlightToReference(highlights, (editingAnnotation as Annotation).id, targetDocId, entityType, referenceType);
-        } else {
-          // Update existing reference
-          await deleteAnnotation((editingAnnotation as Annotation).id, rUri);
-          await addReference(rUri, selectedText, annotationPosition, targetDocId, entityType, referenceType);
-        }
+        // Update existing reference
+        await deleteAnnotation((editingAnnotation as Annotation).id, rUri);
+        await addReference(rUri, selectedText, annotationPosition, targetDocId, entityType, referenceType);
       } else {
         // Create new reference
-        const newId = await addReference(rUri, selectedText, annotationPosition, targetDocId, entityType, referenceType);
+        await addReference(rUri, selectedText, annotationPosition, targetDocId, entityType, referenceType);
       }
 
       // Refetch annotations to update UI
@@ -276,7 +271,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create reference:', err);
     }
-  }, [annotationPosition, selectedText, editingAnnotation, rUri, addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, editingAnnotation, rUri, addReference, deleteAnnotation, onRefetchAnnotations]);
 
   // Handle creating assessments - memoized
   const handleCreateAssessment = useCallback(async () => {
@@ -321,6 +316,37 @@ export function ResourceViewer({
     }
   }, [onCommentCreationRequested]);
 
+  // Handle immediate reference creation (opens Quick Reference popup)
+  const handleImmediateReference = useCallback((exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }) => {
+    setQuickReferenceSelection({
+      exact,
+      start: position.start,
+      end: position.end
+    });
+    setQuickReferencePosition(popupPosition);
+    setShowQuickReferencePopup(true);
+  }, []);
+
+  // Handle quick reference creation from popup
+  const handleQuickReferenceCreate = useCallback(async (entityType?: string) => {
+    if (!quickReferenceSelection) return;
+
+    try {
+      await addReference(rUri, quickReferenceSelection.exact, quickReferenceSelection, undefined, entityType, undefined);
+      onRefetchAnnotations?.();
+      setShowQuickReferencePopup(false);
+      setQuickReferenceSelection(null);
+    } catch (err) {
+      console.error('Failed to create reference:', err);
+    }
+  }, [quickReferenceSelection, rUri, addReference, onRefetchAnnotations]);
+
+  // Close quick reference popup
+  const handleCloseQuickReferencePopup = useCallback(() => {
+    setShowQuickReferencePopup(false);
+    setQuickReferenceSelection(null);
+  }, []);
+
   const handleCreateComment = useCallback(() => {
     if (!annotationPosition || !selectedText) return;
 
@@ -359,23 +385,6 @@ export function ResourceViewer({
   const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
     await handleDeleteAnnotation(annotation.id);
   }, [handleDeleteAnnotation]);
-
-  // Quick action: Convert annotation from widget
-  const handleConvertAnnotationWidget = useCallback(async (annotation: Annotation) => {
-    try {
-      if (isHighlight(annotation)) {
-        // Convert highlight to reference (open dialog to get target)
-        setEditingAnnotation(annotation);
-        setShowAnnotationPopup(true);
-      } else if (isReference(annotation)) {
-        // Convert reference to highlight
-        await convertReferenceToHighlight(references, (annotation as Annotation).id);
-        onRefetchAnnotations?.();
-      }
-    } catch (err) {
-      console.error('Failed to convert annotation:', err);
-    }
-  }, [convertReferenceToHighlight, references, onRefetchAnnotations]);
 
   // Close popup - memoized
   const handleClosePopup = useCallback(() => {
@@ -518,13 +527,13 @@ export function ResourceViewer({
             }}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
-            onConvertAnnotation={handleConvertAnnotationWidget}
             showLineNumbers={showLineNumbers}
             selectedMotivation={selectedMotivation}
             onMotivationChange={setSelectedMotivation}
             onCreateHighlight={handleImmediateHighlight}
             onCreateAssessment={handleImmediateAssessment}
             onCreateComment={handleImmediateComment}
+            onCreateReference={handleImmediateReference}
           />
         ) : (
           <AnnotateView
@@ -555,13 +564,13 @@ export function ResourceViewer({
             }}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
-            onConvertAnnotation={handleConvertAnnotationWidget}
             showLineNumbers={showLineNumbers}
             selectedMotivation={selectedMotivation}
             onMotivationChange={setSelectedMotivation}
             onCreateHighlight={handleImmediateHighlight}
             onCreateAssessment={handleImmediateAssessment}
             onCreateComment={handleImmediateComment}
+            onCreateReference={handleImmediateReference}
           />
         )
       ) : (
@@ -631,17 +640,6 @@ export function ResourceViewer({
               }
             }
 
-            // Handle motivation changes (converting between highlight and reference)
-            if (updates.motivation) {
-              if (updates.motivation === 'linking' && isHighlight(editingAnnotation)) {
-                // Convert highlight to reference
-                await convertHighlightToReference(highlights, editingAnnotation.id);
-              } else if (updates.motivation === 'highlighting' && isReference(editingAnnotation)) {
-                // Convert reference to highlight
-                await convertReferenceToHighlight(references, editingAnnotation.id);
-              }
-            }
-
             setShowAnnotationPopup(false);
             setEditingAnnotation(null);
           }
@@ -658,6 +656,17 @@ export function ResourceViewer({
           }
         }}
       />
+
+      {/* Quick Reference Popup */}
+      {quickReferenceSelection && (
+        <QuickReferencePopup
+          isOpen={showQuickReferencePopup}
+          onClose={handleCloseQuickReferencePopup}
+          position={quickReferencePosition}
+          selection={quickReferenceSelection}
+          onCreateReference={handleQuickReferenceCreate}
+        />
+      )}
     </div>
   );
 }

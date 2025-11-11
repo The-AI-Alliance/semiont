@@ -41,13 +41,13 @@ interface Props {
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null;
   onDeleteAnnotation?: (annotation: Annotation) => void;
-  onConvertAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
   selectedMotivation?: AnnotationMotivation;
   onMotivationChange?: (motivation: AnnotationMotivation) => void;
   onCreateHighlight?: (exact: string, position: { start: number; end: number }) => void;
   onCreateAssessment?: (exact: string, position: { start: number; end: number }) => void;
   onCreateComment?: (exact: string, position: { start: number; end: number }) => void;
+  onCreateReference?: (exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }) => void;
 }
 
 // Segment text with annotations - SIMPLE because it's source view!
@@ -135,13 +135,13 @@ export function AnnotateView({
   getTargetDocumentName,
   generatingReferenceId,
   onDeleteAnnotation,
-  onConvertAnnotation,
   showLineNumbers = false,
   selectedMotivation = 'linking',
   onMotivationChange,
   onCreateHighlight,
   onCreateAssessment,
-  onCreateComment
+  onCreateComment,
+  onCreateReference
 }: Props) {
   const t = useTranslations('AnnotateView');
   const { newAnnotationIds } = useResourceAnnotations();
@@ -217,6 +217,14 @@ export function AnnotateView({
           onCreateComment(text, { start, end });
           selection.removeAllRanges();
           return;
+        } else if (selectedMotivation === 'linking' && onCreateReference && rects.length > 0) {
+          // Calculate popup position from rects
+          const lastRect = rects[rects.length - 1];
+          if (lastRect) {
+            onCreateReference(text, { start, end }, { x: lastRect.left, y: lastRect.bottom + 10 });
+          }
+          selection.removeAllRanges();
+          return;
         } else if (onTextSelect && rects.length > 0) {
           setSelectionState({ exact: text, start, end, rects });
         }
@@ -239,6 +247,14 @@ export function AnnotateView({
           return;
         } else if (selectedMotivation === 'commenting' && onCreateComment) {
           onCreateComment(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (selectedMotivation === 'linking' && onCreateReference && rects.length > 0) {
+          // Calculate popup position from rects
+          const lastRect = rects[rects.length - 1];
+          if (lastRect) {
+            onCreateReference(text, { start, end }, { x: lastRect.left, y: lastRect.bottom + 10 });
+          }
           selection.removeAllRanges();
           return;
         } else if (onTextSelect && rects.length > 0) {
@@ -269,7 +285,7 @@ export function AnnotateView({
       container.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [onTextSelect, selectedMotivation, onCreateHighlight, onCreateAssessment, onCreateComment, content]);
+  }, [onTextSelect, selectedMotivation, onCreateHighlight, onCreateAssessment, onCreateComment, onCreateReference, content]);
   
   // Handle sparkle click
   const handleSparkleClick = useCallback(() => {
@@ -324,7 +340,6 @@ export function AnnotateView({
             {...(getTargetDocumentName && { getTargetDocumentName })}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             {...(onDeleteAnnotation && { onDeleteAnnotation })}
-            {...(onConvertAnnotation && { onConvertAnnotation })}
           />
 
           {/* Sparkle UI - THE GOOD STUFF WE'RE KEEPING! */}
