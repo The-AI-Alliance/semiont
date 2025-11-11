@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from '@/i18n/routing';
-import { AnnotateView } from './AnnotateView';
+import { AnnotateView, type AnnotationMotivation } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
 import type { components, ResourceUri, AnnotationUri } from '@semiont/api-client';
@@ -89,6 +89,9 @@ export function ResourceViewer({
   // API mutations
   const annotationsAPI = useAnnotations();
   const updateAnnotationBodyMutation = annotationsAPI.updateBody.useMutation();
+
+  // Annotation toolbar state
+  const [selectedMotivation, setSelectedMotivation] = useState<AnnotationMotivation>('linking');
 
   // Annotation popup state
   const [selectedText, setSelectedText] = useState<string>('');
@@ -207,7 +210,7 @@ export function ResourceViewer({
   // Handle creating highlights - memoized
   const handleCreateHighlight = useCallback(async () => {
     if (!annotationPosition || !selectedText) return;
-    
+
     try {
       if (editingAnnotation) {
         if (isReference(editingAnnotation)) {
@@ -232,6 +235,16 @@ export function ResourceViewer({
       console.error('Failed to create highlight:', err);
     }
   }, [annotationPosition, selectedText, editingAnnotation, rUri, addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
+
+  // Handle immediate highlight creation (no popup)
+  const handleImmediateHighlight = useCallback(async (exact: string, position: { start: number; end: number }) => {
+    try {
+      await addHighlight(rUri, exact, position);
+      onRefetchAnnotations?.();
+    } catch (err) {
+      console.error('Failed to create highlight:', err);
+    }
+  }, [rUri, addHighlight, onRefetchAnnotations]);
   
   // Handle creating references - memoized
   const handleCreateReference = useCallback(async (targetDocId?: string, entityType?: string, referenceType?: string) => {
@@ -285,6 +298,28 @@ export function ResourceViewer({
       console.error('Failed to create assessment:', err);
     }
   }, [annotationPosition, selectedText, rUri, addAssessment, onRefetchAnnotations]);
+
+  // Handle immediate assessment creation (no popup)
+  const handleImmediateAssessment = useCallback(async (exact: string, position: { start: number; end: number }) => {
+    try {
+      await addAssessment(rUri, exact, position);
+      onRefetchAnnotations?.();
+    } catch (err) {
+      console.error('Failed to create assessment:', err);
+    }
+  }, [rUri, addAssessment, onRefetchAnnotations]);
+
+  // Handle immediate comment creation (opens Comment Panel)
+  const handleImmediateComment = useCallback((exact: string, position: { start: number; end: number }) => {
+    // Notify parent component to open Comments Panel with this selection
+    if (onCommentCreationRequested) {
+      onCommentCreationRequested({
+        exact,
+        start: position.start,
+        end: position.end
+      });
+    }
+  }, [onCommentCreationRequested]);
 
   const handleCreateComment = useCallback(() => {
     if (!annotationPosition || !selectedText) return;
@@ -485,6 +520,11 @@ export function ResourceViewer({
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             onConvertAnnotation={handleConvertAnnotationWidget}
             showLineNumbers={showLineNumbers}
+            selectedMotivation={selectedMotivation}
+            onMotivationChange={setSelectedMotivation}
+            onCreateHighlight={handleImmediateHighlight}
+            onCreateAssessment={handleImmediateAssessment}
+            onCreateComment={handleImmediateComment}
           />
         ) : (
           <AnnotateView
@@ -517,6 +557,11 @@ export function ResourceViewer({
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             onConvertAnnotation={handleConvertAnnotationWidget}
             showLineNumbers={showLineNumbers}
+            selectedMotivation={selectedMotivation}
+            onMotivationChange={setSelectedMotivation}
+            onCreateHighlight={handleImmediateHighlight}
+            onCreateAssessment={handleImmediateAssessment}
+            onCreateComment={handleImmediateComment}
           />
         )
       ) : (

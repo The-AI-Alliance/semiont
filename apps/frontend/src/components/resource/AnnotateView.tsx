@@ -11,7 +11,11 @@ type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
+import { AnnotateToolbar, type AnnotationMotivation } from '@/components/annotation/AnnotateToolbar';
 import '@/styles/animations.css';
+
+// Re-export for convenience
+export type { AnnotationMotivation };
 
 interface Props {
   content: string;
@@ -39,6 +43,11 @@ interface Props {
   onDeleteAnnotation?: (annotation: Annotation) => void;
   onConvertAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
+  selectedMotivation?: AnnotationMotivation;
+  onMotivationChange?: (motivation: AnnotationMotivation) => void;
+  onCreateHighlight?: (exact: string, position: { start: number; end: number }) => void;
+  onCreateAssessment?: (exact: string, position: { start: number; end: number }) => void;
+  onCreateComment?: (exact: string, position: { start: number; end: number }) => void;
 }
 
 // Segment text with annotations - SIMPLE because it's source view!
@@ -127,7 +136,12 @@ export function AnnotateView({
   generatingReferenceId,
   onDeleteAnnotation,
   onConvertAnnotation,
-  showLineNumbers = false
+  showLineNumbers = false,
+  selectedMotivation = 'linking',
+  onMotivationChange,
+  onCreateHighlight,
+  onCreateAssessment,
+  onCreateComment
 }: Props) {
   const t = useTranslations('AnnotateView');
   const { newAnnotationIds } = useResourceAnnotations();
@@ -163,10 +177,8 @@ export function AnnotateView({
     }
   }, [allAnnotations, onAnnotationHover, onCommentHover]);
 
-  // Handle text annotation with sparkle
+  // Handle text annotation with sparkle or immediate creation
   useEffect(() => {
-    if (!onTextSelect) return;
-
     const container = containerRef.current;
     if (!container) return;
 
@@ -191,7 +203,21 @@ export function AnnotateView({
           return;
         }
         const end = start + text.length;
-        if (rects.length > 0) {
+
+        // Check motivation and either create immediately or show sparkle
+        if (selectedMotivation === 'highlighting' && onCreateHighlight) {
+          onCreateHighlight(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (selectedMotivation === 'assessing' && onCreateAssessment) {
+          onCreateAssessment(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (selectedMotivation === 'commenting' && onCreateComment) {
+          onCreateComment(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (onTextSelect && rects.length > 0) {
           setSelectionState({ exact: text, start, end, rects });
         }
         return;
@@ -201,34 +227,49 @@ export function AnnotateView({
       const start = view.posAtDOM(range.startContainer, range.startOffset);
       const end = start + text.length;
 
-      if (start >= 0 && rects.length > 0) {
-        setSelectionState({ exact: text, start, end, rects });
+      if (start >= 0) {
+        // Check motivation and either create immediately or show sparkle
+        if (selectedMotivation === 'highlighting' && onCreateHighlight) {
+          onCreateHighlight(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (selectedMotivation === 'assessing' && onCreateAssessment) {
+          onCreateAssessment(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (selectedMotivation === 'commenting' && onCreateComment) {
+          onCreateComment(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (onTextSelect && rects.length > 0) {
+          setSelectionState({ exact: text, start, end, rects });
 
-        // Announce to screen readers
-        const announcement = document.createElement('div');
-        announcement.setAttribute('role', 'status');
-        announcement.setAttribute('aria-live', 'polite');
-        announcement.className = 'sr-only';
-        announcement.textContent = 'Text selected. Sparkle button available to create annotation, or press H for highlight, R for reference.';
-        document.body.appendChild(announcement);
-        setTimeout(() => announcement.remove(), 1000);
+          // Announce to screen readers
+          const announcement = document.createElement('div');
+          announcement.setAttribute('role', 'status');
+          announcement.setAttribute('aria-live', 'polite');
+          announcement.className = 'sr-only';
+          announcement.textContent = 'Text selected. Sparkle button available to create annotation, or press H for highlight, R for reference.';
+          document.body.appendChild(announcement);
+          setTimeout(() => announcement.remove(), 1000);
+        }
       }
     };
-    
+
     const handleMouseDown = (e: MouseEvent) => {
       if (!(e.target as Element).closest('[data-annotation-ui]')) {
         setSelectionState(null);
       }
     };
-    
+
     container.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('mousedown', handleMouseDown);
-    
+
     return () => {
       container.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [onTextSelect]);
+  }, [onTextSelect, selectedMotivation, onCreateHighlight, onCreateAssessment, onCreateComment, content]);
   
   // Handle sparkle click
   const handleSparkleClick = useCallback(() => {
@@ -257,8 +298,13 @@ export function AnnotateView({
   switch (category) {
     case 'text':
       return (
-        <div className="relative h-full" ref={containerRef} onContextMenu={handleContextMenu}>
-          <CodeMirrorRenderer
+        <div className="relative h-full flex flex-col" ref={containerRef} onContextMenu={handleContextMenu}>
+          <AnnotateToolbar
+            selectedMotivation={selectedMotivation}
+            onMotivationChange={onMotivationChange || (() => {})}
+          />
+          <div className="flex-1 overflow-auto">
+            <CodeMirrorRenderer
             content={content}
             segments={segments}
             {...(onAnnotationClick && { onAnnotationClick })}
@@ -334,20 +380,25 @@ export function AnnotateView({
               })()}
             </>
           )}
+          </div>
         </div>
       );
 
     case 'image':
       return (
-        <div className="relative h-full" ref={containerRef}>
+        <div className="relative h-full flex flex-col" ref={containerRef}>
+          <AnnotateToolbar
+            selectedMotivation={selectedMotivation}
+            onMotivationChange={onMotivationChange || (() => {})}
+          />
           {/* Warning banner */}
-          <div className="absolute top-0 left-0 right-0 z-50 bg-yellow-100 dark:bg-yellow-900 border-b border-yellow-200 dark:border-yellow-800 p-3">
+          <div className="absolute top-0 left-0 right-0 z-50 bg-yellow-100 dark:bg-yellow-900 border-b border-yellow-200 dark:border-yellow-800 p-3" style={{ marginTop: '56px' }}>
             <p className="text-sm text-yellow-800 dark:text-yellow-200 text-center">
               Image annotation is not yet supported. Switch to Browse mode to view the image.
             </p>
           </div>
           {/* Image viewer offset by banner */}
-          <div className="pt-12 h-full">
+          <div className="flex-1 overflow-auto" style={{ paddingTop: '56px' }}>
             {resourceUri && (
               <ImageViewer
                 resourceUri={resourceUri as any}
