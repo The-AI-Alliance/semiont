@@ -499,7 +499,7 @@
     "noReferences": "No references yet",
     "stub": "Stub reference (not linked)",
     "resolved": "Resolved reference (linked)",
-    "openInNewTab": "Open",
+    "open": "Open",
     "unlink": "Unlink",
     "generate": "Generate",
     "find": "Find",

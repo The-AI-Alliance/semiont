@@ -73,8 +73,8 @@ export function Toolbar<T extends string = string>({
             <span className="text-xl" aria-hidden="true">📄</span>
           </button>
 
-          {/* References Icon - only show in Annotate Mode and not archived */}
-          {annotateMode && !isArchived && (
+          {/* References Icon - show in both Browse and Annotate modes (not archived) */}
+          {!isArchived && (
             <button
               onClick={() => onPanelToggle('references' as T)}
               className={buttonClass('references')}
