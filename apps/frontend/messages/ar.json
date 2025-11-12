@@ -697,5 +697,13 @@
     "windowsNote": "Using Windows/Linux keyboard shortcuts. Ctrl is the Control key.",
     "footerHint": "Press {key} anytime to show this help",
     "close": "Close"
+  },
+  "AnnotateToolbar": {
+    "linking": "Link",
+    "highlighting": "Highlight",
+    "assessing": "Assess",
+    "commenting": "Comment",
+    "deleting": "Delete",
+    "jsonld": "JSON-LD"
   }
 }

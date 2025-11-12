@@ -697,5 +697,13 @@
     "windowsNote": "Usando atajos de teclado de Windows/Linux. Ctrl es la tecla Control.",
     "footerHint": "Presiona {key} en cualquier momento para mostrar esta ayuda",
     "close": "Cerrar"
+  },
+  "AnnotateToolbar": {
+    "linking": "Vincular",
+    "highlighting": "Destacar",
+    "assessing": "Evaluar",
+    "commenting": "Comentar",
+    "deleting": "Eliminar",
+    "jsonld": "JSON-LD"
   }
 }
