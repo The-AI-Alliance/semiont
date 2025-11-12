@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-export type ToolbarPanelType = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments';
+export type ToolbarPanelType = 'document' | 'history' | 'info' | 'references' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments';
 
 interface UseToolbarOptions {
   /** Initial panel to show (default: null) */
@@ -23,8 +23,7 @@ export function useToolbar(options: UseToolbarOptions = {}) {
     if (persistToStorage && typeof window !== 'undefined') {
       const saved = localStorage.getItem(storageKey);
       if (saved && isValidPanel(saved)) {
-        // Backwards compatibility: convert old 'stats' to 'info'
-        return saved === 'stats' ? 'info' : (saved as ToolbarPanelType);
+        return saved as ToolbarPanelType;
       }
     }
     return initialPanel;
@@ -56,5 +55,5 @@ export function useToolbar(options: UseToolbarOptions = {}) {
 
 // Helper to validate panel names
 function isValidPanel(value: string): boolean {
-  return ['document', 'history', 'info', 'detect', 'settings', 'collaboration', 'user', 'jsonld', 'comments', 'stats'].includes(value);
+  return ['document', 'history', 'info', 'references', 'settings', 'collaboration', 'user', 'jsonld', 'comments'].includes(value);
 }

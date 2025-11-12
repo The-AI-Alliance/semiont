@@ -31,7 +31,7 @@ import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 import { useResourceEvents } from '@/hooks/useResourceEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
-import { DetectPanel } from '@/components/resource/panels/DetectPanel';
+import { ReferencesPanel } from '@/components/resource/panels/ReferencesPanel';
 import { ResourceInfoPanel } from '@/components/resource/panels/ResourceInfoPanel';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/resource/panels/CollaborationPanel';
@@ -634,9 +634,9 @@ function ResourceView({
               />
             )}
 
-            {/* Detect Panel */}
-            {activePanel === 'detect' && !resource.archived && (
-              <DetectPanel
+            {/* References Panel */}
+            {activePanel === 'references' && !resource.archived && (
+              <ReferencesPanel
                 allEntityTypes={allEntityTypes}
                 isDetecting={isDetecting}
                 detectionProgress={detectionProgress}

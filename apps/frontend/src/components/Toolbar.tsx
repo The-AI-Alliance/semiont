@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments';
+type ToolbarPanel = 'document' | 'history' | 'info' | 'references' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments';
 type ToolbarContext = 'document' | 'simple';
 
 interface Props<T extends string = string> {
@@ -73,29 +73,18 @@ export function Toolbar<T extends string = string>({
             <span className="text-xl" aria-hidden="true">📄</span>
           </button>
 
-          {/* Detect Icon - only show in Annotate Mode and not archived */}
+          {/* References Icon - only show in Annotate Mode and not archived */}
           {annotateMode && !isArchived && (
             <button
-              onClick={() => onPanelToggle('detect' as T)}
-              className={buttonClass('detect')}
+              onClick={() => onPanelToggle('references' as T)}
+              className={buttonClass('references')}
               aria-label={t('detectReferences')}
-              aria-pressed={activePanel === 'detect'}
+              aria-pressed={activePanel === 'references'}
               title={t('detectReferences')}
             >
               <span className="text-xl" aria-hidden="true">🔵</span>
             </button>
           )}
-
-          {/* History Icon */}
-          <button
-            onClick={() => onPanelToggle('history' as T)}
-            className={buttonClass('history')}
-            aria-label={t('history')}
-            aria-pressed={activePanel === 'history'}
-            title={t('history')}
-          >
-            <span className="text-xl" aria-hidden="true">📒</span>
-          </button>
 
           {/* Comments Icon */}
           <button
@@ -106,6 +95,17 @@ export function Toolbar<T extends string = string>({
             title={t('comments')}
           >
             <span className="text-xl" aria-hidden="true">💬</span>
+          </button>
+
+          {/* History Icon */}
+          <button
+            onClick={() => onPanelToggle('history' as T)}
+            className={buttonClass('history')}
+            aria-label={t('history')}
+            aria-pressed={activePanel === 'history'}
+            title={t('history')}
+          >
+            <span className="text-xl" aria-hidden="true">📒</span>
           </button>
 
           {/* Document Info Icon */}
@@ -138,7 +138,7 @@ export function Toolbar<T extends string = string>({
             aria-pressed={activePanel === 'jsonld'}
             title="JSON-LD"
           >
-            <span className="text-base font-mono" aria-hidden="true">{'{}'}</span>
+            <span className="text-xl" aria-hidden="true">🌐</span>
           </button>
         </>
       )}

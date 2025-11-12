@@ -17,7 +17,7 @@ interface Props {
   onCancelDetection: () => void;
 }
 
-export function DetectPanel({
+export function ReferencesPanel({
   allEntityTypes,
   isDetecting,
   detectionProgress,

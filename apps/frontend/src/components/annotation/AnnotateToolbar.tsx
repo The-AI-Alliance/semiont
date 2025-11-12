@@ -101,7 +101,7 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
         title={t('jsonld')}
         aria-pressed={selectedMotivation === 'jsonld'}
       >
-        <span className="text-lg">📋</span>
+        <span className="text-lg">🌐</span>
         <span>{t('jsonld')}</span>
       </button>
 
