@@ -9,7 +9,7 @@ import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferen
 import { PopupContainer } from '@/components/annotation-popups/SharedPopupElements';
 import { JsonLdView } from '@/components/annotation-popups/JsonLdView';
 import type { components, ResourceUri } from '@semiont/api-client';
-import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment } from '@semiont/api-client';
+import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 
@@ -137,7 +137,7 @@ export function ResourceViewer({
     const metadata = getAnnotationTypeMetadata(annotation);
 
     // If annotation has a side panel, only open it when Detail mode is active
-    // For delete/jsonld modes, let those handlers below process it
+    // For delete/jsonld/follow modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
       if (selectedClick === 'detail') {
         // Route to appropriate panel based on annotation type
@@ -150,8 +150,8 @@ export function ResourceViewer({
           return;
         }
       }
-      // Don't return early for delete/jsonld modes - let them be handled below
-      if (selectedClick !== 'deleting' && selectedClick !== 'jsonld') {
+      // Don't return early for delete/jsonld/follow modes - let them be handled below
+      if (selectedClick !== 'deleting' && selectedClick !== 'jsonld' && selectedClick !== 'follow') {
         return;
       }
     }
@@ -161,6 +161,19 @@ export function ResourceViewer({
 
     // Check if this is a highlight, assessment, comment, or reference
     const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
+
+    // Handle follow mode - navigate to resolved references only
+    if (selectedClick === 'follow' && isReference(annotation)) {
+      const bodySource = getBodySource(annotation.body);
+      if (bodySource) {
+        // Navigate to the linked resource
+        const resourceId = bodySource.split('/resources/')[1];
+        if (resourceId) {
+          router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
+        }
+      }
+      return;
+    }
 
     // Handle delete mode for all annotation types
     if (selectedClick === 'deleting' && isSimpleAnnotation) {

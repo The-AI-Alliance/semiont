@@ -4,7 +4,7 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 
 export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting';
-export type ClickMotivation = 'detail' | 'jsonld' | 'deleting';
+export type ClickMotivation = 'detail' | 'follow' | 'jsonld' | 'deleting';
 
 interface AnnotateToolbarProps {
   selectedSelection: SelectionMotivation | null;
@@ -118,6 +118,16 @@ export function AnnotateToolbar({
           aria-pressed={selectedClick === 'detail'}
         >
           <span className="text-lg">🔍</span>
+        </button>
+
+        {/* Follow Button */}
+        <button
+          onClick={() => handleClickClick('follow')}
+          className={getButtonClass('follow')}
+          title={t('follow')}
+          aria-pressed={selectedClick === 'follow'}
+        >
+          <span className="text-lg">➡️</span>
         </button>
 
         {/* JSON-LD Button */}
