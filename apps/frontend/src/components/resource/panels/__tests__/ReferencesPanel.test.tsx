@@ -620,14 +620,14 @@ describe('ReferencesPanel Component', () => {
       const { container } = render(<ReferencesPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('bg-white', 'dark:bg-gray-800', 'rounded-lg', 'shadow-sm', 'p-4');
+      expect(panel).toHaveClass('flex', 'flex-col', 'h-full', 'bg-white', 'dark:bg-gray-900');
     });
 
     it('should support dark mode', () => {
       const { container } = render(<ReferencesPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('dark:bg-gray-800');
+      expect(panel).toHaveClass('dark:bg-gray-900');
     });
 
     it('should have emoji in title', () => {
