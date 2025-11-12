@@ -187,13 +187,7 @@ export function ResourceViewer({
       }
     }
 
-    // Only handle annotation clicks in curation mode with toolbar modes
-    if (!curationMode) return;
-
-    // Check if this is a highlight, assessment, comment, or reference
-    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
-
-    // Handle follow mode - navigate to resolved references only
+    // Handle follow mode - navigate to resolved references only (works in both Browse and Annotate modes)
     if (selectedClick === 'follow' && isReference(annotation)) {
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
@@ -205,6 +199,12 @@ export function ResourceViewer({
       }
       return;
     }
+
+    // Only handle annotation clicks in curation mode with toolbar modes
+    if (!curationMode) return;
+
+    // Check if this is a highlight, assessment, comment, or reference
+    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
 
     // Handle delete mode for all annotation types
     if (selectedClick === 'deleting' && isSimpleAnnotation) {
