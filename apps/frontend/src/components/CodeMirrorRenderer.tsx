@@ -23,7 +23,6 @@ interface Props {
   content: string;
   segments: TextSegment[];
   onAnnotationClick?: (annotation: Annotation) => void;
-  onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
   onChange?: (content: string) => void;
@@ -223,7 +222,6 @@ export function CodeMirrorRenderer({
   content,
   segments,
   onAnnotationClick,
-  onAnnotationRightClick,
   onAnnotationHover,
   onTextSelect,
   onChange,
@@ -255,7 +253,6 @@ export function CodeMirrorRenderer({
     getTargetDocumentName?: (documentId: string) => string | undefined;
     onDeleteAnnotation?: (annotation: Annotation) => void;
     onAnnotationClick?: (annotation: Annotation, event?: React.MouseEvent) => void;
-    onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
     onAnnotationHover?: (annotationId: string | null) => void;
   }>({});
 
@@ -271,10 +268,9 @@ export function CodeMirrorRenderer({
       ...(getTargetDocumentName && { getTargetDocumentName }),
       ...(onDeleteAnnotation && { onDeleteAnnotation }),
       ...(onAnnotationClick && { onAnnotationClick }),
-      ...(onAnnotationRightClick && { onAnnotationRightClick }),
       ...(onAnnotationHover && { onAnnotationHover })
     };
-  }, [onEntityTypeClick, onReferenceNavigate, onUnresolvedReferenceClick, getTargetDocumentName, onDeleteAnnotation, onAnnotationClick, onAnnotationRightClick, onAnnotationHover]);
+  }, [onEntityTypeClick, onReferenceNavigate, onUnresolvedReferenceClick, getTargetDocumentName, onDeleteAnnotation, onAnnotationClick, onAnnotationHover]);
 
   // Initialize CodeMirror view once
   useEffect(() => {
@@ -310,20 +306,6 @@ export function CodeMirrorRenderer({
               if (segment?.annotation) {
                 event.preventDefault();
                 callbacksRef.current.onAnnotationClick(segment.annotation);
-                return true; // Stop propagation
-              }
-            }
-            return false;
-          },
-          contextmenu: (event, view) => {
-            const target = event.target as HTMLElement;
-            const annotationId = target.closest('[data-annotation-id]')?.getAttribute('data-annotation-id');
-
-            if (annotationId && callbacksRef.current.onAnnotationRightClick) {
-              const segment = segmentsRef.current.find(s => s.annotation?.id === annotationId);
-              if (segment?.annotation) {
-                event.preventDefault();
-                callbacksRef.current.onAnnotationRightClick(segment.annotation, event.clientX, event.clientY);
                 return true; // Stop propagation
               }
             }

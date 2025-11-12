@@ -593,7 +593,6 @@ function ResourceView({
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedReferenceId(null), 3000);
                 }}
-                onGenerateDocument={handleGenerateDocument}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
                 onCommentHover={setHoveredCommentId}
