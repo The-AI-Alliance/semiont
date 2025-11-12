@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { DetectPanel } from '../DetectPanel';
+import { ReferencesPanel } from '../ReferencesPanel';
 
 // Mock next-intl
 vi.mock('next-intl', () => ({
@@ -38,7 +38,7 @@ vi.mock('@/components/DetectionProgressWidget', () => ({
   ),
 }));
 
-describe('DetectPanel Component', () => {
+describe('ReferencesPanel Component', () => {
   const defaultProps = {
     allEntityTypes: ['Person', 'Organization', 'Location', 'Date'],
     isDetecting: false,
@@ -57,13 +57,13 @@ describe('DetectPanel Component', () => {
 
   describe('Rendering', () => {
     it('should render panel with title', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       expect(screen.getByText('Detect Entities')).toBeInTheDocument();
     });
 
     it('should render all entity type buttons', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       expect(screen.getByText('Person')).toBeInTheDocument();
       expect(screen.getByText('Organization')).toBeInTheDocument();
@@ -72,13 +72,13 @@ describe('DetectPanel Component', () => {
     });
 
     it('should show message when no entity types available', () => {
-      render(<DetectPanel {...defaultProps} allEntityTypes={[]} />);
+      render(<ReferencesPanel {...defaultProps} allEntityTypes={[]} />);
 
       expect(screen.getByText('No entity types available')).toBeInTheDocument();
     });
 
     it('should render start detection button', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       expect(screen.getByText(/Start Detection/)).toBeInTheDocument();
     });
@@ -86,7 +86,7 @@ describe('DetectPanel Component', () => {
 
   describe('Entity Type Selection', () => {
     it('should toggle entity type selection on click', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -105,7 +105,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should allow multiple selections', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
       const orgButton = screen.getByText('Organization');
@@ -121,7 +121,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should deselect when clicking selected type', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -133,7 +133,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should show selected count', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
       const orgButton = screen.getByText('Organization');
@@ -150,7 +150,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should not show selected count when none selected', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       expect(screen.queryByText(/selected/i)).not.toBeInTheDocument();
     });
@@ -158,7 +158,7 @@ describe('DetectPanel Component', () => {
 
   describe('Button Styling', () => {
     it('should style selected buttons differently', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -174,7 +174,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should have proper ARIA attributes', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -183,7 +183,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should have focus styles', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -193,7 +193,7 @@ describe('DetectPanel Component', () => {
 
   describe('Start Detection Button', () => {
     it('should be disabled when no types selected', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const startButton = screen.getByText(/Start Detection/);
 
@@ -201,7 +201,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should be enabled when types are selected', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
       await userEvent.click(personButton);
@@ -213,7 +213,7 @@ describe('DetectPanel Component', () => {
 
     it('should call onDetect with selected types', async () => {
       const onDetect = vi.fn();
-      render(<DetectPanel {...defaultProps} onDetect={onDetect} />);
+      render(<ReferencesPanel {...defaultProps} onDetect={onDetect} />);
 
       await userEvent.click(screen.getByText('Person'));
       await userEvent.click(screen.getByText('Organization'));
@@ -225,7 +225,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should clear selected types after detection starts', async () => {
-      const { rerender } = render(<DetectPanel {...defaultProps} />);
+      const { rerender } = render(<ReferencesPanel {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Person'));
 
@@ -234,7 +234,7 @@ describe('DetectPanel Component', () => {
 
       // Simulate detection starting
       rerender(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
           detectionProgress={{ completedEntityTypes: [] }}
@@ -243,7 +243,7 @@ describe('DetectPanel Component', () => {
 
       // Simulate detection completing
       rerender(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={{
@@ -257,7 +257,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should have proper styling when disabled', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const startButton = screen.getByText(/Start Detection/);
 
@@ -265,7 +265,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should have proper styling when enabled', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Person'));
 
@@ -278,7 +278,7 @@ describe('DetectPanel Component', () => {
   describe('Detection Progress', () => {
     it('should show progress widget when detecting', () => {
       render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
           detectionProgress={{ completedEntityTypes: [] }}
@@ -297,7 +297,7 @@ describe('DetectPanel Component', () => {
       };
 
       render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
           detectionProgress={progress}
@@ -311,7 +311,7 @@ describe('DetectPanel Component', () => {
 
     it('should hide entity type selection during detection', () => {
       render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
           detectionProgress={{ completedEntityTypes: [] }}
@@ -326,7 +326,7 @@ describe('DetectPanel Component', () => {
       const onCancelDetection = vi.fn();
 
       render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
           detectionProgress={{ completedEntityTypes: [] }}
@@ -344,7 +344,7 @@ describe('DetectPanel Component', () => {
   describe('Detection Complete Log', () => {
     it('should show completed log after detection finishes', () => {
       const { rerender } = render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={{
@@ -358,7 +358,7 @@ describe('DetectPanel Component', () => {
 
       // Parent clears detectionProgress after completion
       rerender(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={null}
@@ -371,7 +371,7 @@ describe('DetectPanel Component', () => {
 
     it('should show found counts in log', () => {
       const { rerender } = render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={{
@@ -380,13 +380,13 @@ describe('DetectPanel Component', () => {
         />
       );
 
-      rerender(<DetectPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
       expect(screen.getByText(/Found.*5/i)).toBeInTheDocument();
     });
 
     it('should show checkmarks for completed types', () => {
       const { rerender } = render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={{
@@ -395,13 +395,13 @@ describe('DetectPanel Component', () => {
         />
       );
 
-      rerender(<DetectPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
       expect(screen.getByText('✓')).toBeInTheDocument();
     });
 
     it('should show "Detect More" button after completion', () => {
       const { rerender } = render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={{
@@ -410,13 +410,13 @@ describe('DetectPanel Component', () => {
         />
       );
 
-      rerender(<DetectPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
       expect(screen.getByText('Detect More')).toBeInTheDocument();
     });
 
     it('should clear log and show selection UI when clicking "Detect More"', async () => {
       const { rerender } = render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={{
@@ -425,7 +425,7 @@ describe('DetectPanel Component', () => {
         />
       );
 
-      rerender(<DetectPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
 
       const detectMoreButton = screen.getByText('Detect More');
       await userEvent.click(detectMoreButton);
@@ -437,7 +437,7 @@ describe('DetectPanel Component', () => {
 
     it('should not show log when empty', () => {
       render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={{
@@ -452,14 +452,14 @@ describe('DetectPanel Component', () => {
 
   describe('State Transitions', () => {
     it('should transition from idle to detecting', () => {
-      const { rerender } = render(<DetectPanel {...defaultProps} />);
+      const { rerender } = render(<ReferencesPanel {...defaultProps} />);
 
       // Idle state
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
 
       // Start detecting
       rerender(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
           detectionProgress={{ completedEntityTypes: [] }}
@@ -473,7 +473,7 @@ describe('DetectPanel Component', () => {
 
     it('should transition from detecting to complete', () => {
       const { rerender } = render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
           detectionProgress={{ completedEntityTypes: [] }}
@@ -485,7 +485,7 @@ describe('DetectPanel Component', () => {
 
       // Complete - first trigger useEffect to copy to lastDetectionLog
       rerender(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={{
@@ -495,7 +495,7 @@ describe('DetectPanel Component', () => {
       );
 
       // Then clear detectionProgress to show the log
-      rerender(<DetectPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
 
       expect(screen.queryByTestId('detection-progress-widget')).not.toBeInTheDocument();
       expect(screen.getByText('Detect More')).toBeInTheDocument();
@@ -503,7 +503,7 @@ describe('DetectPanel Component', () => {
 
     it('should transition from complete to idle', async () => {
       const { rerender } = render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={{
@@ -513,12 +513,12 @@ describe('DetectPanel Component', () => {
       );
 
       // Clear detectionProgress to show the log
-      rerender(<DetectPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
 
       const detectMoreButton = screen.getByText('Detect More');
       await userEvent.click(detectMoreButton);
 
-      rerender(<DetectPanel {...defaultProps} />);
+      rerender(<ReferencesPanel {...defaultProps} />);
 
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
     });
@@ -527,7 +527,7 @@ describe('DetectPanel Component', () => {
   describe('Edge Cases', () => {
     it('should handle empty entity types array', () => {
       expect(() => {
-        render(<DetectPanel {...defaultProps} allEntityTypes={[]} />);
+        render(<ReferencesPanel {...defaultProps} allEntityTypes={[]} />);
       }).not.toThrow();
     });
 
@@ -535,7 +535,7 @@ describe('DetectPanel Component', () => {
       const manyTypes = Array.from({ length: 50 }, (_, i) => `Type${i}`);
 
       expect(() => {
-        render(<DetectPanel {...defaultProps} allEntityTypes={manyTypes} />);
+        render(<ReferencesPanel {...defaultProps} allEntityTypes={manyTypes} />);
       }).not.toThrow();
 
       expect(screen.getByText('Type0')).toBeInTheDocument();
@@ -545,7 +545,7 @@ describe('DetectPanel Component', () => {
     it('should handle entity types with special characters', () => {
       const specialTypes = ['Type-A', 'Type_B', 'Type.C', 'Type/D'];
 
-      render(<DetectPanel {...defaultProps} allEntityTypes={specialTypes} />);
+      render(<ReferencesPanel {...defaultProps} allEntityTypes={specialTypes} />);
 
       specialTypes.forEach(type => {
         expect(screen.getByText(type)).toBeInTheDocument();
@@ -553,7 +553,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should handle selecting and deselecting all types', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       // Select all
       for (const type of defaultProps.allEntityTypes) {
@@ -575,7 +575,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should handle rapid selection changes', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -590,7 +590,7 @@ describe('DetectPanel Component', () => {
 
     it('should handle zero found count in results', () => {
       render(
-        <DetectPanel
+        <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
           detectionProgress={{
@@ -605,7 +605,7 @@ describe('DetectPanel Component', () => {
     it('should handle undefined detectionProgress', () => {
       expect(() => {
         render(
-          <DetectPanel
+          <ReferencesPanel
             {...defaultProps}
             isDetecting={false}
             detectionProgress={undefined as any}
@@ -617,27 +617,27 @@ describe('DetectPanel Component', () => {
 
   describe('Styling and Appearance', () => {
     it('should have proper panel structure', () => {
-      const { container } = render(<DetectPanel {...defaultProps} />);
+      const { container } = render(<ReferencesPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('bg-white', 'dark:bg-gray-800', 'rounded-lg', 'shadow-sm', 'p-4');
+      expect(panel).toHaveClass('flex', 'flex-col', 'h-full', 'bg-white', 'dark:bg-gray-900');
     });
 
     it('should support dark mode', () => {
-      const { container } = render(<DetectPanel {...defaultProps} />);
+      const { container } = render(<ReferencesPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('dark:bg-gray-800');
+      expect(panel).toHaveClass('dark:bg-gray-900');
     });
 
     it('should have emoji in title', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       expect(screen.getByText('🔵')).toBeInTheDocument();
     });
 
     it('should have proper button layout', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const buttonContainer = screen.getByText('Person').parentElement;
       expect(buttonContainer).toHaveClass('flex', 'flex-wrap', 'gap-2');
@@ -646,7 +646,7 @@ describe('DetectPanel Component', () => {
 
   describe('Accessibility', () => {
     it('should have proper ARIA labels for selection', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -660,7 +660,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should have proper ARIA pressed states', async () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -672,7 +672,7 @@ describe('DetectPanel Component', () => {
     });
 
     it('should be keyboard navigable', () => {
-      render(<DetectPanel {...defaultProps} />);
+      render(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
       personButton.focus();

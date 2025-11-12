@@ -11,7 +11,11 @@ type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
+import { AnnotateToolbar, type AnnotationMotivation } from '@/components/annotation/AnnotateToolbar';
 import '@/styles/animations.css';
+
+// Re-export for convenience
+export type { AnnotationMotivation };
 
 interface Props {
   content: string;
@@ -37,8 +41,13 @@ interface Props {
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null;
   onDeleteAnnotation?: (annotation: Annotation) => void;
-  onConvertAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
+  selectedMotivation?: AnnotationMotivation;
+  onMotivationChange?: (motivation: AnnotationMotivation) => void;
+  onCreateHighlight?: (exact: string, position: { start: number; end: number }) => void;
+  onCreateAssessment?: (exact: string, position: { start: number; end: number }) => void;
+  onCreateComment?: (exact: string, position: { start: number; end: number }) => void;
+  onCreateReference?: (exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }) => void;
 }
 
 // Segment text with annotations - SIMPLE because it's source view!
@@ -126,8 +135,13 @@ export function AnnotateView({
   getTargetDocumentName,
   generatingReferenceId,
   onDeleteAnnotation,
-  onConvertAnnotation,
-  showLineNumbers = false
+  showLineNumbers = false,
+  selectedMotivation = 'linking',
+  onMotivationChange,
+  onCreateHighlight,
+  onCreateAssessment,
+  onCreateComment,
+  onCreateReference
 }: Props) {
   const t = useTranslations('AnnotateView');
   const { newAnnotationIds } = useResourceAnnotations();
@@ -163,10 +177,8 @@ export function AnnotateView({
     }
   }, [allAnnotations, onAnnotationHover, onCommentHover]);
 
-  // Handle text annotation with sparkle
+  // Handle text annotation with sparkle or immediate creation
   useEffect(() => {
-    if (!onTextSelect) return;
-
     const container = containerRef.current;
     if (!container) return;
 
@@ -191,8 +203,30 @@ export function AnnotateView({
           return;
         }
         const end = start + text.length;
-        if (rects.length > 0) {
+
+        // Check motivation and either create immediately or show sparkle
+        if (selectedMotivation === 'highlighting' && onCreateHighlight) {
+          onCreateHighlight(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (selectedMotivation === 'assessing' && onCreateAssessment) {
+          onCreateAssessment(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (selectedMotivation === 'commenting' && onCreateComment) {
+          onCreateComment(text, { start, end });
+          // Keep visual selection while Comment Panel is open
           setSelectionState({ exact: text, start, end, rects });
+          return;
+        } else if (selectedMotivation === 'linking' && onCreateReference && rects.length > 0) {
+          // Calculate popup position from rects
+          const lastRect = rects[rects.length - 1];
+          if (lastRect) {
+            onCreateReference(text, { start, end }, { x: lastRect.left, y: lastRect.bottom + 10 });
+            // Keep visual selection while Quick Reference popup is open
+            setSelectionState({ exact: text, start, end, rects });
+          }
+          return;
         }
         return;
       }
@@ -201,64 +235,60 @@ export function AnnotateView({
       const start = view.posAtDOM(range.startContainer, range.startOffset);
       const end = start + text.length;
 
-      if (start >= 0 && rects.length > 0) {
-        setSelectionState({ exact: text, start, end, rects });
-
-        // Announce to screen readers
-        const announcement = document.createElement('div');
-        announcement.setAttribute('role', 'status');
-        announcement.setAttribute('aria-live', 'polite');
-        announcement.className = 'sr-only';
-        announcement.textContent = 'Text selected. Sparkle button available to create annotation, or press H for highlight, R for reference.';
-        document.body.appendChild(announcement);
-        setTimeout(() => announcement.remove(), 1000);
+      if (start >= 0) {
+        // Check motivation and either create immediately or show sparkle
+        if (selectedMotivation === 'highlighting' && onCreateHighlight) {
+          onCreateHighlight(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (selectedMotivation === 'assessing' && onCreateAssessment) {
+          onCreateAssessment(text, { start, end });
+          selection.removeAllRanges();
+          return;
+        } else if (selectedMotivation === 'commenting' && onCreateComment) {
+          onCreateComment(text, { start, end });
+          // Keep visual selection while Comment Panel is open
+          setSelectionState({ exact: text, start, end, rects });
+          return;
+        } else if (selectedMotivation === 'linking' && onCreateReference && rects.length > 0) {
+          // Calculate popup position from rects
+          const lastRect = rects[rects.length - 1];
+          if (lastRect) {
+            onCreateReference(text, { start, end }, { x: lastRect.left, y: lastRect.bottom + 10 });
+            // Keep visual selection while Quick Reference popup is open
+            setSelectionState({ exact: text, start, end, rects });
+          }
+          return;
+        }
       }
     };
-    
+
     const handleMouseDown = (e: MouseEvent) => {
       if (!(e.target as Element).closest('[data-annotation-ui]')) {
         setSelectionState(null);
       }
     };
-    
+
     container.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('mousedown', handleMouseDown);
-    
+
     return () => {
       container.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [onTextSelect]);
-  
-  // Handle sparkle click
-  const handleSparkleClick = useCallback(() => {
-    if (annotationState && onTextSelect) {
-      onTextSelect(annotationState.exact, {
-        start: annotationState.start,
-        end: annotationState.end
-      });
-      setSelectionState(null);
-    }
-  }, [annotationState, onTextSelect]);
-  
-  // Handle right-click on annotation
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (annotationState && onTextSelect) {
-      e.preventDefault();
-      onTextSelect(annotationState.exact, {
-        start: annotationState.start,
-        end: annotationState.end
-      });
-      setSelectionState(null);
-    }
-  }, [annotationState, onTextSelect]);
+  }, [selectedMotivation, onCreateHighlight, onCreateAssessment, onCreateComment, onCreateReference, content]);
 
   // Route to appropriate viewer based on MIME type category
   switch (category) {
     case 'text':
       return (
-        <div className="relative h-full" ref={containerRef} onContextMenu={handleContextMenu}>
-          <CodeMirrorRenderer
+        <div className="relative h-full flex flex-col" ref={containerRef}>
+          <AnnotateToolbar
+            selectedMotivation={selectedMotivation}
+            onMotivationChange={onMotivationChange || (() => {})}
+          />
+          <div className="flex-1 overflow-auto">
+            <CodeMirrorRenderer
             content={content}
             segments={segments}
             {...(onAnnotationClick && { onAnnotationClick })}
@@ -278,11 +308,10 @@ export function AnnotateView({
             {...(getTargetDocumentName && { getTargetDocumentName })}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             {...(onDeleteAnnotation && { onDeleteAnnotation })}
-            {...(onConvertAnnotation && { onConvertAnnotation })}
           />
 
-          {/* Sparkle UI - THE GOOD STUFF WE'RE KEEPING! */}
-          {annotationState && onTextSelect && (
+          {/* Visual selection indicator for linking mode */}
+          {annotationState && (
             <>
               {/* Dashed ring around selection */}
               {annotationState.rects.map((rect, index) => (
@@ -301,53 +330,20 @@ export function AnnotateView({
                   }}
                 />
               ))}
-
-              {/* Sparkle at the end */}
-              {(() => {
-                const lastRect = annotationState.rects[annotationState.rects.length - 1];
-                const containerRect = containerRef.current?.getBoundingClientRect();
-                if (!lastRect || !containerRect) return null;
-
-                return (
-                  <button
-                    onClick={handleSparkleClick}
-                    className="absolute z-50 hover:scale-125 transition-transform cursor-pointer animate-bounce focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
-                    style={{
-                      left: `${lastRect.right - containerRect.left + 5}px`,
-                      top: `${lastRect.top - containerRect.top + lastRect.height / 2}px`,
-                      transform: 'translateY(-50%)'
-                    }}
-                    aria-label={t('ariaLabel')}
-                    title={t('tooltip')}
-                    data-annotation-ui
-                  >
-                    <span className="relative inline-flex items-center justify-center">
-                      {/* Pulsing ring animation */}
-                      <span className="absolute inset-0 rounded-full bg-yellow-400 dark:bg-yellow-500 opacity-75 animate-ping" aria-hidden="true"></span>
-                      {/* Solid background circle */}
-                      <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-gray-800 ring-2 ring-yellow-400 dark:ring-yellow-500 shadow-lg">
-                        <span className="text-xl" aria-hidden="true">✨</span>
-                      </span>
-                    </span>
-                  </button>
-                );
-              })()}
             </>
           )}
+          </div>
         </div>
       );
 
     case 'image':
       return (
-        <div className="relative h-full" ref={containerRef}>
-          {/* Warning banner */}
-          <div className="absolute top-0 left-0 right-0 z-50 bg-yellow-100 dark:bg-yellow-900 border-b border-yellow-200 dark:border-yellow-800 p-3">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200 text-center">
-              Image annotation is not yet supported. Switch to Browse mode to view the image.
-            </p>
-          </div>
-          {/* Image viewer offset by banner */}
-          <div className="pt-12 h-full">
+        <div className="relative h-full flex flex-col" ref={containerRef}>
+          <AnnotateToolbar
+            selectedMotivation={selectedMotivation}
+            onMotivationChange={onMotivationChange || (() => {})}
+          />
+          <div className="flex-1 overflow-auto">
             {resourceUri && (
               <ImageViewer
                 resourceUri={resourceUri as any}

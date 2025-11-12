@@ -43,7 +43,7 @@ interface ToolbarPanelsProps {
 *   onLineNumbersToggle={handleLineNumbersToggle}
  * >
  *   {activePanel === 'document' && <ResourceActionsPanel ... />}
-*   {activePanel === 'detect' && <DetectPanel ... />}
+*   {activePanel === 'references' && <ReferencesPanel ... />}
  *   {activePanel === 'history' && <AnnotationHistory ... />}
  *   {activePanel === 'info' && <ResourceInfoPanel ... />}
  *   {activePanel === 'collaboration' && <CollaborationPanel ... />}

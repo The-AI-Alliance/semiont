@@ -14,7 +14,7 @@ import { ResourceTagsInline } from '@/components/ResourceTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
-import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery } from '@semiont/api-client';
+import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery, getAnnotationExactText } from '@semiont/api-client';
 import { groupAnnotationsByType } from '@/lib/annotation-registry';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -31,7 +31,7 @@ import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 import { useResourceEvents } from '@/hooks/useResourceEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
-import { DetectPanel } from '@/components/resource/panels/DetectPanel';
+import { ReferencesPanel } from '@/components/resource/panels/ReferencesPanel';
 import { ResourceInfoPanel } from '@/components/resource/panels/ResourceInfoPanel';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/resource/panels/CollaborationPanel';
@@ -260,6 +260,7 @@ function ResourceView({
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
+  const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -585,6 +586,13 @@ function ResourceView({
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedCommentId(null), 3000);
                 }}
+                onReferenceClick={(referenceId) => {
+                  // Open References Panel and focus on this reference
+                  setActivePanel('references');
+                  setFocusedReferenceId(referenceId);
+                  // Clear after a short delay to remove highlight
+                  setTimeout(() => setFocusedReferenceId(null), 3000);
+                }}
                 onGenerateDocument={handleGenerateDocument}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
@@ -612,6 +620,7 @@ function ResourceView({
             width={
               activePanel === 'jsonld' ? 'w-[600px]' :
               activePanel === 'comments' ? 'w-[400px]' :
+              activePanel === 'references' ? 'w-[400px]' :
               'w-64'
             }
           >
@@ -634,14 +643,41 @@ function ResourceView({
               />
             )}
 
-            {/* Detect Panel */}
-            {activePanel === 'detect' && !resource.archived && (
-              <DetectPanel
+            {/* References Panel */}
+            {activePanel === 'references' && !resource.archived && (
+              <ReferencesPanel
                 allEntityTypes={allEntityTypes}
                 isDetecting={isDetecting}
                 detectionProgress={detectionProgress}
                 onDetect={handleDetectEntityReferences}
                 onCancelDetection={cancelDetection}
+                references={references}
+                onReferenceClick={(annotation) => {
+                  // Scroll to reference in document and highlight it
+                  setHoveredAnnotationId(annotation.id);
+                  setTimeout(() => setHoveredAnnotationId(null), 1500);
+                }}
+                focusedReferenceId={focusedReferenceId}
+                hoveredReferenceId={hoveredAnnotationId}
+                onReferenceHover={setHoveredAnnotationId}
+                onGenerateDocument={(title) => {
+                  // Find the reference by title (exact text)
+                  const reference = references.find(r => {
+                    const exact = getAnnotationExactText(r);
+                    return exact === title;
+                  });
+                  if (reference) {
+                    handleGenerateDocument(annotationUri(reference.id), { title });
+                  }
+                }}
+                onSearchDocuments={(searchTerm, onSelect) => {
+                  // TODO: Open search modal with searchTerm and call onSelect when document is chosen
+                  console.log('Search for:', searchTerm);
+                }}
+                onUpdateReference={async (referenceId, updates) => {
+                  // TODO: Implement update reference mutation
+                  console.log('Update reference:', referenceId, updates);
+                }}
               />
             )}
 
@@ -663,9 +699,6 @@ function ResourceView({
                   // Scroll to comment in document and highlight it
                   setHoveredCommentId(annotation.id);
                   setTimeout(() => setHoveredCommentId(null), 1500);
-                }}
-                onDeleteComment={async (annotationIdStr) => {
-                  await deleteAnnotation(annotationIdStr, rUri);
                 }}
                 onUpdateComment={async (annotationIdStr, newText) => {
                   // TODO: Implement update comment mutation

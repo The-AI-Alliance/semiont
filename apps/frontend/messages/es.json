@@ -308,7 +308,7 @@
     "switchToBrowse": "Cambiar a Modo Exploración",
     "switchToAnnotate": "Cambiar a Modo Anotación",
     "resource": "Recurso",
-    "detectReferences": "Detectar Referencias",
+    "detectReferences": "Referencias",
     "history": "Historial",
     "resourceInfo": "Información del Recurso",
     "collaboration": "Colaboración",
@@ -444,7 +444,7 @@
     "history": "Historial",
     "resource": "Recurso",
     "resourceInfo": "Información del Recurso",
-    "detectReferences": "Detectar Referencias",
+    "detectReferences": "Referencias",
     "collaboration": "Colaboración",
     "annotateMode": "Modo Anotar",
     "browseMode": "Modo Navegar",
@@ -493,6 +493,17 @@
     "current": "Actual: {entityType}",
     "progress": "{processed} de {total} tipos de entidad",
     "infoText": "Las nuevas referencias aparecen en el Historial del documento a medida que se detectan"
+  },
+  "ReferencesPanel": {
+    "referencesTitle": "Referencias",
+    "noReferences": "Aún no hay referencias",
+    "stub": "Referencia pendiente (sin vincular)",
+    "resolved": "Referencia resuelta (vinculada)",
+    "openInNewTab": "Abrir",
+    "unlink": "Desvincular",
+    "generate": "Generar",
+    "find": "Buscar",
+    "create": "Crear"
   },
   "SortableResourceTab": {
     "dragToReorder": "Arrastrar para reordenar",
@@ -697,5 +708,20 @@
     "windowsNote": "Usando atajos de teclado de Windows/Linux. Ctrl es la tecla Control.",
     "footerHint": "Presiona {key} en cualquier momento para mostrar esta ayuda",
     "close": "Cerrar"
+  },
+  "AnnotateToolbar": {
+    "linking": "Referenciar",
+    "highlighting": "Destacar",
+    "assessing": "Evaluar",
+    "commenting": "Comentar",
+    "detail": "Detalle",
+    "deleting": "Eliminar",
+    "jsonld": "JSON-LD"
+  },
+  "ResourceViewer": {
+    "deleteConfirmationTitle": "¿Eliminar anotación?",
+    "deleteConfirmationMessage": "¿Está seguro de que desea eliminar esta anotación? Esta acción no se puede deshacer.",
+    "deleteConfirmationCancel": "Cancelar",
+    "deleteConfirmationDelete": "Eliminar"
   }
 }

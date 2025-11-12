@@ -87,14 +87,6 @@ export function ResolvedReferencePopup({
     });
   };
 
-  const handleConvertToHighlight = () => {
-    // Convert reference to highlight
-    onUpdateAnnotation({
-      motivation: 'highlighting',
-      body: [],
-    });
-  };
-
   const handleDelete = () => {
     onDeleteAnnotation();
     onClose();
@@ -141,12 +133,6 @@ export function ResolvedReferencePopup({
               className={`${buttonStyles.secondary.base} w-full justify-center`}
             >
               ⛓️‍💥 {t('unlinkResource')}
-            </button>
-            <button
-              onClick={handleConvertToHighlight}
-              className={`${buttonStyles.secondary.base} w-full justify-center`}
-            >
-              🟡 {t('convertToHighlight')}
             </button>
             <button
               onClick={handleDelete}

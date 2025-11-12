@@ -11,7 +11,6 @@ interface CommentEntryProps {
   comment: Annotation;
   isFocused: boolean;
   onClick: () => void;
-  onDelete: () => void;
   onUpdate: (newText: string) => void;
   onCommentRef: (commentId: string, el: HTMLElement | null) => void;
   onCommentHover?: (commentId: string | null) => void;
@@ -39,7 +38,6 @@ export function CommentEntry({
   comment,
   isFocused,
   onClick,
-  onDelete,
   onUpdate,
   onCommentRef,
   onCommentHover,
@@ -147,12 +145,6 @@ export function CommentEntry({
               className="text-xs hover:text-purple-600 dark:hover:text-purple-400"
             >
               {t('edit')}
-            </button>
-            <button
-              onClick={onDelete}
-              className="text-xs hover:text-red-600 dark:hover:text-red-400"
-            >
-              🗑️
             </button>
           </div>
         </div>

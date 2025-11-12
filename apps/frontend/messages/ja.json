@@ -308,7 +308,7 @@
     "switchToBrowse": "Switch to Browse Mode",
     "switchToAnnotate": "Switch to Annotate Mode",
     "resource": "Resource",
-    "detectReferences": "Detect References",
+    "detectReferences": "References",
     "history": "History",
     "resourceInfo": "Resource Info",
     "collaboration": "Collaboration",
@@ -444,7 +444,7 @@
     "history": "History",
     "resource": "Resource",
     "resourceInfo": "Resource Info",
-    "detectReferences": "Detect References",
+    "detectReferences": "References",
     "collaboration": "Collaboration",
     "annotateMode": "Annotate Mode",
     "browseMode": "Browse Mode",
@@ -493,6 +493,17 @@
     "current": "Current: {entityType}",
     "progress": "{processed} of {total} entity types",
     "infoText": "New references appear in resource's History as they're detected"
+  },
+  "ReferencesPanel": {
+    "referencesTitle": "References",
+    "noReferences": "No references yet",
+    "stub": "Stub reference (not linked)",
+    "resolved": "Resolved reference (linked)",
+    "openInNewTab": "Open",
+    "unlink": "Unlink",
+    "generate": "Generate",
+    "find": "Find",
+    "create": "Create"
   },
   "SortableResourceTab": {
     "dragToReorder": "Drag to reorder",
@@ -697,5 +708,20 @@
     "windowsNote": "Using Windows/Linux keyboard shortcuts. Ctrl is the Control key.",
     "footerHint": "Press {key} anytime to show this help",
     "close": "Close"
+  },
+  "AnnotateToolbar": {
+    "linking": "Reference",
+    "highlighting": "Highlight",
+    "assessing": "Assess",
+    "commenting": "Comment",
+    "detail": "Detail",
+    "deleting": "Delete",
+    "jsonld": "JSON-LD"
+  },
+  "ResourceViewer": {
+    "deleteConfirmationTitle": "Delete Annotation?",
+    "deleteConfirmationMessage": "Are you sure you want to delete this annotation? This action cannot be undone.",
+    "deleteConfirmationCancel": "Cancel",
+    "deleteConfirmationDelete": "Delete"
   }
 }

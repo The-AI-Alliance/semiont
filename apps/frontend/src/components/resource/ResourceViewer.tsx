@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
-import { AnnotateView } from './AnnotateView';
+import { useTranslations } from 'next-intl';
+import { AnnotateView, type AnnotationMotivation } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
+import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferencePopup';
+import { PopupContainer } from '@/components/annotation-popups/SharedPopupElements';
+import { JsonLdView } from '@/components/annotation-popups/JsonLdView';
 import type { components, ResourceUri, AnnotationUri } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, isHighlight, isReference, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri, resourceAnnotationUri } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri, resourceAnnotationUri, isHighlight, isAssessment, isReference, isComment } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useAnnotations } from '@/lib/api-hooks';
@@ -33,6 +37,7 @@ interface Props {
   showLineNumbers?: boolean;
   onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
   onCommentClick?: (commentId: string) => void;
+  onReferenceClick?: (referenceId: string) => void;
 }
 
 export function ResourceViewer({
@@ -52,9 +57,11 @@ export function ResourceViewer({
   scrollToAnnotationId,
   showLineNumbers = false,
   onCommentCreationRequested,
-  onCommentClick
+  onCommentClick,
+  onReferenceClick
 }: Props) {
   const router = useRouter();
+  const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
   // Extract resource URI once at the top - required for all annotation operations
@@ -81,14 +88,24 @@ export function ResourceViewer({
     addHighlight,
     addReference,
     addAssessment,
-    deleteAnnotation,
-    convertHighlightToReference,
-    convertReferenceToHighlight
+    deleteAnnotation
   } = useResourceAnnotations();
 
   // API mutations
   const annotationsAPI = useAnnotations();
   const updateAnnotationBodyMutation = annotationsAPI.updateBody.useMutation();
+
+  // Annotation toolbar state
+  const [selectedMotivation, setSelectedMotivation] = useState<AnnotationMotivation>('linking');
+
+  // Quick reference popup state
+  const [showQuickReferencePopup, setShowQuickReferencePopup] = useState(false);
+  const [quickReferenceSelection, setQuickReferenceSelection] = useState<{
+    exact: string;
+    start: number;
+    end: number;
+  } | null>(null);
+  const [quickReferencePosition, setQuickReferencePosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Annotation popup state
   const [selectedText, setSelectedText] = useState<string>('');
@@ -97,6 +114,29 @@ export function ResourceViewer({
   const [showAnnotationPopup, setShowAnnotationPopup] = useState(false);
   const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // JSON-LD view state
+  const [showJsonLdView, setShowJsonLdView] = useState(false);
+  const [jsonLdAnnotation, setJsonLdAnnotation] = useState<Annotation | null>(null);
+
+  // Delete confirmation state
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    annotation: Annotation;
+    position: { x: number; y: number };
+  } | null>(null);
+
+  // Calculate centered position for JSON-LD modal
+  const jsonLdModalPosition = useMemo(() => {
+    if (typeof window === 'undefined') return { x: 0, y: 0 };
+
+    const popupWidth = 800;
+    const popupHeight = 700;
+
+    return {
+      x: Math.max(0, (window.innerWidth - popupWidth) / 2),
+      y: Math.max(0, (window.innerHeight - popupHeight) / 2),
+    };
+  }, []);
 
   // Handle text selection from SourceView - memoized
   const handleTextSelection = useCallback((exact: string, position: { start: number; end: number }) => {
@@ -114,61 +154,90 @@ export function ResourceViewer({
     setShowAnnotationPopup(true);
     setEditingAnnotation(null);
   }, []);
-  
+
+  // Handle deleting annotations - memoized
+  const handleDeleteAnnotation = useCallback(async (id: string) => {
+    try {
+      await deleteAnnotation(id, rUri);
+      onRefetchAnnotations?.();
+      setShowAnnotationPopup(false);
+      setEditingAnnotation(null);
+    } catch (err) {
+      console.error('Failed to delete annotation:', err);
+    }
+  }, [deleteAnnotation, rUri, onRefetchAnnotations]);
+
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
     const metadata = getAnnotationTypeMetadata(annotation);
 
-    // If annotation has a side panel, open it
+    // If annotation has a side panel, only open it when Detail mode is active
+    // For delete/jsonld modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
-      if (onCommentClick) {
-        onCommentClick(annotation.id);
-      }
-    } else if (annotation.motivation === 'linking' && annotation.body && isBodyResolved(annotation.body)) {
-      // If it's a resolved reference, navigate to it (in both curation and browse mode)
-      const bodySource = getBodySource(annotation.body); // returns ResourceUri | null
-      if (bodySource) {
-        // Extract ID segment from full ResourceUri (format: http://host/resources/{id})
-        const resourceIdSegment = bodySource.split('/').pop();
-        if (resourceIdSegment) {
-          router.push(`/know/resource/${resourceIdSegment}`);
+      if (selectedMotivation === 'detail') {
+        // Route to appropriate panel based on annotation type
+        if (isComment(annotation) && onCommentClick) {
+          onCommentClick(annotation.id);
+          return;
+        }
+        if (isReference(annotation) && onReferenceClick) {
+          onReferenceClick(annotation.id);
+          return;
         }
       }
-    } else if (curationMode) {
-      // For other annotations in Annotate mode, show the popup
-      setEditingAnnotation(annotation);
-      const targetSelector = annotation.target ? getTargetSelector(annotation.target) : undefined;
-      setSelectedText(targetSelector ? getExactText(targetSelector) : '');
-      const posSelector = targetSelector ? getTextPositionSelector(targetSelector) : undefined;
-      if (posSelector) {
-        setAnnotationPosition({
-          start: posSelector.start,
-          end: posSelector.end
-        });
+      // Don't return early for delete/jsonld modes - let them be handled below
+      if (selectedMotivation !== 'deleting' && selectedMotivation !== 'jsonld') {
+        return;
       }
-
-      // Set popup position based on click
-      if (event) {
-        setPopupPosition({ x: event.clientX, y: event.clientY + 10 });
-      } else {
-        // Fallback to center if no event
-        setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });
-      }
-
-      setShowAnnotationPopup(true);
     }
-  }, [router, curationMode, onCommentClick]);
+
+    // Only handle annotation clicks in curation mode with toolbar modes
+    if (!curationMode) return;
+
+    // Check if this is a highlight, assessment, comment, or reference
+    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
+
+    // Handle delete mode for all annotation types
+    if (selectedMotivation === 'deleting' && isSimpleAnnotation) {
+      // Show confirmation dialog
+      const position = event
+        ? { x: event.clientX, y: event.clientY + 10 }
+        : { x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 75 };
+
+      setDeleteConfirmation({ annotation, position });
+      return;
+    }
+
+    // Handle JSON-LD mode for all annotation types
+    if (selectedMotivation === 'jsonld' && isSimpleAnnotation) {
+      setJsonLdAnnotation(annotation);
+      setShowJsonLdView(true);
+      return;
+    }
+  }, [router, curationMode, onCommentClick, onReferenceClick, selectedMotivation, handleDeleteAnnotation]);
 
   // Handle annotation right-clicks - memoized
   const handleAnnotationRightClick = useCallback((annotation: Annotation, x: number, y: number) => {
     const metadata = getAnnotationTypeMetadata(annotation);
 
-    // If annotation has a side panel, treat right-click same as left-click - open side panel
+    // If annotation has a side panel, only open it when Detail mode is active
+    // For delete/jsonld modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
-      if (onCommentClick) {
-        onCommentClick(annotation.id);
+      if (selectedMotivation === 'detail') {
+        // Route to appropriate panel based on annotation type
+        if (isComment(annotation) && onCommentClick) {
+          onCommentClick(annotation.id);
+          return;
+        }
+        if (isReference(annotation) && onReferenceClick) {
+          onReferenceClick(annotation.id);
+          return;
+        }
       }
-      return;
+      // Don't return early for delete/jsonld modes - let them be handled below
+      if (selectedMotivation !== 'deleting' && selectedMotivation !== 'jsonld') {
+        return;
+      }
     }
 
     setEditingAnnotation(annotation);
@@ -183,7 +252,7 @@ export function ResourceViewer({
     }
     setPopupPosition({ x, y: y + 10 });
     setShowAnnotationPopup(true);
-  }, [onCommentClick]);
+  }, [onCommentClick, onReferenceClick, selectedMotivation]);
 
   // Handle clicking 🔗 icon on resolved reference - show popup instead of navigating
   const handleResolvedReferenceWidgetClick = useCallback((documentId: string) => {
@@ -207,18 +276,10 @@ export function ResourceViewer({
   // Handle creating highlights - memoized
   const handleCreateHighlight = useCallback(async () => {
     if (!annotationPosition || !selectedText) return;
-    
+
     try {
-      if (editingAnnotation) {
-        if (isReference(editingAnnotation)) {
-          // Convert reference to highlight
-          await convertReferenceToHighlight(references, editingAnnotation.id);
-        }
-        // If already a highlight, do nothing
-      } else {
-        // Create new highlight
-        await addHighlight(rUri, selectedText, annotationPosition);
-      }
+      // Create new highlight
+      await addHighlight(rUri, selectedText, annotationPosition);
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -231,25 +292,30 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create highlight:', err);
     }
-  }, [annotationPosition, selectedText, editingAnnotation, rUri, addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, rUri, addHighlight, onRefetchAnnotations]);
+
+  // Handle immediate highlight creation (no popup)
+  const handleImmediateHighlight = useCallback(async (exact: string, position: { start: number; end: number }) => {
+    try {
+      await addHighlight(rUri, exact, position);
+      onRefetchAnnotations?.();
+    } catch (err) {
+      console.error('Failed to create highlight:', err);
+    }
+  }, [rUri, addHighlight, onRefetchAnnotations]);
   
   // Handle creating references - memoized
   const handleCreateReference = useCallback(async (targetDocId?: string, entityType?: string, referenceType?: string) => {
     if (!annotationPosition || !selectedText) return;
-    
+
     try {
       if (editingAnnotation) {
-        if (isHighlight(editingAnnotation)) {
-          // Convert highlight to reference
-          await convertHighlightToReference(highlights, (editingAnnotation as Annotation).id, targetDocId, entityType, referenceType);
-        } else {
-          // Update existing reference
-          await deleteAnnotation((editingAnnotation as Annotation).id, rUri);
-          await addReference(rUri, selectedText, annotationPosition, targetDocId, entityType, referenceType);
-        }
+        // Update existing reference
+        await deleteAnnotation((editingAnnotation as Annotation).id, rUri);
+        await addReference(rUri, selectedText, annotationPosition, targetDocId, entityType, referenceType);
       } else {
         // Create new reference
-        const newId = await addReference(rUri, selectedText, annotationPosition, targetDocId, entityType, referenceType);
+        await addReference(rUri, selectedText, annotationPosition, targetDocId, entityType, referenceType);
       }
 
       // Refetch annotations to update UI
@@ -263,7 +329,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create reference:', err);
     }
-  }, [annotationPosition, selectedText, editingAnnotation, rUri, addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, editingAnnotation, rUri, addReference, deleteAnnotation, onRefetchAnnotations]);
 
   // Handle creating assessments - memoized
   const handleCreateAssessment = useCallback(async () => {
@@ -286,6 +352,59 @@ export function ResourceViewer({
     }
   }, [annotationPosition, selectedText, rUri, addAssessment, onRefetchAnnotations]);
 
+  // Handle immediate assessment creation (no popup)
+  const handleImmediateAssessment = useCallback(async (exact: string, position: { start: number; end: number }) => {
+    try {
+      await addAssessment(rUri, exact, position);
+      onRefetchAnnotations?.();
+    } catch (err) {
+      console.error('Failed to create assessment:', err);
+    }
+  }, [rUri, addAssessment, onRefetchAnnotations]);
+
+  // Handle immediate comment creation (opens Comment Panel)
+  const handleImmediateComment = useCallback((exact: string, position: { start: number; end: number }) => {
+    // Notify parent component to open Comments Panel with this selection
+    if (onCommentCreationRequested) {
+      onCommentCreationRequested({
+        exact,
+        start: position.start,
+        end: position.end
+      });
+    }
+  }, [onCommentCreationRequested]);
+
+  // Handle immediate reference creation (opens Quick Reference popup)
+  const handleImmediateReference = useCallback((exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }) => {
+    setQuickReferenceSelection({
+      exact,
+      start: position.start,
+      end: position.end
+    });
+    setQuickReferencePosition(popupPosition);
+    setShowQuickReferencePopup(true);
+  }, []);
+
+  // Handle quick reference creation from popup
+  const handleQuickReferenceCreate = useCallback(async (entityType?: string) => {
+    if (!quickReferenceSelection) return;
+
+    try {
+      await addReference(rUri, quickReferenceSelection.exact, quickReferenceSelection, undefined, entityType, undefined);
+      onRefetchAnnotations?.();
+      setShowQuickReferencePopup(false);
+      setQuickReferenceSelection(null);
+    } catch (err) {
+      console.error('Failed to create reference:', err);
+    }
+  }, [quickReferenceSelection, rUri, addReference, onRefetchAnnotations]);
+
+  // Close quick reference popup
+  const handleCloseQuickReferencePopup = useCallback(() => {
+    setShowQuickReferencePopup(false);
+    setQuickReferenceSelection(null);
+  }, []);
+
   const handleCreateComment = useCallback(() => {
     if (!annotationPosition || !selectedText) return;
 
@@ -305,42 +424,10 @@ export function ResourceViewer({
     setEditingAnnotation(null);
   }, [annotationPosition, selectedText, onCommentCreationRequested]);
 
-  // Handle deleting annotations - memoized
-  const handleDeleteAnnotation = useCallback(async (id: string) => {
-    try {
-      await deleteAnnotation(id, rUri);
-
-      // Refetch annotations to update UI
-      onRefetchAnnotations?.();
-
-      setShowAnnotationPopup(false);
-      setEditingAnnotation(null);
-    } catch (err) {
-      console.error('Failed to delete annotation:', err);
-    }
-  }, [deleteAnnotation, onRefetchAnnotations]);
-
   // Quick action: Delete annotation from widget
   const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
     await handleDeleteAnnotation(annotation.id);
   }, [handleDeleteAnnotation]);
-
-  // Quick action: Convert annotation from widget
-  const handleConvertAnnotationWidget = useCallback(async (annotation: Annotation) => {
-    try {
-      if (isHighlight(annotation)) {
-        // Convert highlight to reference (open dialog to get target)
-        setEditingAnnotation(annotation);
-        setShowAnnotationPopup(true);
-      } else if (isReference(annotation)) {
-        // Convert reference to highlight
-        await convertReferenceToHighlight(references, (annotation as Annotation).id);
-        onRefetchAnnotations?.();
-      }
-    } catch (err) {
-      console.error('Failed to convert annotation:', err);
-    }
-  }, [convertReferenceToHighlight, references, onRefetchAnnotations]);
 
   // Close popup - memoized
   const handleClosePopup = useCallback(() => {
@@ -483,8 +570,13 @@ export function ResourceViewer({
             }}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
-            onConvertAnnotation={handleConvertAnnotationWidget}
             showLineNumbers={showLineNumbers}
+            selectedMotivation={selectedMotivation}
+            onMotivationChange={setSelectedMotivation}
+            onCreateHighlight={handleImmediateHighlight}
+            onCreateAssessment={handleImmediateAssessment}
+            onCreateComment={handleImmediateComment}
+            onCreateReference={handleImmediateReference}
           />
         ) : (
           <AnnotateView
@@ -515,8 +607,13 @@ export function ResourceViewer({
             }}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
-            onConvertAnnotation={handleConvertAnnotationWidget}
             showLineNumbers={showLineNumbers}
+            selectedMotivation={selectedMotivation}
+            onMotivationChange={setSelectedMotivation}
+            onCreateHighlight={handleImmediateHighlight}
+            onCreateAssessment={handleImmediateAssessment}
+            onCreateComment={handleImmediateComment}
+            onCreateReference={handleImmediateReference}
           />
         )
       ) : (
@@ -535,24 +632,19 @@ export function ResourceViewer({
       )}
       
       
-      {/* Unified Annotation Popup */}
-      <AnnotationPopup
-        isOpen={showAnnotationPopup}
-        onClose={handleClosePopup}
-        position={popupPosition}
-        selection={selectedText && annotationPosition ? {
-          exact: selectedText,
-          start: annotationPosition.start,
-          end: annotationPosition.end
-        } : null}
-        {...(editingAnnotation && {
-          annotation: editingAnnotation
-        })}
-        onCreateHighlight={handleCreateHighlight}
-        onCreateReference={handleCreateReference}
-        onCreateAssessment={handleCreateAssessment}
-        onCreateComment={handleCreateComment}
-        onUpdateAnnotation={async (updates) => {
+      {/* Unified Annotation Popup - only for existing annotations */}
+      {editingAnnotation && (
+        <AnnotationPopup
+          isOpen={showAnnotationPopup}
+          onClose={handleClosePopup}
+          position={popupPosition}
+          selection={selectedText && annotationPosition ? {
+            exact: selectedText,
+            start: annotationPosition.start,
+            end: annotationPosition.end
+          } : null}
+          annotation={editingAnnotation}
+          onUpdateAnnotation={async (updates) => {
           if (editingAnnotation) {
             // Handle body updates
             if (updates.body !== undefined) {
@@ -586,17 +678,6 @@ export function ResourceViewer({
               }
             }
 
-            // Handle motivation changes (converting between highlight and reference)
-            if (updates.motivation) {
-              if (updates.motivation === 'linking' && isHighlight(editingAnnotation)) {
-                // Convert highlight to reference
-                await convertHighlightToReference(highlights, editingAnnotation.id);
-              } else if (updates.motivation === 'highlighting' && isReference(editingAnnotation)) {
-                // Convert reference to highlight
-                await convertReferenceToHighlight(references, editingAnnotation.id);
-              }
-            }
-
             setShowAnnotationPopup(false);
             setEditingAnnotation(null);
           }
@@ -613,6 +694,91 @@ export function ResourceViewer({
           }
         }}
       />
+      )}
+
+      {/* Quick Reference Popup */}
+      {quickReferenceSelection && (
+        <QuickReferencePopup
+          isOpen={showQuickReferencePopup}
+          onClose={handleCloseQuickReferencePopup}
+          position={quickReferencePosition}
+          selection={quickReferenceSelection}
+          onCreateReference={handleQuickReferenceCreate}
+        />
+      )}
+
+      {/* JSON-LD View Modal */}
+      {jsonLdAnnotation && (
+        <PopupContainer
+          isOpen={showJsonLdView}
+          onClose={() => setShowJsonLdView(false)}
+          position={jsonLdModalPosition}
+          wide={true}
+        >
+          <JsonLdView
+            annotation={jsonLdAnnotation}
+            onBack={() => {
+              setShowJsonLdView(false);
+              setJsonLdAnnotation(null);
+            }}
+          />
+        </PopupContainer>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation && (() => {
+        const annotation = deleteConfirmation.annotation;
+        const metadata = getAnnotationTypeMetadata(annotation);
+        const targetSelector = getTargetSelector(annotation.target);
+        const selectedText = getExactText(targetSelector);
+        const motivationEmoji = metadata?.iconEmoji || '📝';
+
+        return (
+          <PopupContainer
+            isOpen={!!deleteConfirmation}
+            onClose={() => setDeleteConfirmation(null)}
+            position={deleteConfirmation.position}
+          >
+            <div className="flex flex-col gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg min-w-[300px]">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{motivationEmoji}</span>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {t('deleteConfirmationTitle')}
+                </h3>
+              </div>
+
+              {selectedText && (
+                <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border-l-4 border-blue-500">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+                    "{selectedText.length > 100 ? selectedText.substring(0, 100) + '...' : selectedText}"
+                  </p>
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t('deleteConfirmationMessage')}
+              </p>
+              <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeleteConfirmation(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              >
+                {t('deleteConfirmationCancel')}
+              </button>
+              <button
+                onClick={async () => {
+                  await handleDeleteAnnotation(deleteConfirmation.annotation.id);
+                  setDeleteConfirmation(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                {t('deleteConfirmationDelete')}
+              </button>
+            </div>
+          </div>
+        </PopupContainer>
+        );
+      })()}
     </div>
   );
 }

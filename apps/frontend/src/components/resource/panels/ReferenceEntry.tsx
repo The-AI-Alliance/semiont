@@ -1,0 +1,179 @@
+'use client';
+
+import React, { useEffect, useRef } from 'react';
+import { useRouter } from '@/i18n/routing';
+import { useTranslations } from 'next-intl';
+import type { components } from '@semiont/api-client';
+import { getAnnotationExactText, isBodyResolved, getBodySource, getEntityTypes } from '@semiont/api-client';
+import { buttonStyles } from '@/lib/button-styles';
+
+type Annotation = components['schemas']['Annotation'];
+
+interface ReferenceEntryProps {
+  reference: Annotation;
+  isFocused: boolean;
+  onClick: () => void;
+  onReferenceRef: (referenceId: string, el: HTMLElement | null) => void;
+  onReferenceHover?: (referenceId: string | null) => void;
+  onGenerateDocument?: (title: string) => void;
+  onSearchDocuments?: (searchTerm: string, onSelect: (documentId: string) => void) => void;
+  onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
+}
+
+export function ReferenceEntry({
+  reference,
+  isFocused,
+  onClick,
+  onReferenceRef,
+  onReferenceHover,
+  onGenerateDocument,
+  onSearchDocuments,
+  onUpdateReference,
+}: ReferenceEntryProps) {
+  const t = useTranslations('ReferencesPanel');
+  const router = useRouter();
+  const referenceRef = useRef<HTMLDivElement>(null);
+
+  // Register ref with parent
+  useEffect(() => {
+    onReferenceRef(reference.id, referenceRef.current);
+    return () => {
+      onReferenceRef(reference.id, null);
+    };
+  }, [reference.id, onReferenceRef]);
+
+  // Scroll to reference when focused
+  useEffect(() => {
+    if (isFocused && referenceRef.current) {
+      referenceRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [isFocused]);
+
+  const selectedText = getAnnotationExactText(reference) || '';
+  const isResolved = isBodyResolved(reference.body);
+  const resolvedResourceUri = isResolved ? getBodySource(reference.body) : null;
+  const entityTypes = getEntityTypes(reference);
+
+  const handleOpenInNewTab = () => {
+    if (resolvedResourceUri) {
+      const resourceId = resolvedResourceUri.split('/resources/')[1];
+      if (resourceId) {
+        window.open(`/know/resource/${encodeURIComponent(resourceId)}`, '_blank');
+      }
+    }
+  };
+
+  const handleComposeDocument = () => {
+    router.push(`/know/compose?title=${encodeURIComponent(selectedText)}`);
+  };
+
+  const handleUnlink = () => {
+    if (onUpdateReference) {
+      onUpdateReference(reference.id, { body: [] });
+    }
+  };
+
+  const handleGenerate = () => {
+    if (onGenerateDocument) {
+      onGenerateDocument(selectedText);
+    }
+  };
+
+  const handleSearch = () => {
+    if (onSearchDocuments && onUpdateReference) {
+      onSearchDocuments(selectedText, (documentId: string) => {
+        if (onUpdateReference) {
+          onUpdateReference(reference.id, {
+            body: {
+              type: 'SpecificResource' as const,
+              source: documentId,
+              purpose: 'linking' as const,
+            },
+          });
+        }
+      });
+    }
+  };
+
+  return (
+    <div
+      ref={referenceRef}
+      className={`border rounded-lg p-3 transition-all cursor-pointer ${
+        isFocused
+          ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 animate-pulse-outline'
+          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+      }`}
+      onClick={onClick}
+      onMouseEnter={() => onReferenceHover?.(reference.id)}
+      onMouseLeave={() => onReferenceHover?.(null)}
+    >
+      {/* Selected text quote with status indicator */}
+      <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-blue-300 pl-2 flex items-start gap-2">
+        <span className="text-base flex-shrink-0" title={isResolved ? t('resolved') : t('stub')}>
+          {isResolved ? '🔗' : '❓'}
+        </span>
+        <span>
+          "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
+        </span>
+      </div>
+
+      {/* Entity type badges */}
+      {entityTypes.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {entityTypes.map((type, index) => (
+            <span
+              key={index}
+              className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+            >
+              {type}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Actions based on state */}
+      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+        {isResolved ? (
+          // Resolved reference actions
+          <div className="flex gap-2">
+            <button
+              onClick={handleOpenInNewTab}
+              className={`${buttonStyles.primary.base} flex-1 justify-center text-sm py-1.5`}
+            >
+              🔗 {t('openInNewTab')}
+            </button>
+            <button
+              onClick={handleUnlink}
+              className={`${buttonStyles.secondary.base} px-3 flex items-center justify-center`}
+              title={t('unlink')}
+            >
+              ⛓️‍💥
+            </button>
+          </div>
+        ) : (
+          // Stub reference actions
+          <div className="flex gap-2">
+            <button
+              onClick={handleGenerate}
+              className={`${buttonStyles.primary.base} flex-1 justify-center text-sm py-1.5`}
+            >
+              ✨ {t('generate')}
+            </button>
+            <button
+              onClick={handleSearch}
+              className={`${buttonStyles.secondary.base} flex-1 justify-center text-sm py-1.5`}
+            >
+              🔍 {t('find')}
+            </button>
+            <button
+              onClick={handleComposeDocument}
+              className={`${buttonStyles.secondary.base} flex-1 justify-center text-sm py-1.5`}
+            >
+              ✏️ {t('create')}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

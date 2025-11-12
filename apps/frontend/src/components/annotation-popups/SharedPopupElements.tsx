@@ -116,6 +116,7 @@ export function PopupContainer({ children, position, onClose, isOpen, wide = fal
                 wide ? 'w-[800px] max-h-[700px]' : 'w-96 max-h-[500px]'
               }`}
               style={popupStyle}
+              data-annotation-ui
             >
               {children}
             </DialogPanel>

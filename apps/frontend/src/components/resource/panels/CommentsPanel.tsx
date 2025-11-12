@@ -11,7 +11,6 @@ type Annotation = components['schemas']['Annotation'];
 interface CommentsPanelProps {
   comments: Annotation[];
   onCommentClick: (annotation: Annotation) => void;
-  onDeleteComment: (annotationId: string) => void;
   onUpdateComment: (annotationId: string, newText: string) => void;
   onCreateComment?: (commentText: string) => void;
   focusedCommentId: string | null;
@@ -28,7 +27,6 @@ interface CommentsPanelProps {
 export function CommentsPanel({
   comments,
   onCommentClick,
-  onDeleteComment,
   onUpdateComment,
   onCreateComment,
   focusedCommentId,
@@ -134,7 +132,6 @@ export function CommentsPanel({
               comment={comment}
               isFocused={comment.id === focusedCommentId}
               onClick={() => onCommentClick(comment)}
-              onDelete={() => onDeleteComment(comment.id)}
               onUpdate={(newText) => onUpdateComment(comment.id, newText)}
               onCommentRef={handleCommentRef}
               {...(onCommentHover && { onCommentHover })}

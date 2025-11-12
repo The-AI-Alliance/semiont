@@ -102,7 +102,6 @@ describe('CommentsPanel Component', () => {
   const defaultProps = {
     comments: mockComments.empty,
     onCommentClick: vi.fn(),
-    onDeleteComment: vi.fn(),
     onUpdateComment: vi.fn(),
     focusedCommentId: null,
     resourceContent: 'This is the resource content for testing comments.',
@@ -505,22 +504,6 @@ describe('CommentsPanel Component', () => {
       fireEvent.click(comment);
 
       expect(onCommentClick).toHaveBeenCalledWith(mockComments.single[0]);
-    });
-
-    it('should call onDeleteComment with annotation id', () => {
-      const onDeleteComment = vi.fn();
-      render(
-        <CommentsPanel
-          {...defaultProps}
-          comments={mockComments.single}
-          onDeleteComment={onDeleteComment}
-        />
-      );
-
-      const deleteButton = screen.getByText('Delete');
-      fireEvent.click(deleteButton);
-
-      expect(onDeleteComment).toHaveBeenCalledWith('1');
     });
 
     it('should call onUpdateComment with annotation id and new text', () => {

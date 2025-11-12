@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { CreateAnnotationPopup } from './annotation-popups/CreateAnnotationPopup';
 import { HighlightPopup } from './annotation-popups/HighlightPopup';
 import { AssessmentPopup } from './annotation-popups/AssessmentPopup';
 import { StubReferencePopup } from './annotation-popups/StubReferencePopup';
@@ -20,17 +19,11 @@ interface AnnotationPopupProps {
   onClose: () => void;
   position: { x: number; y: number };
   selection: TextSelection | null;
-  annotation?: Annotation;
-  onCreateHighlight?: () => void;
-  onCreateReference?: (targetDocId?: string, entityType?: string, referenceType?: string) => void;
-  onCreateAssessment?: () => void;
-  onCreateComment?: () => void;
+  annotation: Annotation;
   onUpdateAnnotation?: (updates: AnnotationUpdate) => void;
   onDeleteAnnotation?: () => void;
   onGenerateDocument?: (title: string, prompt?: string) => void;
 }
-
-type PopupState = 'initial' | 'highlight' | 'assessment' | 'stub_reference' | 'resolved_reference';
 
 export function AnnotationPopup({
   isOpen,
@@ -38,80 +31,57 @@ export function AnnotationPopup({
   position,
   selection,
   annotation,
-  onCreateHighlight,
-  onCreateReference,
-  onCreateAssessment,
-  onCreateComment,
   onUpdateAnnotation,
   onDeleteAnnotation,
   onGenerateDocument
 }: AnnotationPopupProps) {
-  // Determine which popup to show
-  const getPopupState = (): PopupState => {
-    if (!annotation) return 'initial';
-    if (isHighlight(annotation)) return 'highlight';
-    if (isAssessment(annotation)) return 'assessment';
-    if (isReference(annotation)) {
-      // Body is either empty array (stub) or SpecificResource with source (resolved)
-      // Type assertion needed because TypeScript can't narrow the union properly
-      return isBodyResolved((annotation as Annotation).body) ? 'resolved_reference' : 'stub_reference';
-    }
-    return 'initial';
-  };
-
-  const popupState = getPopupState();
-
   // Don't render anything if not open or no selection
   if (!isOpen || !selection) return null;
 
-  // Render the appropriate popup based on state
-  switch (popupState) {
-    case 'initial':
-      return (
-        <CreateAnnotationPopup
-          isOpen={isOpen}
-          onClose={onClose}
-          position={position}
-          selection={selection}
-          onCreateHighlight={onCreateHighlight!}
-          onCreateReference={onCreateReference!}
-          onCreateAssessment={onCreateAssessment!}
-          {...(onCreateComment && { onCreateComment })}
-        />
-      );
+  // Determine which popup to show based on annotation type
+  if (isHighlight(annotation)) {
+    return (
+      <HighlightPopup
+        isOpen={isOpen}
+        onClose={onClose}
+        position={position}
+        selection={selection}
+        annotation={annotation as HighlightAnnotation}
+        onDeleteAnnotation={onDeleteAnnotation!}
+      />
+    );
+  }
 
-    case 'highlight':
-      // TypeScript doesn't know that annotation is defined and is a highlight when we're in this case
-      // We know it's safe because getPopupState() only returns 'highlight' when annotation.type === 'highlight'
+  if (isAssessment(annotation)) {
+    return (
+      <AssessmentPopup
+        isOpen={isOpen}
+        onClose={onClose}
+        position={position}
+        selection={selection}
+        annotation={annotation as Annotation}
+        onUpdateAnnotation={onUpdateAnnotation!}
+        onDeleteAnnotation={onDeleteAnnotation!}
+      />
+    );
+  }
+
+  if (isReference(annotation)) {
+    const isResolved = isBodyResolved((annotation as Annotation).body);
+
+    if (isResolved) {
       return (
-        <HighlightPopup
+        <ResolvedReferencePopup
           isOpen={isOpen}
           onClose={onClose}
           position={position}
           selection={selection}
-          annotation={annotation as HighlightAnnotation}
+          annotation={annotation as ReferenceAnnotation}
           onUpdateAnnotation={onUpdateAnnotation!}
           onDeleteAnnotation={onDeleteAnnotation!}
         />
       );
-
-    case 'assessment':
-      // TypeScript doesn't know that annotation is defined and is an assessment when we're in this case
-      // We know it's safe because getPopupState() only returns 'assessment' when annotation.motivation === 'assessing'
-      return (
-        <AssessmentPopup
-          isOpen={isOpen}
-          onClose={onClose}
-          position={position}
-          selection={selection}
-          annotation={annotation as Annotation}
-          onUpdateAnnotation={onUpdateAnnotation!}
-          onDeleteAnnotation={onDeleteAnnotation!}
-        />
-      );
-
-    case 'stub_reference':
-      // We know annotation is a reference without body.source
+    } else {
       return (
         <StubReferencePopup
           isOpen={isOpen}
@@ -124,22 +94,9 @@ export function AnnotationPopup({
           onGenerateDocument={onGenerateDocument!}
         />
       );
-
-    case 'resolved_reference':
-      // We know annotation is a reference with body.source
-      return (
-        <ResolvedReferencePopup
-          isOpen={isOpen}
-          onClose={onClose}
-          position={position}
-          selection={selection}
-          annotation={annotation as ReferenceAnnotation}
-          onUpdateAnnotation={onUpdateAnnotation!}
-          onDeleteAnnotation={onDeleteAnnotation!}
-        />
-      );
-
-    default:
-      return null;
+    }
   }
+
+  // Unknown annotation type - return null
+  return null;
 }
