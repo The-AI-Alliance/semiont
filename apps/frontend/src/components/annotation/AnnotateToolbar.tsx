@@ -44,7 +44,6 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
         aria-pressed={selectedMotivation === 'linking'}
       >
         <span className="text-lg">🔵</span>
-        <span>{t('linking')}</span>
       </button>
 
       {/* Highlighting Button */}
@@ -55,7 +54,6 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
         aria-pressed={selectedMotivation === 'highlighting'}
       >
         <span className="text-lg">🟡</span>
-        <span>{t('highlighting')}</span>
       </button>
 
       {/* Assessing Button */}
@@ -66,7 +64,6 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
         aria-pressed={selectedMotivation === 'assessing'}
       >
         <span className="text-lg">🔴</span>
-        <span>{t('assessing')}</span>
       </button>
 
       {/* Commenting Button */}
@@ -77,7 +74,6 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
         aria-pressed={selectedMotivation === 'commenting'}
       >
         <span className="text-lg">💬</span>
-        <span>{t('commenting')}</span>
       </button>
 
       {/* Separator */}
@@ -91,7 +87,6 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
         aria-pressed={selectedMotivation === 'detail'}
       >
         <span className="text-lg">🔍</span>
-        <span>{t('detail')}</span>
       </button>
 
       {/* JSON-LD Button */}
@@ -102,7 +97,6 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
         aria-pressed={selectedMotivation === 'jsonld'}
       >
         <span className="text-lg">🌐</span>
-        <span>{t('jsonld')}</span>
       </button>
 
       {/* Delete Button */}
@@ -113,7 +107,6 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
         aria-pressed={selectedMotivation === 'deleting'}
       >
         <span className="text-lg">🗑️</span>
-        <span>{t('deleting')}</span>
       </button>
     </div>
   );
