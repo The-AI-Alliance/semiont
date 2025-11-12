@@ -182,25 +182,13 @@ export function ResourceViewer({
       }
     }
 
-    // Handle navigation for resolved references (in both curation and browse mode)
-    if (annotation.motivation === 'linking' && annotation.body && isBodyResolved(annotation.body)) {
-      const bodySource = getBodySource(annotation.body);
-      if (bodySource) {
-        const resourceIdSegment = bodySource.split('/').pop();
-        if (resourceIdSegment) {
-          router.push(`/know/resource/${resourceIdSegment}`);
-        }
-      }
-      return;
-    }
-
-    // Only handle highlight/assessment/comment clicks in curation mode with toolbar modes
+    // Only handle annotation clicks in curation mode with toolbar modes
     if (!curationMode) return;
 
-    // Check if this is a highlight, assessment, or comment
-    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation);
+    // Check if this is a highlight, assessment, comment, or reference
+    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
 
-    // Handle delete mode for highlights, assessments, and comments
+    // Handle delete mode for all annotation types
     if (selectedMotivation === 'deleting' && isSimpleAnnotation) {
       // Show confirmation dialog
       const position = event
@@ -211,35 +199,11 @@ export function ResourceViewer({
       return;
     }
 
-    // Handle JSON-LD mode for highlights, assessments, and comments
+    // Handle JSON-LD mode for all annotation types
     if (selectedMotivation === 'jsonld' && isSimpleAnnotation) {
       setJsonLdAnnotation(annotation);
       setShowJsonLdView(true);
       return;
-    }
-
-    // For references, always show popup regardless of toolbar mode
-    if (isReference(annotation)) {
-      setEditingAnnotation(annotation);
-      const targetSelector = annotation.target ? getTargetSelector(annotation.target) : undefined;
-      setSelectedText(targetSelector ? getExactText(targetSelector) : '');
-      const posSelector = targetSelector ? getTextPositionSelector(targetSelector) : undefined;
-      if (posSelector) {
-        setAnnotationPosition({
-          start: posSelector.start,
-          end: posSelector.end
-        });
-      }
-
-      // Set popup position based on click
-      if (event) {
-        setPopupPosition({ x: event.clientX, y: event.clientY + 10 });
-      } else {
-        // Fallback to center if no event
-        setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });
-      }
-
-      setShowAnnotationPopup(true);
     }
   }, [router, curationMode, onCommentClick, selectedMotivation, handleDeleteAnnotation]);
 
