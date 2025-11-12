@@ -137,17 +137,18 @@ export function ReferenceEntry({
       <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
         {isResolved ? (
           // Resolved reference actions
-          <div className="flex gap-2">
+          <div className="flex gap-1">
             <button
               onClick={handleOpen}
-              className={`${buttonStyles.primary.base} ${annotateMode ? 'flex-1' : 'w-full'} justify-center text-sm py-1.5`}
+              className={`${buttonStyles.primary.base} ${annotateMode ? 'flex-1' : 'w-full'} !px-2 justify-center text-lg py-1`}
+              title={t('open')}
             >
-              🔗 {t('open')}
+              🔗
             </button>
             {annotateMode && (
               <button
                 onClick={handleUnlink}
-                className={`${buttonStyles.secondary.base} px-3 flex items-center justify-center`}
+                className={`${buttonStyles.secondary.base} !px-2 flex items-center justify-center text-lg`}
                 title={t('unlink')}
               >
                 ⛓️‍💥
@@ -157,24 +158,27 @@ export function ReferenceEntry({
         ) : (
           // Stub reference actions - only in Annotate mode
           annotateMode && (
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               <button
                 onClick={handleGenerate}
-                className={`${buttonStyles.primary.base} flex-1 justify-center text-sm py-1.5`}
+                className={`${buttonStyles.primary.base} flex-1 !px-2 justify-center text-lg py-1`}
+                title={t('generate')}
               >
-                ✨ {t('generate')}
+                ✨
               </button>
               <button
                 onClick={handleSearch}
-                className={`${buttonStyles.secondary.base} flex-1 justify-center text-sm py-1.5`}
+                className={`${buttonStyles.secondary.base} flex-1 !px-2 justify-center text-lg py-1`}
+                title={t('find')}
               >
-                🔍 {t('find')}
+                🔍
               </button>
               <button
                 onClick={handleComposeDocument}
-                className={`${buttonStyles.secondary.base} flex-1 justify-center text-sm py-1.5`}
+                className={`${buttonStyles.secondary.base} flex-1 !px-2 justify-center text-lg py-1`}
+                title={t('create')}
               >
-                ✏️ {t('create')}
+                ✏️
               </button>
             </div>
           )

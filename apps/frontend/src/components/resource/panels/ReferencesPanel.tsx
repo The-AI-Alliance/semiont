@@ -172,13 +172,14 @@ export function ReferencesPanel({
               <button
                 onClick={handleDetect}
                 disabled={selectedEntityTypes.length === 0}
+                title={t('startDetection')}
                 className={`w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium ${
                   selectedEntityTypes.length > 0
                     ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg'
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 }`}
               >
-                ✨ {t('startDetection')}
+                <span className="text-2xl">✨</span>
               </button>
             </>
           )}

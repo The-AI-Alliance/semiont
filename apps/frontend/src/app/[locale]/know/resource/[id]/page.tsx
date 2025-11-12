@@ -619,7 +619,6 @@ function ResourceView({
             width={
               activePanel === 'jsonld' ? 'w-[600px]' :
               activePanel === 'comments' ? 'w-[400px]' :
-              activePanel === 'references' ? 'w-[400px]' :
               'w-64'
             }
           >

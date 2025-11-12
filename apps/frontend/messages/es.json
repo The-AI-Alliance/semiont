@@ -475,12 +475,12 @@
   },
   "DetectPanel": {
     "title": "Detectar Referencias",
-    "selectEntityTypes": "Seleccionar tipos de entidad para detectar:",
+    "selectEntityTypes": "Tipos de entidad:",
     "select": "Seleccionar",
     "deselect": "Deseleccionar",
     "noEntityTypes": "No hay tipos de entidad disponibles",
     "typesSelected": "{count, plural, =1 {1 tipo seleccionado} other {# tipos seleccionados}}",
-    "startDetection": "Iniciar Detección",
+    "startDetection": "Detectar",
     "found": "{count} encontrados",
     "more": "Más"
   },
@@ -710,7 +710,7 @@
     "close": "Cerrar"
   },
   "AnnotateToolbar": {
-    "selectionGroup": "Selección",
+    "selectionGroup": "Seleccionar",
     "clickGroup": "Clic",
     "linking": "Referenciar",
     "highlighting": "Destacar",
