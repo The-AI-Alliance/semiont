@@ -80,7 +80,7 @@ describe('ReferencesPanel Component', () => {
     it('should render start detection button', () => {
       render(<ReferencesPanel {...defaultProps} />);
 
-      expect(screen.getByText(/Start Detection/)).toBeInTheDocument();
+      expect(screen.getByTitle('Start Detection')).toBeInTheDocument();
     });
   });
 
@@ -195,7 +195,7 @@ describe('ReferencesPanel Component', () => {
     it('should be disabled when no types selected', () => {
       render(<ReferencesPanel {...defaultProps} />);
 
-      const startButton = screen.getByText(/Start Detection/);
+      const startButton = screen.getByTitle('Start Detection');
 
       expect(startButton).toBeDisabled();
     });
@@ -206,7 +206,7 @@ describe('ReferencesPanel Component', () => {
       const personButton = screen.getByText('Person');
       await userEvent.click(personButton);
 
-      const startButton = screen.getByText(/Start Detection/);
+      const startButton = screen.getByTitle('Start Detection');
 
       expect(startButton).not.toBeDisabled();
     });
@@ -218,7 +218,7 @@ describe('ReferencesPanel Component', () => {
       await userEvent.click(screen.getByText('Person'));
       await userEvent.click(screen.getByText('Organization'));
 
-      const startButton = screen.getByText(/Start Detection/);
+      const startButton = screen.getByTitle('Start Detection');
       await userEvent.click(startButton);
 
       expect(onDetect).toHaveBeenCalledWith(['Person', 'Organization']);
@@ -229,7 +229,7 @@ describe('ReferencesPanel Component', () => {
 
       await userEvent.click(screen.getByText('Person'));
 
-      const startButton = screen.getByText(/Start Detection/);
+      const startButton = screen.getByTitle('Start Detection');
       await userEvent.click(startButton);
 
       // Simulate detection starting
@@ -259,7 +259,7 @@ describe('ReferencesPanel Component', () => {
     it('should have proper styling when disabled', () => {
       render(<ReferencesPanel {...defaultProps} />);
 
-      const startButton = screen.getByText(/Start Detection/);
+      const startButton = screen.getByTitle('Start Detection');
 
       expect(startButton).toHaveClass('bg-gray-200', 'cursor-not-allowed');
     });
@@ -269,7 +269,7 @@ describe('ReferencesPanel Component', () => {
 
       await userEvent.click(screen.getByText('Person'));
 
-      const startButton = screen.getByText(/Start Detection/);
+      const startButton = screen.getByTitle('Start Detection');
 
       expect(startButton).toHaveClass('from-blue-600', 'to-cyan-600');
     });

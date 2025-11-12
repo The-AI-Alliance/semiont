@@ -3,13 +3,13 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import { AnnotateView, type AnnotationMotivation } from './AnnotateView';
+import { AnnotateView, type SelectionMotivation, type ClickMotivation } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferencePopup';
 import { PopupContainer } from '@/components/annotation-popups/SharedPopupElements';
 import { JsonLdView } from '@/components/annotation-popups/JsonLdView';
 import type { components, ResourceUri } from '@semiont/api-client';
-import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment } from '@semiont/api-client';
+import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 
@@ -86,8 +86,40 @@ export function ResourceViewer({
     deleteAnnotation
   } = useResourceAnnotations();
 
-  // Annotation toolbar state
-  const [selectedMotivation, setSelectedMotivation] = useState<AnnotationMotivation>('linking');
+  // Annotation toolbar state - persisted in localStorage
+  const [selectedSelection, setSelectedSelection] = useState<SelectionMotivation | null>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('semiont-toolbar-selection');
+      if (stored === 'null') return null;
+      if (stored && ['linking', 'highlighting', 'assessing', 'commenting'].includes(stored)) {
+        return stored as SelectionMotivation;
+      }
+    }
+    return 'linking';
+  });
+
+  const [selectedClick, setSelectedClick] = useState<ClickMotivation>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('semiont-toolbar-click');
+      if (stored && ['detail', 'follow', 'jsonld', 'deleting'].includes(stored)) {
+        return stored as ClickMotivation;
+      }
+    }
+    return 'detail';
+  });
+
+  // Persist toolbar state to localStorage
+  useEffect(() => {
+    if (selectedSelection === null) {
+      localStorage.setItem('semiont-toolbar-selection', 'null');
+    } else {
+      localStorage.setItem('semiont-toolbar-selection', selectedSelection);
+    }
+  }, [selectedSelection]);
+
+  useEffect(() => {
+    localStorage.setItem('semiont-toolbar-click', selectedClick);
+  }, [selectedClick]);
 
   // Quick reference popup state
   const [showQuickReferencePopup, setShowQuickReferencePopup] = useState(false);
@@ -136,9 +168,9 @@ export function ResourceViewer({
     const metadata = getAnnotationTypeMetadata(annotation);
 
     // If annotation has a side panel, only open it when Detail mode is active
-    // For delete/jsonld modes, let those handlers below process it
+    // For delete/jsonld/follow modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
-      if (selectedMotivation === 'detail') {
+      if (selectedClick === 'detail') {
         // Route to appropriate panel based on annotation type
         if (isComment(annotation) && onCommentClick) {
           onCommentClick(annotation.id);
@@ -149,20 +181,40 @@ export function ResourceViewer({
           return;
         }
       }
-      // Don't return early for delete/jsonld modes - let them be handled below
-      if (selectedMotivation !== 'deleting' && selectedMotivation !== 'jsonld') {
+      // Don't return early for delete/jsonld/follow modes - let them be handled below
+      if (selectedClick !== 'deleting' && selectedClick !== 'jsonld' && selectedClick !== 'follow') {
         return;
       }
+    }
+
+    // Check if this is a highlight, assessment, comment, or reference
+    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
+
+    // Handle follow mode - navigate to resolved references only (works in both Browse and Annotate modes)
+    if (selectedClick === 'follow' && isReference(annotation)) {
+      const bodySource = getBodySource(annotation.body);
+      if (bodySource) {
+        // Navigate to the linked resource
+        const resourceId = bodySource.split('/resources/')[1];
+        if (resourceId) {
+          router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
+        }
+      }
+      return;
+    }
+
+    // Handle JSON-LD mode for all annotation types (works in both Browse and Annotate modes)
+    if (selectedClick === 'jsonld' && isSimpleAnnotation) {
+      setJsonLdAnnotation(annotation);
+      setShowJsonLdView(true);
+      return;
     }
 
     // Only handle annotation clicks in curation mode with toolbar modes
     if (!curationMode) return;
 
-    // Check if this is a highlight, assessment, comment, or reference
-    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
-
     // Handle delete mode for all annotation types
-    if (selectedMotivation === 'deleting' && isSimpleAnnotation) {
+    if (selectedClick === 'deleting' && isSimpleAnnotation) {
       // Show confirmation dialog
       const position = event
         ? { x: event.clientX, y: event.clientY + 10 }
@@ -171,14 +223,7 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-
-    // Handle JSON-LD mode for all annotation types
-    if (selectedMotivation === 'jsonld' && isSimpleAnnotation) {
-      setJsonLdAnnotation(annotation);
-      setShowJsonLdView(true);
-      return;
-    }
-  }, [router, curationMode, onCommentClick, onReferenceClick, selectedMotivation, handleDeleteAnnotation]);
+  }, [router, curationMode, onCommentClick, onReferenceClick, selectedClick, handleDeleteAnnotation]);
 
   // Handle immediate highlight creation (no popup)
   const handleImmediateHighlight = useCallback(async (exact: string, position: { start: number; end: number }) => {
@@ -279,8 +324,10 @@ export function ResourceViewer({
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             showLineNumbers={showLineNumbers}
-            selectedMotivation={selectedMotivation}
-            onMotivationChange={setSelectedMotivation}
+            selectedSelection={selectedSelection}
+            selectedClick={selectedClick}
+            onSelectionChange={setSelectedSelection}
+            onClickChange={setSelectedClick}
             onCreateHighlight={handleImmediateHighlight}
             onCreateAssessment={handleImmediateAssessment}
             onCreateComment={handleImmediateComment}
@@ -313,8 +360,10 @@ export function ResourceViewer({
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             showLineNumbers={showLineNumbers}
-            selectedMotivation={selectedMotivation}
-            onMotivationChange={setSelectedMotivation}
+            selectedSelection={selectedSelection}
+            selectedClick={selectedClick}
+            onSelectionChange={setSelectedSelection}
+            onClickChange={setSelectedClick}
             onCreateHighlight={handleImmediateHighlight}
             onCreateAssessment={handleImmediateAssessment}
             onCreateComment={handleImmediateComment}
@@ -333,6 +382,8 @@ export function ResourceViewer({
           onAnnotationClick={handleAnnotationClick}
           {...(onCommentHover && { onCommentHover })}
           {...(hoveredCommentId !== undefined && { hoveredCommentId })}
+          selectedClick={selectedClick}
+          onClickChange={setSelectedClick}
         />
       )}
 

@@ -9,6 +9,7 @@ import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource, getMimeCategory, type MimeCategory } from '@semiont/api-client';
 import { getAnnotationInternalType, getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
+import { AnnotateToolbar, type ClickMotivation } from '@/components/annotation/AnnotateToolbar';
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
@@ -27,6 +28,8 @@ interface Props {
   onCommentHover?: (commentId: string | null) => void;
   hoveredAnnotationId?: string | null;
   hoveredCommentId?: string | null;
+  selectedClick?: ClickMotivation;
+  onClickChange?: (motivation: ClickMotivation) => void;
 }
 
 /**
@@ -67,7 +70,9 @@ export function BrowseView({
   onAnnotationHover,
   onCommentHover,
   hoveredAnnotationId,
-  hoveredCommentId
+  hoveredCommentId,
+  selectedClick = 'detail',
+  onClickChange
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -212,29 +217,49 @@ export function BrowseView({
   switch (category) {
     case 'text':
       return (
-        <div ref={containerRef} className="prose prose-lg dark:prose-invert max-w-none p-4">
-          <ReactMarkdown
-            remarkPlugins={[
-              remarkGfm,
-              [remarkAnnotations, { annotations: preparedAnnotations }]
-            ]}
-            rehypePlugins={[
-              rehypeRenderAnnotations
-            ]}
-          >
-            {content}
-          </ReactMarkdown>
+        <div className="relative h-full flex flex-col">
+          <AnnotateToolbar
+            selectedSelection={null}
+            selectedClick={selectedClick}
+            onSelectionChange={() => {}}
+            onClickChange={onClickChange || (() => {})}
+            showSelectionGroup={false}
+            showDeleteButton={false}
+          />
+          <div ref={containerRef} className="flex-1 overflow-auto prose prose-lg dark:prose-invert max-w-none p-4">
+            <ReactMarkdown
+              remarkPlugins={[
+                remarkGfm,
+                [remarkAnnotations, { annotations: preparedAnnotations }]
+              ]}
+              rehypePlugins={[
+                rehypeRenderAnnotations
+              ]}
+            >
+              {content}
+            </ReactMarkdown>
+          </div>
         </div>
       );
 
     case 'image':
       return (
-        <div ref={containerRef} className="w-full h-full">
-          <ImageViewer
-            resourceUri={resourceUri as any}
-            mimeType={mimeType}
-            alt="Resource content"
+        <div className="relative h-full flex flex-col">
+          <AnnotateToolbar
+            selectedSelection={null}
+            selectedClick={selectedClick}
+            onSelectionChange={() => {}}
+            onClickChange={onClickChange || (() => {})}
+            showSelectionGroup={false}
+            showDeleteButton={false}
           />
+          <div ref={containerRef} className="flex-1 overflow-auto">
+            <ImageViewer
+              resourceUri={resourceUri as any}
+              mimeType={mimeType}
+              alt="Resource content"
+            />
+          </div>
         </div>
       );
 

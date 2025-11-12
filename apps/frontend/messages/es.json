@@ -475,12 +475,12 @@
   },
   "DetectPanel": {
     "title": "Detectar Referencias",
-    "selectEntityTypes": "Seleccionar tipos de entidad para detectar:",
+    "selectEntityTypes": "Tipos de entidad:",
     "select": "Seleccionar",
     "deselect": "Deseleccionar",
     "noEntityTypes": "No hay tipos de entidad disponibles",
     "typesSelected": "{count, plural, =1 {1 tipo seleccionado} other {# tipos seleccionados}}",
-    "startDetection": "Iniciar Detección",
+    "startDetection": "Detectar",
     "found": "{count} encontrados",
     "more": "Más"
   },
@@ -499,7 +499,7 @@
     "noReferences": "Aún no hay referencias",
     "stub": "Referencia pendiente (sin vincular)",
     "resolved": "Referencia resuelta (vinculada)",
-    "openInNewTab": "Abrir",
+    "open": "Abrir",
     "unlink": "Desvincular",
     "generate": "Generar",
     "find": "Buscar",
@@ -710,11 +710,14 @@
     "close": "Cerrar"
   },
   "AnnotateToolbar": {
+    "selectionGroup": "Seleccionar",
+    "clickGroup": "Clic",
     "linking": "Referenciar",
     "highlighting": "Destacar",
     "assessing": "Evaluar",
     "commenting": "Comentar",
     "detail": "Detalle",
+    "follow": "Seguir",
     "deleting": "Eliminar",
     "jsonld": "JSON-LD"
   },

@@ -28,6 +28,7 @@ interface Props {
   onGenerateDocument?: (title: string) => void;
   onSearchDocuments?: (searchTerm: string, onSelect: (documentId: string) => void) => void;
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
+  annotateMode?: boolean;
 }
 
 export function ReferencesPanel({
@@ -44,6 +45,7 @@ export function ReferencesPanel({
   onGenerateDocument,
   onSearchDocuments,
   onUpdateReference,
+  annotateMode = true,
 }: Props) {
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
@@ -113,12 +115,13 @@ export function ReferencesPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Detection Section */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
-            {t('title')}
-          </h3>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+        {/* Detection Section - only in Annotate mode */}
+        {annotateMode && (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+              {t('title')}
+            </h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             {/* Show annotation UI only when not detecting and no completed log */}
             {!detectionProgress && !lastDetectionLog && (
             <>
@@ -169,13 +172,14 @@ export function ReferencesPanel({
               <button
                 onClick={handleDetect}
                 disabled={selectedEntityTypes.length === 0}
+                title={t('startDetection')}
                 className={`w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium ${
                   selectedEntityTypes.length > 0
                     ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg'
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 }`}
               >
-                ✨ {t('startDetection')}
+                <span className="text-2xl">✨</span>
               </button>
             </>
           )}
@@ -208,8 +212,9 @@ export function ReferencesPanel({
               </button>
             </div>
           )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* References List Section */}
         <div>
@@ -232,6 +237,7 @@ export function ReferencesPanel({
                   isFocused={reference.id === focusedReferenceId}
                   onClick={() => onReferenceClick?.(reference)}
                   onReferenceRef={handleReferenceRef}
+                  annotateMode={annotateMode}
                   {...(onReferenceHover && { onReferenceHover })}
                   {...(onGenerateDocument && { onGenerateDocument })}
                   {...(onSearchDocuments && { onSearchDocuments })}

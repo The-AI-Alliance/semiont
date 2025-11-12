@@ -18,6 +18,7 @@ interface ReferenceEntryProps {
   onGenerateDocument?: (title: string) => void;
   onSearchDocuments?: (searchTerm: string, onSelect: (documentId: string) => void) => void;
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
+  annotateMode?: boolean;
 }
 
 export function ReferenceEntry({
@@ -29,6 +30,7 @@ export function ReferenceEntry({
   onGenerateDocument,
   onSearchDocuments,
   onUpdateReference,
+  annotateMode = true,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
   const router = useRouter();
@@ -54,11 +56,11 @@ export function ReferenceEntry({
   const resolvedResourceUri = isResolved ? getBodySource(reference.body) : null;
   const entityTypes = getEntityTypes(reference);
 
-  const handleOpenInNewTab = () => {
+  const handleOpen = () => {
     if (resolvedResourceUri) {
       const resourceId = resolvedResourceUri.split('/resources/')[1];
       if (resourceId) {
-        window.open(`/know/resource/${encodeURIComponent(resourceId)}`, '_blank');
+        router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
       }
     }
   };
@@ -131,47 +133,55 @@ export function ReferenceEntry({
         </div>
       )}
 
-      {/* Actions based on state */}
+      {/* Actions based on state - only show curation actions in Annotate mode */}
       <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
         {isResolved ? (
           // Resolved reference actions
-          <div className="flex gap-2">
+          <div className="flex gap-1">
             <button
-              onClick={handleOpenInNewTab}
-              className={`${buttonStyles.primary.base} flex-1 justify-center text-sm py-1.5`}
+              onClick={handleOpen}
+              className={`${buttonStyles.primary.base} ${annotateMode ? 'flex-1' : 'w-full'} !px-2 justify-center text-lg py-1`}
+              title={t('open')}
             >
-              🔗 {t('openInNewTab')}
+              🔗
             </button>
-            <button
-              onClick={handleUnlink}
-              className={`${buttonStyles.secondary.base} px-3 flex items-center justify-center`}
-              title={t('unlink')}
-            >
-              ⛓️‍💥
-            </button>
+            {annotateMode && (
+              <button
+                onClick={handleUnlink}
+                className={`${buttonStyles.secondary.base} !px-2 flex items-center justify-center text-lg`}
+                title={t('unlink')}
+              >
+                ⛓️‍💥
+              </button>
+            )}
           </div>
         ) : (
-          // Stub reference actions
-          <div className="flex gap-2">
-            <button
-              onClick={handleGenerate}
-              className={`${buttonStyles.primary.base} flex-1 justify-center text-sm py-1.5`}
-            >
-              ✨ {t('generate')}
-            </button>
-            <button
-              onClick={handleSearch}
-              className={`${buttonStyles.secondary.base} flex-1 justify-center text-sm py-1.5`}
-            >
-              🔍 {t('find')}
-            </button>
-            <button
-              onClick={handleComposeDocument}
-              className={`${buttonStyles.secondary.base} flex-1 justify-center text-sm py-1.5`}
-            >
-              ✏️ {t('create')}
-            </button>
-          </div>
+          // Stub reference actions - only in Annotate mode
+          annotateMode && (
+            <div className="flex gap-1">
+              <button
+                onClick={handleGenerate}
+                className={`${buttonStyles.primary.base} flex-1 !px-2 justify-center text-lg py-1`}
+                title={t('generate')}
+              >
+                ✨
+              </button>
+              <button
+                onClick={handleSearch}
+                className={`${buttonStyles.secondary.base} flex-1 !px-2 justify-center text-lg py-1`}
+                title={t('find')}
+              >
+                🔍
+              </button>
+              <button
+                onClick={handleComposeDocument}
+                className={`${buttonStyles.secondary.base} flex-1 !px-2 justify-center text-lg py-1`}
+                title={t('create')}
+              >
+                ✏️
+              </button>
+            </div>
+          )
         )}
       </div>
     </div>
