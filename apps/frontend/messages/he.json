@@ -699,7 +699,7 @@
     "close": "Close"
   },
   "AnnotateToolbar": {
-    "linking": "Link",
+    "linking": "Reference",
     "highlighting": "Highlight",
     "assessing": "Assess",
     "commenting": "Comment",

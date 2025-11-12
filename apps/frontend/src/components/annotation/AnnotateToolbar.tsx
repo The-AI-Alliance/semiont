@@ -13,44 +13,44 @@ interface AnnotateToolbarProps {
 export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
 
-  const getButtonClass = (motivation: AnnotationMotivation, baseColor: string, hoverColor: string, textColor: string, ringColor: string) => {
+  const getButtonClass = (motivation: AnnotationMotivation, isDeleteButton = false) => {
     const isSelected = selectedMotivation === motivation;
-    return `px-4 py-2 rounded-md transition-colors flex items-center gap-2 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+    const baseClasses = 'px-4 py-2 rounded-md transition-colors flex items-center gap-2 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 border';
+
+    if (isDeleteButton) {
+      // Delete button keeps red background
+      return `${baseClasses} ${
+        isSelected
+          ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700 ring-2 ring-red-500 shadow-md'
+          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700 hover:bg-red-200 dark:hover:bg-red-900/50 focus:ring-red-500'
+      }`;
+    }
+
+    // All other buttons: no background, grayscale text, standard borders
+    return `${baseClasses} ${
       isSelected
-        ? `${baseColor} ${textColor} ring-2 ${ringColor} shadow-md`
-        : `${baseColor} ${textColor} ${hoverColor} ${ringColor}`
+        ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-400 dark:border-gray-500 ring-2 ring-gray-500 shadow-md'
+        : 'text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 focus:ring-gray-500'
     }`;
   };
 
   return (
     <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-      {/* Linking Button */}
+      {/* Reference Button */}
       <button
         onClick={() => onMotivationChange('linking')}
-        className={getButtonClass(
-          'linking',
-          'bg-blue-100 dark:bg-blue-900/30',
-          'hover:bg-blue-200 dark:hover:bg-blue-900/50',
-          'text-blue-700 dark:text-blue-300',
-          'focus:ring-blue-500'
-        )}
+        className={getButtonClass('linking')}
         title={t('linking')}
         aria-pressed={selectedMotivation === 'linking'}
       >
-        <span className="text-lg">🔗</span>
+        <span className="text-lg">🔵</span>
         <span>{t('linking')}</span>
       </button>
 
       {/* Highlighting Button */}
       <button
         onClick={() => onMotivationChange('highlighting')}
-        className={getButtonClass(
-          'highlighting',
-          'bg-yellow-100 dark:bg-yellow-900/30',
-          'hover:bg-yellow-200 dark:hover:bg-yellow-900/50',
-          'text-yellow-700 dark:text-yellow-300',
-          'focus:ring-yellow-500'
-        )}
+        className={getButtonClass('highlighting')}
         title={t('highlighting')}
         aria-pressed={selectedMotivation === 'highlighting'}
       >
@@ -61,13 +61,7 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
       {/* Assessing Button */}
       <button
         onClick={() => onMotivationChange('assessing')}
-        className={getButtonClass(
-          'assessing',
-          'bg-red-100 dark:bg-red-900/30',
-          'hover:bg-red-200 dark:hover:bg-red-900/50',
-          'text-red-700 dark:text-red-300',
-          'focus:ring-red-500'
-        )}
+        className={getButtonClass('assessing')}
         title={t('assessing')}
         aria-pressed={selectedMotivation === 'assessing'}
       >
@@ -78,13 +72,7 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
       {/* Commenting Button */}
       <button
         onClick={() => onMotivationChange('commenting')}
-        className={getButtonClass(
-          'commenting',
-          'bg-gray-100 dark:bg-gray-700',
-          'hover:bg-gray-200 dark:hover:bg-gray-600',
-          'text-gray-700 dark:text-gray-300',
-          'focus:ring-gray-500'
-        )}
+        className={getButtonClass('commenting')}
         title={t('commenting')}
         aria-pressed={selectedMotivation === 'commenting'}
       >
@@ -98,13 +86,7 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
       {/* Detail Button */}
       <button
         onClick={() => onMotivationChange('detail')}
-        className={getButtonClass(
-          'detail',
-          'bg-teal-100 dark:bg-teal-900/30',
-          'hover:bg-teal-200 dark:hover:bg-teal-900/50',
-          'text-teal-700 dark:text-teal-300',
-          'focus:ring-teal-500'
-        )}
+        className={getButtonClass('detail')}
         title={t('detail')}
         aria-pressed={selectedMotivation === 'detail'}
       >
@@ -115,13 +97,7 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
       {/* JSON-LD Button */}
       <button
         onClick={() => onMotivationChange('jsonld')}
-        className={getButtonClass(
-          'jsonld',
-          'bg-purple-100 dark:bg-purple-900/30',
-          'hover:bg-purple-200 dark:hover:bg-purple-900/50',
-          'text-purple-700 dark:text-purple-300',
-          'focus:ring-purple-500'
-        )}
+        className={getButtonClass('jsonld')}
         title={t('jsonld')}
         aria-pressed={selectedMotivation === 'jsonld'}
       >
@@ -132,13 +108,7 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
       {/* Delete Button */}
       <button
         onClick={() => onMotivationChange('deleting')}
-        className={getButtonClass(
-          'deleting',
-          'bg-red-100 dark:bg-red-900/30',
-          'hover:bg-red-200 dark:hover:bg-red-900/50',
-          'text-red-700 dark:text-red-300',
-          'focus:ring-red-500'
-        )}
+        className={getButtonClass('deleting', true)}
         title={t('deleting')}
         aria-pressed={selectedMotivation === 'deleting'}
       >
