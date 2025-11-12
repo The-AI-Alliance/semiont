@@ -705,5 +705,11 @@
     "commenting": "Comentar",
     "deleting": "Eliminar",
     "jsonld": "JSON-LD"
+  },
+  "ResourceViewer": {
+    "deleteConfirmationTitle": "¿Eliminar anotación?",
+    "deleteConfirmationMessage": "¿Está seguro de que desea eliminar esta anotación? Esta acción no se puede deshacer.",
+    "deleteConfirmationCancel": "Cancelar",
+    "deleteConfirmationDelete": "Eliminar"
   }
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
+import { useTranslations } from 'next-intl';
 import { AnnotateView, type AnnotationMotivation } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
@@ -58,6 +59,7 @@ export function ResourceViewer({
   onCommentClick
 }: Props) {
   const router = useRouter();
+  const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
   // Extract resource URI once at the top - required for all annotation operations
@@ -114,6 +116,12 @@ export function ResourceViewer({
   // JSON-LD view state
   const [showJsonLdView, setShowJsonLdView] = useState(false);
   const [jsonLdAnnotation, setJsonLdAnnotation] = useState<Annotation | null>(null);
+
+  // Delete confirmation state
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    annotation: Annotation;
+    position: { x: number; y: number };
+  } | null>(null);
 
   // Calculate centered position for JSON-LD modal
   const jsonLdModalPosition = useMemo(() => {
@@ -189,7 +197,12 @@ export function ResourceViewer({
 
     // Handle delete mode for highlights and assessments
     if (selectedMotivation === 'deleting' && isSimpleAnnotation) {
-      handleDeleteAnnotation(annotation.id);
+      // Show confirmation dialog
+      const position = event
+        ? { x: event.clientX, y: event.clientY + 10 }
+        : { x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 75 };
+
+      setDeleteConfirmation({ annotation, position });
       return;
     }
 
@@ -719,6 +732,41 @@ export function ResourceViewer({
               setJsonLdAnnotation(null);
             }}
           />
+        </PopupContainer>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation && (
+        <PopupContainer
+          isOpen={!!deleteConfirmation}
+          onClose={() => setDeleteConfirmation(null)}
+          position={deleteConfirmation.position}
+        >
+          <div className="flex flex-col gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg min-w-[300px]">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {t('deleteConfirmationTitle')}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {t('deleteConfirmationMessage')}
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeleteConfirmation(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              >
+                {t('deleteConfirmationCancel')}
+              </button>
+              <button
+                onClick={async () => {
+                  await handleDeleteAnnotation(deleteConfirmation.annotation.id);
+                  setDeleteConfirmation(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                {t('deleteConfirmationDelete')}
+              </button>
+            </div>
+          </div>
         </PopupContainer>
       )}
     </div>
