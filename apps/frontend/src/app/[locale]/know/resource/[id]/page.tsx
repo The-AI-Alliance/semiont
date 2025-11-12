@@ -260,6 +260,7 @@ function ResourceView({
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
+  const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -585,6 +586,13 @@ function ResourceView({
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedCommentId(null), 3000);
                 }}
+                onReferenceClick={(referenceId) => {
+                  // Open References Panel and focus on this reference
+                  setActivePanel('references');
+                  setFocusedReferenceId(referenceId);
+                  // Clear after a short delay to remove highlight
+                  setTimeout(() => setFocusedReferenceId(null), 3000);
+                }}
                 onGenerateDocument={handleGenerateDocument}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
@@ -649,6 +657,7 @@ function ResourceView({
                   setHoveredAnnotationId(annotation.id);
                   setTimeout(() => setHoveredAnnotationId(null), 1500);
                 }}
+                focusedReferenceId={focusedReferenceId}
                 hoveredReferenceId={hoveredAnnotationId}
                 onReferenceHover={setHoveredAnnotationId}
                 onGenerateDocument={(title) => {

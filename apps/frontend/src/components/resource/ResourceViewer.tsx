@@ -37,6 +37,7 @@ interface Props {
   showLineNumbers?: boolean;
   onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
   onCommentClick?: (commentId: string) => void;
+  onReferenceClick?: (referenceId: string) => void;
 }
 
 export function ResourceViewer({
@@ -56,7 +57,8 @@ export function ResourceViewer({
   scrollToAnnotationId,
   showLineNumbers = false,
   onCommentCreationRequested,
-  onCommentClick
+  onCommentClick,
+  onReferenceClick
 }: Props) {
   const router = useRouter();
   const t = useTranslations('ResourceViewer');
@@ -172,9 +174,16 @@ export function ResourceViewer({
     // If annotation has a side panel, only open it when Detail mode is active
     // For delete/jsonld modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
-      if (selectedMotivation === 'detail' && onCommentClick) {
-        onCommentClick(annotation.id);
-        return;
+      if (selectedMotivation === 'detail') {
+        // Route to appropriate panel based on annotation type
+        if (isComment(annotation) && onCommentClick) {
+          onCommentClick(annotation.id);
+          return;
+        }
+        if (isReference(annotation) && onReferenceClick) {
+          onReferenceClick(annotation.id);
+          return;
+        }
       }
       // Don't return early for delete/jsonld modes - let them be handled below
       if (selectedMotivation !== 'deleting' && selectedMotivation !== 'jsonld') {
@@ -205,7 +214,7 @@ export function ResourceViewer({
       setShowJsonLdView(true);
       return;
     }
-  }, [router, curationMode, onCommentClick, selectedMotivation, handleDeleteAnnotation]);
+  }, [router, curationMode, onCommentClick, onReferenceClick, selectedMotivation, handleDeleteAnnotation]);
 
   // Handle annotation right-clicks - memoized
   const handleAnnotationRightClick = useCallback((annotation: Annotation, x: number, y: number) => {
@@ -214,9 +223,16 @@ export function ResourceViewer({
     // If annotation has a side panel, only open it when Detail mode is active
     // For delete/jsonld modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
-      if (selectedMotivation === 'detail' && onCommentClick) {
-        onCommentClick(annotation.id);
-        return;
+      if (selectedMotivation === 'detail') {
+        // Route to appropriate panel based on annotation type
+        if (isComment(annotation) && onCommentClick) {
+          onCommentClick(annotation.id);
+          return;
+        }
+        if (isReference(annotation) && onReferenceClick) {
+          onReferenceClick(annotation.id);
+          return;
+        }
       }
       // Don't return early for delete/jsonld modes - let them be handled below
       if (selectedMotivation !== 'deleting' && selectedMotivation !== 'jsonld') {
@@ -236,7 +252,7 @@ export function ResourceViewer({
     }
     setPopupPosition({ x, y: y + 10 });
     setShowAnnotationPopup(true);
-  }, [onCommentClick]);
+  }, [onCommentClick, onReferenceClick, selectedMotivation]);
 
   // Handle clicking 🔗 icon on resolved reference - show popup instead of navigating
   const handleResolvedReferenceWidgetClick = useCallback((documentId: string) => {
