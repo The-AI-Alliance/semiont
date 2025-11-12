@@ -382,6 +382,8 @@ export function ResourceViewer({
           onAnnotationClick={handleAnnotationClick}
           {...(onCommentHover && { onCommentHover })}
           {...(hoveredCommentId !== undefined && { hoveredCommentId })}
+          selectedClick={selectedClick}
+          onClickChange={setSelectedClick}
         />
       )}
 
