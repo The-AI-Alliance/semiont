@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { AnnotateView, type AnnotationMotivation } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
 import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferencePopup';
+import { PopupContainer } from '@/components/annotation-popups/SharedPopupElements';
+import { JsonLdView } from '@/components/annotation-popups/JsonLdView';
 import type { components, ResourceUri, AnnotationUri } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri, resourceAnnotationUri } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri, resourceAnnotationUri, isHighlight, isAssessment, isReference } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useAnnotations } from '@/lib/api-hooks';
@@ -109,6 +111,23 @@ export function ResourceViewer({
   const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  // JSON-LD view state
+  const [showJsonLdView, setShowJsonLdView] = useState(false);
+  const [jsonLdAnnotation, setJsonLdAnnotation] = useState<Annotation | null>(null);
+
+  // Calculate centered position for JSON-LD modal
+  const jsonLdModalPosition = useMemo(() => {
+    if (typeof window === 'undefined') return { x: 0, y: 0 };
+
+    const popupWidth = 800;
+    const popupHeight = 700;
+
+    return {
+      x: Math.max(0, (window.innerWidth - popupWidth) / 2),
+      y: Math.max(0, (window.innerHeight - popupHeight) / 2),
+    };
+  }, []);
+
   // Handle text selection from SourceView - memoized
   const handleTextSelection = useCallback((exact: string, position: { start: number; end: number }) => {
     setSelectedText(exact);
@@ -125,7 +144,19 @@ export function ResourceViewer({
     setShowAnnotationPopup(true);
     setEditingAnnotation(null);
   }, []);
-  
+
+  // Handle deleting annotations - memoized
+  const handleDeleteAnnotation = useCallback(async (id: string) => {
+    try {
+      await deleteAnnotation(id, rUri);
+      onRefetchAnnotations?.();
+      setShowAnnotationPopup(false);
+      setEditingAnnotation(null);
+    } catch (err) {
+      console.error('Failed to delete annotation:', err);
+    }
+  }, [deleteAnnotation, rUri, onRefetchAnnotations]);
+
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
     const metadata = getAnnotationTypeMetadata(annotation);
@@ -135,18 +166,42 @@ export function ResourceViewer({
       if (onCommentClick) {
         onCommentClick(annotation.id);
       }
-    } else if (annotation.motivation === 'linking' && annotation.body && isBodyResolved(annotation.body)) {
-      // If it's a resolved reference, navigate to it (in both curation and browse mode)
-      const bodySource = getBodySource(annotation.body); // returns ResourceUri | null
+      return;
+    }
+
+    // Handle navigation for resolved references (in both curation and browse mode)
+    if (annotation.motivation === 'linking' && annotation.body && isBodyResolved(annotation.body)) {
+      const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        // Extract ID segment from full ResourceUri (format: http://host/resources/{id})
         const resourceIdSegment = bodySource.split('/').pop();
         if (resourceIdSegment) {
           router.push(`/know/resource/${resourceIdSegment}`);
         }
       }
-    } else if (curationMode) {
-      // For other annotations in Annotate mode, show the popup
+      return;
+    }
+
+    // Only handle highlight/assessment clicks in curation mode with toolbar modes
+    if (!curationMode) return;
+
+    // Check if this is a highlight or assessment
+    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation);
+
+    // Handle delete mode for highlights and assessments
+    if (selectedMotivation === 'deleting' && isSimpleAnnotation) {
+      handleDeleteAnnotation(annotation.id);
+      return;
+    }
+
+    // Handle JSON-LD mode for highlights and assessments
+    if (selectedMotivation === 'jsonld' && isSimpleAnnotation) {
+      setJsonLdAnnotation(annotation);
+      setShowJsonLdView(true);
+      return;
+    }
+
+    // For references, always show popup regardless of toolbar mode
+    if (isReference(annotation)) {
       setEditingAnnotation(annotation);
       const targetSelector = annotation.target ? getTargetSelector(annotation.target) : undefined;
       setSelectedText(targetSelector ? getExactText(targetSelector) : '');
@@ -168,7 +223,7 @@ export function ResourceViewer({
 
       setShowAnnotationPopup(true);
     }
-  }, [router, curationMode, onCommentClick]);
+  }, [router, curationMode, onCommentClick, selectedMotivation, handleDeleteAnnotation]);
 
   // Handle annotation right-clicks - memoized
   const handleAnnotationRightClick = useCallback((annotation: Annotation, x: number, y: number) => {
@@ -365,21 +420,6 @@ export function ResourceViewer({
     setAnnotationPosition(null);
     setEditingAnnotation(null);
   }, [annotationPosition, selectedText, onCommentCreationRequested]);
-
-  // Handle deleting annotations - memoized
-  const handleDeleteAnnotation = useCallback(async (id: string) => {
-    try {
-      await deleteAnnotation(id, rUri);
-
-      // Refetch annotations to update UI
-      onRefetchAnnotations?.();
-
-      setShowAnnotationPopup(false);
-      setEditingAnnotation(null);
-    } catch (err) {
-      console.error('Failed to delete annotation:', err);
-    }
-  }, [deleteAnnotation, onRefetchAnnotations]);
 
   // Quick action: Delete annotation from widget
   const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
@@ -662,6 +702,24 @@ export function ResourceViewer({
           selection={quickReferenceSelection}
           onCreateReference={handleQuickReferenceCreate}
         />
+      )}
+
+      {/* JSON-LD View Modal */}
+      {jsonLdAnnotation && (
+        <PopupContainer
+          isOpen={showJsonLdView}
+          onClose={() => setShowJsonLdView(false)}
+          position={jsonLdModalPosition}
+          wide={true}
+        >
+          <JsonLdView
+            annotation={jsonLdAnnotation}
+            onBack={() => {
+              setShowJsonLdView(false);
+              setJsonLdAnnotation(null);
+            }}
+          />
+        </PopupContainer>
       )}
     </div>
   );

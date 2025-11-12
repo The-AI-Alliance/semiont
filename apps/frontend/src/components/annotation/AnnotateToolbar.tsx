@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-export type AnnotationMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting';
+export type AnnotationMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'deleting' | 'jsonld';
 
 interface AnnotateToolbarProps {
   selectedMotivation: AnnotationMotivation;
@@ -90,6 +90,43 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
       >
         <span className="text-lg">💬</span>
         <span>{t('commenting')}</span>
+      </button>
+
+      {/* Separator */}
+      <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
+
+      {/* Delete Button */}
+      <button
+        onClick={() => onMotivationChange('deleting')}
+        className={getButtonClass(
+          'deleting',
+          'bg-red-100 dark:bg-red-900/30',
+          'hover:bg-red-200 dark:hover:bg-red-900/50',
+          'text-red-700 dark:text-red-300',
+          'focus:ring-red-500'
+        )}
+        title={t('deleting')}
+        aria-pressed={selectedMotivation === 'deleting'}
+      >
+        <span className="text-lg">🗑️</span>
+        <span>{t('deleting')}</span>
+      </button>
+
+      {/* JSON-LD Button */}
+      <button
+        onClick={() => onMotivationChange('jsonld')}
+        className={getButtonClass(
+          'jsonld',
+          'bg-purple-100 dark:bg-purple-900/30',
+          'hover:bg-purple-200 dark:hover:bg-purple-900/50',
+          'text-purple-700 dark:text-purple-300',
+          'focus:ring-purple-500'
+        )}
+        title={t('jsonld')}
+        aria-pressed={selectedMotivation === 'jsonld'}
+      >
+        <span className="text-lg">📋</span>
+        <span>{t('jsonld')}</span>
       </button>
     </div>
   );
