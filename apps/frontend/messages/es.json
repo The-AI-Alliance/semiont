@@ -494,6 +494,17 @@
     "progress": "{processed} de {total} tipos de entidad",
     "infoText": "Las nuevas referencias aparecen en el Historial del documento a medida que se detectan"
   },
+  "ReferencesPanel": {
+    "referencesTitle": "Referencias",
+    "noReferences": "Aún no hay referencias",
+    "stub": "Referencia pendiente (sin vincular)",
+    "resolved": "Referencia resuelta (vinculada)",
+    "openInNewTab": "Abrir",
+    "unlink": "Desvincular",
+    "generate": "Generar",
+    "find": "Buscar",
+    "create": "Crear"
+  },
   "SortableResourceTab": {
     "dragToReorder": "Arrastrar para reordenar",
     "dragToReorderDoc": "Arrastrar para reordenar {name}",

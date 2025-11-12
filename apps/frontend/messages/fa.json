@@ -494,6 +494,17 @@
     "progress": "{processed} of {total} entity types",
     "infoText": "New references appear in resource's History as they're detected"
   },
+  "ReferencesPanel": {
+    "referencesTitle": "References",
+    "noReferences": "No references yet",
+    "stub": "Stub reference (not linked)",
+    "resolved": "Resolved reference (linked)",
+    "openInNewTab": "Open",
+    "unlink": "Unlink",
+    "generate": "Generate",
+    "find": "Find",
+    "create": "Create"
+  },
   "SortableResourceTab": {
     "dragToReorder": "Drag to reorder",
     "dragToReorderDoc": "Drag to reorder {name}",
