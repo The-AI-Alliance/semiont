@@ -726,20 +726,39 @@ export function ResourceViewer({
       )}
 
       {/* Delete Confirmation Modal */}
-      {deleteConfirmation && (
-        <PopupContainer
-          isOpen={!!deleteConfirmation}
-          onClose={() => setDeleteConfirmation(null)}
-          position={deleteConfirmation.position}
-        >
-          <div className="flex flex-col gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg min-w-[300px]">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {t('deleteConfirmationTitle')}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {t('deleteConfirmationMessage')}
-            </p>
-            <div className="flex gap-2 justify-end">
+      {deleteConfirmation && (() => {
+        const annotation = deleteConfirmation.annotation;
+        const metadata = getAnnotationTypeMetadata(annotation);
+        const targetSelector = getTargetSelector(annotation.target);
+        const selectedText = getExactText(targetSelector);
+        const motivationEmoji = metadata?.iconEmoji || '📝';
+
+        return (
+          <PopupContainer
+            isOpen={!!deleteConfirmation}
+            onClose={() => setDeleteConfirmation(null)}
+            position={deleteConfirmation.position}
+          >
+            <div className="flex flex-col gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg min-w-[300px]">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{motivationEmoji}</span>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {t('deleteConfirmationTitle')}
+                </h3>
+              </div>
+
+              {selectedText && (
+                <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border-l-4 border-blue-500">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+                    "{selectedText.length > 100 ? selectedText.substring(0, 100) + '...' : selectedText}"
+                  </p>
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t('deleteConfirmationMessage')}
+              </p>
+              <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setDeleteConfirmation(null)}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
@@ -758,7 +777,8 @@ export function ResourceViewer({
             </div>
           </div>
         </PopupContainer>
-      )}
+        );
+      })()}
     </div>
   );
 }
