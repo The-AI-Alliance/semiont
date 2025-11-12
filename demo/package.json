@@ -5,7 +5,9 @@
   "type": "module",
   "description": "Demo scripts for Semiont",
   "scripts": {
-    "pro-bo": "dotenv -e .env -- tsx pro_bo.ts"
+    "pro-bo": "dotenv -e .env -- tsx pro_bo.ts",
+    "freelaw-nh": "dotenv -e .env -- tsx freelaw_nh.ts",
+    "citizens-united": "dotenv -e .env -- tsx citizens_united.ts"
   },
   "dependencies": {
     "@semiont/api-client": "*"

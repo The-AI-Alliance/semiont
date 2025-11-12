@@ -1,22 +1,24 @@
 #!/usr/bin/env tsx
 /**
- * Prometheus Bound Demo Script
+ * Citizens United v. FEC Demo Script
  *
- * Downloads "Prometheus Bound" from Project Gutenberg, splits into chunks,
- * uploads to Semiont backend, creates Table of Contents with linked annotations,
- * and displays the event history showing how annotations evolved.
+ * Downloads the famous Citizens United Supreme Court case, chunks it into
+ * readable sections, uploads to Semiont backend, creates a Table of Contents
+ * with linked annotations, and displays the event history.
  *
  * Demonstrates:
- * - Document chunking and upload
+ * - Legal opinion downloading from Cornell LII
+ * - Large document chunking (2-3 pages per chunk)
+ * - Markdown formatting for legal text
  * - Table of Contents generation
  * - Annotation linking workflow
- * - Event sourcing history
  */
 
 import { SemiontApiClient, baseUrl } from '@semiont/api-client';
 
 // Local modules
-import { downloadAndChunkText } from './src/chunking';
+import { downloadCornellLII, formatLegalOpinion } from './src/legal-text';
+import { chunkText, type ChunkInfo } from './src/chunking';
 import { authenticate } from './src/auth';
 import { uploadChunks, createTableOfContents } from './src/resources';
 import { createStubReferences, linkReferences } from './src/annotations';
@@ -25,6 +27,7 @@ import {
   printMainHeader,
   printSectionHeader,
   printInfo,
+  printSuccess,
   printDownloadStats,
   printChunkingStats,
   printResults,
@@ -36,18 +39,12 @@ import {
 // CONTENT-SPECIFIC CONFIGURATION
 // ============================================================================
 
-const GUTENBERG_URL = 'https://www.gutenberg.org/cache/epub/8714/pg8714.txt';
-const CHUNK_SIZE = 4000;
-const ENTITY_TYPES = ['literature', 'ancient-greek-drama'];
-const TOC_TITLE = 'Prometheus Bound: Table of Contents';
-
-// Extraction parameters for this specific text
-const EXTRACTION_CONFIG = {
-  targetChunkSize: CHUNK_SIZE,
-  startPattern: /PROMETHEUS BOUND\s+ARGUMENT/,
-  endMarker: '*** END OF THE PROJECT GUTENBERG EBOOK FOUR PLAYS OF AESCHYLUS ***',
-  titlePrefix: 'Prometheus Bound - Part',
-};
+const CORNELL_LII_URL = 'https://www.law.cornell.edu/supct/html/08-205.ZS.html';
+const CASE_TITLE = 'Citizens United v. Federal Election Commission';
+const CITATION = '558 U.S. 310 (2010)';
+const CHUNK_SIZE = 5000; // ~2-3 pages per chunk
+const ENTITY_TYPES = ['legal', 'supreme-court', 'campaign-finance', 'first-amendment'];
+const TOC_TITLE = 'Citizens United v. FEC - Table of Contents';
 
 // ============================================================================
 // ENVIRONMENT CONFIGURATION
@@ -68,7 +65,7 @@ if (!AUTH_EMAIL && !ACCESS_TOKEN) {
 // ============================================================================
 
 async function main() {
-  printMainHeader('🎭', 'Prometheus Bound Demo');
+  printMainHeader('⚖️ ', 'Citizens United v. FEC Demo');
 
   try {
     const client = new SemiontApiClient({
@@ -82,45 +79,68 @@ async function main() {
       accessToken: ACCESS_TOKEN,
     });
 
-    // Pass 1: Download and Chunk
-    printSectionHeader('📥', 1, 'Download and Chunk Document');
-    printInfo('Downloading from Project Gutenberg...');
-    const chunks = await downloadAndChunkText(GUTENBERG_URL, EXTRACTION_CONFIG);
+    // Pass 1: Download and Format
+    printSectionHeader('📥', 1, 'Download Legal Opinion');
+    printInfo('Downloading from Cornell LII...');
+    const rawText = await downloadCornellLII(CORNELL_LII_URL);
+    printSuccess(`Downloaded ${rawText.length.toLocaleString()} characters`);
+
+    printInfo('Formatting with markdown...');
+    const formattedText = formatLegalOpinion(CASE_TITLE, CITATION, rawText);
+    printSuccess(`Formatted opinion: ${formattedText.length.toLocaleString()} characters`);
+
+    // Pass 2: Chunk the Opinion
+    printSectionHeader('✂️ ', 2, 'Chunk Opinion');
+    printInfo(`Chunking into sections (~${CHUNK_SIZE} chars per chunk)...`);
+
+    // Use simple chunking by character count
+    const chunks: ChunkInfo[] = [];
+    let partNumber = 1;
+    for (let i = 0; i < formattedText.length; i += CHUNK_SIZE) {
+      const content = formattedText.slice(i, i + CHUNK_SIZE);
+      chunks.push({
+        partNumber,
+        title: `${CASE_TITLE} - Part ${partNumber}`,
+        content,
+      });
+      partNumber++;
+    }
+
     const totalChars = chunks.reduce((sum, c) => sum + c.content.length, 0);
     const avgChars = Math.round(totalChars / chunks.length);
     printDownloadStats(totalChars, totalChars);
     printChunkingStats(chunks.length, avgChars);
 
-    // Pass 2: Upload Chunks
-    printSectionHeader('📤', 2, 'Upload Document Chunks');
+    // Pass 3: Upload Chunks
+    printSectionHeader('📤', 3, 'Upload Opinion Chunks');
     const chunkIds = await uploadChunks(chunks, client, {
       entityTypes: ENTITY_TYPES,
       dataDir: DATA_DIR,
     });
 
-    // Pass 3: Create Table of Contents
-    printSectionHeader('📑', 3, 'Create Table of Contents');
+    // Pass 4: Create Table of Contents
+    printSectionHeader('📑', 4, 'Create Table of Contents');
     const { tocId, references } = await createTableOfContents(chunks, client, {
       title: TOC_TITLE,
       entityTypes: ENTITY_TYPES,
       dataDir: DATA_DIR,
     });
 
-    // Pass 4: Create Stub References
-    printSectionHeader('🔗', 4, 'Create Stub References');
+    // Pass 5: Create Stub References
+    printSectionHeader('🔗', 5, 'Create Stub References');
     const referencesWithIds = await createStubReferences(tocId, references, chunkIds, client, {
       dataDir: DATA_DIR,
     });
 
-    // Pass 5: Link References to Documents
-    printSectionHeader('🎯', 5, 'Link References to Documents');
+    // Pass 6: Link References to Documents
+    printSectionHeader('🎯', 6, 'Link References to Documents');
     const linkedCount = await linkReferences(tocId, referencesWithIds, client);
 
-    // Pass 6: Show Document History
-    printSectionHeader('📜', 6, 'Document History');
+    // Pass 7: Show Document History
+    printSectionHeader('📜', 7, 'Document History');
     await showDocumentHistory(tocId, client);
 
-    // Pass 7: Print Results
+    // Pass 8: Print Results
     printResults({
       tocId,
       chunkIds,

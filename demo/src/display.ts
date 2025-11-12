@@ -133,12 +133,15 @@ export interface ResultsSummary {
 export function printResults(summary: ResultsSummary): void {
   printSectionHeader('✨', 7, 'Results');
 
+  // Extract resource ID from full URI
+  const getTocResourceId = (uri: string) => uri.split('/resources/')[1];
+
   console.log('\n📋 Table of Contents:');
-  console.log(`   ${summary.frontendUrl}/en/know/document/${summary.tocId}`);
+  console.log(`   ${summary.frontendUrl}/en/know/resource/${getTocResourceId(summary.tocId)}`);
 
   console.log('\n📚 Document Chunks:');
   summary.chunkIds.forEach((id, index) => {
-    console.log(`   Part ${index + 1}: ${summary.frontendUrl}/en/know/document/${id}`);
+    console.log(`   Part ${index + 1}: ${summary.frontendUrl}/en/know/resource/${getTocResourceId(id)}`);
   });
 
   console.log('\n📊 Summary:');
