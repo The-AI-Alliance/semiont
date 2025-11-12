@@ -60,7 +60,7 @@ export function AnnotateToolbar({
     <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
       {/* Selection Group */}
       {showSelectionGroup && (
-        <div className="flex items-center gap-0 hover:bg-gray-100 dark:hover:bg-gray-700/30 rounded-lg px-2 py-1 transition-colors">
+        <div className="flex items-center gap-0 hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md border border-transparent rounded-lg px-2 py-1 transition-all">
           <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-2">
             {t('selectionGroup')}
           </span>
@@ -111,7 +111,7 @@ export function AnnotateToolbar({
       {showSelectionGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2" />}
 
       {/* Click Group */}
-      <div className="flex items-center gap-0 hover:bg-gray-100 dark:hover:bg-gray-700/30 rounded-lg px-2 py-1 transition-colors">
+      <div className="flex items-center gap-0 hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md border border-transparent rounded-lg px-2 py-1 transition-all">
         <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-2">
           {t('clickGroup')}
         </span>
