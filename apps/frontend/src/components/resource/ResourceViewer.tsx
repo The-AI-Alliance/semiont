@@ -86,9 +86,40 @@ export function ResourceViewer({
     deleteAnnotation
   } = useResourceAnnotations();
 
-  // Annotation toolbar state
-  const [selectedSelection, setSelectedSelection] = useState<SelectionMotivation | null>('linking');
-  const [selectedClick, setSelectedClick] = useState<ClickMotivation>('detail');
+  // Annotation toolbar state - persisted in localStorage
+  const [selectedSelection, setSelectedSelection] = useState<SelectionMotivation | null>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('semiont-toolbar-selection');
+      if (stored === 'null') return null;
+      if (stored && ['linking', 'highlighting', 'assessing', 'commenting'].includes(stored)) {
+        return stored as SelectionMotivation;
+      }
+    }
+    return 'linking';
+  });
+
+  const [selectedClick, setSelectedClick] = useState<ClickMotivation>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('semiont-toolbar-click');
+      if (stored && ['detail', 'follow', 'jsonld', 'deleting'].includes(stored)) {
+        return stored as ClickMotivation;
+      }
+    }
+    return 'detail';
+  });
+
+  // Persist toolbar state to localStorage
+  useEffect(() => {
+    if (selectedSelection === null) {
+      localStorage.setItem('semiont-toolbar-selection', 'null');
+    } else {
+      localStorage.setItem('semiont-toolbar-selection', selectedSelection);
+    }
+  }, [selectedSelection]);
+
+  useEffect(() => {
+    localStorage.setItem('semiont-toolbar-click', selectedClick);
+  }, [selectedClick]);
 
   // Quick reference popup state
   const [showQuickReferencePopup, setShowQuickReferencePopup] = useState(false);
