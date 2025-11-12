@@ -343,14 +343,7 @@ export function AnnotateView({
             selectedMotivation={selectedMotivation}
             onMotivationChange={onMotivationChange || (() => {})}
           />
-          {/* Warning banner */}
-          <div className="absolute top-0 left-0 right-0 z-50 bg-yellow-100 dark:bg-yellow-900 border-b border-yellow-200 dark:border-yellow-800 p-3" style={{ marginTop: '56px' }}>
-            <p className="text-sm text-yellow-800 dark:text-yellow-200 text-center">
-              Image annotation is not yet supported. Switch to Browse mode to view the image.
-            </p>
-          </div>
-          {/* Image viewer offset by banner */}
-          <div className="flex-1 overflow-auto" style={{ paddingTop: '56px' }}>
+          <div className="flex-1 overflow-auto">
             {resourceUri && (
               <ImageViewer
                 resourceUri={resourceUri as any}
