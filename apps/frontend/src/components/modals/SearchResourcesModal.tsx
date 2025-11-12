@@ -31,11 +31,20 @@ export function SearchResourcesModal({ isOpen, onClose, onSelect, searchTerm = '
   );
 
   // Extract results from search data
-  const results = searchData?.resources?.map((resource: any) => ({
-    id: resource['@id'],
-    name: resource.name,
-    content: resource.content
-  })) || [];
+  const results = searchData?.resources?.map((resource: any) => {
+    // Get mediaType from primary representation
+    const reps = resource.representations;
+    const mediaType = Array.isArray(reps) && reps.length > 0 && reps[0]
+      ? reps[0].mediaType
+      : undefined;
+
+    return {
+      id: resource['@id'],
+      name: resource.name,
+      content: resource.content,
+      mediaType
+    };
+  }) || [];
 
   // Update search term when modal opens
   useEffect(() => {
@@ -117,25 +126,34 @@ export function SearchResourcesModal({ isOpen, onClose, onSelect, searchTerm = '
 
                   {!loading && results.length > 0 && (
                     <div className="space-y-2">
-                      {results.map((resource: any) => (
-                        <div
-                          key={resource.id}
-                          className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                          onClick={() => {
-                            onSelect(resource.id);
-                            onClose();
-                          }}
-                        >
-                          <h4 className="font-medium text-gray-900 dark:text-white mb-1">
-                            {resource.name}
-                          </h4>
-                          {resource.content && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                              {resource.content.substring(0, 150)}...
-                            </p>
-                          )}
-                        </div>
-                      ))}
+                      {results.map((resource: any) => {
+                        const isImage = resource.mediaType?.startsWith('image/');
+
+                        return (
+                          <div
+                            key={resource.id}
+                            className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                            onClick={() => {
+                              onSelect(resource.id);
+                              onClose();
+                            }}
+                          >
+                            <h4 className="font-medium text-gray-900 dark:text-white mb-1">
+                              {resource.name}
+                            </h4>
+                            {resource.content && !isImage && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                                {resource.content.substring(0, 150)}...
+                              </p>
+                            )}
+                            {isImage && (
+                              <p className="text-sm text-gray-500 dark:text-gray-500 italic">
+                                {resource.mediaType}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
