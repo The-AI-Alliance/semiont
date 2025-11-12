@@ -17,7 +17,12 @@
 import { SemiontApiClient, baseUrl } from '@semiont/api-client';
 
 // Local modules
-import { fetchFirstNDocuments, type HuggingFaceDocument } from './src/huggingface';
+import {
+  fetchFirstNDocuments,
+  convertLegalCaseDocument,
+  type HuggingFaceDocument,
+  type DocumentInfo,
+} from './src/huggingface';
 import { authenticate } from './src/auth';
 import { createTableOfContents, type TableOfContentsReference } from './src/resources';
 import { createStubReferences, linkReferences } from './src/annotations';
@@ -56,44 +61,6 @@ const DATA_DIR = process.env.DATA_DIR || '/tmp/semiont/data/uploads';
 
 if (!AUTH_EMAIL && !ACCESS_TOKEN) {
   throw new Error('Either AUTH_EMAIL or ACCESS_TOKEN must be provided');
-}
-
-// ============================================================================
-// DOCUMENT CONVERSION
-// ============================================================================
-
-interface DocumentInfo {
-  title: string;
-  content: string;
-  metadata: {
-    decisionDate?: string;
-    docketNumber?: string;
-    citation?: string;
-  };
-}
-
-function convertToDocumentInfo(doc: HuggingFaceDocument, index: number): DocumentInfo {
-  // Create a readable title from case name
-  const title = doc.name_abbreviation || doc.name || `Case ${index + 1}`;
-  const decisionDate = doc.decision_date || 'Unknown Date';
-
-  // Build citation if available
-  let citation = '';
-  if (doc.citations && Array.isArray(doc.citations) && doc.citations.length > 0) {
-    citation = doc.citations[0].cite || '';
-  } else if (doc.volume && doc.reporter && doc.first_page) {
-    citation = `${doc.volume} ${doc.reporter} ${doc.first_page}`;
-  }
-
-  return {
-    title: `${title} (${decisionDate})`,
-    content: doc.text || '',
-    metadata: {
-      decisionDate: doc.decision_date,
-      docketNumber: doc.docket_number,
-      citation,
-    },
-  };
 }
 
 // ============================================================================
@@ -199,7 +166,7 @@ async function main() {
     printSectionHeader('📥', 1, 'Fetch Documents from Hugging Face');
     printInfo(`Fetching first ${DOCUMENT_COUNT} documents from ${DATASET_NAME}...`);
     const rawDocs = await fetchFirstNDocuments(DATASET_NAME, DOCUMENT_COUNT);
-    const documents = rawDocs.map((doc, i) => convertToDocumentInfo(doc, i));
+    const documents = rawDocs.map((doc, i) => convertLegalCaseDocument(doc, i));
     printSuccess(`Fetched ${documents.length} legal documents`);
     documents.forEach((doc, i) => {
       printInfo(`  ${i + 1}. ${doc.title} (${doc.content.length.toLocaleString()} chars)`, 3);

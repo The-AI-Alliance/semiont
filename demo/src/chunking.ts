@@ -105,6 +105,36 @@ function findBestBreakPoint(
 }
 
 /**
+ * Simple chunking by character count
+ * Splits text into equal-sized chunks without regard for paragraph boundaries
+ *
+ * @param text - Text to chunk
+ * @param chunkSize - Size of each chunk in characters
+ * @param titlePrefix - Prefix for chunk titles (e.g., "Citizens United - Part")
+ * @returns Array of chunk information
+ */
+export function chunkBySize(
+  text: string,
+  chunkSize: number,
+  titlePrefix: string
+): ChunkInfo[] {
+  const chunks: ChunkInfo[] = [];
+  let partNumber = 1;
+
+  for (let i = 0; i < text.length; i += chunkSize) {
+    const content = text.slice(i, i + chunkSize);
+    chunks.push({
+      partNumber,
+      title: `${titlePrefix} ${partNumber}`,
+      content,
+    });
+    partNumber++;
+  }
+
+  return chunks;
+}
+
+/**
  * Chunks text into segments at natural paragraph boundaries
  * Preserves original formatting by using substring extraction
  *

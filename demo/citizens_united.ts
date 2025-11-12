@@ -18,7 +18,7 @@ import { SemiontApiClient, baseUrl } from '@semiont/api-client';
 
 // Local modules
 import { downloadCornellLII, formatLegalOpinion } from './src/legal-text';
-import { chunkText, type ChunkInfo } from './src/chunking';
+import { chunkBySize } from './src/chunking';
 import { authenticate } from './src/auth';
 import { uploadChunks, createTableOfContents } from './src/resources';
 import { createStubReferences, linkReferences } from './src/annotations';
@@ -93,19 +93,7 @@ async function main() {
     printSectionHeader('✂️ ', 2, 'Chunk Opinion');
     printInfo(`Chunking into sections (~${CHUNK_SIZE} chars per chunk)...`);
 
-    // Use simple chunking by character count
-    const chunks: ChunkInfo[] = [];
-    let partNumber = 1;
-    for (let i = 0; i < formattedText.length; i += CHUNK_SIZE) {
-      const content = formattedText.slice(i, i + CHUNK_SIZE);
-      chunks.push({
-        partNumber,
-        title: `${CASE_TITLE} - Part ${partNumber}`,
-        content,
-      });
-      partNumber++;
-    }
-
+    const chunks = chunkBySize(formattedText, CHUNK_SIZE, `${CASE_TITLE} - Part`);
     const totalChars = chunks.reduce((sum, c) => sum + c.content.length, 0);
     const avgChars = Math.round(totalChars / chunks.length);
     printDownloadStats(totalChars, totalChars);

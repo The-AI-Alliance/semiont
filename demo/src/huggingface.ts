@@ -10,6 +10,20 @@ export interface HuggingFaceDocument {
   [key: string]: any;
 }
 
+/**
+ * Document info with structured metadata
+ */
+export interface DocumentInfo {
+  title: string;
+  content: string;
+  metadata: {
+    decisionDate?: string;
+    docketNumber?: string;
+    citation?: string;
+    [key: string]: any;
+  };
+}
+
 export interface HuggingFaceDatasetOptions {
   dataset: string;
   split?: string;
@@ -65,4 +79,35 @@ export async function fetchFirstNDocuments(
     offset: 0,
     length: count,
   });
+}
+
+/**
+ * Convert free-law dataset document to DocumentInfo
+ * Handles the specific schema from free-law datasets (nh, ca, etc.)
+ */
+export function convertLegalCaseDocument(
+  doc: HuggingFaceDocument,
+  index: number
+): DocumentInfo {
+  // Create a readable title from case name
+  const title = doc.name_abbreviation || doc.name || `Case ${index + 1}`;
+  const decisionDate = doc.decision_date || 'Unknown Date';
+
+  // Build citation if available
+  let citation = '';
+  if (doc.citations && Array.isArray(doc.citations) && doc.citations.length > 0) {
+    citation = doc.citations[0].cite || '';
+  } else if (doc.volume && doc.reporter && doc.first_page) {
+    citation = `${doc.volume} ${doc.reporter} ${doc.first_page}`;
+  }
+
+  return {
+    title: `${title} (${decisionDate})`,
+    content: doc.text || '',
+    metadata: {
+      decisionDate: doc.decision_date,
+      docketNumber: doc.docket_number,
+      citation,
+    },
+  };
 }
