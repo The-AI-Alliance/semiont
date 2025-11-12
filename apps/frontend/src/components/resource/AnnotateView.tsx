@@ -27,7 +27,6 @@ interface Props {
   comments: Annotation[];
   onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
-  onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   onCommentHover?: (commentId: string | null) => void;
   hoveredAnnotationId?: string | null;
@@ -121,7 +120,6 @@ export function AnnotateView({
   comments,
   onTextSelect,
   onAnnotationClick,
-  onAnnotationRightClick,
   onAnnotationHover,
   onCommentHover,
   hoveredAnnotationId,
@@ -292,7 +290,6 @@ export function AnnotateView({
             content={content}
             segments={segments}
             {...(onAnnotationClick && { onAnnotationClick })}
-            {...(onAnnotationRightClick && { onAnnotationRightClick })}
             onAnnotationHover={handleAnnotationHover}
             editable={false}
             newAnnotationIds={newAnnotationIds}
