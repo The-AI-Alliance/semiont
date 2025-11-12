@@ -187,6 +187,9 @@ export function ResourceViewer({
       }
     }
 
+    // Check if this is a highlight, assessment, comment, or reference
+    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
+
     // Handle follow mode - navigate to resolved references only (works in both Browse and Annotate modes)
     if (selectedClick === 'follow' && isReference(annotation)) {
       const bodySource = getBodySource(annotation.body);
@@ -200,11 +203,15 @@ export function ResourceViewer({
       return;
     }
 
+    // Handle JSON-LD mode for all annotation types (works in both Browse and Annotate modes)
+    if (selectedClick === 'jsonld' && isSimpleAnnotation) {
+      setJsonLdAnnotation(annotation);
+      setShowJsonLdView(true);
+      return;
+    }
+
     // Only handle annotation clicks in curation mode with toolbar modes
     if (!curationMode) return;
-
-    // Check if this is a highlight, assessment, comment, or reference
-    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
 
     // Handle delete mode for all annotation types
     if (selectedClick === 'deleting' && isSimpleAnnotation) {
@@ -214,13 +221,6 @@ export function ResourceViewer({
         : { x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 75 };
 
       setDeleteConfirmation({ annotation, position });
-      return;
-    }
-
-    // Handle JSON-LD mode for all annotation types
-    if (selectedClick === 'jsonld' && isSimpleAnnotation) {
-      setJsonLdAnnotation(annotation);
-      setShowJsonLdView(true);
       return;
     }
   }, [router, curationMode, onCommentClick, onReferenceClick, selectedClick, handleDeleteAnnotation]);
