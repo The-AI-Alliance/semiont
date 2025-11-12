@@ -22,6 +22,7 @@ interface CommentsPanelProps {
     start: number;
     end: number;
   } | null;
+  annotateMode?: boolean;
 }
 
 export function CommentsPanel({
@@ -34,6 +35,7 @@ export function CommentsPanel({
   onCommentHover,
   resourceContent,
   pendingSelection,
+  annotateMode = true,
 }: CommentsPanelProps) {
   const t = useTranslations('CommentsPanel');
   const [newCommentText, setNewCommentText] = useState('');
@@ -136,6 +138,7 @@ export function CommentsPanel({
               onCommentRef={handleCommentRef}
               {...(onCommentHover && { onCommentHover })}
               resourceContent={resourceContent}
+              annotateMode={annotateMode}
             />
           ))
         )}

@@ -713,6 +713,7 @@ function ResourceView({
                 onCommentHover={setHoveredCommentId}
                 resourceContent={content}
                 pendingSelection={pendingCommentSelection}
+                annotateMode={annotateMode}
               />
             )}
 

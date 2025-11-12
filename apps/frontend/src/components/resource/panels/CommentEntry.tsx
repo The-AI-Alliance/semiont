@@ -15,6 +15,7 @@ interface CommentEntryProps {
   onCommentRef: (commentId: string, el: HTMLElement | null) => void;
   onCommentHover?: (commentId: string | null) => void;
   resourceContent: string;
+  annotateMode?: boolean;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -42,6 +43,7 @@ export function CommentEntry({
   onCommentRef,
   onCommentHover,
   resourceContent,
+  annotateMode = true,
 }: CommentEntryProps) {
   const t = useTranslations('CommentsPanel');
   const [isEditing, setIsEditing] = useState(false);
@@ -139,14 +141,16 @@ export function CommentEntry({
           <div className="text-xs text-gray-500">
             By {typeof comment.creator === 'string' ? comment.creator : comment.creator?.name || 'Unknown'} • {formatRelativeTime(comment.created || new Date().toISOString())}
           </div>
-          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={handleEditClick}
-              className="text-xs hover:text-purple-600 dark:hover:text-purple-400"
-            >
-              {t('edit')}
-            </button>
-          </div>
+          {annotateMode && (
+            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={handleEditClick}
+                className="text-xs hover:text-purple-600 dark:hover:text-purple-400"
+              >
+                {t('edit')}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
