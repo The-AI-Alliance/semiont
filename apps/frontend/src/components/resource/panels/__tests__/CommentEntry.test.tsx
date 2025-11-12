@@ -427,38 +427,6 @@ describe('CommentEntry Component', () => {
     });
   });
 
-  describe('Delete Functionality', () => {
-    it('should show delete button', () => {
-      render(<CommentEntry {...defaultProps} />);
-
-      expect(screen.getByText('🗑️')).toBeInTheDocument();
-    });
-
-    it('should call onDelete when delete button is clicked', async () => {
-      const onDelete = vi.fn();
-      render(<CommentEntry {...defaultProps} onDelete={onDelete} />);
-
-      const deleteButton = screen.getByText('🗑️');
-      await userEvent.click(deleteButton);
-
-      expect(onDelete).toHaveBeenCalledOnce();
-    });
-
-    it('should call onDelete when delete button is clicked', async () => {
-      const onClick = vi.fn();
-      const onDelete = vi.fn();
-      render(
-        <CommentEntry {...defaultProps} onClick={onClick} onDelete={onDelete} />
-      );
-
-      const deleteButton = screen.getByText('🗑️');
-      await userEvent.click(deleteButton);
-
-      // Should call onDelete
-      expect(onDelete).toHaveBeenCalledOnce();
-    });
-  });
-
   describe('Ref Management', () => {
     it('should call onCommentRef with element on mount', () => {
       const onCommentRef = vi.fn();

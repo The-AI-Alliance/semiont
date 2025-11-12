@@ -664,9 +664,6 @@ function ResourceView({
                   setHoveredCommentId(annotation.id);
                   setTimeout(() => setHoveredCommentId(null), 1500);
                 }}
-                onDeleteComment={async (annotationIdStr) => {
-                  await deleteAnnotation(annotationIdStr, rUri);
-                }}
                 onUpdateComment={async (annotationIdStr, newText) => {
                   // TODO: Implement update comment mutation
                 }}

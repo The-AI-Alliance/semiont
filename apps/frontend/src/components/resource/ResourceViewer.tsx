@@ -10,7 +10,7 @@ import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferen
 import { PopupContainer } from '@/components/annotation-popups/SharedPopupElements';
 import { JsonLdView } from '@/components/annotation-popups/JsonLdView';
 import type { components, ResourceUri, AnnotationUri } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri, resourceAnnotationUri, isHighlight, isAssessment, isReference } from '@semiont/api-client';
+import { getExactText, getTextPositionSelector, getBodySource, getTargetSelector, isBodyResolved, getEntityTypes, resourceUri, annotationUri, resourceAnnotationUri, isHighlight, isAssessment, isReference, isComment } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useAnnotations } from '@/lib/api-hooks';
@@ -169,12 +169,17 @@ export function ResourceViewer({
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
     const metadata = getAnnotationTypeMetadata(annotation);
 
-    // If annotation has a side panel, open it
+    // If annotation has a side panel, only open it when Detail mode is active
+    // For delete/jsonld modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
-      if (onCommentClick) {
+      if (selectedMotivation === 'detail' && onCommentClick) {
         onCommentClick(annotation.id);
+        return;
       }
-      return;
+      // Don't return early for delete/jsonld modes - let them be handled below
+      if (selectedMotivation !== 'deleting' && selectedMotivation !== 'jsonld') {
+        return;
+      }
     }
 
     // Handle navigation for resolved references (in both curation and browse mode)
@@ -189,13 +194,13 @@ export function ResourceViewer({
       return;
     }
 
-    // Only handle highlight/assessment clicks in curation mode with toolbar modes
+    // Only handle highlight/assessment/comment clicks in curation mode with toolbar modes
     if (!curationMode) return;
 
-    // Check if this is a highlight or assessment
-    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation);
+    // Check if this is a highlight, assessment, or comment
+    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation);
 
-    // Handle delete mode for highlights and assessments
+    // Handle delete mode for highlights, assessments, and comments
     if (selectedMotivation === 'deleting' && isSimpleAnnotation) {
       // Show confirmation dialog
       const position = event
@@ -206,7 +211,7 @@ export function ResourceViewer({
       return;
     }
 
-    // Handle JSON-LD mode for highlights and assessments
+    // Handle JSON-LD mode for highlights, assessments, and comments
     if (selectedMotivation === 'jsonld' && isSimpleAnnotation) {
       setJsonLdAnnotation(annotation);
       setShowJsonLdView(true);
@@ -242,12 +247,17 @@ export function ResourceViewer({
   const handleAnnotationRightClick = useCallback((annotation: Annotation, x: number, y: number) => {
     const metadata = getAnnotationTypeMetadata(annotation);
 
-    // If annotation has a side panel, treat right-click same as left-click - open side panel
+    // If annotation has a side panel, only open it when Detail mode is active
+    // For delete/jsonld modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
-      if (onCommentClick) {
+      if (selectedMotivation === 'detail' && onCommentClick) {
         onCommentClick(annotation.id);
+        return;
       }
-      return;
+      // Don't return early for delete/jsonld modes - let them be handled below
+      if (selectedMotivation !== 'deleting' && selectedMotivation !== 'jsonld') {
+        return;
+      }
     }
 
     setEditingAnnotation(annotation);

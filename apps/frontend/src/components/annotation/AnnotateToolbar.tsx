@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-export type AnnotationMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'deleting' | 'jsonld';
+export type AnnotationMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'detail' | 'deleting' | 'jsonld';
 
 interface AnnotateToolbarProps {
   selectedMotivation: AnnotationMotivation;
@@ -95,21 +95,21 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
       {/* Separator */}
       <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
 
-      {/* Delete Button */}
+      {/* Detail Button */}
       <button
-        onClick={() => onMotivationChange('deleting')}
+        onClick={() => onMotivationChange('detail')}
         className={getButtonClass(
-          'deleting',
-          'bg-red-100 dark:bg-red-900/30',
-          'hover:bg-red-200 dark:hover:bg-red-900/50',
-          'text-red-700 dark:text-red-300',
-          'focus:ring-red-500'
+          'detail',
+          'bg-teal-100 dark:bg-teal-900/30',
+          'hover:bg-teal-200 dark:hover:bg-teal-900/50',
+          'text-teal-700 dark:text-teal-300',
+          'focus:ring-teal-500'
         )}
-        title={t('deleting')}
-        aria-pressed={selectedMotivation === 'deleting'}
+        title={t('detail')}
+        aria-pressed={selectedMotivation === 'detail'}
       >
-        <span className="text-lg">🗑️</span>
-        <span>{t('deleting')}</span>
+        <span className="text-lg">🔍</span>
+        <span>{t('detail')}</span>
       </button>
 
       {/* JSON-LD Button */}
@@ -127,6 +127,23 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
       >
         <span className="text-lg">📋</span>
         <span>{t('jsonld')}</span>
+      </button>
+
+      {/* Delete Button */}
+      <button
+        onClick={() => onMotivationChange('deleting')}
+        className={getButtonClass(
+          'deleting',
+          'bg-red-100 dark:bg-red-900/30',
+          'hover:bg-red-200 dark:hover:bg-red-900/50',
+          'text-red-700 dark:text-red-300',
+          'focus:ring-red-500'
+        )}
+        title={t('deleting')}
+        aria-pressed={selectedMotivation === 'deleting'}
+      >
+        <span className="text-lg">🗑️</span>
+        <span>{t('deleting')}</span>
       </button>
     </div>
   );

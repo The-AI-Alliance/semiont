@@ -703,6 +703,7 @@
     "highlighting": "Highlight",
     "assessing": "Assess",
     "commenting": "Comment",
+    "detail": "Detail",
     "deleting": "Delete",
     "jsonld": "JSON-LD"
   },
