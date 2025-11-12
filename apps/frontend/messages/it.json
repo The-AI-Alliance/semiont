@@ -710,6 +710,8 @@
     "close": "Close"
   },
   "AnnotateToolbar": {
+    "selectionGroup": "Selection",
+    "clickGroup": "Click",
     "linking": "Reference",
     "highlighting": "Highlight",
     "assessing": "Assess",

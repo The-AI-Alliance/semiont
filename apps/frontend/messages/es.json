@@ -710,6 +710,8 @@
     "close": "Cerrar"
   },
   "AnnotateToolbar": {
+    "selectionGroup": "Selección",
+    "clickGroup": "Clic",
     "linking": "Referenciar",
     "highlighting": "Destacar",
     "assessing": "Evaluar",
