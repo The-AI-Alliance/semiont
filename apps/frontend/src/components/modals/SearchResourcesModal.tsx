@@ -32,7 +32,7 @@ export function SearchResourcesModal({ isOpen, onClose, onSelect, searchTerm = '
 
   // Extract results from search data
   const results = searchData?.resources?.map((resource: any) => ({
-    id: resource.id,
+    id: resource['@id'],
     name: resource.name,
     content: resource.content
   })) || [];

@@ -7,7 +7,7 @@ import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { useResources, useEntityTypes, useApiClient } from '@/lib/api-hooks';
+import { useResources, useEntityTypes, useApiClient, useAnnotations } from '@/lib/api-hooks';
 import { QUERY_KEYS } from '@/lib/query-keys';
 import { ResourceViewer } from '@/components/resource/ResourceViewer';
 import { ResourceTagsInline } from '@/components/ResourceTagsInline';
@@ -39,7 +39,8 @@ import { ResourceActionsPanel } from '@/components/resource/panels/ResourceActio
 import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
 import { CommentsPanel } from '@/components/resource/panels/CommentsPanel';
 import { Toolbar } from '@/components/Toolbar';
-import { annotationUri, resourceUri } from '@semiont/api-client';
+import { annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
+import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 
 // Loading state component
 function ResourceLoadingState() {
@@ -86,6 +87,7 @@ export default function KnowledgeResourcePage() {
   // API hooks
   const resources = useResources();
   const entityTypesAPI = useEntityTypes();
+  const annotationsAPI = useAnnotations();
 
   // Load resource data - this is the ONLY hook before early returns
   const {
@@ -148,6 +150,7 @@ export default function KnowledgeResourcePage() {
       refetchDocument={refetchDocument}
       resources={resources}
       entityTypesAPI={entityTypesAPI}
+      annotationsAPI={annotationsAPI}
     />
   );
 }
@@ -158,13 +161,15 @@ function ResourceView({
   rUri,
   refetchDocument,
   resources,
-  entityTypesAPI
+  entityTypesAPI,
+  annotationsAPI
 }: {
   resource: SemiontResource;
   rUri: ResourceUri;
   refetchDocument: () => Promise<unknown>;
   resources: ReturnType<typeof useResources>;
   entityTypesAPI: ReturnType<typeof useEntityTypes>;
+  annotationsAPI: ReturnType<typeof useAnnotations>;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -245,6 +250,7 @@ function ResourceView({
   // Set up mutations
   const updateDocMutation = resources.update.useMutation();
   const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
+  const updateAnnotationBodyMutation = annotationsAPI.updateBody.useMutation();
 
   const [annotateMode, setAnnotateMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -261,6 +267,9 @@ function ResourceView({
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
   const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -669,13 +678,43 @@ function ResourceView({
                     handleGenerateDocument(annotationUri(reference.id), { title });
                   }
                 }}
-                onSearchDocuments={(searchTerm, onSelect) => {
-                  // TODO: Open search modal with searchTerm and call onSelect when document is chosen
-                  console.log('Search for:', searchTerm);
+                onSearchDocuments={(term, onSelect) => {
+                  setSearchTerm(term);
+                  // Store the callback - we'll extract the reference ID from the annotation
+                  const ref = references.find(r => getAnnotationExactText(r) === term);
+                  if (ref) {
+                    setPendingReferenceId(ref.id);
+                    setSearchModalOpen(true);
+                  }
                 }}
                 onUpdateReference={async (referenceId, updates) => {
-                  // TODO: Implement update reference mutation
-                  console.log('Update reference:', referenceId, updates);
+                  try {
+                    // Extract short annotation ID from the full URI
+                    const annotationIdShort = referenceId.split('/').pop();
+                    if (!annotationIdShort) {
+                      throw new Error('Invalid reference ID');
+                    }
+
+                    // Construct the nested URI format required by the API
+                    const resourceIdSegment = rUri.split('/').pop() || '';
+                    const nestedUri = `${NEXT_PUBLIC_API_URL}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
+
+                    await updateAnnotationBodyMutation.mutateAsync({
+                      annotationUri: resourceAnnotationUri(nestedUri),
+                      data: {
+                        resourceId: resourceIdSegment,
+                        operations: [{
+                          op: 'add',
+                          item: updates.body as any,
+                        }],
+                      },
+                    });
+                    showSuccess('Reference updated');
+                    await refetchAnnotations();
+                  } catch (error) {
+                    console.error('Failed to update reference:', error);
+                    showError('Failed to update reference');
+                  }
                 }}
               />
             )}
@@ -759,6 +798,53 @@ function ResourceView({
           />
         </div>
       </div>
+
+      {/* Search Resources Modal */}
+      <SearchResourcesModal
+        isOpen={searchModalOpen}
+        onClose={() => {
+          setSearchModalOpen(false);
+          setPendingReferenceId(null);
+        }}
+        onSelect={async (documentId: string) => {
+          if (pendingReferenceId) {
+            try {
+              // Extract short annotation ID from the full URI
+              const annotationIdShort = pendingReferenceId.split('/').pop();
+              if (!annotationIdShort) {
+                throw new Error('Invalid reference ID');
+              }
+
+              // Construct the nested URI format required by the API
+              const resourceIdSegment = rUri.split('/').pop() || '';
+              const nestedUri = `${NEXT_PUBLIC_API_URL}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
+
+              await updateAnnotationBodyMutation.mutateAsync({
+                annotationUri: resourceAnnotationUri(nestedUri),
+                data: {
+                  resourceId: resourceIdSegment,
+                  operations: [{
+                    op: 'add',
+                    item: {
+                      type: 'SpecificResource' as const,
+                      source: documentId,
+                      purpose: 'linking' as const,
+                    },
+                  }],
+                },
+              });
+              showSuccess('Reference linked successfully');
+              await refetchAnnotations();
+              setSearchModalOpen(false);
+              setPendingReferenceId(null);
+            } catch (error) {
+              console.error('Failed to link reference:', error);
+              showError('Failed to link reference');
+            }
+          }
+        }}
+        searchTerm={searchTerm}
+      />
     </div>
   );
 }
