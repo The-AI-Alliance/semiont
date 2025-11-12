@@ -3,23 +3,36 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-export type AnnotationMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'detail' | 'deleting' | 'jsonld';
+export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting';
+export type ClickMotivation = 'detail' | 'jsonld' | 'deleting';
 
 interface AnnotateToolbarProps {
-  selectedMotivation: AnnotationMotivation | null;
-  onMotivationChange: (motivation: AnnotationMotivation | null) => void;
+  selectedSelection: SelectionMotivation | null;
+  selectedClick: ClickMotivation;
+  onSelectionChange: (motivation: SelectionMotivation | null) => void;
+  onClickChange: (motivation: ClickMotivation) => void;
 }
 
-export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: AnnotateToolbarProps) {
+export function AnnotateToolbar({
+  selectedSelection,
+  selectedClick,
+  onSelectionChange,
+  onClickChange
+}: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
 
-  const handleButtonClick = (motivation: AnnotationMotivation) => {
+  const handleSelectionClick = (motivation: SelectionMotivation) => {
     // Toggle: if already selected, deselect it
-    onMotivationChange(selectedMotivation === motivation ? null : motivation);
+    onSelectionChange(selectedSelection === motivation ? null : motivation);
   };
 
-  const getButtonClass = (motivation: AnnotationMotivation, isDeleteButton = false) => {
-    const isSelected = selectedMotivation === motivation;
+  const handleClickClick = (motivation: ClickMotivation) => {
+    // Always set the clicked motivation (no toggle)
+    onClickChange(motivation);
+  };
+
+  const getButtonClass = (motivation: SelectionMotivation | ClickMotivation, isDeleteButton = false) => {
+    const isSelected = selectedSelection === motivation || selectedClick === motivation;
     const baseClasses = 'px-3 py-1.5 rounded-md transition-all flex items-center font-medium border-none focus:outline-none';
 
     if (isDeleteButton) {
@@ -49,40 +62,40 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
 
         {/* Reference Button */}
         <button
-          onClick={() => handleButtonClick('linking')}
+          onClick={() => handleSelectionClick('linking')}
           className={getButtonClass('linking')}
           title={t('linking')}
-          aria-pressed={selectedMotivation === 'linking'}
+          aria-pressed={selectedSelection === 'linking'}
         >
           <span className="text-lg">🔵</span>
         </button>
 
         {/* Highlighting Button */}
         <button
-          onClick={() => handleButtonClick('highlighting')}
+          onClick={() => handleSelectionClick('highlighting')}
           className={getButtonClass('highlighting')}
           title={t('highlighting')}
-          aria-pressed={selectedMotivation === 'highlighting'}
+          aria-pressed={selectedSelection === 'highlighting'}
         >
           <span className="text-lg">🟡</span>
         </button>
 
         {/* Assessing Button */}
         <button
-          onClick={() => handleButtonClick('assessing')}
+          onClick={() => handleSelectionClick('assessing')}
           className={getButtonClass('assessing')}
           title={t('assessing')}
-          aria-pressed={selectedMotivation === 'assessing'}
+          aria-pressed={selectedSelection === 'assessing'}
         >
           <span className="text-lg">🔴</span>
         </button>
 
         {/* Commenting Button */}
         <button
-          onClick={() => handleButtonClick('commenting')}
+          onClick={() => handleSelectionClick('commenting')}
           className={getButtonClass('commenting')}
           title={t('commenting')}
-          aria-pressed={selectedMotivation === 'commenting'}
+          aria-pressed={selectedSelection === 'commenting'}
         >
           <span className="text-lg">💬</span>
         </button>
@@ -99,30 +112,30 @@ export function AnnotateToolbar({ selectedMotivation, onMotivationChange }: Anno
 
         {/* Detail Button */}
         <button
-          onClick={() => handleButtonClick('detail')}
+          onClick={() => handleClickClick('detail')}
           className={getButtonClass('detail')}
           title={t('detail')}
-          aria-pressed={selectedMotivation === 'detail'}
+          aria-pressed={selectedClick === 'detail'}
         >
           <span className="text-lg">🔍</span>
         </button>
 
         {/* JSON-LD Button */}
         <button
-          onClick={() => handleButtonClick('jsonld')}
+          onClick={() => handleClickClick('jsonld')}
           className={getButtonClass('jsonld')}
           title={t('jsonld')}
-          aria-pressed={selectedMotivation === 'jsonld'}
+          aria-pressed={selectedClick === 'jsonld'}
         >
           <span className="text-lg">🌐</span>
         </button>
 
         {/* Delete Button */}
         <button
-          onClick={() => handleButtonClick('deleting')}
+          onClick={() => handleClickClick('deleting')}
           className={getButtonClass('deleting', true)}
           title={t('deleting')}
-          aria-pressed={selectedMotivation === 'deleting'}
+          aria-pressed={selectedClick === 'deleting'}
         >
           <span className="text-lg">🗑️</span>
         </button>

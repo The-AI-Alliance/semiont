@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import { AnnotateView, type AnnotationMotivation } from './AnnotateView';
+import { AnnotateView, type SelectionMotivation, type ClickMotivation } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferencePopup';
 import { PopupContainer } from '@/components/annotation-popups/SharedPopupElements';
@@ -87,7 +87,8 @@ export function ResourceViewer({
   } = useResourceAnnotations();
 
   // Annotation toolbar state
-  const [selectedMotivation, setSelectedMotivation] = useState<AnnotationMotivation>('linking');
+  const [selectedSelection, setSelectedSelection] = useState<SelectionMotivation | null>('linking');
+  const [selectedClick, setSelectedClick] = useState<ClickMotivation>('detail');
 
   // Quick reference popup state
   const [showQuickReferencePopup, setShowQuickReferencePopup] = useState(false);
@@ -138,7 +139,7 @@ export function ResourceViewer({
     // If annotation has a side panel, only open it when Detail mode is active
     // For delete/jsonld modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
-      if (selectedMotivation === 'detail') {
+      if (selectedClick === 'detail') {
         // Route to appropriate panel based on annotation type
         if (isComment(annotation) && onCommentClick) {
           onCommentClick(annotation.id);
@@ -150,7 +151,7 @@ export function ResourceViewer({
         }
       }
       // Don't return early for delete/jsonld modes - let them be handled below
-      if (selectedMotivation !== 'deleting' && selectedMotivation !== 'jsonld') {
+      if (selectedClick !== 'deleting' && selectedClick !== 'jsonld') {
         return;
       }
     }
@@ -162,7 +163,7 @@ export function ResourceViewer({
     const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
 
     // Handle delete mode for all annotation types
-    if (selectedMotivation === 'deleting' && isSimpleAnnotation) {
+    if (selectedClick === 'deleting' && isSimpleAnnotation) {
       // Show confirmation dialog
       const position = event
         ? { x: event.clientX, y: event.clientY + 10 }
@@ -173,12 +174,12 @@ export function ResourceViewer({
     }
 
     // Handle JSON-LD mode for all annotation types
-    if (selectedMotivation === 'jsonld' && isSimpleAnnotation) {
+    if (selectedClick === 'jsonld' && isSimpleAnnotation) {
       setJsonLdAnnotation(annotation);
       setShowJsonLdView(true);
       return;
     }
-  }, [router, curationMode, onCommentClick, onReferenceClick, selectedMotivation, handleDeleteAnnotation]);
+  }, [router, curationMode, onCommentClick, onReferenceClick, selectedClick, handleDeleteAnnotation]);
 
   // Handle immediate highlight creation (no popup)
   const handleImmediateHighlight = useCallback(async (exact: string, position: { start: number; end: number }) => {
@@ -279,8 +280,10 @@ export function ResourceViewer({
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             showLineNumbers={showLineNumbers}
-            selectedMotivation={selectedMotivation}
-            onMotivationChange={setSelectedMotivation}
+            selectedSelection={selectedSelection}
+            selectedClick={selectedClick}
+            onSelectionChange={setSelectedSelection}
+            onClickChange={setSelectedClick}
             onCreateHighlight={handleImmediateHighlight}
             onCreateAssessment={handleImmediateAssessment}
             onCreateComment={handleImmediateComment}
@@ -313,8 +316,10 @@ export function ResourceViewer({
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             showLineNumbers={showLineNumbers}
-            selectedMotivation={selectedMotivation}
-            onMotivationChange={setSelectedMotivation}
+            selectedSelection={selectedSelection}
+            selectedClick={selectedClick}
+            onSelectionChange={setSelectedSelection}
+            onClickChange={setSelectedClick}
             onCreateHighlight={handleImmediateHighlight}
             onCreateAssessment={handleImmediateAssessment}
             onCreateComment={handleImmediateComment}

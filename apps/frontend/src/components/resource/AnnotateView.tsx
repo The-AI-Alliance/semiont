@@ -11,11 +11,11 @@ type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
-import { AnnotateToolbar, type AnnotationMotivation } from '@/components/annotation/AnnotateToolbar';
+import { AnnotateToolbar, type SelectionMotivation, type ClickMotivation } from '@/components/annotation/AnnotateToolbar';
 import '@/styles/animations.css';
 
 // Re-export for convenience
-export type { AnnotationMotivation };
+export type { SelectionMotivation, ClickMotivation };
 
 interface Props {
   content: string;
@@ -41,8 +41,10 @@ interface Props {
   generatingReferenceId?: string | null;
   onDeleteAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
-  selectedMotivation?: AnnotationMotivation;
-  onMotivationChange?: (motivation: AnnotationMotivation) => void;
+  selectedSelection?: SelectionMotivation | null;
+  selectedClick?: ClickMotivation;
+  onSelectionChange?: (motivation: SelectionMotivation | null) => void;
+  onClickChange?: (motivation: ClickMotivation) => void;
   onCreateHighlight?: (exact: string, position: { start: number; end: number }) => void;
   onCreateAssessment?: (exact: string, position: { start: number; end: number }) => void;
   onCreateComment?: (exact: string, position: { start: number; end: number }) => void;
@@ -134,8 +136,10 @@ export function AnnotateView({
   generatingReferenceId,
   onDeleteAnnotation,
   showLineNumbers = false,
-  selectedMotivation = 'linking',
-  onMotivationChange,
+  selectedSelection = 'linking',
+  selectedClick = 'detail',
+  onSelectionChange,
+  onClickChange,
   onCreateHighlight,
   onCreateAssessment,
   onCreateComment,
@@ -203,20 +207,20 @@ export function AnnotateView({
         const end = start + text.length;
 
         // Check motivation and either create immediately or show sparkle
-        if (selectedMotivation === 'highlighting' && onCreateHighlight) {
+        if (selectedSelection === 'highlighting' && onCreateHighlight) {
           onCreateHighlight(text, { start, end });
           selection.removeAllRanges();
           return;
-        } else if (selectedMotivation === 'assessing' && onCreateAssessment) {
+        } else if (selectedSelection === 'assessing' && onCreateAssessment) {
           onCreateAssessment(text, { start, end });
           selection.removeAllRanges();
           return;
-        } else if (selectedMotivation === 'commenting' && onCreateComment) {
+        } else if (selectedSelection === 'commenting' && onCreateComment) {
           onCreateComment(text, { start, end });
           // Keep visual selection while Comment Panel is open
           setSelectionState({ exact: text, start, end, rects });
           return;
-        } else if (selectedMotivation === 'linking' && onCreateReference && rects.length > 0) {
+        } else if (selectedSelection === 'linking' && onCreateReference && rects.length > 0) {
           // Calculate popup position from rects
           const lastRect = rects[rects.length - 1];
           if (lastRect) {
@@ -235,20 +239,20 @@ export function AnnotateView({
 
       if (start >= 0) {
         // Check motivation and either create immediately or show sparkle
-        if (selectedMotivation === 'highlighting' && onCreateHighlight) {
+        if (selectedSelection === 'highlighting' && onCreateHighlight) {
           onCreateHighlight(text, { start, end });
           selection.removeAllRanges();
           return;
-        } else if (selectedMotivation === 'assessing' && onCreateAssessment) {
+        } else if (selectedSelection === 'assessing' && onCreateAssessment) {
           onCreateAssessment(text, { start, end });
           selection.removeAllRanges();
           return;
-        } else if (selectedMotivation === 'commenting' && onCreateComment) {
+        } else if (selectedSelection === 'commenting' && onCreateComment) {
           onCreateComment(text, { start, end });
           // Keep visual selection while Comment Panel is open
           setSelectionState({ exact: text, start, end, rects });
           return;
-        } else if (selectedMotivation === 'linking' && onCreateReference && rects.length > 0) {
+        } else if (selectedSelection === 'linking' && onCreateReference && rects.length > 0) {
           // Calculate popup position from rects
           const lastRect = rects[rects.length - 1];
           if (lastRect) {
@@ -274,7 +278,7 @@ export function AnnotateView({
       container.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [selectedMotivation, onCreateHighlight, onCreateAssessment, onCreateComment, onCreateReference, content]);
+  }, [selectedSelection, onCreateHighlight, onCreateAssessment, onCreateComment, onCreateReference, content]);
 
   // Route to appropriate viewer based on MIME type category
   switch (category) {
@@ -282,8 +286,10 @@ export function AnnotateView({
       return (
         <div className="relative h-full flex flex-col" ref={containerRef}>
           <AnnotateToolbar
-            selectedMotivation={selectedMotivation}
-            onMotivationChange={onMotivationChange || (() => {})}
+            selectedSelection={selectedSelection}
+            selectedClick={selectedClick}
+            onSelectionChange={onSelectionChange || (() => {})}
+            onClickChange={onClickChange || (() => {})}
           />
           <div className="flex-1 overflow-auto">
             <CodeMirrorRenderer
@@ -337,8 +343,10 @@ export function AnnotateView({
       return (
         <div className="relative h-full flex flex-col" ref={containerRef}>
           <AnnotateToolbar
-            selectedMotivation={selectedMotivation}
-            onMotivationChange={onMotivationChange || (() => {})}
+            selectedSelection={selectedSelection}
+            selectedClick={selectedClick}
+            onSelectionChange={onSelectionChange || (() => {})}
+            onClickChange={onClickChange || (() => {})}
           />
           <div className="flex-1 overflow-auto">
             {resourceUri && (
