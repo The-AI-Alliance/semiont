@@ -14,7 +14,6 @@ export interface DatasetConfig {
   entityTypes: string[];
   createTableOfContents: boolean;
   tocTitle?: string;
-  stateFile: string;
   detectCitations: boolean;
   cacheFile: string;
   downloadContent?: () => Promise<void>;
@@ -23,4 +22,12 @@ export interface DatasetConfig {
     startPattern: RegExp;
     endMarker: string;
   };
+}
+
+/**
+ * Extended dataset config with computed paths
+ * Created internally by demo.ts during dataset loading
+ */
+export interface DatasetConfigWithPaths extends DatasetConfig {
+  stateFile: string; // Computed: config/{dataset_dir}/.state.json
 }

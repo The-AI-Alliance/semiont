@@ -19,7 +19,6 @@ export const config: DatasetConfig = {
   shouldChunk: false,
   entityTypes: ['text', 'hiking', 'outdoor'],
   createTableOfContents: false,
-  stateFile: '.demo-hiking-state.json',
   detectCitations: false,
   cacheFile: 'data/hiking.txt', // Already local, no download needed
 

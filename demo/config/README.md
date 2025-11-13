@@ -9,13 +9,17 @@ config/
 ├── types.ts                      # Shared types
 ├── README.md                     # This file
 ├── citizens_united/              # Citizens United dataset
-│   └── config.ts
+│   ├── config.ts                 # Dataset configuration
+│   └── .state.json               # State file (gitignored)
 ├── hiking/                       # Hiking notes dataset
-│   └── config.ts
+│   ├── config.ts
+│   └── .state.json               # (gitignored)
 ├── arxiv/                        # ArXiv paper dataset
-│   └── config.ts
+│   ├── config.ts
+│   └── .state.json               # (gitignored)
 └── prometheus_bound/             # Prometheus Bound dataset
-    └── config.ts
+    ├── config.ts
+    └── .state.json               # (gitignored)
 ```
 
 ## Adding a New Dataset
@@ -44,7 +48,6 @@ To add a new dataset to the demo system:
      entityTypes: ['type1', 'type2'],  // Metadata tags
      createTableOfContents: true,      // Create TOC with linked references
      tocTitle: 'My Dataset - TOC',     // Title for the TOC
-     stateFile: '.demo-my-dataset-state.json',  // State persistence file
      detectCitations: false,           // Enable citation detection
      cacheFile: 'data/tmp/my_dataset.txt',  // Where to cache downloaded content
 
@@ -79,6 +82,8 @@ To add a new dataset to the demo system:
 
 The discovery process scans all subdirectories in `config/` and looks for a `config.ts` file in each one.
 
+**Note:** State files are automatically created as `.state.json` in each dataset's config directory. These files store the state between load and annotate phases and are gitignored.
+
 ## Configuration Options
 
 ### Required Fields
@@ -88,7 +93,6 @@ The discovery process scans all subdirectories in `config/` and looks for a `con
 - `shouldChunk`: Whether to split document into chunks
 - `entityTypes`: Array of metadata tags
 - `createTableOfContents`: Whether to create TOC
-- `stateFile`: Path to state persistence file
 - `detectCitations`: Whether to run citation detection
 - `cacheFile`: Path to cached content
 - `loadText`: Function that returns formatted text

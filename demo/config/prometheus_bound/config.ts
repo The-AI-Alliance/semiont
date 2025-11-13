@@ -24,7 +24,6 @@ export const config: DatasetConfig = {
   entityTypes: ['literature', 'ancient-greek-drama'],
   createTableOfContents: true,
   tocTitle: 'Prometheus Bound: Table of Contents',
-  stateFile: '.demo-prometheus-bound-state.json',
   detectCitations: false,
   cacheFile: 'data/tmp/prometheus_bound.txt',
   extractionConfig: {

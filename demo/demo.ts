@@ -42,7 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { SemiontApiClient, baseUrl, resourceUri, type ResourceUri } from '@semiont/api-client';
 
 // Dataset configuration types
-import type { DatasetConfig } from './config/types.js';
+import type { DatasetConfig, DatasetConfigWithPaths } from './config/types.js';
 
 // Local modules
 import { chunkBySize, chunkText, type ChunkInfo } from './src/chunking';
@@ -74,12 +74,12 @@ import {
  * Dynamically load all dataset configurations from the config directory
  * Each dataset should be in its own subdirectory with a config.ts file
  */
-async function loadDatasets(): Promise<Record<string, DatasetConfig>> {
+async function loadDatasets(): Promise<Record<string, DatasetConfigWithPaths>> {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
   const configDir = join(__dirname, 'config');
 
-  const datasets: Record<string, DatasetConfig> = {};
+  const datasets: Record<string, DatasetConfigWithPaths> = {};
 
   // Read all entries in config directory
   const entries = readdirSync(configDir, { withFileTypes: true });
@@ -98,7 +98,14 @@ async function loadDatasets(): Promise<Record<string, DatasetConfig>> {
 
       if (module.config && typeof module.config === 'object') {
         const config = module.config as DatasetConfig;
-        datasets[config.name] = config;
+
+        // Add computed stateFile path
+        const configWithPaths: DatasetConfigWithPaths = {
+          ...config,
+          stateFile: join('config', entry.name, '.state.json'),
+        };
+
+        datasets[config.name] = configWithPaths;
       }
     } catch (error) {
       // Skip directories that don't have a valid config.ts
@@ -138,13 +145,13 @@ interface DemoState {
   formattedText: string;
 }
 
-function saveState(dataset: DatasetConfig, state: Omit<DemoState, 'dataset'>): void {
+function saveState(dataset: DatasetConfigWithPaths, state: Omit<DemoState, 'dataset'>): void {
   const fullState: DemoState = { dataset: dataset.name, ...state };
   writeFileSync(dataset.stateFile, JSON.stringify(fullState, null, 2));
   printSuccess(`State saved to ${dataset.stateFile}`);
 }
 
-function loadState(dataset: DatasetConfig): DemoState {
+function loadState(dataset: DatasetConfigWithPaths): DemoState {
   if (!existsSync(dataset.stateFile)) {
     throw new Error(`State file ${dataset.stateFile} not found. Run 'load' command first.`);
   }

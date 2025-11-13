@@ -21,7 +21,6 @@ export const config: DatasetConfig = {
   shouldChunk: false,
   entityTypes: ['research-paper', 'ai', 'transformers', 'deep-learning'],
   createTableOfContents: false,
-  stateFile: '.demo-arxiv-state.json',
   detectCitations: false,
   cacheFile: 'data/tmp/arxiv_1706.03762.json',
 

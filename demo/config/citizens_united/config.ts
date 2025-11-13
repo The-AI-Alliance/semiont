@@ -22,7 +22,6 @@ export const config: DatasetConfig = {
   entityTypes: ['legal', 'supreme-court', 'campaign-finance', 'first-amendment', 'LegalCitation'],
   createTableOfContents: true,
   tocTitle: 'Citizens United v. FEC - Table of Contents',
-  stateFile: '.demo-citizens-united-state.json',
   detectCitations: true,
   cacheFile: 'data/tmp/citizens_united.html',
 
