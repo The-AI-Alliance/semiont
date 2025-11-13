@@ -4,6 +4,7 @@
  * Console output utilities for progress tracking and results display.
  */
 
+import type { ResourceUri } from '@semiont/api-client';
 import type { ChunkInfo } from './chunking';
 
 /**
@@ -99,22 +100,20 @@ export interface EventDetails {
   eventNum: number;
   sequenceNumber: number | string;
   type: string;
-  payload?: {
-    exact?: string;
-    position?: { offset?: number };
-    targetDocumentId?: string;
-  };
+  payload?: unknown;
 }
 
 export function printEvent(event: EventDetails): void {
   console.log(`     [${event.eventNum}] seq=${event.sequenceNumber} - ${event.type}`);
 
-  if (event.type === 'annotation.added' && event.payload) {
-    const exact = event.payload.exact || 'unknown';
-    const offset = event.payload.position?.offset ?? '?';
+  if (event.type === 'annotation.added' && event.payload && typeof event.payload === 'object' && event.payload !== null) {
+    const payload = event.payload as { exact?: string; position?: { offset?: number } };
+    const exact = payload.exact || 'unknown';
+    const offset = payload.position?.offset ?? '?';
     console.log(`         → Created: "${exact}" at offset ${offset}`);
-  } else if (event.type === 'annotation.body.updated' && event.payload) {
-    const targetId = event.payload.targetDocumentId || 'unknown';
+  } else if (event.type === 'annotation.body.updated' && event.payload && typeof event.payload === 'object' && event.payload !== null) {
+    const payload = event.payload as { targetDocumentId?: string };
+    const targetId = payload.targetDocumentId || 'unknown';
     console.log(`         → Linked to: ${targetId.substring(0, 40)}...`);
   }
 }
@@ -123,8 +122,8 @@ export function printEvent(event: EventDetails): void {
  * Prints final results summary
  */
 export interface ResultsSummary {
-  tocId: string;
-  chunkIds: string[];
+  tocId: ResourceUri;
+  chunkIds: ResourceUri[];
   linkedCount: number;
   totalCount: number;
   frontendUrl: string;
@@ -134,7 +133,13 @@ export function printResults(summary: ResultsSummary): void {
   printSectionHeader('✨', 7, 'Results');
 
   // Extract resource ID from full URI
-  const getTocResourceId = (uri: string) => uri.split('/resources/')[1];
+  const getTocResourceId = (uri: ResourceUri): string => {
+    const parts = uri.split('/resources/');
+    if (parts.length !== 2 || !parts[1]) {
+      throw new Error(`Invalid resource URI format: ${uri}`);
+    }
+    return parts[1];
+  };
 
   console.log('\n📋 Table of Contents:');
   console.log(`   ${summary.frontendUrl}/en/know/resource/${getTocResourceId(summary.tocId)}`);

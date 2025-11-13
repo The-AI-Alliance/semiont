@@ -4,7 +4,7 @@
  * Reusable utilities for creating and linking annotations.
  */
 
-import type { SemiontApiClient } from '@semiont/api-client';
+import type { SemiontApiClient, ResourceUri } from '@semiont/api-client';
 import { resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { printBatchProgress, printSuccess, printWarning, printAnnotationCreated, printFilesystemPath } from './display';
 import { getLayer2Path, getLayer3Path } from './filesystem-utils';
@@ -18,9 +18,9 @@ export interface CreateStubReferencesOptions {
  * Create stub annotations (references without targets yet)
  */
 export async function createStubReferences(
-  tocId: string,
+  tocId: ResourceUri,
   references: TableOfContentsReference[],
-  chunkIds: string[],
+  chunkIds: ResourceUri[],
   client: SemiontApiClient,
   options: CreateStubReferencesOptions = {}
 ): Promise<TableOfContentsReference[]> {
@@ -78,7 +78,7 @@ export interface LinkReferencesOptions {
  * Link stub references to target documents
  */
 export async function linkReferences(
-  tocId: string,
+  tocId: ResourceUri,
   references: TableOfContentsReference[],
   client: SemiontApiClient,
   options: LinkReferencesOptions = {}
@@ -96,7 +96,11 @@ export async function linkReferences(
 
     try {
       // Match compose page pattern: short annotation ID in path, full resource URI in body
-      const annotationIdShort = ref.annotationId!.split('/annotations/')[1];
+      const parts = ref.annotationId!.split('/annotations/');
+      if (parts.length !== 2 || !parts[1]) {
+        throw new Error(`Invalid annotation ID format: ${ref.annotationId}`);
+      }
+      const annotationIdShort = parts[1];
       const nestedUri = `${tocId}/annotations/${annotationIdShort}`;
 
       await client.updateAnnotationBody(resourceAnnotationUri(nestedUri), {

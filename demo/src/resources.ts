@@ -4,9 +4,10 @@
  * Reusable utilities for creating and managing resources.
  */
 
-import type { SemiontApiClient } from '@semiont/api-client';
+import type { SemiontApiClient, ResourceUri } from '@semiont/api-client';
+import { resourceUri } from '@semiont/api-client';
 import type { ChunkInfo } from './chunking';
-import { printBatchProgress, printSuccess, printFilesystemPath } from './display';
+import { printBatchProgress, printSuccess, printFilesystemPath, printInfo } from './display';
 import { getLayer1Path } from './filesystem-utils';
 
 export interface UploadOptions {
@@ -21,8 +22,8 @@ export async function uploadChunks(
   chunks: ChunkInfo[],
   client: SemiontApiClient,
   options: UploadOptions = {}
-): Promise<string[]> {
-  const documentIds: string[] = [];
+): Promise<ResourceUri[]> {
+  const documentIds: ResourceUri[] = [];
   const { entityTypes = [], dataDir } = options;
 
   for (let i = 0; i < chunks.length; i++) {
@@ -37,7 +38,7 @@ export async function uploadChunks(
     };
 
     const response = await client.createResource(request);
-    const resourceId = response.resource['@id'] as string;
+    const resourceId = resourceUri(response.resource['@id']);
     documentIds.push(resourceId);
     printSuccess(resourceId, 7);
 
@@ -54,7 +55,7 @@ export interface TableOfContentsReference {
   text: string;
   start: number;
   end: number;
-  documentId: string;
+  documentId: ResourceUri;
   annotationId?: string;
 }
 
@@ -71,7 +72,7 @@ export async function createTableOfContents(
   chunks: ChunkInfo[],
   client: SemiontApiClient,
   options: TableOfContentsOptions
-): Promise<{ tocId: string; references: TableOfContentsReference[] }> {
+): Promise<{ tocId: ResourceUri; references: TableOfContentsReference[] }> {
   const { title, entityTypes = [], dataDir } = options;
 
   // Build markdown content with timestamp to ensure unique document ID
@@ -91,7 +92,7 @@ export async function createTableOfContents(
       text: partText,
       start,
       end,
-      documentId: '', // Will be filled by caller
+      documentId: '' as ResourceUri, // Will be filled by caller
     });
 
     content += listItem;
@@ -107,7 +108,7 @@ export async function createTableOfContents(
   };
 
   const response = await client.createResource(request);
-  const tocId = response.resource['@id'] as string;
+  const tocId = resourceUri(response.resource['@id']);
   printSuccess(`Created ToC: ${tocId}`);
 
   if (dataDir) {
@@ -115,8 +116,4 @@ export async function createTableOfContents(
   }
 
   return { tocId, references };
-}
-
-function printInfo(message: string, indent: number = 3): void {
-  console.log(`${' '.repeat(indent)}${message}`);
 }
