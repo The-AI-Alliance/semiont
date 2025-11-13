@@ -59,6 +59,7 @@ import { createStubReferences, linkReferences } from './src/annotations';
 import { showDocumentHistory } from './src/history';
 import { detectCitations } from './src/legal-citations';
 import { getLayer1Path } from './src/filesystem-utils';
+import { TerminalApp } from './src/terminal-app.js';
 import {
   printMainHeader,
   printSectionHeader,
@@ -538,7 +539,7 @@ const program = new Command();
 
 program
   .name('demo')
-  .description('Semiont demo script for multiple datasets')
+  .description('Semiont demo script for multiple datasets\n\nUse --interactive (or --app, --terminal) to launch the interactive terminal UI')
   .version('0.1.0');
 
 program
@@ -557,11 +558,23 @@ program
     }
   });
 
-// Show help if no command provided
-if (process.argv.length === 2) {
-  program.help();
-}
-
 if (import.meta.url === `file://${process.argv[1]}`) {
-  program.parse(process.argv);
+  // Check for interactive mode flags before Commander processes them
+  const hasInteractiveFlag = process.argv.some(arg =>
+    arg === '--interactive' || arg === '--app' || arg === '--terminal'
+  );
+
+  if (hasInteractiveFlag) {
+    // Launch interactive mode directly
+    const app = new TerminalApp(DATASETS);
+    app.run();
+  } else {
+    // Show help if no command provided
+    if (process.argv.length === 2) {
+      program.help();
+    }
+
+    // Parse commands normally
+    program.parse(process.argv);
+  }
 }
