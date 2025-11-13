@@ -15,7 +15,8 @@ import { getLayer1Path } from './filesystem-utils';
  */
 export interface DocumentInfo {
   title: string;
-  content: string;
+  content: string | Buffer; // Support both text and binary content
+  format?: 'text/plain' | 'text/markdown' | 'image/jpeg' | 'image/png' | string; // MIME type
   metadata?: Record<string, any>;
 }
 
@@ -143,10 +144,16 @@ export async function uploadDocuments(
     const doc = documents[i];
     printBatchProgress(i + 1, documents.length, `Uploading ${doc.title}...`);
 
+    // Handle both string and Buffer content
+    const fileBuffer = Buffer.isBuffer(doc.content) ? doc.content : Buffer.from(doc.content);
+
+    // Use format from document if provided, otherwise default to text/plain
+    const format = doc.format || 'text/plain';
+
     const request = {
       name: doc.title,
-      file: Buffer.from(doc.content),
-      format: 'text/plain' as const,
+      file: fileBuffer,
+      format: format as any, // API accepts various MIME types
       entityTypes,
     };
 

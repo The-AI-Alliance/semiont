@@ -5,18 +5,7 @@
   "type": "module",
   "description": "Demo scripts for Semiont",
   "scripts": {
-    "demo:freelaw-nh:download": "dotenv -e .env -- tsx demo.ts freelaw_nh download",
-    "demo:freelaw-nh:load": "dotenv -e .env -- tsx demo.ts freelaw_nh load",
-    "demo:citizens-united:download": "dotenv -e .env -- tsx demo.ts citizens_united download",
-    "demo:citizens-united:load": "dotenv -e .env -- tsx demo.ts citizens_united load",
-    "demo:citizens-united:annotate": "dotenv -e .env -- tsx demo.ts citizens_united annotate",
-    "demo:hiking:load": "dotenv -e .env -- tsx demo.ts hiking load",
-    "demo:hiking:annotate": "dotenv -e .env -- tsx demo.ts hiking annotate",
-    "demo:arxiv:download": "dotenv -e .env -- tsx demo.ts arxiv download",
-    "demo:arxiv:load": "dotenv -e .env -- tsx demo.ts arxiv load",
-    "demo:prometheus-bound:download": "dotenv -e .env -- tsx demo.ts prometheus_bound download",
-    "demo:prometheus-bound:load": "dotenv -e .env -- tsx demo.ts prometheus_bound load",
-    "arxiv": "dotenv -e .env -- tsx demo.ts arxiv load"
+    "demo": "dotenv -e .env -- tsx demo.ts --help"
   },
   "dependencies": {
     "@semiont/api-client": "*",

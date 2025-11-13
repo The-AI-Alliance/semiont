@@ -80,6 +80,7 @@ import {
 /**
  * Dynamically load all dataset configurations from the config directory
  * Each dataset should be in its own subdirectory with a config.ts file
+ * Scans both config/ and config/private/ directories
  */
 async function loadDatasets(): Promise<Record<string, DatasetConfigWithPaths>> {
   const __filename = fileURLToPath(import.meta.url);
@@ -88,37 +89,59 @@ async function loadDatasets(): Promise<Record<string, DatasetConfigWithPaths>> {
 
   const datasets: Record<string, DatasetConfigWithPaths> = {};
 
-  // Read all entries in config directory
-  const entries = readdirSync(configDir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    // Only process directories (skip files like types.ts, README.md)
-    if (!entry.isDirectory()) {
-      continue;
+  /**
+   * Scan a directory for dataset configurations
+   * @param basePath - The base directory to scan (e.g., 'config' or 'config/private')
+   * @param relativePathPrefix - The relative path prefix for state files (e.g., 'config' or 'config/private')
+   */
+  async function scanDirectory(basePath: string, relativePathPrefix: string) {
+    if (!existsSync(basePath)) {
+      return;
     }
 
-    // Look for config.ts within the dataset directory
-    const configPath = join(configDir, entry.name, 'config.ts');
+    // Read all entries in the directory
+    const entries = readdirSync(basePath, { withFileTypes: true });
 
-    try {
-      const module = await import(configPath);
-
-      if (module.config && typeof module.config === 'object') {
-        const config = module.config as DatasetConfig;
-
-        // Add computed stateFile path
-        const configWithPaths: DatasetConfigWithPaths = {
-          ...config,
-          stateFile: join('config', entry.name, '.state.json'),
-        };
-
-        datasets[config.name] = configWithPaths;
+    for (const entry of entries) {
+      // Only process directories (skip files like types.ts, README.md, .gitignore)
+      if (!entry.isDirectory()) {
+        continue;
       }
-    } catch (error) {
-      // Skip directories that don't have a valid config.ts
-      console.warn(`Warning: Could not load config from ${entry.name}:`, error instanceof Error ? error.message : error);
+
+      // Look for config.ts within the dataset directory
+      const configPath = join(basePath, entry.name, 'config.ts');
+
+      // Skip if config.ts doesn't exist (e.g., private/ is a container directory, not a dataset)
+      if (!existsSync(configPath)) {
+        continue;
+      }
+
+      try {
+        const module = await import(configPath);
+
+        if (module.config && typeof module.config === 'object') {
+          const config = module.config as DatasetConfig;
+
+          // Add computed stateFile path
+          const configWithPaths: DatasetConfigWithPaths = {
+            ...config,
+            stateFile: join(relativePathPrefix, entry.name, '.state.json'),
+          };
+
+          datasets[config.name] = configWithPaths;
+        }
+      } catch (error) {
+        // Skip directories that don't have a valid config.ts
+        console.warn(`Warning: Could not load config from ${relativePathPrefix}/${entry.name}:`, error instanceof Error ? error.message : error);
+      }
     }
   }
+
+  // Scan public configs in config/
+  await scanDirectory(configDir, 'config');
+
+  // Scan private configs in config/private/
+  await scanDirectory(join(configDir, 'private'), 'config/private');
 
   return datasets;
 }

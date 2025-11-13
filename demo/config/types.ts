@@ -9,7 +9,8 @@
  */
 export interface DocumentInfo {
   title: string;
-  content: string;
+  content: string | Buffer; // Support both text and binary content
+  format?: 'text/plain' | 'text/markdown' | 'image/jpeg' | 'image/png' | string; // MIME type
   metadata?: Record<string, any>;
 }
 
