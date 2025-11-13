@@ -210,22 +210,9 @@ export class TerminalApp {
       return process.exit(0);
     });
 
-    // Navigate and execute on list
-    this.datasetList.on('select', (item: any, index: number) => {
+    // Update details when selection changes (by any means - arrow keys, j/k, mouse, etc.)
+    this.datasetList.on('select item', () => {
       this.updateDetails();
-    });
-
-    // Update details when navigating with arrow keys or j/k
-    this.datasetList.key(['up', 'k'], () => {
-      this.datasetList.up();
-      this.updateDetails();
-      this.screen.render();
-    });
-
-    this.datasetList.key(['down', 'j'], () => {
-      this.datasetList.down();
-      this.updateDetails();
-      this.screen.render();
     });
 
     // Execute command on Enter
