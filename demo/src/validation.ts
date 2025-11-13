@@ -75,15 +75,6 @@ export async function validateResources(
 }
 
 /**
- * Create a clickable hyperlink using OSC 8 escape sequences
- * Supported by most modern terminal emulators
- */
-function createHyperlink(url: string, text: string): string {
-  // OSC 8 format: \033]8;;URL\033\\TEXT\033]8;;\033\\
-  return `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
-}
-
-/**
  * Format validation results for display
  */
 export function formatValidationResults(results: ValidationResult[]): string[] {
@@ -93,11 +84,7 @@ export function formatValidationResults(results: ValidationResult[]): string[] {
     const indicator = result.status === 'success' ? '✓' : '✗';
     const color = result.status === 'success' ? 'green' : 'red';
 
-    // Create clickable URI (assumes http://localhost:4000 base URL for demo)
-    const fullUrl = result.uri.startsWith('http') ? result.uri : `http://localhost:4000${result.uri}`;
-    const clickableUri = createHyperlink(fullUrl, result.uri);
-
-    lines.push(`{${color}-fg}${indicator}{/${color}-fg} ${clickableUri}`);
+    lines.push(`{${color}-fg}${indicator}{/${color}-fg} ${result.uri}`);
 
     if (result.status === 'success') {
       lines.push(`  Type: ${result.mediaType}`);
@@ -105,9 +92,7 @@ export function formatValidationResults(results: ValidationResult[]): string[] {
       if (result.preview) {
         lines.push(`  Preview: ${result.preview}`);
       }
-      // Make cache path clickable as file:// URL
-      const clickablePath = createHyperlink(`file://${result.cachePath}`, result.cachePath!);
-      lines.push(`  Cached: ${clickablePath}`);
+      lines.push(`  Cached: ${result.cachePath}`);
     } else {
       lines.push(`  {red-fg}Error: ${result.error}{/red-fg}`);
     }

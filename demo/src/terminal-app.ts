@@ -80,9 +80,9 @@ export class TerminalApp {
         ch: '█',
         style: { fg: 'cyan' },
       },
-      keys: true,
-      vi: true,
       tags: true,
+      input: true,
+      keyable: true,
     });
 
     // Create activity log (right side)
@@ -100,9 +100,9 @@ export class TerminalApp {
         ch: '█',
         style: { fg: 'cyan' },
       },
-      keys: true,
-      vi: true,
       tags: true,
+      input: true,
+      keyable: true,
     });
 
     // Add widgets to screen
@@ -121,7 +121,7 @@ export class TerminalApp {
     // Show initial details
     this.updateDetails();
 
-    // Focus on list
+    // Set initial focus
     this.datasetList.focus();
 
     // Render screen
@@ -228,38 +228,40 @@ export class TerminalApp {
       this.executeSelected();
     });
 
-    // Allow scrolling in details box
-    this.detailsBox.key(['up', 'k'], () => {
-      this.detailsBox.scroll(-1);
-      this.screen.render();
-    });
-
-    this.detailsBox.key(['down', 'j'], () => {
-      this.detailsBox.scroll(1);
-      this.screen.render();
-    });
-
-    // Allow scrolling in activity log
-    this.activityLog.key(['up', 'k'], () => {
-      this.activityLog.scroll(-1);
-      this.screen.render();
-    });
-
-    this.activityLog.key(['down', 'j'], () => {
-      this.activityLog.scroll(1);
-      this.screen.render();
-    });
-
-    // Tab to switch focus
+    // Tab to cycle focus through panels
     this.screen.key(['tab'], () => {
-      if (this.screen.focused === this.datasetList) {
+      const focused = this.screen.focused;
+      if (focused === this.datasetList) {
         this.detailsBox.focus();
-      } else if (this.screen.focused === this.detailsBox) {
+      } else if (focused === this.detailsBox) {
         this.activityLog.focus();
       } else {
         this.datasetList.focus();
       }
       this.screen.render();
+    });
+
+    // Scrolling with j/k (vim style) - check which panel is focused
+    this.screen.key(['k', 'up'], () => {
+      const focused = this.screen.focused;
+      if (focused === this.detailsBox) {
+        this.detailsBox.scroll(-1);
+        this.screen.render();
+      } else if (focused === this.activityLog) {
+        this.activityLog.scroll(-1);
+        this.screen.render();
+      }
+    });
+
+    this.screen.key(['j', 'down'], () => {
+      const focused = this.screen.focused;
+      if (focused === this.detailsBox) {
+        this.detailsBox.scroll(1);
+        this.screen.render();
+      } else if (focused === this.activityLog) {
+        this.activityLog.scroll(1);
+        this.screen.render();
+      }
     });
 
     // Show help on 'h'
