@@ -437,9 +437,52 @@ export class TerminalApp {
     });
   }
 
+  private showHelp() {
+    this.activityContent = []; // Clear activity log
+    this.logToActivity('{bold}{cyan-fg}═══════════════════════════════════════{/cyan-fg}{/bold}');
+    this.logToActivity('{bold}{cyan-fg}           HELP - Keyboard Controls{/cyan-fg}{/bold}');
+    this.logToActivity('{bold}{cyan-fg}═══════════════════════════════════════{/cyan-fg}{/bold}\n');
+
+    this.logToActivity('{bold}{yellow-fg}Navigation:{/yellow-fg}{/bold}');
+    this.logToActivity('  {bold}↑/↓{/bold} or {bold}j/k{/bold}       - Navigate lists and scroll panels');
+    this.logToActivity('  {bold}Tab{/bold}               - Switch focus between panels');
+    this.logToActivity('  {bold}Enter{/bold}             - Execute selected command\n');
+
+    this.logToActivity('{bold}{yellow-fg}Actions:{/yellow-fg}{/bold}');
+    this.logToActivity('  {bold}h{/bold}                 - Show this help');
+    this.logToActivity('  {bold}q{/bold} or {bold}Esc{/bold}         - Quit application');
+    this.logToActivity('  {bold}Ctrl-C{/bold}            - Force quit\n');
+
+    this.logToActivity('{bold}{yellow-fg}Panels:{/yellow-fg}{/bold}');
+    this.logToActivity('  {bold}Top Left{/bold}          - Datasets & Commands list');
+    this.logToActivity('                      • Select dataset to view config');
+    this.logToActivity('                      • Select command to view details');
+    this.logToActivity('                      • Press Enter to execute command');
+    this.logToActivity('  {bold}Bottom Left{/bold}       - Details panel');
+    this.logToActivity('                      • Shows config/state for selection');
+    this.logToActivity('  {bold}Right Half{/bold}        - Activity Log (this panel)');
+    this.logToActivity('                      • Real-time command output\n');
+
+    this.logToActivity('{bold}{yellow-fg}Status Indicators:{/yellow-fg}{/bold}');
+    this.logToActivity('  {green-fg}✓{/green-fg}                 - Command has been run');
+    this.logToActivity('  {gray-fg}○{/gray-fg}                 - Command not yet run\n');
+
+    this.logToActivity('{bold}{yellow-fg}Text Selection:{/yellow-fg}{/bold}');
+    this.logToActivity('  Hold {bold}Shift{/bold} (or {bold}Option/Alt{/bold} on Mac) while selecting');
+    this.logToActivity('  with your mouse to copy text from the terminal\n');
+
+    this.logToActivity('{bold}{yellow-fg}Command Workflow:{/yellow-fg}{/bold}');
+    this.logToActivity('  1. {bold}download{/bold}  - Fetch content from remote source');
+    this.logToActivity('  2. {bold}load{/bold}      - Process and upload to backend');
+    this.logToActivity('  3. {bold}annotate{/bold}  - Detect patterns and create annotations\n');
+
+    this.logToActivity('{bold}{cyan-fg}═══════════════════════════════════════{/cyan-fg}{/bold}');
+    this.logToActivity('{gray-fg}Press any key to continue...{/gray-fg}');
+  }
+
   public run() {
     this.logToActivity('{bold}{cyan-fg}Welcome to Semiont Demo Interactive Mode{/cyan-fg}{/bold}');
     this.logToActivity('{gray-fg}Use ↑/↓ or j/k to navigate, Enter to execute, Tab to switch panels, q to quit{/gray-fg}');
-    this.logToActivity('{gray-fg}To select text: Hold Shift (or Option/Alt on Mac) while selecting{/gray-fg}\n');
+    this.logToActivity('{gray-fg}Press {bold}h{/bold} for help • To select text: Hold Shift (or Option/Alt on Mac) while selecting{/gray-fg}\n');
   }
 }
