@@ -387,18 +387,16 @@ export class TerminalApp {
 
     this.isRunningCommand = true;
 
-    // Intercept console.log to capture output
+    // Intercept console.log to capture output (suppress original to avoid corrupting blessed UI)
     const originalLog = console.log;
     const originalError = console.error;
 
     console.log = (...args: any[]) => {
       this.logToActivity(args.join(' '));
-      originalLog(...args);
     };
 
     console.error = (...args: any[]) => {
       this.logToActivity(`{red-fg}${args.join(' ')}{/red-fg}`);
-      originalError(...args);
     };
 
     try {
