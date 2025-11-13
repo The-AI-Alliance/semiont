@@ -10,9 +10,9 @@
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';
-import type { DatasetConfig } from './types.js';
-import { downloadText, extractSection } from '../src/chunking.js';
-import { printInfo, printSuccess } from '../src/display.js';
+import type { DatasetConfig } from '../types.js';
+import { downloadText, extractSection } from '../../src/chunking.js';
+import { printInfo, printSuccess } from '../../src/display.js';
 
 export const config: DatasetConfig = {
   name: 'prometheus_bound',

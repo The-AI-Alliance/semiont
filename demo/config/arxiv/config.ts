@@ -10,9 +10,9 @@
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';
-import type { DatasetConfig } from './types.js';
-import { fetchArxivPaper, formatArxivPaper } from '../src/arxiv.js';
-import { printInfo, printSuccess } from '../src/display.js';
+import type { DatasetConfig } from '../types.js';
+import { fetchArxivPaper, formatArxivPaper } from '../../src/arxiv.js';
+import { printInfo, printSuccess } from '../../src/display.js';
 
 export const config: DatasetConfig = {
   name: 'arxiv',

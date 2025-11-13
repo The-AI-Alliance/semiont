@@ -1,20 +1,38 @@
 # Dataset Configurations
 
-This directory contains configuration files for demo datasets. Each dataset is defined in its own TypeScript file.
+This directory contains configuration files for demo datasets. Each dataset has its own subdirectory with a `config.ts` file.
+
+## Directory Structure
+
+```
+config/
+├── types.ts                      # Shared types
+├── README.md                     # This file
+├── citizens_united/              # Citizens United dataset
+│   └── config.ts
+├── hiking/                       # Hiking notes dataset
+│   └── config.ts
+├── arxiv/                        # ArXiv paper dataset
+│   └── config.ts
+└── prometheus_bound/             # Prometheus Bound dataset
+    └── config.ts
+```
 
 ## Adding a New Dataset
 
 To add a new dataset to the demo system:
 
-1. **Create a new configuration file** in this directory (e.g., `my-dataset.ts`)
-2. **Import required types and utilities**:
+1. **Create a new directory** in this directory named after your dataset (e.g., `my_dataset/`)
+2. **Create a `config.ts` file** in that directory
+3. **Import required types and utilities**:
+
    ```typescript
-   import type { DatasetConfig } from './types.js';
-   import { printInfo, printSuccess } from '../src/display.js';
+   import type { DatasetConfig } from '../types.js';
+   import { printInfo, printSuccess } from '../../src/display.js';
    // Import any other utilities you need
    ```
 
-3. **Define and export your configuration**:
+4. **Define and export your configuration**:
    ```typescript
    export const config: DatasetConfig = {
      name: 'my_dataset',              // Internal identifier (use snake_case)
@@ -49,7 +67,8 @@ To add a new dataset to the demo system:
    };
    ```
 
-4. **Add npm scripts** in `package.json` (optional, for convenience):
+5. **Add npm scripts** in `package.json` (optional, for convenience):
+
    ```json
    "demo:my-dataset:download": "dotenv -e .env -- tsx demo.ts my_dataset download",
    "demo:my-dataset:load": "dotenv -e .env -- tsx demo.ts my_dataset load",
@@ -57,6 +76,8 @@ To add a new dataset to the demo system:
    ```
 
 **That's it!** The dataset will be automatically discovered and loaded by `demo.ts` at startup. No need to modify `demo.ts` itself.
+
+The discovery process scans all subdirectories in `config/` and looks for a `config.ts` file in each one.
 
 ## Configuration Options
 
@@ -108,7 +129,7 @@ Uploads as a single document.
 ## Examples
 
 See existing configurations:
-- [`citizens-united.ts`](./citizens-united.ts) - Legal document with citation detection
-- [`hiking.ts`](./hiking.ts) - Simple local file, no processing
-- [`arxiv.ts`](./arxiv.ts) - API integration with metadata
-- [`prometheus-bound.ts`](./prometheus-bound.ts) - Text extraction with smart chunking
+- [`citizens_united/config.ts`](./citizens_united/config.ts) - Legal document with citation detection
+- [`hiking/config.ts`](./hiking/config.ts) - Simple local file, no processing
+- [`arxiv/config.ts`](./arxiv/config.ts) - API integration with metadata
+- [`prometheus_bound/config.ts`](./prometheus_bound/config.ts) - Text extraction with smart chunking

@@ -36,13 +36,16 @@
  */
 
 import { Command } from 'commander';
-import { writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { SemiontApiClient, baseUrl, resourceUri, type ResourceUri } from '@semiont/api-client';
 
+// Dataset configuration types
+import type { DatasetConfig } from './config/types.js';
+
 // Local modules
-import { downloadCornellLII, formatLegalOpinion } from './src/legal-text';
-import { fetchArxivPaper, formatArxivPaper } from './src/arxiv';
-import { chunkBySize, chunkText, downloadText, extractSection, type ChunkInfo } from './src/chunking';
+import { chunkBySize, chunkText, type ChunkInfo } from './src/chunking';
 import { authenticate } from './src/auth';
 import { uploadChunks, createTableOfContents, type TableOfContentsReference } from './src/resources';
 import { createStubReferences, linkReferences } from './src/annotations';
@@ -67,159 +70,47 @@ import {
 // DATASET CONFIGURATIONS
 // ============================================================================
 
-interface DatasetConfig {
-  name: string;
-  displayName: string;
-  emoji: string;
-  shouldChunk: boolean;
-  chunkSize?: number;
-  useSmartChunking?: boolean; // If true, use paragraph-aware chunking instead of fixed-size
-  entityTypes: string[];
-  createTableOfContents: boolean;
-  tocTitle?: string;
-  stateFile: string;
-  detectCitations: boolean;
-  cacheFile: string;
-  downloadContent?: () => Promise<void>;
-  loadText: () => Promise<string>;
-  extractionConfig?: {
-    startPattern: RegExp;
-    endMarker: string;
-  };
+/**
+ * Dynamically load all dataset configurations from the config directory
+ * Each dataset should be in its own subdirectory with a config.ts file
+ */
+async function loadDatasets(): Promise<Record<string, DatasetConfig>> {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const configDir = join(__dirname, 'config');
+
+  const datasets: Record<string, DatasetConfig> = {};
+
+  // Read all entries in config directory
+  const entries = readdirSync(configDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    // Only process directories (skip files like types.ts, README.md)
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    // Look for config.ts within the dataset directory
+    const configPath = join(configDir, entry.name, 'config.ts');
+
+    try {
+      const module = await import(configPath);
+
+      if (module.config && typeof module.config === 'object') {
+        const config = module.config as DatasetConfig;
+        datasets[config.name] = config;
+      }
+    } catch (error) {
+      // Skip directories that don't have a valid config.ts
+      console.warn(`Warning: Could not load config from ${entry.name}:`, error instanceof Error ? error.message : error);
+    }
+  }
+
+  return datasets;
 }
 
-const DATASETS: Record<string, DatasetConfig> = {
-  citizens_united: {
-    name: 'citizens_united',
-    displayName: 'Citizens United v. FEC',
-    emoji: '⚖️ ',
-    shouldChunk: true,
-    chunkSize: 5000, // ~2-3 pages per chunk
-    entityTypes: ['legal', 'supreme-court', 'campaign-finance', 'first-amendment', 'LegalCitation'],
-    createTableOfContents: true,
-    tocTitle: 'Citizens United v. FEC - Table of Contents',
-    stateFile: '.demo-citizens-united-state.json',
-    detectCitations: true,
-    cacheFile: 'data/tmp/citizens_united.html',
-    downloadContent: async () => {
-      printInfo('Downloading from Cornell LII...');
-      const url = 'https://www.law.cornell.edu/supct/html/08-205.ZS.html';
-      const rawText = await downloadCornellLII(url);
-      printSuccess(`Downloaded ${rawText.length.toLocaleString()} characters`);
-
-      writeFileSync('data/tmp/citizens_united.html', rawText);
-      printSuccess('Saved to data/tmp/citizens_united.html');
-    },
-    loadText: async () => {
-      printInfo('Loading from data/tmp/citizens_united.html...');
-      const rawText = readFileSync('data/tmp/citizens_united.html', 'utf-8');
-      printSuccess(`Loaded ${rawText.length.toLocaleString()} characters`);
-
-      printInfo('Formatting with markdown...');
-      const caseTitle = 'Citizens United v. Federal Election Commission';
-      const citation = '558 U.S. 310 (2010)';
-      const formattedText = formatLegalOpinion(caseTitle, citation, rawText);
-      printSuccess(`Formatted opinion: ${formattedText.length.toLocaleString()} characters`);
-
-      return formattedText;
-    },
-  },
-  hiking: {
-    name: 'hiking',
-    displayName: 'Hiking Notes',
-    emoji: '🥾 ',
-    shouldChunk: false,
-    entityTypes: ['text', 'hiking', 'outdoor'],
-    createTableOfContents: false,
-    stateFile: '.demo-hiking-state.json',
-    detectCitations: false,
-    cacheFile: 'data/hiking.txt', // Already local, no download needed
-    loadText: async () => {
-      printInfo('Loading from data/hiking.txt...');
-      const text = readFileSync('data/hiking.txt', 'utf-8');
-      printSuccess(`Loaded ${text.length.toLocaleString()} characters`);
-      return text;
-    },
-  },
-  arxiv: {
-    name: 'arxiv',
-    displayName: 'Attention Is All You Need',
-    emoji: '📄',
-    shouldChunk: false,
-    entityTypes: ['research-paper', 'ai', 'transformers', 'deep-learning'],
-    createTableOfContents: false,
-    stateFile: '.demo-arxiv-state.json',
-    detectCitations: false,
-    cacheFile: 'data/tmp/arxiv_1706.03762.json',
-    downloadContent: async () => {
-      const arxivId = '1706.03762';
-      printInfo(`Fetching arXiv:${arxivId}...`);
-      const paper = await fetchArxivPaper(arxivId);
-      printSuccess(`Fetched: "${paper.title}"`);
-      printInfo(`Authors: ${paper.authors.slice(0, 3).join(', ')}${paper.authors.length > 3 ? `, et al. (${paper.authors.length} total)` : ''}`, 3);
-      printInfo(`Published: ${new Date(paper.published).toLocaleDateString()}`, 3);
-      printInfo(`Categories: ${paper.categories.slice(0, 3).join(', ')}`, 3);
-      printInfo(`Abstract: ${paper.abstract.length} characters`, 3);
-
-      writeFileSync('data/tmp/arxiv_1706.03762.json', JSON.stringify(paper, null, 2));
-      printSuccess('Saved to data/tmp/arxiv_1706.03762.json');
-    },
-    loadText: async () => {
-      printInfo('Loading from data/tmp/arxiv_1706.03762.json...');
-      const paperData = readFileSync('data/tmp/arxiv_1706.03762.json', 'utf-8');
-      const paper = JSON.parse(paperData);
-      printSuccess(`Loaded: "${paper.title}"`);
-
-      printInfo('Formatting as markdown...');
-      const formattedContent = formatArxivPaper(paper);
-      printSuccess(`Formatted: ${formattedContent.length.toLocaleString()} characters`);
-
-      return formattedContent;
-    },
-  },
-  prometheus_bound: {
-    name: 'prometheus_bound',
-    displayName: 'Prometheus Bound',
-    emoji: '🎭',
-    shouldChunk: true,
-    chunkSize: 4000,
-    useSmartChunking: true,
-    entityTypes: ['literature', 'ancient-greek-drama'],
-    createTableOfContents: true,
-    tocTitle: 'Prometheus Bound: Table of Contents',
-    stateFile: '.demo-prometheus-bound-state.json',
-    detectCitations: false,
-    cacheFile: 'data/tmp/prometheus_bound.txt',
-    extractionConfig: {
-      startPattern: /PROMETHEUS BOUND\s+ARGUMENT/,
-      endMarker: '*** END OF THE PROJECT GUTENBERG EBOOK FOUR PLAYS OF AESCHYLUS ***',
-    },
-    downloadContent: async () => {
-      printInfo('Downloading from Project Gutenberg...');
-      const url = 'https://www.gutenberg.org/cache/epub/8714/pg8714.txt';
-      const fullText = await downloadText(url);
-      printSuccess(`Downloaded ${fullText.length.toLocaleString()} characters`);
-
-      writeFileSync('data/tmp/prometheus_bound.txt', fullText);
-      printSuccess('Saved to data/tmp/prometheus_bound.txt');
-    },
-    loadText: async () => {
-      printInfo('Loading from data/tmp/prometheus_bound.txt...');
-      const fullText = readFileSync('data/tmp/prometheus_bound.txt', 'utf-8');
-      printSuccess(`Loaded ${fullText.length.toLocaleString()} characters`);
-
-      printInfo('Extracting "Prometheus Bound" section...');
-      const extractedText = extractSection(
-        fullText,
-        /PROMETHEUS BOUND\s+ARGUMENT/,
-        '*** END OF THE PROJECT GUTENBERG EBOOK FOUR PLAYS OF AESCHYLUS ***'
-      );
-      printSuccess(`Extracted ${extractedText.length.toLocaleString()} characters`);
-
-      return extractedText;
-    },
-  },
-};
+// Load datasets at startup
+const DATASETS = await loadDatasets();
 
 // ============================================================================
 // ENVIRONMENT CONFIGURATION

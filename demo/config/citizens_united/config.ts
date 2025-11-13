@@ -9,9 +9,9 @@
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';
-import type { DatasetConfig } from './types.js';
-import { downloadCornellLII, formatLegalOpinion } from '../src/legal-text.js';
-import { printInfo, printSuccess } from '../src/display.js';
+import type { DatasetConfig } from '../types.js';
+import { downloadCornellLII, formatLegalOpinion } from '../../src/legal-text.js';
+import { printInfo, printSuccess } from '../../src/display.js';
 
 export const config: DatasetConfig = {
   name: 'citizens_united',
