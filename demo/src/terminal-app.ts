@@ -190,7 +190,7 @@ export class TerminalApp {
     const items = this.listItems.map((item) => {
       if (item.type === 'dataset') {
         const config = this.datasets[item.dataset];
-        return `${config.emoji} {bold}${config.displayName}{/bold}`;
+        return `{bold}${config.displayName}{/bold}`;
       } else {
         const hasRun = this.getCommandStatus(item.dataset, item.command!);
         const indicator = hasRun ? '{green-fg}✓{/green-fg}' : '{gray-fg}○{/gray-fg}';
