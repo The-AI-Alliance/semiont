@@ -7,18 +7,18 @@
 import blessed from 'blessed';
 import { existsSync, readFileSync } from 'node:fs';
 import type { DatasetConfigWithPaths } from '../config/types.js';
-import { downloadCommand, loadCommand, annotateCommand } from '../demo.js';
+import { downloadCommand, loadCommand, annotateCommand, validateCommand } from '../demo.js';
 
 interface CommandStatus {
   dataset: string;
-  command: 'download' | 'load' | 'annotate';
+  command: 'download' | 'load' | 'annotate' | 'validate';
   hasRun: boolean;
 }
 
 interface SelectedItem {
   type: 'dataset' | 'command';
   dataset: string;
-  command?: 'download' | 'load' | 'annotate';
+  command?: 'download' | 'load' | 'annotate' | 'validate';
 }
 
 export class TerminalApp {
@@ -45,7 +45,7 @@ export class TerminalApp {
     this.datasetList = blessed.list({
       top: 0,
       left: 0,
-      width: '50%',
+      width: '33%',
       height: '50%',
       label: ' Datasets & Commands ',
       border: { type: 'line' },
@@ -69,7 +69,7 @@ export class TerminalApp {
     this.detailsBox = blessed.box({
       top: '50%',
       left: 0,
-      width: '50%',
+      width: '33%',
       height: '50%',
       label: ' Details ',
       border: { type: 'line' },
@@ -88,8 +88,8 @@ export class TerminalApp {
     // Create activity log (right side)
     this.activityLog = blessed.box({
       top: 0,
-      left: '50%',
-      width: '50%',
+      left: '33%',
+      width: '67%',
       height: '100%',
       label: ' Activity Log ',
       border: { type: 'line' },
@@ -143,6 +143,7 @@ export class TerminalApp {
       if (config.detectCitations) {
         items.push({ type: 'command', dataset: name, command: 'annotate' });
       }
+      items.push({ type: 'command', dataset: name, command: 'validate' });
     }
 
     this.listItems = items;
@@ -175,6 +176,9 @@ export class TerminalApp {
         }
         statuses.push({ dataset: name, command: 'annotate', hasRun: annotateHasRun });
       }
+
+      // Validate is always available but never marked as "run" (it's a diagnostic command)
+      statuses.push({ dataset: name, command: 'validate', hasRun: false });
     }
 
     this.commandStatuses = statuses;
@@ -187,6 +191,9 @@ export class TerminalApp {
   }
 
   private populateList() {
+    // Save current selection
+    const currentIndex = this.getSelectedIndex();
+
     const items = this.listItems.map((item) => {
       if (item.type === 'dataset') {
         const config = this.datasets[item.dataset];
@@ -199,6 +206,10 @@ export class TerminalApp {
     });
 
     this.datasetList.setItems(items);
+
+    // Restore selection
+    this.datasetList.select(currentIndex);
+    this.screen.render();
   }
 
   private setupEventHandlers() {
@@ -322,6 +333,11 @@ export class TerminalApp {
         if (config.detectCitations) {
           content += `  {bold}Citations:{/bold} Detects legal citations\n`;
         }
+      } else if (selected.command === 'validate') {
+        content += `  Fetches all resources and validates their content.\n`;
+        content += `  {bold}Checks:{/bold} TOC, chunks, documents\n`;
+        content += `  {bold}Cache:{/bold} /tmp/semiont_*\n`;
+        content += `  Shows URI, media type, checksum, and text preview.\n`;
       }
 
       // Show state excerpt if exists
@@ -344,6 +360,12 @@ export class TerminalApp {
             }
           } else if (selected.command === 'annotate' && state.annotations) {
             content += `  Annotations: ${state.annotations.length}\n`;
+          } else if (selected.command === 'validate') {
+            let resourceCount = 0;
+            if (state.tocId) resourceCount++;
+            if (state.chunkIds) resourceCount += state.chunkIds.length;
+            if (state.documentIds) resourceCount += state.documentIds.length;
+            content += `  Resources to validate: ${resourceCount}\n`;
           }
         } catch {
           // Ignore errors
@@ -407,6 +429,8 @@ export class TerminalApp {
         await loadCommand(selected.dataset);
       } else if (command === 'annotate') {
         await annotateCommand(selected.dataset);
+      } else if (command === 'validate') {
+        await validateCommand(selected.dataset);
       }
 
       this.logToActivity('\n{bold}{green-fg}✓ Command completed successfully{/green-fg}{/bold}\n');
@@ -463,7 +487,8 @@ export class TerminalApp {
     this.logToActivity('{bold}{yellow-fg}Command Workflow:{/yellow-fg}{/bold}');
     this.logToActivity('  1. {bold}download{/bold}  - Fetch content from remote source');
     this.logToActivity('  2. {bold}load{/bold}      - Process and upload to backend');
-    this.logToActivity('  3. {bold}annotate{/bold}  - Detect patterns and create annotations\n');
+    this.logToActivity('  3. {bold}annotate{/bold}  - Detect patterns and create annotations');
+    this.logToActivity('  4. {bold}validate{/bold}  - Fetch and verify all resources\n');
 
     this.logToActivity('{bold}{cyan-fg}═══════════════════════════════════════{/cyan-fg}{/bold}');
     this.logToActivity('{gray-fg}Press any key to continue...{/gray-fg}');

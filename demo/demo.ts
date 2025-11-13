@@ -60,6 +60,7 @@ import { showDocumentHistory } from './src/history';
 import { detectCitations } from './src/legal-citations';
 import { getLayer1Path } from './src/filesystem-utils';
 import { TerminalApp } from './src/terminal-app.js';
+import { validateResources, formatValidationResults } from './src/validation.js';
 import {
   printMainHeader,
   printSectionHeader,
@@ -171,7 +172,8 @@ if (!AUTH_EMAIL && !ACCESS_TOKEN) {
 interface DemoState {
   dataset: string;
   tocId?: ResourceUri;
-  chunkIds: ResourceUri[];
+  chunkIds?: ResourceUri[];
+  documentIds?: ResourceUri[];
   references?: TableOfContentsReference[];
   formattedText: string;
 }
@@ -450,6 +452,11 @@ async function annotateCommand(datasetName: string) {
       return;
     }
 
+    if (!state.chunkIds || state.chunkIds.length === 0) {
+      printError(new Error('No chunks found in state. Run the load command first.'));
+      process.exit(1);
+    }
+
     printSuccess(`Loaded ${state.chunkIds.length} chunk IDs`);
 
     // Re-chunk the text to get chunk content for annotation detection
@@ -532,10 +539,83 @@ async function annotateCommand(datasetName: string) {
 }
 
 // ============================================================================
+// COMMAND: VALIDATE
+// ============================================================================
+
+async function validateCommand(datasetName: string) {
+  const dataset = DATASETS[datasetName];
+  if (!dataset) {
+    throw new Error(`Unknown dataset: ${datasetName}. Available: ${Object.keys(DATASETS).join(', ')}`);
+  }
+
+  printMainHeader(dataset.emoji, `${dataset.displayName} Demo - Validate`);
+
+  try {
+    const client = new SemiontApiClient({
+      baseUrl: baseUrl(BACKEND_URL),
+    });
+
+    // Pass 0: Authentication
+    printSectionHeader('🔐', 0, 'Authentication');
+    await authenticate(client, {
+      email: AUTH_EMAIL,
+      accessToken: ACCESS_TOKEN,
+    });
+
+    // Load state from load command
+    printSectionHeader('📂', 1, 'Load State');
+    const state = loadState(dataset);
+
+    // Collect all resource URIs
+    const allResources: ResourceUri[] = [];
+
+    if (state.tocId) {
+      allResources.push(state.tocId);
+    }
+
+    if (state.chunkIds) {
+      allResources.push(...state.chunkIds);
+    }
+
+    if (state.documentIds) {
+      allResources.push(...state.documentIds);
+    }
+
+    printSuccess(`Found ${allResources.length} resources to validate`);
+    console.log();
+
+    // Pass 2: Validate Resources
+    printSectionHeader('✓', 2, 'Validate Resources');
+    const results = await validateResources(allResources, client);
+
+    // Display results
+    const formattedLines = formatValidationResults(results);
+    formattedLines.forEach(line => console.log(line));
+
+    // Summary
+    const successCount = results.filter(r => r.status === 'success').length;
+    const errorCount = results.filter(r => r.status === 'error').length;
+
+    console.log();
+    console.log('📊 Summary:');
+    console.log(`   Total resources: ${results.length}`);
+    console.log(`   ✓ Successful: ${successCount}`);
+    if (errorCount > 0) {
+      console.log(`   ✗ Errors: ${errorCount}`);
+    }
+
+    printCompletion();
+  } catch (error) {
+    printError(error as Error);
+    process.exit(1);
+  }
+}
+
+// ============================================================================
 // EXPORTS (for interactive terminal app)
 // ============================================================================
 
-export { downloadCommand, loadCommand, annotateCommand };
+export { downloadCommand, loadCommand, annotateCommand, validateCommand };
 
 // ============================================================================
 // CLI SETUP
@@ -550,7 +630,7 @@ program
 
 program
   .command('<dataset> <command>')
-  .description(`Run a command on a dataset. Datasets: ${Object.keys(DATASETS).join(', ')}. Commands: download, load, annotate`)
+  .description(`Run a command on a dataset. Datasets: ${Object.keys(DATASETS).join(', ')}. Commands: download, load, annotate, validate`)
   .action((dataset: string, command: string) => {
     if (command === 'download') {
       return downloadCommand(dataset);
@@ -558,8 +638,10 @@ program
       return loadCommand(dataset);
     } else if (command === 'annotate') {
       return annotateCommand(dataset);
+    } else if (command === 'validate') {
+      return validateCommand(dataset);
     } else {
-      console.error(`Unknown command: ${command}. Use 'download', 'load', or 'annotate'.`);
+      console.error(`Unknown command: ${command}. Use 'download', 'load', 'annotate', or 'validate'.`);
       process.exit(1);
     }
   });
