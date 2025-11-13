@@ -20,13 +20,13 @@ export const config: DatasetConfig = {
   entityTypes: ['text', 'hiking', 'outdoor'],
   createTableOfContents: false,
   detectCitations: false,
-  cacheFile: 'data/hiking.txt', // Already local, no download needed
+  cacheFile: 'config/hiking/hiking.txt', // Co-located with config
 
   // No downloadContent function - file is already local
 
   loadText: async () => {
-    printInfo('Loading from data/hiking.txt...');
-    const text = readFileSync('data/hiking.txt', 'utf-8');
+    printInfo('Loading from config/hiking/hiking.txt...');
+    const text = readFileSync('config/hiking/hiking.txt', 'utf-8');
     printSuccess(`Loaded ${text.length.toLocaleString()} characters`);
     return text;
   },
