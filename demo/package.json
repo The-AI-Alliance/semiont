@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Demo scripts for Semiont",
   "scripts": {
-    "freelaw-nh": "dotenv -e .env -- tsx freelaw_nh.ts",
+    "demo:freelaw-nh:download": "dotenv -e .env -- tsx demo.ts freelaw_nh download",
+    "demo:freelaw-nh:load": "dotenv -e .env -- tsx demo.ts freelaw_nh load",
     "demo:citizens-united:download": "dotenv -e .env -- tsx demo.ts citizens_united download",
     "demo:citizens-united:load": "dotenv -e .env -- tsx demo.ts citizens_united load",
     "demo:citizens-united:annotate": "dotenv -e .env -- tsx demo.ts citizens_united annotate",

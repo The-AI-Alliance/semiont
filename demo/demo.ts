@@ -47,7 +47,14 @@ import type { DatasetConfig, DatasetConfigWithPaths } from './config/types.js';
 // Local modules
 import { chunkBySize, chunkText, type ChunkInfo } from './src/chunking';
 import { authenticate } from './src/auth';
-import { uploadChunks, createTableOfContents, type TableOfContentsReference } from './src/resources';
+import {
+  uploadChunks,
+  uploadDocuments,
+  createTableOfContents,
+  createDocumentTableOfContents,
+  type TableOfContentsReference,
+  type DocumentInfo,
+} from './src/resources';
 import { createStubReferences, linkReferences } from './src/annotations';
 import { showDocumentHistory } from './src/history';
 import { detectCitations } from './src/legal-citations';
@@ -240,55 +247,90 @@ async function loadCommand(datasetName: string) {
       accessToken: ACCESS_TOKEN,
     });
 
-    // Pass 1: Load Document
-    printSectionHeader('📥', 1, 'Load Document');
-    const formattedText = await dataset.loadText();
-
-    // Pass 2: Chunk the Document (or create single chunk)
-    let chunks: ChunkInfo[];
-    if (dataset.shouldChunk) {
-      printSectionHeader('✂️ ', 2, 'Chunk Document');
-      if (dataset.useSmartChunking) {
-        printInfo(`Chunking at paragraph boundaries (~${dataset.chunkSize} chars per chunk)...`);
-        chunks = chunkText(formattedText, dataset.chunkSize!, `${dataset.displayName} - Part`);
-      } else {
-        printInfo(`Chunking into sections (~${dataset.chunkSize} chars per chunk)...`);
-        chunks = chunkBySize(formattedText, dataset.chunkSize!, `${dataset.displayName} - Part`);
-      }
-      const totalChars = chunks.reduce((sum, c) => sum + c.content.length, 0);
-      const avgChars = Math.round(totalChars / chunks.length);
-      printDownloadStats(totalChars, totalChars);
-      printChunkingStats(chunks.length, avgChars);
-    } else {
-      printSectionHeader('📄', 2, 'Create Single Document');
-      printInfo('Loading as a single document (no chunking)...');
-      chunks = [{
-        title: dataset.displayName,
-        content: formattedText,
-        partNumber: 1,
-      }];
-      printSuccess(`Created single document with ${formattedText.length.toLocaleString()} characters`);
-    }
-
-    // Pass 3: Upload Chunks
-    printSectionHeader('📤', 3, 'Upload Chunks');
-    const chunkIds = await uploadChunks(chunks, client, {
-      entityTypes: dataset.entityTypes,
-      dataDir: DATA_DIR,
-    });
-
-    // Pass 4: Create Table of Contents (if needed)
+    // Branch: Multi-document vs Single-document workflow
+    let chunkIds: ResourceUri[];
     let tocId: ResourceUri | undefined;
     let references: TableOfContentsReference[] | undefined;
-    if (dataset.createTableOfContents) {
-      printSectionHeader('📑', 4, 'Create Table of Contents');
-      const result = await createTableOfContents(chunks, client, {
-        title: dataset.tocTitle!,
+    let formattedText = '';
+
+    if (dataset.isMultiDocument && dataset.loadDocuments) {
+      // Multi-document workflow
+      printSectionHeader('📥', 1, 'Load Documents');
+      const documents = await dataset.loadDocuments();
+
+      // Pass 2: Upload Documents
+      printSectionHeader('📤', 2, 'Upload Documents');
+      chunkIds = await uploadDocuments(documents, client, {
         entityTypes: dataset.entityTypes,
         dataDir: DATA_DIR,
       });
-      tocId = result.tocId;
-      references = result.references;
+
+      // Pass 3: Create Table of Contents (if needed)
+      if (dataset.createTableOfContents) {
+        printSectionHeader('📑', 3, 'Create Table of Contents');
+        const result = await createDocumentTableOfContents(documents, client, {
+          title: dataset.tocTitle!,
+          entityTypes: dataset.entityTypes,
+          dataDir: DATA_DIR,
+        });
+        tocId = result.tocId;
+        references = result.references;
+      }
+    } else if (dataset.loadText) {
+      // Single-document workflow
+      printSectionHeader('📥', 1, 'Load Document');
+      formattedText = await dataset.loadText();
+
+      // Pass 2: Chunk the Document (or create single chunk)
+      let chunks: ChunkInfo[];
+      if (dataset.shouldChunk) {
+        printSectionHeader('✂️ ', 2, 'Chunk Document');
+        if (dataset.useSmartChunking) {
+          printInfo(`Chunking at paragraph boundaries (~${dataset.chunkSize} chars per chunk)...`);
+          chunks = chunkText(formattedText, dataset.chunkSize!, `${dataset.displayName} - Part`);
+        } else {
+          printInfo(`Chunking into sections (~${dataset.chunkSize} chars per chunk)...`);
+          chunks = chunkBySize(formattedText, dataset.chunkSize!, `${dataset.displayName} - Part`);
+        }
+        const totalChars = chunks.reduce((sum, c) => sum + c.content.length, 0);
+        const avgChars = Math.round(totalChars / chunks.length);
+        printDownloadStats(totalChars, totalChars);
+        printChunkingStats(chunks.length, avgChars);
+      } else {
+        printSectionHeader('📄', 2, 'Create Single Document');
+        printInfo('Loading as a single document (no chunking)...');
+        chunks = [{
+          title: dataset.displayName,
+          content: formattedText,
+          partNumber: 1,
+        }];
+        printSuccess(`Created single document with ${formattedText.length.toLocaleString()} characters`);
+      }
+
+      // Pass 3: Upload Chunks
+      printSectionHeader('📤', 3, 'Upload Chunks');
+      chunkIds = await uploadChunks(chunks, client, {
+        entityTypes: dataset.entityTypes,
+        dataDir: DATA_DIR,
+      });
+
+      // Pass 4: Create Table of Contents (if needed)
+      if (dataset.createTableOfContents) {
+        printSectionHeader('📑', 4, 'Create Table of Contents');
+        const result = await createTableOfContents(chunks, client, {
+          title: dataset.tocTitle!,
+          entityTypes: dataset.entityTypes,
+          dataDir: DATA_DIR,
+        });
+        tocId = result.tocId;
+        references = result.references;
+      }
+    } else {
+      throw new Error(`Dataset ${dataset.name} must have either loadText or loadDocuments configured`);
+    }
+
+    // Shared workflow: Create stub references and link (if TOC was created)
+    if (dataset.createTableOfContents && tocId && references) {
 
       // Pass 5: Create Stub References
       printSectionHeader('🔗', 5, 'Create Stub References');
