@@ -1,0 +1,5 @@
+# Demo state files
+.demo-*-state.json
+
+# Downloaded content cache
+data/tmp/

@@ -32,6 +32,7 @@
  *   - citizens_united: Supreme Court case (chunked, TOC+links, citation detection)
  *   - hiking: Simple text document (single doc, no TOC, no citations)
  *   - arxiv: Research paper from arXiv.org (single doc, no TOC, no citations)
+ *   - prometheus_bound: Ancient Greek drama from Project Gutenberg (smart-chunked, TOC+links, no citations)
  */
 
 import { Command } from 'commander';
@@ -41,7 +42,7 @@ import { SemiontApiClient, baseUrl, resourceUri, type ResourceUri } from '@semio
 // Local modules
 import { downloadCornellLII, formatLegalOpinion } from './src/legal-text';
 import { fetchArxivPaper, formatArxivPaper } from './src/arxiv';
-import { chunkBySize, type ChunkInfo } from './src/chunking';
+import { chunkBySize, chunkText, downloadText, extractSection, type ChunkInfo } from './src/chunking';
 import { authenticate } from './src/auth';
 import { uploadChunks, createTableOfContents, type TableOfContentsReference } from './src/resources';
 import { createStubReferences, linkReferences } from './src/annotations';
@@ -72,6 +73,7 @@ interface DatasetConfig {
   emoji: string;
   shouldChunk: boolean;
   chunkSize?: number;
+  useSmartChunking?: boolean; // If true, use paragraph-aware chunking instead of fixed-size
   entityTypes: string[];
   createTableOfContents: boolean;
   tocTitle?: string;
@@ -80,6 +82,10 @@ interface DatasetConfig {
   cacheFile: string;
   downloadContent?: () => Promise<void>;
   loadText: () => Promise<string>;
+  extractionConfig?: {
+    startPattern: RegExp;
+    endMarker: string;
+  };
 }
 
 const DATASETS: Record<string, DatasetConfig> = {
@@ -169,6 +175,48 @@ const DATASETS: Record<string, DatasetConfig> = {
       printSuccess(`Formatted: ${formattedContent.length.toLocaleString()} characters`);
 
       return formattedContent;
+    },
+  },
+  prometheus_bound: {
+    name: 'prometheus_bound',
+    displayName: 'Prometheus Bound',
+    emoji: '🎭',
+    shouldChunk: true,
+    chunkSize: 4000,
+    useSmartChunking: true,
+    entityTypes: ['literature', 'ancient-greek-drama'],
+    createTableOfContents: true,
+    tocTitle: 'Prometheus Bound: Table of Contents',
+    stateFile: '.demo-prometheus-bound-state.json',
+    detectCitations: false,
+    cacheFile: 'data/tmp/prometheus_bound.txt',
+    extractionConfig: {
+      startPattern: /PROMETHEUS BOUND\s+ARGUMENT/,
+      endMarker: '*** END OF THE PROJECT GUTENBERG EBOOK FOUR PLAYS OF AESCHYLUS ***',
+    },
+    downloadContent: async () => {
+      printInfo('Downloading from Project Gutenberg...');
+      const url = 'https://www.gutenberg.org/cache/epub/8714/pg8714.txt';
+      const fullText = await downloadText(url);
+      printSuccess(`Downloaded ${fullText.length.toLocaleString()} characters`);
+
+      writeFileSync('data/tmp/prometheus_bound.txt', fullText);
+      printSuccess('Saved to data/tmp/prometheus_bound.txt');
+    },
+    loadText: async () => {
+      printInfo('Loading from data/tmp/prometheus_bound.txt...');
+      const fullText = readFileSync('data/tmp/prometheus_bound.txt', 'utf-8');
+      printSuccess(`Loaded ${fullText.length.toLocaleString()} characters`);
+
+      printInfo('Extracting "Prometheus Bound" section...');
+      const extractedText = extractSection(
+        fullText,
+        /PROMETHEUS BOUND\s+ARGUMENT/,
+        '*** END OF THE PROJECT GUTENBERG EBOOK FOUR PLAYS OF AESCHYLUS ***'
+      );
+      printSuccess(`Extracted ${extractedText.length.toLocaleString()} characters`);
+
+      return extractedText;
     },
   },
 };
@@ -302,8 +350,13 @@ async function loadCommand(datasetName: string) {
     let chunks: ChunkInfo[];
     if (dataset.shouldChunk) {
       printSectionHeader('✂️ ', 2, 'Chunk Document');
-      printInfo(`Chunking into sections (~${dataset.chunkSize} chars per chunk)...`);
-      chunks = chunkBySize(formattedText, dataset.chunkSize!, `${dataset.displayName} - Part`);
+      if (dataset.useSmartChunking) {
+        printInfo(`Chunking at paragraph boundaries (~${dataset.chunkSize} chars per chunk)...`);
+        chunks = chunkText(formattedText, dataset.chunkSize!, `${dataset.displayName} - Part`);
+      } else {
+        printInfo(`Chunking into sections (~${dataset.chunkSize} chars per chunk)...`);
+        chunks = chunkBySize(formattedText, dataset.chunkSize!, `${dataset.displayName} - Part`);
+      }
       const totalChars = chunks.reduce((sum, c) => sum + c.content.length, 0);
       const avgChars = Math.round(totalChars / chunks.length);
       printDownloadStats(totalChars, totalChars);
@@ -438,7 +491,11 @@ async function annotateCommand(datasetName: string) {
     // Re-chunk the text to get chunk content for annotation detection
     let chunks: ChunkInfo[];
     if (dataset.shouldChunk) {
-      chunks = chunkBySize(state.formattedText, dataset.chunkSize!, `${dataset.displayName} - Part`);
+      if (dataset.useSmartChunking) {
+        chunks = chunkText(state.formattedText, dataset.chunkSize!, `${dataset.displayName} - Part`);
+      } else {
+        chunks = chunkBySize(state.formattedText, dataset.chunkSize!, `${dataset.displayName} - Part`);
+      }
     } else {
       chunks = [{
         title: dataset.displayName,
