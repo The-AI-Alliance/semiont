@@ -268,6 +268,43 @@ export class TerminalApp {
     this.screen.key(['h'], () => {
       this.showHelp();
     });
+
+    // Visual focus indicators - highlight focused panel with inverse title
+    this.datasetList.on('focus', () => {
+      this.datasetList.style.border.fg = 'yellow';
+      this.datasetList.setLabel(' {inverse}{bold} Datasets & Commands {/bold}{/inverse} ');
+      this.screen.render();
+    });
+
+    this.datasetList.on('blur', () => {
+      this.datasetList.style.border.fg = 'cyan';
+      this.datasetList.setLabel(' Datasets & Commands ');
+      this.screen.render();
+    });
+
+    this.detailsBox.on('focus', () => {
+      this.detailsBox.style.border.fg = 'yellow';
+      this.detailsBox.setLabel(' {inverse}{bold} Details {/bold}{/inverse} ');
+      this.screen.render();
+    });
+
+    this.detailsBox.on('blur', () => {
+      this.detailsBox.style.border.fg = 'cyan';
+      this.detailsBox.setLabel(' Details ');
+      this.screen.render();
+    });
+
+    this.activityLog.on('focus', () => {
+      this.activityLog.style.border.fg = 'yellow';
+      this.activityLog.setLabel(' {inverse}{bold} Activity Log {/bold}{/inverse} ');
+      this.screen.render();
+    });
+
+    this.activityLog.on('blur', () => {
+      this.activityLog.style.border.fg = 'cyan';
+      this.activityLog.setLabel(' Activity Log ');
+      this.screen.render();
+    });
   }
 
   private getSelectedIndex(): number {
