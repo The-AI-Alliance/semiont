@@ -5,9 +5,9 @@
  */
 
 import blessed from 'blessed';
-import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import type { DatasetConfigWithPaths } from '../config/types.js';
+import { downloadCommand, loadCommand, annotateCommand } from '../demo.js';
 
 interface CommandStatus {
   dataset: string;
@@ -30,7 +30,7 @@ export class TerminalApp {
   private datasets: Record<string, DatasetConfigWithPaths>;
   private listItems: SelectedItem[] = [];
   private commandStatuses: CommandStatus[] = [];
-  private runningProcess: any = null;
+  private isRunningCommand: boolean = false;
 
   constructor(datasets: Record<string, DatasetConfigWithPaths>) {
     this.datasets = datasets;
@@ -204,9 +204,6 @@ export class TerminalApp {
   private setupEventHandlers() {
     // Quit on Escape, q, or Control-C
     this.screen.key(['escape', 'q', 'C-c'], () => {
-      if (this.runningProcess) {
-        this.runningProcess.kill();
-      }
       return process.exit(0);
     });
 
@@ -376,7 +373,7 @@ export class TerminalApp {
       return; // Can't execute dataset itself
     }
 
-    if (this.runningProcess) {
+    if (this.isRunningCommand) {
       this.logToActivity('{red-fg}Another command is already running!{/red-fg}');
       return;
     }
@@ -388,53 +385,47 @@ export class TerminalApp {
     this.logToActivity(`{bold}{green-fg}Executing: ${config.displayName} - ${command}{/green-fg}{/bold}`);
     this.logToActivity('{bold}{cyan-fg}═══════════════════════════════════════{/cyan-fg}{/bold}\n');
 
-    // Spawn the command
-    const args = ['demo.ts', selected.dataset, command];
-    this.runningProcess = spawn('npx', ['tsx', ...args], {
-      env: { ...process.env },
-      cwd: process.cwd(),
-    });
+    this.isRunningCommand = true;
 
-    // Capture stdout
-    this.runningProcess.stdout.on('data', (data: Buffer) => {
-      const lines = data.toString().split('\n');
-      lines.forEach((line: string) => {
-        if (line.trim()) {
-          this.logToActivity(line);
-        }
-      });
-    });
+    // Intercept console.log to capture output
+    const originalLog = console.log;
+    const originalError = console.error;
 
-    // Capture stderr
-    this.runningProcess.stderr.on('data', (data: Buffer) => {
-      const lines = data.toString().split('\n');
-      lines.forEach((line: string) => {
-        if (line.trim()) {
-          this.logToActivity(`{red-fg}${line}{/red-fg}`);
-        }
-      });
-    });
+    console.log = (...args: any[]) => {
+      this.logToActivity(args.join(' '));
+      originalLog(...args);
+    };
 
-    // Handle completion
-    this.runningProcess.on('close', (code: number) => {
-      if (code === 0) {
-        this.logToActivity('\n{bold}{green-fg}✓ Command completed successfully{/green-fg}{/bold}\n');
-      } else {
-        this.logToActivity(`\n{bold}{red-fg}✗ Command failed with exit code ${code}{/red-fg}{/bold}\n`);
+    console.error = (...args: any[]) => {
+      this.logToActivity(`{red-fg}${args.join(' ')}{/red-fg}`);
+      originalError(...args);
+    };
+
+    try {
+      // Call the appropriate command function
+      if (command === 'download') {
+        await downloadCommand(selected.dataset);
+      } else if (command === 'load') {
+        await loadCommand(selected.dataset);
+      } else if (command === 'annotate') {
+        await annotateCommand(selected.dataset);
       }
 
-      this.runningProcess = null;
+      this.logToActivity('\n{bold}{green-fg}✓ Command completed successfully{/green-fg}{/bold}\n');
+    } catch (error) {
+      this.logToActivity(`\n{bold}{red-fg}✗ Command failed: ${(error as Error).message}{/red-fg}{/bold}\n`);
+    } finally {
+      // Restore console
+      console.log = originalLog;
+      console.error = originalError;
+
+      this.isRunningCommand = false;
 
       // Refresh statuses
       this.checkCommandStatuses();
       this.populateList();
       this.updateDetails();
-    });
-
-    this.runningProcess.on('error', (error: Error) => {
-      this.logToActivity(`\n{bold}{red-fg}Error: ${error.message}{/red-fg}{/bold}\n`);
-      this.runningProcess = null;
-    });
+    }
   }
 
   private showHelp() {
