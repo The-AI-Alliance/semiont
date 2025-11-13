@@ -1,5 +1,2 @@
 # Dataset state files (stored in config directories)
 config/*/.state.json
-
-# Downloaded content cache
-data/tmp/

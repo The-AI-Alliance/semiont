@@ -22,7 +22,7 @@ export const config: DatasetConfig = {
   entityTypes: ['research-paper', 'ai', 'transformers', 'deep-learning'],
   createTableOfContents: false,
   detectCitations: false,
-  cacheFile: 'data/tmp/arxiv_1706.03762.json',
+  cacheFile: '/tmp/arxiv_1706.03762.json',
 
   downloadContent: async () => {
     const arxivId = '1706.03762';
@@ -34,13 +34,13 @@ export const config: DatasetConfig = {
     printInfo(`Categories: ${paper.categories.slice(0, 3).join(', ')}`, 3);
     printInfo(`Abstract: ${paper.abstract.length} characters`, 3);
 
-    writeFileSync('data/tmp/arxiv_1706.03762.json', JSON.stringify(paper, null, 2));
-    printSuccess('Saved to data/tmp/arxiv_1706.03762.json');
+    writeFileSync('/tmp/arxiv_1706.03762.json', JSON.stringify(paper, null, 2));
+    printSuccess('Saved to /tmp/arxiv_1706.03762.json');
   },
 
   loadText: async () => {
-    printInfo('Loading from data/tmp/arxiv_1706.03762.json...');
-    const paperData = readFileSync('data/tmp/arxiv_1706.03762.json', 'utf-8');
+    printInfo('Loading from /tmp/arxiv_1706.03762.json...');
+    const paperData = readFileSync('/tmp/arxiv_1706.03762.json', 'utf-8');
     const paper = JSON.parse(paperData);
     printSuccess(`Loaded: "${paper.title}"`);
 

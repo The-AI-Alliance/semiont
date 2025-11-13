@@ -23,7 +23,7 @@ export const config: DatasetConfig = {
   createTableOfContents: true,
   tocTitle: 'Citizens United v. FEC - Table of Contents',
   detectCitations: true,
-  cacheFile: 'data/tmp/citizens_united.html',
+  cacheFile: '/tmp/citizens_united.html',
 
   downloadContent: async () => {
     printInfo('Downloading from Cornell LII...');
@@ -31,13 +31,13 @@ export const config: DatasetConfig = {
     const rawText = await downloadCornellLII(url);
     printSuccess(`Downloaded ${rawText.length.toLocaleString()} characters`);
 
-    writeFileSync('data/tmp/citizens_united.html', rawText);
-    printSuccess('Saved to data/tmp/citizens_united.html');
+    writeFileSync('/tmp/citizens_united.html', rawText);
+    printSuccess('Saved to /tmp/citizens_united.html');
   },
 
   loadText: async () => {
-    printInfo('Loading from data/tmp/citizens_united.html...');
-    const rawText = readFileSync('data/tmp/citizens_united.html', 'utf-8');
+    printInfo('Loading from /tmp/citizens_united.html...');
+    const rawText = readFileSync('/tmp/citizens_united.html', 'utf-8');
     printSuccess(`Loaded ${rawText.length.toLocaleString()} characters`);
 
     printInfo('Formatting with markdown...');

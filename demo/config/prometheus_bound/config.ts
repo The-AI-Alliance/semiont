@@ -25,7 +25,7 @@ export const config: DatasetConfig = {
   createTableOfContents: true,
   tocTitle: 'Prometheus Bound: Table of Contents',
   detectCitations: false,
-  cacheFile: 'data/tmp/prometheus_bound.txt',
+  cacheFile: '/tmp/prometheus_bound.txt',
   extractionConfig: {
     startPattern: /PROMETHEUS BOUND\s+ARGUMENT/,
     endMarker: '*** END OF THE PROJECT GUTENBERG EBOOK FOUR PLAYS OF AESCHYLUS ***',
@@ -37,13 +37,13 @@ export const config: DatasetConfig = {
     const fullText = await downloadText(url);
     printSuccess(`Downloaded ${fullText.length.toLocaleString()} characters`);
 
-    writeFileSync('data/tmp/prometheus_bound.txt', fullText);
-    printSuccess('Saved to data/tmp/prometheus_bound.txt');
+    writeFileSync('/tmp/prometheus_bound.txt', fullText);
+    printSuccess('Saved to /tmp/prometheus_bound.txt');
   },
 
   loadText: async () => {
-    printInfo('Loading from data/tmp/prometheus_bound.txt...');
-    const fullText = readFileSync('data/tmp/prometheus_bound.txt', 'utf-8');
+    printInfo('Loading from /tmp/prometheus_bound.txt...');
+    const fullText = readFileSync('/tmp/prometheus_bound.txt', 'utf-8');
     printSuccess(`Loaded ${fullText.length.toLocaleString()} characters`);
 
     printInfo('Extracting "Prometheus Bound" section...');

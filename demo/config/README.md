@@ -49,21 +49,21 @@ To add a new dataset to the demo system:
      createTableOfContents: true,      // Create TOC with linked references
      tocTitle: 'My Dataset - TOC',     // Title for the TOC
      detectCitations: false,           // Enable citation detection
-     cacheFile: 'data/tmp/my_dataset.txt',  // Where to cache downloaded content
+     cacheFile: '/tmp/my_dataset.txt',  // Where to cache downloaded content
 
      // Optional: Download function (omit if data is already local)
      downloadContent: async () => {
        // Download and save to cacheFile
        printInfo('Downloading...');
        const data = await fetch('https://example.com/data');
-       writeFileSync('data/tmp/my_dataset.txt', await data.text());
+       writeFileSync('/tmp/my_dataset.txt', await data.text());
        printSuccess('Downloaded!');
      },
 
      // Required: Load function that returns the formatted text
      loadText: async () => {
        printInfo('Loading...');
-       const text = readFileSync('data/tmp/my_dataset.txt', 'utf-8');
+       const text = readFileSync('/tmp/my_dataset.txt', 'utf-8');
        printSuccess('Loaded!');
        return text;
      },

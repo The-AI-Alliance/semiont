@@ -26,7 +26,7 @@ export const config: DatasetConfig = {
   createTableOfContents: true,
   tocTitle: 'New Hampshire Supreme Court Cases (Sample)',
   detectCitations: false, // Could add citation detection in future
-  cacheFile: 'data/tmp/freelaw_nh.json',
+  cacheFile: '/tmp/freelaw_nh.json',
 
   downloadContent: async () => {
     printInfo(`Fetching ${DOCUMENT_COUNT} documents from ${HUGGINGFACE_DATASET}...`);
@@ -38,13 +38,13 @@ export const config: DatasetConfig = {
       printInfo(`  ${i + 1}. ${doc.title} (${doc.content.length.toLocaleString()} chars)`, 3);
     });
 
-    writeFileSync('data/tmp/freelaw_nh.json', JSON.stringify(documents, null, 2));
-    printSuccess('Saved to data/tmp/freelaw_nh.json');
+    writeFileSync('/tmp/freelaw_nh.json', JSON.stringify(documents, null, 2));
+    printSuccess('Saved to /tmp/freelaw_nh.json');
   },
 
   loadDocuments: async () => {
-    printInfo('Loading from data/tmp/freelaw_nh.json...');
-    const data = readFileSync('data/tmp/freelaw_nh.json', 'utf-8');
+    printInfo('Loading from /tmp/freelaw_nh.json...');
+    const data = readFileSync('/tmp/freelaw_nh.json', 'utf-8');
     const documents: DocumentInfo[] = JSON.parse(data);
     printSuccess(`Loaded ${documents.length} legal documents`);
 
