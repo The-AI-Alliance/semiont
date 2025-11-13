@@ -215,6 +215,19 @@ export class TerminalApp {
       this.updateDetails();
     });
 
+    // Update details when navigating with arrow keys or j/k
+    this.datasetList.key(['up', 'k'], () => {
+      this.datasetList.up();
+      this.updateDetails();
+      this.screen.render();
+    });
+
+    this.datasetList.key(['down', 'j'], () => {
+      this.datasetList.down();
+      this.updateDetails();
+      this.screen.render();
+    });
+
     // Execute command on Enter
     this.datasetList.key(['enter'], () => {
       this.executeSelected();
