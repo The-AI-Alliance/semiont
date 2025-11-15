@@ -13,11 +13,11 @@
 
 import { generateResourceSummary } from '../inference/factory';
 import { getBodySource, getTargetSource, getTargetSelector } from '../lib/annotation-utils';
-import type { components } from '@semiont/api-client';
+import type { components, AnnotationUri } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../utils/resource-helpers';
 import { FilesystemViewStorage } from '../storage/view-storage';
-import type { EnvironmentConfig, AnnotationId, ResourceId } from '@semiont/core';
+import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { resourceId as createResourceId } from '@semiont/core';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
@@ -35,7 +35,7 @@ export class AnnotationContextService {
   /**
    * Build LLM context for an annotation
    *
-   * @param annotationId - Annotation ID
+   * @param annotationUri - Full annotation URI (e.g., http://localhost:4000/annotations/abc123)
    * @param resourceId - Source resource ID
    * @param config - Application configuration
    * @param options - Context building options
@@ -43,7 +43,7 @@ export class AnnotationContextService {
    * @throws Error if annotation or resource not found
    */
   static async buildLLMContext(
-    annotationId: AnnotationId,
+    annotationUri: AnnotationUri,
     resourceId: ResourceId,
     config: EnvironmentConfig,
     options: BuildContextOptions = {}
@@ -59,7 +59,7 @@ export class AnnotationContextService {
       throw new Error('contextWindow must be between 100 and 5000');
     }
 
-    console.log(`[AnnotationContext] buildLLMContext called with annotationId=${annotationId}, resourceId=${resourceId}`);
+    console.log(`[AnnotationContext] buildLLMContext called with annotationUri=${annotationUri}, resourceId=${resourceId}`);
 
     const basePath = config.services.filesystem!.path;
     console.log(`[AnnotationContext] basePath=${basePath}`);
@@ -83,12 +83,12 @@ export class AnnotationContextService {
       throw error;
     }
 
-    console.log(`[AnnotationContext] Looking for annotation ${annotationId} in resource ${resourceId}`);
+    console.log(`[AnnotationContext] Looking for annotation ${annotationUri} in resource ${resourceId}`);
     console.log(`[AnnotationContext] View has ${sourceView.annotations.annotations.length} annotations`);
     console.log(`[AnnotationContext] First 5 annotation IDs:`, sourceView.annotations.annotations.slice(0, 5).map((a: Annotation) => a.id));
 
-    // Find the annotation in the view
-    const annotation = sourceView.annotations.annotations.find((a: Annotation) => a.id === annotationId);
+    // Find the annotation in the view (annotations have full URIs as their id)
+    const annotation = sourceView.annotations.annotations.find((a: Annotation) => a.id === annotationUri);
     console.log(`[AnnotationContext] Found annotation:`, !!annotation);
 
     if (!annotation) {
@@ -96,10 +96,12 @@ export class AnnotationContextService {
     }
 
     const targetSource = getTargetSource(annotation.target);
-    console.log(`[AnnotationContext] Target source: ${targetSource}, Expected: ${resourceId}`);
+    // Extract resource ID from the target source URI (format: http://host/resources/{id})
+    const targetResourceId = targetSource.split('/').pop();
+    console.log(`[AnnotationContext] Target source: ${targetSource}, Expected resource ID: ${resourceId}, Extracted ID: ${targetResourceId}`);
 
-    if (targetSource !== resourceId) {
-      throw new Error(`Annotation target source (${targetSource}) does not match expected resource ID (${resourceId})`);
+    if (targetResourceId !== resourceId) {
+      throw new Error(`Annotation target resource ID (${targetResourceId}) does not match expected resource ID (${resourceId})`);
     }
 
     const sourceDoc = sourceView.resource;
