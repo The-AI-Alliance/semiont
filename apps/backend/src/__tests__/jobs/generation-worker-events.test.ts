@@ -20,6 +20,39 @@ vi.mock('../../inference/factory', () => ({
   })
 }));
 
+// Mock AnnotationContextService to avoid requiring actual file content
+vi.mock('../../services/annotation-context', () => ({
+  AnnotationContextService: {
+    buildLLMContext: vi.fn().mockResolvedValue({
+      annotation: {
+        id: 'test-ref-id',
+        motivation: 'linking' as const,
+        body: [{
+          type: 'TextualBody' as const,
+          purpose: 'tagging' as const,
+          value: 'Person'
+        }],
+        target: {
+          source: 'source-resource',
+          selector: [{
+            type: 'TextQuoteSelector' as const,
+            exact: 'Test Topic'
+          }]
+        }
+      },
+      sourceResource: {
+        id: 'source-resource',
+        name: 'Source Resource'
+      },
+      sourceContext: {
+        before: 'Context before ',
+        selected: 'Test Topic',
+        after: ' context after'
+      }
+    })
+  }
+}));
+
 // Cache EventStore instances per basePath to ensure consistency
 const eventStoreCache = new Map();
 
@@ -149,7 +182,6 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-1'),  // Unique per test
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
-      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -190,7 +222,6 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-2'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
-      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -225,7 +256,6 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-3'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
-      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -262,7 +292,6 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-4'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
-      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -302,7 +331,6 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-5'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
-      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -350,7 +378,6 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-6'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
-      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -388,7 +415,6 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-7'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
-      llmContext: mockLLMContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
