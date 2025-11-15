@@ -1,185 +1,160 @@
-# Semiont Demo Scripts
+# Semiont Demo
 
-Demo scripts showcasing Semiont SDK and API functionality with modular, reusable components.
+Configuration-driven demonstration of Semiont SDK features: document processing, chunking, annotations, and validation.
 
-## Overview
+## Quick Start
 
-Three demo scripts that demonstrate the Semiont platform:
+```bash
+# Run in interactive terminal UI mode
+npm run demo:interactive
 
-1. **Prometheus Bound** (`pro_bo.ts`) - Classic literature from Project Gutenberg with paragraph-aware chunking
-2. **FreeLaw NH** (`freelaw_nh.ts`) - Legal cases from Hugging Face datasets with metadata extraction
-3. **Citizens United** (`citizens_united.ts`) - Supreme Court opinion from Cornell LII with simple chunking
+# Or run specific commands via CLI
+npx tsx demo.ts <dataset> <command>
 
-All demos follow a similar 8-pass workflow: authenticate, fetch/download, process, upload, create ToC, stub annotations, link references, display history.
+# Example: Download and process Citizens United case
+npx tsx demo.ts citizens_united download
+npx tsx demo.ts citizens_united load
+npx tsx demo.ts citizens_united annotate
+```
 
 ## Prerequisites
 
-**⚠️ Requires running Semiont backend and frontend.**
+### Running Backend Required
 
-1. **Start the backend** - See [Local Development Guide](../docs/LOCAL-DEVELOPMENT.md)
-2. **Verify backend** at `http://localhost:4000`
-3. **Verify frontend** at `http://localhost:3000` (optional, for viewing links)
+1. Start backend (see [Local Development Guide](../docs/LOCAL-DEVELOPMENT.md))
+2. Verify backend at `http://localhost:4000`
+3. Create user account (via frontend or local auth)
 
 **Requirements:**
-- Node.js 18+ and npm
+
+- Node.js 18+
 - Backend with `ENABLE_LOCAL_AUTH=true` (default in dev)
-- A valid user account
+- Valid user account
 
-## Installation
+## Modes
 
-```bash
-# From repository root
-npm install
-
-# Or from demo directory
-cd demo
-npm install
-```
-
-## Project Structure
-
-```
-demo/
-├── src/                      # Reusable utility modules
-│   ├── auth.ts              # Authentication helpers
-│   ├── annotations.ts       # Annotation creation/linking
-│   ├── chunking.ts          # Text chunking (simple & paragraph-aware)
-│   ├── display.ts           # Console output formatting
-│   ├── history.ts           # Event history display
-│   ├── huggingface.ts       # Hugging Face dataset fetching
-│   ├── legal-text.ts        # Cornell LII utilities
-│   └── resources.ts         # Resource upload & ToC creation
-├── pro_bo.ts                # Prometheus Bound demo
-├── freelaw_nh.ts            # FreeLaw NH demo
-├── citizens_united.ts       # Citizens United demo
-└── package.json             # Scripts: pro-bo, freelaw-nh, citizens-united
-```
-
-## Usage
-
-### 1. Prometheus Bound
-
-Downloads "Prometheus Bound" from Project Gutenberg, chunks at paragraph boundaries (~4000 chars), creates 15 linked parts.
+### Interactive Terminal UI
 
 ```bash
-npm run pro-bo
+npm run demo:interactive
 ```
 
-### 2. FreeLaw NH
+Full-screen terminal interface with three panels:
 
-Fetches 4 New Hampshire Supreme Court cases from Hugging Face with citations and metadata.
+- **Left**: Dataset list with command tree
+- **Bottom**: Detail view (config/status)
+- **Right**: Activity log (command output)
+
+**Controls:** `↑/↓` or `j/k` (navigate), `Enter` (execute), `Tab` (cycle focus), `q` (quit)
+
+See [INTERACTIVE.md](INTERACTIVE.md) for details.
+
+### CLI Mode
 
 ```bash
-npm run freelaw-nh
+npx tsx demo.ts <dataset> <command>
 ```
 
-### 3. Citizens United
+**Datasets:** `citizens_united`, `prometheus_bound`, `freelaw_nh`, `arxiv`, `hiking`, and private datasets in `config/private/`
 
-Downloads Citizens United v. FEC from Cornell LII, formats as markdown, chunks by size (~5000 chars), creates 5 linked parts.
+**Commands:**
 
-```bash
-npm run citizens-united
-```
+- `download` - Fetch content, cache in `data/tmp/`
+- `load` - Process cache, upload to backend, create ToC
+- `annotate` - Detect citations, create annotations
+- `validate` - Fetch all resources, verify content, show checksums
 
 ## Configuration
-
-Create a `.env` file from the example:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+**Environment variables:**
 
 ```bash
-# Backend API URL
 BACKEND_URL=http://localhost:4000
-
-# Frontend URL (for document links)
 FRONTEND_URL=http://localhost:3000
-
-# Authentication - use ONE of these:
-AUTH_EMAIL=user@example.com
-# ACCESS_TOKEN=your-jwt-token-here
-
-# Data directory for filesystem inspection
-DATA_DIR=/tmp/semiont/data/uploads
+AUTH_EMAIL=you@example.com
+DATA_DIR=./data/uploads
 ```
 
-**Environment variables:**
-- `BACKEND_URL` - Backend API (default: `http://localhost:4000`)
-- `FRONTEND_URL` - Frontend URL (default: `http://localhost:3000`)
-- `AUTH_EMAIL` - Auth email (default: `you@example.com`)
-- `ACCESS_TOKEN` - JWT token (alternative to AUTH_EMAIL)
-- `DATA_DIR` - Data directory (default: `/tmp/semiont/data/uploads`)
+## Project Structure
 
-## Output Example
-
-```
-🎭 Prometheus Bound Demo
-════════════════════════════════════════════════════════════
-
-🔐 PASS 0: Authentication
-   ✅ Authenticated successfully
-
-📥 PASS 1: Download and Chunk Document
-   ✅ Downloaded 264,795 characters
-   ✅ Created 15 chunks (avg 3995 chars)
-
-📤 PASS 2: Upload Document Chunks
-   [1/15] Uploading Prometheus Bound - Part 1...
-   ✅ http://localhost:4000/resources/a0b9710...
-
-📑 PASS 3: Create Table of Contents
-   ✅ Created ToC: http://localhost:4000/resources/ec7065bb...
-
-🔗 PASS 4: Create Stub References
-   [1/15] Creating annotation for "Part 1"...
-   ✅ Annotation UFusvNvKZFRvTCFdZ1nYg
-
-🎯 PASS 5: Link References to Documents
-   ✅ Linked 15/15 references
-
-📜 PASS 6: Document History
-   Total events: 31 (1 created, 15 added, 15 updated)
-
-✨ PASS 7: Results
-   📋 Table of Contents: http://localhost:3000/en/know/resource/ec7065bb...
-   📚 15 chunks created and linked
-
-✅ Complete!
+```text
+demo/
+├── demo.ts                   # Main entry point
+├── src/                      # Reusable modules
+│   ├── auth.ts              # Authentication
+│   ├── annotations.ts       # Annotation creation/linking
+│   ├── chunking.ts          # Text chunking
+│   ├── resources.ts         # Upload & ToC creation
+│   ├── validation.ts        # Resource validation
+│   └── terminal-app.ts      # Interactive UI
+└── config/                   # Dataset configurations
+    ├── types.ts             # Config type definitions
+    ├── citizens_united/     # Each dataset has config.ts
+    └── private/             # Private datasets (gitignored)
 ```
 
-## Features Demonstrated
+## Workflow
 
-**Core SDK:**
+### Download Phase
 
-- Type-safe API with `@semiont/api-client`
-- W3C Web Annotations (TextPositionSelector)
-- Modular, reusable components
+1. Fetch from Cornell LII, arXiv, Hugging Face, etc.
+2. Cache raw content in `data/tmp/<dataset>/`
 
-**Event-Sourced Architecture:**
+### Load Phase
 
-- Layer 1 (Storage): Raw content with hash-based sharding
-- Layer 2 (Events): Append-only event logs
-- Layer 3 (Projections): Consolidated JSON with annotations
+1. Read from local cache
+2. Format and process text
+3. Chunk document (if configured)
+4. Upload chunks to backend
+5. Create Table of Contents (if chunked)
+6. Link ToC references to documents
 
-**Annotation Workflow:**
+### Annotate Phase
 
-- Stub references (annotations without targets)
-- Linking via `updateAnnotationBody`
-- Full URIs for resources and annotations
+1. Detect patterns (e.g., legal citations)
+2. Create annotations via API
 
-**Content Processing:**
+### Validate Phase
 
-- Multiple sources (Gutenberg, Hugging Face, Cornell LII)
-- Flexible chunking (paragraph-aware or simple by size)
-- Metadata extraction (citations, dates, docket numbers)
+1. Fetch all resources (ToC, chunks, documents)
+2. Calculate SHA-256 checksums
+3. Show media types and text previews
+
+## Example Output
+
+```text
+📚 CITIZENS UNITED Demo
+════════════════════════════════════════════
+
+🔐 Authentication
+   ✅ Authenticated as you@example.com
+
+📥 Download
+   ✅ Downloaded 123,456 characters
+
+📤 Load
+   ✅ Created 5 chunks (avg 24,691 chars)
+   ✅ Created ToC with 5 references
+
+🔍 Annotate
+   ✅ Detected 23 legal citations
+
+✓ Validate
+   ✅ ToC: text/html [sha256:a1b2c3...]
+   ✅ Chunk 1: text/markdown [sha256:d4e5f6...]
+
+📋 Table of Contents:
+   http://localhost:3000/en/know/resource/abc123...
+```
 
 ## API Client Usage
 
 ```typescript
-import { SemiontApiClient, baseUrl } from '@semiont/api-client';
+import { SemiontApiClient, baseUrl, resourceUri } from '@semiont/api-client';
 
 const client = new SemiontApiClient({ baseUrl: baseUrl(BACKEND_URL) });
 
@@ -187,7 +162,7 @@ const client = new SemiontApiClient({ baseUrl: baseUrl(BACKEND_URL) });
 await client.authenticateLocal(email(AUTH_EMAIL));
 
 // Create resource
-const response = await client.createResource({
+const { resource } = await client.createResource({
   name: 'Document',
   file: Buffer.from(content),
   format: 'text/plain',
@@ -197,47 +172,58 @@ const response = await client.createResource({
 // Create annotation
 await client.createAnnotation(resourceUri, {
   motivation: 'linking',
-  target: { source: resourceUri, selector: { type: 'TextPositionSelector', exact: 'text', start: 0, end: 4 }},
+  target: {
+    source: resourceUri,
+    selector: { type: 'TextPositionSelector', start: 0, end: 4 }
+  },
   body: [],
 });
-
-// Link reference
-await client.updateAnnotationBody(annotationUri, {
-  resourceId: 'id',
-  operations: [{ op: 'add', item: { type: 'SpecificResource', source: targetUri, purpose: 'linking' }}],
-});
 ```
+
+## Adding Datasets
+
+Create `config/<dataset>/config.ts`:
+
+```typescript
+import type { DatasetConfig } from '../types';
+
+export const config: DatasetConfig = {
+  name: 'My Dataset',
+  entityType: 'article',
+  source: {
+    type: 'remote',
+    url: 'https://example.com/data.txt',
+  },
+  chunking: { enabled: true, mode: 'simple', targetSize: 5000 },
+  tableOfContents: { enabled: true, createLinks: true },
+};
+```
+
+Then run:
+
+```bash
+npx tsx demo.ts my-dataset download
+npx tsx demo.ts my-dataset load
+```
+
+See [config/README.md](config/README.md) for configuration options.
 
 ## Troubleshooting
 
-**"User not found"** - Email doesn't exist; create account via frontend or use different email
+**"User not found"** - Create account via frontend or use different email
 
-**"Local authentication not enabled"** - Backend needs `ENABLE_LOCAL_AUTH=true` in `.env`
+**"Local authentication not enabled"** - Set `ENABLE_LOCAL_AUTH=true` in backend `.env`
 
-**"401 Unauthorized"** - Token expired (8hr lifetime); re-run script for fresh token
+**"401 Unauthorized"** - Token expired (8hr); re-run for fresh token
 
-**"404 Not Found" on annotations** - Ensure proper resource URI formatting from API responses
-
-## Extending
-
-The modular structure makes it easy to add new data sources:
-
-```typescript
-// src/arxiv.ts
-export async function downloadArxivPaper(arxivId: string): Promise<string> { ... }
-
-// arxiv_demo.ts
-import { downloadArxivPaper } from './src/arxiv';
-import { chunkBySize } from './src/chunking';
-import { uploadChunks, createTableOfContents } from './src/resources';
-// ... workflow
-```
+**"Dataset not found"** - Check dataset name matches directory in `config/`
 
 ## Related Documentation
 
-- [Local Development Guide](../docs/LOCAL-DEVELOPMENT.md) - Backend setup
-- [Backend README](../apps/backend/README.md) - API documentation
-- [API Client Package](../packages/api-client/README.md) - Client reference
+- [Interactive UI Guide](INTERACTIVE.md) - Terminal UI details
+- [Config Guide](config/README.md) - Dataset configuration
+- [Local Development](../docs/LOCAL-DEVELOPMENT.md) - Backend setup
+- [API Client](../packages/api-client/README.md) - Client reference
 
 ## License
 
