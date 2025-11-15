@@ -93,35 +93,6 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
   };
 });
 
-// Pre-fetched LLM context (included in job payload, no HTTP call needed)
-const mockLLMContext: any = {
-  annotation: {
-    id: 'test-ref-id',
-    motivation: 'linking' as const,
-    body: [{
-      type: 'TextualBody' as const,
-      purpose: 'tagging' as const,
-      value: 'Person'
-    }],
-    target: {
-      source: 'source-resource',
-      selector: [{
-        type: 'TextQuoteSelector' as const,
-        exact: 'Test Topic'
-      }]
-    }
-  },
-  sourceResource: {
-    id: 'source-resource',
-    name: 'Source Resource'
-  },
-  sourceContext: {
-    before: 'Context before ',
-    selected: 'Test Topic',
-    after: ' context after'
-  }
-};
-
 describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
   let testEnv: TestEnvironmentConfig;
