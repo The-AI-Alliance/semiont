@@ -148,3 +148,60 @@ export function getEntityTypes(resource: ResourceDescriptor): string[] {
 export function isDraft(resource: ResourceDescriptor): boolean {
   return resource.isDraft === true;
 }
+
+/**
+ * Map charset names to Node.js Buffer encoding names
+ * Node.js Buffer.toString() supports: 'utf8', 'utf16le', 'latin1', 'base64', 'hex', 'ascii', 'binary', 'ucs2'
+ *
+ * @param charset - Charset name (e.g., "UTF-8", "ISO-8859-1", "Windows-1252")
+ * @returns Node.js BufferEncoding
+ */
+export function getNodeEncoding(charset: string): BufferEncoding {
+  const normalized = charset.toLowerCase().replace(/[-_]/g, '');
+
+  // Map common charset names to Node.js encodings
+  const charsetMap: Record<string, BufferEncoding> = {
+    'utf8': 'utf8',
+    'utf-8': 'utf8',
+    'iso88591': 'latin1',
+    'iso-8859-1': 'latin1',
+    'latin1': 'latin1',
+    'ascii': 'ascii',
+    'usascii': 'ascii',
+    'us-ascii': 'ascii',
+    'utf16le': 'utf16le',
+    'utf-16le': 'utf16le',
+    'ucs2': 'ucs2',
+    'ucs-2': 'ucs2',
+    'binary': 'binary',
+    'windows1252': 'latin1', // Windows-1252 is a superset of Latin-1
+    'cp1252': 'latin1',
+  };
+
+  return charsetMap[normalized] || 'utf8';
+}
+
+/**
+ * Decode a representation buffer to string using the correct charset
+ * Extracts charset from media type and uses appropriate encoding
+ *
+ * @param buffer - The raw representation data
+ * @param mediaType - Media type with optional charset (e.g., "text/plain; charset=iso-8859-1")
+ * @returns Decoded string
+ *
+ * @example
+ * ```typescript
+ * const content = decodeRepresentation(buffer, "text/plain; charset=utf-8");
+ * const legacy = decodeRepresentation(buffer, "text/plain; charset=windows-1252");
+ * ```
+ */
+export function decodeRepresentation(buffer: Buffer, mediaType: string): string {
+  // Extract charset from mediaType (e.g., "text/plain; charset=iso-8859-1")
+  const charsetMatch = mediaType.match(/charset=([^\s;]+)/i);
+  const charset = (charsetMatch?.[1] || 'utf-8').toLowerCase();
+
+  // Map to Node.js encoding
+  const encoding = getNodeEncoding(charset);
+
+  return buffer.toString(encoding);
+}

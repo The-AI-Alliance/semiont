@@ -2,7 +2,7 @@
 import type { components } from '@semiont/api-client';
 import { extractEntities } from '../../inference/entity-extractor';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { getPrimaryRepresentation } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
 import type { EnvironmentConfig } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -42,9 +42,10 @@ export async function detectAnnotationsInResource(
   const primaryRep = getPrimaryRepresentation(resource);
   if (!primaryRep) return detectedAnnotations;
 
-  // Only process text content
+  // Only process text content (check base media type, ignoring charset parameters)
   const mediaType = primaryRep.mediaType;
-  if (mediaType === 'text/plain' || mediaType === 'text/markdown') {
+  const baseMediaType = mediaType?.split(';')[0]?.trim() || '';
+  if (baseMediaType === 'text/plain' || baseMediaType === 'text/markdown') {
     // Load content from representation store using content-addressed lookup
     if (!primaryRep.checksum || !primaryRep.mediaType) return detectedAnnotations;
 
@@ -52,7 +53,7 @@ export async function detectAnnotationsInResource(
     const projectRoot = config._metadata?.projectRoot;
     const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
     const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-    const content = contentBuffer.toString('utf-8');
+    const content = decodeRepresentation(contentBuffer, primaryRep.mediaType);
 
     // Use AI to extract entities
     const extractedEntities = await extractEntities(content, entityTypes, config);
