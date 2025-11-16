@@ -2,7 +2,7 @@
  * Tool execution handlers using @semiont/api-client
  */
 
-import { SemiontApiClient, getExactText, getBodySource, resourceUri } from '@semiont/api-client';
+import { SemiontApiClient, getExactText, getBodySource, resourceUri, annotationUri } from '@semiont/api-client';
 
 export async function handleCreateResource(client: SemiontApiClient, args: any) {
   // Create File from content string for multipart/form-data upload
@@ -51,15 +51,42 @@ export async function handleListResources(client: SemiontApiClient, args: any) {
   };
 }
 
-export async function handleDetectAnnotations(_client: SemiontApiClient, _args: any) {
-  // NOTE: The /detect-annotations endpoint was removed. Use /detect-annotations-stream instead
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Error: The detect-annotations endpoint is no longer available. The API now uses streaming annotation detection.`,
-    }],
-    isError: true,
-  };
+export async function handleDetectAnnotations(client: SemiontApiClient, args: any) {
+  const rUri = resourceUri(args?.resourceId);
+  const entityTypes = args?.entityTypes || [];
+
+  return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {
+    const stream = client.sse.detectAnnotations(rUri, { entityTypes });
+
+    const progressMessages: string[] = [];
+
+    stream.onProgress((progress) => {
+      const msg = progress.status === 'scanning'
+        ? `Scanning for ${progress.currentEntityType}... (${progress.processedEntityTypes}/${progress.totalEntityTypes})`
+        : `Status: ${progress.status}`;
+      progressMessages.push(msg);
+      console.error(msg); // Send to stderr for MCP progress
+    });
+
+    stream.onComplete((result) => {
+      resolve({
+        content: [{
+          type: 'text' as const,
+          text: `Entity detection complete!\nFound ${result.foundCount || 0} entities\n\nProgress:\n${progressMessages.join('\n')}`,
+        }],
+      });
+    });
+
+    stream.onError((error) => {
+      resolve({
+        content: [{
+          type: 'text' as const,
+          text: `Entity detection failed: ${error.message}`,
+        }],
+        isError: true,
+      });
+    });
+  });
 }
 
 export async function handleCreateAnnotation(client: SemiontApiClient, args: any) {
@@ -141,19 +168,44 @@ export async function handleResolveAnnotation(client: SemiontApiClient, args: an
 }
 
 export async function handleGenerateResourceFromAnnotation(client: SemiontApiClient, args: any) {
-  const data = await client.generateResourceFromAnnotation(args?.selectionId, {
-    name: args?.name,
-    entityTypes: args?.entityTypes,
+  const rUri = resourceUri(args?.resourceId);
+  const aUri = annotationUri(args?.annotationId);
+  const request = {
+    title: args?.title,
     prompt: args?.prompt,
     language: args?.language,
-  });
-
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Resource generated successfully:\nResource ID: ${data.resource['@id']}\nResource Name: ${data.resource.name}\nAnnotation linked: ${data.annotation.id}`,
-    }],
   };
+
+  return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {
+    const stream = client.sse.generateResourceFromAnnotation(rUri, aUri, request);
+
+    const progressMessages: string[] = [];
+
+    stream.onProgress((progress) => {
+      const msg = `${progress.status}: ${progress.percentage}% - ${progress.message || ''}`;
+      progressMessages.push(msg);
+      console.error(msg); // Send to stderr for MCP progress
+    });
+
+    stream.onComplete((result) => {
+      resolve({
+        content: [{
+          type: 'text' as const,
+          text: `Resource generation complete!\nResource ID: ${result.resourceId || 'unknown'}\nResource Name: ${result.resourceName || 'unknown'}\n\nProgress:\n${progressMessages.join('\n')}`,
+        }],
+      });
+    });
+
+    stream.onError((error) => {
+      resolve({
+        content: [{
+          type: 'text' as const,
+          text: `Resource generation failed: ${error.message}`,
+        }],
+        isError: true,
+      });
+    });
+  });
 }
 
 export async function handleGetContextualSummary(_client: SemiontApiClient, _args: any) {
