@@ -53,7 +53,7 @@ Configured in environment files (e.g., `environments/local.json`):
 
 Generate new documents from annotated text selections with graph context:
 
-**API Endpoint**: `POST /api/annotations/{id}/generate-document`
+**API Endpoint**: `POST /resources/{resourceId}/annotations/{annotationId}/generate-resource-stream` (SSE streaming)
 
 **Flow**:
 1. User selects text and creates annotation
@@ -61,27 +61,25 @@ Generate new documents from annotated text selections with graph context:
 3. LLM generates document content using annotation + context
 4. New document created and linked via annotation
 
-**Streaming Support**: `POST /api/annotations/{id}/generate-document-stream`
 
 ### 2. Entity Detection
 
-Automatically detect entities in document content:
+Automatically detect entities in resource content:
 
-**API Endpoint**: `POST /api/documents/{id}/detect-entities`
+**API Endpoint**: `POST /resources/{id}/detect-annotations-stream` (SSE streaming)
 
 **Capabilities**:
 - Named entity recognition (Person, Organization, Location, etc.)
 - Custom entity type detection
 - Confidence scoring
 - Multi-language support
-
-**Streaming Support**: `POST /api/documents/{id}/detect-annotations-stream`
+- Real-time progress updates via Server-Sent Events
 
 ### 3. Context Discovery
 
 Extract relevant context from documents for LLM consumption:
 
-**API Endpoint**: `POST /api/documents/{id}/llm-context`
+**API Endpoint**: `POST /resources/{resourceId}/annotations/{annotationId}/llm-context`
 
 **Context Includes**:
 - Document content and metadata
@@ -98,9 +96,9 @@ Extract relevant context from documents for LLM consumption:
 - Streams LLM output
 - Creates and links generated documents
 
-**Detection Routes**: [apps/backend/src/routes/documents/](../../apps/backend/src/routes/documents/)
-- Entity detection endpoints
-- Streaming support
+**Detection Routes**: [apps/backend/src/routes/resources/](../../apps/backend/src/routes/resources/)
+- Entity detection streaming endpoints
+- Server-Sent Events support
 - Error handling and retries
 
 ### Frontend Integration

@@ -98,7 +98,7 @@ abstract class JobWorker {
   type: 'detection';
   status: JobStatus;             // pending|running|complete|failed|cancelled
   userId: string;
-  documentId: string;
+  resourceId: string;
   entityTypes: string[];         // Entity types to detect
   progress?: {
     totalEntityTypes: number;
@@ -135,13 +135,11 @@ abstract class JobWorker {
 5. Mark job complete with final statistics
 
 **API Endpoints**:
-- `POST /api/documents/:id/detect-entities` - Create detection job
-- `POST /api/documents/:id/detect-annotations-stream` - Create job and stream progress via SSE
-- `GET /api/jobs/:jobId` - Get job status and progress
+- `POST /resources/:id/detect-annotations-stream` - Create job and stream progress via SSE
+- `GET /jobs/:jobId` - Get job status and progress
 
 **Files**:
-- Route: [apps/backend/src/routes/documents/routes/detect-entities.ts](../../apps/backend/src/routes/documents/routes/detect-entities.ts)
-- Streaming: [apps/backend/src/routes/documents/routes/detect-annotations-stream.ts](../../apps/backend/src/routes/documents/routes/detect-annotations-stream.ts)
+- Streaming: [apps/backend/src/routes/resources/routes/detect-annotations-stream.ts](../../apps/backend/src/routes/resources/routes/detect-annotations-stream.ts)
 
 #### GenerationJob
 
@@ -155,7 +153,7 @@ abstract class JobWorker {
   status: JobStatus;             // pending|running|complete|failed|cancelled
   userId: string;
   referenceId: string;           // Annotation ID that triggered generation
-  sourceDocumentId: string;
+  sourceResourceId: string;
   prompt?: string;               // Optional user-provided prompt
   title?: string;                // Optional document title
   entityTypes?: string[];        // Optional entity context
@@ -166,8 +164,8 @@ abstract class JobWorker {
     message?: string;
   };
   result?: {
-    documentId: string;
-    documentName: string;
+    resourceId: string;
+    resourceName: string;
   };
   created: string;
   startedAt?: string;
@@ -181,20 +179,18 @@ abstract class JobWorker {
 **Worker Implementation**: [apps/backend/src/jobs/workers/generation-worker.ts](../../apps/backend/src/jobs/workers/generation-worker.ts)
 
 **Processing Flow**:
-1. **Fetching Stage**: Fetch source annotation and document metadata (25% progress)
-2. **Generating Stage**: Call AI inference to generate document content (50% progress)
-3. **Creating Stage**: Save generated content to RepresentationStore, emit `document.created` event to Event Store (75% progress)
-4. **Linking Stage**: Emit `annotation.body.updated` event to link reference annotation to new document (100% progress)
-5. Return `documentId` and `documentName` in job result
+1. **Fetching Stage**: Fetch source annotation and resource metadata (25% progress)
+2. **Generating Stage**: Call AI inference to generate resource content (50% progress)
+3. **Creating Stage**: Save generated content to RepresentationStore, emit `resource.created` event to Event Store (75% progress)
+4. **Linking Stage**: Emit `annotation.body.updated` event to link reference annotation to new resource (100% progress)
+5. Return `resourceId` and `resourceName` in job result
 
 **API Endpoints**:
-- `POST /api/annotations/:id/generate-document` - Create generation job
-- `POST /api/annotations/:id/generate-document-stream` - Create job and stream progress via SSE
-- `GET /api/jobs/:jobId` - Get job status and progress
+- `POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream` - Create job and stream progress via SSE
+- `GET /jobs/:jobId` - Get job status and progress
 
 **Files**:
-- Route: [apps/backend/src/routes/annotations/routes/generate-document.ts](../../apps/backend/src/routes/annotations/routes/generate-document.ts)
-- Streaming: [apps/backend/src/routes/annotations/routes/generate-document-stream.ts](../../apps/backend/src/routes/annotations/routes/generate-document-stream.ts)
+- Streaming: [apps/backend/src/routes/resources/routes/generate-resource-stream.ts](../../apps/backend/src/routes/resources/routes/generate-resource-stream.ts)
 
 ### Startup and Initialization
 
@@ -229,8 +225,8 @@ Workers emit events to the Event Store:
 - `annotation.added` - For each detected entity
 
 **Generation Worker Events**:
-- `document.created` - When new document is generated
-- `annotation.body.updated` - To link reference annotation to new document
+- `resource.created` - When new resource is generated
+- `annotation.body.updated` - To link reference annotation to new resource
 
 ### Event-Driven Consumer
 
@@ -239,9 +235,9 @@ Workers emit events to the Event Store:
 The GraphDB Consumer subscribes to events emitted by workers and updates the Graph Database:
 
 **Subscribed Events**:
-- `document.created` - Add document vertex to graph
+- `resource.created` - Add resource vertex to graph
 - `annotation.added` - Add annotation vertex and edges to graph
-- `annotation.body.updated` - Update annotation edges (e.g., link to generated document)
+- `annotation.body.updated` - Update annotation edges (e.g., link to generated resource)
 
 **Pattern**: Workers → Event Store (L2) → Event Consumer → Graph DB (L4)
 
@@ -340,16 +336,12 @@ semiont stop --service job-worker --environment local
 
 ### Job Management
 
-**Create Job** (via detection/generation endpoints):
-- `POST /api/documents/:id/detect-entities`
-- `POST /api/annotations/:id/generate-document`
-
 **Get Job Status**:
-- `GET /api/jobs/:jobId`
+- `GET /jobs/:jobId`
 
-**Stream Job Progress**:
-- `POST /api/documents/:id/detect-annotations-stream` (SSE)
-- `POST /api/annotations/:id/generate-document-stream` (SSE)
+**Stream Job Progress with SSE**:
+- `POST /resources/:id/detect-annotations-stream` (SSE)
+- `POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream` (SSE)
 
 **Response Format**:
 ```json
