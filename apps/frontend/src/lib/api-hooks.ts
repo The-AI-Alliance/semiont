@@ -270,26 +270,6 @@ export function useAnnotations() {
           },
         }),
     },
-
-    generateResource: {
-      useMutation: () =>
-        useMutation({
-          mutationFn: ({
-            annotationUri,
-            data,
-          }: {
-            annotationUri: ResourceAnnotationUri;
-            data: Parameters<SemiontApiClient['generateResourceFromAnnotation']>[1];
-          }) => {
-            if (!client) throw new Error('Not authenticated');
-            return client.generateResourceFromAnnotation(annotationUri, data);
-          },
-          onSuccess: () => {
-            // Invalidate documents list since a new resource was created
-            queryClient.invalidateQueries({ queryKey: ['documents'] });
-          },
-        }),
-    },
   };
 }
 

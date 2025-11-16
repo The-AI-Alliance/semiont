@@ -22,7 +22,6 @@ import { registerCreateAnnotation } from './routes/create-annotation';
 import { registerGetAnnotation } from './routes/get-annotation';
 import { registerDeleteAnnotation } from './routes/delete-annotation';
 import { registerUpdateAnnotationBody } from './routes/update-annotation-body';
-import { registerGenerateResourceFromAnnotation } from './routes/generate-resource-from-annotation';
 import { registerGenerateResourceStream } from './routes/generate-resource-stream';
 import { registerGetAnnotationHistory } from '../annotations/routes/history';
 
@@ -52,7 +51,6 @@ registerGetResourceAnnotations(resourcesRouter);  // GET /resources/:id/annotati
 registerCreateAnnotation(resourcesRouter);  // POST /resources/:id/annotations
 registerGetAnnotation(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId
 registerUpdateAnnotationBody(resourcesRouter);  // PUT /resources/:resourceId/annotations/:annotationId/body
-registerGenerateResourceFromAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/generate-resource
 registerGenerateResourceStream(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
 registerGetAnnotationHistory(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/history
 registerDeleteAnnotation(resourcesRouter);  // DELETE /resources/:resourceId/annotations/:annotationId

@@ -105,9 +105,6 @@
     "/resources/{resourceId}/annotations/{annotationId}/body": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_body.json"
     },
-    "/resources/{resourceId}/annotations/{annotationId}/generate-resource": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_generate-resource.json"
-    },
     "/resources/{resourceId}/annotations/{annotationId}/generate-resource-stream": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_generate-resource-stream.json"
     },

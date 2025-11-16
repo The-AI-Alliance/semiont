@@ -463,14 +463,6 @@ export class SemiontApiClient {
     }).json();
   }
 
-  async generateResourceFromAnnotation(
-    annotationUri: ResourceAnnotationUri,
-    data: RequestContent<paths['/resources/{resourceId}/annotations/{annotationId}/generate-resource']['post']>
-  ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/generate-resource']['post']>> {
-    // annotationUri is already a full URI, use it directly
-    return this.http.post(`${annotationUri}/generate-resource`, { json: data }).json();
-  }
-
   async getAnnotationHistory(
     annotationUri: ResourceAnnotationUri
   ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/history']['get']>> {
