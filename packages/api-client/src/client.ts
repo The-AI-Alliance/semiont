@@ -14,7 +14,6 @@ import type { paths } from './types';
 import type { AnnotationUri, ResourceUri, ResourceAnnotationUri } from './branded-types';
 import type {
   AccessToken,
-  AuthCode,
   BaseUrl,
   CloneToken,
   ContentFormat,
@@ -156,26 +155,26 @@ export class SemiontApiClient {
   // AUTHENTICATION
   // ============================================================================
 
-  async authenticateLocal(email: Email, code: AuthCode): Promise<ResponseContent<paths['/api/tokens/local']['post']>> {
-    const response = await this.http.post(`${this.baseUrl}/api/tokens/local`, { json: { email, code } }).json<any>();
-    if (response.accessToken) {
-      this.setAccessToken(response.accessToken);
+  async authenticateLocal(email: Email): Promise<ResponseContent<paths['/api/tokens/local']['post']>> {
+    const response = await this.http.post(`${this.baseUrl}/api/tokens/local`, { json: { email } }).json<any>();
+    if (response.token) {
+      this.setAccessToken(response.token);
     }
     return response;
   }
 
   async refreshToken(token: RefreshToken): Promise<ResponseContent<paths['/api/tokens/refresh']['post']>> {
     const response = await this.http.post(`${this.baseUrl}/api/tokens/refresh`, { json: { refreshToken: token } }).json<any>();
-    if (response.accessToken) {
-      this.setAccessToken(response.accessToken);
+    if (response.access_token) {
+      this.setAccessToken(response.access_token);
     }
     return response;
   }
 
   async authenticateGoogle(credential: GoogleCredential): Promise<ResponseContent<paths['/api/tokens/google']['post']>> {
     const response = await this.http.post(`${this.baseUrl}/api/tokens/google`, { json: { credential } }).json<any>();
-    if (response.accessToken) {
-      this.setAccessToken(response.accessToken);
+    if (response.token) {
+      this.setAccessToken(response.token);
     }
     return response;
   }

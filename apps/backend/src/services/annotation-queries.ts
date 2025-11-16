@@ -88,7 +88,11 @@ export class AnnotationQueryService {
    */
   static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation | null> {
     const annotations = await this.getResourceAnnotations(resourceId, config);
-    return annotations.annotations.find((a: Annotation) => a.id === annotationId) || null;
+    // Extract short ID from annotation's full URI for comparison
+    return annotations.annotations.find((a: Annotation) => {
+      const shortId = a.id.split('/').pop();
+      return shortId === annotationId;
+    }) || null;
   }
 
   /**

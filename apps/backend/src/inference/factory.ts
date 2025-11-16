@@ -1,6 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getLocaleEnglishName } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
 import type { EnvironmentConfig } from '@semiont/core';
+
+type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
 function getLanguageName(locale: string): string {
   return getLocaleEnglishName(locale) || locale;
@@ -104,7 +107,8 @@ export async function generateResourceFromTopic(
   entityTypes: string[],
   config: EnvironmentConfig,
   userPrompt?: string,
-  locale?: string
+  locale?: string,
+  llmContext?: AnnotationLLMContextResponse
 ): Promise<{ title: string; content: string }> {
   console.log('generateResourceFromTopic called with:', {
     topic: topic.substring(0, 100),
@@ -122,10 +126,23 @@ export async function generateResourceFromTopic(
     ? `\n\nIMPORTANT: Write the entire resource in ${getLanguageName(locale)}.`
     : '';
 
+  // Build context section if available
+  let contextSection = '';
+  if (llmContext?.sourceContext) {
+    const { before, selected, after } = llmContext.sourceContext;
+    contextSection = `\n\nSource document context:
+---
+${before ? `...${before}` : ''}
+**[${selected}]**
+${after ? `${after}...` : ''}
+---
+`;
+  }
+
   // Simple, direct prompt - just ask for markdown content
   const prompt = `Generate a concise, informative resource about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
-${userPrompt ? `Additional context: ${userPrompt}` : ''}${languageInstruction}
+${userPrompt ? `Additional context: ${userPrompt}` : ''}${contextSection}${languageInstruction}
 
 Requirements:
 - Start with a clear heading (# Title)

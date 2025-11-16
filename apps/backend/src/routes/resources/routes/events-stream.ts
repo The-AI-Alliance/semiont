@@ -136,9 +136,9 @@ export function registerGetEventStream(router: ResourcesRouterType) {
             event: storedEvent.event.type,
             id: storedEvent.metadata.sequenceNumber.toString(),
           });
-          console.log(`[EventStream:${streamId}] Successfully wrote event ${storedEvent.event.type} to SSE stream for ${resourceUri}`);
+          console.log(`[EventStream:${streamId}] Successfully wrote event ${storedEvent.event.type} to SSE stream for ${rUri}`);
         } catch (error) {
-          console.error(`[EventStream:${streamId}] Error writing event ${storedEvent.event.type} to SSE stream for ${resourceUri}:`, error);
+          console.error(`[EventStream:${streamId}] Error writing event ${storedEvent.event.type} to SSE stream for ${rUri}:`, error);
           cleanup();
         }
       });

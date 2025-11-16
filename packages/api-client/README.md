@@ -26,50 +26,47 @@ npm install @semiont/api-client
 ## Quick Start
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontApiClient, baseUrl, email, resourceUri } from '@semiont/api-client';
 
 const client = new SemiontApiClient({
-  baseUrl: 'http://localhost:4000',
+  baseUrl: baseUrl('http://localhost:4000'),
 });
 
-// Authenticate
-await client.authenticateLocal('user@example.com', '123456');
+// Authenticate (local development mode)
+await client.authenticateLocal(email('user@example.com'));
 
 // Create a text document
-const textBlob = new Blob(['The quick brown fox jumps over the lazy dog.']);
 const { resource } = await client.createResource({
   name: 'My Document',
-  file: textBlob,
+  file: Buffer.from('The quick brown fox jumps over the lazy dog.'),
   format: 'text/plain',
   entityTypes: ['example']
 });
 
+console.log('Created resource:', resource['@id']);
+
 // Detect entities with AI
-const stream = client.sse.detectAnnotations(resource['@id'], {
+const stream = client.sse.detectAnnotations(resourceUri(resource['@id']), {
   entityTypes: ['Animal', 'Color']
 });
 
 stream.onProgress((p) => console.log(`Scanning: ${p.currentEntityType}`));
-stream.onComplete(() => console.log('Detection complete!'));
+stream.onComplete((result) => console.log(`Found ${result.foundCount} entities`));
 
-// Generate new document from annotation
-const generation = client.sse.generateResourceFromAnnotation(annotationUri, {
-  title: 'Analysis of the fox',
-  prompt: 'Write a detailed analysis of this animal.'
-});
-
-generation.onProgress((p) => console.log(`Generating... ${p.percentage}%`));
-generation.onComplete((result) => console.log('New document:', result.resourceId));
+// Get annotations
+const annotations = await client.getResourceAnnotations(resourceUri(resource['@id']));
+console.log('Annotations:', annotations.annotations.length);
 ```
 
 ## Documentation
 
 📚 **[Usage Guide](./docs/Usage.md)** - Authentication, resources, annotations, SSE streaming
+
 📖 **[API Reference](./docs/API-Reference.md)** - Complete method documentation
 
 ## Key Features
 
-- **Type-safe** - Generated from OpenAPI spec
+- **Type-safe** - Generated from OpenAPI spec with branded types
 - **W3C compliant** - Web Annotation standard
 - **Real-time** - SSE streaming for long operations
 - **Framework-agnostic** - Works everywhere JavaScript runs
