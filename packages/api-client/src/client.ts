@@ -514,18 +514,8 @@ export class SemiontApiClient {
   }
 
   // ============================================================================
-  // ENTITY DETECTION (ASYNC JOBS)
+  // JOB STATUS
   // ============================================================================
-
-  async detectEntities(
-    resourceUri: ResourceUri,
-    entityTypes?: EntityType[]
-  ): Promise<ResponseContent<paths['/resources/{id}/detect-entities']['post']>> {
-    // resourceUri is already a full URI, use it directly
-    return this.http.post(`${resourceUri}/detect-entities`, {
-      json: entityTypes ? { entityTypes } : {},
-    }).json();
-  }
 
   async getJobStatus(id: JobId): Promise<ResponseContent<paths['/api/jobs/{id}']['get']>> {
     return this.http.get(`${this.baseUrl}/api/jobs/${id}`).json();
