@@ -1,0 +1,216 @@
+'use client';
+
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import type { components, ResourceUri } from '@semiont/api-client';
+import { createRectangleSvg, scaleSvgToNative, type Point } from '@/lib/svg-utils';
+import { AnnotationOverlay } from './AnnotationOverlay';
+
+type Annotation = components['schemas']['Annotation'];
+
+export type DrawingMode = 'rectangle' | 'polygon' | 'circle' | 'freeform' | null;
+
+interface SvgDrawingCanvasProps {
+  resourceUri: ResourceUri;
+  existingAnnotations?: Annotation[];
+  drawingMode: DrawingMode;
+  onAnnotationCreate?: (svg: string) => void;
+  onAnnotationClick?: (annotation: Annotation) => void;
+  onAnnotationHover?: (annotationId: string | null) => void;
+  hoveredAnnotationId?: string | null;
+  selectedAnnotationId?: string | null;
+}
+
+export function SvgDrawingCanvas({
+  resourceUri,
+  existingAnnotations = [],
+  drawingMode,
+  onAnnotationCreate,
+  onAnnotationClick,
+  onAnnotationHover,
+  hoveredAnnotationId,
+  selectedAnnotationId
+}: SvgDrawingCanvasProps) {
+  // Extract resource ID from W3C canonical URI (last segment of path)
+  const resourceId = resourceUri.split('/').pop();
+
+  // Use Next.js API route proxy instead of direct backend call
+  // This allows us to add authentication headers which <img> tags can't send
+  const imageUrl = `/api/resources/${resourceId}`;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [displayDimensions, setDisplayDimensions] = useState<{ width: number; height: number } | null>(null);
+
+  // Drawing state
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [startPoint, setStartPoint] = useState<Point | null>(null);
+  const [currentPoint, setCurrentPoint] = useState<Point | null>(null);
+
+  // Load image dimensions
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      setImageDimensions({
+        width: img.naturalWidth,
+        height: img.naturalHeight
+      });
+    };
+    img.src = imageUrl;
+  }, [imageUrl]);
+
+  // Update display dimensions on resize
+  useEffect(() => {
+    const updateDisplayDimensions = () => {
+      if (imageRef.current) {
+        setDisplayDimensions({
+          width: imageRef.current.clientWidth,
+          height: imageRef.current.clientHeight
+        });
+      }
+    };
+
+    updateDisplayDimensions();
+    window.addEventListener('resize', updateDisplayDimensions);
+    return () => window.removeEventListener('resize', updateDisplayDimensions);
+  }, [imageDimensions]);
+
+  // Convert mouse event to SVG coordinates relative to image
+  const getRelativeCoordinates = useCallback((e: React.MouseEvent<HTMLDivElement>): Point | null => {
+    if (!imageRef.current) return null;
+
+    const rect = imageRef.current.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+  }, []);
+
+  // Handle mouse down - start drawing
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!drawingMode || drawingMode !== 'rectangle') return;
+
+    const point = getRelativeCoordinates(e);
+    if (point) {
+      setIsDrawing(true);
+      setStartPoint(point);
+      setCurrentPoint(point);
+    }
+  }, [drawingMode, getRelativeCoordinates]);
+
+  // Handle mouse move - update current point
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDrawing || !startPoint) return;
+
+    const point = getRelativeCoordinates(e);
+    if (point) {
+      setCurrentPoint(point);
+    }
+  }, [isDrawing, startPoint, getRelativeCoordinates]);
+
+  // Handle mouse up - complete drawing
+  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDrawing || !startPoint || !drawingMode) return;
+
+    const endPoint = getRelativeCoordinates(e);
+    if (!endPoint || !displayDimensions || !imageDimensions) return;
+
+    // Create SVG in display coordinates
+    const displaySvg = createRectangleSvg(startPoint, endPoint);
+
+    // Scale to native image resolution
+    const nativeSvg = scaleSvgToNative(
+      displaySvg,
+      displayDimensions.width,
+      displayDimensions.height,
+      imageDimensions.width,
+      imageDimensions.height
+    );
+
+    // Notify parent
+    if (onAnnotationCreate) {
+      onAnnotationCreate(nativeSvg);
+    }
+
+    // Reset drawing state
+    setIsDrawing(false);
+    setStartPoint(null);
+    setCurrentPoint(null);
+  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, onAnnotationCreate]);
+
+  // Cancel drawing on mouse leave
+  const handleMouseLeave = useCallback(() => {
+    if (isDrawing) {
+      setIsDrawing(false);
+      setStartPoint(null);
+      setCurrentPoint(null);
+    }
+  }, [isDrawing]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+      style={{ cursor: drawingMode === 'rectangle' ? 'crosshair' : 'default' }}
+    >
+      {/* Image */}
+      <img
+        ref={imageRef}
+        src={imageUrl}
+        alt="Annotatable content"
+        className="max-w-full max-h-full object-contain"
+        draggable={false}
+      />
+
+      {/* Overlay for annotations and drawing */}
+      {displayDimensions && imageDimensions && (
+        <div
+          className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none"
+        >
+          <div
+            className="relative"
+            style={{
+              width: displayDimensions.width,
+              height: displayDimensions.height
+            }}
+          >
+            {/* Existing annotations */}
+            <AnnotationOverlay
+              annotations={existingAnnotations}
+              imageWidth={imageDimensions.width}
+              imageHeight={imageDimensions.height}
+              displayWidth={displayDimensions.width}
+              displayHeight={displayDimensions.height}
+              {...(onAnnotationClick && { onAnnotationClick })}
+              {...(onAnnotationHover && { onAnnotationHover })}
+              {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+              {...(selectedAnnotationId !== undefined && { selectedAnnotationId })}
+            />
+
+            {/* Current drawing preview */}
+            {isDrawing && startPoint && currentPoint && (
+              <svg
+                className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                style={{ width: displayDimensions.width, height: displayDimensions.height }}
+              >
+                <rect
+                  x={Math.min(startPoint.x, currentPoint.x)}
+                  y={Math.min(startPoint.y, currentPoint.y)}
+                  width={Math.abs(currentPoint.x - startPoint.x)}
+                  height={Math.abs(currentPoint.y - startPoint.y)}
+                  fill="rgba(59, 130, 246, 0.2)"
+                  stroke="rgb(59, 130, 246)"
+                  strokeWidth="2"
+                  strokeDasharray="5,5"
+                />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

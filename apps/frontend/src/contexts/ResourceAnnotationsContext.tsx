@@ -24,6 +24,14 @@ interface ResourceAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
+  // Generic annotation creation (supports both text and image annotations)
+  createAnnotation: (
+    rUri: ResourceUri,
+    motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting',
+    selector: any,  // Either text selectors or SVG selector
+    body?: any[]
+  ) => Promise<string | undefined>;
+
   // Mutation actions (still in context for consistency)
   addHighlight: (rUri: ResourceUri, exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => Promise<string | undefined>;
   addReference: (rUri: ResourceUri, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string, context?: { prefix?: string; suffix?: string }) => Promise<string | undefined>;
@@ -50,6 +58,51 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   // Set up mutation hooks
   const createAnnotationMutation = annotations.create.useMutation();
   const deleteAnnotationMutation = annotations.delete.useMutation();
+
+  // Generic annotation creation function (supports both text and image annotations)
+  const createAnnotation = useCallback(async (
+    rUri: ResourceUri,
+    motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting',
+    selector: any,
+    body: any[] = []
+  ): Promise<string | undefined> => {
+    try {
+      const createData: CreateAnnotationRequest = {
+        motivation,
+        target: {
+          source: rUri,
+          selector,
+        },
+        body,
+      };
+
+      const result = await createAnnotationMutation.mutateAsync({
+        rUri,
+        data: createData
+      });
+
+      // Track this as a new annotation for sparkle animation
+      let newId: string | undefined;
+      if (result.annotation?.id) {
+        newId = result.annotation.id;
+        setNewAnnotationIds(prev => new Set(prev).add(newId!));
+
+        // Clear the ID after animation completes (6 seconds for 3 iterations)
+        setTimeout(() => {
+          setNewAnnotationIds(prev => {
+            const next = new Set(prev);
+            next.delete(newId!);
+            return next;
+          });
+        }, 6000);
+      }
+
+      return newId;
+    } catch (err) {
+      console.error('Failed to create annotation:', err);
+      throw err;
+    }
+  }, [createAnnotationMutation]);
 
   const addHighlight = useCallback(async (
     rUri: ResourceUri,
@@ -445,6 +498,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     <ResourceAnnotationsContext.Provider
       value={{
         newAnnotationIds,
+        createAnnotation,
         addHighlight,
         addReference,
         addAssessment,

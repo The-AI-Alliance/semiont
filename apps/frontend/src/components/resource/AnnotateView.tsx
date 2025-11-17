@@ -3,13 +3,14 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
-import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory } from '@semiont/api-client';
+import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, resourceUri as toResourceUri } from '@semiont/api-client';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
+import { SvgDrawingCanvas, type DrawingMode } from '@/components/image-annotation/SvgDrawingCanvas';
+import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { findTextWithContext } from '@/lib/fuzzy-anchor';
 
 type Annotation = components['schemas']['Annotation'];
-import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
 import { AnnotateToolbar, type SelectionMotivation, type ClickMotivation } from '@/components/annotation/AnnotateToolbar';
@@ -187,7 +188,7 @@ export function AnnotateView({
   onCreateReference
 }: Props) {
   const t = useTranslations('AnnotateView');
-  const { newAnnotationIds } = useResourceAnnotations();
+  const { newAnnotationIds, createAnnotation } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
   const [annotationState, setSelectionState] = useState<{
     exact: string;
@@ -397,10 +398,22 @@ export function AnnotateView({
           />
           <div className="flex-1 overflow-auto">
             {resourceUri && (
-              <ImageViewer
-                resourceUri={resourceUri as any}
-                mimeType={mimeType}
-                alt="Resource content"
+              <SvgDrawingCanvas
+                resourceUri={toResourceUri(resourceUri)}
+                existingAnnotations={allAnnotations}
+                drawingMode={'rectangle' as DrawingMode}
+                onAnnotationCreate={async (svg) => {
+                  // Use generic createAnnotation for image annotations
+                  await createAnnotation(
+                    toResourceUri(resourceUri),
+                    'highlighting',
+                    { type: 'SvgSelector', value: svg },
+                    []
+                  );
+                }}
+                {...(onAnnotationClick && { onAnnotationClick })}
+                {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}
+                {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
               />
             )}
           </div>
