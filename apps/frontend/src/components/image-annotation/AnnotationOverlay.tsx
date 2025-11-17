@@ -21,18 +21,19 @@ interface AnnotationOverlayProps {
 
 /**
  * Get color for annotation based on type/motivation
+ * Returns object with stroke color and fill color (with alpha)
  */
-function getAnnotationColor(annotation: Annotation): string {
+function getAnnotationColor(annotation: Annotation): { stroke: string; fill: string } {
   if (isHighlight(annotation)) {
-    return 'rgb(250, 204, 21)'; // yellow
+    return { stroke: 'rgb(250, 204, 21)', fill: 'rgba(250, 204, 21, 0.2)' }; // yellow
   } else if (isReference(annotation)) {
-    return 'rgb(59, 130, 246)'; // blue
+    return { stroke: 'rgb(59, 130, 246)', fill: 'rgba(59, 130, 246, 0.2)' }; // blue
   } else if (isAssessment(annotation)) {
-    return 'rgb(239, 68, 68)'; // red
+    return { stroke: 'rgb(239, 68, 68)', fill: 'rgba(239, 68, 68, 0.2)' }; // red
   } else if (isComment(annotation)) {
-    return 'rgb(34, 197, 94)'; // green
+    return { stroke: 'rgb(34, 197, 94)', fill: 'rgba(34, 197, 94, 0.2)' }; // green
   }
-  return 'rgb(156, 163, 175)'; // gray default
+  return { stroke: 'rgb(156, 163, 175)', fill: 'rgba(156, 163, 175, 0.2)' }; // gray default
 }
 
 /**
@@ -69,7 +70,7 @@ export function AnnotationOverlay({
 
         const isHovered = annotation.id === hoveredAnnotationId;
         const isSelected = annotation.id === selectedAnnotationId;
-        const color = getAnnotationColor(annotation);
+        const colors = getAnnotationColor(annotation);
 
         // Render based on shape type
         switch (parsed.type) {
@@ -82,8 +83,8 @@ export function AnnotationOverlay({
                 y={y * scaleY}
                 width={width * scaleX}
                 height={height * scaleY}
-                fill={isHovered || isSelected ? `${color}33` : 'transparent'}
-                stroke={color}
+                fill={isHovered || isSelected ? colors.fill : 'transparent'}
+                stroke={colors.stroke}
                 strokeWidth={isHovered || isSelected ? 3 : 2}
                 opacity={isHovered || isSelected ? 1 : 0.7}
                 className="pointer-events-auto cursor-pointer transition-all"
@@ -102,8 +103,8 @@ export function AnnotationOverlay({
                 cx={cx * scaleX}
                 cy={cy * scaleY}
                 r={r * Math.min(scaleX, scaleY)}
-                fill={isHovered || isSelected ? `${color}33` : 'transparent'}
-                stroke={color}
+                fill={isHovered || isSelected ? colors.fill : 'transparent'}
+                stroke={colors.stroke}
                 strokeWidth={isHovered || isSelected ? 3 : 2}
                 opacity={isHovered || isSelected ? 1 : 0.7}
                 className="pointer-events-auto cursor-pointer transition-all"
@@ -123,8 +124,8 @@ export function AnnotationOverlay({
               <polygon
                 key={annotation.id}
                 points={points}
-                fill={isHovered || isSelected ? `${color}33` : 'transparent'}
-                stroke={color}
+                fill={isHovered || isSelected ? colors.fill : 'transparent'}
+                stroke={colors.stroke}
                 strokeWidth={isHovered || isSelected ? 3 : 2}
                 opacity={isHovered || isSelected ? 1 : 0.7}
                 className="pointer-events-auto cursor-pointer transition-all"
