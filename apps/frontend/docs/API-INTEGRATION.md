@@ -280,32 +280,31 @@ await data({ name: 'Doc', content: '# Hello' });
 
 These create background jobs with progress tracking:
 
-**Entity Detection** - Find entities in documents using AI:
+**Entity Detection** - Find entities in resources using AI:
 ```typescript
-POST /api/documents/:id/detect-annotations-stream
+POST /resources/:id/detect-annotations-stream
 ```
 
-**Document Generation** - AI-generated documents from annotations:
+**Resource Generation** - AI-generated resources from annotations:
 ```typescript
-POST /api/annotations/:id/generate-document-stream
+POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
 ```
 
 **Why Asynchronous?**:
-- Entity detection can take minutes for large documents with many entity types
-- Document generation requires LLM API calls (slow)
+- Entity detection can take minutes for large resources with many entity types
+- Resource generation requires LLM API calls (slow)
 - Jobs continue even if user closes browser
 - Real-time progress updates via Server-Sent Events (SSE)
 
 **Example**:
 ```typescript
-// Asynchronous - creates job, returns job ID
-const response = await fetch('/api/documents/123/detect-entities', {
-  method: 'POST',
-  body: JSON.stringify({ entityTypes: ['Person', 'Organization'] })
+// Asynchronous - uses SSE streaming for real-time progress
+const stream = client.sse.detectAnnotations(resourceUri, {
+  entityTypes: ['Person', 'Organization']
 });
-const { jobId } = await response.json();
 
-// Poll job status or use SSE for progress
+stream.onProgress((p) => console.log(p.message));
+stream.onComplete((r) => console.log('Done!'));
 ```
 
 ## Real-Time Progress Tracking
@@ -322,13 +321,13 @@ SSE provides real-time progress updates pushed from the server:
 
 import { useEffect, useState } from 'react';
 
-export function EntityDetectionProgress({ documentId }: { documentId: string }) {
+export function EntityDetectionProgress({ resourceId }: { resourceId: string }) {
   const [progress, setProgress] = useState(null);
   const [status, setStatus] = useState<'running' | 'complete' | 'failed'>('running');
 
   useEffect(() => {
     const eventSource = new EventSource(
-      `/api/documents/${documentId}/detect-annotations-stream?entityTypes=Person,Organization`
+      `/resources/${resourceId}/detect-annotations-stream?entityTypes=Person,Organization`
     );
 
     eventSource.onmessage = (event) => {
@@ -349,10 +348,10 @@ export function EntityDetectionProgress({ documentId }: { documentId: string }) 
     };
 
     return () => eventSource.close();
-  }, [documentId]);
+  }, [resourceId]);
 
   if (status === 'complete') {
-    return <div>Detection complete! Found {progress?.entitiesFound} entities.</div>;
+    return <div>Detection complete! Found {progress?.foundCount} entities.</div>;
   }
 
   if (status === 'failed') {
@@ -363,20 +362,26 @@ export function EntityDetectionProgress({ documentId }: { documentId: string }) 
     <div>
       <p>Processing entity type: {progress?.currentEntityType}</p>
       <p>Progress: {progress?.processedEntityTypes}/{progress?.totalEntityTypes}</p>
-      <p>Entities found: {progress?.entitiesFound}</p>
+      <p>Entities found: {progress?.foundCount}</p>
     </div>
   );
 }
 ```
 
-**Document Generation with SSE**:
+**Resource Generation with SSE**:
 ```typescript
-export function DocumentGenerationProgress({ annotationId }: { annotationId: string }) {
+export function ResourceGenerationProgress({
+  resourceId,
+  annotationId
+}: {
+  resourceId: string;
+  annotationId: string;
+}) {
   const [progress, setProgress] = useState(null);
 
   useEffect(() => {
     const eventSource = new EventSource(
-      `/api/annotations/${annotationId}/generate-document-stream`
+      `/resources/${resourceId}/annotations/${annotationId}/generate-resource-stream`
     );
 
     eventSource.onmessage = (event) => {
@@ -385,13 +390,13 @@ export function DocumentGenerationProgress({ annotationId }: { annotationId: str
 
       if (job.status === 'complete') {
         eventSource.close();
-        // Navigate to generated document
-        window.location.href = `/documents/${job.result.documentId}`;
+        // Navigate to generated resource
+        window.location.href = `/resources/${job.result.resourceId}`;
       }
     };
 
     return () => eventSource.close();
-  }, [annotationId]);
+  }, [resourceId, annotationId]);
 
   return (
     <div>
@@ -438,36 +443,33 @@ async function pollJobStatus(jobId: string) {
 
 ## API Endpoints Reference
 
-### Document APIs (Synchronous)
+### Resource APIs (Synchronous)
 
 | Endpoint | Method | Description | Returns |
 |----------|--------|-------------|---------|
-| `/api/documents` | POST | Create new document | `{ id, name, content }` |
-| `/api/documents/:id` | GET | Get document by ID | `Document` |
-| `/api/documents/:id` | PATCH | Update document | `Document` |
-| `/api/documents/:id` | DELETE | Delete document | `{ success: true }` |
-| `/api/documents` | GET | List documents (paginated) | `{ documents, total }` |
-| `/api/documents/search?q=query` | GET | Search documents | `{ documents }` |
-| `/api/documents/:id/backlinks` | GET | Get documents linking to this one | `{ backlinks }` |
+| `/resources` | POST | Create new resource | `{ resource }` |
+| `/resources/:id` | GET | Get resource by ID | `Resource` |
+| `/resources/:id` | PATCH | Update resource | `Resource` |
+| `/resources/:id` | DELETE | Delete resource | `{ success: true }` |
+| `/resources` | GET | List resources (paginated) | `{ resources, total }` |
+| `/resources/search?q=query` | GET | Search resources | `{ resources }` |
 
 ### Annotation APIs (Synchronous)
 
 | Endpoint | Method | Description | Returns |
 |----------|--------|-------------|---------|
-| `/api/documents/:id/annotations` | POST | Create annotation | `Annotation` |
-| `/api/documents/:id/annotations` | GET | List document annotations | `{ annotations }` |
-| `/api/documents/:id/annotations/:annoId` | PATCH | Update annotation | `Annotation` |
-| `/api/documents/:id/annotations/:annoId` | DELETE | Delete annotation | `{ success: true }` |
+| `/resources/:id/annotations` | POST | Create annotation | `Annotation` |
+| `/resources/:id/annotations` | GET | List resource annotations | `{ annotations }` |
+| `/resources/:id/annotations/:annoId` | PATCH | Update annotation | `Annotation` |
+| `/resources/:id/annotations/:annoId` | DELETE | Delete annotation | `{ success: true }` |
 
-### Asynchronous Job APIs
+### Asynchronous Job APIs (SSE Streaming)
 
 | Endpoint | Method | Description | Returns |
 |----------|--------|-------------|---------|
-| `/api/documents/:id/detect-entities` | POST | Start entity detection job | `{ jobId, status }` |
-| `/api/documents/:id/detect-annotations-stream` | POST | Entity detection with SSE | SSE stream |
-| `/api/annotations/:id/generate-document` | POST | Start document generation job | `{ jobId, status }` |
-| `/api/annotations/:id/generate-document-stream` | POST | Document generation with SSE | SSE stream |
-| `/api/jobs/:jobId` | GET | Get job status and progress | `Job` |
+| `/resources/:id/detect-annotations-stream` | POST | Entity detection with SSE | SSE stream |
+| `/resources/:resourceId/annotations/:annotationId/generate-resource-stream` | POST | Resource generation with SSE | SSE stream |
+| `/jobs/:jobId` | GET | Get job status and progress | `Job` |
 
 ### Authentication APIs
 

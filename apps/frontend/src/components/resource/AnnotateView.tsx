@@ -45,10 +45,31 @@ interface Props {
   selectedClick?: ClickMotivation;
   onSelectionChange?: (motivation: SelectionMotivation | null) => void;
   onClickChange?: (motivation: ClickMotivation) => void;
-  onCreateHighlight?: (exact: string, position: { start: number; end: number }) => void;
-  onCreateAssessment?: (exact: string, position: { start: number; end: number }) => void;
-  onCreateComment?: (exact: string, position: { start: number; end: number }) => void;
-  onCreateReference?: (exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }) => void;
+  onCreateHighlight?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
+  onCreateAssessment?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
+  onCreateComment?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
+  onCreateReference?: (exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }, context?: { prefix?: string; suffix?: string }) => void;
+}
+
+/**
+ * Extract prefix and suffix context for TextQuoteSelector
+ * Extracts up to 32 characters before and after the selected text
+ */
+function extractContext(content: string, start: number, end: number): { prefix?: string; suffix?: string } {
+  const CONTEXT_LENGTH = 32;
+  const result: { prefix?: string; suffix?: string } = {};
+
+  // Extract prefix (up to CONTEXT_LENGTH chars before start)
+  if (start > 0) {
+    result.prefix = content.substring(Math.max(0, start - CONTEXT_LENGTH), start);
+  }
+
+  // Extract suffix (up to CONTEXT_LENGTH chars after end)
+  if (end < content.length) {
+    result.suffix = content.substring(end, Math.min(content.length, end + CONTEXT_LENGTH));
+  }
+
+  return result;
 }
 
 // Segment text with annotations - SIMPLE because it's source view!
@@ -206,17 +227,20 @@ export function AnnotateView({
         }
         const end = start + text.length;
 
+        // Extract context for TextQuoteSelector
+        const context = extractContext(content, start, end);
+
         // Check motivation and either create immediately or show sparkle
         if (selectedSelection === 'highlighting' && onCreateHighlight) {
-          onCreateHighlight(text, { start, end });
+          onCreateHighlight(text, { start, end }, context);
           selection.removeAllRanges();
           return;
         } else if (selectedSelection === 'assessing' && onCreateAssessment) {
-          onCreateAssessment(text, { start, end });
+          onCreateAssessment(text, { start, end }, context);
           selection.removeAllRanges();
           return;
         } else if (selectedSelection === 'commenting' && onCreateComment) {
-          onCreateComment(text, { start, end });
+          onCreateComment(text, { start, end }, context);
           // Keep visual selection while Comment Panel is open
           setSelectionState({ exact: text, start, end, rects });
           return;
@@ -224,7 +248,7 @@ export function AnnotateView({
           // Calculate popup position from rects
           const lastRect = rects[rects.length - 1];
           if (lastRect) {
-            onCreateReference(text, { start, end }, { x: lastRect.left, y: lastRect.bottom + 10 });
+            onCreateReference(text, { start, end }, { x: lastRect.left, y: lastRect.bottom + 10 }, context);
             // Keep visual selection while Quick Reference popup is open
             setSelectionState({ exact: text, start, end, rects });
           }
@@ -238,17 +262,20 @@ export function AnnotateView({
       const end = start + text.length;
 
       if (start >= 0) {
+        // Extract context for TextQuoteSelector
+        const context = extractContext(content, start, end);
+
         // Check motivation and either create immediately or show sparkle
         if (selectedSelection === 'highlighting' && onCreateHighlight) {
-          onCreateHighlight(text, { start, end });
+          onCreateHighlight(text, { start, end }, context);
           selection.removeAllRanges();
           return;
         } else if (selectedSelection === 'assessing' && onCreateAssessment) {
-          onCreateAssessment(text, { start, end });
+          onCreateAssessment(text, { start, end }, context);
           selection.removeAllRanges();
           return;
         } else if (selectedSelection === 'commenting' && onCreateComment) {
-          onCreateComment(text, { start, end });
+          onCreateComment(text, { start, end }, context);
           // Keep visual selection while Comment Panel is open
           setSelectionState({ exact: text, start, end, rects });
           return;
@@ -256,7 +283,7 @@ export function AnnotateView({
           // Calculate popup position from rects
           const lastRect = rects[rects.length - 1];
           if (lastRect) {
-            onCreateReference(text, { start, end }, { x: lastRect.left, y: lastRect.bottom + 10 });
+            onCreateReference(text, { start, end }, { x: lastRect.left, y: lastRect.bottom + 10 }, context);
             // Keep visual selection while Quick Reference popup is open
             setSelectionState({ exact: text, start, end, rects });
           }

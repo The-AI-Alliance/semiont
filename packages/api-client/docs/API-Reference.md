@@ -412,21 +412,7 @@ console.log('Source context:', context.sourceContext);
 console.log('Target resource:', context.targetResource);
 ```
 
-## Entity Detection and Jobs
-
-### `detectEntities(resourceUri, entityTypes?)`
-
-Start an async entity detection job on a resource.
-
-```typescript
-// Start detection with specific entity types
-const job = await client.detectEntities(resourceUri, ['person', 'organization', 'location']);
-console.log('Job ID:', job.jobId);
-console.log('Status:', job.status); // 'pending'
-
-// Start detection with all entity types
-const job2 = await client.detectEntities(resourceUri);
-```
+## Jobs
 
 ### `getJobStatus(jobId)`
 

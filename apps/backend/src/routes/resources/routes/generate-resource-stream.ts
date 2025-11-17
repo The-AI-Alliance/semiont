@@ -1,7 +1,10 @@
 /**
- * Generate Resource Stream Route - Spec-First Version
+ * Generate Resource Stream Route - Event-Driven Version
  *
- * Migrated from code-first to spec-first architecture:
+ * Migrated from polling to Event Store subscriptions:
+ * - No polling loops (previously 500ms intervals)
+ * - Subscribes to job.* events from Event Store
+ * - <50ms latency for progress updates
  * - Uses plain Hono (no @hono/zod-openapi)
  * - Validates request body with validateRequestBody middleware
  * - Types from generated OpenAPI types
@@ -13,6 +16,7 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
+import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { getExactText } from '@semiont/api-client';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
@@ -21,7 +25,7 @@ import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { getTargetSelector } from '../../../lib/annotation-utils';
 import { getEntityTypes } from '@semiont/api-client';
-import { jobId, entityType } from '@semiont/api-client';
+import { jobId, entityType, resourceUri } from '@semiont/api-client';
 import { userId, resourceId, annotationId as makeAnnotationId } from '@semiont/core';
 
 type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
@@ -44,6 +48,12 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
    * Requires authentication
    * Validates request body against GenerateResourceStreamRequest schema
    * Returns SSE stream with progress updates
+   *
+   * Event-Driven Architecture:
+   * - Creates generation job
+   * - Subscribes to Event Store for job.* events
+   * - Forwards events to client as SSE
+   * - <50ms latency (no polling)
    */
   router.post('/resources/:resourceId/annotations/:annotationId/generate-resource-stream',
     validateRequestBody('GenerateResourceStreamRequest'),
@@ -88,6 +98,12 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
       }
       console.log(`[GenerateResource] Found matching annotation:`, reference.id);
 
+      // Create Event Store instance for event subscriptions
+      const eventStore = await createEventStore(config);
+
+      // Construct full resource URI for event subscriptions
+      const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${resourceIdParam}`);
+
       // Create a generation job (this decouples event emission from HTTP client)
       const jobQueue = getJobQueue();
       const job: GenerationJob = {
@@ -114,111 +130,160 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
       const targetSelector = getTargetSelector(reference.target);
       const resourceName = body.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
 
-      // Stream the job's progress to the client
-      // Note: Hono's streamSSE automatically sets Content-Type: text/event-stream
+      // Stream job progress to the client using Event Store subscriptions
       return streamSSE(c, async (stream) => {
+        // Track if stream is closed to prevent double cleanup
+        let isStreamClosed = false;
+        let subscription: ReturnType<typeof eventStore.bus.subscriptions.subscribe> | null = null;
+        let keepAliveInterval: NodeJS.Timeout | null = null;
+        let closeStreamCallback: (() => void) | null = null;
+
+        // Return a Promise that only resolves when the stream should close
+        // This prevents streamSSE from auto-closing the stream
+        const streamPromise = new Promise<void>((resolve) => {
+          closeStreamCallback = resolve;
+        });
+
+        // Centralized cleanup function
+        const cleanup = () => {
+          if (isStreamClosed) return;
+          isStreamClosed = true;
+
+          if (keepAliveInterval) {
+            clearInterval(keepAliveInterval);
+          }
+
+          if (subscription) {
+            subscription.unsubscribe();
+          }
+
+          // Close the stream by resolving the promise
+          if (closeStreamCallback) {
+            closeStreamCallback();
+          }
+        };
+
+        // Map job progress stages to SSE status
+        const statusMap: Record<'fetching' | 'generating' | 'creating' | 'linking', GenerationProgress['status']> = {
+          'fetching': 'fetching',
+          'generating': 'generating',
+          'creating': 'creating',
+          'linking': 'creating'
+        };
+
         try {
-          // Send initial started event
-          await stream.writeSSE({
-            data: JSON.stringify({
-              status: 'started',
-              referenceId: reference.id,
-              resourceName,
-              percentage: 0,
-              message: 'Starting...'
-            } as GenerationProgress),
-            event: 'generation-started',
-            id: String(Date.now())
+          // Subscribe to Event Store for job events on this resource
+          // Workers emit job.started, job.progress, job.completed, job.failed events
+          console.log(`[GenerateResource] Subscribing to events for resource ${rUri}, filtering for job ${job.id}`);
+          subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
+            if (isStreamClosed) {
+              console.log(`[GenerateResource] Stream already closed, ignoring event ${storedEvent.event.type}`);
+              return;
+            }
+
+            const event = storedEvent.event;
+
+            // Filter to this job's events only
+            if (event.type === 'job.started' && event.payload.jobId === job.id) {
+              console.log(`[GenerateResource] Job ${job.id} started`);
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: 'started',
+                    referenceId: reference.id,
+                    resourceName,
+                    percentage: 0,
+                    message: 'Starting...'
+                  } as GenerationProgress),
+                  event: 'generation-started',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (error) {
+                console.warn(`[GenerateResource] Client disconnected, job ${job.id} will continue`);
+                cleanup();
+              }
+            } else if (event.type === 'job.progress' && event.payload.jobId === job.id) {
+              console.log(`[GenerateResource] Job ${job.id} progress:`, event.payload);
+              const stage = event.payload.currentStep as 'fetching' | 'generating' | 'creating' | 'linking';
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: statusMap[stage] || 'generating',
+                    referenceId: reference.id,
+                    resourceName,
+                    percentage: event.payload.percentage || 0,
+                    message: event.payload.message || `${stage}...`
+                  } as GenerationProgress),
+                  event: 'generation-progress',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (error) {
+                console.warn(`[GenerateResource] Client disconnected, job ${job.id} will continue`);
+                cleanup();
+              }
+            } else if (event.type === 'job.completed' && event.payload.jobId === job.id) {
+              console.log(`[GenerateResource] Job ${job.id} completed`);
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: 'complete',
+                    referenceId: reference.id,
+                    resourceName,
+                    resourceId: event.payload.resultResourceId,
+                    sourceResourceId: resourceIdParam,
+                    percentage: 100,
+                    message: 'Draft resource created! Ready for review.'
+                  } as GenerationProgress),
+                  event: 'generation-complete',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (error) {
+                console.warn(`[GenerateResource] Client disconnected after job ${job.id} completed`);
+              }
+              cleanup();
+            } else if (event.type === 'job.failed' && event.payload.jobId === job.id) {
+              console.log(`[GenerateResource] Job ${job.id} failed:`, event.payload.error);
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: 'error',
+                    referenceId: reference.id,
+                    percentage: 0,
+                    message: event.payload.error || 'Generation failed'
+                  } as GenerationProgress),
+                  event: 'generation-error',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (error) {
+                console.warn(`[GenerateResource] Client disconnected after job ${job.id} failed`);
+              }
+              cleanup();
+            }
           });
 
-          let lastStatus = job.status;
-          let lastProgress = JSON.stringify(job.progress);
-
-          // Poll job status and stream updates to client
-          // The job worker processes independently - if client disconnects, job continues
-          while (true) {
-            const currentJob = await jobQueue.getJob(job.id);
-
-            if (!currentJob) {
-              throw new Error('Job was deleted');
-            }
-
-            const currentProgress = JSON.stringify(currentJob.progress);
-
-            // Send progress updates when job state changes
-            if (currentJob.status !== lastStatus || currentProgress !== lastProgress) {
-              if (currentJob.status === 'running' && currentJob.type === 'generation') {
-                const generationJob = currentJob as GenerationJob;
-                const progress = generationJob.progress;
-
-                if (progress) {
-                  // Map job progress stages to SSE status
-                  const statusMap: Record<typeof progress.stage, GenerationProgress['status']> = {
-                    'fetching': 'fetching',
-                    'generating': 'generating',
-                    'creating': 'creating',
-                    'linking': 'creating'
-                  };
-
-                  try {
-                    await stream.writeSSE({
-                      data: JSON.stringify({
-                        status: statusMap[progress.stage],
-                        referenceId: reference.id,
-                        resourceName,
-                        percentage: progress.percentage,
-                        message: progress.message || `${progress.stage}...`
-                      } as GenerationProgress),
-                      event: 'generation-progress',
-                      id: String(Date.now())
-                    });
-                  } catch (sseError) {
-                    console.warn(`[GenerateResource] Client disconnected, but job ${job.id} will continue processing`);
-                    break; // Client disconnected, stop streaming (job continues)
-                  }
-                }
+          // Keep-alive ping every 30 seconds
+          keepAliveInterval = setInterval(async () => {
+            if (isStreamClosed) {
+              if (keepAliveInterval) {
+                clearInterval(keepAliveInterval);
               }
-
-              lastStatus = currentJob.status;
-              lastProgress = currentProgress;
+              return;
             }
 
-            // Check if job completed
-            if (currentJob.status === 'complete') {
-              const result = (currentJob as GenerationJob).result;
+            try {
               await stream.writeSSE({
-                data: JSON.stringify({
-                  status: 'complete',
-                  referenceId: reference.id,
-                  resourceName: result?.resourceName || resourceName,
-                  resourceId: result?.resourceId,
-                  sourceResourceId: resourceId(resourceIdParam),
-                  percentage: 100,
-                  message: 'Draft resource created! Ready for review.'
-                } as GenerationProgress),
-                event: 'generation-complete',
-                id: String(Date.now())
+                data: ':keep-alive',
               });
-              break;
+            } catch (error) {
+              cleanup();
             }
+          }, 30000);
 
-            if (currentJob.status === 'failed') {
-              await stream.writeSSE({
-                data: JSON.stringify({
-                  status: 'error',
-                  referenceId: reference.id,
-                  percentage: 0,
-                  message: currentJob.error || 'Generation failed'
-                } as GenerationProgress),
-                event: 'generation-error',
-                id: String(Date.now())
-              });
-              break;
-            }
-
-            // Poll every 500ms
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
+          // Cleanup on disconnect
+          c.req.raw.signal.addEventListener('abort', () => {
+            console.log(`[GenerateResource] Client disconnected from generation stream for annotation ${annotationIdParam}, job ${job.id} will continue`);
+            cleanup();
+          });
 
         } catch (error) {
           // Send error event
@@ -235,9 +300,14 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[GenerateResource] Could not send error to client (disconnected), but job ${job.id} status is preserved`);
+            console.warn(`[GenerateResource] Could not send error to client (disconnected), job ${job.id} status is preserved`);
           }
+          cleanup();
         }
+
+        // Return promise that resolves when stream should close
+        // This keeps the SSE connection open until cleanup() is called
+        return streamPromise;
       });
     }
   );

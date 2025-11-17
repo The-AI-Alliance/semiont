@@ -25,10 +25,10 @@ interface ResourceAnnotationsContextType {
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
   // Mutation actions (still in context for consistency)
-  addHighlight: (rUri: ResourceUri, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
-  addReference: (rUri: ResourceUri, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
-  addAssessment: (rUri: ResourceUri, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
-  addComment: (rUri: ResourceUri, selection: SelectionData, commentText: string) => Promise<string | undefined>;
+  addHighlight: (rUri: ResourceUri, exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => Promise<string | undefined>;
+  addReference: (rUri: ResourceUri, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string, context?: { prefix?: string; suffix?: string }) => Promise<string | undefined>;
+  addAssessment: (rUri: ResourceUri, exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => Promise<string | undefined>;
+  addComment: (rUri: ResourceUri, selection: SelectionData, commentText: string, context?: { prefix?: string; suffix?: string }) => Promise<string | undefined>;
   deleteAnnotation: (annotationId: string, rUri: ResourceUri) => Promise<void>;
   convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
@@ -54,7 +54,8 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const addHighlight = useCallback(async (
     rUri: ResourceUri,
     exact: string,
-    position: { start: number; end: number }
+    position: { start: number; end: number },
+    context?: { prefix?: string; suffix?: string }
   ): Promise<string | undefined> => {
     try {
       const createData: CreateAnnotationRequest = {
@@ -70,6 +71,8 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
             {
               type: 'TextQuoteSelector',
               exact: exact,
+              ...(context?.prefix && { prefix: context.prefix }),
+              ...(context?.suffix && { suffix: context.suffix }),
             },
           ],
         },
@@ -111,7 +114,8 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     position: { start: number; end: number },
     targetDocId?: string,
     entityType?: string,
-    referenceType?: string
+    referenceType?: string,
+    context?: { prefix?: string; suffix?: string }
   ): Promise<string | undefined> => {
     try {
       // Build CreateAnnotationRequest following W3C Web Annotation format
@@ -129,6 +133,8 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
             {
               type: 'TextQuoteSelector',
               exact: exact,
+              ...(context?.prefix && { prefix: context.prefix }),
+              ...(context?.suffix && { suffix: context.suffix }),
             },
           ],
         },
@@ -194,7 +200,8 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const addAssessment = useCallback(async (
     rUri: ResourceUri,
     exact: string,
-    position: { start: number; end: number }
+    position: { start: number; end: number },
+    context?: { prefix?: string; suffix?: string }
   ): Promise<string | undefined> => {
     try {
       // Build CreateAnnotationRequest following W3C Web Annotation format
@@ -213,6 +220,8 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
             {
               type: 'TextQuoteSelector',
               exact: exact,
+              ...(context?.prefix && { prefix: context.prefix }),
+              ...(context?.suffix && { suffix: context.suffix }),
             },
           ],
         },
@@ -253,7 +262,8 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const addComment = useCallback(async (
     rUri: ResourceUri,
     selection: SelectionData,
-    commentText: string
+    commentText: string,
+    context?: { prefix?: string; suffix?: string }
   ): Promise<string | undefined> => {
     try {
       // Build CreateAnnotationRequest following W3C Web Annotation format
@@ -272,6 +282,8 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
             {
               type: 'TextQuoteSelector',
               exact: selection.exact,
+              ...(context?.prefix && { prefix: context.prefix }),
+              ...(context?.suffix && { suffix: context.suffix }),
             },
           ],
         },

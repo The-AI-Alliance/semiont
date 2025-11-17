@@ -188,52 +188,6 @@ describe('SemiontApiClient - Archive Operations', () => {
   });
 
   describe('Entity Detection and Jobs', () => {
-    test('should start entity detection job', async () => {
-      const mockResponse = {
-        jobId: 'job-123',
-        status: 'pending',
-        type: 'detection',
-        message: 'Entity detection job created',
-      };
-
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
-      } as any);
-
-      const result = await client.detectEntities(testResourceUri, [entityType('person'), entityType('organization')]);
-
-      expect(result.jobId).toBe('job-123');
-      expect(result.status).toBe('pending');
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testResourceUri}/detect-entities`,
-        expect.objectContaining({
-          json: { entityTypes: ['person', 'organization'] },
-        })
-      );
-    });
-
-    test('should start entity detection job without entity types', async () => {
-      const mockResponse = {
-        jobId: 'job-456',
-        status: 'pending',
-        type: 'detection',
-      };
-
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
-      } as any);
-
-      const result = await client.detectEntities(testResourceUri);
-
-      expect(result.jobId).toBe('job-456');
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testResourceUri}/detect-entities`,
-        expect.objectContaining({
-          json: {},
-        })
-      );
-    });
-
     test('should get job status', async () => {
       const mockResponse = {
         jobId: 'job-123',

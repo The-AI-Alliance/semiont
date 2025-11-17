@@ -127,6 +127,8 @@ export function ResourceViewer({
     exact: string;
     start: number;
     end: number;
+    prefix?: string;
+    suffix?: string;
   } | null>(null);
   const [quickReferencePosition, setQuickReferencePosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
@@ -226,9 +228,9 @@ export function ResourceViewer({
   }, [router, curationMode, onCommentClick, onReferenceClick, selectedClick, handleDeleteAnnotation]);
 
   // Handle immediate highlight creation (no popup)
-  const handleImmediateHighlight = useCallback(async (exact: string, position: { start: number; end: number }) => {
+  const handleImmediateHighlight = useCallback(async (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => {
     try {
-      await addHighlight(rUri, exact, position);
+      await addHighlight(rUri, exact, position, context);
       onRefetchAnnotations?.();
     } catch (err) {
       console.error('Failed to create highlight:', err);
@@ -236,9 +238,9 @@ export function ResourceViewer({
   }, [rUri, addHighlight, onRefetchAnnotations]);
 
   // Handle immediate assessment creation (no popup)
-  const handleImmediateAssessment = useCallback(async (exact: string, position: { start: number; end: number }) => {
+  const handleImmediateAssessment = useCallback(async (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => {
     try {
-      await addAssessment(rUri, exact, position);
+      await addAssessment(rUri, exact, position, context);
       onRefetchAnnotations?.();
     } catch (err) {
       console.error('Failed to create assessment:', err);
@@ -246,7 +248,7 @@ export function ResourceViewer({
   }, [rUri, addAssessment, onRefetchAnnotations]);
 
   // Handle immediate comment creation (opens Comment Panel)
-  const handleImmediateComment = useCallback((exact: string, position: { start: number; end: number }) => {
+  const handleImmediateComment = useCallback((exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => {
     // Notify parent component to open Comments Panel with this selection
     if (onCommentCreationRequested) {
       onCommentCreationRequested({
@@ -258,12 +260,16 @@ export function ResourceViewer({
   }, [onCommentCreationRequested]);
 
   // Handle immediate reference creation (opens Quick Reference popup)
-  const handleImmediateReference = useCallback((exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }) => {
-    setQuickReferenceSelection({
+  const handleImmediateReference = useCallback((exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }, context?: { prefix?: string; suffix?: string }) => {
+    const selection: typeof quickReferenceSelection = {
       exact,
       start: position.start,
-      end: position.end
-    });
+      end: position.end,
+    };
+    if (context?.prefix) selection.prefix = context.prefix;
+    if (context?.suffix) selection.suffix = context.suffix;
+
+    setQuickReferenceSelection(selection);
     setQuickReferencePosition(popupPosition);
     setShowQuickReferencePopup(true);
   }, []);
@@ -272,8 +278,25 @@ export function ResourceViewer({
   const handleQuickReferenceCreate = useCallback(async (entityType?: string) => {
     if (!quickReferenceSelection) return;
 
+    // Extract context from selection
+    const context: { prefix?: string; suffix?: string } | undefined =
+      (quickReferenceSelection.prefix || quickReferenceSelection.suffix)
+        ? {
+            ...(quickReferenceSelection.prefix && { prefix: quickReferenceSelection.prefix }),
+            ...(quickReferenceSelection.suffix && { suffix: quickReferenceSelection.suffix }),
+          }
+        : undefined;
+
     try {
-      await addReference(rUri, quickReferenceSelection.exact, quickReferenceSelection, undefined, entityType, undefined);
+      await addReference(
+        rUri,
+        quickReferenceSelection.exact,
+        { start: quickReferenceSelection.start, end: quickReferenceSelection.end },
+        undefined,
+        entityType,
+        undefined,
+        context
+      );
       onRefetchAnnotations?.();
       setShowQuickReferencePopup(false);
       setQuickReferenceSelection(null);

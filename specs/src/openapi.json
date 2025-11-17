@@ -69,9 +69,6 @@
     "/resources/{id}/detect-annotations-stream": {
       "$ref": "paths/resources_{id}_detect-annotations-stream.json"
     },
-    "/resources/{id}/detect-entities": {
-      "$ref": "paths/resources_{id}_detect-entities.json"
-    },
     "/resources/{id}/llm-context": {
       "$ref": "paths/resources_{id}_llm-context.json"
     },
@@ -104,9 +101,6 @@
     },
     "/resources/{resourceId}/annotations/{annotationId}/body": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_body.json"
-    },
-    "/resources/{resourceId}/annotations/{annotationId}/generate-resource": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_generate-resource.json"
     },
     "/resources/{resourceId}/annotations/{annotationId}/generate-resource-stream": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_generate-resource-stream.json"
@@ -237,9 +231,6 @@
       },
       "DetectAnnotationsStreamRequest": {
         "$ref": "components/schemas/DetectAnnotationsStreamRequest.json"
-      },
-      "DetectEntitiesRequest": {
-        "$ref": "components/schemas/DetectEntitiesRequest.json"
       },
       "ErrorResponse": {
         "$ref": "components/schemas/ErrorResponse.json"

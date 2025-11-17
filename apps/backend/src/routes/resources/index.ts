@@ -8,7 +8,6 @@ import { registerGetResourceUri } from './routes/get-uri';
 import { registerListResources } from './routes/list';
 import { registerUpdateResource } from './routes/update';
 import { registerDetectAnnotationsStream } from './routes/detect-annotations-stream';
-import { registerDetectEntities } from './routes/detect-entities';
 import { registerGetResourceLLMContext } from './routes/llm-context';
 import { registerGetAnnotationLLMContext } from './routes/annotation-llm-context';
 import { registerGetReferencedBy } from './routes/referenced-by';
@@ -22,7 +21,6 @@ import { registerCreateAnnotation } from './routes/create-annotation';
 import { registerGetAnnotation } from './routes/get-annotation';
 import { registerDeleteAnnotation } from './routes/delete-annotation';
 import { registerUpdateAnnotationBody } from './routes/update-annotation-body';
-import { registerGenerateResourceFromAnnotation } from './routes/generate-resource-from-annotation';
 import { registerGenerateResourceStream } from './routes/generate-resource-stream';
 import { registerGetAnnotationHistory } from '../annotations/routes/history';
 
@@ -42,7 +40,6 @@ registerTokenRoutes(resourcesRouter);  // GET /api/resources/token/:token, POST 
 
 // Routes with :id and specific suffixes
 registerDetectAnnotationsStream(resourcesRouter);  // POST /resources/:id/detect-annotations-stream
-registerDetectEntities(resourcesRouter);  // POST /resources/:id/detect-entities
 registerGetResourceLLMContext(resourcesRouter);  // GET /resources/:id/llm-context
 registerGetAnnotationLLMContext(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/llm-context
 registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by
@@ -52,7 +49,6 @@ registerGetResourceAnnotations(resourcesRouter);  // GET /resources/:id/annotati
 registerCreateAnnotation(resourcesRouter);  // POST /resources/:id/annotations
 registerGetAnnotation(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId
 registerUpdateAnnotationBody(resourcesRouter);  // PUT /resources/:resourceId/annotations/:annotationId/body
-registerGenerateResourceFromAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/generate-resource
 registerGenerateResourceStream(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
 registerGetAnnotationHistory(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/history
 registerDeleteAnnotation(resourcesRouter);  // DELETE /resources/:resourceId/annotations/:annotationId

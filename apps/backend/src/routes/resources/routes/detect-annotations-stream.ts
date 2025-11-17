@@ -1,7 +1,10 @@
 /**
- * Detect Annotations Stream Route - Spec-First Version
+ * Detect Annotations Stream Route - Event-Driven Version
  *
- * Migrated from code-first to spec-first architecture:
+ * Migrated from polling to Event Store subscriptions:
+ * - No polling loops (previously 500ms intervals)
+ * - Subscribes to job.* events from Event Store
+ * - <50ms latency for progress updates
  * - Uses plain Hono (no @hono/zod-openapi)
  * - Validates request body with validateRequestBody middleware
  * - Types from generated OpenAPI types
@@ -13,12 +16,13 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceQueryService } from '../../../services/resource-queries';
+import { createEventStore } from '../../../services/event-store-service';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { DetectionJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
-import { jobId, entityType } from '@semiont/api-client';
+import { jobId, entityType, resourceUri } from '@semiont/api-client';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 
 type DetectAnnotationsStreamRequest = components['schemas']['DetectAnnotationsStreamRequest'];
@@ -41,6 +45,12 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
    * Requires authentication
    * Validates request body against DetectAnnotationsStreamRequest schema
    * Returns SSE stream with progress updates
+   *
+   * Event-Driven Architecture:
+   * - Creates detection job
+   * - Subscribes to Event Store for job.* events
+   * - Forwards events to client as SSE
+   * - <50ms latency (no polling)
    */
   router.post('/resources/:id/detect-annotations-stream',
     validateRequestBody('DetectAnnotationsStreamRequest'),
@@ -64,6 +74,12 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Resource not found in view storage projections - resource may need to be recreated' });
       }
 
+      // Create Event Store instance for event subscriptions
+      const eventStore = await createEventStore(config);
+
+      // Construct full resource URI for event subscriptions
+      const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
+
       // Create a detection job (this decouples event emission from HTTP client)
       const jobQueue = getJobQueue();
       const job: DetectionJob = {
@@ -81,108 +97,157 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
       await jobQueue.createJob(job);
       console.log(`[DetectAnnotations] Created job ${job.id} for resource ${id}`);
 
-      // Stream the job's progress to the client
+      // Stream job progress to the client using Event Store subscriptions
       return streamSSE(c, async (stream) => {
+        // Track if stream is closed to prevent double cleanup
+        let isStreamClosed = false;
+        let subscription: ReturnType<typeof eventStore.bus.subscriptions.subscribe> | null = null;
+        let keepAliveInterval: NodeJS.Timeout | null = null;
+        let closeStreamCallback: (() => void) | null = null;
+
+        // Return a Promise that only resolves when the stream should close
+        // This prevents streamSSE from auto-closing the stream
+        const streamPromise = new Promise<void>((resolve) => {
+          closeStreamCallback = resolve;
+        });
+
+        // Centralized cleanup function
+        const cleanup = () => {
+          if (isStreamClosed) return;
+          isStreamClosed = true;
+
+          if (keepAliveInterval) {
+            clearInterval(keepAliveInterval);
+          }
+
+          if (subscription) {
+            subscription.unsubscribe();
+          }
+
+          // Close the stream by resolving the promise
+          if (closeStreamCallback) {
+            closeStreamCallback();
+          }
+        };
+
         try {
-          // Send initial started event
-          await stream.writeSSE({
-            data: JSON.stringify({
-              status: 'started',
-              resourceId: resourceId(id),
-              totalEntityTypes: entityTypes.length,
-              processedEntityTypes: 0,
-              message: 'Starting entity detection...'
-            } as DetectionProgress),
-            event: 'detection-started',
-            id: String(Date.now())
+          // Subscribe to Event Store for job events on this resource
+          // Workers emit job.started, job.progress, job.completed, job.failed events
+          console.log(`[DetectAnnotations] Subscribing to events for resource ${rUri}, filtering for job ${job.id}`);
+          subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
+            if (isStreamClosed) {
+              console.log(`[DetectAnnotations] Stream already closed, ignoring event ${storedEvent.event.type}`);
+              return;
+            }
+
+            const event = storedEvent.event;
+
+            // Filter to this job's events only
+            if (event.type === 'job.started' && event.payload.jobId === job.id) {
+              console.log(`[DetectAnnotations] Job ${job.id} started`);
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: 'started',
+                    resourceId: resourceId(id),
+                    totalEntityTypes: event.payload.totalSteps || entityTypes.length,
+                    processedEntityTypes: 0,
+                    message: 'Starting entity detection...'
+                  } as DetectionProgress),
+                  event: 'detection-started',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (error) {
+                console.warn(`[DetectAnnotations] Client disconnected, job ${job.id} will continue`);
+                cleanup();
+              }
+            } else if (event.type === 'job.progress' && event.payload.jobId === job.id) {
+              console.log(`[DetectAnnotations] Job ${job.id} progress:`, event.payload);
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: 'scanning',
+                    resourceId: resourceId(id),
+                    currentEntityType: event.payload.currentStep,
+                    totalEntityTypes: event.payload.totalSteps,
+                    processedEntityTypes: event.payload.processedSteps || 0,
+                    foundCount: event.payload.foundCount,
+                    message: event.payload.currentStep
+                      ? `Scanning for ${event.payload.currentStep}...`
+                      : 'Processing...'
+                  } as DetectionProgress),
+                  event: 'detection-progress',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (error) {
+                console.warn(`[DetectAnnotations] Client disconnected, job ${job.id} will continue`);
+                cleanup();
+              }
+            } else if (event.type === 'job.completed' && event.payload.jobId === job.id) {
+              console.log(`[DetectAnnotations] Job ${job.id} completed`);
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: 'complete',
+                    resourceId: resourceId(id),
+                    totalEntityTypes: entityTypes.length,
+                    processedEntityTypes: entityTypes.length,
+                    foundCount: event.payload.foundCount,
+                    message: event.payload.foundCount !== undefined
+                      ? `Detection complete! Found ${event.payload.foundCount} entities`
+                      : 'Detection complete!'
+                  } as DetectionProgress),
+                  event: 'detection-complete',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (error) {
+                console.warn(`[DetectAnnotations] Client disconnected after job ${job.id} completed`);
+              }
+              cleanup();
+            } else if (event.type === 'job.failed' && event.payload.jobId === job.id) {
+              console.log(`[DetectAnnotations] Job ${job.id} failed:`, event.payload.error);
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    status: 'error',
+                    resourceId: resourceId(id),
+                    totalEntityTypes: entityTypes.length,
+                    processedEntityTypes: 0,
+                    message: event.payload.error || 'Detection failed'
+                  } as DetectionProgress),
+                  event: 'detection-error',
+                  id: storedEvent.metadata.sequenceNumber.toString()
+                });
+              } catch (error) {
+                console.warn(`[DetectAnnotations] Client disconnected after job ${job.id} failed`);
+              }
+              cleanup();
+            }
           });
 
-          let lastStatus = job.status;
-          let lastProgress = JSON.stringify(job.progress);
-
-          // Poll job status and stream updates to client
-          // The job worker processes independently - if client disconnects, job continues
-          while (true) {
-            const currentJob = await jobQueue.getJob(job.id);
-
-            if (!currentJob) {
-              throw new Error('Job was deleted');
-            }
-
-            const currentProgress = JSON.stringify(currentJob.progress);
-
-            // Send progress updates when job state changes
-            if (currentJob.status !== lastStatus || currentProgress !== lastProgress) {
-              if (currentJob.status === 'running' && currentJob.type === 'detection') {
-                const detectionJob = currentJob as DetectionJob;
-                const progress = detectionJob.progress;
-
-                if (progress) {
-                  // Send scanning progress
-                  try {
-                    await stream.writeSSE({
-                      data: JSON.stringify({
-                        status: 'scanning',
-                        resourceId: resourceId(id),
-                        currentEntityType: progress.currentEntityType,
-                        totalEntityTypes: progress.totalEntityTypes,
-                        processedEntityTypes: progress.processedEntityTypes,
-                        foundCount: progress.entitiesFound,
-                        message: progress.currentEntityType
-                          ? `Scanning for ${progress.currentEntityType}...`
-                          : 'Processing...'
-                      } as DetectionProgress),
-                      event: 'detection-progress',
-                      id: String(Date.now())
-                    });
-                  } catch (sseError) {
-                    console.warn(`[DetectAnnotations] Client disconnected, but job ${job.id} will continue processing`);
-                    break; // Client disconnected, stop streaming (job continues)
-                  }
-                }
+          // Keep-alive ping every 30 seconds
+          keepAliveInterval = setInterval(async () => {
+            if (isStreamClosed) {
+              if (keepAliveInterval) {
+                clearInterval(keepAliveInterval);
               }
-
-              lastStatus = currentJob.status;
-              lastProgress = currentProgress;
+              return;
             }
 
-            // Check if job completed
-            if (currentJob.status === 'complete') {
-              const result = (currentJob as DetectionJob).result;
+            try {
               await stream.writeSSE({
-                data: JSON.stringify({
-                  status: 'complete',
-                  resourceId: resourceId(id),
-                  totalEntityTypes: entityTypes.length,
-                  processedEntityTypes: entityTypes.length,
-                  message: result
-                    ? `Detection complete! Found ${result.totalFound} entities, emitted ${result.totalEmitted} events`
-                    : 'Detection complete!'
-                } as DetectionProgress),
-                event: 'detection-complete',
-                id: String(Date.now())
+                data: ':keep-alive',
               });
-              break;
+            } catch (error) {
+              cleanup();
             }
+          }, 30000);
 
-            if (currentJob.status === 'failed') {
-              await stream.writeSSE({
-                data: JSON.stringify({
-                  status: 'error',
-                  resourceId: resourceId(id),
-                  totalEntityTypes: entityTypes.length,
-                  processedEntityTypes: 0,
-                  message: currentJob.error || 'Detection failed'
-                } as DetectionProgress),
-                event: 'detection-error',
-                id: String(Date.now())
-              });
-              break;
-            }
-
-            // Poll every 500ms
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
+          // Cleanup on disconnect
+          c.req.raw.signal.addEventListener('abort', () => {
+            console.log(`[DetectAnnotations] Client disconnected from detection stream for resource ${id}, job ${job.id} will continue`);
+            cleanup();
+          });
 
         } catch (error) {
           // Send error event
@@ -200,9 +265,14 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[DetectAnnotations] Could not send error to client (disconnected), but job ${job.id} status is preserved`);
+            console.warn(`[DetectAnnotations] Could not send error to client (disconnected), job ${job.id} status is preserved`);
           }
+          cleanup();
         }
+
+        // Return promise that resolves when stream should close
+        // This keeps the SSE connection open until cleanup() is called
+        return streamPromise;
       });
     }
   );

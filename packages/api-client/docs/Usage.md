@@ -825,30 +825,41 @@ const types = await client.listEntityTypes();
 console.log('Available entity types:', types.entityTypes);
 ```
 
-### Start Entity Detection Job
+### Entity Detection with SSE Streaming
 
-Start an async entity detection job on a resource. The backend will analyze the resource content and create annotations for detected entities.
+For entity detection, use the SSE streaming API for real-time progress updates. See the [SSE Streaming](#sse-streaming) section below for details.
 
 ```typescript
-import { resourceUri } from '@semiont/api-client';
+import { resourceUri, entityType } from '@semiont/api-client';
 
 const rUri = resourceUri('http://localhost:4000/resources/resource-123');
 
-// Detect specific entity types
-const job = await client.detectEntities(rUri, ['person', 'organization', 'location']);
-console.log('Job ID:', job.jobId);
-console.log('Status:', job.status); // 'pending'
+// Start detection with real-time progress updates
+const stream = client.sse.detectAnnotations(rUri, {
+  entityTypes: ['person', 'organization', 'location'].map(entityType)
+});
 
-// Detect all available entity types
-const job2 = await client.detectEntities(rUri);
+stream.onProgress((progress) => {
+  console.log(`Status: ${progress.status}`);
+  console.log(`Progress: ${progress.processedEntityTypes}/${progress.totalEntityTypes}`);
+  console.log(`Found: ${progress.foundCount} entities`);
+});
+
+stream.onComplete(() => {
+  console.log('Detection complete!');
+});
+
+stream.onError((error) => {
+  console.error('Detection failed:', error);
+});
 ```
 
-### Poll Job Status
+### Job Status (For Existing Jobs)
 
-Check the status of a running job:
+Check the status of an existing job:
 
 ```typescript
-const status = await client.getJobStatus(job.jobId);
+const status = await client.getJobStatus(jobId);
 
 console.log('Status:', status.status);      // 'pending' | 'running' | 'complete' | 'failed'
 console.log('Type:', status.type);          // 'detection' | 'generation'
@@ -858,55 +869,6 @@ if (status.status === 'complete') {
   console.log('Result:', status.result);
 } else if (status.status === 'failed') {
   console.error('Error:', status.error);
-}
-```
-
-### Poll Until Complete
-
-Use the helper method to automatically poll until the job completes:
-
-```typescript
-const result = await client.pollJobUntilComplete(job.jobId, {
-  interval: 1000,  // Poll every second (default: 1000ms)
-  timeout: 60000,  // Fail after 60 seconds (default: 60000ms)
-  onProgress: (status) => {
-    if (status.progress) {
-      console.log(`Progress: ${status.progress.current}/${status.progress.total}`);
-      console.log(status.progress.message);
-    }
-  },
-});
-
-if (result.status === 'complete') {
-  console.log('Entity detection complete!');
-  console.log('Detected entities:', result.result);
-
-  // Fetch the resource again to see the new annotations
-  const updated = await client.getResource(rUri);
-  console.log(`Found ${updated.annotations.length} annotations`);
-} else if (result.status === 'failed') {
-  console.error('Job failed:', result.error);
-}
-```
-
-### Complete Example: Detect and Wait
-
-```typescript
-// Start detection job
-const job = await client.detectEntities(resourceUri, ['person', 'organization']);
-
-// Wait for completion with progress updates
-const result = await client.pollJobUntilComplete(job.jobId, {
-  onProgress: (status) => {
-    console.log(`Status: ${status.status}`);
-  },
-});
-
-// Process results
-if (result.status === 'complete') {
-  const resource = await client.getResource(resourceUri);
-  const entities = resource.annotations.filter(a => a.motivation === 'tagging');
-  console.log(`Detected ${entities.length} entities`);
 }
 ```
 
