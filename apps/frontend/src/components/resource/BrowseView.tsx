@@ -226,7 +226,7 @@ export function BrowseView({
             showSelectionGroup={false}
             showDeleteButton={false}
           />
-          <div ref={containerRef} className="flex-1 overflow-auto prose prose-lg dark:prose-invert max-w-none p-4">
+          <div ref={containerRef} className="flex-1 overflow-auto prose prose-lg dark:prose-invert max-w-none py-4 pr-4 pl-2">
             <ReactMarkdown
               remarkPlugins={[
                 remarkGfm,

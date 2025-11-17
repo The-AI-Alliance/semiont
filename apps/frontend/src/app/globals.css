@@ -173,3 +173,18 @@ body {
 .animate-pulse-outline {
   animation: pulse-outline 1s ease-in-out 3;
 }
+
+/* Reduce left padding in CodeMirror content area */
+.cm-content {
+  padding-left: 0.5rem !important; /* Reduced from default ~1rem to 0.5rem (8px) */
+}
+
+/* Reduce left padding of line numbers gutter */
+.cm-gutters {
+  padding-left: 0.25rem !important; /* Minimal left padding (4px) */
+}
+
+/* Remove left margin from prose container (Browse mode) */
+.prose {
+  margin-left: 0 !important;
+}

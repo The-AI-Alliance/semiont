@@ -58,58 +58,6 @@ export function AnnotateToolbar({
 
   return (
     <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-      {/* Selection Group */}
-      {showSelectionGroup && (
-        <div className="flex items-center gap-0 hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md border border-transparent rounded-lg px-2 py-1 transition-all">
-          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-2">
-            {t('selectionGroup')}
-          </span>
-
-          {/* Reference Button */}
-          <button
-            onClick={() => handleSelectionClick('linking')}
-            className={getButtonClass('linking')}
-            title={t('linking')}
-            aria-pressed={selectedSelection === 'linking'}
-          >
-            <span className="text-lg">🔵</span>
-          </button>
-
-          {/* Highlighting Button */}
-          <button
-            onClick={() => handleSelectionClick('highlighting')}
-            className={getButtonClass('highlighting')}
-            title={t('highlighting')}
-            aria-pressed={selectedSelection === 'highlighting'}
-          >
-            <span className="text-lg">🟡</span>
-          </button>
-
-          {/* Assessing Button */}
-          <button
-            onClick={() => handleSelectionClick('assessing')}
-            className={getButtonClass('assessing')}
-            title={t('assessing')}
-            aria-pressed={selectedSelection === 'assessing'}
-          >
-            <span className="text-lg">🔴</span>
-          </button>
-
-          {/* Commenting Button */}
-          <button
-            onClick={() => handleSelectionClick('commenting')}
-            className={getButtonClass('commenting')}
-            title={t('commenting')}
-            aria-pressed={selectedSelection === 'commenting'}
-          >
-            <span className="text-lg">💬</span>
-          </button>
-        </div>
-      )}
-
-      {/* Separator */}
-      {showSelectionGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2" />}
-
       {/* Click Group */}
       <div className="flex items-center gap-0 hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md border border-transparent rounded-lg px-2 py-1 transition-all">
         <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-2">
@@ -158,6 +106,58 @@ export function AnnotateToolbar({
           </button>
         )}
       </div>
+
+      {/* Separator */}
+      {showSelectionGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2" />}
+
+      {/* Selection Group */}
+      {showSelectionGroup && (
+        <div className="flex items-center gap-0 hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md border border-transparent rounded-lg px-2 py-1 transition-all">
+          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-2">
+            {t('selectionGroup')}
+          </span>
+
+          {/* Reference Button */}
+          <button
+            onClick={() => handleSelectionClick('linking')}
+            className={getButtonClass('linking')}
+            title={t('linking')}
+            aria-pressed={selectedSelection === 'linking'}
+          >
+            <span className="text-lg">🔵</span>
+          </button>
+
+          {/* Highlighting Button */}
+          <button
+            onClick={() => handleSelectionClick('highlighting')}
+            className={getButtonClass('highlighting')}
+            title={t('highlighting')}
+            aria-pressed={selectedSelection === 'highlighting'}
+          >
+            <span className="text-lg">🟡</span>
+          </button>
+
+          {/* Assessing Button */}
+          <button
+            onClick={() => handleSelectionClick('assessing')}
+            className={getButtonClass('assessing')}
+            title={t('assessing')}
+            aria-pressed={selectedSelection === 'assessing'}
+          >
+            <span className="text-lg">🔴</span>
+          </button>
+
+          {/* Commenting Button */}
+          <button
+            onClick={() => handleSelectionClick('commenting')}
+            className={getButtonClass('commenting')}
+            title={t('commenting')}
+            aria-pressed={selectedSelection === 'commenting'}
+          >
+            <span className="text-lg">💬</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
