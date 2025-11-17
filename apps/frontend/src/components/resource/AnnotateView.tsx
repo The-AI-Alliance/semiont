@@ -404,12 +404,19 @@ export function AnnotateView({
                 drawingMode={'rectangle' as DrawingMode}
                 onAnnotationCreate={async (svg) => {
                   // Use generic createAnnotation for image annotations
-                  await createAnnotation(
-                    toResourceUri(resourceUri),
-                    'highlighting',
-                    { type: 'SvgSelector', value: svg },
-                    []
-                  );
+                  if (selectedSelection) {
+                    const annotation = await createAnnotation(
+                      toResourceUri(resourceUri),
+                      selectedSelection,
+                      { type: 'SvgSelector', value: svg },
+                      []
+                    );
+
+                    // For comments and references, trigger the normal click flow to open panels
+                    if (annotation && onAnnotationClick && (selectedSelection === 'commenting' || selectedSelection === 'linking')) {
+                      onAnnotationClick(annotation);
+                    }
+                  }
                 }}
                 {...(onAnnotationClick && { onAnnotationClick })}
                 {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}

@@ -30,7 +30,7 @@ interface ResourceAnnotationsContextType {
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting',
     selector: any,  // Either text selectors or SVG selector
     body?: any[]
-  ) => Promise<string | undefined>;
+  ) => Promise<Annotation | undefined>;
 
   // Mutation actions (still in context for consistency)
   addHighlight: (rUri: ResourceUri, exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => Promise<string | undefined>;
@@ -65,7 +65,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting',
     selector: any,
     body: any[] = []
-  ): Promise<string | undefined> => {
+  ): Promise<Annotation | undefined> => {
     try {
       const createData: CreateAnnotationRequest = {
         motivation,
@@ -82,22 +82,20 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       });
 
       // Track this as a new annotation for sparkle animation
-      let newId: string | undefined;
       if (result.annotation?.id) {
-        newId = result.annotation.id;
-        setNewAnnotationIds(prev => new Set(prev).add(newId!));
+        setNewAnnotationIds(prev => new Set(prev).add(result.annotation!.id));
 
         // Clear the ID after animation completes (6 seconds for 3 iterations)
         setTimeout(() => {
           setNewAnnotationIds(prev => {
             const next = new Set(prev);
-            next.delete(newId!);
+            next.delete(result.annotation!.id);
             return next;
           });
         }, 6000);
       }
 
-      return newId;
+      return result.annotation;
     } catch (err) {
       console.error('Failed to create annotation:', err);
       throw err;
