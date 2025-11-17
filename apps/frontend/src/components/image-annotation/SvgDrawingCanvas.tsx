@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import type { components, ResourceUri } from '@semiont/api-client';
-import { createRectangleSvg, scaleSvgToNative, type Point } from '@/lib/svg-utils';
+import { createRectangleSvg, scaleSvgToNative, parseSvgSelector, type Point } from '@/lib/svg-utils';
 import { AnnotationOverlay } from './AnnotationOverlay';
 
 type Annotation = components['schemas']['Annotation'];
@@ -107,14 +107,80 @@ export function SvgDrawingCanvas({
     }
   }, [isDrawing, startPoint, getRelativeCoordinates]);
 
-  // Handle mouse up - complete drawing
+  // Handle mouse up - distinguish between click and drag
   const handleMouseUp = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!isDrawing || !startPoint || !drawingMode) return;
 
     const endPoint = getRelativeCoordinates(e);
     if (!endPoint || !displayDimensions || !imageDimensions) return;
 
-    // Create SVG in display coordinates
+    // Calculate drag distance
+    const dragDistance = Math.sqrt(
+      Math.pow(endPoint.x - startPoint.x, 2) +
+      Math.pow(endPoint.y - startPoint.y, 2)
+    );
+
+    // Minimum drag threshold in pixels (10px)
+    const MIN_DRAG_DISTANCE = 10;
+
+    if (dragDistance < MIN_DRAG_DISTANCE) {
+      // This was a click, not a drag - check if we clicked an existing annotation
+      if (onAnnotationClick && existingAnnotations.length > 0) {
+        // Find annotation at click point
+        // Note: We're checking in display coordinates
+        const clickedAnnotation = existingAnnotations.find(ann => {
+          if (typeof ann.target === 'string') return false;
+
+          const svgSelector = ann.target.selector;
+          if (!svgSelector) return false;
+
+          // Handle selector array
+          const selectors = Array.isArray(svgSelector) ? svgSelector : [svgSelector];
+          const svgSel = selectors.find(s => s.type === 'SvgSelector');
+          if (!svgSel || svgSel.type !== 'SvgSelector') return false;
+
+          const parsed = parseSvgSelector(svgSel.value);
+          if (!parsed) return false;
+
+          // Scale annotation bounds to display coordinates
+          const scaleX = displayDimensions.width / imageDimensions.width;
+          const scaleY = displayDimensions.height / imageDimensions.height;
+
+          if (parsed.type === 'rect') {
+            const { x, y, width, height } = parsed.data;
+            const displayX = x * scaleX;
+            const displayY = y * scaleY;
+            const displayWidth = width * scaleX;
+            const displayHeight = height * scaleY;
+
+            return (
+              endPoint.x >= displayX &&
+              endPoint.x <= displayX + displayWidth &&
+              endPoint.y >= displayY &&
+              endPoint.y <= displayY + displayHeight
+            );
+          }
+
+          return false;
+        });
+
+        if (clickedAnnotation) {
+          onAnnotationClick(clickedAnnotation);
+          setIsDrawing(false);
+          setStartPoint(null);
+          setCurrentPoint(null);
+          return;
+        }
+      }
+
+      // Click on empty space - do nothing
+      setIsDrawing(false);
+      setStartPoint(null);
+      setCurrentPoint(null);
+      return;
+    }
+
+    // This was a drag - create new annotation
     const displaySvg = createRectangleSvg(startPoint, endPoint);
 
     // Scale to native image resolution
@@ -135,7 +201,7 @@ export function SvgDrawingCanvas({
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoint(null);
-  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, onAnnotationCreate]);
+  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, onAnnotationCreate, onAnnotationClick, existingAnnotations]);
 
   // Cancel drawing on mouse leave
   const handleMouseLeave = useCallback(() => {

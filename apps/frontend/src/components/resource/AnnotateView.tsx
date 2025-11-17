@@ -401,7 +401,7 @@ export function AnnotateView({
               <SvgDrawingCanvas
                 resourceUri={toResourceUri(resourceUri)}
                 existingAnnotations={allAnnotations}
-                drawingMode={'rectangle' as DrawingMode}
+                drawingMode={selectedSelection ? 'rectangle' : null}
                 onAnnotationCreate={async (svg) => {
                   // Use generic createAnnotation for image annotations
                   if (selectedSelection) {
