@@ -3,9 +3,10 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
-import { getTextPositionSelector, getTargetSelector, getMimeCategory } from '@semiont/api-client';
+import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory } from '@semiont/api-client';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
+import { findTextWithContext } from '@/lib/fuzzy-anchor';
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
@@ -72,7 +73,7 @@ function extractContext(content: string, start: number, end: number): { prefix?:
   return result;
 }
 
-// Segment text with annotations - SIMPLE because it's source view!
+// Segment text with annotations - uses fuzzy anchoring when available!
 function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): TextSegment[] {
   if (!exact) {
     return [{ exact: '', start: 0, end: 0 }];
@@ -82,10 +83,29 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
     .map(ann => {
       const targetSelector = getTargetSelector(ann.target);
       const posSelector = getTextPositionSelector(targetSelector);
+      const quoteSelector = targetSelector ? getTextQuoteSelector(targetSelector) : null;
+
+      // Try fuzzy anchoring if TextQuoteSelector with context is available
+      let position;
+      if (quoteSelector && (quoteSelector.prefix || quoteSelector.suffix)) {
+        // Use fuzzy anchoring when prefix/suffix context is available
+        // This helps when content changes or same text appears multiple times
+        position = findTextWithContext(
+          exact,
+          quoteSelector.exact,
+          quoteSelector.prefix,
+          quoteSelector.suffix
+        );
+      }
+
+      // Fallback to TextPositionSelector or fuzzy position
+      const start = position?.start ?? posSelector?.start ?? 0;
+      const end = position?.end ?? posSelector?.end ?? 0;
+
       return {
         annotation: ann,
-        start: posSelector?.start ?? 0,
-        end: posSelector?.end ?? 0
+        start,
+        end
       };
     })
     .filter(a => a.start >= 0 && a.end <= exact.length && a.start < a.end)
