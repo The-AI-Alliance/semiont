@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useAnnotations } from '@/lib/api-hooks';
-import type { components, AnnotationUri, ResourceUri, ResourceAnnotationUri } from '@semiont/api-client';
+import type { components, AnnotationUri, ResourceUri, ResourceAnnotationUri, Selector } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
@@ -10,7 +10,7 @@ type Annotation = components['schemas']['Annotation'];
 type CreateAnnotationRequest = Omit<Annotation, 'id' | 'created' | 'modified' | 'creator' | '@context' | 'type' | 'target'> & {
   target: {
     source: string;
-    selector: { type: 'TextPositionSelector'; start: number; end: number; } | { type: 'TextQuoteSelector'; exact: string; prefix?: string; suffix?: string; } | ({ type: 'TextPositionSelector'; start: number; end: number; } | { type: 'TextQuoteSelector'; exact: string; prefix?: string; suffix?: string; })[];
+    selector: Selector | Selector[];
   };
 } & Partial<Pick<Annotation, '@context' | 'type'>>;
 
@@ -28,7 +28,7 @@ interface ResourceAnnotationsContextType {
   createAnnotation: (
     rUri: ResourceUri,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting',
-    selector: any,  // Either text selectors or SVG selector
+    selector: Selector | Selector[],
     body?: any[]
   ) => Promise<Annotation | undefined>;
 
@@ -63,7 +63,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const createAnnotation = useCallback(async (
     rUri: ResourceUri,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting',
-    selector: any,
+    selector: Selector | Selector[],
     body: any[] = []
   ): Promise<Annotation | undefined> => {
     try {
