@@ -31,7 +31,7 @@ function getAnnotationColor(annotation: Annotation): { stroke: string; fill: str
   } else if (isAssessment(annotation)) {
     return { stroke: 'rgb(239, 68, 68)', fill: 'rgba(239, 68, 68, 0.2)' }; // red
   } else if (isComment(annotation)) {
-    return { stroke: 'rgb(34, 197, 94)', fill: 'rgba(34, 197, 94, 0.2)' }; // green
+    return { stroke: 'rgb(255, 255, 255)', fill: 'rgba(255, 255, 255, 0.2)' }; // white
   }
   return { stroke: 'rgb(156, 163, 175)', fill: 'rgba(156, 163, 175, 0.2)' }; // gray default
 }
