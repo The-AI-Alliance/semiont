@@ -109,15 +109,17 @@ export function ReferenceEntry({
       onMouseEnter={() => onReferenceHover?.(reference.id)}
       onMouseLeave={() => onReferenceHover?.(null)}
     >
-      {/* Selected text quote with status indicator */}
-      <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-blue-300 pl-2 flex items-start gap-2">
-        <span className="text-base flex-shrink-0" title={isResolved ? t('resolved') : t('stub')}>
-          {isResolved ? '🔗' : '❓'}
-        </span>
-        <span>
-          "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
-        </span>
-      </div>
+      {/* Selected text quote with status indicator - only for text annotations */}
+      {selectedText && (
+        <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-blue-300 pl-2 flex items-start gap-2">
+          <span className="text-base flex-shrink-0" title={isResolved ? t('resolved') : t('stub')}>
+            {isResolved ? '🔗' : '❓'}
+          </span>
+          <span>
+            "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
+          </span>
+        </div>
+      )}
 
       {/* Entity type badges */}
       {entityTypes.length > 0 && (
