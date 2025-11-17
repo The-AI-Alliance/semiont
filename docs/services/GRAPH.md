@@ -12,6 +12,45 @@ For complete details on how data flows through the system:
 - [EVENT-STORE.md](./EVENT-STORE.md) - Event log and materialized views
 - [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) - Complete annotation flow (UI, API, Event Store, Graph)
 
+## Critical Architectural Principle: Graph as Optional Projection
+
+**The graph database is an OPTIONAL read-only projection, NOT a critical dependency.**
+
+### What Works WITHOUT the Graph Database
+
+Core document and annotation operations function completely independently of Neo4j/graph availability:
+
+- ✅ **Viewing resources and annotations** - Uses filesystem projections
+- ✅ **Creating annotations** - Event store + filesystem projection
+- ✅ **Updating annotations** - Event store + filesystem projection
+- ✅ **Deleting annotations** - Event store + filesystem projection
+- ✅ **Single-document workflows** - Browse mode, annotate mode, reference panels
+- ✅ **Real-time SSE updates** - Event broadcast to connected clients
+
+All write operations persist to the event store (single source of truth) and update filesystem projections. Graph updates happen asynchronously and **failure does not block user operations**.
+
+### What Requires the Graph Database
+
+Only cross-resource query features depend on graph availability:
+
+- ❌ **Cross-document relationship queries** - Finding resources linked from annotations
+- ❌ **Entity-based search across resources** - Finding all mentions of an entity
+- ❌ **Graph visualization** - Knowledge graph displays
+- ❌ **Network analysis** - Annotation chains, document clusters
+
+### Graceful Degradation
+
+When the graph database is unavailable:
+
+1. **User Impact**: Core features work normally. Only advanced cross-resource queries fail.
+2. **Server Behavior**: Event processing continues. Graph updates queue in event log.
+3. **Recovery**: When graph comes back online, replay events to sync (`rebuildResource()` or `rebuildAll()`).
+4. **No Data Loss**: Event store remains authoritative. Full state recovery always possible.
+
+### Design Constraint
+
+**DO NOT couple core features to graph queries.** Single-resource operations MUST use filesystem projections. Graph queries are for cross-resource analytics only.
+
 ## Graph Architecture
 
 ```mermaid
