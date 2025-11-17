@@ -128,6 +128,8 @@ export class DetectionWorker extends JobWorker {
                     {
                       type: 'TextQuoteSelector',
                       exact: detected.annotation.selector.exact,
+                      ...(detected.annotation.selector.prefix && { prefix: detected.annotation.selector.prefix }),
+                      ...(detected.annotation.selector.suffix && { suffix: detected.annotation.selector.suffix }),
                     },
                   ],
                 },
