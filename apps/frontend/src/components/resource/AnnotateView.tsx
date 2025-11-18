@@ -13,11 +13,11 @@ import { findTextWithContext } from '@/lib/fuzzy-anchor';
 type Annotation = components['schemas']['Annotation'];
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
-import { AnnotateToolbar, type SelectionMotivation, type ClickMotivation } from '@/components/annotation/AnnotateToolbar';
+import { AnnotateToolbar, type SelectionMotivation, type ClickMotivation, type ShapeType } from '@/components/annotation/AnnotateToolbar';
 import '@/styles/animations.css';
 
 // Re-export for convenience
-export type { SelectionMotivation, ClickMotivation };
+export type { SelectionMotivation, ClickMotivation, ShapeType };
 
 interface Props {
   content: string;
@@ -53,6 +53,8 @@ interface Props {
   onCreateReference?: (exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }, context?: { prefix?: string; suffix?: string }) => void;
   onCommentClick?: (commentId: string) => void;
   onReferenceClick?: (referenceId: string) => void;
+  selectedShape?: ShapeType;
+  onShapeChange?: (shape: ShapeType) => void;
 }
 
 /**
@@ -189,7 +191,9 @@ export function AnnotateView({
   onCreateComment,
   onCreateReference,
   onCommentClick,
-  onReferenceClick
+  onReferenceClick,
+  selectedShape = 'rectangle',
+  onShapeChange
 }: Props) {
   const t = useTranslations('AnnotateView');
   const { newAnnotationIds, createAnnotation } = useResourceAnnotations();
@@ -399,13 +403,16 @@ export function AnnotateView({
             selectedClick={selectedClick}
             onSelectionChange={onSelectionChange || (() => {})}
             onClickChange={onClickChange || (() => {})}
+            showShapeGroup={true}
+            selectedShape={selectedShape}
+            onShapeChange={onShapeChange}
           />
           <div className="flex-1 overflow-auto">
             {resourceUri && (
               <SvgDrawingCanvas
                 resourceUri={toResourceUri(resourceUri)}
                 existingAnnotations={allAnnotations}
-                drawingMode={selectedSelection ? 'rectangle' : null}
+                drawingMode={selectedSelection ? selectedShape : null}
                 onAnnotationCreate={async (svg) => {
                   // Use generic createAnnotation for image annotations
                   if (selectedSelection) {

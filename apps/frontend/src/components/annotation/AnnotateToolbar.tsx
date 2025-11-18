@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 
 export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting';
 export type ClickMotivation = 'detail' | 'follow' | 'jsonld' | 'deleting';
+export type ShapeType = 'rectangle' | 'circle' | 'polygon';
 
 interface AnnotateToolbarProps {
   selectedSelection: SelectionMotivation | null;
@@ -13,6 +14,9 @@ interface AnnotateToolbarProps {
   onClickChange: (motivation: ClickMotivation) => void;
   showSelectionGroup?: boolean;
   showDeleteButton?: boolean;
+  showShapeGroup?: boolean;
+  selectedShape?: ShapeType;
+  onShapeChange?: (shape: ShapeType) => void;
 }
 
 export function AnnotateToolbar({
@@ -21,7 +25,10 @@ export function AnnotateToolbar({
   onSelectionChange,
   onClickChange,
   showSelectionGroup = true,
-  showDeleteButton = true
+  showDeleteButton = true,
+  showShapeGroup = false,
+  selectedShape = 'rectangle',
+  onShapeChange
 }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
 
@@ -35,8 +42,15 @@ export function AnnotateToolbar({
     onClickChange(motivation);
   };
 
-  const getButtonClass = (motivation: SelectionMotivation | ClickMotivation, isDeleteButton = false) => {
-    const isSelected = selectedSelection === motivation || selectedClick === motivation;
+  const handleShapeClick = (shape: ShapeType) => {
+    // Always set the clicked shape (no toggle)
+    if (onShapeChange) {
+      onShapeChange(shape);
+    }
+  };
+
+  const getButtonClass = (motivation: SelectionMotivation | ClickMotivation | ShapeType, isDeleteButton = false) => {
+    const isSelected = selectedSelection === motivation || selectedClick === motivation || selectedShape === motivation;
     const baseClasses = 'px-3 py-1.5 rounded-md transition-all flex items-center font-medium border-none focus:outline-none';
 
     if (isDeleteButton) {
@@ -155,6 +169,48 @@ export function AnnotateToolbar({
             aria-pressed={selectedSelection === 'commenting'}
           >
             <span className="text-lg">💬</span>
+          </button>
+        </div>
+      )}
+
+      {/* Separator */}
+      {showShapeGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2" />}
+
+      {/* Shape Group */}
+      {showShapeGroup && (
+        <div className="flex items-center gap-0 hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md border border-transparent rounded-lg px-2 py-1 transition-all">
+          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-2">
+            {t('shapeGroup')}
+          </span>
+
+          {/* Rectangle Button */}
+          <button
+            onClick={() => handleShapeClick('rectangle')}
+            className={getButtonClass('rectangle')}
+            title={t('rectangle')}
+            aria-pressed={selectedShape === 'rectangle'}
+          >
+            <span className="text-lg">▭</span>
+          </button>
+
+          {/* Circle Button */}
+          <button
+            onClick={() => handleShapeClick('circle')}
+            className={getButtonClass('circle')}
+            title={t('circle')}
+            aria-pressed={selectedShape === 'circle'}
+          >
+            <span className="text-lg">○</span>
+          </button>
+
+          {/* Polygon Button */}
+          <button
+            onClick={() => handleShapeClick('polygon')}
+            className={getButtonClass('polygon')}
+            title={t('polygon')}
+            aria-pressed={selectedShape === 'polygon'}
+          >
+            <span className="text-lg">⬡</span>
           </button>
         </div>
       )}
