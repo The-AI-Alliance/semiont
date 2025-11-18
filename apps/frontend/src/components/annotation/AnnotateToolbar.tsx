@@ -8,7 +8,7 @@ export type ClickAction = 'detail' | 'follow' | 'jsonld' | 'deleting';
 export type ShapeType = 'rectangle' | 'circle' | 'polygon';
 
 interface AnnotateToolbarProps {
-  selectedSelection: SelectionMotivation | null;
+  selectedMotivation: SelectionMotivation | null;
   selectedClick: ClickAction;
   onSelectionChange: (motivation: SelectionMotivation | null) => void;
   onClickChange: (motivation: ClickAction) => void;
@@ -20,7 +20,7 @@ interface AnnotateToolbarProps {
 }
 
 export function AnnotateToolbar({
-  selectedSelection,
+  selectedMotivation,
   selectedClick,
   onSelectionChange,
   onClickChange,
@@ -34,7 +34,7 @@ export function AnnotateToolbar({
 
   const handleSelectionClick = (motivation: SelectionMotivation) => {
     // Toggle: if already selected, deselect it
-    onSelectionChange(selectedSelection === motivation ? null : motivation);
+    onSelectionChange(selectedMotivation === motivation ? null : motivation);
   };
 
   const handleClickClick = (motivation: ClickAction) => {
@@ -50,7 +50,7 @@ export function AnnotateToolbar({
   };
 
   const getButtonClass = (motivation: SelectionMotivation | ClickAction | ShapeType, isDeleteButton = false) => {
-    const isSelected = selectedSelection === motivation || selectedClick === motivation || selectedShape === motivation;
+    const isSelected = selectedMotivation === motivation || selectedClick === motivation || selectedShape === motivation;
     const baseClasses = 'px-3 py-1.5 rounded-md transition-all flex items-center font-medium border-none focus:outline-none';
 
     if (isDeleteButton) {
@@ -136,7 +136,7 @@ export function AnnotateToolbar({
             onClick={() => handleSelectionClick('linking')}
             className={getButtonClass('linking')}
             title={t('linking')}
-            aria-pressed={selectedSelection === 'linking'}
+            aria-pressed={selectedMotivation === 'linking'}
           >
             <span className="text-lg">🔵</span>
           </button>
@@ -146,7 +146,7 @@ export function AnnotateToolbar({
             onClick={() => handleSelectionClick('highlighting')}
             className={getButtonClass('highlighting')}
             title={t('highlighting')}
-            aria-pressed={selectedSelection === 'highlighting'}
+            aria-pressed={selectedMotivation === 'highlighting'}
           >
             <span className="text-lg">🟡</span>
           </button>
@@ -156,7 +156,7 @@ export function AnnotateToolbar({
             onClick={() => handleSelectionClick('assessing')}
             className={getButtonClass('assessing')}
             title={t('assessing')}
-            aria-pressed={selectedSelection === 'assessing'}
+            aria-pressed={selectedMotivation === 'assessing'}
           >
             <span className="text-lg">🔴</span>
           </button>
@@ -166,7 +166,7 @@ export function AnnotateToolbar({
             onClick={() => handleSelectionClick('commenting')}
             className={getButtonClass('commenting')}
             title={t('commenting')}
-            aria-pressed={selectedSelection === 'commenting'}
+            aria-pressed={selectedMotivation === 'commenting'}
           >
             <span className="text-lg">💬</span>
           </button>

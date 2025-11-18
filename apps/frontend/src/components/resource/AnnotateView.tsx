@@ -185,11 +185,11 @@ export function AnnotateView({
   const onCreate = creationHandler?.onCreate;
 
   // Extract UI state
-  const { selectedSelection, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;
+  const { selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;
 
   // UI state change handlers
   const onSelectionChange = (motivation: SelectionMotivation | null) => {
-    onUIStateChange?.({ selectedSelection: motivation });
+    onUIStateChange?.({ selectedMotivation: motivation });
   };
   const onClickChange = (motivation: ClickAction) => {
     onUIStateChange?.({ selectedClick: motivation });
@@ -247,10 +247,10 @@ export function AnnotateView({
         const context = extractContext(content, start, end);
 
         // Use unified onCreate handler
-        if (selectedSelection && onCreate) {
+        if (selectedMotivation && onCreate) {
           // Calculate popup position for Quick Reference (if needed)
           let position: { x: number; y: number } | undefined;
-          if (selectedSelection === 'linking' && rects.length > 0) {
+          if (selectedMotivation === 'linking' && rects.length > 0) {
             const lastRect = rects[rects.length - 1];
             if (lastRect) {
               position = { x: lastRect.left, y: lastRect.bottom + 10 };
@@ -258,7 +258,7 @@ export function AnnotateView({
           }
 
           onCreate({
-            motivation: selectedSelection,
+            motivation: selectedMotivation,
             selector: {
               type: 'TextQuoteSelector',
               exact: text,
@@ -271,7 +271,7 @@ export function AnnotateView({
           });
 
           // Clear selection for immediate creates (highlighting, assessing)
-          if (selectedSelection === 'highlighting' || selectedSelection === 'assessing') {
+          if (selectedMotivation === 'highlighting' || selectedMotivation === 'assessing') {
             selection.removeAllRanges();
           } else {
             // Keep visual selection for commenting and linking
@@ -291,10 +291,10 @@ export function AnnotateView({
         const context = extractContext(content, start, end);
 
         // Use unified onCreate handler
-        if (selectedSelection && onCreate) {
+        if (selectedMotivation && onCreate) {
           // Calculate popup position for Quick Reference (if needed)
           let position: { x: number; y: number } | undefined;
-          if (selectedSelection === 'linking' && rects.length > 0) {
+          if (selectedMotivation === 'linking' && rects.length > 0) {
             const lastRect = rects[rects.length - 1];
             if (lastRect) {
               position = { x: lastRect.left, y: lastRect.bottom + 10 };
@@ -302,7 +302,7 @@ export function AnnotateView({
           }
 
           onCreate({
-            motivation: selectedSelection,
+            motivation: selectedMotivation,
             selector: {
               type: 'TextQuoteSelector',
               exact: text,
@@ -315,7 +315,7 @@ export function AnnotateView({
           });
 
           // Clear selection for immediate creates (highlighting, assessing)
-          if (selectedSelection === 'highlighting' || selectedSelection === 'assessing') {
+          if (selectedMotivation === 'highlighting' || selectedMotivation === 'assessing') {
             selection.removeAllRanges();
           } else {
             // Keep visual selection for commenting and linking
@@ -339,7 +339,7 @@ export function AnnotateView({
       container.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [selectedSelection, onCreate, content]);
+  }, [selectedMotivation, onCreate, content]);
 
   // Route to appropriate viewer based on MIME type category
   switch (category) {
@@ -347,7 +347,7 @@ export function AnnotateView({
       return (
         <div className="relative h-full flex flex-col" ref={containerRef}>
           <AnnotateToolbar
-            selectedSelection={selectedSelection}
+            selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
             onSelectionChange={onSelectionChange || (() => {})}
             onClickChange={onClickChange || (() => {})}
@@ -404,7 +404,7 @@ export function AnnotateView({
       return (
         <div className="relative h-full flex flex-col" ref={containerRef}>
           <AnnotateToolbar
-            selectedSelection={selectedSelection}
+            selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
             onSelectionChange={onSelectionChange}
             onClickChange={onClickChange}
@@ -417,12 +417,12 @@ export function AnnotateView({
               <SvgDrawingCanvas
                 resourceUri={toResourceUri(resourceUri)}
                 existingAnnotations={allAnnotations}
-                drawingMode={selectedSelection ? selectedShape : null}
+                drawingMode={selectedMotivation ? selectedShape : null}
                 onAnnotationCreate={async (svg, position) => {
                   // Use unified onCreate handler for image annotations
-                  if (selectedSelection && onCreate) {
+                  if (selectedMotivation && onCreate) {
                     onCreate({
-                      motivation: selectedSelection,
+                      motivation: selectedMotivation,
                       selector: {
                         type: 'SvgSelector',
                         value: svg

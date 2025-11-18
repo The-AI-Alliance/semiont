@@ -217,7 +217,7 @@ export function BrowseView({
       return (
         <div className="relative h-full flex flex-col">
           <AnnotateToolbar
-            selectedSelection={null}
+            selectedMotivation={null}
             selectedClick={selectedClick}
             onSelectionChange={() => {}}
             onClickChange={onClickChange || (() => {})}
@@ -244,7 +244,7 @@ export function BrowseView({
       return (
         <div className="relative h-full flex flex-col">
           <AnnotateToolbar
-            selectedSelection={null}
+            selectedMotivation={null}
             selectedClick={selectedClick}
             onSelectionChange={() => {}}
             onClickChange={onClickChange || (() => {})}
