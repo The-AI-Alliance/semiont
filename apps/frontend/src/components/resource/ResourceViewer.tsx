@@ -13,6 +13,7 @@ import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 import type { AnnotationsCollection } from '@/types/annotation-props';
+import { AnnotationProvider } from '@/contexts/AnnotationContext';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -386,8 +387,51 @@ export function ResourceViewer({
     await handleDeleteAnnotation(annotation.id);
   }, [handleDeleteAnnotation]);
 
+  // Create annotation context value
+  const annotationContextValue = useMemo(() => ({
+    resourceUri: rUri,
+    annotations: { highlights, references, assessments, comments },
+    handlers: {
+      onClick: handleAnnotationClick,
+      ...(onAnnotationHover && { onHover: onAnnotationHover }),
+      ...(onCommentHover && { onCommentHover })
+    },
+    uiState: {
+      selectedSelection,
+      selectedClick,
+      selectedShape,
+      ...(hoveredAnnotationId !== undefined && { hoveredAnnotationId }),
+      ...(hoveredCommentId !== undefined && { hoveredCommentId }),
+      ...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })
+    },
+    config: {
+      editable: false, // Hardcoded to false - AnnotateView enforces readonly
+      enableWidgets: true, // Always enabled in curation mode
+      showLineNumbers,
+      curationMode
+    }
+  }), [
+    rUri,
+    highlights,
+    references,
+    assessments,
+    comments,
+    handleAnnotationClick,
+    onAnnotationHover,
+    onCommentHover,
+    selectedSelection,
+    selectedClick,
+    selectedShape,
+    hoveredAnnotationId,
+    hoveredCommentId,
+    scrollToAnnotationId,
+    showLineNumbers,
+    curationMode
+  ]);
+
   return (
-    <div ref={documentViewerRef} className="h-full">
+    <AnnotationProvider value={annotationContextValue}>
+      <div ref={documentViewerRef} className="h-full">
       {/* Content */}
       {activeView === 'annotate' ? (
         resource.archived ? (
@@ -568,6 +612,7 @@ export function ResourceViewer({
         </PopupContainer>
         );
       })()}
-    </div>
+      </div>
+    </AnnotationProvider>
   );
 }
