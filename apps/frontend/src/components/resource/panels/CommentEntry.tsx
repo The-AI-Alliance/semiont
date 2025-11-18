@@ -95,10 +95,12 @@ export function CommentEntry({
       onMouseEnter={() => onCommentHover?.(comment.id)}
       onMouseLeave={() => onCommentHover?.(null)}
     >
-      {/* Selected text quote */}
-      <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-purple-300 pl-2">
-        "{selectedText?.substring(0, 100)}{(selectedText?.length || 0) > 100 ? '...' : ''}"
-      </div>
+      {/* Selected text quote - only for text annotations */}
+      {selectedText && (
+        <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-purple-300 pl-2">
+          "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
+        </div>
+      )}
 
       {/* Comment body */}
       {isEditing ? (

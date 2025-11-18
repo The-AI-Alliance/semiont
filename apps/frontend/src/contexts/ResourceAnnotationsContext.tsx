@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useAnnotations } from '@/lib/api-hooks';
-import type { components, AnnotationUri, ResourceUri, ResourceAnnotationUri } from '@semiont/api-client';
+import type { components, AnnotationUri, ResourceUri, ResourceAnnotationUri, Selector } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, getTargetSource, getTargetSelector, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
@@ -10,7 +10,7 @@ type Annotation = components['schemas']['Annotation'];
 type CreateAnnotationRequest = Omit<Annotation, 'id' | 'created' | 'modified' | 'creator' | '@context' | 'type' | 'target'> & {
   target: {
     source: string;
-    selector: { type: 'TextPositionSelector'; start: number; end: number; } | { type: 'TextQuoteSelector'; exact: string; prefix?: string; suffix?: string; } | ({ type: 'TextPositionSelector'; start: number; end: number; } | { type: 'TextQuoteSelector'; exact: string; prefix?: string; suffix?: string; })[];
+    selector: Selector | Selector[];
   };
 } & Partial<Pick<Annotation, '@context' | 'type'>>;
 
@@ -23,6 +23,14 @@ export interface SelectionData {
 interface ResourceAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
+
+  // Generic annotation creation (supports both text and image annotations)
+  createAnnotation: (
+    rUri: ResourceUri,
+    motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting',
+    selector: Selector | Selector[],
+    body?: any[]
+  ) => Promise<Annotation | undefined>;
 
   // Mutation actions (still in context for consistency)
   addHighlight: (rUri: ResourceUri, exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => Promise<string | undefined>;
@@ -50,6 +58,49 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   // Set up mutation hooks
   const createAnnotationMutation = annotations.create.useMutation();
   const deleteAnnotationMutation = annotations.delete.useMutation();
+
+  // Generic annotation creation function (supports both text and image annotations)
+  const createAnnotation = useCallback(async (
+    rUri: ResourceUri,
+    motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting',
+    selector: Selector | Selector[],
+    body: any[] = []
+  ): Promise<Annotation | undefined> => {
+    try {
+      const createData: CreateAnnotationRequest = {
+        motivation,
+        target: {
+          source: rUri,
+          selector,
+        },
+        body,
+      };
+
+      const result = await createAnnotationMutation.mutateAsync({
+        rUri,
+        data: createData
+      });
+
+      // Track this as a new annotation for sparkle animation
+      if (result.annotation?.id) {
+        setNewAnnotationIds(prev => new Set(prev).add(result.annotation!.id));
+
+        // Clear the ID after animation completes (6 seconds for 3 iterations)
+        setTimeout(() => {
+          setNewAnnotationIds(prev => {
+            const next = new Set(prev);
+            next.delete(result.annotation!.id);
+            return next;
+          });
+        }, 6000);
+      }
+
+      return result.annotation;
+    } catch (err) {
+      console.error('Failed to create annotation:', err);
+      throw err;
+    }
+  }, [createAnnotationMutation]);
 
   const addHighlight = useCallback(async (
     rUri: ResourceUri,
@@ -445,6 +496,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     <ResourceAnnotationsContext.Provider
       value={{
         newAnnotationIds,
+        createAnnotation,
         addHighlight,
         addReference,
         addAssessment,

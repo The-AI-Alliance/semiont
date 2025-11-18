@@ -3,20 +3,21 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
-import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory } from '@semiont/api-client';
+import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, resourceUri as toResourceUri } from '@semiont/api-client';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
+import { SvgDrawingCanvas, type DrawingMode } from '@/components/image-annotation/SvgDrawingCanvas';
+import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { findTextWithContext } from '@/lib/fuzzy-anchor';
 
 type Annotation = components['schemas']['Annotation'];
-import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
-import { AnnotateToolbar, type SelectionMotivation, type ClickMotivation } from '@/components/annotation/AnnotateToolbar';
+import { AnnotateToolbar, type SelectionMotivation, type ClickMotivation, type ShapeType } from '@/components/annotation/AnnotateToolbar';
 import '@/styles/animations.css';
 
 // Re-export for convenience
-export type { SelectionMotivation, ClickMotivation };
+export type { SelectionMotivation, ClickMotivation, ShapeType };
 
 interface Props {
   content: string;
@@ -50,6 +51,10 @@ interface Props {
   onCreateAssessment?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
   onCreateComment?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
   onCreateReference?: (exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }, context?: { prefix?: string; suffix?: string }) => void;
+  onCommentClick?: (commentId: string) => void;
+  onReferenceClick?: (referenceId: string) => void;
+  selectedShape?: ShapeType;
+  onShapeChange?: (shape: ShapeType) => void;
 }
 
 /**
@@ -184,10 +189,14 @@ export function AnnotateView({
   onCreateHighlight,
   onCreateAssessment,
   onCreateComment,
-  onCreateReference
+  onCreateReference,
+  onCommentClick,
+  onReferenceClick,
+  selectedShape = 'rectangle',
+  onShapeChange
 }: Props) {
   const t = useTranslations('AnnotateView');
-  const { newAnnotationIds } = useResourceAnnotations();
+  const { newAnnotationIds, createAnnotation } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
   const [annotationState, setSelectionState] = useState<{
     exact: string;
@@ -394,13 +403,39 @@ export function AnnotateView({
             selectedClick={selectedClick}
             onSelectionChange={onSelectionChange || (() => {})}
             onClickChange={onClickChange || (() => {})}
+            showShapeGroup={true}
+            selectedShape={selectedShape}
+            {...(onShapeChange && { onShapeChange })}
           />
           <div className="flex-1 overflow-auto">
             {resourceUri && (
-              <ImageViewer
-                resourceUri={resourceUri as any}
-                mimeType={mimeType}
-                alt="Resource content"
+              <SvgDrawingCanvas
+                resourceUri={toResourceUri(resourceUri)}
+                existingAnnotations={allAnnotations}
+                drawingMode={selectedSelection ? selectedShape : null}
+                onAnnotationCreate={async (svg) => {
+                  // Use generic createAnnotation for image annotations
+                  if (selectedSelection) {
+                    const annotation = await createAnnotation(
+                      toResourceUri(resourceUri),
+                      selectedSelection,
+                      { type: 'SvgSelector', value: svg },
+                      []
+                    );
+
+                    // For comments and references, directly open their panels
+                    if (annotation) {
+                      if (selectedSelection === 'commenting' && onCommentClick) {
+                        onCommentClick(annotation.id);
+                      } else if (selectedSelection === 'linking' && onReferenceClick) {
+                        onReferenceClick(annotation.id);
+                      }
+                    }
+                  }
+                }}
+                {...(onAnnotationClick && { onAnnotationClick })}
+                {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}
+                hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
               />
             )}
           </div>

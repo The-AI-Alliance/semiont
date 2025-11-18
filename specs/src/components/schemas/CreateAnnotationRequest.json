@@ -40,6 +40,9 @@
               ]
             },
             {
+              "$ref": "./SvgSelector.json"
+            },
+            {
               "type": "array",
               "items": {
                 "anyOf": [
@@ -69,6 +72,9 @@
                       "type",
                       "exact"
                     ]
+                  },
+                  {
+                    "$ref": "./SvgSelector.json"
                   }
                 ]
               }

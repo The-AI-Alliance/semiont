@@ -9,7 +9,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
-import { getTextPositionSelector } from '@semiont/api-client';
+import { getTextPositionSelector, getSvgSelector, validateSvgMarkup } from '@semiont/api-client';
 import type { AnnotationAddedEvent } from '@semiont/core';
 import { resourceId, userId } from '@semiont/core';
 import { generateAnnotationId, userToAgent } from '../../../utils/id-generator';
@@ -45,10 +45,20 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
         throw new HTTPException(500, { message: 'Failed to create annotation' });
       }
 
-      // Extract TextPositionSelector (required for creating annotations)
+      // Validate selector: must have either TextPositionSelector or SvgSelector
       const posSelector = getTextPositionSelector(request.target.selector);
-      if (!posSelector) {
-        throw new HTTPException(400, { message: 'TextPositionSelector required for creating annotations' });
+      const svgSelector = getSvgSelector(request.target.selector);
+
+      if (!posSelector && !svgSelector) {
+        throw new HTTPException(400, { message: 'Either TextPositionSelector or SvgSelector is required for creating annotations' });
+      }
+
+      // Validate SVG markup if SvgSelector is provided
+      if (svgSelector) {
+        const svgError = validateSvgMarkup(svgSelector.value);
+        if (svgError) {
+          throw new HTTPException(400, { message: `Invalid SVG markup: ${svgError}` });
+        }
       }
 
       // Validation ensures motivation is present (it's required in schema)

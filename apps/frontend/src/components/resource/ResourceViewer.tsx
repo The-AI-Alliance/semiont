@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import { AnnotateView, type SelectionMotivation, type ClickMotivation } from './AnnotateView';
+import { AnnotateView, type SelectionMotivation, type ClickMotivation, type ShapeType } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferencePopup';
 import { PopupContainer } from '@/components/annotation-popups/SharedPopupElements';
@@ -108,6 +108,16 @@ export function ResourceViewer({
     return 'detail';
   });
 
+  const [selectedShape, setSelectedShape] = useState<ShapeType>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('semiont-toolbar-shape');
+      if (stored && ['rectangle', 'circle', 'polygon'].includes(stored)) {
+        return stored as ShapeType;
+      }
+    }
+    return 'rectangle';
+  });
+
   // Persist toolbar state to localStorage
   useEffect(() => {
     if (selectedSelection === null) {
@@ -120,6 +130,10 @@ export function ResourceViewer({
   useEffect(() => {
     localStorage.setItem('semiont-toolbar-click', selectedClick);
   }, [selectedClick]);
+
+  useEffect(() => {
+    localStorage.setItem('semiont-toolbar-shape', selectedShape);
+  }, [selectedShape]);
 
   // Quick reference popup state
   const [showQuickReferencePopup, setShowQuickReferencePopup] = useState(false);
@@ -351,10 +365,14 @@ export function ResourceViewer({
             selectedClick={selectedClick}
             onSelectionChange={setSelectedSelection}
             onClickChange={setSelectedClick}
+            selectedShape={selectedShape}
+            onShapeChange={setSelectedShape}
             onCreateHighlight={handleImmediateHighlight}
             onCreateAssessment={handleImmediateAssessment}
             onCreateComment={handleImmediateComment}
             onCreateReference={handleImmediateReference}
+            {...(onCommentClick && { onCommentClick })}
+            {...(onReferenceClick && { onReferenceClick })}
           />
         ) : (
           <AnnotateView
@@ -387,10 +405,14 @@ export function ResourceViewer({
             selectedClick={selectedClick}
             onSelectionChange={setSelectedSelection}
             onClickChange={setSelectedClick}
+            selectedShape={selectedShape}
+            onShapeChange={setSelectedShape}
             onCreateHighlight={handleImmediateHighlight}
             onCreateAssessment={handleImmediateAssessment}
             onCreateComment={handleImmediateComment}
             onCreateReference={handleImmediateReference}
+            {...(onCommentClick && { onCommentClick })}
+            {...(onReferenceClick && { onReferenceClick })}
           />
         )
       ) : (

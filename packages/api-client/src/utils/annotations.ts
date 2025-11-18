@@ -18,10 +18,11 @@ type HighlightAnnotation = Annotation;
 type ReferenceAnnotation = Annotation;
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
-type Selector = TextPositionSelector | TextQuoteSelector;
+type SvgSelector = components['schemas']['SvgSelector'];
+type Selector = TextPositionSelector | TextQuoteSelector | SvgSelector;
 
 // Re-export selector types for convenience
-export type { TextPositionSelector, TextQuoteSelector, Selector };
+export type { TextPositionSelector, TextQuoteSelector, SvgSelector, Selector };
 
 /**
  * Get the source from an annotation body (null if stub)
@@ -305,4 +306,92 @@ export function getTextQuoteSelector(selector: Selector | Selector[]): TextQuote
   const found = selectors.find(s => s.type === 'TextQuoteSelector');
   if (!found) return null;
   return found.type === 'TextQuoteSelector' ? found : null;
+}
+
+/**
+ * Get SvgSelector from a selector (single or array)
+ *
+ * Returns the first SvgSelector found, or null if none exists.
+ */
+export function getSvgSelector(selector: Selector | Selector[] | undefined): SvgSelector | null {
+  if (!selector) return null;
+  const selectors = Array.isArray(selector) ? selector : [selector];
+  const found = selectors.find(s => s.type === 'SvgSelector');
+  if (!found) return null;
+  return found.type === 'SvgSelector' ? found : null;
+}
+
+/**
+ * Validate SVG markup for W3C compliance
+ *
+ * Checks that:
+ * - SVG contains xmlns attribute
+ * - SVG is well-formed XML
+ * - SVG contains at least one shape element
+ *
+ * @returns null if valid, error message if invalid
+ */
+export function validateSvgMarkup(svg: string): string | null {
+  // Check for xmlns attribute (required by W3C spec)
+  if (!svg.includes('xmlns="http://www.w3.org/2000/svg"')) {
+    return 'SVG must include xmlns="http://www.w3.org/2000/svg" attribute';
+  }
+
+  // Check for basic SVG tag structure
+  if (!svg.includes('<svg') || !svg.includes('</svg>')) {
+    return 'SVG must have opening and closing tags';
+  }
+
+  // Check for at least one shape element
+  const shapeElements = ['rect', 'circle', 'ellipse', 'polygon', 'polyline', 'path', 'line'];
+  const hasShape = shapeElements.some(shape =>
+    svg.includes(`<${shape}`) || svg.includes(`<${shape} `)
+  );
+
+  if (!hasShape) {
+    return 'SVG must contain at least one shape element (rect, circle, ellipse, polygon, polyline, path, or line)';
+  }
+
+  return null; // Valid
+}
+
+/**
+ * Extract bounding box from SVG markup
+ *
+ * Attempts to extract x, y, width, height from the SVG viewBox or root element.
+ * Returns null if bounding box cannot be determined.
+ */
+export function extractBoundingBox(svg: string): { x: number; y: number; width: number; height: number } | null {
+  // Try to extract viewBox attribute from SVG element
+  const viewBoxMatch = svg.match(/<svg[^>]*viewBox="([^"]+)"/);
+  if (viewBoxMatch) {
+    const values = viewBoxMatch[1].split(/\s+/).map(parseFloat);
+    if (values.length === 4 && values.every(v => !isNaN(v))) {
+      return {
+        x: values[0],
+        y: values[1],
+        width: values[2],
+        height: values[3]
+      };
+    }
+  }
+
+  // Try to extract width/height attributes from SVG element (assume x=0, y=0)
+  const svgTagMatch = svg.match(/<svg[^>]*>/);
+  if (svgTagMatch) {
+    const svgTag = svgTagMatch[0];
+    const widthMatch = svgTag.match(/width="([^"]+)"/);
+    const heightMatch = svgTag.match(/height="([^"]+)"/);
+
+    if (widthMatch && heightMatch) {
+      const width = parseFloat(widthMatch[1]);
+      const height = parseFloat(heightMatch[1]);
+
+      if (!isNaN(width) && !isNaN(height)) {
+        return { x: 0, y: 0, width, height };
+      }
+    }
+  }
+
+  return null;
 }
