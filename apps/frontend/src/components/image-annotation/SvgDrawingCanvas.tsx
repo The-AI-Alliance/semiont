@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import type { components, ResourceUri } from '@semiont/api-client';
-import { createRectangleSvg, scaleSvgToNative, parseSvgSelector, type Point } from '@/lib/svg-utils';
+import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, type Point } from '@/lib/svg-utils';
 import { AnnotationOverlay } from './AnnotationOverlay';
 
 type Annotation = components['schemas']['Annotation'];
@@ -180,8 +180,42 @@ export function SvgDrawingCanvas({
       return;
     }
 
-    // This was a drag - create new annotation
-    const displaySvg = createRectangleSvg(startPoint, endPoint);
+    // This was a drag - create new annotation based on drawing mode
+    let displaySvg: string;
+
+    switch (drawingMode) {
+      case 'circle': {
+        // Calculate radius from start to end point
+        const radius = Math.sqrt(
+          Math.pow(endPoint.x - startPoint.x, 2) +
+          Math.pow(endPoint.y - startPoint.y, 2)
+        );
+        displaySvg = createCircleSvg(startPoint, radius);
+        break;
+      }
+
+      case 'polygon': {
+        // Create a 4-point polygon (diamond shape) using the bounding box
+        const centerX = (startPoint.x + endPoint.x) / 2;
+        const centerY = (startPoint.y + endPoint.y) / 2;
+        const halfWidth = Math.abs(endPoint.x - startPoint.x) / 2;
+        const halfHeight = Math.abs(endPoint.y - startPoint.y) / 2;
+
+        const points = [
+          { x: centerX, y: centerY - halfHeight },        // top
+          { x: centerX + halfWidth, y: centerY },         // right
+          { x: centerX, y: centerY + halfHeight },        // bottom
+          { x: centerX - halfWidth, y: centerY }          // left
+        ];
+        displaySvg = createPolygonSvg(points);
+        break;
+      }
+
+      case 'rectangle':
+      default:
+        displaySvg = createRectangleSvg(startPoint, endPoint);
+        break;
+    }
 
     // Scale to native image resolution
     const nativeSvg = scaleSvgToNative(
@@ -262,16 +296,62 @@ export function SvgDrawingCanvas({
                 className="absolute top-0 left-0 w-full h-full pointer-events-none"
                 style={{ width: displayDimensions.width, height: displayDimensions.height }}
               >
-                <rect
-                  x={Math.min(startPoint.x, currentPoint.x)}
-                  y={Math.min(startPoint.y, currentPoint.y)}
-                  width={Math.abs(currentPoint.x - startPoint.x)}
-                  height={Math.abs(currentPoint.y - startPoint.y)}
-                  fill="rgba(59, 130, 246, 0.2)"
-                  stroke="rgb(59, 130, 246)"
-                  strokeWidth="2"
-                  strokeDasharray="5,5"
-                />
+                {drawingMode === 'circle' && (() => {
+                  const radius = Math.sqrt(
+                    Math.pow(currentPoint.x - startPoint.x, 2) +
+                    Math.pow(currentPoint.y - startPoint.y, 2)
+                  );
+                  return (
+                    <circle
+                      cx={startPoint.x}
+                      cy={startPoint.y}
+                      r={radius}
+                      fill="rgba(59, 130, 246, 0.2)"
+                      stroke="rgb(59, 130, 246)"
+                      strokeWidth="2"
+                      strokeDasharray="5,5"
+                    />
+                  );
+                })()}
+
+                {drawingMode === 'polygon' && (() => {
+                  const centerX = (startPoint.x + currentPoint.x) / 2;
+                  const centerY = (startPoint.y + currentPoint.y) / 2;
+                  const halfWidth = Math.abs(currentPoint.x - startPoint.x) / 2;
+                  const halfHeight = Math.abs(currentPoint.y - startPoint.y) / 2;
+
+                  const points = [
+                    { x: centerX, y: centerY - halfHeight },        // top
+                    { x: centerX + halfWidth, y: centerY },         // right
+                    { x: centerX, y: centerY + halfHeight },        // bottom
+                    { x: centerX - halfWidth, y: centerY }          // left
+                  ];
+
+                  const pointsStr = points.map(p => `${p.x},${p.y}`).join(' ');
+
+                  return (
+                    <polygon
+                      points={pointsStr}
+                      fill="rgba(59, 130, 246, 0.2)"
+                      stroke="rgb(59, 130, 246)"
+                      strokeWidth="2"
+                      strokeDasharray="5,5"
+                    />
+                  );
+                })()}
+
+                {drawingMode === 'rectangle' && (
+                  <rect
+                    x={Math.min(startPoint.x, currentPoint.x)}
+                    y={Math.min(startPoint.y, currentPoint.y)}
+                    width={Math.abs(currentPoint.x - startPoint.x)}
+                    height={Math.abs(currentPoint.y - startPoint.y)}
+                    fill="rgba(59, 130, 246, 0.2)"
+                    stroke="rgb(59, 130, 246)"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                  />
+                )}
               </svg>
             )}
           </div>

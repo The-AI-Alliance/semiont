@@ -405,7 +405,7 @@ export function AnnotateView({
             onClickChange={onClickChange || (() => {})}
             showShapeGroup={true}
             selectedShape={selectedShape}
-            onShapeChange={onShapeChange}
+            {...(onShapeChange && { onShapeChange })}
           />
           <div className="flex-1 overflow-auto">
             {resourceUri && (
