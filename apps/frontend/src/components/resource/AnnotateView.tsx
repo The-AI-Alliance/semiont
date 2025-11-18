@@ -13,27 +13,22 @@ import { findTextWithContext } from '@/lib/fuzzy-anchor';
 type Annotation = components['schemas']['Annotation'];
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
-import { AnnotateToolbar, type SelectionMotivation, type ClickMotivation, type ShapeType } from '@/components/annotation/AnnotateToolbar';
+import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '@/components/annotation/AnnotateToolbar';
+import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState, CreateAnnotationParams } from '@/types/annotation-props';
 import '@/styles/animations.css';
 
 // Re-export for convenience
-export type { SelectionMotivation, ClickMotivation, ShapeType };
+export type { SelectionMotivation, ClickAction, ShapeType };
 
 interface Props {
   content: string;
   mimeType?: string;
   resourceUri?: string;
-  highlights: Annotation[];
-  references: Annotation[];
-  assessments: Annotation[];
-  comments: Annotation[];
-  onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
-  onAnnotationClick?: (annotation: Annotation) => void;
-  onAnnotationHover?: (annotationId: string | null) => void;
-  onCommentHover?: (commentId: string | null) => void;
-  hoveredAnnotationId?: string | null;
-  hoveredCommentId?: string | null;
-  scrollToAnnotationId?: string | null;
+  annotations: AnnotationsCollection;
+  handlers?: AnnotationHandlers;
+  creationHandler?: AnnotationCreationHandler;
+  uiState: AnnotationUIState;
+  onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
   editable?: boolean;
   enableWidgets?: boolean;
   onEntityTypeClick?: (entityType: string) => void;
@@ -43,18 +38,6 @@ interface Props {
   generatingReferenceId?: string | null;
   onDeleteAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
-  selectedSelection?: SelectionMotivation | null;
-  selectedClick?: ClickMotivation;
-  onSelectionChange?: (motivation: SelectionMotivation | null) => void;
-  onClickChange?: (motivation: ClickMotivation) => void;
-  onCreateHighlight?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
-  onCreateAssessment?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
-  onCreateComment?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
-  onCreateReference?: (exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }, context?: { prefix?: string; suffix?: string }) => void;
-  onCommentClick?: (commentId: string) => void;
-  onReferenceClick?: (referenceId: string) => void;
-  selectedShape?: ShapeType;
-  onShapeChange?: (shape: ShapeType) => void;
 }
 
 /**
@@ -162,17 +145,11 @@ export function AnnotateView({
   content,
   mimeType = 'text/plain',
   resourceUri,
-  highlights,
-  references,
-  assessments,
-  comments,
-  onTextSelect,
-  onAnnotationClick,
-  onAnnotationHover,
-  onCommentHover,
-  hoveredAnnotationId,
-  hoveredCommentId,
-  scrollToAnnotationId,
+  annotations,
+  handlers,
+  creationHandler,
+  uiState,
+  onUIStateChange,
   editable = false,
   enableWidgets = false,
   onEntityTypeClick,
@@ -181,19 +158,7 @@ export function AnnotateView({
   getTargetDocumentName,
   generatingReferenceId,
   onDeleteAnnotation,
-  showLineNumbers = false,
-  selectedSelection = 'linking',
-  selectedClick = 'detail',
-  onSelectionChange,
-  onClickChange,
-  onCreateHighlight,
-  onCreateAssessment,
-  onCreateComment,
-  onCreateReference,
-  onCommentClick,
-  onReferenceClick,
-  selectedShape = 'rectangle',
-  onShapeChange
+  showLineNumbers = false
 }: Props) {
   const t = useTranslations('AnnotateView');
   const { newAnnotationIds, createAnnotation } = useResourceAnnotations();
@@ -207,9 +172,31 @@ export function AnnotateView({
 
   const category = getMimeCategory(mimeType);
 
-  // Combine annotations
+  const { highlights, references, assessments, comments } = annotations;
+
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
+
+  // Extract individual handlers from grouped objects
+  const onAnnotationClick = handlers?.onClick;
+  const onAnnotationHover = handlers?.onHover;
+  const onCommentHover = handlers?.onCommentHover;
+
+  const onCreate = creationHandler?.onCreate;
+
+  // Extract UI state
+  const { selectedSelection, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;
+
+  // UI state change handlers
+  const onSelectionChange = (motivation: SelectionMotivation | null) => {
+    onUIStateChange?.({ selectedSelection: motivation });
+  };
+  const onClickChange = (motivation: ClickAction) => {
+    onUIStateChange?.({ selectedClick: motivation });
+  };
+  const onShapeChange = (shape: ShapeType) => {
+    onUIStateChange?.({ selectedShape: shape });
+  };
 
   // Wrapper for annotation hover that routes based on registry metadata
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
@@ -259,26 +246,35 @@ export function AnnotateView({
         // Extract context for TextQuoteSelector
         const context = extractContext(content, start, end);
 
-        // Check motivation and either create immediately or show sparkle
-        if (selectedSelection === 'highlighting' && onCreateHighlight) {
-          onCreateHighlight(text, { start, end }, context);
-          selection.removeAllRanges();
-          return;
-        } else if (selectedSelection === 'assessing' && onCreateAssessment) {
-          onCreateAssessment(text, { start, end }, context);
-          selection.removeAllRanges();
-          return;
-        } else if (selectedSelection === 'commenting' && onCreateComment) {
-          onCreateComment(text, { start, end }, context);
-          // Keep visual selection while Comment Panel is open
-          setSelectionState({ exact: text, start, end, rects });
-          return;
-        } else if (selectedSelection === 'linking' && onCreateReference && rects.length > 0) {
-          // Calculate popup position from rects
-          const lastRect = rects[rects.length - 1];
-          if (lastRect) {
-            onCreateReference(text, { start, end }, { x: lastRect.left, y: lastRect.bottom + 10 }, context);
-            // Keep visual selection while Quick Reference popup is open
+        // Use unified onCreate handler
+        if (selectedSelection && onCreate) {
+          // Calculate popup position for Quick Reference (if needed)
+          let position: { x: number; y: number } | undefined;
+          if (selectedSelection === 'linking' && rects.length > 0) {
+            const lastRect = rects[rects.length - 1];
+            if (lastRect) {
+              position = { x: lastRect.left, y: lastRect.bottom + 10 };
+            }
+          }
+
+          onCreate({
+            motivation: selectedSelection,
+            selector: {
+              type: 'TextQuoteSelector',
+              exact: text,
+              ...(context.prefix && { prefix: context.prefix }),
+              ...(context.suffix && { suffix: context.suffix }),
+              start,
+              end
+            },
+            ...(position && { position })
+          });
+
+          // Clear selection for immediate creates (highlighting, assessing)
+          if (selectedSelection === 'highlighting' || selectedSelection === 'assessing') {
+            selection.removeAllRanges();
+          } else {
+            // Keep visual selection for commenting and linking
             setSelectionState({ exact: text, start, end, rects });
           }
           return;
@@ -294,26 +290,35 @@ export function AnnotateView({
         // Extract context for TextQuoteSelector
         const context = extractContext(content, start, end);
 
-        // Check motivation and either create immediately or show sparkle
-        if (selectedSelection === 'highlighting' && onCreateHighlight) {
-          onCreateHighlight(text, { start, end }, context);
-          selection.removeAllRanges();
-          return;
-        } else if (selectedSelection === 'assessing' && onCreateAssessment) {
-          onCreateAssessment(text, { start, end }, context);
-          selection.removeAllRanges();
-          return;
-        } else if (selectedSelection === 'commenting' && onCreateComment) {
-          onCreateComment(text, { start, end }, context);
-          // Keep visual selection while Comment Panel is open
-          setSelectionState({ exact: text, start, end, rects });
-          return;
-        } else if (selectedSelection === 'linking' && onCreateReference && rects.length > 0) {
-          // Calculate popup position from rects
-          const lastRect = rects[rects.length - 1];
-          if (lastRect) {
-            onCreateReference(text, { start, end }, { x: lastRect.left, y: lastRect.bottom + 10 }, context);
-            // Keep visual selection while Quick Reference popup is open
+        // Use unified onCreate handler
+        if (selectedSelection && onCreate) {
+          // Calculate popup position for Quick Reference (if needed)
+          let position: { x: number; y: number } | undefined;
+          if (selectedSelection === 'linking' && rects.length > 0) {
+            const lastRect = rects[rects.length - 1];
+            if (lastRect) {
+              position = { x: lastRect.left, y: lastRect.bottom + 10 };
+            }
+          }
+
+          onCreate({
+            motivation: selectedSelection,
+            selector: {
+              type: 'TextQuoteSelector',
+              exact: text,
+              ...(context.prefix && { prefix: context.prefix }),
+              ...(context.suffix && { suffix: context.suffix }),
+              start,
+              end
+            },
+            ...(position && { position })
+          });
+
+          // Clear selection for immediate creates (highlighting, assessing)
+          if (selectedSelection === 'highlighting' || selectedSelection === 'assessing') {
+            selection.removeAllRanges();
+          } else {
+            // Keep visual selection for commenting and linking
             setSelectionState({ exact: text, start, end, rects });
           }
           return;
@@ -334,7 +339,7 @@ export function AnnotateView({
       container.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [selectedSelection, onCreateHighlight, onCreateAssessment, onCreateComment, onCreateReference, content]);
+  }, [selectedSelection, onCreate, content]);
 
   // Route to appropriate viewer based on MIME type category
   switch (category) {
@@ -401,11 +406,11 @@ export function AnnotateView({
           <AnnotateToolbar
             selectedSelection={selectedSelection}
             selectedClick={selectedClick}
-            onSelectionChange={onSelectionChange || (() => {})}
-            onClickChange={onClickChange || (() => {})}
+            onSelectionChange={onSelectionChange}
+            onClickChange={onClickChange}
             showShapeGroup={true}
             selectedShape={selectedShape}
-            {...(onShapeChange && { onShapeChange })}
+            onShapeChange={onShapeChange}
           />
           <div className="flex-1 overflow-auto">
             {resourceUri && (
@@ -413,31 +418,17 @@ export function AnnotateView({
                 resourceUri={toResourceUri(resourceUri)}
                 existingAnnotations={allAnnotations}
                 drawingMode={selectedSelection ? selectedShape : null}
-                onAnnotationCreate={async (svg) => {
-                  // Use generic createAnnotation for image annotations
-                  if (selectedSelection) {
-                    const annotation = await createAnnotation(
-                      toResourceUri(resourceUri),
-                      selectedSelection,
-                      { type: 'SvgSelector', value: svg },
-                      []
-                    );
-
-                    // After creating annotation, open appropriate panel
-                    if (annotation) {
-                      console.log('[IMAGE ANNOTATION] Created annotation:', annotation.id, 'motivation:', selectedSelection);
-                      if (selectedSelection === 'commenting' && onCommentClick) {
-                        // Comments: open Comment Panel directly
-                        console.log('[IMAGE ANNOTATION] Opening Comment Panel');
-                        onCommentClick(annotation.id);
-                      } else if (selectedSelection === 'linking') {
-                        // References: open Reference Panel directly
-                        console.log('[IMAGE ANNOTATION] Opening Reference Panel, onReferenceClick:', !!onReferenceClick);
-                        if (onReferenceClick) {
-                          onReferenceClick(annotation.id);
-                        }
-                      }
-                    }
+                onAnnotationCreate={async (svg, position) => {
+                  // Use unified onCreate handler for image annotations
+                  if (selectedSelection && onCreate) {
+                    onCreate({
+                      motivation: selectedSelection,
+                      selector: {
+                        type: 'SvgSelector',
+                        value: svg
+                      },
+                      ...(position && { position })
+                    });
                   }
                 }}
                 {...(onAnnotationClick && { onAnnotationClick })}

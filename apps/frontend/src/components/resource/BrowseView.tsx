@@ -9,7 +9,8 @@ import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource, getMimeCategory, type MimeCategory } from '@semiont/api-client';
 import { getAnnotationInternalType, getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
-import { AnnotateToolbar, type ClickMotivation } from '@/components/annotation/AnnotateToolbar';
+import { AnnotateToolbar, type ClickAction } from '@/components/annotation/AnnotateToolbar';
+import type { AnnotationsCollection, AnnotationHandlers } from '@/types/annotation-props';
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
@@ -19,17 +20,12 @@ interface Props {
   content: string;
   mimeType: string;
   resourceUri: string;
-  highlights: Annotation[];
-  references: Annotation[];
-  assessments: Annotation[];
-  comments: Annotation[];
-  onAnnotationClick?: (annotation: Annotation) => void;
-  onAnnotationHover?: (annotationId: string | null) => void;
-  onCommentHover?: (commentId: string | null) => void;
+  annotations: AnnotationsCollection;
+  handlers?: AnnotationHandlers;
   hoveredAnnotationId?: string | null;
   hoveredCommentId?: string | null;
-  selectedClick?: ClickMotivation;
-  onClickChange?: (motivation: ClickMotivation) => void;
+  selectedClick?: ClickAction;
+  onClickChange?: (motivation: ClickAction) => void;
 }
 
 /**
@@ -62,13 +58,8 @@ export function BrowseView({
   content,
   mimeType,
   resourceUri,
-  highlights,
-  references,
-  assessments,
-  comments,
-  onAnnotationClick,
-  onAnnotationHover,
-  onCommentHover,
+  annotations,
+  handlers,
   hoveredAnnotationId,
   hoveredCommentId,
   selectedClick = 'detail',
@@ -78,6 +69,13 @@ export function BrowseView({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const category = getMimeCategory(mimeType);
+
+  const { highlights, references, assessments, comments } = annotations;
+
+  // Extract individual handlers from grouped object
+  const onAnnotationClick = handlers?.onClick;
+  const onAnnotationHover = handlers?.onHover;
+  const onCommentHover = handlers?.onCommentHover;
 
   const allAnnotations = useMemo(() =>
     [...highlights, ...references, ...assessments, ...comments],
