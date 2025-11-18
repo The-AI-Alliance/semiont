@@ -418,6 +418,7 @@ export function AnnotateView({
                 resourceUri={toResourceUri(resourceUri)}
                 existingAnnotations={allAnnotations}
                 drawingMode={selectedMotivation ? selectedShape : null}
+                selectedMotivation={selectedMotivation}
                 onAnnotationCreate={async (svg, position) => {
                   // Use unified onCreate handler for image annotations
                   if (selectedMotivation && onCreate) {

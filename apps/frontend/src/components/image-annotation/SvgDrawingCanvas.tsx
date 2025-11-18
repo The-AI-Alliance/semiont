@@ -4,15 +4,40 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, type Point } from '@/lib/svg-utils';
 import { AnnotationOverlay } from './AnnotationOverlay';
+import type { SelectionMotivation } from '@/components/annotation/AnnotateToolbar';
 
 type Annotation = components['schemas']['Annotation'];
 
 export type DrawingMode = 'rectangle' | 'polygon' | 'circle' | 'freeform' | null;
 
+/**
+ * Get color for annotation preview based on motivation
+ * Returns object with stroke color and fill color (with alpha)
+ */
+function getMotivationColor(motivation: SelectionMotivation | null): { stroke: string; fill: string } {
+  if (!motivation) {
+    return { stroke: 'rgb(156, 163, 175)', fill: 'rgba(156, 163, 175, 0.2)' }; // gray default
+  }
+
+  switch (motivation) {
+    case 'highlighting':
+      return { stroke: 'rgb(250, 204, 21)', fill: 'rgba(250, 204, 21, 0.2)' }; // yellow
+    case 'linking':
+      return { stroke: 'rgb(59, 130, 246)', fill: 'rgba(59, 130, 246, 0.2)' }; // blue
+    case 'assessing':
+      return { stroke: 'rgb(239, 68, 68)', fill: 'rgba(239, 68, 68, 0.2)' }; // red
+    case 'commenting':
+      return { stroke: 'rgb(255, 255, 255)', fill: 'rgba(255, 255, 255, 0.2)' }; // white
+    default:
+      return { stroke: 'rgb(156, 163, 175)', fill: 'rgba(156, 163, 175, 0.2)' }; // gray default
+  }
+}
+
 interface SvgDrawingCanvasProps {
   resourceUri: ResourceUri;
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
+  selectedMotivation?: SelectionMotivation | null;
   onAnnotationCreate?: (svg: string, position?: { x: number; y: number }) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
@@ -24,6 +49,7 @@ export function SvgDrawingCanvas({
   resourceUri,
   existingAnnotations = [],
   drawingMode,
+  selectedMotivation,
   onAnnotationCreate,
   onAnnotationClick,
   onAnnotationHover,
@@ -300,69 +326,72 @@ export function SvgDrawingCanvas({
             />
 
             {/* Current drawing preview */}
-            {isDrawing && startPoint && currentPoint && (
-              <svg
-                className="absolute top-0 left-0 w-full h-full pointer-events-none"
-                style={{ width: displayDimensions.width, height: displayDimensions.height }}
-              >
-                {drawingMode === 'circle' && (() => {
-                  const radius = Math.sqrt(
-                    Math.pow(currentPoint.x - startPoint.x, 2) +
-                    Math.pow(currentPoint.y - startPoint.y, 2)
-                  );
-                  return (
-                    <circle
-                      cx={startPoint.x}
-                      cy={startPoint.y}
-                      r={radius}
-                      fill="rgba(59, 130, 246, 0.2)"
-                      stroke="rgb(59, 130, 246)"
+            {isDrawing && startPoint && currentPoint && (() => {
+              const colors = getMotivationColor(selectedMotivation || null);
+              return (
+                <svg
+                  className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                  style={{ width: displayDimensions.width, height: displayDimensions.height }}
+                >
+                  {drawingMode === 'circle' && (() => {
+                    const radius = Math.sqrt(
+                      Math.pow(currentPoint.x - startPoint.x, 2) +
+                      Math.pow(currentPoint.y - startPoint.y, 2)
+                    );
+                    return (
+                      <circle
+                        cx={startPoint.x}
+                        cy={startPoint.y}
+                        r={radius}
+                        fill={colors.fill}
+                        stroke={colors.stroke}
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
+                      />
+                    );
+                  })()}
+
+                  {drawingMode === 'polygon' && (() => {
+                    const centerX = (startPoint.x + currentPoint.x) / 2;
+                    const centerY = (startPoint.y + currentPoint.y) / 2;
+                    const halfWidth = Math.abs(currentPoint.x - startPoint.x) / 2;
+                    const halfHeight = Math.abs(currentPoint.y - startPoint.y) / 2;
+
+                    const points = [
+                      { x: centerX, y: centerY - halfHeight },        // top
+                      { x: centerX + halfWidth, y: centerY },         // right
+                      { x: centerX, y: centerY + halfHeight },        // bottom
+                      { x: centerX - halfWidth, y: centerY }          // left
+                    ];
+
+                    const pointsStr = points.map(p => `${p.x},${p.y}`).join(' ');
+
+                    return (
+                      <polygon
+                        points={pointsStr}
+                        fill={colors.fill}
+                        stroke={colors.stroke}
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
+                      />
+                    );
+                  })()}
+
+                  {drawingMode === 'rectangle' && (
+                    <rect
+                      x={Math.min(startPoint.x, currentPoint.x)}
+                      y={Math.min(startPoint.y, currentPoint.y)}
+                      width={Math.abs(currentPoint.x - startPoint.x)}
+                      height={Math.abs(currentPoint.y - startPoint.y)}
+                      fill={colors.fill}
+                      stroke={colors.stroke}
                       strokeWidth="2"
                       strokeDasharray="5,5"
                     />
-                  );
-                })()}
-
-                {drawingMode === 'polygon' && (() => {
-                  const centerX = (startPoint.x + currentPoint.x) / 2;
-                  const centerY = (startPoint.y + currentPoint.y) / 2;
-                  const halfWidth = Math.abs(currentPoint.x - startPoint.x) / 2;
-                  const halfHeight = Math.abs(currentPoint.y - startPoint.y) / 2;
-
-                  const points = [
-                    { x: centerX, y: centerY - halfHeight },        // top
-                    { x: centerX + halfWidth, y: centerY },         // right
-                    { x: centerX, y: centerY + halfHeight },        // bottom
-                    { x: centerX - halfWidth, y: centerY }          // left
-                  ];
-
-                  const pointsStr = points.map(p => `${p.x},${p.y}`).join(' ');
-
-                  return (
-                    <polygon
-                      points={pointsStr}
-                      fill="rgba(59, 130, 246, 0.2)"
-                      stroke="rgb(59, 130, 246)"
-                      strokeWidth="2"
-                      strokeDasharray="5,5"
-                    />
-                  );
-                })()}
-
-                {drawingMode === 'rectangle' && (
-                  <rect
-                    x={Math.min(startPoint.x, currentPoint.x)}
-                    y={Math.min(startPoint.y, currentPoint.y)}
-                    width={Math.abs(currentPoint.x - startPoint.x)}
-                    height={Math.abs(currentPoint.y - startPoint.y)}
-                    fill="rgba(59, 130, 246, 0.2)"
-                    stroke="rgb(59, 130, 246)"
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
-                  />
-                )}
-              </svg>
-            )}
+                  )}
+                </svg>
+              );
+            })()}
           </div>
         </div>
       )}
