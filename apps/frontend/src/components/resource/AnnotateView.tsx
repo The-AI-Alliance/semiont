@@ -423,12 +423,19 @@ export function AnnotateView({
                       []
                     );
 
-                    // For comments and references, directly open their panels
+                    // After creating annotation, open appropriate panel
                     if (annotation) {
+                      console.log('[IMAGE ANNOTATION] Created annotation:', annotation.id, 'motivation:', selectedSelection);
                       if (selectedSelection === 'commenting' && onCommentClick) {
+                        // Comments: open Comment Panel directly
+                        console.log('[IMAGE ANNOTATION] Opening Comment Panel');
                         onCommentClick(annotation.id);
-                      } else if (selectedSelection === 'linking' && onReferenceClick) {
-                        onReferenceClick(annotation.id);
+                      } else if (selectedSelection === 'linking') {
+                        // References: open Reference Panel directly
+                        console.log('[IMAGE ANNOTATION] Opening Reference Panel, onReferenceClick:', !!onReferenceClick);
+                        if (onReferenceClick) {
+                          onReferenceClick(annotation.id);
+                        }
                       }
                     }
                   }
