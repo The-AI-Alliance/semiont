@@ -4,14 +4,14 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 
 export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting';
-export type ClickMotivation = 'detail' | 'follow' | 'jsonld' | 'deleting';
+export type ClickAction = 'detail' | 'follow' | 'jsonld' | 'deleting';
 export type ShapeType = 'rectangle' | 'circle' | 'polygon';
 
 interface AnnotateToolbarProps {
   selectedSelection: SelectionMotivation | null;
-  selectedClick: ClickMotivation;
+  selectedClick: ClickAction;
   onSelectionChange: (motivation: SelectionMotivation | null) => void;
-  onClickChange: (motivation: ClickMotivation) => void;
+  onClickChange: (motivation: ClickAction) => void;
   showSelectionGroup?: boolean;
   showDeleteButton?: boolean;
   showShapeGroup?: boolean;
@@ -37,7 +37,7 @@ export function AnnotateToolbar({
     onSelectionChange(selectedSelection === motivation ? null : motivation);
   };
 
-  const handleClickClick = (motivation: ClickMotivation) => {
+  const handleClickClick = (motivation: ClickAction) => {
     // Always set the clicked motivation (no toggle)
     onClickChange(motivation);
   };
@@ -49,7 +49,7 @@ export function AnnotateToolbar({
     }
   };
 
-  const getButtonClass = (motivation: SelectionMotivation | ClickMotivation | ShapeType, isDeleteButton = false) => {
+  const getButtonClass = (motivation: SelectionMotivation | ClickAction | ShapeType, isDeleteButton = false) => {
     const isSelected = selectedSelection === motivation || selectedClick === motivation || selectedShape === motivation;
     const baseClasses = 'px-3 py-1.5 rounded-md transition-all flex items-center font-medium border-none focus:outline-none';
 

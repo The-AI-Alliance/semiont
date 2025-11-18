@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import { AnnotateView, type SelectionMotivation, type ClickMotivation, type ShapeType } from './AnnotateView';
+import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferencePopup';
 import { PopupContainer } from '@/components/annotation-popups/SharedPopupElements';
@@ -96,11 +96,11 @@ export function ResourceViewer({
     return 'linking';
   });
 
-  const [selectedClick, setSelectedClick] = useState<ClickMotivation>(() => {
+  const [selectedClick, setSelectedClick] = useState<ClickAction>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('semiont-toolbar-click');
       if (stored && ['detail', 'follow', 'jsonld', 'deleting'].includes(stored)) {
-        return stored as ClickMotivation;
+        return stored as ClickAction;
       }
     }
     return 'detail';

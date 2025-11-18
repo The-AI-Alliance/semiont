@@ -13,12 +13,12 @@ import { findTextWithContext } from '@/lib/fuzzy-anchor';
 type Annotation = components['schemas']['Annotation'];
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
-import { AnnotateToolbar, type SelectionMotivation, type ClickMotivation, type ShapeType } from '@/components/annotation/AnnotateToolbar';
+import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '@/components/annotation/AnnotateToolbar';
 import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState, CreateAnnotationParams } from '@/types/annotation-props';
 import '@/styles/animations.css';
 
 // Re-export for convenience
-export type { SelectionMotivation, ClickMotivation, ShapeType };
+export type { SelectionMotivation, ClickAction, ShapeType };
 
 interface Props {
   content: string;
@@ -191,7 +191,7 @@ export function AnnotateView({
   const onSelectionChange = (motivation: SelectionMotivation | null) => {
     onUIStateChange?.({ selectedSelection: motivation });
   };
-  const onClickChange = (motivation: ClickMotivation) => {
+  const onClickChange = (motivation: ClickAction) => {
     onUIStateChange?.({ selectedClick: motivation });
   };
   const onShapeChange = (shape: ShapeType) => {

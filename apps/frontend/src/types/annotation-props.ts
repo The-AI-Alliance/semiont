@@ -95,7 +95,7 @@ export interface AnnotationUIState {
   selectedSelection: import('@/components/annotation/AnnotateToolbar').SelectionMotivation | null;
 
   /** Currently selected click mode (detail, follow, delete, jsonld) */
-  selectedClick: import('@/components/annotation/AnnotateToolbar').ClickMotivation;
+  selectedClick: import('@/components/annotation/AnnotateToolbar').ClickAction;
 
   /** Currently selected shape for image annotations */
   selectedShape: import('@/components/annotation/AnnotateToolbar').ShapeType;

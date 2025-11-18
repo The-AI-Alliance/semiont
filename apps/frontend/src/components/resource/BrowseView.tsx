@@ -9,7 +9,7 @@ import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource, getMimeCategory, type MimeCategory } from '@semiont/api-client';
 import { getAnnotationInternalType, getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
-import { AnnotateToolbar, type ClickMotivation } from '@/components/annotation/AnnotateToolbar';
+import { AnnotateToolbar, type ClickAction } from '@/components/annotation/AnnotateToolbar';
 import type { AnnotationsCollection, AnnotationHandlers } from '@/types/annotation-props';
 
 type Annotation = components['schemas']['Annotation'];
@@ -24,8 +24,8 @@ interface Props {
   handlers?: AnnotationHandlers;
   hoveredAnnotationId?: string | null;
   hoveredCommentId?: string | null;
-  selectedClick?: ClickMotivation;
-  onClickChange?: (motivation: ClickMotivation) => void;
+  selectedClick?: ClickAction;
+  onClickChange?: (motivation: ClickAction) => void;
 }
 
 /**
