@@ -51,6 +51,8 @@ interface Props {
   onCreateAssessment?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
   onCreateComment?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
   onCreateReference?: (exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }, context?: { prefix?: string; suffix?: string }) => void;
+  onCommentClick?: (commentId: string) => void;
+  onReferenceClick?: (referenceId: string) => void;
 }
 
 /**
@@ -185,7 +187,9 @@ export function AnnotateView({
   onCreateHighlight,
   onCreateAssessment,
   onCreateComment,
-  onCreateReference
+  onCreateReference,
+  onCommentClick,
+  onReferenceClick
 }: Props) {
   const t = useTranslations('AnnotateView');
   const { newAnnotationIds, createAnnotation } = useResourceAnnotations();
@@ -412,15 +416,19 @@ export function AnnotateView({
                       []
                     );
 
-                    // For comments and references, trigger the normal click flow to open panels
-                    if (annotation && onAnnotationClick && (selectedSelection === 'commenting' || selectedSelection === 'linking')) {
-                      onAnnotationClick(annotation);
+                    // For comments and references, directly open their panels
+                    if (annotation) {
+                      if (selectedSelection === 'commenting' && onCommentClick) {
+                        onCommentClick(annotation.id);
+                      } else if (selectedSelection === 'linking' && onReferenceClick) {
+                        onReferenceClick(annotation.id);
+                      }
                     }
                   }
                 }}
                 {...(onAnnotationClick && { onAnnotationClick })}
                 {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}
-                {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+                hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
               />
             )}
           </div>

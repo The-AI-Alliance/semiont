@@ -355,6 +355,8 @@ export function ResourceViewer({
             onCreateAssessment={handleImmediateAssessment}
             onCreateComment={handleImmediateComment}
             onCreateReference={handleImmediateReference}
+            {...(onCommentClick && { onCommentClick })}
+            {...(onReferenceClick && { onReferenceClick })}
           />
         ) : (
           <AnnotateView
@@ -391,6 +393,8 @@ export function ResourceViewer({
             onCreateAssessment={handleImmediateAssessment}
             onCreateComment={handleImmediateComment}
             onCreateReference={handleImmediateReference}
+            {...(onCommentClick && { onCommentClick })}
+            {...(onReferenceClick && { onReferenceClick })}
           />
         )
       ) : (
