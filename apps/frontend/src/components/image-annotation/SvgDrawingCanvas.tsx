@@ -13,7 +13,7 @@ interface SvgDrawingCanvasProps {
   resourceUri: ResourceUri;
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
-  onAnnotationCreate?: (svg: string) => void;
+  onAnnotationCreate?: (svg: string, position?: { x: number; y: number }) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   hoveredAnnotationId?: string | null;
@@ -226,9 +226,18 @@ export function SvgDrawingCanvas({
       imageDimensions.height
     );
 
+    // Calculate center position for popup placement (in screen coordinates)
+    const centerX = (startPoint.x + endPoint.x) / 2;
+    const centerY = (startPoint.y + endPoint.y) / 2;
+    const rect = imageRef.current?.getBoundingClientRect();
+    const screenPosition = rect ? {
+      x: rect.left + centerX,
+      y: rect.top + centerY
+    } : undefined;
+
     // Notify parent
     if (onAnnotationCreate) {
-      onAnnotationCreate(nativeSvg);
+      onAnnotationCreate(nativeSvg, screenPosition);
     }
 
     // Reset drawing state

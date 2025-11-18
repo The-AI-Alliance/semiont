@@ -80,7 +80,8 @@ export function ResourceViewer({
     addHighlight,
     addReference,
     addAssessment,
-    deleteAnnotation
+    deleteAnnotation,
+    createAnnotation
   } = useResourceAnnotations();
 
   // Annotation toolbar state - persisted in localStorage
@@ -140,6 +141,7 @@ export function ResourceViewer({
     end: number;
     prefix?: string;
     suffix?: string;
+    svgSelector?: string;
   } | null>(null);
   const [quickReferencePosition, setQuickReferencePosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
@@ -238,52 +240,109 @@ export function ResourceViewer({
     }
   }, [router, curationMode, onCommentClick, onReferenceClick, selectedClick, handleDeleteAnnotation]);
 
-  // Handle immediate highlight creation (no popup)
-  const handleImmediateHighlight = useCallback(async (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => {
+  // Unified annotation creation handler - works for both text and images
+  const handleAnnotationCreate = useCallback(async (params: import('@/types/annotation-props').CreateAnnotationParams) => {
+    const { motivation, selector, position } = params;
+
     try {
-      await addHighlight(rUri, exact, position, context);
-      onRefetchAnnotations?.();
+      switch (motivation) {
+        case 'highlighting':
+        case 'assessing':
+          // Create highlight/assessment immediately
+          if (selector.type === 'TextQuoteSelector' && selector.exact) {
+            // Text annotations use specialized helpers
+            if (motivation === 'highlighting') {
+              await addHighlight(
+                rUri,
+                selector.exact,
+                { start: selector.start || 0, end: selector.end || 0 },
+                {
+                  ...(selector.prefix && { prefix: selector.prefix }),
+                  ...(selector.suffix && { suffix: selector.suffix })
+                }
+              );
+            } else {
+              await addAssessment(
+                rUri,
+                selector.exact,
+                { start: selector.start || 0, end: selector.end || 0 },
+                {
+                  ...(selector.prefix && { prefix: selector.prefix }),
+                  ...(selector.suffix && { suffix: selector.suffix })
+                }
+              );
+            }
+            onRefetchAnnotations?.();
+          } else if (selector.type === 'SvgSelector' && selector.value) {
+            // Image annotations use generic createAnnotation
+            await createAnnotation(
+              rUri,
+              motivation,
+              { type: 'SvgSelector', value: selector.value },
+              []
+            );
+            onRefetchAnnotations?.();
+          }
+          break;
+
+        case 'commenting':
+          if (selector.type === 'TextQuoteSelector' && selector.exact) {
+            // Text: notify parent to open Comments Panel
+            if (onCommentCreationRequested) {
+              onCommentCreationRequested({
+                exact: selector.exact,
+                start: selector.start || 0,
+                end: selector.end || 0
+              });
+            }
+          } else if (selector.type === 'SvgSelector' && selector.value) {
+            // Image: create annotation, then open panel
+            const annotation = await createAnnotation(
+              rUri,
+              motivation,
+              { type: 'SvgSelector', value: selector.value },
+              []
+            );
+            if (annotation && onCommentClick) {
+              onCommentClick(annotation.id);
+            }
+            onRefetchAnnotations?.();
+          }
+          break;
+
+        case 'linking':
+          // Show Quick Reference popup FIRST (works for both text and images)
+          if (selector.type === 'TextQuoteSelector' && selector.exact) {
+            const selection: typeof quickReferenceSelection = {
+              exact: selector.exact,
+              start: selector.start || 0,
+              end: selector.end || 0,
+            };
+            if (selector.prefix) selection.prefix = selector.prefix;
+            if (selector.suffix) selection.suffix = selector.suffix;
+
+            setQuickReferenceSelection(selection);
+            setQuickReferencePosition(position || { x: 0, y: 0 });
+            setShowQuickReferencePopup(true);
+          } else if (selector.type === 'SvgSelector' && selector.value) {
+            // For SVG annotations, show popup at shape center
+            const selection: typeof quickReferenceSelection = {
+              exact: '',  // Images don't have exact text
+              start: 0,
+              end: 0,
+              svgSelector: selector.value
+            };
+
+            setQuickReferenceSelection(selection);
+            setQuickReferencePosition(position || { x: window.innerWidth / 2, y: window.innerHeight / 2 });
+            setShowQuickReferencePopup(true);
+          }
+          break;
+      }
     } catch (err) {
-      console.error('Failed to create highlight:', err);
+      console.error('Failed to create annotation:', err);
     }
-  }, [rUri, addHighlight, onRefetchAnnotations]);
-
-  // Handle immediate assessment creation (no popup)
-  const handleImmediateAssessment = useCallback(async (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => {
-    try {
-      await addAssessment(rUri, exact, position, context);
-      onRefetchAnnotations?.();
-    } catch (err) {
-      console.error('Failed to create assessment:', err);
-    }
-  }, [rUri, addAssessment, onRefetchAnnotations]);
-
-  // Handle immediate comment creation (opens Comment Panel)
-  const handleImmediateComment = useCallback((exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => {
-    // Notify parent component to open Comments Panel with this selection
-    if (onCommentCreationRequested) {
-      onCommentCreationRequested({
-        exact,
-        start: position.start,
-        end: position.end
-      });
-    }
-  }, [onCommentCreationRequested]);
-
-  // Handle immediate reference creation (opens Quick Reference popup)
-  const handleImmediateReference = useCallback((exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }, context?: { prefix?: string; suffix?: string }) => {
-    const selection: typeof quickReferenceSelection = {
-      exact,
-      start: position.start,
-      end: position.end,
-    };
-    if (context?.prefix) selection.prefix = context.prefix;
-    if (context?.suffix) selection.suffix = context.suffix;
-
-    setQuickReferenceSelection(selection);
-    setQuickReferencePosition(popupPosition);
-    setShowQuickReferencePopup(true);
-  }, []);
+  }, [rUri, addHighlight, addAssessment, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onCommentClick]);
 
   // Handle quick reference creation from popup
   const handleQuickReferenceCreate = useCallback(async (entityType?: string) => {
@@ -342,11 +401,8 @@ export function ResourceViewer({
               ...(onAnnotationHover && { onHover: onAnnotationHover }),
               ...(onCommentHover && { onCommentHover })
             }}
-            creationHandlers={{
-              onCreateHighlight: handleImmediateHighlight,
-              onCreateAssessment: handleImmediateAssessment,
-              onCreateComment: handleImmediateComment,
-              onCreateReference: handleImmediateReference
+            creationHandler={{
+              onCreate: handleAnnotationCreate
             }}
             panelHandlers={{
               ...(onCommentClick && { onCommentClick }),
@@ -388,11 +444,8 @@ export function ResourceViewer({
               ...(onAnnotationHover && { onHover: onAnnotationHover }),
               ...(onCommentHover && { onCommentHover })
             }}
-            creationHandlers={{
-              onCreateHighlight: handleImmediateHighlight,
-              onCreateAssessment: handleImmediateAssessment,
-              onCreateComment: handleImmediateComment,
-              onCreateReference: handleImmediateReference
+            creationHandler={{
+              onCreate: handleAnnotationCreate
             }}
             panelHandlers={{
               ...(onCommentClick && { onCommentClick }),

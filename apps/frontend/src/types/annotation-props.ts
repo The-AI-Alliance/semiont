@@ -38,14 +38,52 @@ export interface AnnotationHandlers {
 }
 
 /**
- * Creation handlers for new annotations.
- * Groups multiple onCreate handlers by motivation type.
+ * Parameters for unified annotation creation.
+ * Works for both text selections and image shapes.
  */
-export interface AnnotationCreationHandlers {
-  onCreateHighlight?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
-  onCreateAssessment?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
-  onCreateComment?: (exact: string, position: { start: number; end: number }, context?: { prefix?: string; suffix?: string }) => void;
-  onCreateReference?: (exact: string, position: { start: number; end: number }, popupPosition: { x: number; y: number }, context?: { prefix?: string; suffix?: string }) => void;
+export interface CreateAnnotationParams {
+  /** The motivation for creating this annotation */
+  motivation: import('@/components/annotation/AnnotateToolbar').SelectionMotivation;
+
+  /** Selector information - either text or SVG */
+  selector: {
+    /** Selector type */
+    type: 'TextQuoteSelector' | 'SvgSelector';
+
+    /** For TextQuoteSelector: the exact text selected */
+    exact?: string;
+
+    /** For TextQuoteSelector: context before selection */
+    prefix?: string;
+
+    /** For TextQuoteSelector: context after selection */
+    suffix?: string;
+
+    /** For TextPositionSelector: start position in document */
+    start?: number;
+
+    /** For TextPositionSelector: end position in document */
+    end?: number;
+
+    /** For SvgSelector: the SVG shape string */
+    value?: string;
+  };
+
+  /** Optional position for popup placement (text: near selection, image: shape center) */
+  position?: { x: number; y: number };
+}
+
+/**
+ * Unified creation handler for new annotations.
+ * Works for both text and image annotations.
+ *
+ * Behavior by motivation:
+ * - highlighting/assessing: Creates annotation immediately
+ * - commenting: Creates annotation, then opens Comment Panel
+ * - linking: Shows Quick Reference popup FIRST, creates when user confirms
+ */
+export interface AnnotationCreationHandler {
+  onCreate?: (params: CreateAnnotationParams) => void | Promise<void> | Promise<Annotation | undefined>;
 }
 
 /**
