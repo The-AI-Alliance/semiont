@@ -87,15 +87,6 @@ export interface AnnotationCreationHandler {
 }
 
 /**
- * Panel-specific click handlers.
- * Used for opening side panels for comments and references.
- */
-export interface AnnotationPanelHandlers {
-  onCommentClick?: (commentId: string) => void;
-  onReferenceClick?: (referenceId: string) => void;
-}
-
-/**
  * UI state for annotation toolbar and interactions.
  * Groups multiple UI state props into a single object.
  */

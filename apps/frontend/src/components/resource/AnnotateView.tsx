@@ -14,7 +14,7 @@ type Annotation = components['schemas']['Annotation'];
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment } from '@/components/CodeMirrorRenderer';
 import { AnnotateToolbar, type SelectionMotivation, type ClickMotivation, type ShapeType } from '@/components/annotation/AnnotateToolbar';
-import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationPanelHandlers, AnnotationUIState, CreateAnnotationParams } from '@/types/annotation-props';
+import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState, CreateAnnotationParams } from '@/types/annotation-props';
 import '@/styles/animations.css';
 
 // Re-export for convenience
@@ -27,7 +27,6 @@ interface Props {
   annotations: AnnotationsCollection;
   handlers?: AnnotationHandlers;
   creationHandler?: AnnotationCreationHandler;
-  panelHandlers?: AnnotationPanelHandlers;
   uiState: AnnotationUIState;
   onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
   editable?: boolean;
@@ -149,7 +148,6 @@ export function AnnotateView({
   annotations,
   handlers,
   creationHandler,
-  panelHandlers,
   uiState,
   onUIStateChange,
   editable = false,
@@ -185,9 +183,6 @@ export function AnnotateView({
   const onCommentHover = handlers?.onCommentHover;
 
   const onCreate = creationHandler?.onCreate;
-
-  const onCommentClick = panelHandlers?.onCommentClick;
-  const onReferenceClick = panelHandlers?.onReferenceClick;
 
   // Extract UI state
   const { selectedSelection, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;

@@ -404,10 +404,6 @@ export function ResourceViewer({
             creationHandler={{
               onCreate: handleAnnotationCreate
             }}
-            panelHandlers={{
-              ...(onCommentClick && { onCommentClick }),
-              ...(onReferenceClick && { onReferenceClick })
-            }}
             uiState={{
               selectedSelection,
               selectedClick,
@@ -446,10 +442,6 @@ export function ResourceViewer({
             }}
             creationHandler={{
               onCreate: handleAnnotationCreate
-            }}
-            panelHandlers={{
-              ...(onCommentClick && { onCommentClick }),
-              ...(onReferenceClick && { onReferenceClick })
             }}
             uiState={{
               selectedSelection,
