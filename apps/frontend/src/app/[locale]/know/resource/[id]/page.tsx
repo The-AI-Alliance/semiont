@@ -573,10 +573,7 @@ function ResourceView({
               ) : (
                 <ResourceViewer
                   resource={{ ...resource, content }}
-                highlights={highlights}
-                references={references}
-                assessments={assessments}
-                comments={comments}
+                annotations={{ highlights, references, assessments, comments }}
                 onRefetchAnnotations={() => {
                   // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
                   // This prevents race condition where we refetch before the event is processed

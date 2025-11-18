@@ -12,16 +12,14 @@ import type { components, ResourceUri } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import type { AnnotationsCollection } from '@/types/annotation-props';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 
 interface Props {
   resource: SemiontResource & { content: string };
-  highlights: Annotation[];
-  references: Annotation[];
-  assessments: Annotation[];
-  comments: Annotation[];
+  annotations: AnnotationsCollection;
   onRefetchAnnotations?: () => void;
   curationMode?: boolean;
   generatingReferenceId?: string | null;
@@ -38,10 +36,7 @@ interface Props {
 
 export function ResourceViewer({
   resource,
-  highlights,
-  references,
-  assessments,
-  comments,
+  annotations,
   onRefetchAnnotations,
   curationMode = false,
   generatingReferenceId,
@@ -58,6 +53,8 @@ export function ResourceViewer({
   const router = useRouter();
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
+
+  const { highlights, references, assessments, comments } = annotations;
 
   // Extract resource URI once at the top - required for all annotation operations
   // Resources have @id (canonical URI), not id
@@ -339,80 +336,92 @@ export function ResourceViewer({
             content={resource.content}
             mimeType={mimeType}
             resourceUri={resource['@id']}
-            highlights={highlights}
-            references={references}
-            assessments={assessments}
-            comments={comments}
-            onAnnotationClick={handleAnnotationClick}
-            {...(onAnnotationHover && { onAnnotationHover })}
-            {...(onCommentHover && { onCommentHover })}
-            {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
-            {...(hoveredCommentId !== undefined && { hoveredCommentId })}
-            {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
+            annotations={{ highlights, references, assessments, comments }}
+            handlers={{
+              onClick: handleAnnotationClick,
+              ...(onAnnotationHover && { onHover: onAnnotationHover }),
+              ...(onCommentHover && { onCommentHover })
+            }}
+            creationHandlers={{
+              onCreateHighlight: handleImmediateHighlight,
+              onCreateAssessment: handleImmediateAssessment,
+              onCreateComment: handleImmediateComment,
+              onCreateReference: handleImmediateReference
+            }}
+            panelHandlers={{
+              ...(onCommentClick && { onCommentClick }),
+              ...(onReferenceClick && { onReferenceClick })
+            }}
+            uiState={{
+              selectedSelection,
+              selectedClick,
+              selectedShape,
+              ...(hoveredAnnotationId !== undefined && { hoveredAnnotationId }),
+              ...(hoveredCommentId !== undefined && { hoveredCommentId }),
+              ...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })
+            }}
+            onUIStateChange={(updates) => {
+              if ('selectedSelection' in updates) setSelectedSelection(updates.selectedSelection!);
+              if ('selectedClick' in updates) setSelectedClick(updates.selectedClick!);
+              if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
+            }}
             enableWidgets={true}
             onEntityTypeClick={(entityType) => {
               router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
             }}
             onUnresolvedReferenceClick={handleAnnotationClick}
             getTargetDocumentName={(documentId) => {
-              // TODO: Add document cache lookup for better UX
               return undefined;
             }}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             showLineNumbers={showLineNumbers}
-            selectedSelection={selectedSelection}
-            selectedClick={selectedClick}
-            onSelectionChange={setSelectedSelection}
-            onClickChange={setSelectedClick}
-            selectedShape={selectedShape}
-            onShapeChange={setSelectedShape}
-            onCreateHighlight={handleImmediateHighlight}
-            onCreateAssessment={handleImmediateAssessment}
-            onCreateComment={handleImmediateComment}
-            onCreateReference={handleImmediateReference}
-            {...(onCommentClick && { onCommentClick })}
-            {...(onReferenceClick && { onReferenceClick })}
           />
         ) : (
           <AnnotateView
             content={resource.content}
             mimeType={mimeType}
             resourceUri={resource['@id']}
-            highlights={highlights}
-            references={references}
-            assessments={assessments}
-            comments={comments}
-            onAnnotationClick={handleAnnotationClick}
-            {...(onAnnotationHover && { onAnnotationHover })}
-            {...(onCommentHover && { onCommentHover })}
-            {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
-            {...(hoveredCommentId !== undefined && { hoveredCommentId })}
-            {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
+            annotations={{ highlights, references, assessments, comments }}
+            handlers={{
+              onClick: handleAnnotationClick,
+              ...(onAnnotationHover && { onHover: onAnnotationHover }),
+              ...(onCommentHover && { onCommentHover })
+            }}
+            creationHandlers={{
+              onCreateHighlight: handleImmediateHighlight,
+              onCreateAssessment: handleImmediateAssessment,
+              onCreateComment: handleImmediateComment,
+              onCreateReference: handleImmediateReference
+            }}
+            panelHandlers={{
+              ...(onCommentClick && { onCommentClick }),
+              ...(onReferenceClick && { onReferenceClick })
+            }}
+            uiState={{
+              selectedSelection,
+              selectedClick,
+              selectedShape,
+              ...(hoveredAnnotationId !== undefined && { hoveredAnnotationId }),
+              ...(hoveredCommentId !== undefined && { hoveredCommentId }),
+              ...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })
+            }}
+            onUIStateChange={(updates) => {
+              if ('selectedSelection' in updates) setSelectedSelection(updates.selectedSelection!);
+              if ('selectedClick' in updates) setSelectedClick(updates.selectedClick!);
+              if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
+            }}
             enableWidgets={true}
             onEntityTypeClick={(entityType) => {
               router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
             }}
             onUnresolvedReferenceClick={handleAnnotationClick}
             getTargetDocumentName={(documentId) => {
-              // TODO: Add document cache lookup for better UX
               return undefined;
             }}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             showLineNumbers={showLineNumbers}
-            selectedSelection={selectedSelection}
-            selectedClick={selectedClick}
-            onSelectionChange={setSelectedSelection}
-            onClickChange={setSelectedClick}
-            selectedShape={selectedShape}
-            onShapeChange={setSelectedShape}
-            onCreateHighlight={handleImmediateHighlight}
-            onCreateAssessment={handleImmediateAssessment}
-            onCreateComment={handleImmediateComment}
-            onCreateReference={handleImmediateReference}
-            {...(onCommentClick && { onCommentClick })}
-            {...(onReferenceClick && { onReferenceClick })}
           />
         )
       ) : (
@@ -420,12 +429,11 @@ export function ResourceViewer({
           content={resource.content}
           mimeType={mimeType}
           resourceUri={resource['@id']}
-          highlights={highlights}
-          references={references}
-          assessments={assessments}
-          comments={comments}
-          onAnnotationClick={handleAnnotationClick}
-          {...(onCommentHover && { onCommentHover })}
+          annotations={{ highlights, references, assessments, comments }}
+          handlers={{
+            onClick: handleAnnotationClick,
+            ...(onCommentHover && { onCommentHover })
+          }}
           {...(hoveredCommentId !== undefined && { hoveredCommentId })}
           selectedClick={selectedClick}
           onClickChange={setSelectedClick}
