@@ -87,7 +87,7 @@ export function SvgDrawingCanvas({
 
   // Handle mouse down - start drawing
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!drawingMode || drawingMode !== 'rectangle') return;
+    if (!drawingMode) return;
 
     const point = getRelativeCoordinates(e);
     if (point) {
@@ -254,7 +254,7 @@ export function SvgDrawingCanvas({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
-      style={{ cursor: drawingMode === 'rectangle' ? 'crosshair' : 'default' }}
+      style={{ cursor: drawingMode ? 'crosshair' : 'default' }}
     >
       {/* Image */}
       <img
