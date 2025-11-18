@@ -396,6 +396,8 @@
     "entitytagRemoved": "Tag Removed",
     "assessmentAdded": "Assessment Added",
     "assessmentRemoved": "Assessment Removed",
+    "annotationAdded": "Annotation Added",
+    "annotationRemoved": "Annotation Removed",
     "annotationBodyUpdated": "Annotation Updated",
     "jobEvent": "Job Event",
     "justNow": "just now",
@@ -712,6 +714,7 @@
   "AnnotateToolbar": {
     "selectionGroup": "Select",
     "clickGroup": "Click",
+    "shapeGroup": "Shape",
     "linking": "Reference",
     "highlighting": "Highlight",
     "assessing": "Assess",
@@ -719,7 +722,10 @@
     "detail": "Detail",
     "follow": "Follow",
     "deleting": "Delete",
-    "jsonld": "JSON-LD"
+    "jsonld": "JSON-LD",
+    "rectangle": "Rectangle",
+    "circle": "Circle",
+    "polygon": "Polygon"
   },
   "ResourceViewer": {
     "deleteConfirmationTitle": "Delete Annotation?",
