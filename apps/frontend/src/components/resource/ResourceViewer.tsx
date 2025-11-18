@@ -352,12 +352,19 @@ export function ResourceViewer({
       // Unified reference creation - works for both text and images
       const selector = quickReferenceSelection.svgSelector
         ? { type: 'SvgSelector' as const, value: quickReferenceSelection.svgSelector }
-        : {
-            type: 'TextQuoteSelector' as const,
-            exact: quickReferenceSelection.exact,
-            ...(quickReferenceSelection.prefix && { prefix: quickReferenceSelection.prefix }),
-            ...(quickReferenceSelection.suffix && { suffix: quickReferenceSelection.suffix })
-          };
+        : [
+            {
+              type: 'TextPositionSelector' as const,
+              start: quickReferenceSelection.start,
+              end: quickReferenceSelection.end
+            },
+            {
+              type: 'TextQuoteSelector' as const,
+              exact: quickReferenceSelection.exact,
+              ...(quickReferenceSelection.prefix && { prefix: quickReferenceSelection.prefix }),
+              ...(quickReferenceSelection.suffix && { suffix: quickReferenceSelection.suffix })
+            }
+          ];
 
       await createAnnotation(
         rUri,
