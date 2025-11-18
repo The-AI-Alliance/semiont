@@ -363,7 +363,11 @@ export function ResourceViewer({
         rUri,
         'linking',
         selector,
-        entityType ? [entityType] : []
+        entityType ? [{
+          type: 'TextualBody',
+          purpose: 'tagging',
+          value: entityType
+        }] : []
       );
       onRefetchAnnotations?.();
       setShowQuickReferencePopup(false);
