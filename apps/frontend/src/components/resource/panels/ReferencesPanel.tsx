@@ -26,7 +26,7 @@ interface Props {
   hoveredReferenceId?: string | null;
   onReferenceHover?: (referenceId: string | null) => void;
   onGenerateDocument?: (title: string) => void;
-  onSearchDocuments?: (searchTerm: string, onSelect: (documentId: string) => void) => void;
+  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
 }

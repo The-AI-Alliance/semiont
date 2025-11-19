@@ -675,14 +675,10 @@ function ResourceView({
                     handleGenerateDocument(annotationUri(reference.id), { title });
                   }
                 }}
-                onSearchDocuments={(term, onSelect) => {
-                  setSearchTerm(term);
-                  // Store the callback - we'll extract the reference ID from the annotation
-                  const ref = references.find(r => getAnnotationExactText(r) === term);
-                  if (ref) {
-                    setPendingReferenceId(ref.id);
-                    setSearchModalOpen(true);
-                  }
+                onSearchDocuments={(referenceId, searchTerm) => {
+                  setSearchTerm(searchTerm);
+                  setPendingReferenceId(referenceId);
+                  setSearchModalOpen(true);
                 }}
                 onUpdateReference={async (referenceId, updates) => {
                   try {

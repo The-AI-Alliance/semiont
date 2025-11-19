@@ -16,7 +16,7 @@ interface ReferenceEntryProps {
   onReferenceRef: (referenceId: string, el: HTMLElement | null) => void;
   onReferenceHover?: (referenceId: string | null) => void;
   onGenerateDocument?: (title: string) => void;
-  onSearchDocuments?: (searchTerm: string, onSelect: (documentId: string) => void) => void;
+  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
 }
@@ -82,18 +82,8 @@ export function ReferenceEntry({
   };
 
   const handleSearch = () => {
-    if (onSearchDocuments && onUpdateReference) {
-      onSearchDocuments(selectedText, (documentId: string) => {
-        if (onUpdateReference) {
-          onUpdateReference(reference.id, {
-            body: {
-              type: 'SpecificResource' as const,
-              source: documentId,
-              purpose: 'linking' as const,
-            },
-          });
-        }
-      });
+    if (onSearchDocuments) {
+      onSearchDocuments(reference.id, selectedText);
     }
   };
 
