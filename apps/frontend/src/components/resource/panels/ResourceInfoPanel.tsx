@@ -1,22 +1,17 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import type { components, paths } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
-type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
-type ReferencedBy = ResponseContent<paths['/resources/{id}/referenced-by']['get']>['referencedBy'][number];
-import { formatLocaleDisplay, getBodySource, isBodyResolved, getEntityTypes } from '@semiont/api-client';
+import { formatLocaleDisplay, isBodyResolved, getEntityTypes } from '@semiont/api-client';
 
 interface Props {
   highlights: Annotation[];
   comments: Annotation[];
   assessments: Annotation[];
   references: Annotation[];
-  referencedBy: ReferencedBy[];
-  referencedByLoading: boolean;
   documentEntityTypes: string[];
   documentLocale?: string | undefined;
   primaryMediaType?: string | undefined;
@@ -28,8 +23,6 @@ export function ResourceInfoPanel({
   comments,
   assessments,
   references,
-  referencedBy,
-  referencedByLoading,
   documentEntityTypes,
   documentLocale,
   primaryMediaType,
@@ -190,37 +183,6 @@ export function ResourceInfoPanel({
             </div>
           </div>
         )}
-
-        {/* Referenced By section */}
-        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            {t('referencedBy')}
-            {referencedByLoading && (
-              <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">({t('loading')})</span>
-            )}
-          </h4>
-          {referencedBy.length > 0 ? (
-            <div className="space-y-2">
-              {referencedBy.map((ref) => (
-                <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
-                  <Link
-                    href={`/know/resource/${encodeURIComponent(ref.target.source)}`}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
-                  >
-                    {ref.resourceName || t('untitledResource')}
-                  </Link>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
-                    "{ref.target.selector?.exact || t('noText')}"
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {referencedByLoading ? t('loadingEllipsis') : t('noIncomingReferences')}
-            </p>
-          )}
-        </div>
         </div>
       </div>
     </div>

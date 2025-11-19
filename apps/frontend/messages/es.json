@@ -339,13 +339,7 @@
     "references": "Referencias",
     "stub": "Stub",
     "resolved": "Resueltas",
-    "entityTypes": "Tipos de Entidad",
-    "referencedBy": "Referenciado por",
-    "loading": "cargando...",
-    "loadingEllipsis": "Cargando...",
-    "noIncomingReferences": "Sin referencias entrantes",
-    "untitledResource": "Recurso Sin Título",
-    "noText": "Sin texto"
+    "entityTypes": "Tipos de Entidad"
   },
   "CollaborationPanel": {
     "connectionStatus": "Estado de Conexión",
@@ -479,6 +473,7 @@
   },
   "ReferencesPanel": {
     "referencesTitle": "Referencias",
+    "outgoingReferences": "Referencias Salientes",
     "noReferences": "Aún no hay referencias",
     "stub": "Referencia pendiente (sin vincular)",
     "resolved": "Referencia resuelta (vinculada)",
@@ -486,7 +481,13 @@
     "unlink": "Desvincular",
     "generate": "Generar",
     "find": "Buscar",
-    "create": "Crear"
+    "create": "Crear",
+    "incomingReferences": "Referencias Entrantes",
+    "loading": "cargando...",
+    "loadingEllipsis": "Cargando...",
+    "noIncomingReferences": "Sin referencias entrantes",
+    "untitledResource": "Recurso Sin Título",
+    "noText": "Sin texto"
   },
   "SortableResourceTab": {
     "dragToReorder": "Arrastrar para reordenar",

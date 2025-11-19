@@ -8,6 +8,7 @@
 
 import { FilesystemViewStorage } from '../storage/view-storage';
 import { getGraphDatabase } from '../graph/factory';
+import { resourceIdToURI } from '../lib/uri-utils';
 import type { components } from '@semiont/api-client';
 import type {
   ResourceAnnotations,
@@ -204,7 +205,8 @@ export class AnnotationQueryService {
    */
   static async getBacklinks(resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation[]> {
     const graphDb = await getGraphDatabase(config);
-    return await graphDb.getResourceReferencedBy(resourceId);
+    const resourceUri = resourceIdToURI(resourceId, config.services.backend!.publicURL);
+    return await graphDb.getResourceReferencedBy(resourceUri);
   }
 
   /**

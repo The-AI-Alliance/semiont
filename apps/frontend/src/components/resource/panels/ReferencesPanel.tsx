@@ -2,12 +2,15 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/routing';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
-import type { components } from '@semiont/api-client';
+import type { components, paths } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
+type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+type ReferencedBy = ResponseContent<paths['/resources/{id}/referenced-by']['get']>['referencedBy'][number];
 
 interface DetectionLog {
   entityType: string;
@@ -30,6 +33,8 @@ interface Props {
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
   mediaType?: string | undefined;
+  referencedBy?: ReferencedBy[];
+  referencedByLoading?: boolean;
 }
 
 export function ReferencesPanel({
@@ -48,6 +53,8 @@ export function ReferencesPanel({
   onUpdateReference,
   annotateMode = true,
   mediaType,
+  referencedBy = [],
+  referencedByLoading = false,
 }: Props) {
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
@@ -225,7 +232,7 @@ export function ReferencesPanel({
         <div>
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {tRef('referencesTitle')} ({sortedReferences.length})
+              {tRef('outgoingReferences')} ({sortedReferences.length})
             </h3>
           </div>
 
@@ -251,6 +258,40 @@ export function ReferencesPanel({
               ))
             )}
           </div>
+        </div>
+
+        {/* Referenced By Section */}
+        <div>
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              {tRef('incomingReferences')} ({referencedBy.length})
+              {referencedByLoading && (
+                <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">({tRef('loading')})</span>
+              )}
+            </h3>
+          </div>
+
+          {referencedBy.length > 0 ? (
+            <div className="space-y-2">
+              {referencedBy.map((ref) => (
+                <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
+                  <Link
+                    href={`/know/resource/${encodeURIComponent(ref.target.source)}`}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
+                  >
+                    {ref.resourceName || tRef('untitledResource')}
+                  </Link>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
+                    "{ref.target.selector?.exact || tRef('noText')}"
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {referencedByLoading ? tRef('loadingEllipsis') : tRef('noIncomingReferences')}
+            </p>
+          )}
         </div>
       </div>
     </div>

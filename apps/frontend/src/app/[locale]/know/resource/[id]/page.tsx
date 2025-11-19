@@ -730,6 +730,8 @@ function ResourceView({
                     showError('Failed to update reference');
                   }
                 }}
+                referencedBy={referencedBy}
+                referencedByLoading={referencedByLoading}
               />
             )}
 
@@ -777,8 +779,6 @@ function ResourceView({
                 comments={comments}
                 assessments={assessments}
                 references={references}
-                referencedBy={referencedBy}
-                referencedByLoading={referencedByLoading}
                 documentEntityTypes={documentEntityTypes}
                 documentLocale={getLanguage(resource)}
                 primaryMediaType={primaryMediaType}
