@@ -657,6 +657,7 @@ function ResourceView({
                 onCancelDetection={cancelDetection}
                 references={references}
                 annotateMode={annotateMode}
+                mediaType={primaryMediaType}
                 onReferenceClick={(annotation) => {
                   // Scroll to reference in document and highlight it
                   setHoveredAnnotationId(annotation.id);
