@@ -696,14 +696,34 @@ function ResourceView({
                     const resourceIdSegment = rUri.split('/').pop() || '';
                     const nestedUri = `${NEXT_PUBLIC_API_URL}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
 
+                    // Determine operation type based on updates
+                    let operations: any[];
+                    if (Array.isArray(updates.body) && updates.body.length === 0) {
+                      // Unlinking: remove all linking body items
+                      const reference = references.find(r => r.id === referenceId);
+                      if (!reference) {
+                        throw new Error('Reference not found');
+                      }
+                      const bodyArray = Array.isArray(reference.body) ? reference.body : [];
+                      operations = bodyArray
+                        .filter((item: any) => item.purpose === 'linking')
+                        .map((item: any) => ({
+                          op: 'remove',
+                          item,
+                        }));
+                    } else {
+                      // Adding: add the body item
+                      operations = [{
+                        op: 'add',
+                        item: updates.body as any,
+                      }];
+                    }
+
                     await updateAnnotationBodyMutation.mutateAsync({
                       annotationUri: resourceAnnotationUri(nestedUri),
                       data: {
                         resourceId: resourceIdSegment,
-                        operations: [{
-                          op: 'add',
-                          item: updates.body as any,
-                        }],
+                        operations,
                       },
                     });
                     showSuccess('Reference updated');

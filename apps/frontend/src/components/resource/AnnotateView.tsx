@@ -227,12 +227,33 @@ export function AnnotateView({
     const container = containerRef.current;
     if (!container) return;
 
-    const handleMouseUp = () => {
+    let clickedOnAnnotation = false;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      // Check if mousedown was on an existing annotation
+      const target = e.target as Element;
+      clickedOnAnnotation = !!target.closest('[data-annotation-id]');
+
+      if (!target.closest('[data-annotation-ui]')) {
+        setSelectionState(null);
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString()) {
         setSelectionState(null);
+        clickedOnAnnotation = false;
         return;
       }
+
+      // If mousedown was on an existing annotation, don't trigger creation
+      // The annotation's click handler will take care of it
+      if (clickedOnAnnotation) {
+        clickedOnAnnotation = false;
+        return;
+      }
+      clickedOnAnnotation = false;
 
       const range = selection.getRangeAt(0);
       const rects = Array.from(range.getClientRects());
@@ -332,18 +353,12 @@ export function AnnotateView({
       }
     };
 
-    const handleMouseDown = (e: MouseEvent) => {
-      if (!(e.target as Element).closest('[data-annotation-ui]')) {
-        setSelectionState(null);
-      }
-    };
-
     container.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('mousedown', handleMouseDown);
+    container.addEventListener('mousedown', handleMouseDown);
 
     return () => {
       container.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('mousedown', handleMouseDown);
+      container.removeEventListener('mousedown', handleMouseDown);
     };
   }, [selectedMotivation, onCreate, content]);
 
