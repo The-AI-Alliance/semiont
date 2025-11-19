@@ -14,7 +14,8 @@ import { getTargetSource, getTargetSelector } from '../../../lib/annotation-util
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { resourceId as makeResourceId } from '@semiont/core';
-import { resourceUri } from '@semiont/api-client';
+import { resourceUri as makeResourceUri } from '@semiont/api-client';
+import { resourceIdToURI } from '../../../lib/uri-utils';
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
@@ -32,11 +33,13 @@ export function registerGetReferencedBy(router: ResourcesRouterType) {
     const graphDb = await getGraphDatabase(config);
 
     // Get all annotations that reference this resource
-    const references = await graphDb.getResourceReferencedBy(makeResourceId(id));
+    // Convert to full URI for graph database lookup
+    const resourceUri = resourceIdToURI(makeResourceId(id), config.services.backend!.publicURL);
+    const references = await graphDb.getResourceReferencedBy(resourceUri);
 
     // Get unique resources from the selections
     const docIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-    const resources = await Promise.all(docIds.map(docId => graphDb.getResource(resourceUri(docId))));
+    const resources = await Promise.all(docIds.map(docId => graphDb.getResource(makeResourceUri(docId))));
 
     // Build resource map for lookup
     const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc.id, doc]));

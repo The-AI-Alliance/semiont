@@ -867,11 +867,11 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getResourceReferencedBy(resourceId: ResourceId): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceUri: ResourceUri): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')
-        .has('resolvedResourceId', resourceId)
+        .has('resolvedResourceId', resourceUri)
         .elementMap()
         .toList();
 

@@ -691,15 +691,15 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getResourceReferencedBy(resourceId: ResourceId): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceUri: ResourceUri): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (a:Annotation)-[:REFERENCES]->(d:Resource {id: $resourceId})
+        `MATCH (a:Annotation)-[:REFERENCES]->(d:Resource {id: $resourceUri})
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes
          ORDER BY a.created DESC`,
-        { resourceId }
+        { resourceUri }
       );
 
       return result.records.map(record =>
