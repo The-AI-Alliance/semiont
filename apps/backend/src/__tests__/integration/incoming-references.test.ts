@@ -8,12 +8,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { userId, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
+import { userId, loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig } from '@semiont/core';
 import { email } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/core';
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
