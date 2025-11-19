@@ -3,11 +3,9 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
-import type { components, paths } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
-type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
-type ReferencedBy = ResponseContent<paths['/resources/{id}/referenced-by']['get']>['referencedBy'][number];
 
 // Mock next-intl
 vi.mock('next-intl', () => ({
@@ -90,16 +88,6 @@ const createMockAnnotation = (
   ],
 });
 
-const createMockReferencedBy = (id: string, resourceName?: string): ReferencedBy => ({
-  id,
-  target: {
-    source: `resource-${id}`,
-    selector: {
-      exact: `Referenced text from ${id}`,
-    },
-  },
-  resourceName: resourceName || `Resource ${id}`,
-});
 
 describe('ResourceInfoPanel Component', () => {
   const defaultProps = {
@@ -107,8 +95,6 @@ describe('ResourceInfoPanel Component', () => {
     comments: [],
     assessments: [],
     references: [],
-    referencedBy: [],
-    referencedByLoading: false,
     documentEntityTypes: [],
     documentLocale: undefined,
   };
@@ -382,108 +368,6 @@ describe('ResourceInfoPanel Component', () => {
     });
   });
 
-  describe('Referenced By Section', () => {
-    it('should show "no incoming references" when list is empty and not loading', () => {
-      render(<ResourceInfoPanel {...defaultProps} referencedBy={[]} referencedByLoading={false} />);
-
-      expect(screen.getByText('No incoming references')).toBeInTheDocument();
-    });
-
-    it('should show "Loading..." when loading', () => {
-      render(<ResourceInfoPanel {...defaultProps} referencedBy={[]} referencedByLoading={true} />);
-
-      expect(screen.getByText('(loading)')).toBeInTheDocument();
-      expect(screen.getByText('Loading...')).toBeInTheDocument();
-    });
-
-    it('should display referenced by items', () => {
-      const referencedBy = [
-        createMockReferencedBy('1', 'Document A'),
-        createMockReferencedBy('2', 'Document B'),
-      ];
-
-      render(<ResourceInfoPanel {...defaultProps} referencedBy={referencedBy} />);
-
-      expect(screen.getByText('Document A')).toBeInTheDocument();
-      expect(screen.getByText('Document B')).toBeInTheDocument();
-    });
-
-    it('should display referenced text excerpt', () => {
-      const referencedBy = [createMockReferencedBy('1')];
-
-      render(<ResourceInfoPanel {...defaultProps} referencedBy={referencedBy} />);
-
-      expect(screen.getByText('"Referenced text from 1"')).toBeInTheDocument();
-    });
-
-    it('should create links to referencing resources', () => {
-      const referencedBy = [createMockReferencedBy('1', 'Document A')];
-
-      render(<ResourceInfoPanel {...defaultProps} referencedBy={referencedBy} />);
-
-      const link = screen.getByText('Document A');
-      expect(link.closest('a')).toHaveAttribute('href', '/know/resource/resource-1');
-    });
-
-    it('should show "Untitled Resource" when resource name is missing', () => {
-      const referencedBy: ReferencedBy[] = [
-        {
-          id: '1',
-          target: {
-            source: 'resource-1',
-            selector: {
-              exact: 'Some text',
-            },
-          },
-          resourceName: '',
-        },
-      ];
-
-      render(<ResourceInfoPanel {...defaultProps} referencedBy={referencedBy} />);
-
-      expect(screen.getByText('Untitled Resource')).toBeInTheDocument();
-    });
-
-    it('should show "No text" when exact text is missing', () => {
-      const referencedBy: ReferencedBy[] = [
-        {
-          id: '1',
-          target: {
-            source: 'resource-1',
-            selector: {
-              exact: '',
-            },
-          },
-          resourceName: 'Document A',
-        },
-      ];
-
-      render(<ResourceInfoPanel {...defaultProps} referencedBy={referencedBy} />);
-
-      expect(screen.getByText('"No text"')).toBeInTheDocument();
-    });
-
-    it('should encode resource ID in URL', () => {
-      const referencedBy: ReferencedBy[] = [
-        {
-          id: '1',
-          target: {
-            source: 'resource/with/slashes',
-            selector: {
-              exact: 'Text',
-            },
-          },
-          resourceName: 'Document A',
-        },
-      ];
-
-      render(<ResourceInfoPanel {...defaultProps} referencedBy={referencedBy} />);
-
-      const link = screen.getByText('Document A').closest('a');
-      expect(link?.getAttribute('href')).toContain('resource%2Fwith%2Fslashes');
-    });
-  });
-
   describe('Styling and Appearance', () => {
     it('should have proper panel structure', () => {
       const { container } = render(<ResourceInfoPanel {...defaultProps} />);
@@ -559,19 +443,6 @@ describe('ResourceInfoPanel Component', () => {
       expect(() => {
         render(<ResourceInfoPanel {...defaultProps} references={references} />);
       }).not.toThrow();
-    });
-
-    it('should handle many referenced by items', () => {
-      const referencedBy = Array.from({ length: 20 }, (_, i) =>
-        createMockReferencedBy(`${i}`, `Document ${i}`)
-      );
-
-      expect(() => {
-        render(<ResourceInfoPanel {...defaultProps} referencedBy={referencedBy} />);
-      }).not.toThrow();
-
-      expect(screen.getByText('Document 0')).toBeInTheDocument();
-      expect(screen.getByText('Document 19')).toBeInTheDocument();
     });
 
     it('should handle empty entity type arrays from getEntityTypes', () => {
@@ -659,31 +530,6 @@ describe('ResourceInfoPanel Component', () => {
 
       expect(screen.getByText('Locale')).toHaveClass('text-sm', 'font-semibold');
       expect(screen.getByText('Statistics')).toHaveClass('text-sm', 'font-semibold');
-    });
-
-    it('should have proper link attributes for referenced by items', () => {
-      const referencedBy = [createMockReferencedBy('1', 'Document A')];
-
-      render(<ResourceInfoPanel {...defaultProps} referencedBy={referencedBy} />);
-
-      const link = screen.getByText('Document A').closest('a');
-      expect(link).toHaveAttribute('href');
-      expect(link).toHaveClass('hover:underline');
-    });
-
-    it('should use semantic HTML for lists', () => {
-      const referencedBy = [
-        createMockReferencedBy('1'),
-        createMockReferencedBy('2'),
-      ];
-
-      const { container } = render(
-        <ResourceInfoPanel {...defaultProps} referencedBy={referencedBy} />
-      );
-
-      // Should have a space-y div container for list items
-      const referencedBySection = screen.getByText('Referenced By').closest('div');
-      expect(referencedBySection?.querySelector('.space-y-2')).toBeInTheDocument();
     });
   });
 });
