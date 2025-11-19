@@ -46,7 +46,7 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@faker-js/faker": "^9.9.0",
+    "@faker-js/faker": "^10.1.0",
     "@testcontainers/postgresql": "^11.5.0",
     "@types/gremlin": "^3.6.7",
     "@types/jsonwebtoken": "^9.0.10",
