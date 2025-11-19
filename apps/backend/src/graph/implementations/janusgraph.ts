@@ -654,7 +654,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotations;
   }
 
-  async getResourceReferencedBy(resourceUri: ResourceUri): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceUri: ResourceUri, _motivation?: string): Promise<Annotation[]> {
     // Find annotations that reference this resource
     const vertices = await this.g!
       .V()

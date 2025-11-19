@@ -399,4 +399,49 @@ describe('Incoming References Integration Tests', () => {
     expect(data.referencedBy[0]?.resourceName).toBe('Correctly Mapped Resource');
     expect(data.referencedBy[0]?.resourceName).not.toBe('Untitled Resource');
   });
+
+  it('should filter incoming references by motivation type', async () => {
+    const targetResourceId = 'target-resource-6';
+    const publicURL = 'http://localhost:4000';
+
+    // Mock Neo4j to return only linking annotations (not highlighting)
+    // This simulates the label-based filtering in Neo4j
+    mockGraphDb.getResourceReferencedBy.mockResolvedValueOnce([
+      {
+        id: 'annotation-linking',
+        motivation: 'linking',
+        target: {
+          type: 'SpecificResource',
+          source: `${publicURL}/resources/source-with-link`,
+          selector: {
+            type: 'TextQuoteSelector',
+            exact: 'this is a link reference',
+          },
+        },
+      },
+    ]);
+
+    // Mock Neo4j to return the source resource
+    mockGraphDb.getResource.mockResolvedValueOnce({
+      '@id': `${publicURL}/resources/source-with-link`,
+      '@context': 'https://schema.org',
+      '@type': 'DigitalDocument',
+      name: 'Document with Link',
+      encodingFormat: 'text/plain',
+    });
+
+    const res = await app.request(`/resources/${targetResourceId}/referenced-by?motivation=linking`, {
+      headers: {
+        'Authorization': `Bearer ${testToken}`,
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json() as GetReferencedByResponse;
+
+    // Should only return linking annotations
+    expect(data.referencedBy).toHaveLength(1);
+    expect(data.referencedBy[0]?.id).toBe('annotation-linking');
+    expect(data.referencedBy[0]?.resourceName).toBe('Document with Link');
+  });
 });

@@ -867,7 +867,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getResourceReferencedBy(resourceUri: ResourceUri): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceUri: ResourceUri, _motivation?: string): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')

@@ -749,29 +749,21 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getResourceReferencedBy(resourceUri: ResourceUri): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceUri: ResourceUri, motivation?: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
-      console.log(`[Neo4j] getResourceReferencedBy: Searching for annotations referencing ${resourceUri}`);
+      const filterDesc = motivation ? ` with motivation=${motivation}` : '';
+      console.log(`[Neo4j] getResourceReferencedBy: Searching for annotations${filterDesc} referencing ${resourceUri}`);
 
-      // Debug: Show all REFERENCES edges
-      const debugResult = await session.run(
-        `MATCH (a:Annotation)-[:REFERENCES]->(d:Resource)
-         RETURN a.id as annotationId, d.id as resourceId
-         LIMIT 10`
-      );
-      console.log(`[Neo4j] DEBUG: All REFERENCES edges (first 10):`);
-      debugResult.records.forEach(r => {
-        console.log(`  Annotation ${r.get('annotationId')} -> Resource ${r.get('resourceId')}`);
-      });
-
-      const result = await session.run(
-        `MATCH (a:Annotation)-[:REFERENCES]->(d:Resource {id: $resourceUri})
+      // Build query with optional motivation label filter
+      // If motivation is specified, use the label for efficient filtering
+      const motivationLabel = motivation ? `:${motivationToLabel(motivation)}` : '';
+      const cypher = `MATCH (a:Annotation${motivationLabel})-[:REFERENCES]->(d:Resource {id: $resourceUri})
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes
-         ORDER BY a.created DESC`,
-        { resourceUri }
-      );
+         ORDER BY a.created DESC`;
+
+      const result = await session.run(cypher, { resourceUri });
 
       console.log(`[Neo4j] getResourceReferencedBy: Found ${result.records.length} annotations`);
 

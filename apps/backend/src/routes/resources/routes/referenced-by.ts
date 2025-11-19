@@ -26,17 +26,22 @@ export function registerGetReferencedBy(router: ResourcesRouterType) {
    * Get resources that reference this resource
    * Requires authentication
    * Returns list of resources with references to this resource
+   *
+   * Optional query parameter:
+   * - motivation: Filter by W3C motivation type (e.g., 'linking', 'commenting', 'highlighting')
    */
   router.get('/resources/:id/referenced-by', async (c) => {
     const { id } = c.req.param();
+    const motivation = c.req.query('motivation');
     const config = c.get('config');
     const graphDb = await getGraphDatabase(config);
 
     // Get all annotations that reference this resource
     // Convert to full URI for graph database lookup
     const resourceUri = resourceIdToURI(makeResourceId(id), config.services.backend!.publicURL);
-    console.log(`[Referenced-By] Looking for annotations referencing resourceUri: ${resourceUri}`);
-    const references = await graphDb.getResourceReferencedBy(resourceUri);
+    const filterDesc = motivation ? ` (filtered by motivation: ${motivation})` : '';
+    console.log(`[Referenced-By] Looking for annotations${filterDesc} referencing resourceUri: ${resourceUri}`);
+    const references = await graphDb.getResourceReferencedBy(resourceUri, motivation);
     console.log(`[Referenced-By] Found ${references.length} annotations`);
 
     // Get unique resources from the selections
