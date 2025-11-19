@@ -92,7 +92,7 @@ export interface AnnotationCreationHandler {
  */
 export interface AnnotationUIState {
   /** Currently selected annotation motivation (linking, highlighting, etc.) */
-  selectedSelection: import('@/components/annotation/AnnotateToolbar').SelectionMotivation | null;
+  selectedMotivation: import('@/components/annotation/AnnotateToolbar').SelectionMotivation | null;
 
   /** Currently selected click mode (detail, follow, delete, jsonld) */
   selectedClick: import('@/components/annotation/AnnotateToolbar').ClickAction;

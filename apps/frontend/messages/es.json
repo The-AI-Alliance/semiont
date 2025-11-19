@@ -411,19 +411,8 @@
   },
   "CreateAnnotationPopup": {
     "title": "Anotar",
-    "createHighlight": "Destacar",
-    "createAssessment": "Evaluar",
     "entityTypesOptional": "Tipos de Entidad (Opcional)",
     "createReference": "Crear Referencia"
-  },
-  "HighlightPopup": {
-    "title": "Destacado",
-    "convertToReference": "Convertir a Referencia",
-    "deleteHighlight": "Eliminar Destacado"
-  },
-  "AssessmentPopup": {
-    "title": "Evaluación",
-    "deleteAssessment": "Eliminar Evaluación"
   },
   "CommentsPanel": {
     "title": "Comentarios",
@@ -432,14 +421,6 @@
     "save": "Guardar",
     "cancel": "Cancelar",
     "edit": "Editar"
-  },
-  "CreateAnnotationPopup": {
-    "title": "Anotar",
-    "createHighlight": "Destacar",
-    "createAssessment": "Evaluar",
-    "createComment": "Comentar",
-    "createReference": "Referenciar",
-    "entityTypesOptional": "Tipos de Entidad (opcional)"
   },
   "Toolbar": {
     "comments": "Comentarios",

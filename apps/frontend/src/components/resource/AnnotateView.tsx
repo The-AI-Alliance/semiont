@@ -185,11 +185,11 @@ export function AnnotateView({
   const onCreate = creationHandler?.onCreate;
 
   // Extract UI state
-  const { selectedSelection, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;
+  const { selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;
 
   // UI state change handlers
   const onSelectionChange = (motivation: SelectionMotivation | null) => {
-    onUIStateChange?.({ selectedSelection: motivation });
+    onUIStateChange?.({ selectedMotivation: motivation });
   };
   const onClickChange = (motivation: ClickAction) => {
     onUIStateChange?.({ selectedClick: motivation });
@@ -205,15 +205,21 @@ export function AnnotateView({
       const metadata = annotation ? getAnnotationTypeMetadata(annotation) : null;
 
       // Route to side panel if annotation type has one
-      if (metadata?.hasSidePanel && onCommentHover) {
-        onCommentHover(annotationId);
+      if (metadata?.hasSidePanel) {
+        // Clear the other hover state when switching
+        if (onAnnotationHover) onAnnotationHover(null);
+        if (onCommentHover) onCommentHover(annotationId);
+        return;
+      } else {
+        // Clear the other hover state when switching
+        if (onCommentHover) onCommentHover(null);
+        if (onAnnotationHover) onAnnotationHover(annotationId);
         return;
       }
     }
-    // For non-side-panel annotations or null, call the regular handler
-    if (onAnnotationHover) {
-      onAnnotationHover(annotationId);
-    }
+    // Clear both when null
+    if (onAnnotationHover) onAnnotationHover(null);
+    if (onCommentHover) onCommentHover(null);
   }, [allAnnotations, onAnnotationHover, onCommentHover]);
 
   // Handle text annotation with sparkle or immediate creation
@@ -221,12 +227,33 @@ export function AnnotateView({
     const container = containerRef.current;
     if (!container) return;
 
-    const handleMouseUp = () => {
+    let clickedOnAnnotation = false;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      // Check if mousedown was on an existing annotation
+      const target = e.target as Element;
+      clickedOnAnnotation = !!target.closest('[data-annotation-id]');
+
+      if (!target.closest('[data-annotation-ui]')) {
+        setSelectionState(null);
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString()) {
         setSelectionState(null);
+        clickedOnAnnotation = false;
         return;
       }
+
+      // If mousedown was on an existing annotation, don't trigger creation
+      // The annotation's click handler will take care of it
+      if (clickedOnAnnotation) {
+        clickedOnAnnotation = false;
+        return;
+      }
+      clickedOnAnnotation = false;
 
       const range = selection.getRangeAt(0);
       const rects = Array.from(range.getClientRects());
@@ -247,10 +274,10 @@ export function AnnotateView({
         const context = extractContext(content, start, end);
 
         // Use unified onCreate handler
-        if (selectedSelection && onCreate) {
+        if (selectedMotivation && onCreate) {
           // Calculate popup position for Quick Reference (if needed)
           let position: { x: number; y: number } | undefined;
-          if (selectedSelection === 'linking' && rects.length > 0) {
+          if (selectedMotivation === 'linking' && rects.length > 0) {
             const lastRect = rects[rects.length - 1];
             if (lastRect) {
               position = { x: lastRect.left, y: lastRect.bottom + 10 };
@@ -258,7 +285,7 @@ export function AnnotateView({
           }
 
           onCreate({
-            motivation: selectedSelection,
+            motivation: selectedMotivation,
             selector: {
               type: 'TextQuoteSelector',
               exact: text,
@@ -271,7 +298,7 @@ export function AnnotateView({
           });
 
           // Clear selection for immediate creates (highlighting, assessing)
-          if (selectedSelection === 'highlighting' || selectedSelection === 'assessing') {
+          if (selectedMotivation === 'highlighting' || selectedMotivation === 'assessing') {
             selection.removeAllRanges();
           } else {
             // Keep visual selection for commenting and linking
@@ -291,10 +318,10 @@ export function AnnotateView({
         const context = extractContext(content, start, end);
 
         // Use unified onCreate handler
-        if (selectedSelection && onCreate) {
+        if (selectedMotivation && onCreate) {
           // Calculate popup position for Quick Reference (if needed)
           let position: { x: number; y: number } | undefined;
-          if (selectedSelection === 'linking' && rects.length > 0) {
+          if (selectedMotivation === 'linking' && rects.length > 0) {
             const lastRect = rects[rects.length - 1];
             if (lastRect) {
               position = { x: lastRect.left, y: lastRect.bottom + 10 };
@@ -302,7 +329,7 @@ export function AnnotateView({
           }
 
           onCreate({
-            motivation: selectedSelection,
+            motivation: selectedMotivation,
             selector: {
               type: 'TextQuoteSelector',
               exact: text,
@@ -315,7 +342,7 @@ export function AnnotateView({
           });
 
           // Clear selection for immediate creates (highlighting, assessing)
-          if (selectedSelection === 'highlighting' || selectedSelection === 'assessing') {
+          if (selectedMotivation === 'highlighting' || selectedMotivation === 'assessing') {
             selection.removeAllRanges();
           } else {
             // Keep visual selection for commenting and linking
@@ -326,20 +353,14 @@ export function AnnotateView({
       }
     };
 
-    const handleMouseDown = (e: MouseEvent) => {
-      if (!(e.target as Element).closest('[data-annotation-ui]')) {
-        setSelectionState(null);
-      }
-    };
-
     container.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('mousedown', handleMouseDown);
+    container.addEventListener('mousedown', handleMouseDown);
 
     return () => {
       container.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('mousedown', handleMouseDown);
+      container.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [selectedSelection, onCreate, content]);
+  }, [selectedMotivation, onCreate, content]);
 
   // Route to appropriate viewer based on MIME type category
   switch (category) {
@@ -347,7 +368,7 @@ export function AnnotateView({
       return (
         <div className="relative h-full flex flex-col" ref={containerRef}>
           <AnnotateToolbar
-            selectedSelection={selectedSelection}
+            selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
             onSelectionChange={onSelectionChange || (() => {})}
             onClickChange={onClickChange || (() => {})}
@@ -404,7 +425,7 @@ export function AnnotateView({
       return (
         <div className="relative h-full flex flex-col" ref={containerRef}>
           <AnnotateToolbar
-            selectedSelection={selectedSelection}
+            selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
             onSelectionChange={onSelectionChange}
             onClickChange={onClickChange}
@@ -417,12 +438,13 @@ export function AnnotateView({
               <SvgDrawingCanvas
                 resourceUri={toResourceUri(resourceUri)}
                 existingAnnotations={allAnnotations}
-                drawingMode={selectedSelection ? selectedShape : null}
+                drawingMode={selectedMotivation ? selectedShape : null}
+                selectedMotivation={selectedMotivation}
                 onAnnotationCreate={async (svg, position) => {
                   // Use unified onCreate handler for image annotations
-                  if (selectedSelection && onCreate) {
+                  if (selectedMotivation && onCreate) {
                     onCreate({
-                      motivation: selectedSelection,
+                      motivation: selectedMotivation,
                       selector: {
                         type: 'SvgSelector',
                         value: svg

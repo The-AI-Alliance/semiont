@@ -85,7 +85,7 @@ export function ResourceViewer({
   } = useResourceAnnotations();
 
   // Annotation toolbar state - persisted in localStorage
-  const [selectedSelection, setSelectedSelection] = useState<SelectionMotivation | null>(() => {
+  const [selectedMotivation, setSelectedMotivation] = useState<SelectionMotivation | null>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('semiont-toolbar-selection');
       if (stored === 'null') return null;
@@ -118,12 +118,12 @@ export function ResourceViewer({
 
   // Persist toolbar state to localStorage
   useEffect(() => {
-    if (selectedSelection === null) {
+    if (selectedMotivation === null) {
       localStorage.setItem('semiont-toolbar-selection', 'null');
     } else {
-      localStorage.setItem('semiont-toolbar-selection', selectedSelection);
+      localStorage.setItem('semiont-toolbar-selection', selectedMotivation);
     }
-  }, [selectedSelection]);
+  }, [selectedMotivation]);
 
   useEffect(() => {
     localStorage.setItem('semiont-toolbar-click', selectedClick);
@@ -348,24 +348,33 @@ export function ResourceViewer({
   const handleQuickReferenceCreate = useCallback(async (entityType?: string) => {
     if (!quickReferenceSelection) return;
 
-    // Extract context from selection
-    const context: { prefix?: string; suffix?: string } | undefined =
-      (quickReferenceSelection.prefix || quickReferenceSelection.suffix)
-        ? {
-            ...(quickReferenceSelection.prefix && { prefix: quickReferenceSelection.prefix }),
-            ...(quickReferenceSelection.suffix && { suffix: quickReferenceSelection.suffix }),
-          }
-        : undefined;
-
     try {
-      await addReference(
+      // Unified reference creation - works for both text and images
+      const selector = quickReferenceSelection.svgSelector
+        ? { type: 'SvgSelector' as const, value: quickReferenceSelection.svgSelector }
+        : [
+            {
+              type: 'TextPositionSelector' as const,
+              start: quickReferenceSelection.start,
+              end: quickReferenceSelection.end
+            },
+            {
+              type: 'TextQuoteSelector' as const,
+              exact: quickReferenceSelection.exact,
+              ...(quickReferenceSelection.prefix && { prefix: quickReferenceSelection.prefix }),
+              ...(quickReferenceSelection.suffix && { suffix: quickReferenceSelection.suffix })
+            }
+          ];
+
+      await createAnnotation(
         rUri,
-        quickReferenceSelection.exact,
-        { start: quickReferenceSelection.start, end: quickReferenceSelection.end },
-        undefined,
-        entityType,
-        undefined,
-        context
+        'linking',
+        selector,
+        entityType ? [{
+          type: 'TextualBody',
+          purpose: 'tagging',
+          value: entityType
+        }] : []
       );
       onRefetchAnnotations?.();
       setShowQuickReferencePopup(false);
@@ -373,7 +382,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create reference:', err);
     }
-  }, [quickReferenceSelection, rUri, addReference, onRefetchAnnotations]);
+  }, [quickReferenceSelection, rUri, createAnnotation, onRefetchAnnotations]);
 
   // Close quick reference popup
   const handleCloseQuickReferencePopup = useCallback(() => {
@@ -390,85 +399,41 @@ export function ResourceViewer({
     <div ref={documentViewerRef} className="h-full">
       {/* Content */}
       {activeView === 'annotate' ? (
-        resource.archived ? (
-          <AnnotateView
-            content={resource.content}
-            mimeType={mimeType}
-            resourceUri={resource['@id']}
-            annotations={{ highlights, references, assessments, comments }}
-            handlers={{
-              onClick: handleAnnotationClick,
-              ...(onAnnotationHover && { onHover: onAnnotationHover }),
-              ...(onCommentHover && { onCommentHover })
-            }}
-            creationHandler={{
-              onCreate: handleAnnotationCreate
-            }}
-            uiState={{
-              selectedSelection,
-              selectedClick,
-              selectedShape,
-              ...(hoveredAnnotationId !== undefined && { hoveredAnnotationId }),
-              ...(hoveredCommentId !== undefined && { hoveredCommentId }),
-              ...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })
-            }}
-            onUIStateChange={(updates) => {
-              if ('selectedSelection' in updates) setSelectedSelection(updates.selectedSelection!);
-              if ('selectedClick' in updates) setSelectedClick(updates.selectedClick!);
-              if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
-            }}
-            enableWidgets={true}
-            onEntityTypeClick={(entityType) => {
-              router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
-            }}
-            onUnresolvedReferenceClick={handleAnnotationClick}
-            getTargetDocumentName={(documentId) => {
-              return undefined;
-            }}
-            {...(generatingReferenceId !== undefined && { generatingReferenceId })}
-            onDeleteAnnotation={handleDeleteAnnotationWidget}
-            showLineNumbers={showLineNumbers}
-          />
-        ) : (
-          <AnnotateView
-            content={resource.content}
-            mimeType={mimeType}
-            resourceUri={resource['@id']}
-            annotations={{ highlights, references, assessments, comments }}
-            handlers={{
-              onClick: handleAnnotationClick,
-              ...(onAnnotationHover && { onHover: onAnnotationHover }),
-              ...(onCommentHover && { onCommentHover })
-            }}
-            creationHandler={{
-              onCreate: handleAnnotationCreate
-            }}
-            uiState={{
-              selectedSelection,
-              selectedClick,
-              selectedShape,
-              ...(hoveredAnnotationId !== undefined && { hoveredAnnotationId }),
-              ...(hoveredCommentId !== undefined && { hoveredCommentId }),
-              ...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })
-            }}
-            onUIStateChange={(updates) => {
-              if ('selectedSelection' in updates) setSelectedSelection(updates.selectedSelection!);
-              if ('selectedClick' in updates) setSelectedClick(updates.selectedClick!);
-              if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
-            }}
-            enableWidgets={true}
-            onEntityTypeClick={(entityType) => {
-              router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
-            }}
-            onUnresolvedReferenceClick={handleAnnotationClick}
-            getTargetDocumentName={(documentId) => {
-              return undefined;
-            }}
-            {...(generatingReferenceId !== undefined && { generatingReferenceId })}
-            onDeleteAnnotation={handleDeleteAnnotationWidget}
-            showLineNumbers={showLineNumbers}
-          />
-        )
+        <AnnotateView
+          content={resource.content}
+          mimeType={mimeType}
+          resourceUri={resource['@id']}
+          annotations={{ highlights, references, assessments, comments }}
+          handlers={{
+            onClick: handleAnnotationClick,
+            ...(onAnnotationHover && { onHover: onAnnotationHover }),
+            ...(onCommentHover && { onCommentHover })
+          }}
+          creationHandler={{
+            onCreate: handleAnnotationCreate
+          }}
+          uiState={{
+            selectedMotivation,
+            selectedClick,
+            selectedShape,
+            ...(hoveredAnnotationId !== undefined && { hoveredAnnotationId }),
+            ...(hoveredCommentId !== undefined && { hoveredCommentId }),
+            ...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })
+          }}
+          onUIStateChange={(updates) => {
+            if ('selectedMotivation' in updates) setSelectedMotivation(updates.selectedMotivation!);
+            if ('selectedClick' in updates) setSelectedClick(updates.selectedClick!);
+            if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
+          }}
+          enableWidgets={true}
+          onEntityTypeClick={(entityType) => {
+            router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
+          }}
+          onUnresolvedReferenceClick={handleAnnotationClick}
+          {...(generatingReferenceId !== undefined && { generatingReferenceId })}
+          onDeleteAnnotation={handleDeleteAnnotationWidget}
+          showLineNumbers={showLineNumbers}
+        />
       ) : (
         <BrowseView
           content={resource.content}

@@ -103,14 +103,21 @@ export function BrowseView({
       const metadata = annotation ? getAnnotationTypeMetadata(annotation) : null;
 
       // Route to side panel if annotation type has one
-      if (metadata?.hasSidePanel && onCommentHover) {
-        onCommentHover(annotationId);
+      if (metadata?.hasSidePanel) {
+        // Clear the other hover state when switching
+        if (onAnnotationHover) onAnnotationHover(null);
+        if (onCommentHover) onCommentHover(annotationId);
+        return;
+      } else {
+        // Clear the other hover state when switching
+        if (onCommentHover) onCommentHover(null);
+        if (onAnnotationHover) onAnnotationHover(annotationId);
         return;
       }
     }
-    if (onAnnotationHover) {
-      onAnnotationHover(annotationId);
-    }
+    // Clear both when null
+    if (onAnnotationHover) onAnnotationHover(null);
+    if (onCommentHover) onCommentHover(null);
   }, [annotationMap, onAnnotationHover, onCommentHover]);
 
   // Attach click handlers, hover handlers, and animations after render
@@ -217,7 +224,7 @@ export function BrowseView({
       return (
         <div className="relative h-full flex flex-col">
           <AnnotateToolbar
-            selectedSelection={null}
+            selectedMotivation={null}
             selectedClick={selectedClick}
             onSelectionChange={() => {}}
             onClickChange={onClickChange || (() => {})}
@@ -244,7 +251,7 @@ export function BrowseView({
       return (
         <div className="relative h-full flex flex-col">
           <AnnotateToolbar
-            selectedSelection={null}
+            selectedMotivation={null}
             selectedClick={selectedClick}
             onSelectionChange={() => {}}
             onClickChange={onClickChange || (() => {})}

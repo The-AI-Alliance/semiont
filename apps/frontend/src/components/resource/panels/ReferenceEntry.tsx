@@ -16,7 +16,7 @@ interface ReferenceEntryProps {
   onReferenceRef: (referenceId: string, el: HTMLElement | null) => void;
   onReferenceHover?: (referenceId: string | null) => void;
   onGenerateDocument?: (title: string) => void;
-  onSearchDocuments?: (searchTerm: string, onSelect: (documentId: string) => void) => void;
+  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
 }
@@ -82,18 +82,8 @@ export function ReferenceEntry({
   };
 
   const handleSearch = () => {
-    if (onSearchDocuments && onUpdateReference) {
-      onSearchDocuments(selectedText, (documentId: string) => {
-        if (onUpdateReference) {
-          onUpdateReference(reference.id, {
-            body: {
-              type: 'SpecificResource' as const,
-              source: documentId,
-              purpose: 'linking' as const,
-            },
-          });
-        }
-      });
+    if (onSearchDocuments) {
+      onSearchDocuments(reference.id, selectedText);
     }
   };
 
@@ -109,17 +99,22 @@ export function ReferenceEntry({
       onMouseEnter={() => onReferenceHover?.(reference.id)}
       onMouseLeave={() => onReferenceHover?.(null)}
     >
-      {/* Selected text quote with status indicator - only for text annotations */}
-      {selectedText && (
-        <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-blue-300 pl-2 flex items-start gap-2">
-          <span className="text-base flex-shrink-0" title={isResolved ? t('resolved') : t('stub')}>
-            {isResolved ? '🔗' : '❓'}
-          </span>
-          <span>
+      {/* Status indicator and text quote */}
+      <div className="text-sm text-gray-600 dark:text-gray-400 mb-2 flex items-start gap-2">
+        <span className="text-base flex-shrink-0" title={isResolved ? t('resolved') : t('stub')}>
+          {isResolved ? '🔗' : '❓'}
+        </span>
+        {selectedText && (
+          <span className="italic border-l-2 border-blue-300 pl-2">
             "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
           </span>
-        </div>
-      )}
+        )}
+        {!selectedText && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Image annotation
+          </span>
+        )}
+      </div>
 
       {/* Entity type badges */}
       {entityTypes.length > 0 && (
