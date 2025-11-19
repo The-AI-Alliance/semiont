@@ -411,19 +411,8 @@
   },
   "CreateAnnotationPopup": {
     "title": "Annotate",
-    "createHighlight": "Highlight",
-    "createAssessment": "Assess",
     "entityTypesOptional": "Entity Types (Optional)",
     "createReference": "Create Reference"
-  },
-  "HighlightPopup": {
-    "title": "Highlight",
-    "convertToReference": "Convert to Reference",
-    "deleteHighlight": "Delete Highlight"
-  },
-  "AssessmentPopup": {
-    "title": "Assessment",
-    "deleteAssessment": "Delete Assessment"
   },
   "CommentsPanel": {
     "title": "Comments",
@@ -432,14 +421,6 @@
     "save": "Save",
     "cancel": "Cancel",
     "edit": "Edit"
-  },
-  "CreateAnnotationPopup": {
-    "title": "Annotate",
-    "createHighlight": "Highlight",
-    "createAssessment": "Assess",
-    "createComment": "Comment",
-    "createReference": "Reference",
-    "entityTypesOptional": "Entity Types (optional)"
   },
   "Toolbar": {
     "comments": "Comments",
