@@ -49,7 +49,92 @@ export class AnnotationQueryService {
    */
   static async getAllAnnotations(resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation[]> {
     const annotations = await this.getResourceAnnotations(resourceId, config);
-    return annotations.annotations;
+
+    // Enrich resolved references with document names
+    // NOTE: Future optimization - make this optional via query param if performance becomes an issue
+    return await this.enrichResolvedReferences(annotations.annotations, config);
+  }
+
+  /**
+   * Enrich reference annotations with resolved document names
+   * Adds _resolvedDocumentName property to annotations that link to documents
+   * @private
+   */
+  private static async enrichResolvedReferences(annotations: Annotation[], config: EnvironmentConfig): Promise<Annotation[]> {
+    if (!config.services?.filesystem?.path) {
+      return annotations;
+    }
+
+    // Extract unique resolved document URIs from reference annotations
+    const resolvedUris = new Set<string>();
+    for (const ann of annotations) {
+      if (ann.motivation === 'linking' && ann.body) {
+        const body = Array.isArray(ann.body) ? ann.body : [ann.body];
+        for (const item of body) {
+          if (item.purpose === 'linking' && item.source) {
+            resolvedUris.add(item.source);
+          }
+        }
+      }
+    }
+
+    if (resolvedUris.size === 0) {
+      return annotations;
+    }
+
+    // Batch fetch all resolved documents in parallel
+    const basePath = config.services.filesystem.path;
+    const projectRoot = config._metadata?.projectRoot;
+    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
+
+    const metadataPromises = Array.from(resolvedUris).map(async (uri) => {
+      const docId = uri.split('/resources/')[1];
+      if (!docId) return null;
+
+      try {
+        const view = await viewStorage.get(docId as ResourceId);
+        if (view?.resource?.name) {
+          return {
+            uri,
+            metadata: {
+              name: view.resource.name,
+              mediaType: view.resource.mediaType as string | undefined
+            }
+          };
+        }
+      } catch (e) {
+        // Document might not exist, skip
+      }
+      return null;
+    });
+
+    const results = await Promise.all(metadataPromises);
+    const uriToMetadata = new Map<string, { name: string; mediaType?: string }>();
+    for (const result of results) {
+      if (result) {
+        uriToMetadata.set(result.uri, result.metadata);
+      }
+    }
+
+    // Add _resolvedDocumentName and _resolvedDocumentMediaType to annotations
+    return annotations.map(ann => {
+      if (ann.motivation === 'linking' && ann.body) {
+        const body = Array.isArray(ann.body) ? ann.body : [ann.body];
+        for (const item of body) {
+          if (item.purpose === 'linking' && item.source) {
+            const metadata = uriToMetadata.get(item.source);
+            if (metadata) {
+              return {
+                ...ann,
+                _resolvedDocumentName: metadata.name,
+                _resolvedDocumentMediaType: metadata.mediaType
+              } as Annotation;
+            }
+          }
+        }
+      }
+      return ann;
+    });
   }
 
   /**
