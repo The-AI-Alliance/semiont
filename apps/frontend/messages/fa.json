@@ -339,13 +339,7 @@
     "references": "References",
     "stub": "Stub",
     "resolved": "Resolved",
-    "entityTypes": "Entity Types",
-    "referencedBy": "Referenced by",
-    "loading": "loading...",
-    "loadingEllipsis": "Loading...",
-    "noIncomingReferences": "No incoming references",
-    "untitledResource": "Untitled Resource",
-    "noText": "No text"
+    "entityTypes": "Entity Types"
   },
   "CollaborationPanel": {
     "connectionStatus": "Connection Status",
@@ -486,7 +480,13 @@
     "unlink": "Unlink",
     "generate": "Generate",
     "find": "Find",
-    "create": "Create"
+    "create": "Create",
+    "incomingReferences": "Incoming References",
+    "loading": "loading...",
+    "loadingEllipsis": "Loading...",
+    "noIncomingReferences": "No incoming references",
+    "untitledResource": "Untitled Resource",
+    "noText": "No text"
   },
   "SortableResourceTab": {
     "dragToReorder": "Drag to reorder",
