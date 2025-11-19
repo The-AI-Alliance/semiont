@@ -521,7 +521,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     const session = this.getSession();
     try {
       await session.run(
-        'MATCH (a:Annotation {id: $id}) DETACH DELETE s',
+        'MATCH (a:Annotation {id: $id}) DETACH DELETE a',
         { id }
       );
     } finally {
