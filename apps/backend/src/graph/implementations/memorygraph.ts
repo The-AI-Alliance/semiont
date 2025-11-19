@@ -281,7 +281,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
       .filter(sel => getTargetSource(sel.target) === resourceId);
   }
 
-  async getResourceReferencedBy(resourceUri: ResourceUri): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceUri: ResourceUri, _motivation?: string): Promise<Annotation[]> {
     return Array.from(this.annotations.values())
       .filter(sel => getBodySource(sel.body) === resourceUri);
   }

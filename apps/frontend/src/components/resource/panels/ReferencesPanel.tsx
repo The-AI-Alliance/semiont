@@ -273,19 +273,30 @@ export function ReferencesPanel({
 
           {referencedBy.length > 0 ? (
             <div className="space-y-2">
-              {referencedBy.map((ref) => (
-                <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
-                  <Link
-                    href={`/know/resource/${encodeURIComponent(ref.target.source)}`}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
-                  >
-                    {ref.resourceName || tRef('untitledResource')}
-                  </Link>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
-                    "{ref.target.selector?.exact || tRef('noText')}"
-                  </span>
-                </div>
-              ))}
+              {referencedBy.map((ref) => {
+                // Extract resource ID from full URI (e.g., "http://localhost:4000/resources/abc123" -> "abc123")
+                const resourceId = ref.target.source.split('/').pop() || '';
+
+                return (
+                  <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                        {ref.resourceName || tRef('untitledResource')}
+                      </span>
+                      <Link
+                        href={`/know/resource/${resourceId}`}
+                        className="text-lg hover:opacity-70 transition-opacity flex-shrink-0"
+                        title={tRef('open')}
+                      >
+                        🔗
+                      </Link>
+                    </div>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
+                      "{ref.target.selector?.exact || tRef('noText')}"
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p className="text-xs text-gray-500 dark:text-gray-400">

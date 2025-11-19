@@ -49,7 +49,7 @@ export interface GraphDatabase {
 
   // Relationship queries
   getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]>;
-  getResourceReferencedBy(resourceUri: ResourceUri): Promise<Annotation[]>;
+  getResourceReferencedBy(resourceUri: ResourceUri, motivation?: string): Promise<Annotation[]>;
 
   // Graph traversal
   getResourceConnections(resourceId: ResourceId): Promise<GraphConnection[]>;

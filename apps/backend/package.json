@@ -21,6 +21,7 @@
     "test:security": "SEMIONT_ENV=unit vitest run --reporter=verbose --testNamePattern=security",
     "type-check": "tsc --noEmit",
     "rebuild-projections": "tsx src/cli/rebuild-projections.ts",
+    "rebuild-graph": "tsx src/cli/rebuild-graph.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"

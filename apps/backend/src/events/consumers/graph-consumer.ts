@@ -125,9 +125,10 @@ export class GraphDBConsumer {
     switch (event.type) {
       case 'resource.created': {
         if (!event.resourceId) throw new Error('resource.created requires resourceId');
+        const resourceUri = resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL);
         const resource: ResourceDescriptor = {
           '@context': 'https://schema.org/',
-          '@id': `http://localhost:4000/resources/${event.resourceId}`,
+          '@id': resourceUri,
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
           representations: [{
@@ -140,15 +141,18 @@ export class GraphDBConsumer {
           wasAttributedTo: didToAgent(event.userId),
           creationMethod: 'api',
         };
+        console.log(`[GraphDBConsumer] Creating resource in graph: ${resourceUri}`);
         await graphDb.createResource(resource);
+        console.log(`[GraphDBConsumer] ✅ Resource created in graph: ${resourceUri}`);
         break;
       }
 
       case 'resource.cloned': {
         if (!event.resourceId) throw new Error('resource.cloned requires resourceId');
+        const resourceUri = resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL);
         const resource: ResourceDescriptor = {
           '@context': 'https://schema.org/',
-          '@id': `http://localhost:4000/resources/${event.resourceId}`,
+          '@id': resourceUri,
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
           representations: [{
@@ -161,7 +165,9 @@ export class GraphDBConsumer {
           wasAttributedTo: didToAgent(event.userId),
           creationMethod: 'clone',
         };
+        console.log(`[GraphDBConsumer] Creating cloned resource in graph: ${resourceUri}`);
         await graphDb.createResource(resource);
+        console.log(`[GraphDBConsumer] ✅ Cloned resource created in graph: ${resourceUri}`);
         break;
       }
 
@@ -180,12 +186,15 @@ export class GraphDBConsumer {
         break;
 
       case 'annotation.added':
+        console.log(`[GraphDBConsumer] 🔍 ENTERED annotation.added case block`);
+        console.log(`[GraphDBConsumer] Annotation ID: ${event.payload.annotation.id}`);
         // Event payload contains Omit<Annotation, 'creator' | 'created'>
         // Add creator from event metadata (created not needed for graph)
         await graphDb.createAnnotation({
           ...event.payload.annotation,
           creator: didToAgent(event.userId),
         });
+        console.log(`[GraphDBConsumer] ✅ Annotation created in graph: ${event.payload.annotation.id}`);
         break;
 
       case 'annotation.removed':
@@ -193,11 +202,23 @@ export class GraphDBConsumer {
         break;
 
       case 'annotation.body.updated':
+        console.log(`[GraphDBConsumer] 🔍 ENTERED annotation.body.updated case block`);
+        console.log(`[GraphDBConsumer] Event payload:`, JSON.stringify(event.payload));
         // Apply fine-grained body operations
         try {
+          console.log(`[GraphDBConsumer] Creating annotation URI for: ${event.payload.annotationId}`);
+          const annotationUri = annotationIdToURI(event.payload.annotationId, this.config.services.backend!.publicURL);
+          console.log(`[GraphDBConsumer] ✅ Annotation URI created: ${annotationUri}`);
+          console.log(`[GraphDBConsumer] Processing annotation.body.updated for ${annotationUri}`);
+          console.log(`[GraphDBConsumer] Operations:`, JSON.stringify(event.payload.operations));
+
           // Get current annotation from graph
-          const currentAnnotation = await graphDb.getAnnotation(annotationIdToURI(event.payload.annotationId, this.config.services.backend!.publicURL));
+          const currentAnnotation = await graphDb.getAnnotation(annotationUri);
+          console.log(`[GraphDBConsumer] Current annotation in graph:`, currentAnnotation ? 'FOUND' : 'NOT FOUND');
+
           if (currentAnnotation) {
+            console.log(`[GraphDBConsumer] Current body:`, JSON.stringify(currentAnnotation.body));
+
             // Ensure body is an array
             let bodyArray = Array.isArray(currentAnnotation.body)
               ? [...currentAnnotation.body]
@@ -207,36 +228,52 @@ export class GraphDBConsumer {
 
             // Apply each operation
             for (const op of event.payload.operations) {
+              console.log(`[GraphDBConsumer] Applying operation:`, JSON.stringify(op));
               if (op.op === 'add') {
                 // Add item (idempotent - don't add if already exists)
                 const exists = findBodyItem(bodyArray, op.item) !== -1;
                 if (!exists) {
                   bodyArray.push(op.item);
+                  console.log(`[GraphDBConsumer] Added item to body`);
+                } else {
+                  console.log(`[GraphDBConsumer] Item already exists, skipping`);
                 }
               } else if (op.op === 'remove') {
                 // Remove item
                 const index = findBodyItem(bodyArray, op.item);
                 if (index !== -1) {
                   bodyArray.splice(index, 1);
+                  console.log(`[GraphDBConsumer] Removed item from body`);
                 }
               } else if (op.op === 'replace') {
                 // Replace item
                 const index = findBodyItem(bodyArray, op.oldItem);
                 if (index !== -1) {
                   bodyArray[index] = op.newItem;
+                  console.log(`[GraphDBConsumer] Replaced item in body`);
                 }
               }
             }
 
+            console.log(`[GraphDBConsumer] New body array:`, JSON.stringify(bodyArray));
+            console.log(`[GraphDBConsumer] Calling updateAnnotation...`);
+
             // Update annotation with new body
-            await graphDb.updateAnnotation(annotationIdToURI(event.payload.annotationId, this.config.services.backend!.publicURL), {
+            await graphDb.updateAnnotation(annotationUri, {
               body: bodyArray,
             } as Partial<Annotation>);
+
+            console.log(`[GraphDBConsumer] ✅ updateAnnotation completed successfully`);
+          } else {
+            console.log(`[GraphDBConsumer] ⚠️  Annotation not found in graph, skipping update`);
           }
         } catch (error) {
           // If annotation doesn't exist in graph (e.g., created before consumer started),
           // log warning but don't fail - event store is source of truth
-          console.warn(`[GraphDBConsumer] Could not update annotation ${event.payload.annotationId} in graph: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          console.error(`[GraphDBConsumer] ❌ ERROR in annotation.body.updated handler`);
+          console.error(`[GraphDBConsumer] Annotation ID: ${event.payload.annotationId}`);
+          console.error(`[GraphDBConsumer] Error:`, error);
+          console.error(`[GraphDBConsumer] Error stack:`, error instanceof Error ? error.stack : 'N/A');
         }
         break;
 
@@ -302,24 +339,53 @@ export class GraphDBConsumer {
 
   /**
    * Rebuild entire GraphDB from all events
-   * Nuclear option for recovery
+   * Uses two-pass approach to ensure all resources exist before creating REFERENCES edges
    */
   async rebuildAll(): Promise<void> {
     const graphDb = this.ensureInitialized();
     console.log('[GraphDBConsumer] Rebuilding entire GraphDB from events...');
+    console.log('[GraphDBConsumer] Using two-pass approach: nodes first, then edges\n');
 
     // Clear database
     await graphDb.clearDatabase();
 
     // Get all resource IDs by scanning event shards
     const eventStore = await createEventStore( this.config);
+    const query = createEventQuery(eventStore);
     const allResourceIds = await eventStore.log.getAllResourceIds();
 
     console.log(`[GraphDBConsumer] Found ${allResourceIds.length} resources to rebuild`);
 
+    // PASS 1: Create all nodes (resources and annotations)
+    // Skip annotation.body.updated events to avoid creating REFERENCES edges
+    console.log('\n[GraphDBConsumer] === PASS 1: Creating all nodes (resources + annotations) ===');
     for (const resourceId of allResourceIds) {
-      await this.rebuildResource(makeResourceId(resourceId as string));
+      const events = await query.getResourceEvents(makeResourceId(resourceId as string));
+
+      for (const storedEvent of events) {
+        // Skip annotation.body.updated - we'll process these in pass 2
+        if (storedEvent.event.type === 'annotation.body.updated') {
+          continue;
+        }
+        await this.applyEventToGraph(storedEvent);
+      }
     }
+    console.log('[GraphDBConsumer] ✅ Pass 1 complete - all nodes created\n');
+
+    // PASS 2: Create all edges (REFERENCES relationships)
+    // Process ONLY annotation.body.updated events
+    console.log('[GraphDBConsumer] === PASS 2: Creating all REFERENCES edges ===');
+    for (const resourceId of allResourceIds) {
+      const events = await query.getResourceEvents(makeResourceId(resourceId as string));
+
+      for (const storedEvent of events) {
+        // Process ONLY annotation.body.updated events
+        if (storedEvent.event.type === 'annotation.body.updated') {
+          await this.applyEventToGraph(storedEvent);
+        }
+      }
+    }
+    console.log('[GraphDBConsumer] ✅ Pass 2 complete - all edges created\n');
 
     console.log('[GraphDBConsumer] Rebuild complete');
   }

@@ -25,6 +25,25 @@ import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
+/**
+ * Convert motivation to a valid Neo4j label name
+ *
+ * Annotations get both a property (`motivation: "linking"`) and a label (`:Linking`)
+ * for the same motivation value. This enables:
+ * - Fast filtering: `MATCH (a:Annotation:Linking)` vs `MATCH (a:Annotation) WHERE a.motivation = 'linking'`
+ * - Automatic indexing: Neo4j indexes labels by default
+ * - Visual exploration: Graph visualization tools prominently display labels
+ *
+ * Example: "linking" -> "Linking", "commenting" -> "Commenting"
+ *
+ * W3C Motivation values:
+ * assessing, bookmarking, classifying, commenting, describing, editing,
+ * highlighting, identifying, linking, moderating, questioning, replying, tagging
+ */
+function motivationToLabel(motivation: string): string {
+  return motivation.charAt(0).toUpperCase() + motivation.slice(1);
+}
+
 export class Neo4jGraphDatabase implements GraphDatabase {
   private driver: Driver | null = null;
   private connected: boolean = false;
@@ -352,13 +371,17 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Extract entity types from TextualBody bodies with purpose: "tagging"
       const entityTypes = getEntityTypes(input);
 
+      // Convert motivation to label (e.g., "linking" -> "Linking")
+      const motivationLabel = motivationToLabel(annotation.motivation);
+
       // Create the annotation node and relationships
       let cypher: string;
       if (bodySource) {
         // Resolved reference with target resource
+        // Add motivation as both a property and a label for efficient querying
         cypher = `MATCH (from:Resource {id: $fromId})
            MATCH (to:Resource {id: $toId})
-           CREATE (a:Annotation {
+           CREATE (a:Annotation:${motivationLabel} {
              id: $id,
              resourceId: $resourceId,
              exact: $exact,
@@ -378,8 +401,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            RETURN a`;
       } else {
         // Stub reference (unresolved)
+        // Add motivation as both a property and a label for efficient querying
         cypher = `MATCH (d:Resource {id: $resourceId})
-           CREATE (a:Annotation {
+           CREATE (a:Annotation:${motivationLabel} {
              id: $id,
              resourceId: $resourceId,
              exact: $exact,
@@ -425,6 +449,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
 
   async getAnnotation(id: AnnotationUri): Promise<Annotation | null> {
+    console.log(`[Neo4j] getAnnotation called for: ${id}`);
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -434,7 +459,11 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         { id }
       );
 
-      if (result.records.length === 0) return null;
+      if (result.records.length === 0) {
+        console.log(`[Neo4j] getAnnotation: Annotation ${id} NOT FOUND`);
+        return null;
+      }
+      console.log(`[Neo4j] getAnnotation: Annotation ${id} FOUND`);
       return this.parseAnnotationNode(
         result.records[0]!.get('a'),
         result.records[0]!.get('entityTypes')
@@ -478,17 +507,42 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         throw new Error('Annotation not found');
       }
 
+      // If motivation was updated, update the label
+      if (updates.motivation) {
+        const newLabel = motivationToLabel(updates.motivation);
+        console.log(`[Neo4j] Updating motivation label to: ${newLabel}`);
+
+        // Remove all possible motivation labels and add the new one
+        const allMotivations = ['Assessing', 'Bookmarking', 'Classifying', 'Commenting',
+                                'Describing', 'Editing', 'Highlighting', 'Identifying',
+                                'Linking', 'Moderating', 'Questioning', 'Replying', 'Tagging'];
+        const removeLabels = allMotivations.filter(m => m !== newLabel).map(m => `a:${m}`).join(', ');
+
+        await session.run(
+          `MATCH (a:Annotation {id: $id})
+           REMOVE ${removeLabels}
+           SET a:${newLabel}`,
+          { id }
+        );
+        console.log(`[Neo4j] ✅ Motivation label updated to: ${newLabel}`);
+      }
+
       // If body was updated and contains a SpecificResource, create REFERENCES relationship
       if (updates.body) {
-        console.log(`[Neo4j] updateAnnotation body update detected for ${id}`);
+        console.log(`[Neo4j] ====== BODY UPDATE for Annotation ${id} ======`);
         console.log(`[Neo4j] updates.body:`, JSON.stringify(updates.body));
         const bodyArray = Array.isArray(updates.body) ? updates.body : [updates.body];
         console.log(`[Neo4j] bodyArray length: ${bodyArray.length}`);
+
+        bodyArray.forEach((item, idx) => {
+          console.log(`[Neo4j]   Body item ${idx}:`, JSON.stringify(item));
+        });
+
         const specificResource = bodyArray.find((item: any) => item.type === 'SpecificResource' && item.purpose === 'linking');
         console.log(`[Neo4j] Found SpecificResource:`, specificResource ? JSON.stringify(specificResource) : 'null');
 
         if (specificResource && 'source' in specificResource && specificResource.source) {
-          console.log(`[Neo4j] Creating REFERENCES edge: ${id} -> ${specificResource.source}`);
+          console.log(`[Neo4j] ✅ Creating REFERENCES edge: ${id} -> ${specificResource.source}`);
           // Create REFERENCES relationship to the target resource
           const refResult = await session.run(
             `MATCH (a:Annotation {id: $annotationId})
@@ -500,9 +554,13 @@ export class Neo4jGraphDatabase implements GraphDatabase {
               targetResourceId: specificResource.source
             }
           );
-          console.log(`[Neo4j] REFERENCES edge created successfully (matched ${refResult.records.length} nodes)`);
+          console.log(`[Neo4j] ✅ REFERENCES edge created! Matched ${refResult.records.length} nodes`);
+          if (refResult.records.length > 0) {
+            console.log(`[Neo4j]   Annotation: ${refResult.records[0]!.get('a').properties.id}`);
+            console.log(`[Neo4j]   Target Resource: ${refResult.records[0]!.get('target').properties.id}`);
+          }
         } else {
-          console.log(`[Neo4j] SpecificResource not found or missing source field`);
+          console.log(`[Neo4j] No SpecificResource in body - this is a stub reference (not yet resolved)`);
         }
       } else {
         console.log(`[Neo4j] No body update for annotation ${id}`);
@@ -691,16 +749,23 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getResourceReferencedBy(resourceUri: ResourceUri): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceUri: ResourceUri, motivation?: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
-      const result = await session.run(
-        `MATCH (a:Annotation)-[:REFERENCES]->(d:Resource {id: $resourceUri})
+      const filterDesc = motivation ? ` with motivation=${motivation}` : '';
+      console.log(`[Neo4j] getResourceReferencedBy: Searching for annotations${filterDesc} referencing ${resourceUri}`);
+
+      // Build query with optional motivation label filter
+      // If motivation is specified, use the label for efficient filtering
+      const motivationLabel = motivation ? `:${motivationToLabel(motivation)}` : '';
+      const cypher = `MATCH (a:Annotation${motivationLabel})-[:REFERENCES]->(d:Resource {id: $resourceUri})
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes
-         ORDER BY a.created DESC`,
-        { resourceUri }
-      );
+         ORDER BY a.created DESC`;
+
+      const result = await session.run(cypher, { resourceUri });
+
+      console.log(`[Neo4j] getResourceReferencedBy: Found ${result.records.length} annotations`);
 
       return result.records.map(record =>
         this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
@@ -1063,7 +1128,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     // Validate required fields
     if (!props.id) throw new Error('Annotation missing required field: id');
     if (!props.resourceId) throw new Error(`Annotation ${props.id} missing required field: resourceId`);
-    if (!props.exact) throw new Error(`Annotation ${props.id} missing required field: text`);
+    // props.exact is optional - not all annotation types have selected text (e.g., image annotations)
     if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
     if (!props.selector) throw new Error(`Annotation ${props.id} missing required field: selector`);
     if (!props.creator) throw new Error(`Annotation ${props.id} missing required field: creator`);

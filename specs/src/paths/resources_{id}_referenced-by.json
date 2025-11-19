@@ -19,6 +19,15 @@
         "required": true,
         "name": "id",
         "in": "path"
+      },
+      {
+        "schema": {
+          "$ref": "../components/schemas/Motivation.json"
+        },
+        "required": false,
+        "name": "motivation",
+        "in": "query",
+        "description": "Filter incoming references by W3C motivation type (e.g., 'linking', 'commenting', 'highlighting')"
       }
     ],
     "responses": {
