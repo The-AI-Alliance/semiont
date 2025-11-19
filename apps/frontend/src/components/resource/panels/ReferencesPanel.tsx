@@ -29,6 +29,7 @@ interface Props {
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
+  mediaType?: string | undefined;
 }
 
 export function ReferencesPanel({
@@ -46,6 +47,7 @@ export function ReferencesPanel({
   onSearchDocuments,
   onUpdateReference,
   annotateMode = true,
+  mediaType,
 }: Props) {
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
@@ -63,6 +65,9 @@ export function ReferencesPanel({
       return aSelector.start - bSelector.start;
     });
   }, [references]);
+
+  // Check if detection is supported for this media type
+  const isTextResource = mediaType?.startsWith('text/');
 
   // Handle hoveredReferenceId - scroll to and pulse reference entry
   useEffect(() => {
@@ -115,8 +120,8 @@ export function ReferencesPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Detection Section - only in Annotate mode */}
-        {annotateMode && (
+        {/* Detection Section - only in Annotate mode and for text resources */}
+        {annotateMode && isTextResource && (
           <div>
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
               {t('title')}

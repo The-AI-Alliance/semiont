@@ -45,6 +45,7 @@ describe('ReferencesPanel Component', () => {
     detectionProgress: null,
     onDetect: vi.fn(),
     onCancelDetection: vi.fn(),
+    mediaType: 'text/plain',
   };
 
   beforeEach(() => {

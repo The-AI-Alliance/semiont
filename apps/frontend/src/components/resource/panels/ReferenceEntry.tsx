@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getEntityTypes } from '@semiont/api-client';
 import { buttonStyles } from '@/lib/button-styles';
+import { getResourceIcon } from '@/lib/resource-utils';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -56,6 +57,11 @@ export function ReferenceEntry({
   const resolvedResourceUri = isResolved ? getBodySource(reference.body) : null;
   const entityTypes = getEntityTypes(reference);
 
+  // Extract resolved document name and media type if enriched by backend
+  const resolvedDocumentName = (reference as any)._resolvedDocumentName as string | undefined;
+  const resolvedDocumentMediaType = (reference as any)._resolvedDocumentMediaType as string | undefined;
+  const resourceIcon = getResourceIcon(resolvedDocumentMediaType);
+
   const handleOpen = () => {
     if (resolvedResourceUri) {
       const resourceId = resolvedResourceUri.split('/resources/')[1];
@@ -104,16 +110,23 @@ export function ReferenceEntry({
         <span className="text-base flex-shrink-0" title={isResolved ? t('resolved') : t('stub')}>
           {isResolved ? '🔗' : '❓'}
         </span>
-        {selectedText && (
-          <span className="italic border-l-2 border-blue-300 pl-2">
-            "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
-          </span>
-        )}
-        {!selectedText && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            Image annotation
-          </span>
-        )}
+        <div className="flex-1">
+          {selectedText && (
+            <div className="italic border-l-2 border-blue-300 pl-2">
+              "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
+            </div>
+          )}
+          {!selectedText && (
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Image annotation
+            </div>
+          )}
+          {resolvedDocumentName && (
+            <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1">
+              <span>→ {resourceIcon} {resolvedDocumentName}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Entity type badges */}

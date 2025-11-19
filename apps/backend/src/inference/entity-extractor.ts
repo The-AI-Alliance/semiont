@@ -9,6 +9,8 @@ export interface ExtractedEntity {
   entityType: string;     // The detected entity type
   startOffset: number;    // Character offset where entity starts
   endOffset: number;      // Character offset where entity ends
+  prefix?: string;        // Text immediately before entity (for disambiguation)
+  suffix?: string;        // Text immediately after entity (for disambiguation)
 }
 
 /**
@@ -53,12 +55,14 @@ Return ONLY a JSON array of entities found. Each entity should have:
 - entityType: one of the provided entity types
 - startOffset: character position where the entity starts (0-indexed)
 - endOffset: character position where the entity ends
+- prefix: up to 32 characters of text immediately before the entity (helps identify correct occurrence)
+- suffix: up to 32 characters of text immediately after the entity (helps identify correct occurrence)
 
 Return empty array [] if no entities found.
 Do not include markdown formatting or code fences, just the raw JSON array.
 
 Example output:
-[{"exact":"Alice","entityType":"Person","startOffset":0,"endOffset":5},{"exact":"Paris","entityType":"Location","startOffset":20,"endOffset":25}]`;
+[{"exact":"Alice","entityType":"Person","startOffset":0,"endOffset":5,"prefix":"","suffix":" went to"},{"exact":"Paris","entityType":"Location","startOffset":20,"endOffset":25,"prefix":"went to ","suffix":" yesterday"}]`;
 
   console.log('Sending entity extraction request to model:', getInferenceModel(config));
   const response = await client.messages.create({
@@ -112,7 +116,7 @@ Example output:
       // Verify the offsets are correct by checking if the text matches
       const extractedText = exact.substring(startOffset, endOffset);
 
-      // If the extracted text doesn't match, find the correct position
+      // If the extracted text doesn't match, find the correct position using context
       if (extractedText !== entity.exact) {
         console.log(`  ⚠️  Offset mismatch!`);
         console.log(`  Expected: "${entity.exact}"`);
@@ -126,16 +130,58 @@ Example output:
         console.log(`  Context: "...${contextBefore}[${extractedText}]${contextAfter}..."`);
 
         console.log(`  Searching for exact match in resource...`);
-        const index = exact.indexOf(entity.exact);
-        if (index !== -1) {
-          console.log(`  ✅ Found at offset ${index} (diff: ${index - startOffset})`);
-          startOffset = index;
-          endOffset = index + entity.exact.length;
-        } else {
-          console.log(`  ❌ Cannot find "${entity.exact}" anywhere in resource`);
-          console.log(`  Resource starts with: "${exact.substring(0, 200)}..."`);
-          // If we still can't find it, skip this entity
-          return null;
+
+        // Try to find using prefix/suffix context if provided
+        let found = false;
+        if (entity.prefix || entity.suffix) {
+          console.log(`  Using LLM-provided context for disambiguation:`);
+          if (entity.prefix) console.log(`    Prefix: "${entity.prefix}"`);
+          if (entity.suffix) console.log(`    Suffix: "${entity.suffix}"`);
+
+          // Search for all occurrences and find the one with matching context
+          let searchPos = 0;
+          while ((searchPos = exact.indexOf(entity.exact, searchPos)) !== -1) {
+            const candidatePrefix = exact.substring(Math.max(0, searchPos - 32), searchPos);
+            const candidateSuffix = exact.substring(
+              searchPos + entity.exact.length,
+              Math.min(exact.length, searchPos + entity.exact.length + 32)
+            );
+
+            // Check if context matches (allowing for partial matches at boundaries)
+            const prefixMatch = !entity.prefix || candidatePrefix.endsWith(entity.prefix);
+            const suffixMatch = !entity.suffix || candidateSuffix.startsWith(entity.suffix);
+
+            if (prefixMatch && suffixMatch) {
+              console.log(`  ✅ Found match using context at offset ${searchPos} (diff: ${searchPos - startOffset})`);
+              console.log(`    Candidate prefix: "${candidatePrefix}"`);
+              console.log(`    Candidate suffix: "${candidateSuffix}"`);
+              startOffset = searchPos;
+              endOffset = searchPos + entity.exact.length;
+              found = true;
+              break;
+            }
+
+            searchPos++;
+          }
+
+          if (!found) {
+            console.log(`  ⚠️  No occurrence found with matching context`);
+          }
+        }
+
+        // Fallback to first occurrence if context didn't help
+        if (!found) {
+          const index = exact.indexOf(entity.exact);
+          if (index !== -1) {
+            console.log(`  ⚠️  Using first occurrence at offset ${index} (diff: ${index - startOffset})`);
+            startOffset = index;
+            endOffset = index + entity.exact.length;
+          } else {
+            console.log(`  ❌ Cannot find "${entity.exact}" anywhere in resource`);
+            console.log(`  Resource starts with: "${exact.substring(0, 200)}..."`);
+            // If we still can't find it, skip this entity
+            return null;
+          }
         }
       } else {
         console.log(`  ✅ Offsets correct`);
@@ -145,7 +191,9 @@ Example output:
         exact: entity.exact,
         entityType: entity.entityType,
         startOffset: startOffset,
-        endOffset: endOffset
+        endOffset: endOffset,
+        prefix: entity.prefix,
+        suffix: entity.suffix
       };
     }).filter((entity: ExtractedEntity | null): entity is ExtractedEntity => {
       // Filter out nulls and ensure we have valid offsets
