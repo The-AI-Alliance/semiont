@@ -180,7 +180,7 @@ describe('API Endpoints Integration Tests', () => {
 
     // Load config and initialize JWT Service
     const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
-    const environment = 'integration';
+    const environment = process.env.SEMIONT_ENV || 'integration';
     const config = loadEnvironmentConfig(projectRoot, environment);
     JWTService.initialize(config);
 

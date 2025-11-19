@@ -84,7 +84,7 @@ describe('Incoming References Integration Tests', () => {
     process.env.NODE_ENV = 'test';
 
     const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
-    const environment = 'integration';
+    const environment = process.env.SEMIONT_ENV || 'integration';
     const config = loadEnvironmentConfig(projectRoot, environment);
 
     // Initialize JWT
