@@ -58,7 +58,6 @@ export function ReferencesPanel({
 }: Props) {
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
-  const tInfo = useTranslations('ResourceInfoPanel');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
   const referenceRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -233,7 +232,7 @@ export function ReferencesPanel({
         <div>
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {tRef('referencesTitle')} ({sortedReferences.length})
+              {tRef('outgoingReferences')} ({sortedReferences.length})
             </h3>
           </div>
 
@@ -265,9 +264,9 @@ export function ReferencesPanel({
         <div>
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {tInfo('referencedBy')}
+              {tRef('incomingReferences')}
               {referencedByLoading && (
-                <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">({tInfo('loading')})</span>
+                <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">({tRef('loading')})</span>
               )}
             </h3>
           </div>
@@ -280,17 +279,17 @@ export function ReferencesPanel({
                     href={`/know/resource/${encodeURIComponent(ref.target.source)}`}
                     className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
                   >
-                    {ref.resourceName || tInfo('untitledResource')}
+                    {ref.resourceName || tRef('untitledResource')}
                   </Link>
                   <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
-                    "{ref.target.selector?.exact || tInfo('noText')}"
+                    "{ref.target.selector?.exact || tRef('noText')}"
                   </span>
                 </div>
               ))}
             </div>
           ) : (
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {referencedByLoading ? tInfo('loadingEllipsis') : tInfo('noIncomingReferences')}
+              {referencedByLoading ? tRef('loadingEllipsis') : tRef('noIncomingReferences')}
             </p>
           )}
         </div>

@@ -473,6 +473,7 @@
   },
   "ReferencesPanel": {
     "referencesTitle": "References",
+    "outgoingReferences": "Outgoing References",
     "noReferences": "No references yet",
     "stub": "Stub reference (not linked)",
     "resolved": "Resolved reference (linked)",
