@@ -264,7 +264,7 @@ export function ReferencesPanel({
         <div>
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {tRef('incomingReferences')}
+              {tRef('incomingReferences')} ({referencedBy.length})
               {referencedByLoading && (
                 <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">({tRef('loading')})</span>
               )}
