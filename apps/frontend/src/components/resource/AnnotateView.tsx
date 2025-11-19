@@ -205,15 +205,21 @@ export function AnnotateView({
       const metadata = annotation ? getAnnotationTypeMetadata(annotation) : null;
 
       // Route to side panel if annotation type has one
-      if (metadata?.hasSidePanel && onCommentHover) {
-        onCommentHover(annotationId);
+      if (metadata?.hasSidePanel) {
+        // Clear the other hover state when switching
+        if (onAnnotationHover) onAnnotationHover(null);
+        if (onCommentHover) onCommentHover(annotationId);
+        return;
+      } else {
+        // Clear the other hover state when switching
+        if (onCommentHover) onCommentHover(null);
+        if (onAnnotationHover) onAnnotationHover(annotationId);
         return;
       }
     }
-    // For non-side-panel annotations or null, call the regular handler
-    if (onAnnotationHover) {
-      onAnnotationHover(annotationId);
-    }
+    // Clear both when null
+    if (onAnnotationHover) onAnnotationHover(null);
+    if (onCommentHover) onCommentHover(null);
   }, [allAnnotations, onAnnotationHover, onCommentHover]);
 
   // Handle text annotation with sparkle or immediate creation
