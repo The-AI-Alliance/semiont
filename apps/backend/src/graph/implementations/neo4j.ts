@@ -425,6 +425,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
 
   async getAnnotation(id: AnnotationUri): Promise<Annotation | null> {
+    console.log(`[Neo4j] getAnnotation called for: ${id}`);
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -434,7 +435,11 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         { id }
       );
 
-      if (result.records.length === 0) return null;
+      if (result.records.length === 0) {
+        console.log(`[Neo4j] getAnnotation: Annotation ${id} NOT FOUND`);
+        return null;
+      }
+      console.log(`[Neo4j] getAnnotation: Annotation ${id} FOUND`);
       return this.parseAnnotationNode(
         result.records[0]!.get('a'),
         result.records[0]!.get('entityTypes')
@@ -480,15 +485,20 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       // If body was updated and contains a SpecificResource, create REFERENCES relationship
       if (updates.body) {
-        console.log(`[Neo4j] updateAnnotation body update detected for ${id}`);
+        console.log(`[Neo4j] ====== BODY UPDATE for Annotation ${id} ======`);
         console.log(`[Neo4j] updates.body:`, JSON.stringify(updates.body));
         const bodyArray = Array.isArray(updates.body) ? updates.body : [updates.body];
         console.log(`[Neo4j] bodyArray length: ${bodyArray.length}`);
+
+        bodyArray.forEach((item, idx) => {
+          console.log(`[Neo4j]   Body item ${idx}:`, JSON.stringify(item));
+        });
+
         const specificResource = bodyArray.find((item: any) => item.type === 'SpecificResource' && item.purpose === 'linking');
         console.log(`[Neo4j] Found SpecificResource:`, specificResource ? JSON.stringify(specificResource) : 'null');
 
         if (specificResource && 'source' in specificResource && specificResource.source) {
-          console.log(`[Neo4j] Creating REFERENCES edge: ${id} -> ${specificResource.source}`);
+          console.log(`[Neo4j] ✅ Creating REFERENCES edge: ${id} -> ${specificResource.source}`);
           // Create REFERENCES relationship to the target resource
           const refResult = await session.run(
             `MATCH (a:Annotation {id: $annotationId})
@@ -500,9 +510,13 @@ export class Neo4jGraphDatabase implements GraphDatabase {
               targetResourceId: specificResource.source
             }
           );
-          console.log(`[Neo4j] REFERENCES edge created successfully (matched ${refResult.records.length} nodes)`);
+          console.log(`[Neo4j] ✅ REFERENCES edge created! Matched ${refResult.records.length} nodes`);
+          if (refResult.records.length > 0) {
+            console.log(`[Neo4j]   Annotation: ${refResult.records[0]!.get('a').properties.id}`);
+            console.log(`[Neo4j]   Target Resource: ${refResult.records[0]!.get('target').properties.id}`);
+          }
         } else {
-          console.log(`[Neo4j] SpecificResource not found or missing source field`);
+          console.log(`[Neo4j] No SpecificResource in body - this is a stub reference (not yet resolved)`);
         }
       } else {
         console.log(`[Neo4j] No body update for annotation ${id}`);
@@ -694,6 +708,19 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async getResourceReferencedBy(resourceUri: ResourceUri): Promise<Annotation[]> {
     const session = this.getSession();
     try {
+      console.log(`[Neo4j] getResourceReferencedBy: Searching for annotations referencing ${resourceUri}`);
+
+      // Debug: Show all REFERENCES edges
+      const debugResult = await session.run(
+        `MATCH (a:Annotation)-[:REFERENCES]->(d:Resource)
+         RETURN a.id as annotationId, d.id as resourceId
+         LIMIT 10`
+      );
+      console.log(`[Neo4j] DEBUG: All REFERENCES edges (first 10):`);
+      debugResult.records.forEach(r => {
+        console.log(`  Annotation ${r.get('annotationId')} -> Resource ${r.get('resourceId')}`);
+      });
+
       const result = await session.run(
         `MATCH (a:Annotation)-[:REFERENCES]->(d:Resource {id: $resourceUri})
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
@@ -701,6 +728,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
          ORDER BY a.created DESC`,
         { resourceUri }
       );
+
+      console.log(`[Neo4j] getResourceReferencedBy: Found ${result.records.length} annotations`);
 
       return result.records.map(record =>
         this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
@@ -1063,7 +1092,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     // Validate required fields
     if (!props.id) throw new Error('Annotation missing required field: id');
     if (!props.resourceId) throw new Error(`Annotation ${props.id} missing required field: resourceId`);
-    if (!props.exact) throw new Error(`Annotation ${props.id} missing required field: text`);
+    // props.exact is optional - not all annotation types have selected text (e.g., image annotations)
     if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
     if (!props.selector) throw new Error(`Annotation ${props.id} missing required field: selector`);
     if (!props.creator) throw new Error(`Annotation ${props.id} missing required field: creator`);
