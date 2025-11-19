@@ -7,34 +7,13 @@ import { useTranslations } from 'next-intl';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { getResourceIcon } from '@/lib/resource-utils';
 
 interface OpenDocument {
   id: string;
   name: string;
   openedAt: number;
   mediaType?: string;
-}
-
-// Helper function to get icon based on media type
-function getResourceIcon(mediaType: string | undefined): string {
-  if (!mediaType) return '📄';
-
-  const baseType = mediaType.split(';')[0]?.trim().toLowerCase() || '';
-
-  if (baseType.startsWith('image/')) {
-    return '🖼️';
-  }
-
-  switch (baseType) {
-    case 'text/markdown':
-      return '📝';
-    case 'text/html':
-      return '🌐';
-    case 'text/plain':
-      return '📄';
-    default:
-      return '📄';
-  }
 }
 
 interface SortableResourceTabProps {
