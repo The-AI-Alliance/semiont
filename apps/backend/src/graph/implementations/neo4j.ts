@@ -25,6 +25,25 @@ import { getPrimaryRepresentation } from '../../utils/resource-helpers';
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
+/**
+ * Convert motivation to a valid Neo4j label name
+ *
+ * Annotations get both a property (`motivation: "linking"`) and a label (`:Linking`)
+ * for the same motivation value. This enables:
+ * - Fast filtering: `MATCH (a:Annotation:Linking)` vs `MATCH (a:Annotation) WHERE a.motivation = 'linking'`
+ * - Automatic indexing: Neo4j indexes labels by default
+ * - Visual exploration: Graph visualization tools prominently display labels
+ *
+ * Example: "linking" -> "Linking", "commenting" -> "Commenting"
+ *
+ * W3C Motivation values:
+ * assessing, bookmarking, classifying, commenting, describing, editing,
+ * highlighting, identifying, linking, moderating, questioning, replying, tagging
+ */
+function motivationToLabel(motivation: string): string {
+  return motivation.charAt(0).toUpperCase() + motivation.slice(1);
+}
+
 export class Neo4jGraphDatabase implements GraphDatabase {
   private driver: Driver | null = null;
   private connected: boolean = false;
@@ -352,13 +371,17 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Extract entity types from TextualBody bodies with purpose: "tagging"
       const entityTypes = getEntityTypes(input);
 
+      // Convert motivation to label (e.g., "linking" -> "Linking")
+      const motivationLabel = motivationToLabel(annotation.motivation);
+
       // Create the annotation node and relationships
       let cypher: string;
       if (bodySource) {
         // Resolved reference with target resource
+        // Add motivation as both a property and a label for efficient querying
         cypher = `MATCH (from:Resource {id: $fromId})
            MATCH (to:Resource {id: $toId})
-           CREATE (a:Annotation {
+           CREATE (a:Annotation:${motivationLabel} {
              id: $id,
              resourceId: $resourceId,
              exact: $exact,
@@ -378,8 +401,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            RETURN a`;
       } else {
         // Stub reference (unresolved)
+        // Add motivation as both a property and a label for efficient querying
         cypher = `MATCH (d:Resource {id: $resourceId})
-           CREATE (a:Annotation {
+           CREATE (a:Annotation:${motivationLabel} {
              id: $id,
              resourceId: $resourceId,
              exact: $exact,
@@ -481,6 +505,26 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       if (result.records.length === 0) {
         throw new Error('Annotation not found');
+      }
+
+      // If motivation was updated, update the label
+      if (updates.motivation) {
+        const newLabel = motivationToLabel(updates.motivation);
+        console.log(`[Neo4j] Updating motivation label to: ${newLabel}`);
+
+        // Remove all possible motivation labels and add the new one
+        const allMotivations = ['Assessing', 'Bookmarking', 'Classifying', 'Commenting',
+                                'Describing', 'Editing', 'Highlighting', 'Identifying',
+                                'Linking', 'Moderating', 'Questioning', 'Replying', 'Tagging'];
+        const removeLabels = allMotivations.filter(m => m !== newLabel).map(m => `a:${m}`).join(', ');
+
+        await session.run(
+          `MATCH (a:Annotation {id: $id})
+           REMOVE ${removeLabels}
+           SET a:${newLabel}`,
+          { id }
+        );
+        console.log(`[Neo4j] ✅ Motivation label updated to: ${newLabel}`);
       }
 
       // If body was updated and contains a SpecificResource, create REFERENCES relationship
