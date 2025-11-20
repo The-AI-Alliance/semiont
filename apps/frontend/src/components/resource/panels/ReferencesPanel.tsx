@@ -7,6 +7,7 @@ import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { ANNOTATION_TYPES } from '@/lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
@@ -117,12 +118,9 @@ export function ReferencesPanel({
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🔵</span>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {tRef('referencesTitle')}
-          </h2>
-        </div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          {ANNOTATION_TYPES.reference!.iconEmoji} {tRef('referencesTitle')}
+        </h2>
       </div>
 
       {/* Scrollable content area */}

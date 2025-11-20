@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { AssessmentEntry } from './AssessmentEntry';
+import { ANNOTATION_TYPES } from '@/lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -88,7 +89,7 @@ export function AssessmentPanel({
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            🎯 {t('title')} ({assessments.length})
+            {ANNOTATION_TYPES.assessment!.iconEmoji} {t('title')} ({assessments.length})
           </h2>
           {onDetectAssessments && (
             <button
