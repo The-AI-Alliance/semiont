@@ -116,7 +116,7 @@ export interface JobStartedEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation';
+    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection';
     totalSteps?: number;  // Optional - total number of steps if known
   };
 }
@@ -126,13 +126,14 @@ export interface JobProgressEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation';
+    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection';
     percentage: number;  // 0-100
     currentStep?: string;  // Human-readable current step (e.g., "Scanning for Person")
     processedSteps?: number;  // Number of steps completed
     totalSteps?: number;  // Total number of steps
     foundCount?: number;  // For detection: number of entities found so far
     message?: string;  // Optional status message
+    progress?: any;  // For new job types: full progress object
   };
 }
 
@@ -141,12 +142,13 @@ export interface JobCompletedEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation';
+    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection';
     totalSteps?: number;  // Total steps completed
     foundCount?: number;  // For detection: total entities found
     resultResourceId?: ResourceId;  // For generation: ID of generated resource (branded type)
     annotationUri?: AnnotationUri;  // For generation: URI of annotation that triggered generation
     message?: string;  // Optional completion message
+    result?: any;  // For new job types: full result object
   };
 }
 
@@ -155,7 +157,7 @@ export interface JobFailedEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation';
+    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection';
     error: string;  // Error message
     details?: string;  // Optional detailed error information
   };

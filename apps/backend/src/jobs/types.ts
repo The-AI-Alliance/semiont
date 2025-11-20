@@ -11,7 +11,7 @@ import type { ResourceId, UserId, AnnotationId } from '@semiont/core';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
-export type JobType = 'detection' | 'generation';
+export type JobType = 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
 
 /**
@@ -75,9 +75,45 @@ export interface GenerationJob extends BaseJob {
 }
 
 /**
+ * Highlight Detection job - finds passages to highlight using AI
+ */
+export interface HighlightDetectionJob extends BaseJob {
+  type: 'highlight-detection';
+  resourceId: ResourceId;
+  instructions?: string;  // Optional user instructions for AI
+  progress?: {
+    stage: 'analyzing' | 'creating';
+    percentage: number;
+    message?: string;
+  };
+  result?: {
+    highlightsFound: number;
+    highlightsCreated: number;
+  };
+}
+
+/**
+ * Assessment Detection job - evaluates passages using AI
+ */
+export interface AssessmentDetectionJob extends BaseJob {
+  type: 'assessment-detection';
+  resourceId: ResourceId;
+  instructions?: string;  // Optional user instructions for AI
+  progress?: {
+    stage: 'analyzing' | 'creating';
+    percentage: number;
+    message?: string;
+  };
+  result?: {
+    assessmentsFound: number;
+    assessmentsCreated: number;
+  };
+}
+
+/**
  * Discriminated union of all job types
  */
-export type Job = DetectionJob | GenerationJob;
+export type Job = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentDetectionJob;
 
 /**
  * Job creation request types (without server-generated fields)
