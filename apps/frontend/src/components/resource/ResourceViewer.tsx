@@ -32,6 +32,8 @@ interface Props {
   onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
   onCommentClick?: (commentId: string) => void;
   onReferenceClick?: (referenceId: string) => void;
+  onHighlightClick?: (highlightId: string) => void;
+  onAssessmentClick?: (assessmentId: string) => void;
 }
 
 export function ResourceViewer({
@@ -48,7 +50,9 @@ export function ResourceViewer({
   showLineNumbers = false,
   onCommentCreationRequested,
   onCommentClick,
-  onReferenceClick
+  onReferenceClick,
+  onHighlightClick,
+  onAssessmentClick
 }: Props) {
   const router = useRouter();
   const t = useTranslations('ResourceViewer');
@@ -195,6 +199,14 @@ export function ResourceViewer({
           onReferenceClick(annotation.id);
           return;
         }
+        if (isHighlight(annotation) && onHighlightClick) {
+          onHighlightClick(annotation.id);
+          return;
+        }
+        if (isAssessment(annotation) && onAssessmentClick) {
+          onAssessmentClick(annotation.id);
+          return;
+        }
       }
       // Don't return early for delete/jsonld/follow modes - let them be handled below
       if (selectedClick !== 'deleting' && selectedClick !== 'jsonld' && selectedClick !== 'follow') {
@@ -238,7 +250,7 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [router, curationMode, onCommentClick, onReferenceClick, selectedClick, handleDeleteAnnotation]);
+  }, [router, curationMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, selectedClick, handleDeleteAnnotation]);
 
   // Unified annotation creation handler - works for both text and images
   const handleAnnotationCreate = useCallback(async (params: import('@/types/annotation-props').CreateAnnotationParams) => {

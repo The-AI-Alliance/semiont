@@ -119,7 +119,7 @@ export abstract class JobWorker {
   /**
    * Handle job failure (retry or move to failed)
    */
-  private async handleJobFailure(job: Job, error: any): Promise<void> {
+  protected async handleJobFailure(job: Job, error: any): Promise<void> {
     const jobQueue = getJobQueue();
     job.retryCount++;
 

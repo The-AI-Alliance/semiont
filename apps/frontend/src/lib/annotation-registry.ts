@@ -49,7 +49,7 @@ export const ANNOTATION_TYPES: Record<string, AnnotationTypeMetadata> = {
     iconEmoji: '🟡',
     isClickable: true,
     hasHoverInteraction: true,
-    hasSidePanel: false,
+    hasSidePanel: true,
     matchesAnnotation: (ann) => isHighlight(ann),
     announceOnCreate: 'Highlight created'
   },
@@ -77,7 +77,7 @@ export const ANNOTATION_TYPES: Record<string, AnnotationTypeMetadata> = {
     iconEmoji: '🔴',
     isClickable: true,
     hasHoverInteraction: true,
-    hasSidePanel: false,
+    hasSidePanel: true,
     matchesAnnotation: (ann) => ann.motivation === 'assessing',
     announceOnCreate: 'Assessment created'
   },

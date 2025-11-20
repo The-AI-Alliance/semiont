@@ -9,6 +9,8 @@ import { createSSEStream } from './stream';
 import type {
   DetectionProgress,
   GenerationProgress,
+  HighlightDetectionProgress,
+  AssessmentDetectionProgress,
   ResourceEvent,
   SSEStream
 } from './types';
@@ -29,6 +31,20 @@ export interface GenerateResourceStreamRequest {
   title?: string;
   prompt?: string;
   language?: string;
+}
+
+/**
+ * Request body for highlight detection stream
+ */
+export interface DetectHighlightsStreamRequest {
+  instructions?: string;
+}
+
+/**
+ * Request body for assessment detection stream
+ */
+export interface DetectAssessmentsStreamRequest {
+  instructions?: string;
 }
 
 /**
@@ -223,6 +239,116 @@ export class SSEClient {
         progressEvents: ['generation-started', 'generation-progress'],
         completeEvent: 'generation-complete',
         errorEvent: 'generation-error'
+      }
+    );
+  }
+
+  /**
+   * Detect highlights in a resource (streaming)
+   *
+   * Streams highlight detection progress via Server-Sent Events.
+   *
+   * @param resourceId - Resource URI or ID
+   * @param request - Detection configuration (optional instructions)
+   * @returns SSE stream controller with progress/complete/error callbacks
+   *
+   * @example
+   * ```typescript
+   * const stream = sseClient.detectHighlights(
+   *   'http://localhost:4000/resources/doc-123',
+   *   { instructions: 'Focus on key technical points' }
+   * );
+   *
+   * stream.onProgress((progress) => {
+   *   console.log(`${progress.status}: ${progress.percentage}%`);
+   *   console.log(progress.message);
+   * });
+   *
+   * stream.onComplete((result) => {
+   *   console.log(`Detection complete! Created ${result.createdCount} highlights`);
+   * });
+   *
+   * stream.onError((error) => {
+   *   console.error('Detection failed:', error.message);
+   * });
+   *
+   * // Cleanup when done
+   * stream.close();
+   * ```
+   */
+  detectHighlights(
+    resourceId: ResourceUri,
+    request: DetectHighlightsStreamRequest = {}
+  ): SSEStream<HighlightDetectionProgress, HighlightDetectionProgress> {
+    const id = this.extractId(resourceId);
+    const url = `${this.baseUrl}/resources/${id}/detect-highlights-stream`;
+
+    return createSSEStream<HighlightDetectionProgress, HighlightDetectionProgress>(
+      url,
+      {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(request)
+      },
+      {
+        progressEvents: ['highlight-detection-started', 'highlight-detection-progress'],
+        completeEvent: 'highlight-detection-complete',
+        errorEvent: 'highlight-detection-error'
+      }
+    );
+  }
+
+  /**
+   * Detect assessments in a resource (streaming)
+   *
+   * Streams assessment detection progress via Server-Sent Events.
+   *
+   * @param resourceId - Resource URI or ID
+   * @param request - Detection configuration (optional instructions)
+   * @returns SSE stream controller with progress/complete/error callbacks
+   *
+   * @example
+   * ```typescript
+   * const stream = sseClient.detectAssessments(
+   *   'http://localhost:4000/resources/doc-123',
+   *   { instructions: 'Evaluate claims for accuracy' }
+   * );
+   *
+   * stream.onProgress((progress) => {
+   *   console.log(`${progress.status}: ${progress.percentage}%`);
+   *   console.log(progress.message);
+   * });
+   *
+   * stream.onComplete((result) => {
+   *   console.log(`Detection complete! Created ${result.createdCount} assessments`);
+   * });
+   *
+   * stream.onError((error) => {
+   *   console.error('Detection failed:', error.message);
+   * });
+   *
+   * // Cleanup when done
+   * stream.close();
+   * ```
+   */
+  detectAssessments(
+    resourceId: ResourceUri,
+    request: DetectAssessmentsStreamRequest = {}
+  ): SSEStream<AssessmentDetectionProgress, AssessmentDetectionProgress> {
+    const id = this.extractId(resourceId);
+    const url = `${this.baseUrl}/resources/${id}/detect-assessments-stream`;
+
+    return createSSEStream<AssessmentDetectionProgress, AssessmentDetectionProgress>(
+      url,
+      {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(request)
+      },
+      {
+        progressEvents: ['assessment-detection-started', 'assessment-detection-progress'],
+        completeEvent: 'assessment-detection-complete',
+        errorEvent: 'assessment-detection-error'
       }
     );
   }

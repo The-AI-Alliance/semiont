@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "instructions": {
+      "type": "string",
+      "description": "Optional instructions to guide AI highlight detection"
+    }
+  }
+}

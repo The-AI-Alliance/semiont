@@ -69,6 +69,68 @@ export interface GenerationProgress {
 }
 
 /**
+ * Progress event for highlight detection stream
+ *
+ * Sent by POST /resources/:id/detect-highlights-stream
+ *
+ * @example
+ * ```typescript
+ * stream.onProgress((progress: HighlightDetectionProgress) => {
+ *   if (progress.status === 'analyzing') {
+ *     console.log(`Analyzing: ${progress.percentage}%`);
+ *   }
+ * });
+ * ```
+ */
+export interface HighlightDetectionProgress {
+  /** Current status of highlight detection operation */
+  status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
+  /** Resource ID being analyzed */
+  resourceId: string;
+  /** Current stage of processing */
+  stage?: 'analyzing' | 'creating';
+  /** Percentage complete (0-100) */
+  percentage?: number;
+  /** Human-readable status message */
+  message?: string;
+  /** Total highlights found */
+  foundCount?: number;
+  /** Total highlights created */
+  createdCount?: number;
+}
+
+/**
+ * Progress event for assessment detection stream
+ *
+ * Sent by POST /resources/:id/detect-assessments-stream
+ *
+ * @example
+ * ```typescript
+ * stream.onProgress((progress: AssessmentDetectionProgress) => {
+ *   if (progress.status === 'analyzing') {
+ *     console.log(`Analyzing: ${progress.percentage}%`);
+ *   }
+ * });
+ * ```
+ */
+export interface AssessmentDetectionProgress {
+  /** Current status of assessment detection operation */
+  status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
+  /** Resource ID being analyzed */
+  resourceId: string;
+  /** Current stage of processing */
+  stage?: 'analyzing' | 'creating';
+  /** Percentage complete (0-100) */
+  percentage?: number;
+  /** Human-readable status message */
+  message?: string;
+  /** Total assessments found */
+  foundCount?: number;
+  /** Total assessments created */
+  createdCount?: number;
+}
+
+/**
  * Resource event from real-time event stream
  *
  * Sent by GET /resources/:id/events/stream

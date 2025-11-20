@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { CommentEntry } from './CommentEntry';
+import { ANNOTATION_TYPES } from '@/lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -87,7 +88,7 @@ export function CommentsPanel({
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          💬 {t('title')} ({comments.length})
+          {ANNOTATION_TYPES.comment!.iconEmoji} {t('title')} ({comments.length})
         </h2>
       </div>
 

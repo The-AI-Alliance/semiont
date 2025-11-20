@@ -8,6 +8,8 @@ import { registerGetResourceUri } from './routes/get-uri';
 import { registerListResources } from './routes/list';
 import { registerUpdateResource } from './routes/update';
 import { registerDetectAnnotationsStream } from './routes/detect-annotations-stream';
+import { registerDetectHighlightsStream } from './routes/detect-highlights-stream';
+import { registerDetectAssessmentsStream } from './routes/detect-assessments-stream';
 import { registerGetResourceLLMContext } from './routes/llm-context';
 import { registerGetAnnotationLLMContext } from './routes/annotation-llm-context';
 import { registerGetReferencedBy } from './routes/referenced-by';
@@ -40,6 +42,8 @@ registerTokenRoutes(resourcesRouter);  // GET /api/resources/token/:token, POST 
 
 // Routes with :id and specific suffixes
 registerDetectAnnotationsStream(resourcesRouter);  // POST /resources/:id/detect-annotations-stream
+registerDetectHighlightsStream(resourcesRouter);  // POST /resources/:id/detect-highlights-stream
+registerDetectAssessmentsStream(resourcesRouter);  // POST /resources/:id/detect-assessments-stream
 registerGetResourceLLMContext(resourcesRouter);  // GET /resources/:id/llm-context
 registerGetAnnotationLLMContext(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/llm-context
 registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by

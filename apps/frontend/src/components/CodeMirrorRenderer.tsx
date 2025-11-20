@@ -6,7 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartme
 import { markdown } from '@codemirror/lang-markdown';
 import { getAnnotationClassName } from '@/lib/annotation-registry';
 import { ReferenceResolutionWidget } from '@/lib/codemirror-widgets';
-import { isHighlight, isReference, isResolvedReference, isComment, getBodySource } from '@semiont/api-client';
+import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import '@/styles/animations.css';
 
@@ -88,12 +88,14 @@ function buildAnnotationDecorations(
     const isHighlightAnn = isHighlight(segment.annotation);
     const isReferenceAnn = isReference(segment.annotation);
     const isCommentAnn = isComment(segment.annotation);
+    const isAssessmentAnn = isAssessment(segment.annotation);
     const isResolvedRef = isResolvedReference(segment.annotation);
 
     // Determine annotation type for data attribute - use motivation directly
     let annotationType = 'highlight'; // default
     if (isCommentAnn) annotationType = 'comment';
     else if (isReferenceAnn) annotationType = 'reference';
+    else if (isAssessmentAnn) annotationType = 'assessment';
     else if (isHighlightAnn) annotationType = 'highlight';
 
     const decoration = Decoration.mark({

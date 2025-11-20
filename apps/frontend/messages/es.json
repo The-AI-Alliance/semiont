@@ -416,8 +416,32 @@
     "cancel": "Cancelar",
     "edit": "Editar"
   },
+  "HighlightPanel": {
+    "title": "Destacados",
+    "noHighlights": "Aún no hay destacados. Usa detección por IA para encontrar pasajes importantes.",
+    "detectHighlights": "Detectar Destacados",
+    "instructions": "Instrucciones",
+    "optional": "(opcional)",
+    "instructionsPlaceholder": "ej., Enfócate en conceptos técnicos clave...",
+    "detect": "Detectar",
+    "detecting": "Detectando...",
+    "cancel": "Cancelar"
+  },
+  "AssessmentPanel": {
+    "title": "Evaluaciones",
+    "noAssessments": "Aún no hay evaluaciones. Usa detección por IA para evaluar pasajes.",
+    "detectAssessments": "Detectar Evaluaciones",
+    "instructions": "Instrucciones",
+    "optional": "(opcional)",
+    "instructionsPlaceholder": "ej., Evalúa afirmaciones por exactitud y evidencia...",
+    "detect": "Detectar",
+    "detecting": "Detectando...",
+    "cancel": "Cancelar"
+  },
   "Toolbar": {
     "comments": "Comentarios",
+    "highlights": "Destacados",
+    "assessments": "Evaluaciones",
     "history": "Historial",
     "resource": "Recurso",
     "resourceInfo": "Información del Recurso",

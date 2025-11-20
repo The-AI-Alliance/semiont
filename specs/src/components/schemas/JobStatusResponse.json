@@ -8,7 +8,9 @@
       "type": "string",
       "enum": [
         "detection",
-        "generation"
+        "generation",
+        "highlight-detection",
+        "assessment-detection"
       ]
     },
     "status": {

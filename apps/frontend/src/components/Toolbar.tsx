@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-type ToolbarPanel = 'document' | 'history' | 'info' | 'references' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments';
+type ToolbarPanel = 'document' | 'history' | 'info' | 'references' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments' | 'highlights' | 'assessments';
 type ToolbarContext = 'document' | 'simple';
 
 interface Props<T extends string = string> {
@@ -83,6 +83,32 @@ export function Toolbar<T extends string = string>({
               title={t('detectReferences')}
             >
               <span className="text-xl" aria-hidden="true">🔵</span>
+            </button>
+          )}
+
+          {/* Highlights Icon - show in both Browse and Annotate modes (not archived) */}
+          {!isArchived && (
+            <button
+              onClick={() => onPanelToggle('highlights' as T)}
+              className={buttonClass('highlights')}
+              aria-label={t('highlights')}
+              aria-pressed={activePanel === 'highlights'}
+              title={t('highlights')}
+            >
+              <span className="text-xl" aria-hidden="true">🟡</span>
+            </button>
+          )}
+
+          {/* Assessments Icon - show in both Browse and Annotate modes (not archived) */}
+          {!isArchived && (
+            <button
+              onClick={() => onPanelToggle('assessments' as T)}
+              className={buttonClass('assessments')}
+              aria-label={t('assessments')}
+              aria-pressed={activePanel === 'assessments'}
+              title={t('assessments')}
+            >
+              <span className="text-xl" aria-hidden="true">🔴</span>
             </button>
           )}
 

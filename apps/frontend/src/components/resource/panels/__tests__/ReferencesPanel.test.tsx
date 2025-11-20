@@ -634,7 +634,9 @@ describe('ReferencesPanel Component', () => {
     it('should have emoji in title', () => {
       render(<ReferencesPanel {...defaultProps} />);
 
-      expect(screen.getByText('🔵')).toBeInTheDocument();
+      // The emoji is part of the title text content
+      const title = screen.getByRole('heading', { level: 2 });
+      expect(title.textContent).toContain('🔵');
     });
 
     it('should have proper button layout', () => {

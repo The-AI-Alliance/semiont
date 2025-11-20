@@ -38,6 +38,8 @@ import { CollaborationPanel } from '@/components/resource/panels/CollaborationPa
 import { ResourceActionsPanel } from '@/components/resource/panels/ResourceActionsPanel';
 import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
 import { CommentsPanel } from '@/components/resource/panels/CommentsPanel';
+import { HighlightPanel } from '@/components/resource/panels/HighlightPanel';
+import { AssessmentPanel } from '@/components/resource/panels/AssessmentPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
@@ -258,6 +260,10 @@ function ResourceView({
     }
     return false;
   });
+
+  // Debug logging
+  console.log('[ResourcePage] annotateMode:', annotateMode, 'primaryMediaType:', primaryMediaType, 'isText:', primaryMediaType?.startsWith('text/'));
+
   const { theme, setTheme } = useTheme();
   const { activePanel, togglePanel, setActivePanel } = useToolbar({ persistToStorage: true });
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -267,9 +273,29 @@ function ResourceView({
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
   const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
+  const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
+  const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null);
+  const [focusedAssessmentId, setFocusedAssessmentId] = useState<string | null>(null);
+  const [hoveredAssessmentId, setHoveredAssessmentId] = useState<string | null>(null);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
+
+  // Detection states for highlights
+  const [isDetectingHighlights, setIsDetectingHighlights] = useState(false);
+  const [highlightDetectionProgress, setHighlightDetectionProgress] = useState<{
+    status: string;
+    percentage?: number;
+    message?: string;
+  } | null>(null);
+
+  // Detection states for assessments
+  const [isDetectingAssessments, setIsDetectingAssessments] = useState(false);
+  const [assessmentDetectionProgress, setAssessmentDetectionProgress] = useState<{
+    status: string;
+    percentage?: number;
+    message?: string;
+  } | null>(null);
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -438,6 +464,92 @@ function ResourceView({
     startGeneration(annotationUri(referenceId), resourceUri(resourceUriStr), optionsWithLanguage);
   }, [startGeneration, resource, clearNewAnnotationId, locale]);
 
+  /**
+   * Handle highlight detection
+   */
+  const handleDetectHighlights = useCallback(async (instructions?: string) => {
+    if (!client) return;
+
+    setIsDetectingHighlights(true);
+    setHighlightDetectionProgress({ status: 'started', message: 'Starting highlight detection...' });
+
+    try {
+      const stream = client.sse.detectHighlights(rUri, instructions ? { instructions } : {});
+
+      stream.onProgress((progress: any) => {
+        setHighlightDetectionProgress({
+          status: progress.status,
+          percentage: progress.percentage,
+          message: progress.message
+        });
+      });
+
+      stream.onComplete((result: any) => {
+        setHighlightDetectionProgress({
+          status: 'complete',
+          percentage: 100,
+          message: `Created ${result.createdCount} highlights`
+        });
+        setIsDetectingHighlights(false);
+        refetchAnnotations();
+        showSuccess(`Created ${result.createdCount} highlights`);
+      });
+
+      stream.onError((error: any) => {
+        setHighlightDetectionProgress(null);
+        setIsDetectingHighlights(false);
+        showError(`Highlight detection failed: ${error.message}`);
+      });
+    } catch (error) {
+      setIsDetectingHighlights(false);
+      setHighlightDetectionProgress(null);
+      showError('Failed to start highlight detection');
+    }
+  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
+
+  /**
+   * Handle assessment detection
+   */
+  const handleDetectAssessments = useCallback(async (instructions?: string) => {
+    if (!client) return;
+
+    setIsDetectingAssessments(true);
+    setAssessmentDetectionProgress({ status: 'started', message: 'Starting assessment detection...' });
+
+    try {
+      const stream = client.sse.detectAssessments(rUri, instructions ? { instructions } : {});
+
+      stream.onProgress((progress: any) => {
+        setAssessmentDetectionProgress({
+          status: progress.status,
+          percentage: progress.percentage,
+          message: progress.message
+        });
+      });
+
+      stream.onComplete((result: any) => {
+        setAssessmentDetectionProgress({
+          status: 'complete',
+          percentage: 100,
+          message: `Created ${result.createdCount} assessments`
+        });
+        setIsDetectingAssessments(false);
+        refetchAnnotations();
+        showSuccess(`Created ${result.createdCount} assessments`);
+      });
+
+      stream.onError((error: any) => {
+        setAssessmentDetectionProgress(null);
+        setIsDetectingAssessments(false);
+        showError(`Assessment detection failed: ${error.message}`);
+      });
+    } catch (error) {
+      setIsDetectingAssessments(false);
+      setAssessmentDetectionProgress(null);
+      showError('Failed to start assessment detection');
+    }
+  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
+
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useResourceEvents({
     rUri,
@@ -599,6 +711,20 @@ function ResourceView({
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedReferenceId(null), 3000);
                 }}
+                onHighlightClick={(highlightId) => {
+                  // Open Highlights Panel and focus on this highlight
+                  setActivePanel('highlights');
+                  setFocusedHighlightId(highlightId);
+                  // Clear after a short delay to remove highlight
+                  setTimeout(() => setFocusedHighlightId(null), 3000);
+                }}
+                onAssessmentClick={(assessmentId) => {
+                  // Open Assessments Panel and focus on this assessment
+                  setActivePanel('assessments');
+                  setFocusedAssessmentId(assessmentId);
+                  // Clear after a short delay to remove highlight
+                  setTimeout(() => setFocusedAssessmentId(null), 3000);
+                }}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
                 onCommentHover={setHoveredCommentId}
@@ -624,7 +750,10 @@ function ResourceView({
             onLineNumbersToggle={toggleLineNumbers}
             width={
               activePanel === 'jsonld' ? 'w-[600px]' :
+              activePanel === 'references' ? 'w-[400px]' :
               activePanel === 'comments' ? 'w-[400px]' :
+              activePanel === 'highlights' ? 'w-[400px]' :
+              activePanel === 'assessments' ? 'w-[400px]' :
               'w-64'
             }
           >
@@ -768,6 +897,44 @@ function ResourceView({
                 onCommentHover={setHoveredCommentId}
                 resourceContent={content}
                 pendingSelection={pendingCommentSelection}
+                annotateMode={annotateMode}
+              />
+            )}
+
+            {/* Highlights Panel */}
+            {activePanel === 'highlights' && (
+              <HighlightPanel
+                highlights={highlights}
+                onHighlightClick={(annotation) => {
+                  setHoveredHighlightId(annotation.id);
+                  setTimeout(() => setHoveredHighlightId(null), 1500);
+                }}
+                focusedHighlightId={focusedHighlightId}
+                hoveredHighlightId={hoveredHighlightId}
+                onHighlightHover={setHoveredHighlightId}
+                resourceContent={content}
+                {...(primaryMediaType?.startsWith('text/') ? { onDetectHighlights: handleDetectHighlights } : {})}
+                isDetecting={isDetectingHighlights}
+                detectionProgress={highlightDetectionProgress}
+                annotateMode={annotateMode}
+              />
+            )}
+
+            {/* Assessments Panel */}
+            {activePanel === 'assessments' && (
+              <AssessmentPanel
+                assessments={assessments}
+                onAssessmentClick={(annotation) => {
+                  setHoveredAssessmentId(annotation.id);
+                  setTimeout(() => setHoveredAssessmentId(null), 1500);
+                }}
+                focusedAssessmentId={focusedAssessmentId}
+                hoveredAssessmentId={hoveredAssessmentId}
+                onAssessmentHover={setHoveredAssessmentId}
+                resourceContent={content}
+                {...(primaryMediaType?.startsWith('text/') ? { onDetectAssessments: handleDetectAssessments } : {})}
+                isDetecting={isDetectingAssessments}
+                detectionProgress={assessmentDetectionProgress}
                 annotateMode={annotateMode}
               />
             )}

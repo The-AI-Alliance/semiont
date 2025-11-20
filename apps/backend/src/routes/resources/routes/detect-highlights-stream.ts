@@ -1,8 +1,8 @@
 /**
- * Detect Annotations Stream Route - Event-Driven Version
+ * Detect Highlights Stream Route - Event-Driven Version
  *
  * Migrated from polling to Event Store subscriptions:
- * - No polling loops (previously 500ms intervals)
+ * - No polling loops
  * - Subscribes to job.* events from Event Store
  * - <50ms latency for progress updates
  * - Uses plain Hono (no @hono/zod-openapi)
@@ -18,49 +18,49 @@ import type { ResourcesRouterType } from '../shared';
 import { ResourceQueryService } from '../../../services/resource-queries';
 import { createEventStore } from '../../../services/event-store-service';
 import { getJobQueue } from '../../../jobs/job-queue';
-import type { DetectionJob } from '../../../jobs/types';
+import type { HighlightDetectionJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
-import { jobId, entityType, resourceUri } from '@semiont/api-client';
+import { jobId, resourceUri } from '@semiont/api-client';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 
-type DetectAnnotationsStreamRequest = components['schemas']['DetectAnnotationsStreamRequest'];
+type DetectHighlightsStreamRequest = components['schemas']['DetectHighlightsStreamRequest'];
 
-interface DetectionProgress {
-  status: 'started' | 'scanning' | 'complete' | 'error';
+interface HighlightDetectionProgress {
+  status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
   resourceId: ResourceId;
-  currentEntityType?: string;
-  totalEntityTypes: number;
-  processedEntityTypes: number;
+  stage?: 'analyzing' | 'creating';
+  percentage?: number;
   message?: string;
   foundCount?: number;
+  createdCount?: number;
 }
 
-export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
+export function registerDetectHighlightsStream(router: ResourcesRouterType) {
   /**
-   * POST /resources/:id/detect-annotations-stream
+   * POST /resources/:id/detect-highlights-stream
    *
-   * Stream real-time entity detection progress via Server-Sent Events
+   * Stream real-time highlight detection progress via Server-Sent Events
    * Requires authentication
-   * Validates request body against DetectAnnotationsStreamRequest schema
+   * Validates request body against DetectHighlightsStreamRequest schema
    * Returns SSE stream with progress updates
    *
    * Event-Driven Architecture:
-   * - Creates detection job
+   * - Creates highlight detection job
    * - Subscribes to Event Store for job.* events
    * - Forwards events to client as SSE
    * - <50ms latency (no polling)
    */
-  router.post('/resources/:id/detect-annotations-stream',
-    validateRequestBody('DetectAnnotationsStreamRequest'),
+  router.post('/resources/:id/detect-highlights-stream',
+    validateRequestBody('DetectHighlightsStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const body = c.get('validatedBody') as DetectAnnotationsStreamRequest;
-      const { entityTypes } = body;
+      const body = c.get('validatedBody') as DetectHighlightsStreamRequest;
+      const { instructions } = body;
       const config = c.get('config');
 
-      console.log(`[DetectAnnotations] Starting detection for resource ${id} with entity types:`, entityTypes);
+      console.log(`[DetectHighlights] Starting highlight detection for resource ${id}${instructions ? ' with instructions' : ''}`);
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -80,22 +80,22 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
       // Construct full resource URI for event subscriptions
       const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
 
-      // Create a detection job (this decouples event emission from HTTP client)
+      // Create a highlight detection job
       const jobQueue = getJobQueue();
-      const job: DetectionJob = {
+      const job: HighlightDetectionJob = {
         id: jobId(`job-${nanoid()}`),
-        type: 'detection',
+        type: 'highlight-detection',
         status: 'pending',
         userId: userId(user.id),
         resourceId: resourceId(id),
-        entityTypes: entityTypes.map(et => entityType(et)),
+        instructions,
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 1
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectAnnotations] Created job ${job.id} for resource ${id}`);
+      console.log(`[DetectHighlights] Created job ${job.id} for resource ${id}`);
 
       // Stream job progress to the client using Event Store subscriptions
       return streamSSE(c, async (stream) => {
@@ -133,10 +133,10 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
         try {
           // Subscribe to Event Store for job events on this resource
           // Workers emit job.started, job.progress, job.completed, job.failed events
-          console.log(`[DetectAnnotations] Subscribing to events for resource ${rUri}, filtering for job ${job.id}`);
+          console.log(`[DetectHighlights] Subscribing to events for resource ${rUri}, filtering for job ${job.id}`);
           subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
             if (isStreamClosed) {
-              console.log(`[DetectAnnotations] Stream already closed, ignoring event ${storedEvent.event.type}`);
+              console.log(`[DetectHighlights] Stream already closed, ignoring event ${storedEvent.event.type}`);
               return;
             }
 
@@ -144,82 +144,77 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
 
             // Filter to this job's events only
             if (event.type === 'job.started' && event.payload.jobId === job.id) {
-              console.log(`[DetectAnnotations] Job ${job.id} started`);
+              console.log(`[DetectHighlights] Job ${job.id} started`);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
-                    totalEntityTypes: event.payload.totalSteps || entityTypes.length,
-                    processedEntityTypes: 0,
-                    message: 'Starting entity detection...'
-                  } as DetectionProgress),
-                  event: 'detection-started',
+                    message: 'Starting detection...'
+                  } as HighlightDetectionProgress),
+                  event: 'highlight-detection-started',
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected, job ${job.id} will continue`);
+                console.warn(`[DetectHighlights] Client disconnected, job ${job.id} will continue`);
                 cleanup();
               }
             } else if (event.type === 'job.progress' && event.payload.jobId === job.id) {
-              console.log(`[DetectAnnotations] Job ${job.id} progress:`, event.payload);
+              console.log(`[DetectHighlights] Job ${job.id} progress:`, event.payload);
               try {
+                // Extract progress info from the job's progress field
+                const jobProgress = event.payload.progress;
                 await stream.writeSSE({
                   data: JSON.stringify({
-                    status: 'scanning',
+                    status: jobProgress?.stage || 'analyzing',
                     resourceId: resourceId(id),
-                    currentEntityType: event.payload.currentStep,
-                    totalEntityTypes: event.payload.totalSteps,
-                    processedEntityTypes: event.payload.processedSteps || 0,
-                    foundCount: event.payload.foundCount,
-                    message: event.payload.currentStep
-                      ? `Scanning for ${event.payload.currentStep}...`
-                      : 'Processing...'
-                  } as DetectionProgress),
-                  event: 'detection-progress',
+                    stage: jobProgress?.stage,
+                    percentage: jobProgress?.percentage,
+                    message: jobProgress?.message || 'Processing...'
+                  } as HighlightDetectionProgress),
+                  event: 'highlight-detection-progress',
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected, job ${job.id} will continue`);
+                console.warn(`[DetectHighlights] Client disconnected, job ${job.id} will continue`);
                 cleanup();
               }
             } else if (event.type === 'job.completed' && event.payload.jobId === job.id) {
-              console.log(`[DetectAnnotations] Job ${job.id} completed`);
+              console.log(`[DetectHighlights] Job ${job.id} completed`);
               try {
+                const result = event.payload.result;
                 await stream.writeSSE({
                   data: JSON.stringify({
                     status: 'complete',
                     resourceId: resourceId(id),
-                    totalEntityTypes: entityTypes.length,
-                    processedEntityTypes: entityTypes.length,
-                    foundCount: event.payload.foundCount,
-                    message: event.payload.foundCount !== undefined
-                      ? `Detection complete! Found ${event.payload.foundCount} entities`
-                      : 'Detection complete!'
-                  } as DetectionProgress),
-                  event: 'detection-complete',
+                    percentage: 100,
+                    foundCount: result?.highlightsFound,
+                    createdCount: result?.highlightsCreated,
+                    message: result?.highlightsCreated !== undefined
+                      ? `Complete! Created ${result.highlightsCreated} highlights`
+                      : 'Highlight detection complete!'
+                  } as HighlightDetectionProgress),
+                  event: 'highlight-detection-complete',
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected after job ${job.id} completed`);
+                console.warn(`[DetectHighlights] Client disconnected after job ${job.id} completed`);
               }
               cleanup();
             } else if (event.type === 'job.failed' && event.payload.jobId === job.id) {
-              console.log(`[DetectAnnotations] Job ${job.id} failed:`, event.payload.error);
+              console.log(`[DetectHighlights] Job ${job.id} failed:`, event.payload.error);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
                     status: 'error',
                     resourceId: resourceId(id),
-                    totalEntityTypes: entityTypes.length,
-                    processedEntityTypes: 0,
-                    message: event.payload.error || 'Detection failed'
-                  } as DetectionProgress),
-                  event: 'detection-error',
+                    message: event.payload.error || 'Highlight detection failed'
+                  } as HighlightDetectionProgress),
+                  event: 'highlight-detection-error',
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected after job ${job.id} failed`);
+                console.warn(`[DetectHighlights] Client disconnected after job ${job.id} failed`);
               }
               cleanup();
             }
@@ -245,7 +240,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[DetectAnnotations] Client disconnected from detection stream for resource ${id}, job ${job.id} will continue`);
+            console.log(`[DetectHighlights] Client disconnected from detection stream for resource ${id}, job ${job.id} will continue`);
             cleanup();
           });
 
@@ -256,16 +251,14 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
               data: JSON.stringify({
                 status: 'error',
                 resourceId: resourceId(id),
-                totalEntityTypes: entityTypes.length,
-                processedEntityTypes: 0,
-                message: error instanceof Error ? error.message : 'Detection failed'
-              } as DetectionProgress),
-              event: 'detection-error',
+                message: error instanceof Error ? error.message : 'Highlight detection failed'
+              } as HighlightDetectionProgress),
+              event: 'highlight-detection-error',
               id: String(Date.now())
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[DetectAnnotations] Could not send error to client (disconnected), job ${job.id} status is preserved`);
+            console.warn(`[DetectHighlights] Could not send error to client (disconnected), job ${job.id} status is preserved`);
           }
           cleanup();
         }

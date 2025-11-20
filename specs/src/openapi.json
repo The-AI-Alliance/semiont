@@ -69,6 +69,12 @@
     "/resources/{id}/detect-annotations-stream": {
       "$ref": "paths/resources_{id}_detect-annotations-stream.json"
     },
+    "/resources/{id}/detect-highlights-stream": {
+      "$ref": "paths/resources_{id}_detect-highlights-stream.json"
+    },
+    "/resources/{id}/detect-assessments-stream": {
+      "$ref": "paths/resources_{id}_detect-assessments-stream.json"
+    },
     "/resources/{id}/llm-context": {
       "$ref": "paths/resources_{id}_llm-context.json"
     },
@@ -231,6 +237,12 @@
       },
       "DetectAnnotationsStreamRequest": {
         "$ref": "components/schemas/DetectAnnotationsStreamRequest.json"
+      },
+      "DetectHighlightsStreamRequest": {
+        "$ref": "components/schemas/DetectHighlightsStreamRequest.json"
+      },
+      "DetectAssessmentsStreamRequest": {
+        "$ref": "components/schemas/DetectAssessmentsStreamRequest.json"
       },
       "ErrorResponse": {
         "$ref": "components/schemas/ErrorResponse.json"
