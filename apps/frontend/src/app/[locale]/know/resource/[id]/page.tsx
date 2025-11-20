@@ -707,6 +707,20 @@ function ResourceView({
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedReferenceId(null), 3000);
                 }}
+                onHighlightClick={(highlightId) => {
+                  // Open Highlights Panel and focus on this highlight
+                  setActivePanel('highlights');
+                  setFocusedHighlightId(highlightId);
+                  // Clear after a short delay to remove highlight
+                  setTimeout(() => setFocusedHighlightId(null), 3000);
+                }}
+                onAssessmentClick={(assessmentId) => {
+                  // Open Assessments Panel and focus on this assessment
+                  setActivePanel('assessments');
+                  setFocusedAssessmentId(assessmentId);
+                  // Clear after a short delay to remove highlight
+                  setTimeout(() => setFocusedAssessmentId(null), 3000);
+                }}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
                 onCommentHover={setHoveredCommentId}
