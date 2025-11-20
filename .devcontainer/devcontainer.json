@@ -1,0 +1,107 @@
+{
+  "name": "Semiont Development",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+
+  // Features to add to the dev container
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/aws-cli:1": {}
+  },
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally
+  "forwardPorts": [3000, 4000, 5432],
+
+  // Port labels for better UX
+  "portsAttributes": {
+    "3000": {
+      "label": "Frontend",
+      "onAutoForward": "notify"
+    },
+    "4000": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
+    }
+  },
+
+  // Use 'postCreateCommand' to run commands after the container is created
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  // Configure tool-specific properties
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker",
+        "Prisma.prisma",
+        "bradlc.vscode-tailwindcss",
+        "streetsidesoftware.code-spell-checker",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "christian-kohler.npm-intellisense",
+        "christian-kohler.path-intellisense",
+        "formulahendry.auto-rename-tag",
+        "yoavbls.pretty-ts-errors",
+        "usernamehw.errorlens"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": true
+        },
+        "typescript.updateImportsOnFileMove.enabled": "always",
+        "typescript.preferences.importModuleSpecifier": "relative",
+        "npm.autoDetect": "on",
+        "npm.packageManager": "npm"
+      }
+    }
+  },
+
+  // Environment variables that will be set in the container
+  // These will use GitHub Codespaces secrets if configured
+  "containerEnv": {
+    "SEMIONT_ENV": "local",
+    "SEMIONT_ROOT": "/workspace",
+    "SEMIONT_REPO": "/workspace",
+    "NODE_ENV": "development"
+  },
+
+  // Secrets to pass from Codespaces secrets to the container
+  // Users should configure these in their GitHub Codespaces settings
+  "secrets": {
+    "ANTHROPIC_API_KEY": {
+      "description": "API key for Anthropic Claude AI",
+      "documentationUrl": "https://console.anthropic.com/settings/keys"
+    },
+    "NEO4J_URI": {
+      "description": "Neo4j connection URI (e.g., neo4j+s://xxxxx.databases.neo4j.io)",
+      "documentationUrl": "https://neo4j.com/cloud/aura/"
+    },
+    "NEO4J_USERNAME": {
+      "description": "Neo4j username (usually 'neo4j')"
+    },
+    "NEO4J_PASSWORD": {
+      "description": "Neo4j database password"
+    },
+    "NEO4J_DATABASE": {
+      "description": "Neo4j database name (usually 'neo4j')"
+    }
+  },
+
+  // Uncomment to connect as root instead
+  // "remoteUser": "root"
+  "remoteUser": "node"
+}

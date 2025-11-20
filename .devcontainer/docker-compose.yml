@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm
+    volumes:
+      - ..:/workspace:cached
+    command: sleep infinity
+    network_mode: service:db
+    environment:
+      # Database connection
+      DATABASE_URL: postgresql://semiont:semiont@localhost:5432/semiont?schema=public
+      # These will be populated from Codespaces secrets
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      NEO4J_URI: ${NEO4J_URI}
+      NEO4J_USERNAME: ${NEO4J_USERNAME}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      NEO4J_DATABASE: ${NEO4J_DATABASE}
+      # Development environment
+      NODE_ENV: development
+      SEMIONT_ENV: local
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: semiont
+      POSTGRES_PASSWORD: semiont
+      POSTGRES_DB: semiont
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U semiont"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:

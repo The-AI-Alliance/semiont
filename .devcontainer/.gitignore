@@ -1,0 +1,5 @@
+# Local environment variables for dev containers
+.env
+
+# VS Code workspace settings
+*.code-workspace
