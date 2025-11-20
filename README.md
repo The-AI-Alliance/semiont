@@ -108,7 +108,17 @@ npm run pro-bo
 
 ## 🚀 Quickstart
 
+### Try in GitHub Codespaces
+
+Get started instantly with a pre-configured development environment:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
+
+GitHub Codespaces provides a complete cloud development environment with all dependencies pre-installed. Perfect for exploring Semiont, contributing, or building your first annotation-powered application.
+
 ### Prerequisites
+
+For local development, you'll need:
 
 - Node.js 18+ (22+ recommended)
 - npm 9+

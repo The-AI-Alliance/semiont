@@ -18,10 +18,19 @@ Semiont is a standards-compliant multimedia resource management system built on 
 
 Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructure with your data for true **sovereign AI**.
 
-## Repository
+## Get Started
 
-See the [repository](https://github.com/The-AI-Alliance/semiont) on GitHub.
-Clone locally or start a [new GitHub Codespace](https://github.com/codespaces/new/The-AI-Alliance/semiont)
+### Try Now in GitHub Codespaces
+
+Launch a fully-configured development environment in seconds:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
+
+No setup required — start building your semantic knowledge system immediately with all dependencies pre-installed and ready to go.
+
+### Explore the Repository
+
+View the source code, documentation, and contribute on [GitHub](https://github.com/The-AI-Alliance/semiont)
 
 [![Continuous Integration](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![Security Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml?query=branch%3Amain)
