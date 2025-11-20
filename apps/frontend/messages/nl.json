@@ -416,8 +416,32 @@
     "cancel": "Cancel",
     "edit": "Edit"
   },
+  "HighlightPanel": {
+    "title": "Highlights",
+    "noHighlights": "No highlights yet. Use AI detection to find important passages.",
+    "detectHighlights": "Detect Highlights",
+    "instructions": "Instructions",
+    "optional": "(optional)",
+    "instructionsPlaceholder": "e.g., Focus on key technical concepts...",
+    "detect": "Detect",
+    "detecting": "Detecting...",
+    "cancel": "Cancel"
+  },
+  "AssessmentPanel": {
+    "title": "Assessments",
+    "noAssessments": "No assessments yet. Use AI detection to evaluate passages.",
+    "detectAssessments": "Detect Assessments",
+    "instructions": "Instructions",
+    "optional": "(optional)",
+    "instructionsPlaceholder": "e.g., Evaluate claims for accuracy and evidence...",
+    "detect": "Detect",
+    "detecting": "Detecting...",
+    "cancel": "Cancel"
+  },
   "Toolbar": {
     "comments": "Comments",
+    "highlights": "Highlights",
+    "assessments": "Assessments",
     "history": "History",
     "resource": "Resource",
     "resourceInfo": "Resource Info",
