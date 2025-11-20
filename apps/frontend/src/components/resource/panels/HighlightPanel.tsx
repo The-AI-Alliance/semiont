@@ -23,6 +23,7 @@ interface HighlightPanelProps {
     percentage?: number;
     message?: string;
   } | null;
+  annotateMode?: boolean;
 }
 
 export function HighlightPanel({
@@ -35,6 +36,7 @@ export function HighlightPanel({
   onDetectHighlights,
   isDetecting = false,
   detectionProgress,
+  annotateMode = true,
 }: HighlightPanelProps) {
   const t = useTranslations('HighlightPanel');
   const [showDetect, setShowDetect] = useState(false);
@@ -78,7 +80,6 @@ export function HighlightPanel({
   const handleDetect = () => {
     if (onDetectHighlights) {
       onDetectHighlights(instructions.trim() || undefined);
-      setShowDetect(false);
       setInstructions('');
     }
   };
@@ -87,99 +88,90 @@ export function HighlightPanel({
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {ANNOTATION_TYPES.highlight!.iconEmoji} {t('title')} ({highlights.length})
-          </h2>
-          {onDetectHighlights && (
-            <button
-              onClick={() => setShowDetect(!showDetect)}
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-              title={t('detectHighlights')}
-            >
-              ✨
-            </button>
-          )}
-        </div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          {ANNOTATION_TYPES.highlight!.iconEmoji} {t('title')} ({highlights.length})
+        </h2>
       </div>
 
-      {/* Detect highlights UI */}
-      {showDetect && onDetectHighlights && (
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-yellow-50 dark:bg-yellow-900/10">
-          <div className="space-y-3">
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('instructions')} {t('optional')}
-              </label>
-              <textarea
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-                className="w-full mt-1 p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
-                rows={2}
-                placeholder={t('instructionsPlaceholder')}
-                maxLength={500}
-                disabled={isDetecting}
-              />
-              <div className="text-xs text-gray-500 mt-1">
-                {instructions.length}/500
-              </div>
-            </div>
-
-            {detectionProgress && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <div className="flex items-center gap-2">
-                  {detectionProgress.percentage !== undefined && (
-                    <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div
-                        className="bg-yellow-600 h-2 rounded-full transition-all"
-                        style={{ width: `${detectionProgress.percentage}%` }}
-                      />
+      {/* Scrollable content area */}
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Detection Section - only in Annotate mode and for text resources */}
+        {annotateMode && onDetectHighlights && (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+              {t('detectHighlights')}
+            </h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+              {!isDetecting && !detectionProgress && (
+                <>
+                  <div className="mb-4">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                      {t('instructions')} {t('optional')}
+                    </label>
+                    <textarea
+                      value={instructions}
+                      onChange={(e) => setInstructions(e.target.value)}
+                      className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+                      rows={3}
+                      placeholder={t('instructionsPlaceholder')}
+                      maxLength={500}
+                    />
+                    <div className="text-xs text-gray-500 mt-1">
+                      {instructions.length}/500
                     </div>
-                  )}
-                  <span>{detectionProgress.message}</span>
-                </div>
-              </div>
-            )}
+                  </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={handleDetect}
-                disabled={isDetecting}
-                className="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-              >
-                {isDetecting ? t('detecting') : t('detect')}
-              </button>
-              <button
-                onClick={() => setShowDetect(false)}
-                disabled={isDetecting}
-                className="px-3 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-sm disabled:opacity-50"
-              >
-                {t('cancel')}
-              </button>
+                  <button
+                    onClick={handleDetect}
+                    className="w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-700 hover:to-amber-700 text-white shadow-md hover:shadow-lg"
+                  >
+                    <span className="text-2xl">✨</span>
+                  </button>
+                </>
+              )}
+
+              {/* Detection Progress */}
+              {isDetecting && detectionProgress && (
+                <div className="space-y-3">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center gap-2">
+                      {detectionProgress.percentage !== undefined && (
+                        <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                          <div
+                            className="bg-yellow-600 h-2 rounded-full transition-all"
+                            style={{ width: `${detectionProgress.percentage}%` }}
+                          />
+                        </div>
+                      )}
+                      <span>{detectionProgress.message}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Highlights list */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
-        {sortedHighlights.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            {t('noHighlights')}
-          </p>
-        ) : (
-          sortedHighlights.map((highlight) => (
-            <HighlightEntry
-              key={highlight.id}
-              highlight={highlight}
-              isFocused={highlight.id === focusedHighlightId}
-              onClick={() => onHighlightClick(highlight)}
-              onHighlightRef={handleHighlightRef}
-              {...(onHighlightHover && { onHighlightHover })}
-              resourceContent={resourceContent}
-            />
-          ))
         )}
+
+        {/* Highlights list */}
+        <div className="space-y-4">
+          {sortedHighlights.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              {t('noHighlights')}
+            </p>
+          ) : (
+            sortedHighlights.map((highlight) => (
+              <HighlightEntry
+                key={highlight.id}
+                highlight={highlight}
+                isFocused={highlight.id === focusedHighlightId}
+                onClick={() => onHighlightClick(highlight)}
+                onHighlightRef={handleHighlightRef}
+                {...(onHighlightHover && { onHighlightHover })}
+                resourceContent={resourceContent}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

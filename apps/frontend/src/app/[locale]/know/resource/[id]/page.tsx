@@ -260,6 +260,10 @@ function ResourceView({
     }
     return false;
   });
+
+  // Debug logging
+  console.log('[ResourcePage] annotateMode:', annotateMode, 'primaryMediaType:', primaryMediaType, 'isText:', primaryMediaType?.startsWith('text/'));
+
   const { theme, setTheme } = useTheme();
   const { activePanel, togglePanel, setActivePanel } = useToolbar({ persistToStorage: true });
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -912,6 +916,7 @@ function ResourceView({
                 {...(primaryMediaType?.startsWith('text/') ? { onDetectHighlights: handleDetectHighlights } : {})}
                 isDetecting={isDetectingHighlights}
                 detectionProgress={highlightDetectionProgress}
+                annotateMode={annotateMode}
               />
             )}
 
@@ -930,6 +935,7 @@ function ResourceView({
                 {...(primaryMediaType?.startsWith('text/') ? { onDetectAssessments: handleDetectAssessments } : {})}
                 isDetecting={isDetectingAssessments}
                 detectionProgress={assessmentDetectionProgress}
+                annotateMode={annotateMode}
               />
             )}
 
