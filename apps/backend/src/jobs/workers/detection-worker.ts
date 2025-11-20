@@ -179,6 +179,31 @@ export class DetectionWorker extends JobWorker {
     console.log(`[DetectionWorker] ✅ Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted, ${totalErrors} errors`);
   }
 
+  protected override async handleJobFailure(job: Job, error: any): Promise<void> {
+    // Call parent to handle the failure logic
+    await super.handleJobFailure(job, error);
+
+    // If job permanently failed, emit job.failed event
+    if (job.status === 'failed' && job.type === 'detection') {
+      const detJob = job as DetectionJob;
+      const eventStore = await createEventStore(this.config);
+
+      // Log the full error details to backend logs (already logged by parent)
+      // Send generic error message to frontend
+      await eventStore.appendEvent({
+        type: 'job.failed',
+        resourceId: detJob.resourceId,
+        userId: detJob.userId,
+        version: 1,
+        payload: {
+          jobId: detJob.id,
+          jobType: detJob.type,
+          error: 'Entity detection failed. Please try again later.',
+        },
+      });
+    }
+  }
+
   /**
    * Update job progress and emit events to Event Store
    * Overrides base class to also emit job progress events

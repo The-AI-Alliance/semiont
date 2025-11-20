@@ -91,7 +91,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
         entityTypes: entityTypes.map(et => entityType(et)),
         created: new Date().toISOString(),
         retryCount: 0,
-        maxRetries: 3
+        maxRetries: 1
       };
 
       await jobQueue.createJob(job);

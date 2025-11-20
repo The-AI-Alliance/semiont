@@ -91,7 +91,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType) {
         instructions,
         created: new Date().toISOString(),
         retryCount: 0,
-        maxRetries: 3
+        maxRetries: 1
       };
 
       await jobQueue.createJob(job);
@@ -150,7 +150,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType) {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
-                    message: 'Starting highlight detection...'
+                    message: 'Starting detection...'
                   } as HighlightDetectionProgress),
                   event: 'highlight-detection-started',
                   id: storedEvent.metadata.sequenceNumber.toString()

@@ -100,7 +100,9 @@ export function AssessmentPanel({
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
               {t('detectAssessments')}
             </h3>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 ${
+              isDetecting && detectionProgress ? 'border-2 border-red-500 dark:border-red-600' : ''
+            }`}>
               {!isDetecting && !detectionProgress && (
                 <>
                   <div className="mb-4">
@@ -134,14 +136,7 @@ export function AssessmentPanel({
                 <div className="space-y-3">
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center gap-2">
-                      {detectionProgress.percentage !== undefined && (
-                        <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div
-                            className="bg-red-600 h-2 rounded-full transition-all"
-                            style={{ width: `${detectionProgress.percentage}%` }}
-                          />
-                        </div>
-                      )}
+                      <span className="text-lg animate-sparkle-infinite">✨</span>
                       <span>{detectionProgress.message}</span>
                     </div>
                   </div>

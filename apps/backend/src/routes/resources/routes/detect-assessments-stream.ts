@@ -91,7 +91,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType) {
         instructions,
         created: new Date().toISOString(),
         retryCount: 0,
-        maxRetries: 3
+        maxRetries: 1
       };
 
       await jobQueue.createJob(job);
@@ -150,7 +150,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType) {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
-                    message: 'Starting assessment detection...'
+                    message: 'Starting detection...'
                   } as AssessmentDetectionProgress),
                   event: 'assessment-detection-started',
                   id: storedEvent.metadata.sequenceNumber.toString()

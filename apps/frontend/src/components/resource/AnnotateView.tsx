@@ -73,6 +73,7 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
       const posSelector = getTextPositionSelector(targetSelector);
       const quoteSelector = targetSelector ? getTextQuoteSelector(targetSelector) : null;
 
+
       // Try fuzzy anchoring if TextQuoteSelector with context is available
       let position;
       if (quoteSelector && (quoteSelector.prefix || quoteSelector.suffix)) {

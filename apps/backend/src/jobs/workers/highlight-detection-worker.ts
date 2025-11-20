@@ -21,9 +21,13 @@ interface HighlightMatch {
   exact: string;
   start: number;
   end: number;
+  prefix?: string;
+  suffix?: string;
 }
 
 export class HighlightDetectionWorker extends JobWorker {
+  private isFirstProgress = true;
+
   constructor(private config: EnvironmentConfig) {
     super();
   }
@@ -41,7 +45,92 @@ export class HighlightDetectionWorker extends JobWorker {
       throw new Error(`Invalid job type: ${job.type}`);
     }
 
+    // Reset progress tracking
+    this.isFirstProgress = true;
     await this.processHighlightDetectionJob(job);
+  }
+
+  /**
+   * Override updateJobProgress to emit events to Event Store
+   */
+  protected override async updateJobProgress(job: Job): Promise<void> {
+    // Call parent to update filesystem
+    await super.updateJobProgress(job);
+
+    if (job.type !== 'highlight-detection') return;
+
+    const hlJob = job as HighlightDetectionJob;
+    if (!hlJob.progress) return;
+
+    const eventStore = await createEventStore(this.config);
+    const baseEvent = {
+      resourceId: hlJob.resourceId,
+      userId: hlJob.userId,
+      version: 1,
+    };
+
+    // Determine if this is completion (100% and has result)
+    const isComplete = hlJob.progress.percentage === 100 && hlJob.result;
+
+    if (this.isFirstProgress) {
+      // First progress update - emit job.started
+      this.isFirstProgress = false;
+      await eventStore.appendEvent({
+        type: 'job.started',
+        ...baseEvent,
+        payload: {
+          jobId: hlJob.id,
+          jobType: hlJob.type,
+        },
+      });
+    } else if (isComplete) {
+      // Final update - emit job.completed
+      await eventStore.appendEvent({
+        type: 'job.completed',
+        ...baseEvent,
+        payload: {
+          jobId: hlJob.id,
+          jobType: hlJob.type,
+          result: hlJob.result,
+        },
+      });
+    } else {
+      // Intermediate progress - emit job.progress
+      await eventStore.appendEvent({
+        type: 'job.progress',
+        ...baseEvent,
+        payload: {
+          jobId: hlJob.id,
+          jobType: hlJob.type,
+          progress: hlJob.progress,
+        },
+      });
+    }
+  }
+
+  protected override async handleJobFailure(job: Job, error: any): Promise<void> {
+    // Call parent to handle the failure logic
+    await super.handleJobFailure(job, error);
+
+    // If job permanently failed, emit job.failed event
+    if (job.status === 'failed' && job.type === 'highlight-detection') {
+      const hlJob = job as HighlightDetectionJob;
+      const eventStore = await createEventStore(this.config);
+
+      // Log the full error details to backend logs (already logged by parent)
+      // Send generic error message to frontend
+      await eventStore.appendEvent({
+        type: 'job.failed',
+        resourceId: hlJob.resourceId,
+        userId: hlJob.userId,
+        version: 1,
+        payload: {
+          jobId: hlJob.id,
+          jobType: hlJob.type,
+          error: 'Highlight detection failed. Please try again later.',
+        },
+      });
+    }
   }
 
   private async processHighlightDetectionJob(job: HighlightDetectionJob): Promise<void> {
@@ -58,7 +147,7 @@ export class HighlightDetectionWorker extends JobWorker {
     job.progress = {
       stage: 'analyzing',
       percentage: 10,
-      message: 'Loading resource content...'
+      message: 'Loading resource...'
     };
     await this.updateJobProgress(job);
 
@@ -72,7 +161,7 @@ export class HighlightDetectionWorker extends JobWorker {
     job.progress = {
       stage: 'analyzing',
       percentage: 30,
-      message: 'Analyzing text with AI...'
+      message: 'Analyzing text...'
     };
     await this.updateJobProgress(job);
 
@@ -85,7 +174,7 @@ export class HighlightDetectionWorker extends JobWorker {
     job.progress = {
       stage: 'creating',
       percentage: 60,
-      message: `Creating ${highlights.length} highlight annotations...`
+      message: `Creating ${highlights.length} annotations...`
     };
     await this.updateJobProgress(job);
 
@@ -154,12 +243,14 @@ Return a JSON array of highlights. Each highlight should have:
 - "exact": the exact text to highlight (quoted verbatim from the source)
 - "start": character offset where the text starts
 - "end": character offset where the text ends
+- "prefix": up to 32 characters of text immediately before the highlighted passage (helps identify correct occurrence)
+- "suffix": up to 32 characters of text immediately after the highlighted passage (helps identify correct occurrence)
 
 Return ONLY a valid JSON array, no additional text or explanation.
 
 Example format:
 [
-  {"exact": "important passage here", "start": 42, "end": 64}
+  {"exact": "important passage here", "start": 42, "end": 64, "prefix": "some context ", "suffix": " more text"}
 ]`;
 
     const response = await generateText(prompt, this.config, 2000, 0.3);
@@ -208,6 +299,7 @@ Example format:
     const resourceUri = resourceIdToURI(resourceId, backendUrl);
 
     // Create W3C annotation with motivation: highlighting
+    // Use both TextPositionSelector and TextQuoteSelector (with prefix/suffix for fuzzy anchoring)
     const annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
@@ -218,10 +310,19 @@ Example format:
       'target': {
         type: 'SpecificResource' as const,
         source: resourceUri,
-        selector: {
-          type: 'TextQuoteSelector' as const,
-          exact: highlight.exact
-        }
+        selector: [
+          {
+            type: 'TextPositionSelector' as const,
+            start: highlight.start,
+            end: highlight.end,
+          },
+          {
+            type: 'TextQuoteSelector' as const,
+            exact: highlight.exact,
+            ...(highlight.prefix && { prefix: highlight.prefix }),
+            ...(highlight.suffix && { suffix: highlight.suffix }),
+          },
+        ]
       },
       'body': []  // Empty body for highlights
     };
