@@ -37,8 +37,8 @@
   // Note: Output is buffered by Codespaces - use Cmd/Ctrl+Shift+P -> "View Creation Log" to see progress
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
-  // Open files immediately when VS Code attaches (before post-create completes)
-  "postAttachCommand": "sleep 2 && code /workspace/README.md && code /workspace/demo/README.md || true",
+  // Open files and set explorer view when VS Code attaches
+  "postAttachCommand": "bash -c 'sleep 3 && code --command workbench.action.closeAuxiliaryBar && code --command workbench.view.explorer && code /workspace/README.md && sleep 1 && code /workspace/demo/README.md' || true",
 
   // Configure tool-specific properties
   "customizations": {
@@ -76,7 +76,11 @@
         "workbench.sideBar.visible": true,
         "explorer.autoReveal": true,
         "github.copilot.chat.welcomeMessage": "never",
+        "github.copilot.chat.showWelcomeMessage": false,
+        "workbench.auxiliaryBar.visible": false,
+        "workbench.startup.openExplorer": true,
         "workbench.panel.defaultLocation": "bottom",
+        "workbench.startupView": "explorer",
         "workbench.editorAssociations": {
           "*.md": "default"
         },
@@ -299,6 +303,13 @@
     "SEMIONT_ROOT": "/workspace",
     "SEMIONT_REPO": "/workspace",
     "NODE_ENV": "development"
+  },
+
+  // Also set these in remoteEnv to ensure they're available in all terminals
+  "remoteEnv": {
+    "SEMIONT_ENV": "local",
+    "SEMIONT_ROOT": "/workspace",
+    "SEMIONT_REPO": "/workspace"
   },
 
   // Secrets to pass from Codespaces secrets to the container
