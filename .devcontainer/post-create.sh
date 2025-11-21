@@ -110,15 +110,16 @@ error_handler() {
 
 trap 'error_handler ${LINENO} $?' ERR
 
-# Set environment variables
-print_status "Setting environment variables..."
-export SEMIONT_ENV=local
-export SEMIONT_ROOT=/workspace
-export SEMIONT_REPO=/workspace
+# Verify environment variables are set
+print_status "Verifying environment variables..."
 echo "  SEMIONT_ENV=$SEMIONT_ENV"
 echo "  SEMIONT_ROOT=$SEMIONT_ROOT"
 echo "  SEMIONT_REPO=$SEMIONT_REPO"
-print_success "Environment variables set"
+if [ -z "$SEMIONT_ENV" ] || [ -z "$SEMIONT_ROOT" ] || [ -z "$SEMIONT_REPO" ]; then
+    print_error "Required environment variables not set - check devcontainer.json"
+    exit 1
+fi
+print_success "Environment variables verified"
 
 # Check Node.js and npm versions
 print_status "Checking Node.js and npm versions..."
@@ -126,7 +127,7 @@ echo "  Node.js version: $(node --version)"
 echo "  npm version: $(npm --version)"
 print_success "Node.js and npm are available"
 
-# Build and install everything (matching wiki.pingel.org approach)
+# Build and install everything
 print_status "Installing dependencies and building Semiont..."
 cd /workspace || exit 1
 
@@ -308,105 +309,65 @@ else
     print_success "Environment configuration already exists"
 fi
 
-# Provision the local environment using Semiont CLI
-print_status "Provisioning local environment with Semiont CLI..."
+# Provision services individually using Semiont CLI
+print_status "Provisioning services with Semiont CLI..."
 cd /workspace || {
     print_error "Failed to change to workspace directory"
     exit 1
 }
 
-echo "Running semiont provision --env local..."
-if semiont provision --env local 2>&1 | tee -a $LOG_FILE; then
-    print_success "Local environment provisioned successfully"
-else
-    print_warning "Semiont provision encountered issues, attempting manual database setup"
+# Provision database service first
+echo "Provisioning database service..."
+semiont provision --service database 2>&1 | tee -a $LOG_FILE || {
+    print_error "Database provisioning failed"
+    exit 1
+}
+print_success "Database service provisioned"
 
-    # Fallback to manual Prisma setup if provision fails
-    cd apps/backend || {
-        print_error "Failed to change to backend directory"
-        exit 1
-    }
+# Wait for database to be ready after provisioning
+sleep 3
 
-    echo "Generating Prisma client..."
-    if npm run prisma:generate 2>&1 | tee -a $LOG_FILE; then
-        print_success "Prisma client generated"
-    else
-        print_warning "Prisma generate failed, continuing anyway"
-    fi
+# Provision backend service (this creates the proper .env file)
+echo "Provisioning backend service..."
+semiont provision --service backend 2>&1 | tee -a $LOG_FILE || {
+    print_error "Backend provisioning failed - fix the CLI"
+    exit 1
+}
+print_success "Backend service provisioned with environment variables"
 
-    echo "Pushing database schema..."
-    if npx prisma db push --skip-generate 2>&1 | tee -a $LOG_FILE; then
-        print_success "Database schema pushed"
-    else
-        print_warning "Database push failed, continuing anyway"
-    fi
+# Provision frontend service (this creates the proper .env.local file)
+echo "Provisioning frontend service..."
+semiont provision --service frontend 2>&1 | tee -a $LOG_FILE || {
+    print_error "Frontend provisioning failed - fix the CLI"
+    exit 1
+}
+print_success "Frontend service provisioned with environment variables"
 
-    cd /workspace || {
-        print_error "Failed to return to workspace root"
-        exit 1
-    }
-fi
-
-# Create convenience .env files for direct npm usage (as fallback)
-print_status "Creating convenience .env files..."
-
-# Backend .env
-print_status "Creating backend .env file..."
-cd /workspace/apps/backend || {
+# Setup database schema after services are provisioned
+print_status "Setting up database schema..."
+cd apps/backend || {
     print_error "Failed to change to backend directory"
     exit 1
 }
 
-if [ ! -f .env ]; then
-    cat > .env << EOF
-# Database
-DATABASE_URL="postgresql://semiont:semiont@localhost:5432/semiont?schema=public"
-
-# Authentication
-JWT_SECRET="dev-secret-change-in-production"
-JWT_ISSUER="semiont-dev"
-JWT_AUDIENCE="semiont-dev"
-
-# Server
-PORT=4000
-NODE_ENV=development
-
-# AI Services (from Codespaces secrets)
-ANTHROPIC_API_KEY=\${ANTHROPIC_API_KEY}
-
-# Neo4j (from Codespaces secrets)
-NEO4J_URI=\${NEO4J_URI}
-NEO4J_USERNAME=\${NEO4J_USERNAME}
-NEO4J_PASSWORD=\${NEO4J_PASSWORD}
-NEO4J_DATABASE=\${NEO4J_DATABASE}
-EOF
-    print_success "Backend .env created"
+echo "Generating Prisma client..."
+if npm run prisma:generate 2>&1 | tee -a $LOG_FILE; then
+    print_success "Prisma client generated"
 else
-    print_success "Backend .env already exists"
+    print_warning "Prisma generate failed, continuing anyway"
 fi
 
-# Frontend .env.local
-print_status "Creating frontend .env.local file..."
-cd /workspace/apps/frontend || {
-    print_error "Failed to change to frontend directory"
+echo "Pushing database schema..."
+if npx prisma db push --skip-generate 2>&1 | tee -a $LOG_FILE; then
+    print_success "Database schema pushed"
+else
+    print_warning "Database push failed, continuing anyway"
+fi
+
+cd /workspace || {
+    print_error "Failed to return to workspace root"
     exit 1
 }
-
-if [ ! -f .env.local ]; then
-    cat > .env.local << EOF
-# API Configuration
-NEXT_PUBLIC_API_BASE_URL="http://localhost:4000"
-NEXT_PUBLIC_API_URL="http://localhost:4000"
-NEXT_PUBLIC_API_VERSION="v1"
-
-# Development
-NODE_ENV=development
-PORT=3000
-EOF
-    print_success "Frontend .env.local created"
-else
-    print_success "Frontend .env.local already exists"
-fi
 
 # Demo .env
 print_status "Creating demo .env file..."
@@ -449,14 +410,14 @@ ${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━
   📚 Quick Start Commands:
 
     ${BLUE}Using Semiont CLI (Recommended):${NC}
-      semiont start --env local           ${GREEN}# Start all services${NC}
-      semiont status --env local          ${GREEN}# Check service status${NC}
-      semiont logs --env local            ${GREEN}# View logs${NC}
-      semiont stop --env local            ${GREEN}# Stop services${NC}
+      semiont start                      ${GREEN}# Start all services${NC}
+      semiont status                     ${GREEN}# Check service status${NC}
+      semiont logs                       ${GREEN}# View logs${NC}
+      semiont stop                       ${GREEN}# Stop services${NC}
 
     ${BLUE}Start individual services:${NC}
-      semiont start --env local --service backend    ${GREEN}# Start API server${NC}
-      semiont start --env local --service frontend   ${GREEN}# Start web app${NC}
+      semiont start --service backend    ${GREEN}# Start API server${NC}
+      semiont start --service frontend   ${GREEN}# Start web app${NC}
 
     ${BLUE}Using npm directly (alternative):${NC}
       cd apps/backend && npm run dev     ${GREEN}# Start API server${NC}
@@ -506,7 +467,7 @@ else
 fi
 
 # Note: IDE configuration (opening files, showing explorer) is handled by
-# the postStartCommand in devcontainer.json for better reliability
+# the postAttachCommand in devcontainer.json for immediate visibility
 
 echo ""
 echo "=========================================="
