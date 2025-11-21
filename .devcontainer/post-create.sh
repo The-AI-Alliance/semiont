@@ -154,7 +154,7 @@ npm run install:cli 2>&1 | tee -a $LOG_FILE || {
 # Verify CLI is working
 if command -v semiont &> /dev/null; then
     print_success "Semiont CLI installed: $(which semiont)"
-    semiont --version || true
+    semiont --version --verbose || true
 else
     print_error "Semiont CLI installation failed"
     exit 1
@@ -318,7 +318,7 @@ cd /workspace || {
 
 # Provision database service first
 echo "Provisioning database service..."
-semiont provision --service database 2>&1 | tee -a $LOG_FILE || {
+semiont provision --service database --verbose 2>&1 | tee -a $LOG_FILE || {
     print_error "Database provisioning failed"
     exit 1
 }
@@ -329,7 +329,7 @@ sleep 3
 
 # Provision backend service (this creates the proper .env file)
 echo "Provisioning backend service..."
-semiont provision --service backend 2>&1 | tee -a $LOG_FILE || {
+semiont provision --service backend --verbose 2>&1 | tee -a $LOG_FILE || {
     print_error "Backend provisioning failed - fix the CLI"
     exit 1
 }
@@ -337,7 +337,7 @@ print_success "Backend service provisioned with environment variables"
 
 # Provision frontend service (this creates the proper .env.local file)
 echo "Provisioning frontend service..."
-semiont provision --service frontend 2>&1 | tee -a $LOG_FILE || {
+semiont provision --service frontend --verbose 2>&1 | tee -a $LOG_FILE || {
     print_error "Frontend provisioning failed - fix the CLI"
     exit 1
 }
@@ -410,21 +410,21 @@ ${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━
   📚 Quick Start Commands:
 
     ${BLUE}Using Semiont CLI (Recommended):${NC}
-      semiont start                      ${GREEN}# Start all services${NC}
-      semiont status                     ${GREEN}# Check service status${NC}
+      semiont start --verbose             ${GREEN}# Start all services${NC}
+      semiont status --verbose            ${GREEN}# Check service status${NC}
       semiont logs                       ${GREEN}# View logs${NC}
-      semiont stop                       ${GREEN}# Stop services${NC}
+      semiont stop --verbose              ${GREEN}# Stop services${NC}
 
     ${BLUE}Start individual services:${NC}
-      semiont start --service backend    ${GREEN}# Start API server${NC}
-      semiont start --service frontend   ${GREEN}# Start web app${NC}
+      semiont start --service backend --verbose    ${GREEN}# Start API server${NC}
+      semiont start --service frontend --verbose   ${GREEN}# Start web app${NC}
 
     ${BLUE}Using npm directly (alternative):${NC}
       cd apps/backend && npm run dev     ${GREEN}# Start API server${NC}
       cd apps/frontend && npm run dev    ${GREEN}# Start web app${NC}
 
     ${BLUE}Demo Applications:${NC}
-      cd demo && npm run pro-bo          ${GREEN}# Run Prometheus Bound demo${NC}
+      cd demo && npm run demo:interactive ${GREEN}# Run interactive demo${NC}
 
   📖 Documentation:
     - API Docs: http://localhost:4000/docs
@@ -477,6 +477,14 @@ echo "Completed at: $(date)"
 echo ""
 
 print_success "Setup complete! Happy coding! 🚀"
+
+# Move to demo directory and show the command to run
+cd /workspace/demo
+echo ""
+echo "================================"
+echo "Ready to run the interactive demo!"
+echo "To start: npm run demo:interactive"
+echo "================================"
 
 # Note: We don't automatically start services here because the user might want to
 # choose which services to run. The database is already running via docker-compose.
