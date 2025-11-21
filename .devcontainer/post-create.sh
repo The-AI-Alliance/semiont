@@ -7,23 +7,54 @@ set -euo pipefail
 exec 2>&1
 export PYTHONUNBUFFERED=1
 
+# Create a log file that can be tailed
+LOG_FILE="/tmp/post-create.log"
+echo "Starting post-create setup at $(date)" | tee $LOG_FILE
+
+# Function to log with immediate output
+log_output() {
+    echo "$1" | tee -a $LOG_FILE
+    # Force flush
+    sync
+}
+
 # Enable verbose logging
 echo "=========================================="
 echo "SEMIONT DEVCONTAINER POST-CREATE SCRIPT"
 echo "=========================================="
 echo "Starting at: $(date)"
-echo "Working directory: $(pwd)"
-echo "User: $(whoami)"
 echo ""
-echo "This script will set up your development environment:"
+echo "⚠️  IMPORTANT: This setup takes 5-7 minutes."
+echo ""
+
+# Try to open the Creation Log automatically (may not work in all contexts)
+if command -v code &> /dev/null; then
+    echo "Attempting to open Creation Log..."
+    # Try to open the output panel
+    code --command "workbench.action.output.toggleOutput" 2>/dev/null || true
+    # Try to focus on Codespaces log
+    code --command "workbench.action.showLogs" 2>/dev/null || true
+    # Try the specific creation log command
+    code --command "codespaces.viewCreationLog" 2>/dev/null || true
+fi
+
+echo "The terminal will show a spinner during setup."
+echo "To see real-time progress:"
+echo ""
+echo "  1. Press Cmd/Ctrl + Shift + P"
+echo "  2. Type: View Creation Log"
+echo "  3. Select: Codespaces: View Creation Log"
+echo ""
+echo "Or check the log file after setup:"
+echo "  cat /tmp/post-create.log"
+echo ""
+echo "Setup steps:"
 echo "  1. Install npm dependencies (2-4 minutes)"
 echo "  2. Build all packages and CLI (1-2 minutes)"
 echo "  3. Configure Semiont CLI"
 echo "  4. Set up database schema"
 echo "  5. Create environment files"
 echo "  6. Configure IDE workspace"
-echo ""
-echo "Total estimated time: 5-7 minutes"
 echo ""
 echo "Environment variables:"
 echo "  SEMIONT_ENV=${SEMIONT_ENV:-not set}"
@@ -95,87 +126,40 @@ echo "  Node.js version: $(node --version)"
 echo "  npm version: $(npm --version)"
 print_success "Node.js and npm are available"
 
-# Install dependencies
-print_status "Installing npm dependencies (this may take a few minutes)..."
-echo "Running: npm install"
-echo "This typically takes 2-4 minutes. Progress will be shown below:"
-echo ""
-if npm install --verbose 2>&1 | while IFS= read -r line; do
-    echo "  $line"
-    # Flush output immediately
-    if [[ $((RANDOM % 10)) -eq 0 ]]; then
-        echo -n ""  # Force flush
-    fi
-done; then
-    print_success "Dependencies installed successfully"
-else
+# Build and install everything (matching wiki.pingel.org approach)
+print_status "Installing dependencies and building Semiont..."
+cd /workspace || exit 1
+
+echo "Running npm install..."
+npm install 2>&1 | tee -a $LOG_FILE || {
     print_error "npm install failed"
     exit 1
-fi
+}
+print_success "Dependencies installed"
 
-# Build all packages including CLI
-print_status "Building packages and CLI (this may take a few minutes)..."
-echo "Running: npm run build"
-echo "This typically takes 1-2 minutes. Building all workspace packages:"
-echo ""
-if npm run build 2>&1 | while IFS= read -r line; do
-    echo "  $line"
-    # Flush output immediately
-    if [[ $((RANDOM % 10)) -eq 0 ]]; then
-        echo -n ""  # Force flush
-    fi
-done; then
-    print_success "Packages built successfully"
-else
+echo "Running npm run build..."
+npm run build 2>&1 | tee -a $LOG_FILE || {
     print_error "npm run build failed"
     exit 1
-fi
+}
+print_success "Build completed"
 
-# Install the Semiont CLI globally
-print_status "Installing Semiont CLI globally..."
-echo "Changing to CLI directory: /workspace/apps/cli"
-cd /workspace/apps/cli || {
-    print_error "Failed to change to CLI directory"
+echo "Installing Semiont CLI..."
+npm run install:cli 2>&1 | tee -a $LOG_FILE || {
+    print_error "npm run install:cli failed"
     exit 1
 }
 
-echo "Running: npm link"
-if npm link; then
-    print_success "Semiont CLI linked successfully"
-else
-    print_error "npm link failed"
-    exit 1
-fi
-
-echo "Returning to workspace root"
-cd /workspace || {
-    print_error "Failed to return to workspace root"
-    exit 1
-}
-
-# Verify CLI is available
-print_status "Verifying Semiont CLI installation..."
+# Verify CLI is working
 if command -v semiont &> /dev/null; then
-    echo "  Semiont CLI path: $(which semiont)"
-    echo "  Semiont CLI version: $(semiont --version 2>/dev/null || echo 'version command failed')"
-    print_success "Semiont CLI is available"
+    print_success "Semiont CLI installed: $(which semiont)"
+    semiont --version || true
 else
-    print_warning "Semiont CLI not found in PATH, continuing anyway"
+    print_error "Semiont CLI installation failed"
+    exit 1
 fi
 
-# Initialize Semiont project
-print_status "Checking for Semiont project initialization..."
-if [ ! -f "semiont.json" ]; then
-    print_status "Initializing new Semiont project..."
-    echo "Running: semiont init --name 'semiont-dev' --environments 'local,staging,production'"
-    if semiont init --name "semiont-dev" --environments "local,staging,production"; then
-        print_success "Semiont project initialized"
-    else
-        print_warning "Semiont init failed, continuing with manual setup"
-    fi
-else
-    print_success "Semiont project already initialized (semiont.json exists)"
-fi
+print_status "Setting up Semiont project configuration..."
 
 # Wait for PostgreSQL to be ready before provisioning
 print_status "Waiting for PostgreSQL to be ready..."
@@ -197,6 +181,40 @@ if [ $attempt -lt $max_attempts ]; then
     print_success "PostgreSQL is ready"
 fi
 
+# Create semiont.json configuration
+print_status "Creating semiont.json configuration..."
+if [ ! -f "semiont.json" ]; then
+    cat > semiont.json << 'EOF'
+{
+  "version": "1.0.0",
+  "project": "semiont-devcontainer",
+  "site": {
+    "siteName": "Semiont Development",
+    "domain": "localhost:3000",
+    "adminEmail": "dev@example.com",
+    "oauthAllowedDomains": ["example.com", "gmail.com"]
+  },
+  "services": {
+    "frontend": {
+      "framework": "next",
+      "port": 3000
+    },
+    "backend": {
+      "framework": "express",
+      "port": 4000
+    },
+    "database": {
+      "type": "postgres",
+      "port": 5432
+    }
+  }
+}
+EOF
+    print_success "semiont.json created"
+else
+    print_success "semiont.json already exists"
+fi
+
 # Create environment configuration for local
 print_status "Setting up environment configuration..."
 if [ ! -f "environments/local.json" ]; then
@@ -205,53 +223,82 @@ if [ ! -f "environments/local.json" ]; then
     cat > environments/local.json << 'EOF'
 {
   "name": "local",
-  "type": "development",
+  "platform": {
+    "default": "container"
+  },
+  "deployment": {
+    "imageTagStrategy": "mutable"
+  },
+  "site": {
+    "domain": "localhost:3000"
+  },
+  "env": {
+    "NODE_ENV": "development"
+  },
   "services": {
-    "database": {
-      "platform": "container",
-      "config": {
-        "image": "postgres:16-alpine",
-        "name": "semiont-postgres",
-        "env": {
-          "POSTGRES_USER": "semiont",
-          "POSTGRES_PASSWORD": "semiont",
-          "POSTGRES_DB": "semiont"
-        },
-        "ports": {
-          "5432": "5432"
-        }
-      }
-    },
     "backend": {
-      "platform": "posix",
-      "config": {
-        "dir": "apps/backend",
-        "env": {
-          "DATABASE_URL": "postgresql://semiont:semiont@localhost:5432/semiont?schema=public",
-          "PORT": "4000",
-          "JWT_SECRET": "dev-secret-change-in-production",
-          "JWT_ISSUER": "semiont-dev",
-          "JWT_AUDIENCE": "semiont-dev",
-          "NODE_ENV": "development",
-          "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
-          "NEO4J_URI": "${NEO4J_URI}",
-          "NEO4J_USERNAME": "${NEO4J_USERNAME}",
-          "NEO4J_PASSWORD": "${NEO4J_PASSWORD}",
-          "NEO4J_DATABASE": "${NEO4J_DATABASE}"
-        }
-      }
+      "platform": {
+        "type": "posix"
+      },
+      "command": "npm run dev",
+      "port": 4000,
+      "publicURL": "http://localhost:4000",
+      "corsOrigin": "http://localhost:3000"
     },
     "frontend": {
-      "platform": "posix",
-      "config": {
-        "dir": "apps/frontend",
-        "env": {
-          "NEXT_PUBLIC_API_BASE_URL": "http://localhost:4000",
-          "NEXT_PUBLIC_API_VERSION": "v1",
-          "NODE_ENV": "development",
-          "PORT": "3000"
-        }
+      "platform": {
+        "type": "posix"
+      },
+      "command": "npm run dev",
+      "port": 3000,
+      "url": "http://localhost:3000"
+    },
+    "database": {
+      "platform": {
+        "type": "container"
+      },
+      "image": "postgres:16-alpine",
+      "name": "semiont-local-db",
+      "port": 5432,
+      "environment": {
+        "POSTGRES_DB": "semiont",
+        "POSTGRES_USER": "semiont",
+        "POSTGRES_PASSWORD": "semiont"
       }
+    },
+    "graph": {
+      "platform": {
+        "type": "external"
+      },
+      "type": "neo4j",
+      "name": "neo4j",
+      "uri": "${NEO4J_URI}",
+      "username": "${NEO4J_USERNAME}",
+      "password": "${NEO4J_PASSWORD}",
+      "database": "${NEO4J_DATABASE}"
+    },
+    "mcp": {
+      "platform": {
+        "type": "posix"
+      },
+      "dependsOn": ["backend"]
+    },
+    "filesystem": {
+      "platform": {
+        "type": "posix"
+      },
+      "path": "./data/uploads",
+      "description": "Local filesystem storage for uploads and assets"
+    },
+    "inference": {
+      "platform": {
+        "type": "external"
+      },
+      "type": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "maxTokens": 8192,
+      "endpoint": "https://api.anthropic.com",
+      "apiKey": "${ANTHROPIC_API_KEY}"
     }
   }
 }
@@ -261,47 +308,43 @@ else
     print_success "Environment configuration already exists"
 fi
 
-# Provision backend service (database setup, migrations, etc.)
-print_status "Provisioning backend service..."
-echo "Running: semiont provision --service backend --skip-build"
-if semiont provision --service backend --skip-build 2>&1; then
-    print_success "Backend provisioned successfully"
-else
-    print_warning "Backend provisioning via CLI failed, attempting manual setup..."
+# Provision the local environment using Semiont CLI
+print_status "Provisioning local environment with Semiont CLI..."
+cd /workspace || {
+    print_error "Failed to change to workspace directory"
+    exit 1
+}
 
-    # Fallback to manual database setup if CLI fails
+echo "Running semiont provision --env local..."
+if semiont provision --env local 2>&1 | tee -a $LOG_FILE; then
+    print_success "Local environment provisioned successfully"
+else
+    print_warning "Semiont provision encountered issues, attempting manual database setup"
+
+    # Fallback to manual Prisma setup if provision fails
     cd apps/backend || {
         print_error "Failed to change to backend directory"
         exit 1
     }
 
-    echo "Running: npm run prisma:generate"
-    if npm run prisma:generate; then
+    echo "Generating Prisma client..."
+    if npm run prisma:generate 2>&1 | tee -a $LOG_FILE; then
         print_success "Prisma client generated"
     else
-        print_warning "Prisma generate failed"
+        print_warning "Prisma generate failed, continuing anyway"
     fi
 
-    echo "Running: npx prisma db push"
-    if npx prisma db push; then
+    echo "Pushing database schema..."
+    if npx prisma db push --skip-generate 2>&1 | tee -a $LOG_FILE; then
         print_success "Database schema pushed"
     else
-        print_warning "Database push failed"
+        print_warning "Database push failed, continuing anyway"
     fi
 
     cd /workspace || {
         print_error "Failed to return to workspace root"
         exit 1
     }
-fi
-
-# Provision frontend service (env setup, etc.)
-print_status "Provisioning frontend service..."
-echo "Running: semiont provision --service frontend --skip-build"
-if semiont provision --service frontend --skip-build 2>&1; then
-    print_success "Frontend provisioned successfully"
-else
-    print_warning "Frontend provisioning failed, continuing with manual setup"
 fi
 
 # Create convenience .env files for direct npm usage (as fallback)
@@ -353,6 +396,7 @@ if [ ! -f .env.local ]; then
     cat > .env.local << EOF
 # API Configuration
 NEXT_PUBLIC_API_BASE_URL="http://localhost:4000"
+NEXT_PUBLIC_API_URL="http://localhost:4000"
 NEXT_PUBLIC_API_VERSION="v1"
 
 # Development
@@ -405,19 +449,21 @@ ${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━
   📚 Quick Start Commands:
 
     ${BLUE}Using Semiont CLI (Recommended):${NC}
-      semiont start --service backend    ${GREEN}# Start API server${NC}
-      semiont start --service frontend   ${GREEN}# Start web app${NC}
-      semiont start                      ${GREEN}# Start all services${NC}
-      semiont status                     ${GREEN}# Check service status${NC}
-      semiont logs --service backend     ${GREEN}# View backend logs${NC}
+      semiont start --env local           ${GREEN}# Start all services${NC}
+      semiont status --env local          ${GREEN}# Check service status${NC}
+      semiont logs --env local            ${GREEN}# View logs${NC}
+      semiont stop --env local            ${GREEN}# Stop services${NC}
 
-    ${BLUE}Using npm directly:${NC}
+    ${BLUE}Start individual services:${NC}
+      semiont start --env local --service backend    ${GREEN}# Start API server${NC}
+      semiont start --env local --service frontend   ${GREEN}# Start web app${NC}
+
+    ${BLUE}Using npm directly (alternative):${NC}
       cd apps/backend && npm run dev     ${GREEN}# Start API server${NC}
       cd apps/frontend && npm run dev    ${GREEN}# Start web app${NC}
-      npm run dev                        ${GREEN}# Start both${NC}
 
-    ${BLUE}Demo:${NC}
-      cd demo && npm run pro-bo           ${GREEN}# Run Prometheus Bound demo${NC}
+    ${BLUE}Demo Applications:${NC}
+      cd demo && npm run pro-bo          ${GREEN}# Run Prometheus Bound demo${NC}
 
   📖 Documentation:
     - API Docs: http://localhost:4000/docs
