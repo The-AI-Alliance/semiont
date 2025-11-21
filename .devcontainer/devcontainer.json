@@ -76,6 +76,9 @@
         }
       }
     }
+  },
+
+  // Environment variables that will be set in the container
   // These will use GitHub Codespaces secrets if configured
   "containerEnv": {
     "SEMIONT_ENV": "local",
