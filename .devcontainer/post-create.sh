@@ -505,33 +505,8 @@ else
     print_success "Neo4j credentials are configured"
 fi
 
-# Configure VS Code IDE state for better user experience
-if [ -n "${CODESPACES:-}" ] || [ -n "${REMOTE_CONTAINERS:-}" ]; then
-    print_status "Configuring IDE workspace..."
-
-    # Check if code command is available
-    if command -v code &> /dev/null; then
-        echo "VS Code CLI is available"
-
-        # Close any auto-opened panels (like Copilot chat)
-        echo "Closing auxiliary panels..."
-        code --command "workbench.action.closeAuxiliaryBar" 2>/dev/null || true
-        code --command "github.copilot.interactiveEditor.close" 2>/dev/null || true
-
-        # Open the file explorer view (sidebar)
-        echo "Opening file explorer..."
-        code --command "workbench.view.explorer" 2>/dev/null || true
-
-        # Open key README files for user orientation
-        echo "Opening README files..."
-        code /workspace/README.md 2>/dev/null || true
-        code /workspace/demo/README.md 2>/dev/null || true
-
-        print_success "IDE configured with documentation"
-    else
-        print_warning "VS Code CLI not available, skipping IDE configuration"
-    fi
-fi
+# Note: IDE configuration (opening files, showing explorer) is handled by
+# the postStartCommand in devcontainer.json for better reliability
 
 echo ""
 echo "=========================================="

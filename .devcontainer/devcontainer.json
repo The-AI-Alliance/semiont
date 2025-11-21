@@ -37,9 +37,8 @@
   // Note: Output is buffered by Codespaces - use Cmd/Ctrl+Shift+P -> "View Creation Log" to see progress
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
-  // Attempt to open the creation log automatically (may not work in all contexts)
-  "onCreateCommand": "echo 'Setup starting - Opening creation log...' && sleep 2",
-  "updateContentCommand": "echo 'Container updating...'",
+  // Open files immediately when VS Code attaches (before post-create completes)
+  "postAttachCommand": "sleep 2 && code /workspace/README.md && code /workspace/demo/README.md || true",
 
   // Configure tool-specific properties
   "customizations": {
@@ -70,10 +69,12 @@
         "typescript.preferences.importModuleSpecifier": "relative",
         "npm.autoDetect": "on",
         "npm.packageManager": "npm",
-        "workbench.startupEditor": "readme",
+        "workbench.startupEditor": "none",
         "explorer.openEditors.visible": 0,
         "workbench.sideBar.location": "left",
-        "explorer.autoReveal": false,
+        "workbench.activityBar.visible": true,
+        "workbench.sideBar.visible": true,
+        "explorer.autoReveal": true,
         "github.copilot.chat.welcomeMessage": "never",
         "workbench.panel.defaultLocation": "bottom",
         "workbench.editorAssociations": {
