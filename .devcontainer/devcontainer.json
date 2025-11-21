@@ -65,7 +65,17 @@
         "typescript.updateImportsOnFileMove.enabled": "always",
         "typescript.preferences.importModuleSpecifier": "relative",
         "npm.autoDetect": "on",
-        "npm.packageManager": "npm"
+        "npm.packageManager": "npm",
+        "workbench.startupEditor": "readme",
+        "explorer.openEditors.visible": 0,
+        "workbench.sideBar.location": "left",
+        "workbench.activityBar.visible": true,
+        "explorer.autoReveal": false,
+        "github.copilot.chat.welcomeMessage": "never",
+        "workbench.panel.defaultLocation": "bottom",
+        "workbench.editorAssociations": {
+          "*.md": "default"
+        }
       }
     }
   },
