@@ -130,8 +130,8 @@ semiont provision --service backend --skip-build || {
 
     # Fallback to manual database setup if CLI fails
     cd apps/backend
-    npm run db:generate
-    npm run db:push
+    npm run prisma:generate
+    npx prisma db push
     cd /workspace
 }
 print_success "Backend provisioned"

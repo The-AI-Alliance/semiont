@@ -50,9 +50,59 @@ semiont/
 └── scripts/              # Build and utility scripts
 ```
 
-## 📦 API Client & Demo
+## 🚀 Quick Start
 
-### Semiont API Client
+Choose how to get started with Semiont:
+
+### 1. GitHub Codespaces
+
+Launch a fully configured cloud development environment in seconds:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
+
+See [.devcontainer/README.md](.devcontainer/README.md) for setup instructions and secret configuration.
+
+### 2. Local Development
+
+Set up Semiont on your local machine with full control over the environment.
+
+See [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for installation, configuration, and running locally.
+
+## 🎭 Demo
+
+The **[demo/](demo/)** directory contains example scripts showing how to use the SDK:
+
+- **Prometheus Bound** - Ancient Greek drama demonstrating text chunking and table of contents
+- **Family History** - Genealogical documents with mixed media (text and images)
+- **Legal Counsel** - Contract review workflow with legal documents
+- **ArXiv Paper** - Research paper extraction from arXiv.org
+- **Hiking Notes** - Simple text annotation example
+- **Citizens United** - Supreme Court case with citation detection
+
+Run demos interactively or via CLI:
+
+```bash
+cd demo
+cp .env.example .env
+
+# Interactive terminal UI
+npm run demo:interactive
+
+# Or run specific commands
+npx tsx demo.ts citizens_united download
+npx tsx demo.ts citizens_united load
+npx tsx demo.ts citizens_united annotate
+```
+
+[→ Read the demo documentation](demo/README.md)
+
+## 🌐 Cloud Deployment
+
+Deploy Semiont to AWS for production use with auto-scaling and managed services.
+
+See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for AWS deployment instructions.
+
+## 📦 API Client
 
 The **[@semiont/api-client](packages/api-client/)** provides a generated OpenAPI client for external applications:
 
@@ -87,80 +137,6 @@ const resource = await client.createResource({
 - [API Client README](packages/api-client/README.md) - SDK usage and utilities
 - [API Reference](specs/docs/API.md) - Complete HTTP API endpoint documentation
 - [OpenAPI Specification](specs/README.md) - Machine-readable API contract (source in [specs/src/](specs/src/))
-
-### Demo Scripts
-
-The **[demo/](demo/)** directory contains example scripts showing how to use the SDK:
-
-- **Prometheus Bound Demo** - Complete workflow demonstrating:
-  - Resource upload and chunking
-  - Table of contents generation
-  - Annotation creation and resolution
-  - Event history tracking
-
-```bash
-cd demo
-cp .env.example .env
-npm run pro-bo
-```
-
-[→ Read the demo documentation](demo/README.md)
-
-## 🚀 Quickstart
-
-### Try in GitHub Codespaces
-
-Get started instantly with a pre-configured development environment:
-
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
-
-GitHub Codespaces provides a complete cloud development environment with all dependencies pre-installed. Perfect for exploring Semiont, contributing, or building your first annotation-powered application.
-
-### Prerequisites
-
-For local development, you'll need:
-
-- Node.js 18+ (22+ recommended)
-- npm 9+
-- Docker or Podman (for local PostgreSQL containers)
-- AWS CLI configured (for cloud deployment only)
-
-### 1. Clone & Build Semiont CLI
-
-```bash
-git clone https://github.com/The-AI-Alliance/semiont.git
-cd semiont
-export SEMIONT_REPO=$(pwd)      # Set repository path
-npm install                     # Install all workspace dependencies
-npm run build                   # Build packages and CLI
-npm run install:cli             # Install the semiont CLI globally
-```
-
-### 2. Create Your Project
-
-```bash
-# Create your project directory
-cd ..
-mkdir my_semiont_project
-cd my_semiont_project
-export SEMIONT_ROOT=$(pwd)      # Set project root path
-export SEMIONT_ENV=local        # Set environment for local development
-
-# Initialize the project with configuration files
-semiont init --name "my-project" --environments "local,staging,production"
-
-# This creates:
-# ✅ semiont.json - Main project configuration
-# ✅ environments/*.json - Environment-specific configs
-```
-
-### 3. Local Development
-
-For detailed local development setup, see [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md).
-
-### 4. Deploy to AWS
-
-For complete deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## 📖 Documentation
 
