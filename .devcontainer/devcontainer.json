@@ -68,7 +68,6 @@
         "workbench.startupEditor": "readme",
         "explorer.openEditors.visible": 0,
         "workbench.sideBar.location": "left",
-        "workbench.activityBar.visible": true,
         "explorer.autoReveal": false,
         "github.copilot.chat.welcomeMessage": "never",
         "workbench.panel.defaultLocation": "bottom",
@@ -77,9 +76,6 @@
         }
       }
     }
-  },
-
-  // Environment variables that will be set in the container
   // These will use GitHub Codespaces secrets if configured
   "containerEnv": {
     "SEMIONT_ENV": "local",
