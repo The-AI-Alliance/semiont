@@ -34,7 +34,8 @@
   },
 
   // Use 'postCreateCommand' to run commands after the container is created
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  // Output will be visible in the terminal during execution
+  "postCreateCommand": "bash .devcontainer/post-create.sh 2>&1",
 
   // Configure tool-specific properties
   "customizations": {

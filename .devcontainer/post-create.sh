@@ -3,6 +3,10 @@
 # Enhanced error handling and verbose output
 set -euo pipefail
 
+# Force unbuffered output so logs appear immediately
+exec 2>&1
+export PYTHONUNBUFFERED=1
+
 # Enable verbose logging
 echo "=========================================="
 echo "SEMIONT DEVCONTAINER POST-CREATE SCRIPT"
@@ -10,6 +14,17 @@ echo "=========================================="
 echo "Starting at: $(date)"
 echo "Working directory: $(pwd)"
 echo "User: $(whoami)"
+echo ""
+echo "This script will set up your development environment:"
+echo "  1. Install npm dependencies (2-4 minutes)"
+echo "  2. Build all packages and CLI (1-2 minutes)"
+echo "  3. Configure Semiont CLI"
+echo "  4. Set up database schema"
+echo "  5. Create environment files"
+echo "  6. Configure IDE workspace"
+echo ""
+echo "Total estimated time: 5-7 minutes"
+echo ""
 echo "Environment variables:"
 echo "  SEMIONT_ENV=${SEMIONT_ENV:-not set}"
 echo "  SEMIONT_ROOT=${SEMIONT_ROOT:-not set}"
@@ -83,7 +98,15 @@ print_success "Node.js and npm are available"
 # Install dependencies
 print_status "Installing npm dependencies (this may take a few minutes)..."
 echo "Running: npm install"
-if npm install; then
+echo "This typically takes 2-4 minutes. Progress will be shown below:"
+echo ""
+if npm install --verbose 2>&1 | while IFS= read -r line; do
+    echo "  $line"
+    # Flush output immediately
+    if [[ $((RANDOM % 10)) -eq 0 ]]; then
+        echo -n ""  # Force flush
+    fi
+done; then
     print_success "Dependencies installed successfully"
 else
     print_error "npm install failed"
@@ -93,7 +116,15 @@ fi
 # Build all packages including CLI
 print_status "Building packages and CLI (this may take a few minutes)..."
 echo "Running: npm run build"
-if npm run build; then
+echo "This typically takes 1-2 minutes. Building all workspace packages:"
+echo ""
+if npm run build 2>&1 | while IFS= read -r line; do
+    echo "  $line"
+    # Flush output immediately
+    if [[ $((RANDOM % 10)) -eq 0 ]]; then
+        echo -n ""  # Force flush
+    fi
+done; then
     print_success "Packages built successfully"
 else
     print_error "npm run build failed"
@@ -150,15 +181,17 @@ fi
 print_status "Waiting for PostgreSQL to be ready..."
 max_attempts=30
 attempt=0
+echo "Checking PostgreSQL connection (max ${max_attempts} attempts)..."
 while ! pg_isready -h localhost -p 5432 -U semiont > /dev/null 2>&1; do
     attempt=$((attempt + 1))
     if [ $attempt -ge $max_attempts ]; then
         print_warning "PostgreSQL not ready after ${max_attempts} attempts, continuing anyway"
         break
     fi
-    echo "  Attempt $attempt/$max_attempts - PostgreSQL not ready, waiting..."
+    echo -n "."  # Show progress dots
     sleep 2
 done
+echo ""  # New line after dots
 
 if [ $attempt -lt $max_attempts ]; then
     print_success "PostgreSQL is ready"
