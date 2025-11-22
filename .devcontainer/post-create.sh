@@ -20,9 +20,12 @@ echo "=========================================="
 echo ""
 echo "📋 Setup Steps:"
 echo "  • Install dependencies"
-echo "  • Build packages & CLI"
-echo "  • Configure Semiont"
-echo "  • Initialize database"
+echo "  • Build shared packages"
+echo "  • Build & install CLI"
+echo "  • Initialize project"
+echo "  • Provision services"
+echo "  • Build applications"
+echo "  • Setup database"
 echo "  • Start services"
 echo ""
 echo "⏱️  Estimated time: 5-7 minutes"
@@ -131,7 +134,7 @@ npm link >> $LOG_FILE 2>&1 || {
 cd /workspace || exit 1
 
 # Get npm global bin directory
-NPM_GLOBAL_BIN=$(npm bin -g)
+NPM_GLOBAL_BIN=$(npm config get prefix)/bin
 echo "npm global bin directory: $NPM_GLOBAL_BIN"
 
 # Add npm global bin to PATH for current session
