@@ -1,0 +1,36 @@
+==========================================
+   SEMIONT DEVELOPMENT ENVIRONMENT
+==========================================
+
+✅ Setup Complete!
+
+Your Codespace is ready with:
+  • Semiont CLI installed and configured
+  • PostgreSQL database running
+  • Backend and frontend services started
+  • Demo environment prepared
+
+📂 Project Structure:
+  • Repository: /workspace
+  • Project Root: /workspace/project
+  • Configuration: /workspace/project/semiont.json
+  • Environment: /workspace/project/environments/local.json
+
+🚀 Quick Commands:
+  • semiont status       - Check service status
+  • semiont logs         - View service logs
+  • semiont stop         - Stop all services
+  • semiont restart      - Restart services
+
+💻 Demo Application:
+  • cd demo && npm run demo:interactive
+
+📚 Documentation:
+  • API Docs: http://localhost:4000/docs
+  • README: /workspace/README.md
+
+🔧 Troubleshooting:
+  • Check logs: cat /tmp/post-create.log
+  • Service PIDs are shown above
+
+==========================================

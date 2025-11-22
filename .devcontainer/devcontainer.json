@@ -34,7 +34,7 @@
   // "postCreateCommand": "bash .devcontainer/post-create.sh",
 
   // Show setup instructions when VS Code attaches
-  "postAttachCommand": "echo \"\" && echo \"================================\" && echo \"Semiont Development Environment\" && echo \"Run setup: bash .devcontainer/post-create.sh\" && echo \"================================\" && echo \"\"",
+  "postAttachCommand": "clear && cat /workspace/.devcontainer/setup-instructions.txt",
 
   // Configure tool-specific properties
   "customizations": {

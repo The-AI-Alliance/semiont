@@ -417,21 +417,6 @@ else
     print_success "Neo4j credentials configured"
 fi
 
-echo ""
-echo "=========================================="
-echo "   ✅ SETUP COMPLETE"
-echo "=========================================="
-echo ""
-print_success "Environment ready!"
-
-# Stay in workspace directory
-cd /workspace
-echo ""
-echo "================================"
-echo "Workspace ready!"
-echo "To run the demo: cd demo && npm run demo:interactive"
-echo "================================"
-
 # Configure bash to start in workspace directory for new terminals
 echo "" >> /home/node/.bashrc
 echo "# Start in workspace directory" >> /home/node/.bashrc
@@ -458,9 +443,15 @@ else
     print_warning "Services may still be starting"
 fi
 
+# Store PIDs for reference
 echo ""
-echo "  Backend PID: $BACKEND_PID"
-echo "  Frontend PID: $FRONTEND_PID"
+echo "Service PIDs:"
+echo "  • Backend: $BACKEND_PID"
+echo "  • Frontend: $FRONTEND_PID"
 echo ""
-echo "  Check status: semiont status"
-echo "  View logs: semiont logs"
+
+# Change to workspace directory for user
+cd /workspace
+
+# Display welcome message
+clear && cat /workspace/.devcontainer/welcome.txt
