@@ -34,7 +34,7 @@
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
   // Show demo instructions when VS Code attaches
-  "postAttachCommand": "bash -c 'cd /workspace/demo && echo \"\" && echo \"================================\" && echo \"Ready to run the interactive demo!\" && echo \"To start: npm run demo:interactive\" && echo \"================================\"' || true",
+  "postAttachCommand": "echo \"\" && echo \"================================\" && echo \"Ready to run the interactive demo!\" && echo \"From the demo directory, run: npm run demo:interactive\" && echo \"================================\" && echo \"\"",
 
   // Configure tool-specific properties
   "customizations": {
@@ -45,7 +45,8 @@
       ],
       "settings": {
         "workbench.sideBar.visible": true,
-        "workbench.startupView": "workbench.explorer.fileView"
+        "workbench.startupView": "workbench.explorer.fileView",
+        "terminal.integrated.cwd": "/workspace/demo"
       }
     },
     "vscode": {
@@ -319,7 +320,7 @@
   // These will use GitHub Codespaces secrets if configured
   "containerEnv": {
     "SEMIONT_ENV": "local",
-    "SEMIONT_ROOT": "/workspace",
+    "SEMIONT_ROOT": "/workspace/project",
     "SEMIONT_REPO": "/workspace",
     "NODE_ENV": "development"
   },
@@ -327,7 +328,7 @@
   // Also set these in remoteEnv to ensure they're available in all terminals
   "remoteEnv": {
     "SEMIONT_ENV": "local",
-    "SEMIONT_ROOT": "/workspace",
+    "SEMIONT_ROOT": "/workspace/project",
     "SEMIONT_REPO": "/workspace"
   },
 

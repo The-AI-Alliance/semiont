@@ -57,9 +57,9 @@ echo "  5. Create environment files"
 echo "  6. Configure IDE workspace"
 echo ""
 echo "Environment variables:"
-echo "  SEMIONT_ENV=${SEMIONT_ENV:-not set}"
-echo "  SEMIONT_ROOT=${SEMIONT_ROOT:-not set}"
-echo "  SEMIONT_REPO=${SEMIONT_REPO:-not set}"
+echo "  SEMIONT_ENV=${SEMIONT_ENV:-not set} (should be 'local')"
+echo "  SEMIONT_ROOT=${SEMIONT_ROOT:-not set} (should be '/workspace/project')"
+echo "  SEMIONT_REPO=${SEMIONT_REPO:-not set} (should be '/workspace')"
 echo "  CODESPACES=${CODESPACES:-not set}"
 echo "  REMOTE_CONTAINERS=${REMOTE_CONTAINERS:-not set}"
 echo "------------------------------------------"
@@ -161,6 +161,19 @@ else
 fi
 
 print_status "Setting up Semiont project configuration..."
+
+# Create project directory for Semiont workspace
+print_status "Creating Semiont project directory..."
+mkdir -p /workspace/project
+export SEMIONT_ROOT=/workspace/project
+print_success "Project directory created at $SEMIONT_ROOT"
+
+# Initialize Semiont project
+print_status "Initializing Semiont project..."
+cd /workspace || exit 1
+semiont init --verbose 2>&1 | tee -a $LOG_FILE || {
+    print_warning "Semiont init failed or project already initialized, continuing..."
+}
 
 # Wait for PostgreSQL to be ready before provisioning
 print_status "Waiting for PostgreSQL to be ready..."
@@ -433,6 +446,8 @@ ${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━
     - CLI Help: semiont --help
 
   ⚙️  Configuration:
+    - Project root: /workspace/project
+    - Repository root: /workspace
     - Project config: /workspace/semiont.json
     - Environment: /workspace/environments/local.json
     - Backend env: /workspace/apps/backend/.env
@@ -485,6 +500,13 @@ echo "================================"
 echo "Ready to run the interactive demo!"
 echo "To start: npm run demo:interactive"
 echo "================================"
+
+# Configure bash to start in demo directory for new terminals
+echo "" >> /home/node/.bashrc
+echo "# Start in demo directory for Semiont development" >> /home/node/.bashrc
+echo "if [ -d /workspace/demo ]; then" >> /home/node/.bashrc
+echo "    cd /workspace/demo" >> /home/node/.bashrc
+echo "fi" >> /home/node/.bashrc
 
 # Note: We don't automatically start services here because the user might want to
 # choose which services to run. The database is already running via docker-compose.
