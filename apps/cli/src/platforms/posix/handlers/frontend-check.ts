@@ -11,10 +11,21 @@ import { StateManager } from '../../../core/state-manager.js';
  * and collects recent logs.
  */
 const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { service, savedState } = context;
-  
-  // Setup paths
-  const frontendDir = path.join(service.projectRoot, 'frontend');
+  const { service, savedState, options } = context;
+
+  // Get semiont repo path
+  const semiontRepo = options?.semiontRepo || process.env.SEMIONT_REPO;
+  if (!semiontRepo) {
+    return {
+      success: false,
+      status: 'stopped',
+      error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+
+  // Setup paths - runtime files are in source directory
+  const frontendDir = path.join(semiontRepo, 'apps', 'frontend');
   const pidFile = path.join(frontendDir, '.pid');
   const logsDir = path.join(frontendDir, 'logs');
   const appLogPath = path.join(logsDir, 'app.log');
