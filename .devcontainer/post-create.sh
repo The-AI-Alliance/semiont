@@ -449,6 +449,12 @@ echo "fi" >> /home/node/.bashrc
 print_status "Starting services..."
 cd $SEMIONT_ROOT || exit 1
 
+# Stop any existing services first
+print_status "Stopping any existing services..."
+semiont stop >> $LOG_FILE 2>&1 || {
+    print_warning "No services to stop or stop failed - continuing"
+}
+
 # Start backend service
 semiont start --service backend >> $LOG_FILE 2>&1 || {
     print_error "Backend service failed to start - check $LOG_FILE"
