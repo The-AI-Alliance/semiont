@@ -361,12 +361,13 @@ semiont start --service frontend >> $LOG_FILE 2>&1 || {
 }
 print_success "Frontend service started"
 
-# Check service status
+# Check service status (non-fatal)
+print_status "Checking service status..."
 if semiont check >> $LOG_FILE 2>&1; then
     print_success "All services running"
 else
-    print_error "Service check failed"
-    exit 1
+    print_warning "Some services may not be fully ready yet"
+    print_info "You can check status manually with: semiont check"
 fi
 
 
