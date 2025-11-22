@@ -193,133 +193,19 @@ if [ $attempt -lt $max_attempts ]; then
     print_success "PostgreSQL ready"
 fi
 
-# Create semiont.json configuration in SEMIONT_ROOT
-print_status "Creating semiont.json configuration..."
+# Copy semiont.json configuration to SEMIONT_ROOT
+print_status "Configuring semiont.json..."
 cd $SEMIONT_ROOT || exit 1
-if [ ! -f "semiont.json" ]; then
-    cat > semiont.json << 'EOF'
-{
-  "version": "1.0.0",
-  "project": "semiont-devcontainer",
-  "site": {
-    "siteName": "Semiont Development",
-    "domain": "localhost:3000",
-    "adminEmail": "dev@example.com",
-    "oauthAllowedDomains": ["example.com", "gmail.com"]
-  },
-  "services": {
-    "frontend": {
-      "framework": "next",
-      "port": 3000
-    },
-    "backend": {
-      "framework": "express",
-      "port": 4000
-    },
-    "database": {
-      "type": "postgres",
-      "port": 5432
-    }
-  }
-}
-EOF
-    print_success "semiont.json created"
-else
-    print_success "semiont.json already exists"
-fi
+# Always overwrite to ensure correct configuration
+cp /workspace/.devcontainer/semiont.json semiont.json
+print_success "semiont.json configured"
 
-# Create environment configuration for local
-print_status "Setting up environment configuration..."
-if [ ! -f "environments/local.json" ]; then
-    print_status "Creating environments/local.json..."
-    mkdir -p environments
-    cat > environments/local.json << 'EOF'
-{
-  "name": "local",
-  "platform": {
-    "default": "container"
-  },
-  "deployment": {
-    "imageTagStrategy": "mutable"
-  },
-  "site": {
-    "domain": "localhost:3000"
-  },
-  "env": {
-    "NODE_ENV": "development"
-  },
-  "services": {
-    "backend": {
-      "platform": {
-        "type": "posix"
-      },
-      "command": "npm run dev",
-      "port": 4000,
-      "publicURL": "http://localhost:4000",
-      "corsOrigin": "http://localhost:3000"
-    },
-    "frontend": {
-      "platform": {
-        "type": "posix"
-      },
-      "command": "npm run dev",
-      "port": 3000,
-      "url": "http://localhost:3000"
-    },
-    "database": {
-      "platform": {
-        "type": "container"
-      },
-      "image": "postgres:16-alpine",
-      "name": "semiont-local-db",
-      "port": 5432,
-      "environment": {
-        "POSTGRES_DB": "semiont",
-        "POSTGRES_USER": "semiont",
-        "POSTGRES_PASSWORD": "semiont"
-      }
-    },
-    "graph": {
-      "platform": {
-        "type": "external"
-      },
-      "type": "neo4j",
-      "name": "neo4j",
-      "uri": "${NEO4J_URI}",
-      "username": "${NEO4J_USERNAME}",
-      "password": "${NEO4J_PASSWORD}",
-      "database": "${NEO4J_DATABASE}"
-    },
-    "mcp": {
-      "platform": {
-        "type": "posix"
-      },
-      "dependsOn": ["backend"]
-    },
-    "filesystem": {
-      "platform": {
-        "type": "posix"
-      },
-      "path": "./data/uploads",
-      "description": "Local filesystem storage for uploads and assets"
-    },
-    "inference": {
-      "platform": {
-        "type": "external"
-      },
-      "type": "anthropic",
-      "model": "claude-3-5-sonnet-20241022",
-      "maxTokens": 8192,
-      "endpoint": "https://api.anthropic.com",
-      "apiKey": "${ANTHROPIC_API_KEY}"
-    }
-  }
-}
-EOF
-    print_success "Environment configuration created"
-else
-    print_success "Environment configuration already exists"
-fi
+# Copy environment configuration for local
+print_status "Configuring environment..."
+# Always overwrite to ensure correct configuration
+mkdir -p environments
+cp /workspace/.devcontainer/environments-local.json environments/local.json
+print_success "Environment configuration configured"
 
 # Provision services individually using Semiont CLI
 print_status "Provisioning services..."
@@ -328,15 +214,8 @@ cd $SEMIONT_ROOT || {
     exit 1
 }
 
-# Provision database service first
-semiont provision --service database >> $LOG_FILE 2>&1 || {
-    print_error "Database provisioning failed - check $LOG_FILE"
-    exit 1
-}
-print_success "Database provisioned"
-
-# Wait for database to be ready after provisioning
-sleep 3
+# Database is already running via docker-compose, no need to provision
+print_success "Database already running via docker-compose"
 
 # Provision backend service (this creates the proper .env file and admin user)
 semiont provision --service backend --admin-email dev@example.com >> $LOG_FILE 2>&1 || {

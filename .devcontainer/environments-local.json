@@ -1,0 +1,81 @@
+{
+  "name": "local",
+  "platform": {
+    "default": "container"
+  },
+  "deployment": {
+    "imageTagStrategy": "mutable"
+  },
+  "site": {
+    "domain": "localhost:3000"
+  },
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "services": {
+    "backend": {
+      "platform": {
+        "type": "posix"
+      },
+      "command": "npm run dev",
+      "port": 4000,
+      "publicURL": "http://localhost:4000",
+      "corsOrigin": "http://localhost:3000"
+    },
+    "frontend": {
+      "platform": {
+        "type": "posix"
+      },
+      "command": "npm run dev",
+      "port": 3000,
+      "url": "http://localhost:3000"
+    },
+    "database": {
+      "platform": {
+        "type": "external"
+      },
+      "type": "postgres",
+      "name": "postgres",
+      "host": "localhost",
+      "port": 5432,
+      "database": "semiont",
+      "username": "semiont",
+      "password": "semiont",
+      "description": "PostgreSQL database managed by docker-compose"
+    },
+    "graph": {
+      "platform": {
+        "type": "external"
+      },
+      "type": "neo4j",
+      "name": "neo4j",
+      "uri": "${NEO4J_URI}",
+      "username": "${NEO4J_USERNAME}",
+      "password": "${NEO4J_PASSWORD}",
+      "database": "${NEO4J_DATABASE}"
+    },
+    "mcp": {
+      "platform": {
+        "type": "posix"
+      },
+      "dependsOn": ["backend"]
+    },
+    "filesystem": {
+      "platform": {
+        "type": "posix"
+      },
+      "path": "./data/uploads",
+      "description": "Local filesystem storage for uploads and assets"
+    },
+    "inference": {
+      "platform": {
+        "type": "external"
+      },
+      "type": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "maxTokens": 8192,
+      "endpoint": "https://api.anthropic.com",
+      "apiKey": "${ANTHROPIC_API_KEY}"
+    }
+  }
+}
