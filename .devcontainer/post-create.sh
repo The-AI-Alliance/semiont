@@ -96,16 +96,17 @@ npm install >> $LOG_FILE 2>&1 || {
 }
 print_success "Dependencies installed"
 
-print_status "Building packages..."
-npm run build >> $LOG_FILE 2>&1 || {
-    print_error "npm run build failed - check $LOG_FILE for details"
+print_status "Building shared packages..."
+# Build only the shared packages, not the apps yet
+npm run build:packages >> $LOG_FILE 2>&1 || {
+    print_error "Package build failed - check $LOG_FILE for details"
     exit 1
 }
-print_success "Build completed"
+print_success "Packages built"
 
 print_status "Building Semiont CLI..."
 
-# First build the MCP server package
+# Build the MCP server package (if not already built)
 npm run build -w @semiont/mcp-server >> $LOG_FILE 2>&1 || {
     print_error "MCP server build failed - check $LOG_FILE for details"
     exit 1
@@ -348,13 +349,19 @@ semiont provision --service frontend >> $LOG_FILE 2>&1 || {
 }
 print_success "Frontend provisioned"
 
-# Setup database schema after services are provisioned
-print_status "Setting up database schema..."
-cd apps/backend || {
+# Build backend now that we have environment variables
+print_status "Building backend application..."
+cd /workspace/apps/backend || {
     print_error "Failed to change to backend directory"
     exit 1
 }
+npm run build >> $LOG_FILE 2>&1 || {
+    print_warning "Backend build failed - continuing"
+}
+print_success "Backend built"
 
+# Setup database schema
+print_status "Setting up database schema..."
 if npm run prisma:generate >> $LOG_FILE 2>&1; then
     print_success "Prisma client generated"
 else
@@ -366,6 +373,17 @@ if npx prisma db push --skip-generate >> $LOG_FILE 2>&1; then
 else
     print_warning "Database push failed - continuing"
 fi
+
+# Build frontend now that we have environment variables
+print_status "Building frontend application..."
+cd /workspace/apps/frontend || {
+    print_error "Failed to change to frontend directory"
+    exit 1
+}
+npm run build >> $LOG_FILE 2>&1 || {
+    print_warning "Frontend build failed - continuing"
+}
+print_success "Frontend built"
 
 cd $SEMIONT_ROOT || {
     print_error "Failed to return to SEMIONT_ROOT"
