@@ -39,20 +39,17 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     printInfo(`Using semiont repo: ${semiontRepo}`);
   }
   
-  // Create frontend runtime directory structure
-  const frontendDir = path.join(service.projectRoot, 'frontend');
-  const logsDir = path.join(frontendDir, 'logs');
-  const tmpDir = path.join(frontendDir, 'tmp');
-  // Write .env.local directly to the frontend source directory where it's needed
+  // All runtime files go directly in the source directory for consistency
+  const logsDir = path.join(frontendSourceDir, 'logs');
+  const tmpDir = path.join(frontendSourceDir, 'tmp');
   const envFile = path.join(frontendSourceDir, '.env.local');
-  
+
   // Create directories
-  fs.mkdirSync(frontendDir, { recursive: true });
   fs.mkdirSync(logsDir, { recursive: true });
   fs.mkdirSync(tmpDir, { recursive: true });
   
   if (!service.quiet) {
-    printInfo(`Created frontend directory: ${frontendDir}`);
+    printInfo(`Created runtime directories in: ${frontendSourceDir}`);
   }
   
   // Setup .env.local file
@@ -179,7 +176,7 @@ TMP_DIR=${tmpDir}
     return {
       success: false,
       error: `Failed to install dependencies: ${error}`,
-      metadata: { serviceType: 'frontend', frontendDir }
+      metadata: { serviceType: 'frontend', frontendSourceDir }
     };
   }
   
@@ -217,8 +214,8 @@ TMP_DIR=${tmpDir}
     }
   }
   
-  // Create README in frontend directory
-  const readmePath = path.join(frontendDir, 'README.md');
+  // Create README in frontend source directory
+  const readmePath = path.join(frontendSourceDir, 'RUNTIME.md');
   if (!fs.existsSync(readmePath)) {
     const readmeContent = `# Frontend Runtime Directory
 
@@ -255,12 +252,11 @@ ${frontendSourceDir}
   
   const metadata = {
     serviceType: 'frontend',
-    frontendDir,
+    frontendSourceDir,
     envFile,
     logsDir,
     tmpDir,
     semiontRepo,
-    frontendSourceDir,
     configured: true
   };
   
@@ -268,7 +264,6 @@ ${frontendSourceDir}
     printSuccess(`✅ Frontend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Frontend details:');
-    printInfo(`  Runtime directory: ${frontendDir}`);
     printInfo(`  Source directory: ${frontendSourceDir}`);
     printInfo(`  Environment file: ${envFile}`);
     printInfo(`  Logs directory: ${logsDir}`);
@@ -285,7 +280,7 @@ ${frontendSourceDir}
     resources: {
       platform: 'posix',
       data: {
-        path: frontendDir,
+        path: frontendSourceDir,
         workingDirectory: frontendSourceDir
       }
     }

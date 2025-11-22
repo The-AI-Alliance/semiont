@@ -8,9 +8,9 @@ import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logg
 
 /**
  * Start handler for backend services on POSIX systems
- * 
+ *
  * Starts the backend Node.js process using the configuration from
- * SEMIONT_ROOT/backend/.env.local and logs to SEMIONT_ROOT/backend/logs/
+ * the backend source directory's .env and logs
  */
 const startBackendService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service, options } = context;
@@ -34,19 +34,18 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     };
   }
   
-  // Setup backend runtime directory
-  const backendDir = path.join(service.projectRoot, 'backend');
-  // Look for .env in the source directory where provision writes it
+  // All runtime files are in the source directory
   const envFile = path.join(backendSourceDir, '.env');
-  const pidFile = path.join(backendDir, '.pid');
-  const logsDir = path.join(backendDir, 'logs');
+  const pidFile = path.join(backendSourceDir, '.pid');
+  const logsDir = path.join(backendSourceDir, 'logs');
+  const tmpDir = path.join(backendSourceDir, 'tmp');
   
-  // Check if backend directory exists
-  if (!fs.existsSync(backendDir)) {
+  // Check if backend is provisioned (by checking for .env)
+  if (!fs.existsSync(envFile)) {
     return {
       success: false,
       error: `Backend not provisioned. Run: semiont provision --service backend --environment ${service.environment} --semiont-repo ${semiontRepo}`,
-      metadata: { serviceType: 'backend', backendDir }
+      metadata: { serviceType: 'backend', backendSourceDir }
     };
   }
   
@@ -105,7 +104,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     NODE_ENV: envVars.NODE_ENV || 'development',
     PORT: port.toString(),
     LOG_DIR: logsDir,
-    TMP_DIR: path.join(backendDir, 'tmp')
+    TMP_DIR: tmpDir
   };
   
   // Ensure logs directory exists
@@ -127,7 +126,6 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   if (!service.quiet) {
     printInfo(`Starting backend service ${service.name}...`);
     printInfo(`Source: ${backendSourceDir}`);
-    printInfo(`Runtime: ${backendDir}`);
     printInfo(`Port: ${port}`);
   }
   
@@ -193,7 +191,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
         port,
         command: `node ${distPath}`,
         workingDirectory: backendSourceDir,
-        path: backendDir,
+        path: backendSourceDir,
         logFile: appLogPath
       }
     };
@@ -224,7 +222,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
         serviceType: 'backend',
         pid: proc.pid,
         port,
-        backendDir,
+        backendSourceDir,
         logsDir,
         command: `node dist/index.js`
       }

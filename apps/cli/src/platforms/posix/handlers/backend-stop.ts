@@ -6,26 +6,36 @@ import { killProcessGroupAndRelated } from '../utils/process-manager.js';
 
 /**
  * Stop handler for backend services on POSIX systems
- * 
+ *
  * Stops the backend Node.js process gracefully using the PID file
- * stored in SEMIONT_ROOT/backend/.pid
+ * stored in the backend source directory
  */
 const stopBackendService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
   
-  // Setup paths
-  const backendDir = path.join(service.projectRoot, 'backend');
-  const pidFile = path.join(backendDir, '.pid');
-  const logsDir = path.join(backendDir, 'logs');
+  // Get semiont repo path
+  const semiontRepo = context.options?.semiontRepo || process.env.SEMIONT_REPO;
+  if (!semiontRepo) {
+    return {
+      success: false,
+      error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
+      metadata: { serviceType: 'backend' }
+    };
+  }
+
+  // Setup paths - all in source directory now
+  const backendSourceDir = path.join(semiontRepo, 'apps', 'backend');
+  const pidFile = path.join(backendSourceDir, '.pid');
+  const logsDir = path.join(backendSourceDir, 'logs');
   const appLogPath = path.join(logsDir, 'app.log');
   const errorLogPath = path.join(logsDir, 'error.log');
   
-  // Check if backend directory exists
-  if (!fs.existsSync(backendDir)) {
+  // Check if backend source directory exists
+  if (!fs.existsSync(backendSourceDir)) {
     return {
       success: false,
-      error: 'Backend not provisioned',
-      metadata: { serviceType: 'backend', backendDir }
+      error: 'Backend not found',
+      metadata: { serviceType: 'backend', backendSourceDir }
     };
   }
   
@@ -166,7 +176,7 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
       metadata: {
         serviceType: 'backend',
         pid,
-        backendDir,
+        backendSourceDir,
         graceful: killed
       }
     };

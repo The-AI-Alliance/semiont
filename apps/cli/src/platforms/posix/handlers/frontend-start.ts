@@ -8,9 +8,9 @@ import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logg
 
 /**
  * Start handler for frontend services on POSIX systems
- * 
+ *
  * Starts the frontend Node.js process using the configuration from
- * SEMIONT_ROOT/frontend/.env.local and logs to SEMIONT_ROOT/frontend/logs/
+ * the frontend source directory's .env.local and logs
  */
 const startFrontendService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service, options } = context;
@@ -34,19 +34,18 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     };
   }
   
-  // Setup frontend runtime directory
-  const frontendDir = path.join(service.projectRoot, 'frontend');
-  // Look for .env.local in the source directory where provision writes it
+  // All runtime files are in the source directory
   const envFile = path.join(frontendSourceDir, '.env.local');
-  const pidFile = path.join(frontendDir, '.pid');
-  const logsDir = path.join(frontendDir, 'logs');
+  const pidFile = path.join(frontendSourceDir, '.pid');
+  const logsDir = path.join(frontendSourceDir, 'logs');
+  const tmpDir = path.join(frontendSourceDir, 'tmp');
   
-  // Check if frontend directory exists
-  if (!fs.existsSync(frontendDir)) {
+  // Check if frontend is provisioned (by checking for .env.local)
+  if (!fs.existsSync(envFile)) {
     return {
       success: false,
       error: `Frontend not provisioned. Run: semiont provision --service frontend --environment ${service.environment} --semiont-repo ${semiontRepo}`,
-      metadata: { serviceType: 'frontend', frontendDir }
+      metadata: { serviceType: 'frontend', frontendSourceDir }
     };
   }
   
@@ -99,7 +98,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     NODE_ENV: envVars.NODE_ENV || 'development',
     PORT: port.toString(),
     LOG_DIR: logsDir,
-    TMP_DIR: path.join(frontendDir, 'tmp')
+    TMP_DIR: tmpDir
   };
 
   // Debug: log NEXT_PUBLIC_* env vars
@@ -128,7 +127,6 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   if (!service.quiet) {
     printInfo(`Starting frontend service ${service.name}...`);
     printInfo(`Source: ${frontendSourceDir}`);
-    printInfo(`Runtime: ${frontendDir}`);
     printInfo(`Port: ${port}`);
   }
   
@@ -195,7 +193,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
         port,
         command,
         workingDirectory: frontendSourceDir,
-        path: frontendDir,
+        path: frontendSourceDir,
         logFile: appLogPath
       }
     };
@@ -226,7 +224,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
         serviceType: 'frontend',
         pid: proc.pid,
         port,
-        frontendDir,
+        frontendSourceDir,
         logsDir,
         command
       }

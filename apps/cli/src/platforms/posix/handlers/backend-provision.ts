@@ -38,20 +38,17 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     printInfo(`Using semiont repo: ${semiontRepo}`);
   }
   
-  // Create backend runtime directory structure
-  const backendDir = path.join(service.projectRoot, 'backend');
-  const logsDir = path.join(backendDir, 'logs');
-  const tmpDir = path.join(backendDir, 'tmp');
-  // Write .env directly to the backend source directory where it's needed
+  // All runtime files go directly in the source directory for consistency
+  const logsDir = path.join(backendSourceDir, 'logs');
+  const tmpDir = path.join(backendSourceDir, 'tmp');
   const envFile = path.join(backendSourceDir, '.env');
-  
+
   // Create directories
-  fs.mkdirSync(backendDir, { recursive: true });
   fs.mkdirSync(logsDir, { recursive: true });
   fs.mkdirSync(tmpDir, { recursive: true });
-  
+
   if (!service.quiet) {
-    printInfo(`Created backend directory: ${backendDir}`);
+    printInfo(`Created runtime directories in: ${backendSourceDir}`);
   }
 
   // Get environment configuration from service
@@ -158,7 +155,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     return {
       success: false,
       error: `Failed to install dependencies: ${error}`,
-      metadata: { serviceType: 'backend', backendDir }
+      metadata: { serviceType: 'backend', backendSourceDir }
     };
   }
   
@@ -337,8 +334,8 @@ main()
     }
   }
   
-  // Create README in backend directory
-  const readmePath = path.join(backendDir, 'README.md');
+  // Create README in backend source directory
+  const readmePath = path.join(backendSourceDir, 'RUNTIME.md');
   if (!fs.existsSync(readmePath)) {
     const readmeContent = `# Backend Runtime Directory
 
@@ -377,12 +374,11 @@ ${backendSourceDir}
   
   const metadata = {
     serviceType: 'backend',
-    backendDir,
+    backendSourceDir,
     envFile,
     logsDir,
     tmpDir,
     semiontRepo,
-    backendSourceDir,
     configured: true
   };
   
@@ -390,7 +386,6 @@ ${backendSourceDir}
     printSuccess(`✅ Backend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Backend details:');
-    printInfo(`  Runtime directory: ${backendDir}`);
     printInfo(`  Source directory: ${backendSourceDir}`);
     printInfo(`  Environment file: ${envFile}`);
     printInfo(`  Logs directory: ${logsDir}`);
@@ -407,7 +402,7 @@ ${backendSourceDir}
     resources: {
       platform: 'posix',
       data: {
-        path: backendDir,
+        path: backendSourceDir,
         workingDirectory: backendSourceDir
       }
     }
