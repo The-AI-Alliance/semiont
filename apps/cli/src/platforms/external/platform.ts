@@ -79,34 +79,6 @@ export class ExternalPlatform extends Platform {
     return undefined;
   }
   
-  /**
-   * Map service types to external handler types
-   */
-  protected override mapServiceType(declaredType: string): string {
-    // Map frontend to static handler
-    if (declaredType === 'frontend') {
-      return 'static';
-    }
-
-    // Preserve inference type for inference handler
-    if (declaredType === 'inference') {
-      return 'inference';
-    }
-
-    // Preserve graph type for graph handler
-    if (declaredType === 'graph') {
-      return 'graph';
-    }
-
-    // Backend and database services map to api handler
-    // since they're accessed via external APIs
-    if (declaredType === 'backend' || declaredType === 'database') {
-      return 'api';
-    }
-
-    // Throw error for unmapped service types
-    throw new Error(`Unmapped service type '${declaredType}' for external platform. Add explicit mapping in mapServiceType().`);
-  }
   
   /**
    * Build platform-specific context extensions for handlers
