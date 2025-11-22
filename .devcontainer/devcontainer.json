@@ -46,13 +46,16 @@
         "Prisma.prisma",
         "bradlc.vscode-tailwindcss",
         "streetsidesoftware.code-spell-checker",
-        "GitHub.copilot",
-        "GitHub.copilot-chat",
         "christian-kohler.npm-intellisense",
         "christian-kohler.path-intellisense",
         "formulahendry.auto-rename-tag",
         "yoavbls.pretty-ts-errors",
-        "usernamehw.errorlens"
+        "usernamehw.errorlens",
+        "-ms-toolsai.jupyter",
+        "-ms-toolsai.jupyter-keymap",
+        "-ms-toolsai.jupyter-renderers",
+        "-ms-toolsai.vscode-jupyter-cell-tags",
+        "-ms-toolsai.vscode-jupyter-slideshow"
       ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash",
@@ -71,8 +74,6 @@
         "workbench.activityBar.visible": true,
         "workbench.sideBar.visible": true,
         "explorer.autoReveal": true,
-        "github.copilot.chat.welcomeMessage": "never",
-        "github.copilot.chat.showWelcomeMessage": false,
         "workbench.auxiliaryBar.visible": false,
         "workbench.startup.openExplorer": true,
         "workbench.panel.defaultLocation": "bottom",
