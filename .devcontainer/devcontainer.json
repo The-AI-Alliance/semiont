@@ -33,11 +33,18 @@
   // Note: Output is buffered by Codespaces - use Cmd/Ctrl+Shift+P -> "View Creation Log" to see progress
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
-  // Open files and set explorer view when VS Code attaches
-  "postAttachCommand": "bash -c 'sleep 3 && code --command workbench.action.closeAuxiliaryBar && code --command workbench.view.explorer && code /workspace/README.md && sleep 1 && code /workspace/demo/README.md' || true",
+  // Force explorer open and show key files when VS Code attaches
+  // First toggle sidebar off then on to ensure it's visible, then focus explorer
+  "postAttachCommand": "bash -c 'sleep 2 && code --command workbench.action.toggleSidebarVisibility && sleep 0.5 && code --command workbench.action.toggleSidebarVisibility && sleep 0.5 && code --command workbench.view.explorer && sleep 1 && code /workspace/README.md && code /workspace/demo/README.md' || true",
 
   // Configure tool-specific properties
   "customizations": {
+    "codespaces": {
+      "openFiles": [
+        "README.md",
+        "demo/README.md"
+      ]
+    },
     "vscode": {
       "extensions": [
         "dbaeumer.vscode-eslint",
@@ -73,12 +80,8 @@
         "explorer.openEditors.visible": 0,
         "workbench.sideBar.location": "left",
         "workbench.activityBar.visible": true,
-        "workbench.sideBar.visible": true,
         "explorer.autoReveal": true,
-        "workbench.auxiliaryBar.visible": false,
-        "workbench.startup.openExplorer": true,
         "workbench.panel.defaultLocation": "bottom",
-        "workbench.startupView": "explorer",
         "workbench.editorAssociations": {
           "*.md": "default"
         },
