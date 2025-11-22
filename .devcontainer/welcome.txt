@@ -8,6 +8,7 @@ Your Codespace is ready with:
   • Semiont CLI installed and configured
   • PostgreSQL database running
   • Backend and frontend services started
+  • Admin user created: dev@example.com
   • Demo environment prepared
 
 📂 Project Structure:
@@ -16,8 +17,14 @@ Your Codespace is ready with:
   • Configuration: /workspace/project/semiont.json
   • Environment: /workspace/project/environments/local.json
 
+🌐 Access the Application:
+  • Frontend: http://localhost:3000
+  • Backend API: http://localhost:4000
+  • Sign in with: dev@example.com
+    (Use "Local authentication enabled for development")
+
 🚀 Quick Commands:
-  • semiont status       - Check service status
+  • semiont check        - Check service status
   • semiont logs         - View service logs
   • semiont stop         - Stop all services
   • semiont restart      - Restart services

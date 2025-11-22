@@ -338,12 +338,12 @@ print_success "Database provisioned"
 # Wait for database to be ready after provisioning
 sleep 3
 
-# Provision backend service (this creates the proper .env file)
-semiont provision --service backend >> $LOG_FILE 2>&1 || {
+# Provision backend service (this creates the proper .env file and admin user)
+semiont provision --service backend --admin-email dev@example.com >> $LOG_FILE 2>&1 || {
     print_error "Backend provisioning failed - check $LOG_FILE"
     exit 1
 }
-print_success "Backend provisioned"
+print_success "Backend provisioned (admin user: dev@example.com)"
 
 # Provision frontend service (this creates the proper .env.local file)
 semiont provision --service frontend >> $LOG_FILE 2>&1 || {
