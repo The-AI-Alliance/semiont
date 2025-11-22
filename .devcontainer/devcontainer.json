@@ -329,7 +329,8 @@
   "remoteEnv": {
     "SEMIONT_ENV": "local",
     "SEMIONT_ROOT": "/workspace/project",
-    "SEMIONT_REPO": "/workspace"
+    "SEMIONT_REPO": "/workspace",
+    "NODE_ENV": "development"
   },
 
   // Secrets to pass from Codespaces secrets to the container
