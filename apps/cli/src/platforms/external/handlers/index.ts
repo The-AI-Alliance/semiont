@@ -1,3 +1,4 @@
+import { databaseCheckDescriptor } from './database-check.js';
 import { graphCheckDescriptor } from './graph-check.js';
 import { inferenceCheckDescriptor } from './inference-check.js';
 import type { HandlerDescriptor } from './types.js';
@@ -9,6 +10,7 @@ import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.
 // Platform-specific handlers with typed contexts
 const externalHandlers: Array<HandlerDescriptor<any, any>> = [
   // Check handlers
+  databaseCheckDescriptor,
   graphCheckDescriptor,
   inferenceCheckDescriptor,
   // Start handlers
