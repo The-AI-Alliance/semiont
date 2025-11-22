@@ -36,7 +36,8 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   
   // Setup backend runtime directory
   const backendDir = path.join(service.projectRoot, 'backend');
-  const envFile = path.join(backendDir, '.env.local');
+  // Look for .env in the source directory where provision writes it
+  const envFile = path.join(backendSourceDir, '.env');
   const pidFile = path.join(backendDir, '.pid');
   const logsDir = path.join(backendDir, 'logs');
   
