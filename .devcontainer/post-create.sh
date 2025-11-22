@@ -178,7 +178,20 @@ print_success "Project initialized"
 print_status "Waiting for PostgreSQL..."
 max_attempts=30
 attempt=0
-while ! pg_isready -h localhost -p 5432 -U semiont > /dev/null 2>&1; do
+
+# Try to connect to PostgreSQL using Node.js since pg_isready might not be available
+while ! node -e "
+const net = require('net');
+const client = new net.Socket();
+client.connect(5432, 'localhost', function() {
+    client.destroy();
+    process.exit(0);
+});
+client.on('error', function() {
+    process.exit(1);
+});
+setTimeout(() => process.exit(1), 1000);
+" 2>/dev/null; do
     attempt=$((attempt + 1))
     if [ $attempt -ge $max_attempts ]; then
         print_warning "PostgreSQL not ready - continuing anyway"
