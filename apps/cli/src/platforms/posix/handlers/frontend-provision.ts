@@ -43,7 +43,8 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   const frontendDir = path.join(service.projectRoot, 'frontend');
   const logsDir = path.join(frontendDir, 'logs');
   const tmpDir = path.join(frontendDir, 'tmp');
-  const envFile = path.join(frontendDir, '.env.local');
+  // Write .env.local directly to the frontend source directory where it's needed
+  const envFile = path.join(frontendSourceDir, '.env.local');
   
   // Create directories
   fs.mkdirSync(frontendDir, { recursive: true });
@@ -75,6 +76,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     'NODE_ENV': 'development',
     'PORT': (service.config.port || 3000).toString(),
     'NEXT_PUBLIC_API_URL': `http://localhost:${service.config.backendPort || 4000}`,
+    'NEXT_PUBLIC_SITE_NAME': service.config.siteName || 'Semiont Development',
     'NEXT_PUBLIC_FRONTEND_URL': `http://localhost:${service.config.port || 3000}`,
     'NEXTAUTH_URL': `http://localhost:${service.config.port || 3000}`,
     'NEXTAUTH_SECRET': nextAuthSecret,
@@ -119,6 +121,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 NODE_ENV=development
 PORT=${service.config.port || 3000}
 NEXT_PUBLIC_API_URL=http://localhost:${service.config.backendPort || 4000}
+NEXT_PUBLIC_SITE_NAME=${service.config.siteName || 'Semiont Development'}
 NEXT_PUBLIC_FRONTEND_URL=http://localhost:${service.config.port || 3000}
 NEXTAUTH_URL=http://localhost:${service.config.port || 3000}
 NEXTAUTH_SECRET=${nextAuthSecret}
