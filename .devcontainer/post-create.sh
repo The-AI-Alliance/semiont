@@ -1,71 +1,35 @@
 #!/bin/bash
 
-# Enhanced error handling and verbose output
+# Enhanced error handling
 set -euo pipefail
 
 # Force unbuffered output so logs appear immediately
 exec 2>&1
 export PYTHONUNBUFFERED=1
 
-# Create a log file that can be tailed
+# Create a log file for debugging if needed
 LOG_FILE="/tmp/post-create.log"
-echo "Starting post-create setup at $(date)" | tee $LOG_FILE
+echo "Starting post-create setup at $(date)" > $LOG_FILE
 
-# Function to log with immediate output
-log_output() {
-    echo "$1" | tee -a $LOG_FILE
-    # Force flush
-    sync
-}
+# Clear the screen for clean output
+clear
 
-# Enable verbose logging
 echo "=========================================="
-echo "SEMIONT DEVCONTAINER POST-CREATE SCRIPT"
+echo "   SEMIONT DEVCONTAINER SETUP"
 echo "=========================================="
-echo "Starting at: $(date)"
 echo ""
-echo "⚠️  IMPORTANT: This setup takes 5-7 minutes."
+echo "📋 Setup Steps:"
+echo "  • Install dependencies"
+echo "  • Build packages & CLI"
+echo "  • Configure Semiont"
+echo "  • Initialize database"
+echo "  • Start services"
 echo ""
-
-# Try to open the Creation Log automatically (may not work in all contexts)
-if command -v code &> /dev/null; then
-    echo "Attempting to open Creation Log..."
-    # Try to open the output panel
-    code --command "workbench.action.output.toggleOutput" 2>/dev/null || true
-    # Try to focus on Codespaces log
-    code --command "workbench.action.showLogs" 2>/dev/null || true
-    # Try the specific creation log command
-    code --command "codespaces.viewCreationLog" 2>/dev/null || true
-fi
-
-echo "The terminal will show a spinner during setup."
-echo "To see real-time progress:"
-echo ""
-echo "  1. Press Cmd/Ctrl + Shift + P"
-echo "  2. Type: View Creation Log"
-echo "  3. Select: Codespaces: View Creation Log"
-echo ""
-echo "Or check the log file after setup:"
-echo "  cat /tmp/post-create.log"
-echo ""
-echo "Setup steps:"
-echo "  1. Install npm dependencies (2-4 minutes)"
-echo "  2. Build all packages and CLI (1-2 minutes)"
-echo "  3. Initialize and configure Semiont project"
-echo "  4. Set up database schema"
-echo "  5. Create environment files"
-echo "  6. Start backend and frontend services"
-echo "  7. Configure IDE workspace"
-echo ""
-echo "Environment variables:"
-echo "  SEMIONT_ENV=${SEMIONT_ENV:-not set} (should be 'local')"
-echo "  SEMIONT_ROOT=${SEMIONT_ROOT:-not set} (should be '/workspace/project')"
-echo "  SEMIONT_REPO=${SEMIONT_REPO:-not set} (should be '/workspace')"
-echo "  CODESPACES=${CODESPACES:-not set}"
-echo "  REMOTE_CONTAINERS=${REMOTE_CONTAINERS:-not set}"
+echo "⏱️  Estimated time: 5-7 minutes"
 echo "------------------------------------------"
+echo ""
 
-# Colors for output (but also echo without colors for logs)
+# Colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
@@ -74,27 +38,23 @@ NC='\033[0m' # No Color
 
 # Function to print colored output with timestamps
 print_status() {
-    local msg="[$(date '+%H:%M:%S')] STATUS: $1"
-    echo "$msg"
-    echo -e "${BLUE}==>${NC} $1"
+    echo -e "\n${BLUE}▶${NC} $1"
+    echo "[$(date '+%H:%M:%S')] STATUS: $1" >> $LOG_FILE
 }
 
 print_success() {
-    local msg="[$(date '+%H:%M:%S')] SUCCESS: $1"
-    echo "$msg"
     echo -e "${GREEN}✓${NC} $1"
+    echo "[$(date '+%H:%M:%S')] SUCCESS: $1" >> $LOG_FILE
 }
 
 print_warning() {
-    local msg="[$(date '+%H:%M:%S')] WARNING: $1"
-    echo "$msg"
     echo -e "${YELLOW}⚠${NC} $1"
+    echo "[$(date '+%H:%M:%S')] WARNING: $1" >> $LOG_FILE
 }
 
 print_error() {
-    local msg="[$(date '+%H:%M:%S')] ERROR: $1"
-    echo "$msg"
     echo -e "${RED}✗${NC} $1" >&2
+    echo "[$(date '+%H:%M:%S')] ERROR: $1" >> $LOG_FILE
 }
 
 # Error handler
@@ -112,131 +72,126 @@ error_handler() {
 trap 'error_handler ${LINENO} $?' ERR
 
 # Verify environment variables are set
-print_status "Verifying environment variables..."
-echo "  SEMIONT_ENV=$SEMIONT_ENV"
-echo "  SEMIONT_ROOT=$SEMIONT_ROOT"
-echo "  SEMIONT_REPO=$SEMIONT_REPO"
+print_status "Checking environment..."
 if [ -z "$SEMIONT_ENV" ] || [ -z "$SEMIONT_ROOT" ] || [ -z "$SEMIONT_REPO" ]; then
-    print_error "Required environment variables not set - check devcontainer.json"
+    print_error "Required environment variables not set"
+    echo "  SEMIONT_ENV=${SEMIONT_ENV:-not set}"
+    echo "  SEMIONT_ROOT=${SEMIONT_ROOT:-not set}"
+    echo "  SEMIONT_REPO=${SEMIONT_REPO:-not set}"
     exit 1
 fi
-print_success "Environment variables verified"
+print_success "Environment ready"
 
 # Check Node.js and npm versions
-print_status "Checking Node.js and npm versions..."
-echo "  Node.js version: $(node --version)"
-echo "  npm version: $(npm --version)"
-print_success "Node.js and npm are available"
+print_status "Checking tools..."
+print_success "Node $(node --version), npm $(npm --version)"
 
 # Build and install everything
-print_status "Installing dependencies and building Semiont..."
 cd /workspace || exit 1
 
-echo "Running npm install..."
-npm install 2>&1 | tee -a $LOG_FILE || {
-    print_error "npm install failed"
+print_status "Installing dependencies (this takes 2-4 minutes)..."
+npm install >> $LOG_FILE 2>&1 || {
+    print_error "npm install failed - check $LOG_FILE for details"
     exit 1
 }
 print_success "Dependencies installed"
 
-echo "Running npm run build..."
-npm run build 2>&1 | tee -a $LOG_FILE || {
-    print_error "npm run build failed"
+print_status "Building packages..."
+npm run build >> $LOG_FILE 2>&1 || {
+    print_error "npm run build failed - check $LOG_FILE for details"
     exit 1
 }
 print_success "Build completed"
 
-echo "Building and installing Semiont CLI..."
+print_status "Building Semiont CLI..."
+
 # First build the MCP server package
-echo "Building @semiont/mcp-server..."
-npm run build -w @semiont/mcp-server 2>&1 | tee -a $LOG_FILE || {
-    print_error "MCP server build failed"
+npm run build -w @semiont/mcp-server >> $LOG_FILE 2>&1 || {
+    print_error "MCP server build failed - check $LOG_FILE for details"
     exit 1
 }
 
 # Then build and link the CLI
-echo "Building semiont CLI..."
 cd apps/cli || {
     print_error "Failed to change to CLI directory"
     exit 1
 }
-npm run build 2>&1 | tee -a $LOG_FILE || {
-    print_error "CLI build failed"
+npm run build >> $LOG_FILE 2>&1 || {
+    print_error "CLI build failed - check $LOG_FILE for details"
     exit 1
 }
 
-echo "Installing CLI globally with npm link..."
-npm link 2>&1 | tee -a $LOG_FILE || {
-    print_error "npm link failed"
+npm link >> $LOG_FILE 2>&1 || {
+    print_error "npm link failed - check $LOG_FILE for details"
     exit 1
 }
 
 # Return to workspace root
 cd /workspace || exit 1
 
-# Ensure npm global bin is in PATH
-export PATH="/usr/local/bin:$PATH"
+# Get npm global bin directory
+NPM_GLOBAL_BIN=$(npm bin -g)
+echo "npm global bin directory: $NPM_GLOBAL_BIN"
 
-# Also try to create a direct symlink as a fallback
-if [ ! -f /usr/local/bin/semiont ]; then
-    echo "Creating direct symlink for semiont CLI..."
-    ln -sf /workspace/apps/cli/bin/cli.js /usr/local/bin/semiont || {
-        print_warning "Failed to create direct symlink, continuing..."
-    }
-    chmod +x /usr/local/bin/semiont 2>/dev/null || true
-fi
+# Add npm global bin to PATH for current session
+export PATH="$NPM_GLOBAL_BIN:$PATH"
+
+# Persist PATH configuration for all terminal sessions
+echo "Configuring PATH for all terminal sessions..."
+echo "" >> /home/node/.bashrc
+echo "# Semiont CLI configuration" >> /home/node/.bashrc
+echo "export PATH=\"$NPM_GLOBAL_BIN:\$PATH\"" >> /home/node/.bashrc
+
+# Also add to .profile for non-bash shells
+echo "" >> /home/node/.profile
+echo "# Semiont CLI configuration" >> /home/node/.profile
+echo "export PATH=\"$NPM_GLOBAL_BIN:\$PATH\"" >> /home/node/.profile
 
 # Verify CLI is working
 if command -v semiont &> /dev/null; then
-    print_success "Semiont CLI installed: $(which semiont)"
-    echo "Testing CLI..."
-    semiont --version --verbose 2>&1 | tee -a $LOG_FILE || true
+    SEMIONT_VERSION=$(semiont --version 2>&1 | head -n 1)
+    print_success "Semiont CLI installed: $SEMIONT_VERSION"
 else
     print_error "Semiont CLI installation failed - not found in PATH"
-    echo "PATH: $PATH"
-    echo "Checking for CLI in common locations..."
-    ls -la /usr/local/bin/semiont 2>/dev/null || true
-    ls -la /workspace/apps/cli/bin/cli.js 2>/dev/null || true
+    echo "  PATH: $PATH" >> $LOG_FILE
+    echo "  NPM global bin: $NPM_GLOBAL_BIN" >> $LOG_FILE
     exit 1
 fi
 
-print_status "Setting up Semiont project configuration..."
-
 # Create project directory for Semiont workspace
-print_status "Creating Semiont project directory..."
 mkdir -p /workspace/project
 export SEMIONT_ROOT=/workspace/project
-print_success "Project directory created at $SEMIONT_ROOT"
 
 # Initialize Semiont project
 print_status "Initializing Semiont project..."
-cd /workspace || exit 1
-semiont init --verbose 2>&1 | tee -a $LOG_FILE || {
-    print_warning "Semiont init failed or project already initialized, continuing..."
+cd $SEMIONT_ROOT || exit 1
+semiont init >> $LOG_FILE 2>&1 || {
+    print_warning "Project already initialized or init failed - continuing"
 }
+print_success "Project initialized"
 
 # Wait for PostgreSQL to be ready before provisioning
-print_status "Waiting for PostgreSQL to be ready..."
+print_status "Waiting for PostgreSQL..."
 max_attempts=30
 attempt=0
-echo "Checking PostgreSQL connection (max ${max_attempts} attempts)..."
 while ! pg_isready -h localhost -p 5432 -U semiont > /dev/null 2>&1; do
     attempt=$((attempt + 1))
     if [ $attempt -ge $max_attempts ]; then
-        print_warning "PostgreSQL not ready after ${max_attempts} attempts, continuing anyway"
+        print_warning "PostgreSQL not ready - continuing anyway"
         break
     fi
-    echo -n "."  # Show progress dots
+    echo -n "."
     sleep 2
 done
-echo ""  # New line after dots
+echo ""
 
 if [ $attempt -lt $max_attempts ]; then
-    print_success "PostgreSQL is ready"
+    print_success "PostgreSQL ready"
 fi
 
-# Create semiont.json configuration
+# Create semiont.json configuration in SEMIONT_ROOT
 print_status "Creating semiont.json configuration..."
+cd $SEMIONT_ROOT || exit 1
 if [ ! -f "semiont.json" ]; then
     cat > semiont.json << 'EOF'
 {
@@ -363,38 +318,35 @@ else
 fi
 
 # Provision services individually using Semiont CLI
-print_status "Provisioning services with Semiont CLI..."
-cd /workspace || {
-    print_error "Failed to change to workspace directory"
+print_status "Provisioning services..."
+cd $SEMIONT_ROOT || {
+    print_error "Failed to change to SEMIONT_ROOT directory"
     exit 1
 }
 
 # Provision database service first
-echo "Provisioning database service..."
-semiont provision --service database --verbose 2>&1 | tee -a $LOG_FILE || {
-    print_error "Database provisioning failed"
+semiont provision --service database >> $LOG_FILE 2>&1 || {
+    print_error "Database provisioning failed - check $LOG_FILE"
     exit 1
 }
-print_success "Database service provisioned"
+print_success "Database provisioned"
 
 # Wait for database to be ready after provisioning
 sleep 3
 
 # Provision backend service (this creates the proper .env file)
-echo "Provisioning backend service..."
-semiont provision --service backend --verbose 2>&1 | tee -a $LOG_FILE || {
-    print_error "Backend provisioning failed - fix the CLI"
+semiont provision --service backend >> $LOG_FILE 2>&1 || {
+    print_error "Backend provisioning failed - check $LOG_FILE"
     exit 1
 }
-print_success "Backend service provisioned with environment variables"
+print_success "Backend provisioned"
 
 # Provision frontend service (this creates the proper .env.local file)
-echo "Provisioning frontend service..."
-semiont provision --service frontend --verbose 2>&1 | tee -a $LOG_FILE || {
-    print_error "Frontend provisioning failed - fix the CLI"
+semiont provision --service frontend >> $LOG_FILE 2>&1 || {
+    print_error "Frontend provisioning failed - check $LOG_FILE"
     exit 1
 }
-print_success "Frontend service provisioned with environment variables"
+print_success "Frontend provisioned"
 
 # Setup database schema after services are provisioned
 print_status "Setting up database schema..."
@@ -403,22 +355,20 @@ cd apps/backend || {
     exit 1
 }
 
-echo "Generating Prisma client..."
-if npm run prisma:generate 2>&1 | tee -a $LOG_FILE; then
+if npm run prisma:generate >> $LOG_FILE 2>&1; then
     print_success "Prisma client generated"
 else
-    print_warning "Prisma generate failed, continuing anyway"
+    print_warning "Prisma generate failed - continuing"
 fi
 
-echo "Pushing database schema..."
-if npx prisma db push --skip-generate 2>&1 | tee -a $LOG_FILE; then
-    print_success "Database schema pushed"
+if npx prisma db push --skip-generate >> $LOG_FILE 2>&1; then
+    print_success "Database schema ready"
 else
-    print_warning "Database push failed, continuing anyway"
+    print_warning "Database push failed - continuing"
 fi
 
-cd /workspace || {
-    print_error "Failed to return to workspace root"
+cd $SEMIONT_ROOT || {
+    print_error "Failed to return to SEMIONT_ROOT"
     exit 1
 }
 
@@ -444,132 +394,73 @@ else
     print_success "Demo .env already exists"
 fi
 
-cd /workspace || {
-    print_error "Failed to return to workspace root"
+cd $SEMIONT_ROOT || {
+    print_error "Failed to return to SEMIONT_ROOT"
     exit 1
 }
 
-# Create a welcome message
+# Don't show verbose welcome - user ran this manually
 echo ""
-echo ""
-cat << EOF
-
-${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}
-
-    ${BLUE}🎉 Semiont Development Environment Ready!${NC}
-
-${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}
-
-  📚 Quick Start Commands:
-
-    ${BLUE}Services are auto-started! To manage them:${NC}
-      semiont status --verbose            ${GREEN}# Check service status${NC}
-      semiont logs                       ${GREEN}# View logs${NC}
-      semiont stop --verbose              ${GREEN}# Stop services${NC}
-      semiont restart --verbose           ${GREEN}# Restart services${NC}
-
-    ${BLUE}Manual service control:${NC}
-      semiont start --service backend --verbose    ${GREEN}# Start API server${NC}
-      semiont start --service frontend --verbose   ${GREEN}# Start web app${NC}
-
-    ${BLUE}Using npm directly (alternative):${NC}
-      cd apps/backend && npm run dev     ${GREEN}# Start API server${NC}
-      cd apps/frontend && npm run dev    ${GREEN}# Start web app${NC}
-
-    ${BLUE}Demo Applications:${NC}
-      cd demo && npm run demo:interactive ${GREEN}# Run interactive demo${NC}
-
-  📖 Documentation:
-    - API Docs: http://localhost:4000/docs
-    - README: /workspace/README.md
-    - Architecture: /workspace/docs/ARCHITECTURE.md
-    - CLI Help: semiont --help
-
-  ⚙️  Configuration:
-    - Project root: /workspace/project
-    - Repository root: /workspace
-    - Project config: /workspace/semiont.json
-    - Environment: /workspace/environments/local.json
-    - Backend env: /workspace/apps/backend/.env
-    - Frontend env: /workspace/apps/frontend/.env.local
-
-  🔑 Required Secrets (configure in GitHub Codespaces settings):
-    ${YELLOW}• ANTHROPIC_API_KEY${NC} - For AI features
-    ${YELLOW}• NEO4J_URI${NC} - Neo4j connection string
-    ${YELLOW}• NEO4J_USERNAME${NC} - Neo4j username
-    ${YELLOW}• NEO4J_PASSWORD${NC} - Neo4j password
-    ${YELLOW}• NEO4J_DATABASE${NC} - Neo4j database name
-
-${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}
-
-EOF
 
 # Check if required secrets are set
-print_status "Checking for required secrets..."
+print_status "Checking secrets..."
 
 if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-    print_warning "ANTHROPIC_API_KEY is not set. AI features will not work."
-    echo "  Configure it in: Settings > Codespaces > Secrets"
+    print_warning "ANTHROPIC_API_KEY not set (AI features disabled)"
 else
-    print_success "ANTHROPIC_API_KEY is configured"
+    print_success "ANTHROPIC_API_KEY configured"
 fi
 
 if [ -z "${NEO4J_URI:-}" ] || [ -z "${NEO4J_USERNAME:-}" ] || [ -z "${NEO4J_PASSWORD:-}" ]; then
-    print_warning "Neo4j credentials are not configured. Graph features will not work."
-    echo "  Configure them in: Settings > Codespaces > Secrets"
+    print_warning "Neo4j credentials not set (graph features disabled)"
 else
-    print_success "Neo4j credentials are configured"
+    print_success "Neo4j credentials configured"
 fi
 
-# Note: IDE configuration (opening files, showing explorer) is handled by
-# the postAttachCommand in devcontainer.json for immediate visibility
-
 echo ""
 echo "=========================================="
-echo "POST-CREATE SCRIPT COMPLETED SUCCESSFULLY"
+echo "   ✅ SETUP COMPLETE"
 echo "=========================================="
-echo "Completed at: $(date)"
 echo ""
+print_success "Environment ready!"
 
-print_success "Setup complete! Happy coding! 🚀"
-
-# Move to demo directory and show the command to run
-cd /workspace/demo
+# Stay in workspace directory
+cd /workspace
 echo ""
 echo "================================"
-echo "Ready to run the interactive demo!"
-echo "To start: npm run demo:interactive"
+echo "Workspace ready!"
+echo "To run the demo: cd demo && npm run demo:interactive"
 echo "================================"
 
-# Configure bash to start in demo directory for new terminals
+# Configure bash to start in workspace directory for new terminals
 echo "" >> /home/node/.bashrc
-echo "# Semiont development configuration" >> /home/node/.bashrc
-echo "export PATH=\"/usr/local/bin:\$PATH\"" >> /home/node/.bashrc
-echo "if [ -d /workspace/demo ]; then" >> /home/node/.bashrc
-echo "    cd /workspace/demo" >> /home/node/.bashrc
+echo "# Start in workspace directory" >> /home/node/.bashrc
+echo "if [ -d /workspace ]; then" >> /home/node/.bashrc
+echo "    cd /workspace" >> /home/node/.bashrc
 echo "fi" >> /home/node/.bashrc
 
 # Start the backend and frontend services
-print_status "Starting backend and frontend services..."
-cd /workspace || exit 1
+print_status "Starting services..."
+cd $SEMIONT_ROOT || exit 1
 
-echo "Starting backend service..."
-semiont start --service backend --verbose 2>&1 | tee -a $LOG_FILE &
+semiont start --service backend >> $LOG_FILE 2>&1 &
 BACKEND_PID=$!
-sleep 5  # Give backend time to start
+sleep 3
 
-echo "Starting frontend service..."
-semiont start --service frontend --verbose 2>&1 | tee -a $LOG_FILE &
+semiont start --service frontend >> $LOG_FILE 2>&1 &
 FRONTEND_PID=$!
-sleep 5  # Give frontend time to start
+sleep 3
 
 # Check service status
-echo "Checking service status..."
-semiont status --verbose 2>&1 | tee -a $LOG_FILE || true
+if semiont status >> $LOG_FILE 2>&1; then
+    print_success "Services started successfully"
+else
+    print_warning "Services may still be starting"
+fi
 
-print_success "Backend and frontend services started in background"
-echo "Backend process: $BACKEND_PID"
-echo "Frontend process: $FRONTEND_PID"
 echo ""
-echo "Services are running. Check status with: semiont status --verbose"
-echo "View logs with: semiont logs"
+echo "  Backend PID: $BACKEND_PID"
+echo "  Frontend PID: $FRONTEND_PID"
+echo ""
+echo "  Check status: semiont status"
+echo "  View logs: semiont logs"

@@ -31,10 +31,10 @@
 
   // Use 'postCreateCommand' to run commands after the container is created
   // Note: Output is buffered by Codespaces - use Cmd/Ctrl+Shift+P -> "View Creation Log" to see progress
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  // "postCreateCommand": "bash .devcontainer/post-create.sh",
 
-  // Show demo instructions when VS Code attaches
-  "postAttachCommand": "echo \"\" && echo \"================================\" && echo \"Ready to run the interactive demo!\" && echo \"From the demo directory, run: npm run demo:interactive\" && echo \"================================\" && echo \"\"",
+  // Show setup instructions when VS Code attaches
+  "postAttachCommand": "echo \"\" && echo \"================================\" && echo \"Semiont Development Environment\" && echo \"Run setup: bash .devcontainer/post-create.sh\" && echo \"================================\" && echo \"\"",
 
   // Configure tool-specific properties
   "customizations": {
@@ -46,7 +46,7 @@
       "settings": {
         "workbench.sideBar.visible": true,
         "workbench.startupView": "workbench.explorer.fileView",
-        "terminal.integrated.cwd": "/workspace/demo"
+        "terminal.integrated.cwd": "/workspace"
       }
     },
     "vscode": {
@@ -70,7 +70,7 @@
       ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash",
-        "terminal.integrated.cwd": "/workspace/demo",
+        "terminal.integrated.cwd": "/workspace",
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "esbenp.prettier-vscode",
         "editor.codeActionsOnSave": {
