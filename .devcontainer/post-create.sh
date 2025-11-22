@@ -482,4 +482,5 @@ fi
 cd /workspace
 
 # Display welcome message
-clear && cat /workspace/.devcontainer/welcome.txt
+echo ""
+cat /workspace/.devcontainer/welcome.txt
