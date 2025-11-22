@@ -20,7 +20,7 @@
   // Port labels for better UX
   "portsAttributes": {
     "3000": {
-      "label": "Frontend",
+      "label": "Frontend UI",
       "onAutoForward": "notify"
     },
     "4000": {

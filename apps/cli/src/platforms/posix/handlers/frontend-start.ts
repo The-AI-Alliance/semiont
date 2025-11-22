@@ -36,7 +36,8 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   
   // Setup frontend runtime directory
   const frontendDir = path.join(service.projectRoot, 'frontend');
-  const envFile = path.join(frontendDir, '.env.local');
+  // Look for .env.local in the source directory where provision writes it
+  const envFile = path.join(frontendSourceDir, '.env.local');
   const pidFile = path.join(frontendDir, '.pid');
   const logsDir = path.join(frontendDir, 'logs');
   
@@ -86,16 +87,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
         envVars[key.trim()] = valueParts.join('=').trim();
       }
     });
-    
-    // Copy .env.local to source directory so Next.js can find it
-    // Next.js's dotenv loader doesn't follow symlinks, so we must copy
-    const sourceEnvFile = path.join(frontendSourceDir, '.env.local');
-    if (fs.existsSync(sourceEnvFile)) {
-      // Remove existing file/symlink
-      fs.unlinkSync(sourceEnvFile);
-    }
-    // Copy from runtime to source .env.local
-    fs.copyFileSync(envFile, sourceEnvFile);
+    // .env.local is already in the source directory where Next.js expects it
   } else {
     printWarning(`.env.local not found, using defaults`);
   }
