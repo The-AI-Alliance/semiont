@@ -15,7 +15,7 @@
   },
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally
-  "forwardPorts": [3000, 4000, 5432],
+  "forwardPorts": [3000, 4000],
 
   // Port labels for better UX
   "portsAttributes": {
@@ -25,10 +25,6 @@
     },
     "4000": {
       "label": "Backend API",
-      "onAutoForward": "notify"
-    },
-    "5432": {
-      "label": "PostgreSQL",
       "onAutoForward": "silent"
     }
   },
@@ -88,6 +84,18 @@
         "workbench.colorTheme": "Default Dark Modern",
         "workbench.preferredDarkColorTheme": "Default Dark Modern",
         "workbench.preferredLightColorTheme": "Default Light Modern",
+        // Spell checker dictionary
+        "cSpell.words": [
+          "semiont",
+          "Semiont",
+          "devcontainer",
+          "Codespaces",
+          "Prisma",
+          "ANTHROPIC",
+          "NEO4J",
+          "postgres",
+          "postgresql"
+        ],
         "workbench.colorCustomizations": {
           "[Default Dark Modern]": {
             // Activity Bar (far left)
