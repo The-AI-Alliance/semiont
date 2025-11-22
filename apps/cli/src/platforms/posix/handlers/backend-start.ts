@@ -77,7 +77,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     };
   }
   
-  // Load environment variables from .env.local
+  // Load environment variables from .env
   const envVars: Record<string, string> = {};
   if (fs.existsSync(envFile)) {
     const envContent = fs.readFileSync(envFile, 'utf-8');
@@ -88,7 +88,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
       }
     });
   } else {
-    printWarning(`.env.local not found, using defaults`);
+    printWarning(`.env not found, using defaults`);
   }
   
   // Merge environment variables - ensure all values are strings
