@@ -42,7 +42,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const backendDir = path.join(service.projectRoot, 'backend');
   const logsDir = path.join(backendDir, 'logs');
   const tmpDir = path.join(backendDir, 'tmp');
-  const envFile = path.join(backendDir, '.env.local');
+  // Write .env directly to the backend source directory where it's needed
+  const envFile = path.join(backendSourceDir, '.env');
   
   // Create directories
   fs.mkdirSync(backendDir, { recursive: true });
@@ -78,13 +79,13 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
   }
   
-  // Check if .env.local already exists and backup if it does
+  // Check if .env already exists and backup if it does
   if (fs.existsSync(envFile)) {
     const backupPath = `${envFile}.backup.${Date.now()}`;
     fs.copyFileSync(envFile, backupPath);
     if (!service.quiet) {
-      printWarning(`.env.local already exists, backing up to: ${path.basename(backupPath)}`);
-      printInfo('Creating new .env.local with updated configuration...');
+      printWarning(`.env already exists, backing up to: ${path.basename(backupPath)}`);
+      printInfo('Creating new .env with updated configuration...');
     }
   }
   
@@ -103,7 +104,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     'OAUTH_ALLOWED_DOMAINS': 'localhost'  // Allowed domains for OAuth authentication
   };
   
-  // Create .env.local from the single source of truth
+  // Create .env from the single source of truth
   let envContent = '# Backend Environment Configuration\n';
   for (const [key, value] of Object.entries(envUpdates)) {
     envContent += `${key}=${value}\n`;
@@ -112,7 +113,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   fs.writeFileSync(envFile, envContent);
   
   if (!service.quiet) {
-    printSuccess('Created .env.local with configuration from environment file');
+    printSuccess('Created .env with configuration from environment file');
   }
   
   // Install npm dependencies
@@ -345,14 +346,14 @@ This directory contains runtime files for the backend service.
 
 ## Structure
 
-- \`.env.local\` - Environment configuration (git-ignored)
+- \`.env\` - Environment configuration (git-ignored)
 - \`logs/\` - Application logs
 - \`tmp/\` - Temporary files
 - \`.pid\` - Process ID when running
 
 ## Configuration
 
-Edit \`.env.local\` to configure:
+Edit \`.env\` to configure:
 - Database connection (DATABASE_URL)
 - Backend URL (BACKEND_URL)
 - JWT secret (JWT_SECRET)
