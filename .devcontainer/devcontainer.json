@@ -33,9 +33,8 @@
   // Note: Output is buffered by Codespaces - use Cmd/Ctrl+Shift+P -> "View Creation Log" to see progress
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
-  // Force explorer open and show key files when VS Code attaches
-  // First toggle sidebar off then on to ensure it's visible, then focus explorer
-  "postAttachCommand": "bash -c 'sleep 2 && code --command workbench.action.toggleSidebarVisibility && sleep 0.5 && code --command workbench.action.toggleSidebarVisibility && sleep 0.5 && code --command workbench.view.explorer && sleep 1 && code /workspace/README.md && code /workspace/demo/README.md' || true",
+  // Show demo instructions when VS Code attaches
+  "postAttachCommand": "bash -c 'cd /workspace/demo && echo \"\" && echo \"================================\" && echo \"Ready to run the interactive demo!\" && echo \"To start: npm run demo:interactive\" && echo \"================================\"' || true",
 
   // Configure tool-specific properties
   "customizations": {
@@ -43,7 +42,11 @@
       "openFiles": [
         "README.md",
         "demo/README.md"
-      ]
+      ],
+      "settings": {
+        "workbench.sideBar.visible": true,
+        "workbench.startupView": "workbench.explorer.fileView"
+      }
     },
     "vscode": {
       "extensions": [
@@ -80,8 +83,11 @@
         "explorer.openEditors.visible": 0,
         "workbench.sideBar.location": "left",
         "workbench.activityBar.visible": true,
+        "workbench.sideBar.visible": true,
+        "workbench.startupView": "workbench.explorer.fileView",
         "explorer.autoReveal": true,
         "workbench.panel.defaultLocation": "bottom",
+        "workbench.welcome.enabled": false,
         "workbench.editorAssociations": {
           "*.md": "default"
         },
