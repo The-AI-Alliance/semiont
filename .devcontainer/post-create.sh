@@ -51,10 +51,11 @@ echo ""
 echo "Setup steps:"
 echo "  1. Install npm dependencies (2-4 minutes)"
 echo "  2. Build all packages and CLI (1-2 minutes)"
-echo "  3. Configure Semiont CLI"
+echo "  3. Initialize and configure Semiont project"
 echo "  4. Set up database schema"
 echo "  5. Create environment files"
-echo "  6. Configure IDE workspace"
+echo "  6. Start backend and frontend services"
+echo "  7. Configure IDE workspace"
 echo ""
 echo "Environment variables:"
 echo "  SEMIONT_ENV=${SEMIONT_ENV:-not set} (should be 'local')"
@@ -145,18 +146,57 @@ npm run build 2>&1 | tee -a $LOG_FILE || {
 }
 print_success "Build completed"
 
-echo "Installing Semiont CLI..."
-npm run install:cli 2>&1 | tee -a $LOG_FILE || {
-    print_error "npm run install:cli failed"
+echo "Building and installing Semiont CLI..."
+# First build the MCP server package
+echo "Building @semiont/mcp-server..."
+npm run build -w @semiont/mcp-server 2>&1 | tee -a $LOG_FILE || {
+    print_error "MCP server build failed"
     exit 1
 }
+
+# Then build and link the CLI
+echo "Building semiont CLI..."
+cd apps/cli || {
+    print_error "Failed to change to CLI directory"
+    exit 1
+}
+npm run build 2>&1 | tee -a $LOG_FILE || {
+    print_error "CLI build failed"
+    exit 1
+}
+
+echo "Installing CLI globally with npm link..."
+npm link 2>&1 | tee -a $LOG_FILE || {
+    print_error "npm link failed"
+    exit 1
+}
+
+# Return to workspace root
+cd /workspace || exit 1
+
+# Ensure npm global bin is in PATH
+export PATH="/usr/local/bin:$PATH"
+
+# Also try to create a direct symlink as a fallback
+if [ ! -f /usr/local/bin/semiont ]; then
+    echo "Creating direct symlink for semiont CLI..."
+    ln -sf /workspace/apps/cli/bin/cli.js /usr/local/bin/semiont || {
+        print_warning "Failed to create direct symlink, continuing..."
+    }
+    chmod +x /usr/local/bin/semiont 2>/dev/null || true
+fi
 
 # Verify CLI is working
 if command -v semiont &> /dev/null; then
     print_success "Semiont CLI installed: $(which semiont)"
-    semiont --version --verbose || true
+    echo "Testing CLI..."
+    semiont --version --verbose 2>&1 | tee -a $LOG_FILE || true
 else
-    print_error "Semiont CLI installation failed"
+    print_error "Semiont CLI installation failed - not found in PATH"
+    echo "PATH: $PATH"
+    echo "Checking for CLI in common locations..."
+    ls -la /usr/local/bin/semiont 2>/dev/null || true
+    ls -la /workspace/apps/cli/bin/cli.js 2>/dev/null || true
     exit 1
 fi
 
@@ -422,13 +462,13 @@ ${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━
 
   📚 Quick Start Commands:
 
-    ${BLUE}Using Semiont CLI (Recommended):${NC}
-      semiont start --verbose             ${GREEN}# Start all services${NC}
+    ${BLUE}Services are auto-started! To manage them:${NC}
       semiont status --verbose            ${GREEN}# Check service status${NC}
       semiont logs                       ${GREEN}# View logs${NC}
       semiont stop --verbose              ${GREEN}# Stop services${NC}
+      semiont restart --verbose           ${GREEN}# Restart services${NC}
 
-    ${BLUE}Start individual services:${NC}
+    ${BLUE}Manual service control:${NC}
       semiont start --service backend --verbose    ${GREEN}# Start API server${NC}
       semiont start --service frontend --verbose   ${GREEN}# Start web app${NC}
 
@@ -503,10 +543,33 @@ echo "================================"
 
 # Configure bash to start in demo directory for new terminals
 echo "" >> /home/node/.bashrc
-echo "# Start in demo directory for Semiont development" >> /home/node/.bashrc
+echo "# Semiont development configuration" >> /home/node/.bashrc
+echo "export PATH=\"/usr/local/bin:\$PATH\"" >> /home/node/.bashrc
 echo "if [ -d /workspace/demo ]; then" >> /home/node/.bashrc
 echo "    cd /workspace/demo" >> /home/node/.bashrc
 echo "fi" >> /home/node/.bashrc
 
-# Note: We don't automatically start services here because the user might want to
-# choose which services to run. The database is already running via docker-compose.
+# Start the backend and frontend services
+print_status "Starting backend and frontend services..."
+cd /workspace || exit 1
+
+echo "Starting backend service..."
+semiont start --service backend --verbose 2>&1 | tee -a $LOG_FILE &
+BACKEND_PID=$!
+sleep 5  # Give backend time to start
+
+echo "Starting frontend service..."
+semiont start --service frontend --verbose 2>&1 | tee -a $LOG_FILE &
+FRONTEND_PID=$!
+sleep 5  # Give frontend time to start
+
+# Check service status
+echo "Checking service status..."
+semiont status --verbose 2>&1 | tee -a $LOG_FILE || true
+
+print_success "Backend and frontend services started in background"
+echo "Backend process: $BACKEND_PID"
+echo "Frontend process: $FRONTEND_PID"
+echo ""
+echo "Services are running. Check status with: semiont status --verbose"
+echo "View logs with: semiont logs"
