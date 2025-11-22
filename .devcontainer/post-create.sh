@@ -449,27 +449,28 @@ echo "fi" >> /home/node/.bashrc
 print_status "Starting services..."
 cd $SEMIONT_ROOT || exit 1
 
-semiont start --service backend >> $LOG_FILE 2>&1 &
-BACKEND_PID=$!
-sleep 3
+# Start backend service
+semiont start --service backend >> $LOG_FILE 2>&1 || {
+    print_error "Backend service failed to start - check $LOG_FILE"
+    exit 1
+}
+print_success "Backend service started"
 
-semiont start --service frontend >> $LOG_FILE 2>&1 &
-FRONTEND_PID=$!
-sleep 3
+# Start frontend service
+semiont start --service frontend >> $LOG_FILE 2>&1 || {
+    print_error "Frontend service failed to start - check $LOG_FILE"
+    exit 1
+}
+print_success "Frontend service started"
 
 # Check service status
-if semiont status >> $LOG_FILE 2>&1; then
-    print_success "Services started successfully"
+if semiont check >> $LOG_FILE 2>&1; then
+    print_success "All services running"
 else
-    print_warning "Services may still be starting"
+    print_error "Service check failed"
+    exit 1
 fi
 
-# Store PIDs for reference
-echo ""
-echo "Service PIDs:"
-echo "  • Backend: $BACKEND_PID"
-echo "  • Frontend: $FRONTEND_PID"
-echo ""
 
 # Change to workspace directory for user
 cd /workspace
