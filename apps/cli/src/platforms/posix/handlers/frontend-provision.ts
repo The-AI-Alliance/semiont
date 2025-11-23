@@ -60,29 +60,37 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   // Get URLs from service config (respects Codespaces URLs if configured)
   // service.config contains the merged frontend service config from environment
 
-  // DEBUG: Log what we're getting
-  if (!service.quiet) {
-    printInfo(`Frontend provision config check:`);
-    printInfo(`  service.config.url: ${service.config.url}`);
-    printInfo(`  service.config.port: ${service.config.port}`);
-    printInfo(`  env config frontend.url: ${service.environmentConfig.services?.frontend?.url}`);
+  const frontendUrl = service.config.url;
+  if (!frontendUrl) {
+    throw new Error('Frontend URL not configured');
   }
 
-  const frontendUrl = service.config.url || `http://localhost:${service.config.port || 3000}`;
+  const port = service.config.port;
+  if (!port) {
+    throw new Error('Frontend port not configured');
+  }
+
   const backendService = service.environmentConfig.services?.backend;
-  const backendUrl = backendService?.publicURL || `http://localhost:${service.config.backendPort || 4000}`;
-  const siteName = service.config.siteName || 'Semiont';
+  if (!backendService?.publicURL) {
+    throw new Error('Backend publicURL not configured');
+  }
+  const backendUrl = backendService.publicURL;
+
+  const siteName = service.config.siteName;
+  if (!siteName) {
+    throw new Error('Site name not configured');
+  }
 
   // Always create/overwrite .env.local with correct configuration
   const envUpdates: Record<string, string> = {
     'NODE_ENV': 'development',
-    'PORT': (service.config.port || 3000).toString(),
+    'PORT': port.toString(),
     'NEXT_PUBLIC_API_URL': backendUrl,
     'NEXT_PUBLIC_SITE_NAME': siteName,
     'NEXT_PUBLIC_FRONTEND_URL': frontendUrl,
     'NEXTAUTH_URL': frontendUrl,
     'NEXTAUTH_SECRET': nextAuthSecret,
-    'ENABLE_LOCAL_AUTH': 'true',  // Enable local development authentication
+    'ENABLE_LOCAL_AUTH': 'true',
     'LOG_DIR': logsDir,
     'TMP_DIR': tmpDir
   };
@@ -118,10 +126,10 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
       printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
     }
   } else {
-    // Create a basic .env.local
+    // Create .env.local from scratch
     const basicEnv = `# Frontend Environment Configuration
 NODE_ENV=development
-PORT=${service.config.port || 3000}
+PORT=${port}
 NEXT_PUBLIC_API_URL=${backendUrl}
 NEXT_PUBLIC_SITE_NAME=${siteName}
 NEXT_PUBLIC_FRONTEND_URL=${frontendUrl}
@@ -159,14 +167,12 @@ TMP_DIR=${tmpDir}
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
       } else {
-        // Install in frontend directory
         execSync('npm install', {
           cwd: frontendSourceDir,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
       }
     } else {
-      // Fallback to frontend directory
       execSync('npm install', {
         cwd: frontendSourceDir,
         stdio: service.verbose ? 'inherit' : 'pipe'
@@ -186,7 +192,7 @@ TMP_DIR=${tmpDir}
   }
   
   // Build frontend if in production mode
-  if (service.environment === 'prod' || context.options?.build) {
+  if (service.environment === 'prod') {
     if (!service.quiet) {
       printInfo('Building frontend for production...');
     }

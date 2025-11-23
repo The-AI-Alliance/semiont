@@ -4,7 +4,7 @@ import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
-import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths } from './frontend-paths.js';
 
 /**
@@ -54,8 +54,11 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     }
   }
   
-  // Check port availability
-  const port = service.config.port || 3000;
+  const port = service.config.port;
+  if (!port) {
+    throw new Error('Frontend port not configured');
+  }
+
   if (await isPortInUse(port)) {
     return {
       success: false,
@@ -63,27 +66,23 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
       metadata: { serviceType: 'frontend', port }
     };
   }
-  
-  // Load environment variables from .env.local
+
+  const envContent = fs.readFileSync(envFile, 'utf-8');
   const envVars: Record<string, string> = {};
-  if (fs.existsSync(envFile)) {
-    const envContent = fs.readFileSync(envFile, 'utf-8');
-    envContent.split('\n').forEach(line => {
-      if (!line.startsWith('#') && line.includes('=')) {
-        const [key, ...valueParts] = line.split('=');
-        envVars[key.trim()] = valueParts.join('=').trim();
-      }
-    });
-    // .env.local is already in the source directory where Next.js expects it
-  } else {
-    printWarning(`.env.local not found, using defaults`);
+  envContent.split('\n').forEach(line => {
+    if (!line.startsWith('#') && line.includes('=')) {
+      const [key, ...valueParts] = line.split('=');
+      envVars[key.trim()] = valueParts.join('=').trim();
+    }
+  });
+
+  if (!envVars.NODE_ENV) {
+    throw new Error('NODE_ENV not found in .env.local');
   }
-  
-  // Merge environment variables
+
   const env = {
     ...process.env,
     ...envVars,
-    NODE_ENV: envVars.NODE_ENV || 'development',
     PORT: port.toString(),
     LOG_DIR: logsDir,
     TMP_DIR: tmpDir
@@ -118,8 +117,11 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     printInfo(`Port: ${port}`);
   }
   
-  // Determine the command to run
-  const command = service.config.command || 'npm run dev';
+  const command = service.config.command;
+  if (!command) {
+    throw new Error('Frontend command not configured');
+  }
+
   const [cmd, ...args] = command.split(' ');
   
   try {

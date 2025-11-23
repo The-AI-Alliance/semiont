@@ -12,7 +12,6 @@ export interface GraphPaths {
   janusgraphZipPath: string;    // JanusGraph download zip path
   configPath: string;           // Server configuration file
   graphConfigPath: string;      // Graph database configuration
-  defaultServerConfig: string;  // Default server config
   gremlinServerScript: string;  // Gremlin server startup script
   gremlinShellScript: string;   // Gremlin shell script
   dataStorageDir: string;       // Actual data storage directory
@@ -24,12 +23,15 @@ export interface GraphPaths {
 export function getGraphPaths<T>(context: BaseHandlerContext<T>): GraphPaths {
   const service = context.service;
 
-  // Get JanusGraph version from config or use default
-  const janusgraphVersion = service.config.janusgraphVersion || '1.0.0';
+  const janusgraphVersion = service.config.janusgraphVersion;
+  if (!janusgraphVersion) {
+    throw new Error('janusgraphVersion not configured');
+  }
 
-  // Get data directory from environment or default to .janusgraph
-  const dataDir = process.env.JANUSGRAPH_DATA_DIR ||
-    path.join(service.projectRoot, '.janusgraph');
+  const dataDir = process.env.JANUSGRAPH_DATA_DIR;
+  if (!dataDir) {
+    throw new Error('JANUSGRAPH_DATA_DIR not configured');
+  }
 
   const janusgraphDir = path.join(dataDir, `janusgraph-${janusgraphVersion}`);
 
@@ -40,7 +42,6 @@ export function getGraphPaths<T>(context: BaseHandlerContext<T>): GraphPaths {
     janusgraphZipPath: path.join(dataDir, `janusgraph-${janusgraphVersion}.zip`),
     configPath: path.join(janusgraphDir, 'conf', 'gremlin-server', 'custom-server.yaml'),
     graphConfigPath: path.join(janusgraphDir, 'conf', 'custom-graph.properties'),
-    defaultServerConfig: path.join(janusgraphDir, 'conf', 'gremlin-server', 'gremlin-server.yaml'),
     gremlinServerScript: path.join(janusgraphDir, 'bin', 'gremlin-server.sh'),
     gremlinShellScript: path.join(janusgraphDir, 'bin', 'gremlin.sh'),
     dataStorageDir: path.join(dataDir, 'data')

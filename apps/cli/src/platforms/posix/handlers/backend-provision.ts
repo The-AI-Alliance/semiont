@@ -38,9 +38,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
     const semiontRepo = options.semiontRepo || process.env.SEMIONT_REPO;
-    if (semiontRepo) {
-      printInfo(`Using semiont repo: ${semiontRepo}`);
-    }
+    printInfo(`Using semiont repo: ${semiontRepo}`);
   }
 
   // Create directories
@@ -54,26 +52,38 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   // Get environment configuration from service
   const envConfig = service.environmentConfig;
   const dbConfig = envConfig.services?.database;
-  
-  // Build database URL from environment config
-  let databaseUrl = 'postgresql://semiont:localpass@localhost:5432/semiont'; // fallback
-  if (dbConfig?.environment) {
-    const dbUser = dbConfig.environment.POSTGRES_USER || 'postgres';
-    const dbPassword = dbConfig.environment.POSTGRES_PASSWORD || 'localpass';
-    const dbName = dbConfig.environment.POSTGRES_DB || 'semiont';
-    const dbPort = dbConfig.port || 5432;
-    const dbHost = 'localhost'; // For local development, always use localhost
-    databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
-    
-    if (!service.quiet) {
-      printInfo(`Using database configuration from ${service.environment}.json:`);
-      printInfo(`  Database: ${dbName} on ${dbHost}:${dbPort}`);
-      printInfo(`  User: ${dbUser}`);
-    }
-  } else {
-    if (!service.quiet) {
-      printWarning('No database configuration found in environment file, using defaults');
-    }
+
+  if (!dbConfig?.environment) {
+    throw new Error('Database configuration not found in environment file');
+  }
+
+  const dbUser = dbConfig.environment.POSTGRES_USER;
+  if (!dbUser) {
+    throw new Error('POSTGRES_USER not configured');
+  }
+
+  const dbPassword = dbConfig.environment.POSTGRES_PASSWORD;
+  if (!dbPassword) {
+    throw new Error('POSTGRES_PASSWORD not configured');
+  }
+
+  const dbName = dbConfig.environment.POSTGRES_DB;
+  if (!dbName) {
+    throw new Error('POSTGRES_DB not configured');
+  }
+
+  const dbPort = dbConfig.port;
+  if (!dbPort) {
+    throw new Error('Database port not configured');
+  }
+
+  const dbHost = 'localhost';
+  const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
+
+  if (!service.quiet) {
+    printInfo(`Using database configuration from ${service.environment}.json:`);
+    printInfo(`  Database: ${dbName} on ${dbHost}:${dbPort}`);
+    printInfo(`  User: ${dbUser}`);
   }
   
   // Check if .env already exists and backup if it does
@@ -86,25 +96,40 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
   }
   
-  // Define all environment variables in one place
-  // Get URLs from environment config (respects Codespaces URLs if configured)
+  // Get URLs from environment config
   const frontendService = service.environmentConfig.services?.frontend;
-  const backendUrl = service.config.publicURL || `http://localhost:${service.config.port || 4000}`;
-  const frontendUrl = frontendService?.url || 'http://localhost:3000';
-  const siteDomain = service.environmentConfig.site?.domain || 'localhost';
+  if (!frontendService?.url) {
+    throw new Error('Frontend URL not configured in environment');
+  }
+  const frontendUrl = frontendService.url;
+
+  const backendUrl = service.config.publicURL;
+  if (!backendUrl) {
+    throw new Error('Backend publicURL not configured');
+  }
+
+  const port = service.config.port;
+  if (!port) {
+    throw new Error('Backend port not configured');
+  }
+
+  const siteDomain = service.environmentConfig.site?.domain;
+  if (!siteDomain) {
+    throw new Error('Site domain not configured');
+  }
 
   const envUpdates: Record<string, string> = {
     'NODE_ENV': 'development',
-    'PORT': (service.config.port || 4000).toString(),
+    'PORT': port.toString(),
     'DATABASE_URL': databaseUrl,
     'LOG_DIR': logsDir,
     'TMP_DIR': tmpDir,
     'JWT_SECRET': 'local-development-secret-change-in-production',
     'FRONTEND_URL': frontendUrl,
     'BACKEND_URL': backendUrl,
-    'ENABLE_LOCAL_AUTH': 'true',  // Enable local development authentication
-    'SITE_DOMAIN': siteDomain,  // Required for JWT issuer
-    'OAUTH_ALLOWED_DOMAINS': siteDomain  // Allowed domains for OAuth authentication
+    'ENABLE_LOCAL_AUTH': 'true',
+    'SITE_DOMAIN': siteDomain,
+    'OAUTH_ALLOWED_DOMAINS': siteDomain
   };
   
   // Create .env from the single source of truth
@@ -125,29 +150,28 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   }
   
   try {
-    // For monorepo, install from the root
-    const semiontRepo = context.options?.semiontRepo || process.env.SEMIONT_REPO || '';
+    const semiontRepo = context.options?.semiontRepo || process.env.SEMIONT_REPO;
+    if (!semiontRepo) {
+      throw new Error('SEMIONT_REPO not configured');
+    }
+
     const monorepoRoot = path.resolve(semiontRepo);
     const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
-    
+
     if (fs.existsSync(rootPackageJsonPath)) {
-      // Check if this is a monorepo with workspaces
       const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
       if (rootPackageJson.workspaces) {
-        // Install from monorepo root
         execSync('npm install', {
           cwd: monorepoRoot,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
       } else {
-        // Install in backend directory
         execSync('npm install', {
           cwd: backendSourceDir,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
       }
     } else {
-      // Fallback to backend directory
       execSync('npm install', {
         cwd: backendSourceDir,
         stdio: service.verbose ? 'inherit' : 'pipe'
@@ -240,11 +264,9 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
         });
       }
       
-      // Get admin email from options or environment
       const adminEmail = options.adminEmail || process.env.ADMIN_EMAIL;
       if (!adminEmail) {
-        printWarning('No admin email provided. Skipping admin user creation.');
-        printInfo('Use --admin-email flag or set ADMIN_EMAIL environment variable');
+        throw new Error('Admin email not provided. Use --admin-email flag or set ADMIN_EMAIL environment variable');
       } else {
         // Extract domain from email
         const emailParts = adminEmail.split('@');

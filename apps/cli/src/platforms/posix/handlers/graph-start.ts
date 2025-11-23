@@ -32,19 +32,16 @@ const startGraphService = async (context: PosixStartHandlerContext): Promise<Sta
 async function startJanusGraph(context: PosixStartHandlerContext): Promise<StartHandlerResult> {
   const { service } = context;
 
-  // Get graph paths
   const paths = getGraphPaths(context);
   const {
     janusgraphDir,
     pidFile,
     configPath,
     graphConfigPath: graphConfig,
-    defaultServerConfig,
     gremlinServerScript: gremlinServer,
     gremlinShellScript
   } = paths;
-  
-  // Check if JanusGraph is provisioned
+
   if (!await fileExists(janusgraphDir)) {
     return {
       success: false,
@@ -52,38 +49,33 @@ async function startJanusGraph(context: PosixStartHandlerContext): Promise<Start
       metadata: { serviceType: 'graph', serviceName: 'janusgraph' }
     };
   }
-  
-  // Check if already running
+
   if (await fileExists(pidFile)) {
     const pid = await fs.readFile(pidFile, 'utf-8');
     try {
-      process.kill(parseInt(pid), 0); // Check if process exists
+      process.kill(parseInt(pid), 0);
       if (!service.quiet) {
         printWarning('JanusGraph is already running');
       }
       return {
         success: true,
-        metadata: { 
-          serviceType: 'graph', 
+        metadata: {
+          serviceType: 'graph',
           serviceName: 'janusgraph',
           pid: parseInt(pid),
           alreadyRunning: true
         }
       };
     } catch {
-      // Process doesn't exist, clean up pid file
       await fs.unlink(pidFile);
     }
   }
-  
-  // Check for custom configuration
-  let serverConfig = configPath;
+
   if (!await fileExists(configPath)) {
-    // Use default configuration
-    serverConfig = defaultServerConfig;
+    throw new Error('JanusGraph server config not found. Run: semiont provision --service janusgraph');
   }
-  
-  const child = spawn(gremlinServer, [serverConfig], {
+
+  const child = spawn(gremlinServer, [configPath], {
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {

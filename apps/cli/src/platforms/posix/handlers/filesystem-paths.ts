@@ -19,11 +19,11 @@ export interface FilesystemPaths {
 export function getFilesystemPaths<T>(context: BaseHandlerContext<T>): FilesystemPaths {
   const service = context.service;
 
-  // Get base path from config or use default
-  const basePath = service.config.path ||
-    path.join(process.cwd(), 'data', service.name);
+  const basePath = service.config.path;
+  if (!basePath) {
+    throw new Error('Filesystem path not configured');
+  }
 
-  // Make absolute if relative
   const baseDir = path.isAbsolute(basePath) ?
     basePath :
     path.join(service.projectRoot, basePath);

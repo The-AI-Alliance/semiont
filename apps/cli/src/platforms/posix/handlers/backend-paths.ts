@@ -20,7 +20,11 @@ export interface BackendPaths {
  * Get all backend paths for POSIX platform
  */
 export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths {
-  const semiontRepo = context.options?.semiontRepo || process.env.SEMIONT_REPO || '';
+  const semiontRepo = context.options?.semiontRepo || process.env.SEMIONT_REPO;
+  if (!semiontRepo) {
+    throw new Error('SEMIONT_REPO not configured');
+  }
+
   const sourceDir = path.join(semiontRepo, 'apps', 'backend');
 
   return {
