@@ -17,7 +17,7 @@ import { OAuthService } from '../auth/oauth';
 import type { User } from '@prisma/client';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 import type { components } from '@semiont/api-client';
-import { userId as makeUserId } from '@semiont/core';
+import { userId as makeUserId, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import { email as makeEmail, googleCredential } from '@semiont/api-client';
 
 // Types from OpenAPI spec (generated)
@@ -44,8 +44,13 @@ export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unk
 authRouter.post('/api/tokens/local',
   validateRequestBody('LocalAuthRequest'),  // ← Validate against OpenAPI schema
   async (c) => {
-    // Only allow in development mode
-    if (process.env.NODE_ENV !== 'development' && process.env.ENABLE_LOCAL_AUTH !== 'true') {
+    // Load config to check if local auth is enabled
+    const env = process.env.SEMIONT_ENV || 'local';
+    const projectRoot = findProjectRoot();
+    const config = loadEnvironmentConfig(projectRoot, env);
+
+    // Only allow if enableLocalAuth is true in config
+    if (!config.app?.security?.enableLocalAuth) {
       return c.json({
         error: 'Local authentication is not enabled'
       }, 403);

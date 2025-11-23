@@ -9,6 +9,11 @@
   "site": {
     "domain": "localhost:3000"
   },
+  "app": {
+    "security": {
+      "enableLocalAuth": true
+    }
+  },
   "env": {
     "NODE_ENV": "development"
   },
