@@ -107,6 +107,14 @@ npm run build:packages >> $LOG_FILE 2>&1 || {
 }
 print_success "Packages built"
 
+print_status "Type-checking all workspaces..."
+cd /workspace || exit 1
+npm run typecheck >> $LOG_FILE 2>&1 || {
+    print_error "Typecheck failed - check $LOG_FILE for details"
+    exit 1
+}
+print_success "All typechecks passed"
+
 print_status "Building Semiont CLI..."
 
 # Build the MCP server package (if not already built)
@@ -244,46 +252,28 @@ semiont provision --service frontend >> $LOG_FILE 2>&1 || {
 }
 print_success "Frontend provisioned"
 
-# Build backend now that we have environment variables
+# Build backend (required for dev mode - creates dist/ and generates Prisma client)
 print_status "Building backend application..."
 cd /workspace/apps/backend || {
     print_error "Failed to change to backend directory"
     exit 1
 }
 npm run build >> $LOG_FILE 2>&1 || {
-    print_warning "Backend build failed - continuing"
-}
-print_success "Backend built"
-
-# Setup database schema
-print_status "Setting up database schema..."
-if npm run prisma:generate >> $LOG_FILE 2>&1; then
-    print_success "Prisma client generated"
-else
-    print_warning "Prisma generate failed - continuing"
-fi
-
-if npx prisma db push --skip-generate >> $LOG_FILE 2>&1; then
-    print_success "Database schema ready"
-else
-    print_warning "Database push failed - continuing"
-fi
-
-# Build frontend now that we have environment variables
-print_status "Building frontend application..."
-cd /workspace/apps/frontend || {
-    print_error "Failed to change to frontend directory"
+    print_error "Backend build failed - check $LOG_FILE"
     exit 1
 }
-npm run build >> $LOG_FILE 2>&1 || {
-    print_warning "Frontend build failed - continuing"
-}
-print_success "Frontend built"
+print_success "Backend built (includes Prisma client generation)"
 
-cd $SEMIONT_ROOT || {
-    print_error "Failed to return to SEMIONT_ROOT"
+# Push database schema
+print_status "Pushing database schema..."
+npx prisma db push --skip-generate >> $LOG_FILE 2>&1 || {
+    print_error "Database schema push failed - check $LOG_FILE"
     exit 1
 }
+print_success "Database schema ready"
+
+# Skip frontend production build - dev server handles compilation
+print_success "Frontend ready for development (typecheck already completed)"
 
 # Demo .env
 print_status "Creating demo .env file..."
