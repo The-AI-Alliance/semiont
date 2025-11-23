@@ -28,7 +28,8 @@
       },
       "command": "npm run dev",
       "port": 3000,
-      "url": "http://localhost:3000"
+      "url": "http://localhost:3000",
+      "siteName": "Semiont"
     },
     "database": {
       "platform": {
@@ -38,9 +39,11 @@
       "name": "postgres",
       "host": "localhost",
       "port": 5432,
-      "database": "semiont",
-      "username": "semiont",
-      "password": "semiont",
+      "environment": {
+        "POSTGRES_DB": "semiont",
+        "POSTGRES_USER": "semiont",
+        "POSTGRES_PASSWORD": "semiont"
+      },
       "description": "PostgreSQL database managed by docker-compose"
     },
     "graph": {
