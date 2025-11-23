@@ -2,6 +2,114 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://semiont.org/schemas/config.json",
   "definitions": {
+    "PlatformType": {
+      "type": "string",
+      "enum": ["posix", "container", "aws", "external"]
+    },
+    "ServicePlatformConfig": {
+      "type": "object",
+      "properties": {
+        "type": { "$ref": "#/definitions/PlatformType" }
+      },
+      "required": ["type"]
+    },
+    "BackendServiceConfig": {
+      "type": "object",
+      "properties": {
+        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
+        "command": { "type": "string" },
+        "port": { "type": "integer" },
+        "publicURL": { "type": "string" },
+        "corsOrigin": { "type": "string" }
+      },
+      "required": ["platform", "port", "publicURL", "corsOrigin"],
+      "additionalProperties": true
+    },
+    "FrontendServiceConfig": {
+      "type": "object",
+      "properties": {
+        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
+        "command": { "type": "string" },
+        "port": { "type": "integer" },
+        "url": { "type": "string" },
+        "siteName": { "type": "string" }
+      },
+      "required": ["platform", "port", "url"],
+      "additionalProperties": true
+    },
+    "DatabaseServiceConfig": {
+      "type": "object",
+      "properties": {
+        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
+        "type": { "type": "string" },
+        "name": { "type": "string" },
+        "host": { "type": "string" },
+        "port": { "type": "integer" },
+        "environment": { "type": "object", "additionalProperties": { "type": "string" } },
+        "description": { "type": "string" }
+      },
+      "required": ["platform", "type", "host", "port"],
+      "additionalProperties": true
+    },
+    "GraphDatabaseType": {
+      "type": "string",
+      "enum": ["neo4j", "janusgraph", "neptune", "memory"]
+    },
+    "GraphServiceConfig": {
+      "type": "object",
+      "properties": {
+        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
+        "type": { "$ref": "#/definitions/GraphDatabaseType" },
+        "name": { "type": "string" },
+        "uri": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "database": { "type": "string" },
+        "host": { "type": "string" },
+        "storage": { "type": "string" },
+        "index": { "type": "string" },
+        "endpoint": { "type": "string" },
+        "region": { "type": "string" }
+      },
+      "required": ["platform", "type", "uri", "username", "password", "database"],
+      "additionalProperties": true
+    },
+    "FilesystemServiceConfig": {
+      "type": "object",
+      "properties": {
+        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
+        "path": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["platform", "path"],
+      "additionalProperties": true
+    },
+    "InferenceServiceConfig": {
+      "type": "object",
+      "properties": {
+        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
+        "type": { "type": "string" },
+        "model": { "type": "string" },
+        "maxTokens": { "type": "integer" },
+        "endpoint": { "type": "string" },
+        "baseURL": { "type": "string" },
+        "apiKey": { "type": "string" }
+      },
+      "required": ["platform", "type", "apiKey"],
+      "additionalProperties": true
+    },
+    "ServicesConfig": {
+      "type": "object",
+      "properties": {
+        "backend": { "$ref": "#/definitions/BackendServiceConfig" },
+        "frontend": { "$ref": "#/definitions/FrontendServiceConfig" },
+        "database": { "$ref": "#/definitions/DatabaseServiceConfig" },
+        "graph": { "$ref": "#/definitions/GraphServiceConfig" },
+        "filesystem": { "$ref": "#/definitions/FilesystemServiceConfig" },
+        "inference": { "$ref": "#/definitions/InferenceServiceConfig" }
+      },
+      "additionalProperties": true
+    },
     "SiteConfig": {
       "type": "object",
       "properties": {
@@ -98,10 +206,6 @@
       },
       "additionalProperties": false
     },
-    "PlatformType": {
-      "type": "string",
-      "enum": ["posix", "container", "aws", "external"]
-    },
     "EnvironmentConfig": {
       "type": "object",
       "properties": {
@@ -124,9 +228,7 @@
           }
         },
         "services": {
-          "type": "object",
-          "additionalProperties": true,
-          "description": "Service-specific configurations"
+          "$ref": "#/definitions/ServicesConfig"
         },
         "site": {
           "$ref": "#/definitions/SiteConfig"
@@ -177,9 +279,7 @@
           "$ref": "#/definitions/AppConfig"
         },
         "services": {
-          "type": "object",
-          "additionalProperties": true,
-          "description": "Service definitions"
+          "$ref": "#/definitions/ServicesConfig"
         }
       },
       "required": ["version", "project", "site"],

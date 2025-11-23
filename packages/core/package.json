@@ -8,6 +8,8 @@
     "dist"
   ],
   "scripts": {
+    "generate:types": "tsx scripts/generate-types.ts",
+    "prebuild": "npm run generate:types",
     "build": "tsc",
     "build:clean": "rm -rf dist *.tsbuildinfo && tsc",
     "watch": "tsc --watch",
@@ -25,9 +27,13 @@
   "author": "Semiont Team",
   "license": "Apache-2.0",
   "devDependencies": {
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "json-schema-to-typescript": "^15.0.2",
+    "tsx": "^4.19.2"
   },
   "dependencies": {
-    "@semiont/api-client": "*"
+    "@semiont/api-client": "*",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^2.1.1"
   }
 }

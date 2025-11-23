@@ -12,13 +12,40 @@ import { findProjectRoot } from './project-discovery';
 import { PlatformType } from './platform-types';
 import { isObject } from '../index';
 import { validateEnvironmentConfig } from './config-validator.js';
-import type { EnvironmentConfig, SiteConfig, AppConfig, SemiontConfig } from './config.types.js';
+import type {
+  EnvironmentConfig,
+  SiteConfig,
+  AppConfig,
+  SemiontConfig,
+  ServicesConfig,
+  BackendServiceConfig,
+  FrontendServiceConfig,
+  DatabaseServiceConfig,
+  GraphServiceConfig,
+  FilesystemServiceConfig,
+  InferenceServiceConfig,
+  ServicePlatformConfig
+} from './config.types.js';
 
 /**
  * Re-export generated types from JSON Schema
  * These types are automatically generated from config.schema.json
  */
-export type { EnvironmentConfig, SiteConfig, AppConfig, SemiontConfig, PlatformType };
+export type {
+  EnvironmentConfig,
+  SiteConfig,
+  AppConfig,
+  SemiontConfig,
+  PlatformType,
+  ServicesConfig,
+  BackendServiceConfig,
+  FrontendServiceConfig,
+  DatabaseServiceConfig,
+  GraphServiceConfig,
+  FilesystemServiceConfig,
+  InferenceServiceConfig,
+  ServicePlatformConfig
+};
 
 /**
  * Generic service configuration

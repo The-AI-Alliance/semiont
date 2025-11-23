@@ -5,8 +5,117 @@
  * via the `definition` "PlatformType".
  */
 export type PlatformType = 'posix' | 'container' | 'aws' | 'external';
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "GraphDatabaseType".
+ */
+export type GraphDatabaseType = 'neo4j' | 'janusgraph' | 'neptune' | 'memory';
 
 export interface HttpsSemiontOrgSchemasConfigJson {
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "ServicePlatformConfig".
+ */
+export interface ServicePlatformConfig {
+  type: PlatformType;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "BackendServiceConfig".
+ */
+export interface BackendServiceConfig {
+  platform: ServicePlatformConfig;
+  command?: string;
+  port: number;
+  publicURL: string;
+  corsOrigin: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "FrontendServiceConfig".
+ */
+export interface FrontendServiceConfig {
+  platform: ServicePlatformConfig;
+  command?: string;
+  port: number;
+  url: string;
+  siteName?: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "DatabaseServiceConfig".
+ */
+export interface DatabaseServiceConfig {
+  platform: ServicePlatformConfig;
+  type: string;
+  name?: string;
+  host: string;
+  port: number;
+  environment?: {
+    [k: string]: string;
+  };
+  description?: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "GraphServiceConfig".
+ */
+export interface GraphServiceConfig {
+  platform: ServicePlatformConfig;
+  type: GraphDatabaseType;
+  name?: string;
+  uri: string;
+  username: string;
+  password: string;
+  database: string;
+  host?: string;
+  storage?: string;
+  index?: string;
+  endpoint?: string;
+  region?: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "FilesystemServiceConfig".
+ */
+export interface FilesystemServiceConfig {
+  platform: ServicePlatformConfig;
+  path: string;
+  description?: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "InferenceServiceConfig".
+ */
+export interface InferenceServiceConfig {
+  platform: ServicePlatformConfig;
+  type: string;
+  model?: string;
+  maxTokens?: number;
+  endpoint?: string;
+  baseURL?: string;
+  apiKey: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "ServicesConfig".
+ */
+export interface ServicesConfig {
+  backend?: BackendServiceConfig;
+  frontend?: FrontendServiceConfig;
+  database?: DatabaseServiceConfig;
+  graph?: GraphServiceConfig;
+  filesystem?: FilesystemServiceConfig;
+  inference?: InferenceServiceConfig;
   [k: string]: unknown;
 }
 /**
@@ -96,12 +205,7 @@ export interface EnvironmentConfig {
     default?: PlatformType;
     [k: string]: unknown;
   };
-  /**
-   * Service-specific configurations
-   */
-  services: {
-    [k: string]: unknown;
-  };
+  services: ServicesConfig;
   site: SiteConfig;
   app?: AppConfig;
   env?: {
@@ -129,11 +233,6 @@ export interface SemiontConfig {
   project: string;
   site: SiteConfig;
   app?: AppConfig;
-  /**
-   * Service definitions
-   */
-  services?: {
-    [k: string]: unknown;
-  };
+  services?: ServicesConfig;
   [k: string]: unknown;
 }
