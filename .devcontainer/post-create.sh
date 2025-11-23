@@ -239,10 +239,12 @@ if [ -n "$CODESPACE_NAME" ]; then
     const fs = require('fs');
     const config = JSON.parse(fs.readFileSync('environments/local.json', 'utf-8'));
     const baseConfig = JSON.parse(fs.readFileSync('semiont.json', 'utf-8'));
+    if (!baseConfig.site) {
+      throw new Error('semiont.json must have site configuration');
+    }
     const siteDomain = '${CODESPACE_NAME}-3000.app.github.dev';
     config.site.domain = siteDomain;
-    const baseAllowedDomains = baseConfig.site?.oauthAllowedDomains || ['example.com', 'gmail.com'];
-    config.site.oauthAllowedDomains = [siteDomain, ...baseAllowedDomains];
+    config.site.oauthAllowedDomains = [siteDomain, ...baseConfig.site.oauthAllowedDomains];
     config.services.frontend.url = '${FRONTEND_URL}';
     config.services.backend.publicURL = '${BACKEND_URL}';
     config.services.backend.corsOrigin = '${FRONTEND_URL}';

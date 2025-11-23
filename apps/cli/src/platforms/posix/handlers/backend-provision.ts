@@ -1,9 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getBackendPaths } from './backend-paths.js';
+import { getNodeEnvForEnvironment } from '@semiont/core';
 
 /**
  * Provision handler for backend services on POSIX systems
@@ -113,29 +115,40 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     throw new Error('Backend port not configured');
   }
 
-  const siteDomain = service.environmentConfig.site?.domain;
+  const siteDomain = service.environmentConfig.site.domain;
   if (!siteDomain) {
     throw new Error('Site domain not configured');
   }
 
   // Read OAuth allowed domains from site config
-  const oauthAllowedDomains = service.environmentConfig.site?.oauthAllowedDomains;
+  const oauthAllowedDomains = service.environmentConfig.site.oauthAllowedDomains;
   if (!oauthAllowedDomains || oauthAllowedDomains.length === 0) {
     throw new Error('OAuth allowed domains not configured in site config');
   }
 
   const allowedDomains = oauthAllowedDomains.join(',');
 
+  // Get NODE_ENV from environment config
+  const nodeEnv = getNodeEnvForEnvironment(service.environmentConfig);
+
+  // Get enableLocalAuth from app config, default to true for development
+  const enableLocalAuth = service.environmentConfig.app?.security?.enableLocalAuth ??
+    (nodeEnv === 'development');
+
+  // Get JWT secret from config or generate a secure one
+  const jwtSecret = service.environmentConfig.app?.security?.jwtSecret ??
+    crypto.randomBytes(32).toString('base64');
+
   const envUpdates: Record<string, string> = {
-    'NODE_ENV': 'development',
+    'NODE_ENV': nodeEnv,
     'PORT': port.toString(),
     'DATABASE_URL': databaseUrl,
     'LOG_DIR': logsDir,
     'TMP_DIR': tmpDir,
-    'JWT_SECRET': 'local-development-secret-change-in-production',
+    'JWT_SECRET': jwtSecret,
     'FRONTEND_URL': frontendUrl,
     'BACKEND_URL': backendUrl,
-    'ENABLE_LOCAL_AUTH': 'true',
+    'ENABLE_LOCAL_AUTH': enableLocalAuth.toString(),
     'SITE_DOMAIN': siteDomain,
     'OAUTH_ALLOWED_DOMAINS': allowedDomains
   };

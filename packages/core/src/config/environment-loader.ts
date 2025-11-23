@@ -25,8 +25,8 @@ export interface EnvironmentConfig {
     default?: PlatformType;  // No fallback - must be explicit
   };
   services: Record<string, ServiceConfig>;
+  site: SiteConfig;  // Required - contains domain and OAuth configuration
   aws?: AWSConfig;
-  site?: SiteConfig;
   app?: AppConfig;
   env?: {
     NODE_ENV?: 'development' | 'production' | 'test';
@@ -107,6 +107,8 @@ export interface AppConfig {
     sessionTimeout?: number;
     maxLoginAttempts?: number;
     corsAllowedOrigins?: string[];
+    enableLocalAuth?: boolean;
+    jwtSecret?: string;
   };
   performance?: {
     enableCaching?: boolean;

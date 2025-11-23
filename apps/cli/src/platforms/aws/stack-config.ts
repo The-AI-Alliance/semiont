@@ -240,14 +240,14 @@ export class SemiontStackConfig {
   }
 
   async getSiteName(): Promise<string> {
-    if (!this.environmentConfig.site?.siteName) {
+    if (!this.environmentConfig.site.siteName) {
       throw new Error(`Site name not configured for environment ${this.environment}`);
     }
     return this.environmentConfig.site.siteName;
   }
 
   async getDomainName(): Promise<string> {
-    if (!this.environmentConfig.site?.domain) {
+    if (!this.environmentConfig.site.domain) {
       throw new Error(`Domain not configured for environment ${this.environment}`);
     }
     return this.environmentConfig.site.domain;

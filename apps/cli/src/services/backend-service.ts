@@ -122,8 +122,8 @@ export class BackendService extends BaseService {
       NODE_ENV: getNodeEnvForEnvironment(this.envConfig),
       SEMIONT_ENV: this.environment,
       SEMIONT_ENVIRONMENT: this.environment,
-      ...(this.envConfig.site?.domain && { SITE_DOMAIN: this.envConfig.site.domain }),
-      ...(this.envConfig.site?.oauthAllowedDomains && {
+      ...(this.envConfig.site.domain && { SITE_DOMAIN: this.envConfig.site.domain }),
+      ...(this.envConfig.site.oauthAllowedDomains && {
         OAUTH_ALLOWED_DOMAINS: JSON.stringify(this.envConfig.site.oauthAllowedDomains)
       })
     };

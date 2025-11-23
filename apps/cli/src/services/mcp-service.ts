@@ -113,7 +113,7 @@ export class MCPService extends BaseService {
   // =====================================================================
   
   private getApiUrl(): string {
-    return `https://${this.envConfig.site?.domain || 'localhost'}`;
+    return `https://${this.envConfig.site.domain || 'localhost'}`;
   }
   
   private findMCPServer(): string {
