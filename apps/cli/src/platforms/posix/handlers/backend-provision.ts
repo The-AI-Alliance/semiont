@@ -87,6 +87,12 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   }
   
   // Define all environment variables in one place
+  // Get URLs from environment config (respects Codespaces URLs if configured)
+  const frontendService = service.environmentConfig.services?.frontend;
+  const backendUrl = service.config.publicURL || `http://localhost:${service.config.port || 4000}`;
+  const frontendUrl = frontendService?.url || 'http://localhost:3000';
+  const siteDomain = service.environmentConfig.site?.domain || 'localhost';
+
   const envUpdates: Record<string, string> = {
     'NODE_ENV': 'development',
     'PORT': (service.config.port || 4000).toString(),
@@ -94,11 +100,11 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     'LOG_DIR': logsDir,
     'TMP_DIR': tmpDir,
     'JWT_SECRET': 'local-development-secret-change-in-production',
-    'FRONTEND_URL': 'http://localhost:3000',
-    'BACKEND_URL': `http://localhost:${service.config.port || 4000}`,
+    'FRONTEND_URL': frontendUrl,
+    'BACKEND_URL': backendUrl,
     'ENABLE_LOCAL_AUTH': 'true',  // Enable local development authentication
-    'SITE_DOMAIN': 'localhost',  // Required for JWT issuer
-    'OAUTH_ALLOWED_DOMAINS': 'localhost'  // Allowed domains for OAuth authentication
+    'SITE_DOMAIN': siteDomain,  // Required for JWT issuer
+    'OAUTH_ALLOWED_DOMAINS': siteDomain  // Allowed domains for OAuth authentication
   };
   
   // Create .env from the single source of truth

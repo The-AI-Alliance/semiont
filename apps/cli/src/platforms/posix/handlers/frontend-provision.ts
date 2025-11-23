@@ -56,15 +56,21 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   
   // Always generate a new secure NEXTAUTH_SECRET
   const nextAuthSecret = crypto.randomBytes(32).toString('base64');
-  
+
+  // Get URLs from environment config (respects Codespaces URLs if configured)
+  const backendService = service.environmentConfig.services?.backend;
+  const frontendUrl = service.environmentConfig.services?.frontend?.url || `http://localhost:${service.config.port || 3000}`;
+  const backendUrl = backendService?.publicURL || `http://localhost:${service.config.backendPort || 4000}`;
+  const siteName = service.config.siteName || 'Semiont';
+
   // Always create/overwrite .env.local with correct configuration
   const envUpdates: Record<string, string> = {
     'NODE_ENV': 'development',
     'PORT': (service.config.port || 3000).toString(),
-    'NEXT_PUBLIC_API_URL': `http://localhost:${service.config.backendPort || 4000}`,
-    'NEXT_PUBLIC_SITE_NAME': service.config.siteName || 'Semiont Development',
-    'NEXT_PUBLIC_FRONTEND_URL': `http://localhost:${service.config.port || 3000}`,
-    'NEXTAUTH_URL': `http://localhost:${service.config.port || 3000}`,
+    'NEXT_PUBLIC_API_URL': backendUrl,
+    'NEXT_PUBLIC_SITE_NAME': siteName,
+    'NEXT_PUBLIC_FRONTEND_URL': frontendUrl,
+    'NEXTAUTH_URL': frontendUrl,
     'NEXTAUTH_SECRET': nextAuthSecret,
     'ENABLE_LOCAL_AUTH': 'true',  // Enable local development authentication
     'LOG_DIR': logsDir,
