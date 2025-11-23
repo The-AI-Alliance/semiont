@@ -59,6 +59,15 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 
   // Get URLs from service config (respects Codespaces URLs if configured)
   // service.config contains the merged frontend service config from environment
+
+  // DEBUG: Log what we're getting
+  if (!service.quiet) {
+    printInfo(`Frontend provision config check:`);
+    printInfo(`  service.config.url: ${service.config.url}`);
+    printInfo(`  service.config.port: ${service.config.port}`);
+    printInfo(`  env config frontend.url: ${service.environmentConfig.services?.frontend?.url}`);
+  }
+
   const frontendUrl = service.config.url || `http://localhost:${service.config.port || 3000}`;
   const backendService = service.environmentConfig.services?.backend;
   const backendUrl = backendService?.publicURL || `http://localhost:${service.config.backendPort || 4000}`;
