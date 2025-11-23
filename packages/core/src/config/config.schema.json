@@ -66,6 +66,7 @@
         "password": { "type": "string" },
         "database": { "type": "string" },
         "host": { "type": "string" },
+        "port": { "type": "integer" },
         "storage": { "type": "string" },
         "index": { "type": "string" },
         "endpoint": { "type": "string" },

@@ -75,6 +75,7 @@ export interface GraphServiceConfig {
   password: string;
   database: string;
   host?: string;
+  port?: number;
   storage?: string;
   index?: string;
   endpoint?: string;
