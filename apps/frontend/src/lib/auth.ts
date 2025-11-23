@@ -7,8 +7,16 @@ import type { NextAuthOptions } from 'next-auth';
 // Build providers array based on environment
 const providers: NextAuthOptions['providers'] = [];
 
+console.log('[Frontend Auth] Environment check:', {
+  NODE_ENV: process.env.NODE_ENV,
+  ENABLE_LOCAL_AUTH: process.env.ENABLE_LOCAL_AUTH,
+  hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+  hasBackendUrl: !!(process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL)
+});
+
 // Add Google provider if credentials are configured
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  console.log('[Frontend Auth] Adding Google provider');
   providers.push(
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -19,6 +27,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 
 // Add local development provider if enabled
 if (process.env.ENABLE_LOCAL_AUTH === 'true' && process.env.NODE_ENV === 'development') {
+  console.log('[Frontend Auth] Adding local credentials provider');
   providers.push(
     CredentialsProvider({
       name: 'Local Development',
@@ -39,6 +48,12 @@ if (process.env.ENABLE_LOCAL_AUTH === 'true' && process.env.NODE_ENV === 'develo
         }
 
         try {
+          console.log('[Frontend Auth] Calling backend for local auth:', {
+            apiUrl,
+            endpoint: `${apiUrl}/api/tokens/local`,
+            email: credentials.email
+          });
+
           const response = await fetch(`${apiUrl}/api/tokens/local`, {
             method: 'POST',
             headers: {
@@ -49,8 +64,15 @@ if (process.env.ENABLE_LOCAL_AUTH === 'true' && process.env.NODE_ENV === 'develo
             }),
           });
 
+          console.log('[Frontend Auth] Backend response:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok
+          });
+
           if (!response.ok) {
-            console.error('Local authentication failed:', await response.text());
+            const errorText = await response.text();
+            console.error('[Frontend Auth] Local authentication failed:', errorText);
             return null;
           }
 
