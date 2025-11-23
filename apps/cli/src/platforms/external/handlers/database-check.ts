@@ -10,7 +10,7 @@ const checkExternalDatabase = async (context: ExternalCheckHandlerContext): Prom
   const databaseType = service.config.type || 'postgres';
 
   // Configuration display (sanitized)
-  const config: any = {
+  const config: Record<string, unknown> = {
     type: databaseType,
     name: service.name,
     host: service.config.host || 'localhost',
