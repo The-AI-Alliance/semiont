@@ -28,7 +28,8 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
   const environment = service.environment;
   const projectRoot = service.projectRoot;
   
-  if (!envConfig.aws) {
+  const aws = (envConfig as any).aws;
+  if (!aws) {
     return {
       success: false,
       error: `Environment ${environment} does not have AWS configuration`,
@@ -37,12 +38,12 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
       }
     };
   }
-  
+
   // Determine which stacks to deploy
   const stacksToProvision: string[] = [];
   const stackMapping: Record<string, string> = {
-    'data': envConfig.aws.stacks?.data || 'SemiontDataStack',
-    'app': envConfig.aws.stacks?.app || 'SemiontAppStack'
+    'data': aws.stacks?.data || 'SemiontDataStack',
+    'app': aws.stacks?.app || 'SemiontAppStack'
   };
   
   if (stackType === 'all') {

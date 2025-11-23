@@ -205,8 +205,8 @@ describe('Dynamic Environment Discovery', () => {
     
     // Should load correctly
     const sandboxConfig = loadEnvironmentConfig(testDir, 'sandbox');
-    expect(sandboxConfig.services?.api?.port).toBe(8080);
-    expect(sandboxConfig.services?.web?.port).toBe(3000);
+    expect((sandboxConfig.services as any)?.api?.port).toBe(8080);
+    expect((sandboxConfig.services as any)?.web?.port).toBe(3000);
 
     const integrationConfig = loadEnvironmentConfig(testDir, 'integration-testing');
     expect(integrationConfig.platform?.default).toBe('aws');
