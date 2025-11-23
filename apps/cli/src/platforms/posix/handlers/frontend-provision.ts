@@ -57,42 +57,19 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   // Always generate a new secure NEXTAUTH_SECRET
   const nextAuthSecret = crypto.randomBytes(32).toString('base64');
 
-  // Get URLs from service config (respects Codespaces URLs if configured)
-  // service.config contains the merged frontend service config from environment
-
+  // Get values from service config (already validated by schema)
   const frontendUrl = service.config.url;
-  if (!frontendUrl) {
-    throw new Error('Frontend URL not configured');
-  }
-
   const port = service.config.port;
-  if (!port) {
-    throw new Error('Frontend port not configured');
-  }
+  const semiontEnv = service.environment;
 
-  const backendService = service.environmentConfig.services?.backend;
-  if (!backendService?.publicURL) {
-    throw new Error('Backend publicURL not configured');
-  }
-  const backendUrl = backendService.publicURL;
-
-  const siteName = service.config.siteName;
-  if (!siteName) {
-    throw new Error('Site name not configured');
-  }
-
-  // Always create/overwrite .env.local with correct configuration
+  // Always create/overwrite .env.local with minimal configuration
+  // Most config now comes from the semiont config system
   const envUpdates: Record<string, string> = {
     'NODE_ENV': 'development',
     'PORT': port.toString(),
-    'NEXT_PUBLIC_API_URL': backendUrl,
-    'NEXT_PUBLIC_SITE_NAME': siteName,
-    'NEXT_PUBLIC_FRONTEND_URL': frontendUrl,
     'NEXTAUTH_URL': frontendUrl,
     'NEXTAUTH_SECRET': nextAuthSecret,
-    'ENABLE_LOCAL_AUTH': 'true',
-    'LOG_DIR': logsDir,
-    'TMP_DIR': tmpDir
+    'SEMIONT_ENV': semiontEnv
   };
   
   if (fs.existsSync(envExamplePath)) {
@@ -130,14 +107,11 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     const basicEnv = `# Frontend Environment Configuration
 NODE_ENV=development
 PORT=${port}
-NEXT_PUBLIC_API_URL=${backendUrl}
-NEXT_PUBLIC_SITE_NAME=${siteName}
-NEXT_PUBLIC_FRONTEND_URL=${frontendUrl}
 NEXTAUTH_URL=${frontendUrl}
 NEXTAUTH_SECRET=${nextAuthSecret}
-ENABLE_LOCAL_AUTH=true
-LOG_DIR=${logsDir}
-TMP_DIR=${tmpDir}
+
+# Semiont Configuration System
+SEMIONT_ENV=${semiontEnv}
 `;
     fs.writeFileSync(envFile, basicEnv);
 

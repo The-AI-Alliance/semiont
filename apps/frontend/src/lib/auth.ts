@@ -2,16 +2,28 @@ import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { validateData, JWTTokenSchema } from '@semiont/api-client';
 import { OAuthUserSchema } from '@/lib/validation';
+import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import type { NextAuthOptions } from 'next-auth';
+
+// Load config once at module initialization
+const env = process.env.SEMIONT_ENV || 'local';
+const projectRoot = findProjectRoot();
+const config = loadEnvironmentConfig(projectRoot, env);
+
+console.log('[Frontend Auth] Config loaded:', {
+  env,
+  projectRoot,
+  enableLocalAuth: config.app?.security?.enableLocalAuth,
+  backendUrl: config.services?.backend?.publicURL
+});
 
 // Build providers array based on environment
 const providers: NextAuthOptions['providers'] = [];
 
 console.log('[Frontend Auth] Environment check:', {
   NODE_ENV: process.env.NODE_ENV,
-  ENABLE_LOCAL_AUTH: process.env.ENABLE_LOCAL_AUTH,
   hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
-  hasBackendUrl: !!(process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL)
+  localAuthEnabled: config.app?.security?.enableLocalAuth
 });
 
 // Add Google provider if credentials are configured
@@ -25,8 +37,8 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
-// Add local development provider if enabled
-if (process.env.ENABLE_LOCAL_AUTH === 'true' && process.env.NODE_ENV === 'development') {
+// Add local development provider if enabled in config
+if (config.app?.security?.enableLocalAuth && process.env.NODE_ENV === 'development') {
   console.log('[Frontend Auth] Adding local credentials provider');
   providers.push(
     CredentialsProvider({
@@ -39,13 +51,7 @@ if (process.env.ENABLE_LOCAL_AUTH === 'true' && process.env.NODE_ENV === 'develo
           return null;
         }
 
-        // Call backend local auth endpoint
-        // BACKEND_INTERNAL_URL: Server-side env var for internal backend communication (e.g., Service Connect DNS)
-        // NEXT_PUBLIC_API_URL: Public-facing API URL (fallback for local dev)
-        const apiUrl = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
-        if (!apiUrl) {
-          throw new Error('Either BACKEND_INTERNAL_URL or NEXT_PUBLIC_API_URL is required for authentication');
-        }
+        const apiUrl = config.services?.backend?.publicURL;
 
         try {
           console.log('[Frontend Auth] Calling backend for local auth:', {
@@ -106,18 +112,15 @@ export const authOptions: NextAuthOptions = {
       }
       
       if (account?.provider === 'google') {
-        // Frontend domain validation for better UX (fail fast)
-        // Security principle: OAUTH_ALLOWED_DOMAINS must be explicitly configured
-        const allowedDomainsStr = process.env.OAUTH_ALLOWED_DOMAINS;
-        if (!allowedDomainsStr) {
-          console.error('OAUTH_ALLOWED_DOMAINS environment variable is required for authentication');
+        // Get allowed domains from config
+        const allowedDomains = config.site?.oauthAllowedDomains;
+
+        if (!allowedDomains || allowedDomains.length === 0) {
+          console.error('site.oauthAllowedDomains is not configured - rejecting all OAuth logins');
           return false;
         }
 
-        const allowedDomains = allowedDomainsStr.split(',').map(d => d.trim()).filter(Boolean);
-
-        console.log(`OAuth Debug: Raw env var = '${allowedDomainsStr}'`);
-        console.log(`OAuth Debug: Parsed domains = ${JSON.stringify(allowedDomains)}`);
+        console.log(`OAuth Debug: Allowed domains from config = ${JSON.stringify(allowedDomains)}`);
 
         if (!user.email) {
           console.log('OAuth Debug: No email provided');
@@ -133,44 +136,17 @@ export const authOptions: NextAuthOptions = {
         const emailDomain: string = emailParts[1];
         console.log(`OAuth Debug: email=${user.email}, domain=${emailDomain}`);
 
-        // If no domains are configured after trimming, reject all (closed system)
-        if (allowedDomains.length === 0) {
-          console.error('OAUTH_ALLOWED_DOMAINS is empty after parsing - rejecting all logins');
-          return false;
-        }
-        
         // Check if the domain is in the allowed list
         if (!allowedDomains.includes(emailDomain)) {
           console.log(`Rejected login from domain: ${emailDomain} (allowed: ${allowedDomains.join(', ')})`);
           return false;
         }
-        
+
         console.log(`OAuth Debug: domain ${emailDomain} is allowed`);
 
         // Backend authentication for security validation and token generation
         try {
-          // BACKEND_INTERNAL_URL: Server-side env var for internal backend communication
-          //   - In AWS: Set to Service Connect DNS like 'http://backend:4000' for container-to-container
-          //   - In local dev: Can be same as NEXT_PUBLIC_API_URL
-          // NEXT_PUBLIC_API_URL: Public-facing API URL (exposed to browser)
-          //   - Always the public URL users access
-          //
-          // Priority: BACKEND_INTERNAL_URL > production default > NEXT_PUBLIC_API_URL
-          let apiUrl = process.env.BACKEND_INTERNAL_URL;
-
-          if (!apiUrl && process.env.NODE_ENV === 'production') {
-            // Production fallback: use Service Connect DNS for internal communication
-            apiUrl = 'http://backend:4000';
-          }
-
-          if (!apiUrl) {
-            // Development: use public API URL
-            apiUrl = process.env.NEXT_PUBLIC_API_URL;
-          }
-
-          if (!apiUrl) {
-            throw new Error('Backend API URL is required: set BACKEND_INTERNAL_URL or NEXT_PUBLIC_API_URL');
-          }
+          const apiUrl = config.services?.backend?.publicURL;
           console.log(`Calling backend at: ${apiUrl}/api/tokens/google`);
           const response = await fetch(`${apiUrl}/api/tokens/google`, {
             method: 'POST',
