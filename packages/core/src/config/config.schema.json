@@ -1,0 +1,189 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://semiont.org/schemas/config.json",
+  "definitions": {
+    "SiteConfig": {
+      "type": "object",
+      "properties": {
+        "siteName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name for the site"
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Primary domain for the site"
+        },
+        "adminEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Administrator email address"
+        },
+        "supportEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Support email address (optional)"
+        },
+        "oauthAllowedDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "Email domains allowed for OAuth authentication"
+        }
+      },
+      "required": ["siteName", "domain", "adminEmail", "oauthAllowedDomains"],
+      "additionalProperties": false
+    },
+    "AppConfig": {
+      "type": "object",
+      "properties": {
+        "features": {
+          "type": "object",
+          "properties": {
+            "enableAnalytics": { "type": "boolean" },
+            "enableMaintenanceMode": { "type": "boolean" },
+            "enableDebugLogging": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "security": {
+          "type": "object",
+          "properties": {
+            "sessionTimeout": {
+              "type": "integer",
+              "minimum": 60,
+              "description": "Session timeout in seconds"
+            },
+            "maxLoginAttempts": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum failed login attempts before lockout"
+            },
+            "corsAllowedOrigins": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "enableLocalAuth": {
+              "type": "boolean",
+              "description": "Enable local username/password authentication"
+            },
+            "jwtSecret": {
+              "type": "string",
+              "minLength": 32,
+              "description": "JWT signing secret (base64 encoded, 32+ bytes)"
+            }
+          },
+          "additionalProperties": false
+        },
+        "performance": {
+          "type": "object",
+          "properties": {
+            "enableCaching": { "type": "boolean" },
+            "cacheTimeout": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cache timeout in seconds"
+            },
+            "maxRequestSize": {
+              "type": "string",
+              "pattern": "^[0-9]+(kb|mb|gb)$",
+              "description": "Maximum request size (e.g., '10mb')"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "PlatformType": {
+      "type": "string",
+      "enum": ["posix", "container", "aws", "external"]
+    },
+    "EnvironmentConfig": {
+      "type": "object",
+      "properties": {
+        "_comment": {
+          "type": "string",
+          "description": "Optional comment for documentation"
+        },
+        "_metadata": {
+          "type": "object",
+          "properties": {
+            "environment": { "type": "string" },
+            "projectRoot": { "type": "string" }
+          },
+          "required": ["environment", "projectRoot"]
+        },
+        "platform": {
+          "type": "object",
+          "properties": {
+            "default": { "$ref": "#/definitions/PlatformType" }
+          }
+        },
+        "services": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Service-specific configurations"
+        },
+        "site": {
+          "$ref": "#/definitions/SiteConfig"
+        },
+        "app": {
+          "$ref": "#/definitions/AppConfig"
+        },
+        "env": {
+          "type": "object",
+          "properties": {
+            "NODE_ENV": {
+              "type": "string",
+              "enum": ["development", "production", "test"]
+            }
+          },
+          "additionalProperties": true
+        },
+        "deployment": {
+          "type": "object",
+          "properties": {
+            "imageTagStrategy": {
+              "type": "string",
+              "enum": ["mutable", "immutable", "git-hash"]
+            }
+          }
+        }
+      },
+      "required": ["services", "site"],
+      "additionalProperties": true
+    },
+    "SemiontConfig": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Config file version (semver)"
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Project name"
+        },
+        "site": {
+          "$ref": "#/definitions/SiteConfig"
+        },
+        "app": {
+          "$ref": "#/definitions/AppConfig"
+        },
+        "services": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Service definitions"
+        }
+      },
+      "required": ["version", "project", "site"],
+      "additionalProperties": true
+    }
+  }
+}
