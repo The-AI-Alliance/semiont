@@ -21,17 +21,17 @@ const provisionFilesystemService = async (context: PosixProvisionHandlerContext)
 
   const metadata: Record<string, unknown> = {
     serviceType: 'filesystem',
-    directories: []
+    directories: [] as string[]
   };
 
   // Get filesystem paths
   const paths = getFilesystemPaths(context);
-  const { baseDir: absolutePath, uploadsDir, tempDir, cacheDir, logsDir } = paths;
+  const { baseDir: absolutePath } = paths;
   
   // Create the main filesystem directory
   try {
     fs.mkdirSync(absolutePath, { recursive: true });
-    metadata.directories.push(absolutePath);
+    (metadata.directories as string[]).push(absolutePath);
     
     if (!service.quiet) {
       printInfo(`Created directory: ${absolutePath}`);
@@ -51,7 +51,7 @@ const provisionFilesystemService = async (context: PosixProvisionHandlerContext)
         const absSubPath = path.isAbsolute(subPath) ? subPath : path.join(service.projectRoot, subPath);
         
         fs.mkdirSync(absSubPath, { recursive: true });
-        metadata.directories.push(absSubPath);
+        (metadata.directories as string[]).push(absSubPath);
         
         if (!service.quiet) {
           printInfo(`Created storage directory: ${absSubPath}`);
@@ -71,7 +71,7 @@ const provisionFilesystemService = async (context: PosixProvisionHandlerContext)
     for (const dir of standardDirs) {
       const dirPath = path.join(absolutePath, dir);
       fs.mkdirSync(dirPath, { recursive: true });
-      metadata.directories.push(dirPath);
+      (metadata.directories as string[]).push(dirPath);
     }
     
     // Check available disk space
@@ -142,7 +142,7 @@ Files placed here will persist across service restarts.
       printInfo('');
       printInfo('Filesystem details:');
       printInfo(`  Path: ${absolutePath}`);
-      printInfo(`  Directories: ${metadata.directories.length} created`);
+      printInfo(`  Directories: ${(metadata.directories as string[]).length} created`);
       if (metadata.availableSpace) {
         printInfo(`  Available space: ${metadata.availableSpace}`);
       }

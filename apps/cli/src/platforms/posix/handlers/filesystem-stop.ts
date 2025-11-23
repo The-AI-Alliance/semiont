@@ -22,7 +22,7 @@ const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<
   
   const metadata: Record<string, unknown> = {
     serviceType: 'filesystem',
-    cleaned: []
+    cleaned: [] as string[]
   };
 
   // Get filesystem paths
@@ -103,7 +103,7 @@ const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<
             } else {
               fs.unlinkSync(filePath);
             }
-            metadata.cleaned.push(filePath);
+            (metadata.cleaned as string[]).push(filePath);
           } catch (error) {
             printWarning(`Could not remove ${filePath}: ${error}`);
           }
@@ -125,7 +125,7 @@ const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<
             } else {
               fs.unlinkSync(filePath);
             }
-            metadata.cleaned.push(filePath);
+            (metadata.cleaned as string[]).push(filePath);
           } catch (error) {
             printWarning(`Could not remove ${filePath}: ${error}`);
           }
@@ -156,8 +156,8 @@ const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<
     
     if (!service.quiet) {
       printSuccess(`✅ Filesystem service ${service.name} stopped successfully`);
-      if (metadata.cleaned.length > 0) {
-        printInfo(`Cleaned ${metadata.cleaned.length} temporary files`);
+      if ((metadata.cleaned as string[]).length > 0) {
+        printInfo(`Cleaned ${(metadata.cleaned as string[]).length} temporary files`);
       }
       if (processesUsingFs.length > 0) {
         printWarning('Note: Some processes may still be using the filesystem');

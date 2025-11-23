@@ -10,8 +10,6 @@ import { getFilesystemPaths } from './filesystem-paths.js';
  * not whether a process is running (since it's passive storage).
  */
 const checkFilesystemService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { service } = context;
-
   // Get filesystem paths
   const paths = getFilesystemPaths(context);
   const { baseDir: absolutePath, uploadsDir, tempDir, cacheDir, logsDir } = paths;
