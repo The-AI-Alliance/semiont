@@ -220,7 +220,7 @@ export class BackendService extends BaseService {
   }
   
   private async collectProcessLogs(): Promise<CommandExtensions['logs']> {
-    const logPath = path.join(this.config.projectRoot, 'apps/backend/logs/app.log');
+    const logPath = path.join(this.config.projectRoot || this.projectRoot, 'apps/backend/logs/app.log');
     const recent: string[] = [];
     const errorLogs: string[] = [];
     

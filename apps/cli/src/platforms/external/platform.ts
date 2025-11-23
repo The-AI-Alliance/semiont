@@ -102,7 +102,7 @@ export class ExternalPlatform extends Platform {
     // Could be extended to fetch from external logging services if configured
     
     // Check if service has configured a logs endpoint
-    const logsEndpoint = service.config?.logsEndpoint || service.config?.logs?.url;
+    const logsEndpoint = service.config?.logsEndpoint;
     if (!logsEndpoint) {
       // No logs available for external services
       return undefined;
