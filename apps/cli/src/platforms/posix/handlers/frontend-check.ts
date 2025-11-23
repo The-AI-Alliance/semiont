@@ -1,8 +1,8 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
+import { getFrontendPaths } from './frontend-paths.js';
 
 /**
  * Check handler for frontend services on POSIX systems
@@ -12,18 +12,15 @@ import { StateManager } from '../../../core/state-manager.js';
  */
 const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, savedState } = context;
-  
-  // Setup paths
-  const frontendDir = path.join(service.projectRoot, 'frontend');
-  const pidFile = path.join(frontendDir, '.pid');
-  const logsDir = path.join(frontendDir, 'logs');
-  const appLogPath = path.join(logsDir, 'app.log');
-  const errorLogPath = path.join(logsDir, 'error.log');
+
+  // Get frontend paths
+  const paths = getFrontendPaths(context);
+  const { sourceDir: frontendDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
   
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
   let healthy = false;
-  let details: any = {
+  let details: Record<string, unknown> = {
     frontendDir,
     port: service.config.port || 3000
   };

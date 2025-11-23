@@ -1,8 +1,8 @@
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger.js';
+import { getGraphPaths } from './graph-paths.js';
 
 /**
  * Provision handler for graph database services on POSIX systems
@@ -31,7 +31,17 @@ const provisionGraphService = async (context: PosixProvisionHandlerContext): Pro
     // Parse options from args
     const withElasticsearch = args.includes('--with-elasticsearch');
     const withCassandra = args.includes('--with-cassandra');
-    const dataDir = process.env.JANUSGRAPH_DATA_DIR || path.join(service.projectRoot, '.janusgraph');
+
+    // Get graph paths
+    const paths = getGraphPaths(context);
+    const {
+      dataDir,
+      janusgraphDir,
+      janusgraphZipPath: zipPath,
+      configPath,
+      graphConfigPath: graphConfig,
+      dataStorageDir
+    } = paths;
       
     // Check if Java is installed (required for JanusGraph)
     try {
@@ -46,16 +56,13 @@ const provisionGraphService = async (context: PosixProvisionHandlerContext): Pro
       
       // Create data directory
       await fs.mkdir(dataDir, { recursive: true });
-      
+
       // Download JanusGraph if not present
-      const janusgraphVersion = '1.0.0';
-      const janusgraphDir = path.join(dataDir, `janusgraph-${janusgraphVersion}`);
+      const janusgraphVersion = service.config.janusgraphVersion || '1.0.0';
       const downloadUrl = `https://github.com/JanusGraph/janusgraph/releases/download/v${janusgraphVersion}/janusgraph-${janusgraphVersion}.zip`;
-      
+
       if (!await fileExists(janusgraphDir)) {
         console.log(`Downloading JanusGraph ${janusgraphVersion}...`);
-        
-        const zipPath = path.join(dataDir, `janusgraph-${janusgraphVersion}.zip`);
         
         // Download the zip file
         execSync(`curl -L -o "${zipPath}" "${downloadUrl}"`, { stdio: 'inherit' });
@@ -67,10 +74,6 @@ const provisionGraphService = async (context: PosixProvisionHandlerContext): Pro
         // Clean up zip file
         await fs.unlink(zipPath);
       }
-      
-      // Generate configuration
-      const configPath = path.join(janusgraphDir, 'conf', 'gremlin-server', 'custom-server.yaml');
-      const graphConfig = path.join(janusgraphDir, 'conf', 'custom-graph.properties');
       
       // Create graph configuration
       let graphProperties = `
@@ -90,7 +93,7 @@ storage.cql.keyspace=janusgraph
         graphProperties += `
 # BerkeleyDB storage backend (embedded)
 storage.backend=berkeleyje
-storage.directory=${path.join(dataDir, 'data')}
+storage.directory=${dataStorageDir}
 `;
       }
       

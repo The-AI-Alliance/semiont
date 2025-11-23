@@ -30,7 +30,7 @@
  */
 
 import { BaseService } from './base-service.js';
-import { ServiceRequirements, StorageRequirement } from './service-requirements.js';
+import { ServiceRequirements } from './service-requirements.js';
 import { ServiceName } from './service-discovery.js';
 import { SERVICE_TYPES, ServiceType } from './service-types.js';
 
@@ -84,19 +84,19 @@ export class GenericService extends BaseService {
     }
     
     // Storage requirements from config
-    if (this.config.storage) {
+    if (this.config.storage && typeof this.config.storage !== 'string') {
       const storageConfig = this.config.storage;
-      const storage: StorageRequirement[] = Array.isArray(storageConfig) 
-        ? storageConfig 
+      const storageArray = Array.isArray(storageConfig)
+        ? storageConfig
         : [storageConfig];
-        
-      requirements.storage = storage.map(s => ({
+
+      requirements.storage = storageArray.map(s => ({
         persistent: s.persistent !== false,
         volumeName: s.volumeName || `${this.name}-data-${this.environment}`,
         size: s.size || '1Gi',
         mountPath: s.mountPath || '/data',
-        type: s.type || 'volume',
-        backupEnabled: s.backupEnabled || false
+        type: (s.type || 'volume') as 'volume' | 'bind' | 'tmpfs',
+        backupEnabled: false
       }));
     }
     
@@ -152,7 +152,9 @@ export class GenericService extends BaseService {
         runAsGroup: this.config.security?.runAsGroup || undefined,
         readOnlyRootFilesystem: this.config.security?.readOnlyRootFilesystem || false,
         allowPrivilegeEscalation: this.config.security?.allowPrivilegeEscalation || false,
-        capabilities: this.config.security?.capabilities || undefined
+        capabilities: Array.isArray(this.config.security?.capabilities)
+          ? { add: this.config.security.capabilities, drop: [] }
+          : this.config.security?.capabilities
       };
     }
     
@@ -200,8 +202,8 @@ export class GenericService extends BaseService {
     return {
       ...baseEnv,
       ...(requirements.environment || {}),
-      // Add any additional env vars from config
-      ...(this.config.env || {})
+      // Add any additional env vars from config (only if object, not string path)
+      ...(typeof this.config.env === 'object' ? this.config.env : {})
     };
   }
 }

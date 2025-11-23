@@ -127,6 +127,6 @@ export class FilesystemService extends BaseService {
   // =====================================================================
   
   private getDataPath(): string {
-    return this.config.path || path.join(this.config.projectRoot, 'data');
+    return this.config.path || path.join(this.config.projectRoot || this.projectRoot, 'data');
   }
 }

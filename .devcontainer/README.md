@@ -55,10 +55,10 @@ This directory contains the configuration for GitHub Codespaces and VS Code Dev 
 
 ### Tools & Features
 
-- **AWS CLI**: For cloud deployments
 - **GitHub CLI**: For repository operations
 - **Git**: Version control
 - **PostgreSQL Client**: Database management tools
+- **Docker-in-Docker**: For container operations
 
 ### VS Code Extensions
 

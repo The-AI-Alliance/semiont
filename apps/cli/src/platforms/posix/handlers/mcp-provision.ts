@@ -1,10 +1,9 @@
 import * as http from 'http';
 import { spawn } from 'child_process';
-import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { getMCPPaths } from './mcp-paths.js';
 
 /**
  * Provision handler for MCP (Model Context Protocol) services on POSIX systems
@@ -33,11 +32,12 @@ const provisionMCPService = async (context: PosixProvisionHandlerContext): Promi
   const protocol = domain.includes('localhost') ? 'http' : 'https';
   const port = 8585; // Default MCP OAuth callback port
   
+  // Get MCP paths
+  const paths = getMCPPaths(context);
+  const { configDir, authFile: authPath } = paths;
+
   // Create config directory
-  const configDir = path.join(os.homedir(), '.config', 'semiont');
   await fs.promises.mkdir(configDir, { recursive: true });
-  
-  const authPath = path.join(configDir, `mcp-auth-${service.environment}.json`);
   
   if (!service.quiet) {
     printInfo('🔐 Setting up MCP authentication...');
@@ -45,7 +45,7 @@ const provisionMCPService = async (context: PosixProvisionHandlerContext): Promi
   
   return new Promise((resolve, _reject) => {
     let timeoutId: NodeJS.Timeout;
-    const connections = new Set<any>();
+    const connections = new Set<import('net').Socket>();
     
     // Start local HTTP server to receive OAuth callback
     const server = http.createServer((req, res) => {

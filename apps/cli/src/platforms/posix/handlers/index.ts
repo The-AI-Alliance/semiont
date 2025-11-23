@@ -1,14 +1,10 @@
-import { webCheckDescriptor } from './web-check.js';
 import { databaseCheckDescriptor } from './database-check.js';
-import { workerCheckDescriptor } from './worker-check.js';
 import { filesystemCheckDescriptor } from './filesystem-check.js';
 import { mcpCheckDescriptor } from './mcp-check.js';
 import { graphCheckDescriptor } from './graph-check.js';
 import { backendCheckDescriptor } from './backend-check.js';
 import { frontendCheckDescriptor } from './frontend-check.js';
-import { webStartDescriptor } from './web-start.js';
 import { databaseStartDescriptor } from './database-start.js';
-import { workerStartDescriptor } from './worker-start.js';
 import { filesystemStartDescriptor } from './filesystem-start.js';
 import { mcpStartDescriptor } from './mcp-start.js';
 import { graphStartDescriptor } from './graph-start.js';
@@ -32,18 +28,14 @@ import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.
 // Platform-specific handlers with typed contexts
 const posixHandlers: Array<HandlerDescriptor<any, any>> = [
   // Check handlers
-  webCheckDescriptor,
   databaseCheckDescriptor,
-  workerCheckDescriptor,
   filesystemCheckDescriptor,
   mcpCheckDescriptor,
   graphCheckDescriptor,
   backendCheckDescriptor,
   frontendCheckDescriptor,
   // Start handlers
-  webStartDescriptor,
   databaseStartDescriptor,
-  workerStartDescriptor,
   filesystemStartDescriptor,
   mcpStartDescriptor,
   graphStartDescriptor,

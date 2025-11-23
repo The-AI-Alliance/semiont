@@ -1,31 +1,28 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated, isProcessRunning } from '../utils/process-manager.js';
+import { getFrontendPaths } from './frontend-paths.js';
 
 /**
  * Stop handler for frontend services on POSIX systems
- * 
+ *
  * Stops the frontend Node.js process gracefully using the PID file
- * stored in SEMIONT_ROOT/frontend/.pid
+ * stored in the frontend source directory
  */
 const stopFrontendService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
+
+  // Get frontend paths
+  const paths = getFrontendPaths(context);
+  const { sourceDir: frontendSourceDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
   
-  // Setup paths
-  const frontendDir = path.join(service.projectRoot, 'frontend');
-  const pidFile = path.join(frontendDir, '.pid');
-  const logsDir = path.join(frontendDir, 'logs');
-  const appLogPath = path.join(logsDir, 'app.log');
-  const errorLogPath = path.join(logsDir, 'error.log');
-  
-  // Check if frontend directory exists
-  if (!fs.existsSync(frontendDir)) {
+  // Check if frontend source directory exists
+  if (!fs.existsSync(frontendSourceDir)) {
     return {
       success: false,
-      error: 'Frontend not provisioned',
-      metadata: { serviceType: 'frontend', frontendDir }
+      error: 'Frontend not found',
+      metadata: { serviceType: 'frontend', frontendSourceDir }
     };
   }
   
@@ -139,19 +136,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
       fs.unlinkSync(pidFile);
     }
     
-    // Clean up .env.local symlink in source directory
-    const semiontRepo = process.env.SEMIONT_REPO || path.resolve(service.projectRoot, '..', 'github.com', 'The-AI-Alliance', 'semiont');
-    const sourceEnvFile = path.join(semiontRepo, 'apps', 'frontend', '.env.local');
-    if (fs.existsSync(sourceEnvFile)) {
-      try {
-        const stats = fs.lstatSync(sourceEnvFile);
-        if (stats.isSymbolicLink()) {
-          fs.unlinkSync(sourceEnvFile);
-        }
-      } catch {
-        // Ignore errors cleaning up symlink
-      }
-    }
+    // No need to clean up .env.local - it's a real file now, not a symlink
     
     // Write final log entry
     const finalMessage = `\n=== Frontend Stopped at ${new Date().toISOString()} ===\n`;
@@ -180,7 +165,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
       metadata: {
         serviceType: 'frontend',
         pid,
-        frontendDir,
+        frontendSourceDir,
         graceful
       }
     };

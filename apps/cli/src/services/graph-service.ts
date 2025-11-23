@@ -145,7 +145,7 @@ export class GraphService extends BaseService {
     switch (graphType) {
       case 'janusgraph':
         env.JAVA_OPTIONS = this.config.javaOptions || '-Xms1g -Xmx2g';
-        if (this.config.storage) {
+        if (this.config.storage && typeof this.config.storage === 'string') {
           env['janusgraph.storage.backend'] = this.config.storage;
         }
         if (this.config.index) {

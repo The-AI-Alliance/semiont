@@ -1,29 +1,26 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
+import { getBackendPaths } from './backend-paths.js';
 
 /**
  * Check handler for backend services on POSIX systems
- * 
+ *
  * Checks if the backend process is running, verifies health endpoint,
  * and collects recent logs.
  */
 const checkBackendService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, savedState } = context;
-  
-  // Setup paths
-  const backendDir = path.join(service.projectRoot, 'backend');
-  const pidFile = path.join(backendDir, '.pid');
-  const logsDir = path.join(backendDir, 'logs');
-  const appLogPath = path.join(logsDir, 'app.log');
-  const errorLogPath = path.join(logsDir, 'error.log');
+
+  // Get backend paths
+  const paths = getBackendPaths(context);
+  const { sourceDir: backendDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
   
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
   let healthy = false;
-  let details: any = {
+  let details: Record<string, unknown> = {
     backendDir,
     port: service.config.port || 4000
   };
