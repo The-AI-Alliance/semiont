@@ -94,7 +94,7 @@ export interface SiteConfig {
   domain: string;
   adminEmail: string;
   supportEmail?: string;
-  oauthAllowedDomains?: string[];
+  oauthAllowedDomains: string[];  // Required for OAuth domain validation
 }
 
 export interface AppConfig {

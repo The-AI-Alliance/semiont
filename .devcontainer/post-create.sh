@@ -238,7 +238,11 @@ if [ -n "$CODESPACE_NAME" ]; then
     node -e "
     const fs = require('fs');
     const config = JSON.parse(fs.readFileSync('environments/local.json', 'utf-8'));
-    config.site.domain = '${CODESPACE_NAME}-3000.app.github.dev';
+    const baseConfig = JSON.parse(fs.readFileSync('semiont.json', 'utf-8'));
+    const siteDomain = '${CODESPACE_NAME}-3000.app.github.dev';
+    config.site.domain = siteDomain;
+    const baseAllowedDomains = baseConfig.site?.oauthAllowedDomains || ['example.com', 'gmail.com'];
+    config.site.oauthAllowedDomains = [siteDomain, ...baseAllowedDomains];
     config.services.frontend.url = '${FRONTEND_URL}';
     config.services.backend.publicURL = '${BACKEND_URL}';
     config.services.backend.corsOrigin = '${FRONTEND_URL}';

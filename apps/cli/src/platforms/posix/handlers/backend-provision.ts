@@ -118,6 +118,14 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     throw new Error('Site domain not configured');
   }
 
+  // Read OAuth allowed domains from site config
+  const oauthAllowedDomains = service.environmentConfig.site?.oauthAllowedDomains;
+  if (!oauthAllowedDomains || oauthAllowedDomains.length === 0) {
+    throw new Error('OAuth allowed domains not configured in site config');
+  }
+
+  const allowedDomains = oauthAllowedDomains.join(',');
+
   const envUpdates: Record<string, string> = {
     'NODE_ENV': 'development',
     'PORT': port.toString(),
@@ -129,7 +137,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     'BACKEND_URL': backendUrl,
     'ENABLE_LOCAL_AUTH': 'true',
     'SITE_DOMAIN': siteDomain,
-    'OAUTH_ALLOWED_DOMAINS': siteDomain
+    'OAUTH_ALLOWED_DOMAINS': allowedDomains
   };
   
   // Create .env from the single source of truth
