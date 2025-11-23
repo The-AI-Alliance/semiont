@@ -122,17 +122,17 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     const basicEnv = `# Frontend Environment Configuration
 NODE_ENV=development
 PORT=${service.config.port || 3000}
-NEXT_PUBLIC_API_URL=http://localhost:${service.config.backendPort || 4000}
-NEXT_PUBLIC_SITE_NAME=${service.config.siteName || 'Semiont Development'}
-NEXT_PUBLIC_FRONTEND_URL=http://localhost:${service.config.port || 3000}
-NEXTAUTH_URL=http://localhost:${service.config.port || 3000}
+NEXT_PUBLIC_API_URL=${backendUrl}
+NEXT_PUBLIC_SITE_NAME=${siteName}
+NEXT_PUBLIC_FRONTEND_URL=${frontendUrl}
+NEXTAUTH_URL=${frontendUrl}
 NEXTAUTH_SECRET=${nextAuthSecret}
 ENABLE_LOCAL_AUTH=true
 LOG_DIR=${logsDir}
 TMP_DIR=${tmpDir}
 `;
     fs.writeFileSync(envFile, basicEnv);
-    
+
     if (!service.quiet) {
       printSuccess('Created .env.local with updated configuration');
       printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
