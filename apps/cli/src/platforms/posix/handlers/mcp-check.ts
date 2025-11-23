@@ -1,7 +1,7 @@
 import { StateManager } from '../../../core/state-manager.js';
 import * as fs from 'fs';
-import * as path from 'path';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { getMCPPaths } from './mcp-paths.js';
 
 /**
  * Check handler for MCP (Model Context Protocol) services
@@ -22,12 +22,8 @@ const checkMCPProcess = async (context: PosixCheckHandlerContext): Promise<Check
   }
   
   // Check MCP authentication status
-  const configDir = path.join(
-    process.env.HOME || process.env.USERPROFILE || '',
-    '.config',
-    'semiont'
-  );
-  const authPath = path.join(configDir, `mcp-auth-${service.environment}.json`);
+  const paths = getMCPPaths(context);
+  const { authFile: authPath } = paths;
   
   try {
     if (fs.existsSync(authPath)) {

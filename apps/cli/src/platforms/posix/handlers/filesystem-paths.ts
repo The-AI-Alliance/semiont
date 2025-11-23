@@ -1,0 +1,38 @@
+import * as path from 'path';
+import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+
+/**
+ * Filesystem service paths on POSIX platform
+ * Paths are configurable via service config
+ */
+export interface FilesystemPaths {
+  baseDir: string;        // Main filesystem storage directory
+  uploadsDir: string;     // Uploads subdirectory
+  tempDir: string;        // Temporary files subdirectory
+  cacheDir: string;       // Cache subdirectory
+  logsDir: string;        // Logs subdirectory
+}
+
+/**
+ * Get all filesystem paths for POSIX platform
+ */
+export function getFilesystemPaths<T>(context: BaseHandlerContext<T>): FilesystemPaths {
+  const service = context.service;
+
+  // Get base path from config or use default
+  const basePath = service.config.path ||
+    path.join(process.cwd(), 'data', service.name);
+
+  // Make absolute if relative
+  const baseDir = path.isAbsolute(basePath) ?
+    basePath :
+    path.join(service.projectRoot, basePath);
+
+  return {
+    baseDir,
+    uploadsDir: path.join(baseDir, 'uploads'),
+    tempDir: path.join(baseDir, 'temp'),
+    cacheDir: path.join(baseDir, 'cache'),
+    logsDir: path.join(baseDir, 'logs')
+  };
+}

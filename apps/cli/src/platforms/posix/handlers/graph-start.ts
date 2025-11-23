@@ -1,8 +1,8 @@
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import { spawn } from 'child_process';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { getGraphPaths } from './graph-paths.js';
 
 /**
  * Start handler for graph database services on POSIX systems
@@ -31,9 +31,18 @@ const startGraphService = async (context: PosixStartHandlerContext): Promise<Sta
 
 async function startJanusGraph(context: PosixStartHandlerContext): Promise<StartHandlerResult> {
   const { service } = context;
-  const dataDir = process.env.JANUSGRAPH_DATA_DIR || path.join(service.projectRoot, '.janusgraph');
-  const janusgraphVersion = '1.0.0';
-  const janusgraphDir = path.join(dataDir, `janusgraph-${janusgraphVersion}`);
+
+  // Get graph paths
+  const paths = getGraphPaths(context);
+  const {
+    janusgraphDir,
+    pidFile,
+    configPath,
+    graphConfigPath: graphConfig,
+    defaultServerConfig,
+    gremlinServerScript: gremlinServer,
+    gremlinShellScript
+  } = paths;
   
   // Check if JanusGraph is provisioned
   if (!await fileExists(janusgraphDir)) {
@@ -45,7 +54,6 @@ async function startJanusGraph(context: PosixStartHandlerContext): Promise<Start
   }
   
   // Check if already running
-  const pidFile = path.join(dataDir, 'janusgraph.pid');
   if (await fileExists(pidFile)) {
     const pid = await fs.readFile(pidFile, 'utf-8');
     try {
@@ -69,17 +77,11 @@ async function startJanusGraph(context: PosixStartHandlerContext): Promise<Start
   }
   
   // Check for custom configuration
-  const configPath = path.join(janusgraphDir, 'conf', 'gremlin-server', 'custom-server.yaml');
-  const graphConfig = path.join(janusgraphDir, 'conf', 'custom-graph.properties');
-  
   let serverConfig = configPath;
   if (!await fileExists(configPath)) {
     // Use default configuration
-    serverConfig = path.join(janusgraphDir, 'conf', 'gremlin-server', 'gremlin-server.yaml');
+    serverConfig = defaultServerConfig;
   }
-  
-  // Start JanusGraph
-  const gremlinServer = path.join(janusgraphDir, 'bin', 'gremlin-server.sh');
   
   const child = spawn(gremlinServer, [serverConfig], {
     detached: true,
@@ -103,7 +105,7 @@ async function startJanusGraph(context: PosixStartHandlerContext): Promise<Start
     // Try to connect to Gremlin server
     try {
       const { execSync } = await import('child_process');
-      execSync(`${path.join(janusgraphDir, 'bin', 'gremlin.sh')} -e "g.V().count()"`, {
+      execSync(`${gremlinShellScript} -e "g.V().count()"`, {
         stdio: 'ignore',
         timeout: 5000
       });
