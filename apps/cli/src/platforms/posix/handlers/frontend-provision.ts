@@ -57,9 +57,10 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   // Always generate a new secure NEXTAUTH_SECRET
   const nextAuthSecret = crypto.randomBytes(32).toString('base64');
 
-  // Get URLs from environment config (respects Codespaces URLs if configured)
+  // Get URLs from service config (respects Codespaces URLs if configured)
+  // service.config contains the merged frontend service config from environment
+  const frontendUrl = service.config.url || `http://localhost:${service.config.port || 3000}`;
   const backendService = service.environmentConfig.services?.backend;
-  const frontendUrl = service.environmentConfig.services?.frontend?.url || `http://localhost:${service.config.port || 3000}`;
   const backendUrl = backendService?.publicURL || `http://localhost:${service.config.backendPort || 4000}`;
   const siteName = service.config.siteName || 'Semiont';
 
