@@ -221,12 +221,34 @@ cd $SEMIONT_ROOT || exit 1
 cp /workspace/.devcontainer/semiont.json semiont.json
 print_success "semiont.json configured"
 
-# Copy environment configuration for local
+# Copy and configure environment for Codespaces
 print_status "Configuring environment..."
-# Always overwrite to ensure correct configuration
 mkdir -p environments
 cp /workspace/.devcontainer/environments-local.json environments/local.json
-print_success "Environment configuration configured"
+
+# Update URLs for Codespaces if running in GitHub Codespaces
+if [ -n "$CODESPACE_NAME" ]; then
+    print_status "Detected GitHub Codespaces environment, updating URLs..."
+
+    # GitHub Codespaces URL format: https://$CODESPACE_NAME-$PORT.app.github.dev
+    FRONTEND_URL="https://${CODESPACE_NAME}-3000.app.github.dev"
+    BACKEND_URL="https://${CODESPACE_NAME}-4000.app.github.dev"
+
+    # Update the environment config with Codespaces URLs
+    node -e "
+    const fs = require('fs');
+    const config = JSON.parse(fs.readFileSync('environments/local.json', 'utf-8'));
+    config.site.domain = '${CODESPACE_NAME}-3000.app.github.dev';
+    config.services.frontend.url = '${FRONTEND_URL}';
+    config.services.backend.publicURL = '${BACKEND_URL}';
+    config.services.backend.corsOrigin = '${FRONTEND_URL}';
+    fs.writeFileSync('environments/local.json', JSON.stringify(config, null, 2));
+    "
+
+    print_success "URLs configured for Codespaces: ${FRONTEND_URL}"
+else
+    print_success "Environment configuration configured for localhost"
+fi
 
 # Provision services individually using Semiont CLI
 print_status "Provisioning services..."
