@@ -3,45 +3,45 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
+import { getBackendPaths } from './backend-paths.js';
 
 /**
  * Provision handler for backend services on POSIX systems
- * 
+ *
  * Sets up the backend runtime directory structure, installs dependencies,
  * configures environment variables, and prepares the database.
  */
 const provisionBackendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, options } = context;
-  
-  // Get semiont repo path from options or environment
-  const semiontRepo = options.semiontRepo || process.env.SEMIONT_REPO;
-  if (!semiontRepo) {
+
+  // Get backend paths
+  const paths = getBackendPaths(context);
+  if (!paths) {
     return {
       success: false,
       error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
       metadata: { serviceType: 'backend' }
     };
   }
-  
-  // Verify semiont repo exists and has backend
-  const backendSourceDir = path.join(semiontRepo, 'apps', 'backend');
+
+  const { sourceDir: backendSourceDir, envFile, logsDir, tmpDir } = paths;
+
+  // Verify backend source exists
   if (!fs.existsSync(backendSourceDir)) {
     return {
       success: false,
       error: `Backend source not found at ${backendSourceDir}`,
-      metadata: { serviceType: 'backend', semiontRepo }
+      metadata: { serviceType: 'backend' }
     };
   }
-  
+
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
-    printInfo(`Using semiont repo: ${semiontRepo}`);
+    const semiontRepo = options.semiontRepo || process.env.SEMIONT_REPO;
+    if (semiontRepo) {
+      printInfo(`Using semiont repo: ${semiontRepo}`);
+    }
   }
-  
-  // All runtime files go directly in the source directory for consistency
-  const logsDir = path.join(backendSourceDir, 'logs');
-  const tmpDir = path.join(backendSourceDir, 'tmp');
-  const envFile = path.join(backendSourceDir, '.env');
 
   // Create directories
   fs.mkdirSync(logsDir, { recursive: true });
@@ -120,6 +120,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   
   try {
     // For monorepo, install from the root
+    const semiontRepo = context.options?.semiontRepo || process.env.SEMIONT_REPO || '';
     const monorepoRoot = path.resolve(semiontRepo);
     const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
     
@@ -378,7 +379,6 @@ ${backendSourceDir}
     envFile,
     logsDir,
     tmpDir,
-    semiontRepo,
     configured: true
   };
   

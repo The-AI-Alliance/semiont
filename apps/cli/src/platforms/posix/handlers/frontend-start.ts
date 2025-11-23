@@ -5,6 +5,7 @@ import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from 
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { getFrontendPaths } from './frontend-paths.js';
 
 /**
  * Start handler for frontend services on POSIX systems
@@ -13,38 +14,25 @@ import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logg
  * the frontend source directory's .env.local and logs
  */
 const startFrontendService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
-  const { service, options } = context;
-  
-  // Get semiont repo path
-  const semiontRepo = options.semiontRepo || process.env.SEMIONT_REPO;
-  if (!semiontRepo) {
-    return {
-      success: false,
-      error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
-      metadata: { serviceType: 'frontend' }
-    };
-  }
-  
-  const frontendSourceDir = path.join(semiontRepo, 'apps', 'frontend');
+  const { service } = context;
+
+  // Get frontend paths
+  const paths = getFrontendPaths(context);
+  const { sourceDir: frontendSourceDir, envLocalFile: envFile, pidFile, logsDir, tmpDir } = paths;
+
   if (!fs.existsSync(frontendSourceDir)) {
     return {
       success: false,
       error: `Frontend source not found at ${frontendSourceDir}`,
-      metadata: { serviceType: 'frontend', semiontRepo }
+      metadata: { serviceType: 'frontend' }
     };
   }
-  
-  // All runtime files are in the source directory
-  const envFile = path.join(frontendSourceDir, '.env.local');
-  const pidFile = path.join(frontendSourceDir, '.pid');
-  const logsDir = path.join(frontendSourceDir, 'logs');
-  const tmpDir = path.join(frontendSourceDir, 'tmp');
   
   // Check if frontend is provisioned (by checking for .env.local)
   if (!fs.existsSync(envFile)) {
     return {
       success: false,
-      error: `Frontend not provisioned. Run: semiont provision --service frontend --environment ${service.environment} --semiont-repo ${semiontRepo}`,
+      error: `Frontend not provisioned. Run: semiont provision --service frontend --environment ${service.environment}`,
       metadata: { serviceType: 'frontend', frontendSourceDir }
     };
   }

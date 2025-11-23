@@ -1,40 +1,26 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
+import { getBackendPaths } from './backend-paths.js';
 
 /**
  * Check handler for backend services on POSIX systems
- * 
+ *
  * Checks if the backend process is running, verifies health endpoint,
  * and collects recent logs.
  */
 const checkBackendService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { service, savedState, options } = context;
+  const { service, savedState } = context;
 
-  // Get semiont repo path
-  const semiontRepo = options?.semiontRepo || process.env.SEMIONT_REPO;
-  if (!semiontRepo) {
-    return {
-      success: false,
-      status: 'stopped',
-      error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
-      metadata: { serviceType: 'backend' }
-    };
-  }
-
-  // Setup paths - runtime files are in source directory
-  const backendDir = path.join(semiontRepo, 'apps', 'backend');
-  const pidFile = path.join(backendDir, '.pid');
-  const logsDir = path.join(backendDir, 'logs');
-  const appLogPath = path.join(logsDir, 'app.log');
-  const errorLogPath = path.join(logsDir, 'error.log');
+  // Get backend paths
+  const paths = getBackendPaths(context);
+  const { sourceDir: backendDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
   
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
   let healthy = false;
-  let details: any = {
+  let details: Record<string, unknown> = {
     backendDir,
     port: service.config.port || 4000
   };

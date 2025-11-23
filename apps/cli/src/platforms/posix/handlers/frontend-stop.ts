@@ -1,8 +1,8 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated, isProcessRunning } from '../utils/process-manager.js';
+import { getFrontendPaths } from './frontend-paths.js';
 
 /**
  * Stop handler for frontend services on POSIX systems
@@ -12,23 +12,10 @@ import { killProcessGroupAndRelated, isProcessRunning } from '../utils/process-m
  */
 const stopFrontendService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
-  
-  // Get semiont repo path
-  const semiontRepo = context.options?.semiontRepo || process.env.SEMIONT_REPO;
-  if (!semiontRepo) {
-    return {
-      success: false,
-      error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
-      metadata: { serviceType: 'frontend' }
-    };
-  }
 
-  // Setup paths - all in source directory now
-  const frontendSourceDir = path.join(semiontRepo, 'apps', 'frontend');
-  const pidFile = path.join(frontendSourceDir, '.pid');
-  const logsDir = path.join(frontendSourceDir, 'logs');
-  const appLogPath = path.join(logsDir, 'app.log');
-  const errorLogPath = path.join(logsDir, 'error.log');
+  // Get frontend paths
+  const paths = getFrontendPaths(context);
+  const { sourceDir: frontendSourceDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
   
   // Check if frontend source directory exists
   if (!fs.existsSync(frontendSourceDir)) {

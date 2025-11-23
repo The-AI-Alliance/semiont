@@ -5,6 +5,7 @@ import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from 
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { getBackendPaths } from './backend-paths.js';
 
 /**
  * Start handler for backend services on POSIX systems
@@ -13,38 +14,25 @@ import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logg
  * the backend source directory's .env and logs
  */
 const startBackendService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
-  const { service, options } = context;
-  
-  // Get semiont repo path
-  const semiontRepo = options.semiontRepo || process.env.SEMIONT_REPO;
-  if (!semiontRepo) {
-    return {
-      success: false,
-      error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
-      metadata: { serviceType: 'backend' }
-    };
-  }
-  
-  const backendSourceDir = path.join(semiontRepo, 'apps', 'backend');
+  const { service } = context;
+
+  // Get backend paths
+  const paths = getBackendPaths(context);
+  const { sourceDir: backendSourceDir, envFile, pidFile, logsDir, tmpDir } = paths;
+
   if (!fs.existsSync(backendSourceDir)) {
     return {
       success: false,
       error: `Backend source not found at ${backendSourceDir}`,
-      metadata: { serviceType: 'backend', semiontRepo }
+      metadata: { serviceType: 'backend' }
     };
   }
-  
-  // All runtime files are in the source directory
-  const envFile = path.join(backendSourceDir, '.env');
-  const pidFile = path.join(backendSourceDir, '.pid');
-  const logsDir = path.join(backendSourceDir, 'logs');
-  const tmpDir = path.join(backendSourceDir, 'tmp');
   
   // Check if backend is provisioned (by checking for .env)
   if (!fs.existsSync(envFile)) {
     return {
       success: false,
-      error: `Backend not provisioned. Run: semiont provision --service backend --environment ${service.environment} --semiont-repo ${semiontRepo}`,
+      error: `Backend not provisioned. Run: semiont provision --service backend --environment ${service.environment}`,
       metadata: { serviceType: 'backend', backendSourceDir }
     };
   }

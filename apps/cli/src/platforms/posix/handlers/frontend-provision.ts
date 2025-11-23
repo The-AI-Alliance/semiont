@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
+import { getFrontendPaths } from './frontend-paths.js';
 
 /**
  * Provision handler for frontend services on POSIX systems
@@ -12,37 +13,25 @@ import { printInfo, printSuccess, printWarning, printError } from '../../../core
  * configures environment variables, and prepares the build.
  */
 const provisionFrontendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
-  const { service, options } = context;
-  
-  // Get semiont repo path from options or environment
-  const semiontRepo = options.semiontRepo || process.env.SEMIONT_REPO;
-  if (!semiontRepo) {
-    return {
-      success: false,
-      error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
-      metadata: { serviceType: 'frontend' }
-    };
-  }
-  
-  // Verify semiont repo exists and has frontend
-  const frontendSourceDir = path.join(semiontRepo, 'apps', 'frontend');
+  const { service } = context;
+
+  // Get frontend paths
+  const paths = getFrontendPaths(context);
+  const { sourceDir: frontendSourceDir, logsDir, tmpDir, envLocalFile: envFile } = paths;
+
+  // Verify frontend source directory exists
   if (!fs.existsSync(frontendSourceDir)) {
     return {
       success: false,
       error: `Frontend source not found at ${frontendSourceDir}`,
-      metadata: { serviceType: 'frontend', semiontRepo }
+      metadata: { serviceType: 'frontend' }
     };
   }
-  
+
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);
-    printInfo(`Using semiont repo: ${semiontRepo}`);
+    printInfo(`Using source directory: ${frontendSourceDir}`);
   }
-  
-  // All runtime files go directly in the source directory for consistency
-  const logsDir = path.join(frontendSourceDir, 'logs');
-  const tmpDir = path.join(frontendSourceDir, 'tmp');
-  const envFile = path.join(frontendSourceDir, '.env.local');
 
   // Create directories
   fs.mkdirSync(logsDir, { recursive: true });
@@ -141,7 +130,7 @@ TMP_DIR=${tmpDir}
   
   try {
     // For monorepo, install from the root
-    const monorepoRoot = path.resolve(semiontRepo);
+    const monorepoRoot = path.dirname(path.dirname(frontendSourceDir));
     const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
     
     if (fs.existsSync(rootPackageJsonPath)) {
@@ -181,7 +170,7 @@ TMP_DIR=${tmpDir}
   }
   
   // Build frontend if in production mode
-  if (service.environment === 'prod' || options.build) {
+  if (service.environment === 'prod' || context.options?.build) {
     if (!service.quiet) {
       printInfo('Building frontend for production...');
     }
@@ -256,7 +245,6 @@ ${frontendSourceDir}
     envFile,
     logsDir,
     tmpDir,
-    semiontRepo,
     configured: true
   };
   
