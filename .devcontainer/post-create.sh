@@ -231,7 +231,7 @@ cd $SEMIONT_ROOT || {
 print_success "Database already running via docker-compose"
 
 # Provision backend service (this creates the proper .env file and admin user)
-semiont provision --service backend --admin-email dev@example.com >> $LOG_FILE 2>&1 || {
+semiont provision --service backend --seed-admin --admin-email dev@example.com >> $LOG_FILE 2>&1 || {
     print_error "Backend provisioning failed - check $LOG_FILE"
     exit 1
 }
