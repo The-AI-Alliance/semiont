@@ -150,21 +150,7 @@ export class BackendService extends BaseService {
   override getImage(): string {
     return this.typedConfig.image || 'semiont/backend:latest';
   }
-  
-  override getEnvironmentVariables(): Record<string, string> {
-    const baseEnv = super.getEnvironmentVariables();
-    const requirements = this.getRequirements();
-    
-    return {
-      ...baseEnv,
-      ...(requirements.environment || {}),
-      // Add dynamic values and secrets
-      DATABASE_URL: this.getDatabaseUrl(),
-      JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
-      API_KEY: process.env.API_KEY || 'local-api-key'
-    };
-  }
-  
+
   // =====================================================================
   // Service-specific hooks
   // =====================================================================
@@ -286,64 +272,6 @@ export class BackendService extends BaseService {
       };
     } catch {
       return undefined;
-    }
-  }
-  
-  // =====================================================================
-  // Helper methods
-  // =====================================================================
-  
-  private getDatabaseUrl(): string {
-    // Service-specific logic for determining database URL
-    if (this.typedConfig.databaseUrl) {
-      return this.typedConfig.databaseUrl;
-    }
-    
-    // Check if DATABASE_URL is already set in environment
-    if (process.env.DATABASE_URL) {
-      return process.env.DATABASE_URL;
-    }
-    
-    // Try to get database configuration from environment config
-    const dbConfig = this.envConfig.services?.database;
-    
-    if (dbConfig && dbConfig.platform?.type === 'external') {
-      // Load secrets for database password
-      const secretsPath = path.join(this.projectRoot, '.secrets.json');
-      let password = dbConfig.password || 'password';
-      
-      try {
-        if (fs.existsSync(secretsPath)) {
-          const secrets = JSON.parse(fs.readFileSync(secretsPath, 'utf-8'));
-          password = secrets.DATABASE_PASSWORD || password;
-        }
-      } catch (e) {
-        // Ignore errors reading secrets
-      }
-      
-      const dbUrl = `postgresql://${dbConfig.user}:${password}@${dbConfig.host}:${dbConfig.port}/${dbConfig.name}`;
-      
-      // Debug logging for CI
-      if (this.environment === 'ci') {
-        console.log(`[DEBUG] Backend DATABASE_URL construction:`);
-        console.log(`  - dbConfig: ${JSON.stringify(dbConfig)}`);
-        console.log(`  - secretsPath: ${secretsPath}`);
-        console.log(`  - DATABASE_URL: ${dbUrl}`);
-      }
-      
-      return dbUrl;
-    }
-    
-    // Fallback to platform-specific defaults
-    switch (this.platform) {
-      case 'posix':
-        return 'postgresql://postgres:localpassword@localhost:5432/semiont';
-      case 'container':
-        return 'postgresql://postgres:localpassword@semiont-postgres:5432/semiont';
-      case 'aws':
-        return '';  // AWS should have DATABASE_URL set
-      default:
-        return '';
     }
   }
 }
