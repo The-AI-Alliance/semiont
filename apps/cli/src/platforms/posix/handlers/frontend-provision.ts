@@ -64,6 +64,32 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   const frontendUrl = config.url;
   const port = config.port;
   const semiontEnv = service.environment;
+  const siteName = config.siteName;
+
+  // Get backend publicURL from environment config
+  const backendService = service.environmentConfig.services['backend'];
+  if (!backendService) {
+    return {
+      success: false,
+      error: 'Backend service not found in environment configuration',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+  const backendUrl = backendService.publicURL;
+  if (!backendUrl) {
+    return {
+      success: false,
+      error: 'Backend publicURL not configured',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+  if (!siteName) {
+    return {
+      success: false,
+      error: 'Frontend siteName not configured',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
 
   // Always create/overwrite .env.local with minimal configuration
   // Most config now comes from the semiont config system
@@ -72,7 +98,9 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     'PORT': port.toString(),
     'NEXTAUTH_URL': frontendUrl,
     'NEXTAUTH_SECRET': nextAuthSecret,
-    'SEMIONT_ENV': semiontEnv
+    'SEMIONT_ENV': semiontEnv,
+    'NEXT_PUBLIC_API_URL': backendUrl,
+    'NEXT_PUBLIC_SITE_NAME': siteName
   };
   
   if (fs.existsSync(envExamplePath)) {
@@ -115,6 +143,12 @@ NEXTAUTH_SECRET=${nextAuthSecret}
 
 # Semiont Configuration System
 SEMIONT_ENV=${semiontEnv}
+
+# Backend API URL (from backend.publicURL in environment config)
+NEXT_PUBLIC_API_URL=${backendUrl}
+
+# Site name (from frontend.siteName in environment config)
+NEXT_PUBLIC_SITE_NAME=${siteName}
 `;
     fs.writeFileSync(envFile, basicEnv);
 

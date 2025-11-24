@@ -30,7 +30,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
-import { getNodeEnvForEnvironment, type FrontendServiceConfig } from '@semiont/core';
+import type { FrontendServiceConfig } from '@semiont/core';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
@@ -104,20 +104,7 @@ export class FrontendService extends BaseService {
   override getImage(): string {
     return this.typedConfig.image || 'semiont/frontend:latest';
   }
-  
-  override getEnvironmentVariables(): Record<string, string> {
-    const baseEnv = super.getEnvironmentVariables();
 
-    return {
-      ...baseEnv,
-      NODE_ENV: getNodeEnvForEnvironment(this.envConfig),
-      PORT: this.getPort().toString(),
-      NEXT_PUBLIC_API_URL: this.getBackendUrl(),
-      NEXT_PUBLIC_SITE_NAME: `Semiont ${this.environment}`,
-      PUBLIC_URL: this.getPublicUrl()
-    };
-  }
-  
   // =====================================================================
   // Service-specific hooks
   // =====================================================================
@@ -203,34 +190,6 @@ export class FrontendService extends BaseService {
     } catch {
       // Frontend might be static S3/CloudFront, no logs
       return undefined;
-    }
-  }
-  
-  // =====================================================================
-  // Helper methods
-  // =====================================================================
-  
-  private getBackendUrl(): string {
-    switch (this.platform) {
-      case 'posix':
-        return 'http://localhost:3001';
-      case 'container':
-        return 'http://semiont-backend:3001';
-      case 'aws':
-        return `https://api-${this.environment}.semiont.com`;
-      case 'external':
-        return this.typedConfig.backendUrl || 'http://localhost:3001';
-      default:
-        return 'http://localhost:3001';
-    }
-  }
-  
-  private getPublicUrl(): string {
-    switch (this.platform) {
-      case 'aws':
-        return `https://${this.environment}.semiont.com`;
-      default:
-        return `http://localhost:${this.getPort()}`;
     }
   }
 }
