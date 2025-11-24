@@ -1,5 +1,6 @@
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+import type { FilesystemServiceConfig } from '@semiont/core';
 
 /**
  * Filesystem service paths on POSIX platform
@@ -19,7 +20,9 @@ export interface FilesystemPaths {
 export function getFilesystemPaths<T>(context: BaseHandlerContext<T>): FilesystemPaths {
   const service = context.service;
 
-  const basePath = service.config.path;
+  // Type narrowing for filesystem service config
+  const config = service.config as FilesystemServiceConfig;
+  const basePath = config.path;
   if (!basePath) {
     throw new Error('Filesystem path not configured');
   }

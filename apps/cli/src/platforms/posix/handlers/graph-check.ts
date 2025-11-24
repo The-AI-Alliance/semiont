@@ -2,6 +2,7 @@ import { StateManager } from '../../../core/state-manager.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { execSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Check handler for POSIX graph database services
@@ -10,7 +11,10 @@ import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from 
 const checkGraphProcess = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service } = context;
   const requirements = service.getRequirements();
-  const graphType = service.config.type || 'janusgraph';
+
+  // Type narrowing for graph service config
+  const config = service.config as GraphServiceConfig;
+  const graphType = config.type || 'janusgraph';
   
   // Load saved state
   const savedState = await StateManager.load(

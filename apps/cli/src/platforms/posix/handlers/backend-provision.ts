@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
+import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getBackendPaths } from './backend-paths.js';
 import { getNodeEnvForEnvironment } from '@semiont/core';
@@ -15,6 +16,9 @@ import { getNodeEnvForEnvironment } from '@semiont/core';
  */
 const provisionBackendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, options } = context;
+
+  // Type narrowing for backend service config
+  const config = service.config as BackendServiceConfig;
 
   // Get backend paths
   const paths = getBackendPaths(context);
@@ -105,14 +109,18 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   }
   const frontendUrl = frontendService.url;
 
-  const backendUrl = service.config.publicURL;
+  const backendUrl = config.publicURL;
   if (!backendUrl) {
     throw new Error('Backend publicURL not configured');
   }
 
-  const port = service.config.port;
+  const port = config.port;
   if (!port) {
     throw new Error('Backend port not configured');
+  }
+
+  if (!service.environmentConfig.site) {
+    throw new Error('Site configuration not found in environment file');
   }
 
   const siteDomain = service.environmentConfig.site.domain;

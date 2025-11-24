@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 import { ContainerStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import * as fs from 'fs/promises';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Stop handler for graph database services using Docker
@@ -10,9 +11,12 @@ import * as fs from 'fs/promises';
  */
 const stopGraphService = async (context: ContainerStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
-  
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+
   // Determine which graph database to stop from service config
-  const graphType = service.config.type;
+  const graphType = serviceConfig.type;
   
   if (!service.quiet) {
     printInfo(`🛑 Stopping ${graphType} graph database container...`);

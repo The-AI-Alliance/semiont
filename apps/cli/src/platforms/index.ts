@@ -51,7 +51,7 @@ export class PlatformFactory {
         return new AWSPlatform();
       case 'external':
         return new ExternalPlatform();
-      case 'mock':
+      case 'mock' as any:  // Mock platform for tests, not in official PlatformType enum
         return new MockPlatform();
       default:
         throw new Error(`Unknown platform type: ${type}`);

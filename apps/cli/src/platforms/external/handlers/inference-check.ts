@@ -1,4 +1,5 @@
 import { ExternalCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import type { InferenceServiceConfig } from '@semiont/core';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 
@@ -7,9 +8,9 @@ import OpenAI from 'openai';
  */
 const checkExternalInference = async (context: ExternalCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service } = context;
-  
-  // Get service-specific configuration
-  const serviceConfig = service.config;
+
+  // Get service-specific configuration with type narrowing
+  const serviceConfig = service.config as InferenceServiceConfig;
   const inferenceType = serviceConfig.type; // 'anthropic' or 'openai'
   
   // Validate inference type is configured
@@ -79,14 +80,14 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
     
     if (inferenceType === 'anthropic') {
       // Anthropic health check using SDK
-      let apiKey = serviceConfig.apiKey;
-      
+      let apiKey: string | undefined = serviceConfig.apiKey;
+
       // Handle environment variable reference from config file
       if (apiKey && apiKey.startsWith('${') && apiKey.endsWith('}')) {
         const envVarName = apiKey.slice(2, -1);
         apiKey = process.env[envVarName];
       }
-      
+
       if (!apiKey) {
         throw new Error('Anthropic API key not configured. Set apiKey in service config.');
       }
@@ -116,14 +117,14 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
       
     } else if (inferenceType === 'openai') {
       // OpenAI health check using SDK
-      let apiKey = serviceConfig.apiKey;
-      
+      let apiKey: string | undefined = serviceConfig.apiKey;
+
       // Handle environment variable reference from config file
       if (apiKey && apiKey.startsWith('${') && apiKey.endsWith('}')) {
         const envVarName = apiKey.slice(2, -1);
         apiKey = process.env[envVarName];
       }
-            
+
       if (!apiKey) {
         throw new Error('OpenAI API key not configured. Set apiKey in service config.');
       }

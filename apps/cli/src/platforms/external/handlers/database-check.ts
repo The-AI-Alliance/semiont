@@ -1,4 +1,5 @@
 import { ExternalCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import type { DatabaseServiceConfig } from '@semiont/core';
 import net from 'net';
 
 /**
@@ -7,25 +8,28 @@ import net from 'net';
  */
 const checkExternalDatabase = async (context: ExternalCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service } = context;
-  const databaseType = service.config.type || 'postgres';
+
+  // Type narrowing for database service config
+  const serviceConfig = service.config as DatabaseServiceConfig;
+  const databaseType = serviceConfig.type || 'postgres';
 
   // Configuration display (sanitized)
   const config: Record<string, unknown> = {
     type: databaseType,
     name: service.name,
-    host: service.config.host || 'localhost',
-    port: service.config.port || 5432,
-    database: service.config.database || 'default'
+    host: serviceConfig.host || 'localhost',
+    port: serviceConfig.port || 5432,
+    database: serviceConfig.database || 'default'
   };
 
   // Handle PostgreSQL connectivity check
   if (databaseType === 'postgres' || databaseType === 'postgresql') {
-    config.username = service.config.username ? service.config.username : 'not configured';
-    config.authentication = service.config.password ? 'configured' : 'not configured';
+    config.username = serviceConfig.username ? serviceConfig.username : 'not configured';
+    config.authentication = serviceConfig.password ? 'configured' : 'not configured';
 
     // Test actual connectivity using TCP socket
-    const host = service.config.host || 'localhost';
-    const port = service.config.port || 5432;
+    const host = serviceConfig.host || 'localhost';
+    const port = serviceConfig.port || 5432;
 
     try {
       const isReachable = await new Promise<boolean>((resolve) => {
@@ -114,11 +118,11 @@ const checkExternalDatabase = async (context: ExternalCheckHandlerContext): Prom
 
   // Handle MySQL connectivity check
   if (databaseType === 'mysql' || databaseType === 'mariadb') {
-    config.username = service.config.username ? service.config.username : 'not configured';
-    config.authentication = service.config.password ? 'configured' : 'not configured';
+    config.username = serviceConfig.username ? serviceConfig.username : 'not configured';
+    config.authentication = serviceConfig.password ? 'configured' : 'not configured';
 
-    const host = service.config.host || 'localhost';
-    const port = service.config.port || 3306;
+    const host = serviceConfig.host || 'localhost';
+    const port = serviceConfig.port || 3306;
 
     try {
       const isReachable = await new Promise<boolean>((resolve) => {

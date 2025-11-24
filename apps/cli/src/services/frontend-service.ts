@@ -30,7 +30,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
-import { getNodeEnvForEnvironment } from '@semiont/core';
+import { getNodeEnvForEnvironment, type FrontendServiceConfig } from '@semiont/core';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
@@ -38,7 +38,12 @@ import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabili
 import { SERVICE_TYPES } from '../core/service-types.js';
 
 export class FrontendService extends BaseService {
-  
+
+  // Type-narrowed config accessor
+  private get typedConfig(): FrontendServiceConfig {
+    return this.config as FrontendServiceConfig;
+  }
+
   // =====================================================================
   // Service Requirements
   // =====================================================================
@@ -71,11 +76,11 @@ export class FrontendService extends BaseService {
     };
     
     // Add dockerfile path if semiontRepo is provided
-    if (this.config.semiontRepo) {
+    if (this.typedConfig.semiontRepo) {
       requirements.build = {
         ...requirements.build,
-        dockerfile: `${this.config.semiontRepo}/apps/frontend/Dockerfile`,
-        buildContext: this.config.semiontRepo,
+        dockerfile: `${this.typedConfig.semiontRepo}/apps/frontend/Dockerfile`,
+        buildContext: this.typedConfig.semiontRepo,
         prebuilt: false
       };
     }
@@ -88,7 +93,7 @@ export class FrontendService extends BaseService {
   // =====================================================================
   
   override getPort(): number {
-    return this.config.port || 3000;
+    return this.typedConfig.port || 3000;
   }
   
   override getHealthEndpoint(): string {
@@ -97,7 +102,7 @@ export class FrontendService extends BaseService {
   
   
   override getImage(): string {
-    return this.config.image || 'semiont/frontend:latest';
+    return this.typedConfig.image || 'semiont/frontend:latest';
   }
   
   override getEnvironmentVariables(): Record<string, string> {
@@ -161,7 +166,7 @@ export class FrontendService extends BaseService {
   }
   
   private async collectContainerLogs(): Promise<CommandExtensions['logs']> {
-    const containerName = `semiont-frontend-${this.config.environment}`;
+    const containerName = `semiont-frontend-${this.environment}`;
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
     try {
@@ -182,7 +187,7 @@ export class FrontendService extends BaseService {
   private async collectAWSLogs(): Promise<CommandExtensions['logs']> {
     // CloudWatch logs for frontend (if using ECS/Fargate)
     try {
-      const logGroup = `/ecs/semiont-${this.config.environment}-frontend`;
+      const logGroup = `/ecs/semiont-${this.environment}-frontend`;
       const logsJson = execSync(
         `aws logs tail ${logGroup} --max-items 50 --format json 2>/dev/null`,
         { encoding: 'utf-8' }
@@ -212,9 +217,9 @@ export class FrontendService extends BaseService {
       case 'container':
         return 'http://semiont-backend:3001';
       case 'aws':
-        return `https://api-${this.config.environment}.semiont.com`;
+        return `https://api-${this.environment}.semiont.com`;
       case 'external':
-        return this.config.backendUrl || 'http://localhost:3001';
+        return this.typedConfig.backendUrl || 'http://localhost:3001';
       default:
         return 'http://localhost:3001';
     }
@@ -223,7 +228,7 @@ export class FrontendService extends BaseService {
   private getPublicUrl(): string {
     switch (this.platform) {
       case 'aws':
-        return `https://${this.config.environment}.semiont.com`;
+        return `https://${this.environment}.semiont.com`;
       default:
         return `http://localhost:${this.getPort()}`;
     }

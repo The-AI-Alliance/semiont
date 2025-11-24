@@ -1,5 +1,6 @@
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Graph service paths on POSIX platform
@@ -23,7 +24,10 @@ export interface GraphPaths {
 export function getGraphPaths<T>(context: BaseHandlerContext<T>): GraphPaths {
   const service = context.service;
 
-  const janusgraphVersion = service.config.janusgraphVersion;
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+
+  const janusgraphVersion = serviceConfig.janusgraphVersion;
   if (!janusgraphVersion) {
     throw new Error('janusgraphVersion not configured');
   }

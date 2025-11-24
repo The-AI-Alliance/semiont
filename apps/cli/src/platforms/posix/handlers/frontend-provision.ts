@@ -5,6 +5,7 @@ import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths } from './frontend-paths.js';
+import type { FrontendServiceConfig } from '@semiont/core';
 
 /**
  * Provision handler for frontend services on POSIX systems
@@ -58,9 +59,11 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   const nextAuthSecret = crypto.randomBytes(32).toString('base64');
 
   // Get values from service config (already validated by schema)
-  const frontendUrl = service.config.url as string;
-  const port = service.config.port as number;
-  const semiontEnv = service.environment as string;
+  // Type narrowing: we know this is a frontend service
+  const config = service.config as FrontendServiceConfig;
+  const frontendUrl = config.url;
+  const port = config.port;
+  const semiontEnv = service.environment;
 
   // Always create/overwrite .env.local with minimal configuration
   // Most config now comes from the semiont config system

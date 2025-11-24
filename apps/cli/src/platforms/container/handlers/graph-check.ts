@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Check handler for Container graph database services
@@ -8,7 +9,10 @@ import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } f
 const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, runtime, containerName } = context;
   const requirements = service.getRequirements();
-  const graphType = service.config.type || 'janusgraph';
+
+  // Type narrowing for graph service config
+  const config = service.config as GraphServiceConfig;
+  const graphType = config.type || 'janusgraph';
   
   try {
     // Check container status
@@ -138,7 +142,7 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
           execSync(`nc -z localhost ${port}`, { timeout: 5000 });
           isHealthy = true;
           break;
-        case 'arangodb':
+        case 'arangodb' as any:  // ArangoDB support
           // Check ArangoDB HTTP API
           const httpCode = execSync(
             `curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}/_api/version`,

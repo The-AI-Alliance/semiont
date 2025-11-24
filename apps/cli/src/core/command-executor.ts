@@ -23,6 +23,7 @@
  */
 
 import type { ServicePlatformInfo } from './service-resolver.js';
+import type { ServiceConfig } from './cli-config.js';
 import { loadCommand, loadAllCommands } from './command-discovery.js';
 import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
@@ -122,8 +123,8 @@ export async function executeCommand(
               envConfig,
               {
                 ...deployment.config,
-                platform: deployment.platform
-              }
+                platform: { type: deployment.platform }
+              } as ServiceConfig
             );
             const requirements = service.getRequirements();
             cliBehaviors = extractCLIBehaviors(requirements.annotations);

@@ -17,11 +17,14 @@ import { printError, printSuccess, printInfo, printWarning } from '../../../core
  */
 const provisionStackService = async (context: AWSProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, awsConfig } = context;
-  
+
+  // Cast to any to access AWS stack-specific config properties
+  const config = service.config as any;
+
   // Extract stack configuration from service
-  const stackType = service.config?.stackType || 'all'; // 'data' | 'app' | 'all'
-  const destroy = service.config?.destroy || false;
-  const force = service.config?.force || false;
+  const stackType = config?.stackType || 'all'; // 'data' | 'app' | 'all'
+  const destroy = config?.destroy || false;
+  const force = config?.force || false;
 
   // Get environment configuration from service
   const envConfig = service.environmentConfig;

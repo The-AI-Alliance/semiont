@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { getGraphPaths } from './graph-paths.js';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Start handler for graph database services on POSIX systems
@@ -10,9 +11,12 @@ import { getGraphPaths } from './graph-paths.js';
  */
 const startGraphService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
-  
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+
   // Determine which graph database to start from service config
-  const graphType = service.config.type;
+  const graphType = serviceConfig.type;
   
   if (!service.quiet) {
     printInfo(`🚀 Starting ${graphType} graph database...`);

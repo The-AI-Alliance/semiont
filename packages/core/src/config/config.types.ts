@@ -24,6 +24,52 @@ export interface ServicePlatformConfig {
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "ResourceRequirements".
+ */
+export interface ResourceRequirements {
+  cpu?: string;
+  memory?: string;
+  gpu?: number;
+  gpus?: number;
+  replicas?: number;
+  ephemeralStorage?: string;
+  memoryReservation?: string;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "SecurityRequirements".
+ */
+export interface SecurityRequirements {
+  readOnlyRootFilesystem?: boolean;
+  runAsNonRoot?: boolean;
+  runAsUser?: number;
+  runAsGroup?: number;
+  capabilities?:
+    | string[]
+    | {
+        add?: string[];
+        drop?: string[];
+        [k: string]: unknown;
+      };
+  privileged?: boolean;
+  allowPrivilegeEscalation?: boolean;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "BuildRequirements".
+ */
+export interface BuildRequirements {
+  dockerfile?: string;
+  buildContext?: string;
+  buildArgs?: {
+    [k: string]: string;
+  };
+  buildTarget?: string;
+  prebuilt?: boolean;
+  noCache?: boolean;
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
  * via the `definition` "BackendServiceConfig".
  */
 export interface BackendServiceConfig {
@@ -32,7 +78,53 @@ export interface BackendServiceConfig {
   port: number;
   publicURL: string;
   corsOrigin: string;
-  [k: string]: unknown;
+  image?: string;
+  cpu?: string;
+  memory?: string;
+  semiontRepo?: string;
+  databaseUrl?: string;
+  projectRoot?: string;
+  backendUrl?: string;
+  timeout?: number;
+  wait?: number;
+  logsEndpoint?: string;
+  tag?: string;
+  resources?: ResourceRequirements;
+  security?: SecurityRequirements;
+  build?: boolean | BuildRequirements;
+  dockerfile?: string;
+  buildContext?: string;
+  buildArgs?: {
+    [k: string]: string;
+  };
+  buildTarget?: string;
+  prebuilt?: boolean;
+  noCache?: boolean;
+  secrets?: string[];
+  labels?: {
+    [k: string]: string;
+  };
+  annotations?: {
+    [k: string]: string;
+  };
+  dependencies?: string[];
+  externalDependencies?: (
+    | string
+    | {
+        name?: string;
+        url?: string;
+        required?: boolean;
+        healthCheck?: string;
+        [k: string]: unknown;
+      }
+  )[];
+  redisUrl?: string;
+  environment?: {
+    [k: string]: string;
+  };
+  env?: {
+    [k: string]: string;
+  };
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
@@ -44,7 +136,50 @@ export interface FrontendServiceConfig {
   port: number;
   url: string;
   siteName?: string;
-  [k: string]: unknown;
+  image?: string;
+  semiontRepo?: string;
+  projectRoot?: string;
+  backendUrl?: string;
+  databaseUrl?: string;
+  timeout?: number;
+  wait?: number;
+  logsEndpoint?: string;
+  tag?: string;
+  resources?: ResourceRequirements;
+  security?: SecurityRequirements;
+  build?: boolean | BuildRequirements;
+  dockerfile?: string;
+  buildContext?: string;
+  buildArgs?: {
+    [k: string]: string;
+  };
+  buildTarget?: string;
+  prebuilt?: boolean;
+  noCache?: boolean;
+  secrets?: string[];
+  labels?: {
+    [k: string]: string;
+  };
+  annotations?: {
+    [k: string]: string;
+  };
+  dependencies?: string[];
+  externalDependencies?: (
+    | string
+    | {
+        name?: string;
+        url?: string;
+        required?: boolean;
+        healthCheck?: string;
+        [k: string]: unknown;
+      }
+  )[];
+  environment?: {
+    [k: string]: string;
+  };
+  env?: {
+    [k: string]: string;
+  };
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
@@ -52,15 +187,57 @@ export interface FrontendServiceConfig {
  */
 export interface DatabaseServiceConfig {
   platform: ServicePlatformConfig;
-  type: string;
+  type?: string;
   name?: string;
-  host: string;
-  port: number;
+  host?: string;
+  port?: number;
   environment?: {
     [k: string]: string;
   };
+  env?: {
+    [k: string]: string;
+  };
   description?: string;
-  [k: string]: unknown;
+  command?: string;
+  image?: string;
+  user?: string;
+  username?: string;
+  password?: string;
+  database?: string;
+  storageSize?: string;
+  timeout?: number;
+  wait?: number;
+  logsEndpoint?: string;
+  tag?: string;
+  resources?: ResourceRequirements;
+  security?: SecurityRequirements;
+  build?: boolean | BuildRequirements;
+  dockerfile?: string;
+  buildContext?: string;
+  buildArgs?: {
+    [k: string]: string;
+  };
+  buildTarget?: string;
+  prebuilt?: boolean;
+  noCache?: boolean;
+  secrets?: string[];
+  labels?: {
+    [k: string]: string;
+  };
+  annotations?: {
+    [k: string]: string;
+  };
+  dependencies?: string[];
+  externalDependencies?: (
+    | string
+    | {
+        name?: string;
+        url?: string;
+        required?: boolean;
+        healthCheck?: string;
+        [k: string]: unknown;
+      }
+  )[];
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
@@ -71,6 +248,7 @@ export interface GraphServiceConfig {
   type: GraphDatabaseType;
   name?: string;
   uri: string;
+  url?: string;
   username: string;
   password: string;
   database: string;
@@ -80,7 +258,53 @@ export interface GraphServiceConfig {
   index?: string;
   endpoint?: string;
   region?: string;
-  [k: string]: unknown;
+  command?: string;
+  image?: string;
+  janusgraphVersion?: string;
+  javaOptions?: string;
+  heapSize?: string;
+  pageCacheSize?: string;
+  noAuth?: boolean;
+  dataPath?: string;
+  timeout?: number;
+  wait?: number;
+  logsEndpoint?: string;
+  tag?: string;
+  resources?: ResourceRequirements;
+  security?: SecurityRequirements;
+  build?: boolean | BuildRequirements;
+  dockerfile?: string;
+  buildContext?: string;
+  buildArgs?: {
+    [k: string]: string;
+  };
+  buildTarget?: string;
+  prebuilt?: boolean;
+  noCache?: boolean;
+  secrets?: string[];
+  labels?: {
+    [k: string]: string;
+  };
+  annotations?: {
+    [k: string]: string;
+  };
+  dependencies?: string[];
+  externalDependencies?: (
+    | string
+    | {
+        name?: string;
+        url?: string;
+        required?: boolean;
+        healthCheck?: string;
+        [k: string]: unknown;
+      }
+  )[];
+  environment?: {
+    [k: string]: string;
+  };
+  env?: {
+    [k: string]: string;
+  };
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
@@ -90,7 +314,48 @@ export interface FilesystemServiceConfig {
   platform: ServicePlatformConfig;
   path: string;
   description?: string;
-  [k: string]: unknown;
+  command?: string;
+  image?: string;
+  port?: number;
+  timeout?: number;
+  wait?: number;
+  logsEndpoint?: string;
+  tag?: string;
+  resources?: ResourceRequirements;
+  security?: SecurityRequirements;
+  build?: boolean | BuildRequirements;
+  dockerfile?: string;
+  buildContext?: string;
+  buildArgs?: {
+    [k: string]: string;
+  };
+  buildTarget?: string;
+  prebuilt?: boolean;
+  noCache?: boolean;
+  secrets?: string[];
+  labels?: {
+    [k: string]: string;
+  };
+  annotations?: {
+    [k: string]: string;
+  };
+  dependencies?: string[];
+  externalDependencies?: (
+    | string
+    | {
+        name?: string;
+        url?: string;
+        required?: boolean;
+        healthCheck?: string;
+        [k: string]: unknown;
+      }
+  )[];
+  environment?: {
+    [k: string]: string;
+  };
+  env?: {
+    [k: string]: string;
+  };
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
@@ -104,7 +369,99 @@ export interface InferenceServiceConfig {
   endpoint?: string;
   baseURL?: string;
   apiKey: string;
-  [k: string]: unknown;
+  command?: string;
+  image?: string;
+  port?: number;
+  organization?: string;
+  timeout?: number;
+  wait?: number;
+  logsEndpoint?: string;
+  tag?: string;
+  resources?: ResourceRequirements;
+  security?: SecurityRequirements;
+  build?: boolean | BuildRequirements;
+  dockerfile?: string;
+  buildContext?: string;
+  buildArgs?: {
+    [k: string]: string;
+  };
+  buildTarget?: string;
+  prebuilt?: boolean;
+  noCache?: boolean;
+  secrets?: string[];
+  labels?: {
+    [k: string]: string;
+  };
+  annotations?: {
+    [k: string]: string;
+  };
+  dependencies?: string[];
+  externalDependencies?: (
+    | string
+    | {
+        name?: string;
+        url?: string;
+        required?: boolean;
+        healthCheck?: string;
+        [k: string]: unknown;
+      }
+  )[];
+  environment?: {
+    [k: string]: string;
+  };
+  env?: {
+    [k: string]: string;
+  };
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "McpServiceConfig".
+ */
+export interface McpServiceConfig {
+  platform: ServicePlatformConfig;
+  command?: string;
+  image?: string;
+  port?: number;
+  dependsOn?: string[];
+  timeout?: number;
+  wait?: number;
+  logsEndpoint?: string;
+  tag?: string;
+  resources?: ResourceRequirements;
+  security?: SecurityRequirements;
+  build?: boolean | BuildRequirements;
+  dockerfile?: string;
+  buildContext?: string;
+  buildArgs?: {
+    [k: string]: string;
+  };
+  buildTarget?: string;
+  prebuilt?: boolean;
+  noCache?: boolean;
+  secrets?: string[];
+  labels?: {
+    [k: string]: string;
+  };
+  annotations?: {
+    [k: string]: string;
+  };
+  dependencies?: string[];
+  externalDependencies?: (
+    | string
+    | {
+        name?: string;
+        url?: string;
+        required?: boolean;
+        healthCheck?: string;
+        [k: string]: unknown;
+      }
+  )[];
+  environment?: {
+    [k: string]: string;
+  };
+  env?: {
+    [k: string]: string;
+  };
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
@@ -117,6 +474,7 @@ export interface ServicesConfig {
   graph?: GraphServiceConfig;
   filesystem?: FilesystemServiceConfig;
   inference?: InferenceServiceConfig;
+  mcp?: McpServiceConfig;
   [k: string]: unknown;
 }
 /**
@@ -127,15 +485,15 @@ export interface SiteConfig {
   /**
    * Display name for the site
    */
-  siteName: string;
+  siteName?: string;
   /**
    * Primary domain for the site
    */
-  domain: string;
+  domain?: string;
   /**
    * Administrator email address
    */
-  adminEmail: string;
+  adminEmail?: string;
   /**
    * Support email address (optional)
    */
@@ -145,7 +503,7 @@ export interface SiteConfig {
    *
    * @minItems 1
    */
-  oauthAllowedDomains: [string, ...string[]];
+  oauthAllowedDomains?: [string, ...string[]];
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
@@ -202,12 +560,16 @@ export interface EnvironmentConfig {
     projectRoot: string;
     [k: string]: unknown;
   };
+  /**
+   * Environment name
+   */
+  name?: string;
   platform?: {
     default?: PlatformType;
     [k: string]: unknown;
   };
   services: ServicesConfig;
-  site: SiteConfig;
+  site?: SiteConfig;
   app?: AppConfig;
   env?: {
     NODE_ENV?: 'development' | 'production' | 'test';
@@ -217,7 +579,6 @@ export interface EnvironmentConfig {
     imageTagStrategy?: 'mutable' | 'immutable' | 'git-hash';
     [k: string]: unknown;
   };
-  [k: string]: unknown;
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
@@ -235,5 +596,4 @@ export interface SemiontConfig {
   site: SiteConfig;
   app?: AppConfig;
   services?: ServicesConfig;
-  [k: string]: unknown;
 }

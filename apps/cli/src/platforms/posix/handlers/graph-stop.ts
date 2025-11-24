@@ -2,6 +2,7 @@ import * as fs from 'fs/promises';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getGraphPaths } from './graph-paths.js';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Stop handler for graph database services on POSIX systems
@@ -9,9 +10,12 @@ import { getGraphPaths } from './graph-paths.js';
  */
 const stopGraphService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
-  
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+
   // Determine which graph database to stop from service config
-  const graphType = service.config.type;
+  const graphType = serviceConfig.type;
   
   if (!service.quiet) {
     printInfo(`🛑 Stopping ${graphType} graph database...`);

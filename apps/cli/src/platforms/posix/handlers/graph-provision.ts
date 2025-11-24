@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger.js';
 import { getGraphPaths } from './graph-paths.js';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Provision handler for graph database services on POSIX systems
@@ -11,9 +12,12 @@ import { getGraphPaths } from './graph-paths.js';
 const provisionGraphService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, options } = context;
   const args = options.args || [];
-  
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+
   // Determine which graph database to provision from service config
-  const graphType = service.config.type;
+  const graphType = serviceConfig.type;
   
   if (graphType !== 'janusgraph') {
     return {
@@ -58,7 +62,7 @@ const provisionGraphService = async (context: PosixProvisionHandlerContext): Pro
       await fs.mkdir(dataDir, { recursive: true });
 
       // Download JanusGraph if not present
-      const janusgraphVersion = service.config.janusgraphVersion || '1.0.0';
+      const janusgraphVersion = serviceConfig.janusgraphVersion || '1.0.0';
       const downloadUrl = `https://github.com/JanusGraph/janusgraph/releases/download/v${janusgraphVersion}/janusgraph-${janusgraphVersion}.zip`;
 
       if (!await fileExists(janusgraphDir)) {

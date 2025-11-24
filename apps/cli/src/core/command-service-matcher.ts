@@ -19,6 +19,7 @@
  * applying the business logic to determine valid combinations.
  */
 
+import type { ServiceConfig } from './cli-config.js';
 import { commandRequiresServices } from './command-discovery.js';
 import { getAvailableServices, isValidService, ServiceSelector, ServiceCapability, ServiceName } from './service-discovery.js';
 import { EnvironmentConfig, parseEnvironment } from '@semiont/core';
@@ -75,8 +76,8 @@ async function checkServiceSupportsCommand(
       envConfig,
       {
         ...deployment.config,
-        platform: deployment.platform
-      }
+        platform: { type: deployment.platform }
+      } as ServiceConfig
     );
 
     // Check if service declares support for this command

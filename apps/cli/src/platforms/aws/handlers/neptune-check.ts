@@ -1,9 +1,10 @@
-import { 
-  NeptuneClient, 
+import {
+  NeptuneClient,
   DescribeDBClustersCommand,
-  DescribeDBInstancesCommand 
+  DescribeDBInstancesCommand
 } from '@aws-sdk/client-neptune';
 import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Check handler for AWS Neptune graph database
@@ -12,7 +13,10 @@ import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from '.
 const checkNeptune = async (context: AWSCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, platform } = context;
   const awsConfig = platform.getAWSConfig(service);
-  const graphType = service.config.type || 'neptune';
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+  const graphType = serviceConfig.type || 'neptune';
   
   // Only handle Neptune type
   if (graphType !== 'neptune') {
