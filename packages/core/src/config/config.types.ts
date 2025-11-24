@@ -135,7 +135,7 @@ export interface FrontendServiceConfig {
   command?: string;
   port: number;
   url: string;
-  siteName?: string;
+  siteName: string;
   image?: string;
   semiontRepo?: string;
   projectRoot?: string;
@@ -187,10 +187,10 @@ export interface FrontendServiceConfig {
  */
 export interface DatabaseServiceConfig {
   platform: ServicePlatformConfig;
-  type?: string;
+  type: string;
   name?: string;
-  host?: string;
-  port?: number;
+  host: string;
+  port: number;
   environment?: {
     [k: string]: string;
   };
@@ -489,7 +489,7 @@ export interface SiteConfig {
   /**
    * Primary domain for the site
    */
-  domain?: string;
+  domain: string;
   /**
    * Administrator email address
    */

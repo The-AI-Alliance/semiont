@@ -11,7 +11,7 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
 
   // Type narrowing for graph service config
   const serviceConfig = service.config as GraphServiceConfig;
-  const graphType = serviceConfig.type || 'neo4j';
+  const graphType = serviceConfig.type;
 
   // Configuration display (sanitized)
   const config: any = {
@@ -22,7 +22,7 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
   // Handle Neo4j connectivity check
   if (graphType === 'neo4j') {
     config.uri = serviceConfig.uri ? '***' : 'not configured';
-    config.database = serviceConfig.database || 'neo4j';
+    config.database = serviceConfig.database;
     config.authentication = serviceConfig.username ? 'configured' : 'not configured';
 
     // Test actual connectivity
@@ -50,7 +50,7 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
               message: `Neo4j connected successfully`,
               protocolVersion: serverInfo.protocolVersion,
               address: serverInfo.address,
-              database: serviceConfig.database || 'neo4j',
+              database: serviceConfig.database,
               configuration: config
             }
           },
@@ -117,7 +117,7 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
   switch (graphType) {
     case 'arangodb' as any:  // ArangoDB support
       config.url = serviceConfig.url ? '***' : 'not configured';
-      config.database = serviceConfig.database || 'default';
+      config.database = serviceConfig.database;
       config.authentication = serviceConfig.username ? 'configured' : 'not configured';
       break;
     default:

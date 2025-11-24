@@ -3,6 +3,7 @@ import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from 
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
 import { getBackendPaths } from './backend-paths.js';
+import type { BackendServiceConfig } from '@semiont/core';
 
 /**
  * Check handler for backend services on POSIX systems
@@ -13,6 +14,9 @@ import { getBackendPaths } from './backend-paths.js';
 const checkBackendService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, savedState } = context;
 
+  // Type narrowing for backend service config
+  const config = service.config as BackendServiceConfig;
+
   // Get backend paths
   const paths = getBackendPaths(context);
   const { sourceDir: backendDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
@@ -22,7 +26,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   let healthy = false;
   let details: Record<string, unknown> = {
     backendDir,
-    port: service.config.port || 4000
+    port: config.port
   };
   
   // Check if backend directory exists
@@ -82,7 +86,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
       details.fromSavedState = true;
     } else {
       // Check if port is in use (might be running outside of semiont)
-      const port = service.config.port || 4000;
+      const port = config.port;
       if (await isPortInUse(port)) {
         status = 'unknown';
         details.message = `Port ${port} is in use (backend may be running outside of semiont)`;
@@ -92,7 +96,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   
   // If running, check health endpoint
   if (status === 'running' || status === 'unknown') {
-    const port = service.config.port || 4000;
+    const port = config.port;
     const healthUrl = `http://localhost:${port}/api/health`;
     
     try {
@@ -174,7 +178,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     platform: 'posix' as const,
     data: {
       pid,
-      port: service.config.port || 4000,
+      port: config.port,
       path: backendDir,
       workingDirectory: backendDir,
       logFile: appLogPath
@@ -193,7 +197,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     metadata: {
       serviceType: 'backend',
       backendDir,
-      port: service.config.port || 4000
+      port: config.port
     }
   };
 };

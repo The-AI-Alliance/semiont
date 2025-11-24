@@ -14,7 +14,7 @@ const checkGraphProcess = async (context: PosixCheckHandlerContext): Promise<Che
 
   // Type narrowing for graph service config
   const config = service.config as GraphServiceConfig;
-  const graphType = config.type || 'janusgraph';
+  const graphType = config.type;
   
   // Load saved state
   const savedState = await StateManager.load(
@@ -40,9 +40,9 @@ const checkGraphProcess = async (context: PosixCheckHandlerContext): Promise<Che
       neptune: 8182,     // Gremlin Server (for local testing)
       arangodb: 8529     // ArangoDB HTTP API
     };
-    
-    const defaultPort = graphPorts[graphType] || 8182;
-    const port = requirements.network?.ports?.[0] || defaultPort;
+
+    const defaultPort = graphPorts[graphType];
+    const port = requirements.network?.ports?.[0] ?? defaultPort;
     
     if (port && await isPortInUse(port)) {
       // Try to find the PID using the port
@@ -117,7 +117,7 @@ const checkGraphProcess = async (context: PosixCheckHandlerContext): Promise<Che
  */
 function getGraphEndpoint(graphType: string, port?: number): string {
   const host = 'localhost';
-  const actualPort = port || getDefaultPort(graphType);
+  const actualPort = port ?? getDefaultPort(graphType);
   
   switch (graphType) {
     case 'janusgraph':
@@ -139,7 +139,7 @@ function getDefaultPort(graphType: string): number {
     neptune: 8182,
     arangodb: 8529
   };
-  return ports[graphType] || 8182;
+  return ports[graphType];
 }
 
 /**

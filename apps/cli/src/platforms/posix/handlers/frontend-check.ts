@@ -3,26 +3,30 @@ import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from 
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
 import { getFrontendPaths } from './frontend-paths.js';
+import type { FrontendServiceConfig } from '@semiont/core';
 
 /**
  * Check handler for frontend services on POSIX systems
- * 
+ *
  * Checks if the frontend process is running, verifies health endpoint,
  * and collects recent logs.
  */
 const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, savedState } = context;
 
+  // Type narrowing for frontend service config
+  const config = service.config as FrontendServiceConfig;
+
   // Get frontend paths
   const paths = getFrontendPaths(context);
   const { sourceDir: frontendDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
-  
+
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
   let healthy = false;
   let details: Record<string, unknown> = {
     frontendDir,
-    port: service.config.port || 3000
+    port: config.port
   };
   
   // Check if frontend directory exists
@@ -82,17 +86,17 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
       details.fromSavedState = true;
     } else {
       // Check if port is in use (might be running outside of semiont)
-      const port = service.config.port || 3000;
+      const port = config.port;
       if (await isPortInUse(port)) {
         status = 'unknown';
         details.message = `Port ${port} is in use (frontend may be running outside of semiont)`;
       }
     }
   }
-  
+
   // If running, check health endpoint
   if (status === 'running' || status === 'unknown') {
-    const port = service.config.port || 3000;
+    const port = config.port;
     const healthUrl = `http://localhost:${port}/`;
     
     try {
@@ -180,13 +184,13 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     platform: 'posix' as const,
     data: {
       pid,
-      port: service.config.port || 3000,
+      port: config.port,
       path: frontendDir,
       workingDirectory: frontendDir,
       logFile: appLogPath
     }
   } : undefined;
-  
+
   return {
     success: true,
     status,
@@ -199,7 +203,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     metadata: {
       serviceType: 'frontend',
       frontendDir,
-      port: service.config.port || 3000
+      port: config.port
     }
   };
 };

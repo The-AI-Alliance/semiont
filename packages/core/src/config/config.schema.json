@@ -178,7 +178,7 @@
         "environment": { "type": "object", "additionalProperties": { "type": "string" } },
         "env": { "type": "object", "additionalProperties": { "type": "string" } }
       },
-      "required": ["platform", "port", "url"],
+      "required": ["platform", "port", "url", "siteName"],
       "additionalProperties": false
     },
     "DatabaseServiceConfig": {
@@ -239,7 +239,7 @@
           }
         }
       },
-      "required": ["platform"],
+      "required": ["platform", "type", "host", "port"],
       "additionalProperties": false
     },
     "GraphDatabaseType": {
@@ -527,7 +527,7 @@
           "description": "Email domains allowed for OAuth authentication"
         }
       },
-      "required": [],
+      "required": ["domain"],
       "additionalProperties": false
     },
     "AppConfig": {
