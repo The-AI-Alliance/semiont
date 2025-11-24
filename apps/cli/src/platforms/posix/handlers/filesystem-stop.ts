@@ -14,7 +14,7 @@ import { getFilesystemPaths } from './filesystem-paths.js';
  */
 const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service, options } = context;
-  const cleanTemp = options.clean || false;
+  const cleanTemp = options.clean;
   
   if (!service.quiet) {
     printInfo(`Stopping filesystem service ${service.name}...`);

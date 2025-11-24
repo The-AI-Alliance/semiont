@@ -13,7 +13,6 @@ import { getFilesystemPaths } from './filesystem-paths.js';
  */
 const provisionFilesystemService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service } = context;
-  const requirements = service.getRequirements();
 
   if (!service.quiet) {
     printInfo(`Provisioning filesystem service ${service.name}...`);
@@ -27,45 +26,23 @@ const provisionFilesystemService = async (context: PosixProvisionHandlerContext)
   // Get filesystem paths
   const paths = getFilesystemPaths(context);
   const { baseDir: absolutePath } = paths;
-  
+
   // Create the main filesystem directory
   try {
     fs.mkdirSync(absolutePath, { recursive: true });
     (metadata.directories as string[]).push(absolutePath);
-    
+
     if (!service.quiet) {
       printInfo(`Created directory: ${absolutePath}`);
     }
-    
+
     // Check and set permissions (make it writable)
     try {
       fs.chmodSync(absolutePath, 0o755);
     } catch (error) {
       printWarning(`Could not set permissions on ${absolutePath}: ${error}`);
     }
-    
-    // Create subdirectories based on requirements
-    if (requirements.storage) {
-      for (const storage of requirements.storage) {
-        const subPath = storage.mountPath || path.join(absolutePath, storage.volumeName || 'default');
-        const absSubPath = path.isAbsolute(subPath) ? subPath : path.join(service.projectRoot, subPath);
-        
-        fs.mkdirSync(absSubPath, { recursive: true });
-        (metadata.directories as string[]).push(absSubPath);
-        
-        if (!service.quiet) {
-          printInfo(`Created storage directory: ${absSubPath}`);
-        }
-        
-        // Set permissions
-        try {
-          fs.chmodSync(absSubPath, 0o755);
-        } catch (error) {
-          printWarning(`Could not set permissions on ${absSubPath}: ${error}`);
-        }
-      }
-    }
-    
+
     // Create standard subdirectories for common use cases
     const standardDirs = ['uploads', 'temp', 'cache', 'logs'];
     for (const dir of standardDirs) {

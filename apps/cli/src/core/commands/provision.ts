@@ -76,6 +76,8 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
   extractHandlerOptions: (options) => ({
     // Pass through all options (including those from after --)
     ...options,
+    // Fallback to SEMIONT_REPO environment variable if --semiont-repo not provided
+    semiontRepo: options.semiontRepo || process.env.SEMIONT_REPO,
   }),
   
   buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {

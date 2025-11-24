@@ -11,7 +11,7 @@ import type { GraphServiceConfig } from '@semiont/core';
  */
 const provisionGraphService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, options } = context;
-  const args = options.args || [];
+  const args = options.args;
 
   // Type narrowing for graph service config
   const serviceConfig = service.config as GraphServiceConfig;
@@ -62,7 +62,7 @@ const provisionGraphService = async (context: PosixProvisionHandlerContext): Pro
       await fs.mkdir(dataDir, { recursive: true });
 
       // Download JanusGraph if not present
-      const janusgraphVersion = serviceConfig.janusgraphVersion || '1.0.0';
+      const janusgraphVersion = serviceConfig.janusgraphVersion;
       const downloadUrl = `https://github.com/JanusGraph/janusgraph/releases/download/v${janusgraphVersion}/janusgraph-${janusgraphVersion}.zip`;
 
       if (!await fileExists(janusgraphDir)) {

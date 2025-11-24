@@ -2,45 +2,36 @@ import { StateManager } from '../../../core/state-manager.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { execSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import type { DatabaseServiceConfig } from '@semiont/core';
 
 /**
  * Check handler for POSIX database services
  */
 const checkDatabaseProcess = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service } = context;
-  const requirements = service.getRequirements();
-  
+  const config = service.config as DatabaseServiceConfig;
+
   // Load saved state
   const savedState = await StateManager.load(
     service.projectRoot,
     service.environment,
     service.name
   );
-  
+
   let status: 'running' | 'stopped' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
-  
+
   // Check if saved process is running
-  if (savedState?.resources?.platform === 'posix' && 
-      savedState.resources.data.pid && 
+  if (savedState?.resources?.platform === 'posix' &&
+      savedState.resources.data.pid &&
       StateManager.isProcessRunning(savedState.resources.data.pid)) {
     pid = savedState.resources.data.pid;
     status = 'running';
   } else {
-    // Check standard database ports
-    const dbPorts: Record<string, number> = {
-      postgres: 5432,
-      postgresql: 5432,
-      mysql: 3306,
-      mongodb: 27017,
-      redis: 6379
-    };
-    
-    const serviceName = service.name.toLowerCase();
-    const defaultPort = dbPorts[serviceName];
-    const port = requirements.network?.ports?.[0] || defaultPort;
-    
-    if (port && await isPortInUse(port)) {
+    // Get port from config
+    const port = config.port;
+
+    if (await isPortInUse(port)) {
       // Try to find the PID using the port
       try {
         const output = process.platform === 'darwin'
@@ -66,16 +57,16 @@ const checkDatabaseProcess = async (context: PosixCheckHandlerContext): Promise<
   let health = {
     healthy: status === 'running',
     details: {
-      port: requirements.network?.ports?.[0],
+      port: config.port,
       status: status === 'running' ? 'accepting connections' : 'not running'
     }
   };
-  
+
   const platformResources = pid ? {
     platform: 'posix' as const,
     data: {
       pid,
-      port: requirements.network?.ports?.[0]
+      port: config.port
     }
   } : undefined;
   

@@ -43,7 +43,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
-    const semiontRepo = options.semiontRepo || process.env.SEMIONT_REPO;
+    const semiontRepo = options.semiontRepo;
     printInfo(`Using semiont repo: ${semiontRepo}`);
   }
 
@@ -179,7 +179,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   }
   
   try {
-    const semiontRepo = context.options?.semiontRepo || process.env.SEMIONT_REPO;
+    const semiontRepo = context.options?.semiontRepo;
     if (!semiontRepo) {
       throw new Error('SEMIONT_REPO not configured');
     }
@@ -293,9 +293,9 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
         });
       }
       
-      const adminEmail = options.adminEmail || process.env.ADMIN_EMAIL;
+      const adminEmail = options.adminEmail;
       if (!adminEmail) {
-        throw new Error('Admin email not provided. Use --admin-email flag or set ADMIN_EMAIL environment variable');
+        throw new Error('Admin email not provided. Use --admin-email flag');
       } else {
         // Extract domain from email
         const emailParts = adminEmail.split('@');

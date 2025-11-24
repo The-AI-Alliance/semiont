@@ -20,7 +20,7 @@ export interface FrontendPaths {
  * Get all frontend paths for POSIX platform
  */
 export function getFrontendPaths<T>(context: BaseHandlerContext<T>): FrontendPaths {
-  const semiontRepo = context.options?.semiontRepo || process.env.SEMIONT_REPO;
+  const semiontRepo = context.options?.semiontRepo;
   if (!semiontRepo) {
     throw new Error('SEMIONT_REPO not configured');
   }

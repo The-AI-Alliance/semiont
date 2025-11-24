@@ -113,7 +113,7 @@ async function stopJanusGraph(context: PosixStopHandlerContext): Promise<StopHan
       process.kill(pid, 'SIGTERM');
       
       // Wait for process to terminate (with timeout)
-      const timeout = (options.timeout || 30) * 1000;
+      const timeout = options.timeout * 1000;
       const startTime = Date.now();
       let processRunning = true;
       

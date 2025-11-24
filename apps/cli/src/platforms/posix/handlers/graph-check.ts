@@ -10,39 +10,30 @@ import type { GraphServiceConfig } from '@semiont/core';
  */
 const checkGraphProcess = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service } = context;
-  const requirements = service.getRequirements();
 
   // Type narrowing for graph service config
   const config = service.config as GraphServiceConfig;
   const graphType = config.type;
-  
+
   // Load saved state
   const savedState = await StateManager.load(
     service.projectRoot,
     service.environment,
     service.name
   );
-  
+
   let status: 'running' | 'stopped' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
-  
+
   // Check if saved process is running
-  if (savedState?.resources?.platform === 'posix' && 
-      savedState.resources.data.pid && 
+  if (savedState?.resources?.platform === 'posix' &&
+      savedState.resources.data.pid &&
       StateManager.isProcessRunning(savedState.resources.data.pid)) {
     pid = savedState.resources.data.pid;
     status = 'running';
   } else {
-    // Check standard graph database ports
-    const graphPorts: Record<string, number> = {
-      janusgraph: 8182,  // Gremlin Server
-      neo4j: 7687,       // Bolt protocol
-      neptune: 8182,     // Gremlin Server (for local testing)
-      arangodb: 8529     // ArangoDB HTTP API
-    };
-
-    const defaultPort = graphPorts[graphType];
-    const port = requirements.network?.ports?.[0] ?? defaultPort;
+    // Get port from config
+    const port = config.port;
     
     if (port && await isPortInUse(port)) {
       // Try to find the PID using the port
@@ -70,18 +61,18 @@ const checkGraphProcess = async (context: PosixCheckHandlerContext): Promise<Che
   let health = {
     healthy: status === 'running',
     details: {
-      port: requirements.network?.ports?.[0],
+      port: config.port,
       graphType,
       status: status === 'running' ? 'accepting connections' : 'not running',
-      endpoint: getGraphEndpoint(graphType, requirements.network?.ports?.[0])
+      endpoint: getGraphEndpoint(graphType, config.port)
     }
   };
-  
+
   const platformResources = pid ? {
     platform: 'posix' as const,
     data: {
       pid,
-      port: requirements.network?.ports?.[0],
+      port: config.port,
       graphType
     }
   } : undefined;

@@ -14,11 +14,11 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
   const { service } = context;
   
   // Get semiont repo path
-  const semiontRepo = context.options?.semiontRepo || process.env.SEMIONT_REPO;
+  const semiontRepo = context.options?.semiontRepo;
   if (!semiontRepo) {
     return {
       success: false,
-      error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
+      error: 'Semiont repository path is required',
       metadata: { serviceType: 'backend' }
     };
   }

@@ -24,8 +24,7 @@ const startMCPService = async (context: PosixStartHandlerContext): Promise<Start
 
   const env = {
     ...process.env,
-    ...serviceEnvVars,
-    NODE_ENV: service.environment || 'local'
+    ...serviceEnvVars
   };
 
   // Parse command
