@@ -58,9 +58,9 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   const nextAuthSecret = crypto.randomBytes(32).toString('base64');
 
   // Get values from service config (already validated by schema)
-  const frontendUrl = service.config.url;
-  const port = service.config.port;
-  const semiontEnv = service.environment;
+  const frontendUrl = service.config.url as string;
+  const port = service.config.port as number;
+  const semiontEnv = service.environment as string;
 
   // Always create/overwrite .env.local with minimal configuration
   // Most config now comes from the semiont config system
