@@ -65,7 +65,7 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
     let healthDetails: any = {
       status: 'running',
       graphType,
-      endpoint: getGraphEndpoint(graphType, port)
+      endpoint: port ? getGraphEndpoint(graphType, port) : undefined
     };
     
     // Try to verify the service is actually responding

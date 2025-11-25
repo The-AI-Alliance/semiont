@@ -4,7 +4,6 @@ import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
 import { getFrontendPaths } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
-import { SemiontApiClient, baseUrl } from '@semiont/api-client';
 
 /**
  * Check handler for frontend services on POSIX systems
