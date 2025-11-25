@@ -4,6 +4,7 @@ import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
 import { getFrontendPaths } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
+import { SemiontApiClient, baseUrl } from '@semiont/api-client';
 
 /**
  * Check handler for frontend services on POSIX systems
@@ -94,31 +95,30 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     }
   }
 
-  // If running, check health endpoint
+  // If running, check health endpoint (frontend serves at root /)
   if (status === 'running' || status === 'unknown') {
-    const port = config.port;
-    const healthUrl = `http://localhost:${port}/`;
-    
+    const healthUrl = config.url;
+
     try {
       const response = await fetch(healthUrl, {
         signal: AbortSignal.timeout(5000)
       });
-      
+
       if (response.ok) {
         healthy = true;
         details.message = 'Frontend is running and healthy';
         details.statusCode = response.status;
-        
+
         // Check if Next.js is responding
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('text/html')) {
           details.framework = 'Next.js';
           details.htmlAvailable = true;
         }
-        
-        // Try to check API endpoint
+
+        // Try to check frontend's API route (if it exists)
         try {
-          const apiResponse = await fetch(`http://localhost:${port}/api/health`, {
+          const apiResponse = await fetch(`${healthUrl}/api/health`, {
             signal: AbortSignal.timeout(2000)
           });
           if (apiResponse.ok) {

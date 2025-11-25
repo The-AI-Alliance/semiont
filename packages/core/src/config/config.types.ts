@@ -84,7 +84,6 @@ export interface BackendServiceConfig {
   semiontRepo?: string;
   databaseUrl?: string;
   projectRoot?: string;
-  backendUrl?: string;
   timeout?: number;
   wait?: number;
   logsEndpoint?: string;
@@ -139,7 +138,6 @@ export interface FrontendServiceConfig {
   image?: string;
   semiontRepo?: string;
   projectRoot?: string;
-  backendUrl?: string;
   databaseUrl?: string;
   timeout?: number;
   wait?: number;

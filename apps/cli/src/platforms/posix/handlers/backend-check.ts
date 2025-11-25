@@ -4,6 +4,7 @@ import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
 import { getBackendPaths } from './backend-paths.js';
 import type { BackendServiceConfig } from '@semiont/core';
+import { SemiontApiClient, baseUrl } from '@semiont/api-client';
 
 /**
  * Check handler for backend services on POSIX systems
@@ -94,37 +95,26 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     }
   }
   
-  // If running, check health endpoint
+  // If running, check health endpoint using API client
   if (status === 'running' || status === 'unknown') {
-    const port = config.port;
-    const healthUrl = `http://localhost:${port}/api/health`;
-    
+    const client = new SemiontApiClient({ baseUrl: baseUrl(config.publicURL) });
+
     try {
-      const response = await fetch(healthUrl, {
-        signal: AbortSignal.timeout(5000)
-      });
-      
-      if (response.ok) {
-        healthy = true;
-        const healthData = await response.json().catch(() => ({}));
-        details.health = healthData;
-        details.message = 'Backend is running and healthy';
-        
-        // Get API info
-        try {
-          const apiResponse = await fetch(`http://localhost:${port}/api`, {
-            signal: AbortSignal.timeout(2000)
-          });
-          if (apiResponse.ok) {
-            details.apiAvailable = true;
-          }
-        } catch {
-          // API endpoint might not exist
+      const healthData = await client.healthCheck();
+      healthy = true;
+      details.health = healthData;
+      details.message = 'Backend is running and healthy';
+
+      // Get API info
+      try {
+        const apiResponse = await fetch(`${config.publicURL}/api`, {
+          signal: AbortSignal.timeout(2000)
+        });
+        if (apiResponse.ok) {
+          details.apiAvailable = true;
         }
-      } else {
-        status = 'unhealthy';
-        details.message = `Health check failed with status ${response.status}`;
-        details.healthStatus = response.status;
+      } catch {
+        // API endpoint might not exist
       }
     } catch (error) {
       if (status === 'running') {

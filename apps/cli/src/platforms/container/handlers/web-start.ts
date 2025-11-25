@@ -53,17 +53,6 @@ const startWebContainer = async (context: ContainerStartHandlerContext): Promise
   if (config.resources?.cpu) {
     runArgs.push('--cpus', config.resources.cpu);
   }
-  
-  // Add health check for web service (only FrontendServiceConfig has healthCheck)
-  if ('healthCheck' in config && config.healthCheck) {
-    runArgs.push(
-      '--health-cmd', `curl -f http://localhost:${port}${config.healthCheck} || exit 1`,
-      '--health-interval', '30s',
-      '--health-timeout', '10s',
-      '--health-retries', '3',
-      '--health-start-period', '40s'
-    );
-  }
 
   // Add restart policy
   runArgs.push('--restart', 'unless-stopped');
@@ -88,7 +77,7 @@ const startWebContainer = async (context: ContainerStartHandlerContext): Promise
     const containerId = execSync(runCommand, { encoding: 'utf-8' }).trim();
 
     // Wait for container to be ready
-    await waitForContainer(runtime, containerName, config);
+    await waitForContainer(runtime, containerName);
 
     // Build endpoint for web service
     const endpoint = `http://localhost:${port}`;
@@ -125,7 +114,7 @@ const startWebContainer = async (context: ContainerStartHandlerContext): Promise
 /**
  * Wait for container to be ready
  */
-async function waitForContainer(runtime: string, containerName: string, config: FrontendServiceConfig | BackendServiceConfig): Promise<void> {
+async function waitForContainer(runtime: string, containerName: string): Promise<void> {
   const maxAttempts = 30;
   let attempts = 0;
 
@@ -137,23 +126,8 @@ async function waitForContainer(runtime: string, containerName: string, config: 
       ).trim();
 
       if (status === 'running') {
-        // If health check is configured, wait for it
-        if ('healthCheck' in config && config.healthCheck) {
-          try {
-            const health = execSync(
-              `${runtime} inspect ${containerName} --format '{{.State.Health.Status}}'`,
-              { encoding: 'utf-8' }
-            ).trim();
-
-            if (health === 'healthy') {
-              return;
-            }
-          } catch {
-            // No health status yet
-          }
-        } else {
-          return; // Container is running, no health check configured
-        }
+        // Container is running
+        return;
       }
     } catch {
       // Container might not exist yet
