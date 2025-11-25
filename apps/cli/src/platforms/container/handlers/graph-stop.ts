@@ -117,10 +117,10 @@ async function stopJanusGraph(context: ContainerStopHandlerContext): Promise<Sto
     } else {
       // Graceful stop with timeout
       if (!service.quiet) {
-        printInfo(`Stopping JanusGraph Docker stack gracefully (timeout: ${options.timeout || 30}s)...`);
+        printInfo(`Stopping JanusGraph Docker stack gracefully (timeout: ${options.timeout}s)...`);
       }
-      
-      execSync(`docker-compose -f ${composePath} stop -t ${options.timeout || 30}`, {
+
+      execSync(`docker-compose -f ${composePath} stop -t ${options.timeout}`, {
         stdio: service.quiet ? 'ignore' : 'inherit'
       });
       

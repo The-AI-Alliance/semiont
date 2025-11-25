@@ -33,8 +33,8 @@ const provisionGraphService = async (context: ContainerProvisionHandlerContext):
     
   try {
     // Read configuration from service config
-    const storage = serviceConfig.storage || 'cassandra';
-    const index = serviceConfig.index || 'elasticsearch';
+    const storage = serviceConfig.storage;
+    const index = serviceConfig.index;
     const withElasticsearch = index === 'elasticsearch';
     const withCassandra = storage === 'cassandra';
     const networkName = 'semiont-network';
