@@ -74,16 +74,34 @@ error_handler() {
 
 trap 'error_handler ${LINENO} $?' ERR
 
-# Verify environment variables are set
+# Verify environment variables are set (fail loudly if not)
 print_status "Checking environment..."
-if [ -z "$SEMIONT_ENV" ] || [ -z "$SEMIONT_ROOT" ] || [ -z "$SEMIONT_REPO" ]; then
-    print_error "Required environment variables not set"
-    echo "  SEMIONT_ENV=${SEMIONT_ENV:-not set}"
-    echo "  SEMIONT_ROOT=${SEMIONT_ROOT:-not set}"
-    echo "  SEMIONT_REPO=${SEMIONT_REPO:-not set}"
+
+if [ -z "${SEMIONT_REPO:-}" ]; then
+    print_error "SEMIONT_REPO environment variable is not set"
+    echo "  Set this to the path of the semiont repository root"
     exit 1
 fi
-print_success "Environment ready"
+
+if [ -z "${SEMIONT_ENV:-}" ]; then
+    print_error "SEMIONT_ENV environment variable is not set"
+    echo "  Set this to the target environment (e.g., 'local', 'dev', 'prod')"
+    exit 1
+fi
+
+if [ -z "${SEMIONT_ROOT:-}" ]; then
+    print_error "SEMIONT_ROOT environment variable is not set"
+    echo "  Set this to the path of the semiont project workspace"
+    exit 1
+fi
+
+# Export them to ensure they're available to subprocesses
+export SEMIONT_REPO
+export SEMIONT_ENV
+export SEMIONT_ROOT
+export NODE_ENV
+
+print_success "Environment ready (SEMIONT_REPO=$SEMIONT_REPO, SEMIONT_ENV=$SEMIONT_ENV)"
 
 # Check Node.js and npm versions
 print_status "Checking tools..."
