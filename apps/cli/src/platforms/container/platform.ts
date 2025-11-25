@@ -107,15 +107,15 @@ export class ContainerPlatform extends Platform {
     if (declaredType === 'frontend' || declaredType === 'backend') {
       return 'web';
     }
-    
+
     // Database gets special handler
     if (declaredType === 'database') return 'database';
-    
+
     // Graph databases get graph handler
     if (declaredType === 'graph') return 'graph';
-    
-    // Everything else uses generic handler
-    return 'generic';
+
+    // No generic handler - all service types must be explicitly supported
+    throw new Error(`Unsupported service type for container platform: ${declaredType}. Supported types: frontend, backend, database, graph`);
   }
   
   /**
