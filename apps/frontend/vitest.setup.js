@@ -135,6 +135,23 @@ vi.mock('next-intl/navigation', async () => {
   };
 });
 
+// Mock @semiont/core to avoid config loading issues in tests
+vi.mock('@semiont/core', () => ({
+  findProjectRoot: vi.fn(() => '/mock/project/root'),
+  loadEnvironmentConfig: vi.fn(() => ({
+    app: {
+      security: {
+        enableLocalAuth: true
+      }
+    },
+    services: {
+      backend: {
+        publicURL: 'http://localhost:3001'
+      }
+    }
+  }))
+}));
+
 // Set test environment variables
 process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
 process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
