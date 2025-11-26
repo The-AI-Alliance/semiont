@@ -331,9 +331,9 @@ cd /workspace/demo || {
 if [ ! -f .env ]; then
     cat > .env << EOF
 # Semiont API
-SEMIONT_API_URL="http://localhost:4000"
-SEMIONT_USER_EMAIL="demo@example.com"
-SEMIONT_USER_PASSWORD="123456"
+BACKEND_URL="http://localhost:4000"
+FRONTEND_URL="http://localhost:3000"
+AUTH_EMAIL="dev@example.com"
 
 # AI Services (from Codespaces secrets)
 ANTHROPIC_API_KEY=\${ANTHROPIC_API_KEY}
