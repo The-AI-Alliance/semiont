@@ -14,17 +14,8 @@ if (!process.env.NEXT_PUBLIC_SITE_NAME) {
 export const NEXT_PUBLIC_SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME;
 
 // OAuth Configuration
-export const NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || '';
 export const NEXT_PUBLIC_GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 // Environment helpers
 export const isDevelopment = process.env.NODE_ENV === 'development';
 export const isProduction = process.env.NODE_ENV === 'production';
-
-// Helper function to parse allowed domains
-export const getAllowedDomains = (): string[] => {
-  return NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS
-    .split(',')
-    .map((domain: string) => domain.trim())
-    .filter((domain: string) => domain.length > 0);
-};

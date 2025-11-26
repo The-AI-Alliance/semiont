@@ -144,6 +144,10 @@ vi.mock('@semiont/core', () => ({
         enableLocalAuth: true
       }
     },
+    site: {
+      domain: 'localhost',
+      oauthAllowedDomains: ['example.com', 'test.com']
+    },
     services: {
       backend: {
         publicURL: 'http://localhost:3001'
@@ -155,7 +159,6 @@ vi.mock('@semiont/core', () => ({
 // Set test environment variables
 process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
 process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
-process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
 
 // Polyfill fetch to handle relative URLs
 const originalFetch = global.fetch;

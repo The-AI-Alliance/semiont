@@ -227,29 +227,6 @@ describe('Auth Configuration', () => {
       expect(result).toBe(false);
     });
 
-    it('should handle empty allowed domains environment variable', async () => {
-      process.env.OAUTH_ALLOWED_DOMAINS = '';
-
-      const result = await authOptions.callbacks!.signIn!({
-        user: mockUser,
-        account: mockAccount,
-        profile: mockProfile,
-      });
-
-      expect(result).toBe(false);
-    });
-
-    it('should handle whitespace-only allowed domains', async () => {
-      process.env.OAUTH_ALLOWED_DOMAINS = '  ,  ';
-
-      const result = await authOptions.callbacks!.signIn!({
-        user: mockUser,
-        account: mockAccount,
-        profile: mockProfile,
-      });
-
-      expect(result).toBe(false);
-    });
 
     it('should make correct API call to backend when domain is allowed', async () => {
       // This test verifies the structure but may not pass due to environment variable timing
@@ -363,42 +340,6 @@ describe('Auth Configuration', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('should handle multiple allowed domains', async () => {
-      process.env.OAUTH_ALLOWED_DOMAINS = 'domain1.com, domain2.org ,domain3.net';
-
-      const testCases = [
-        { email: 'user@domain1.com', shouldPass: true },
-        { email: 'user@domain2.org', shouldPass: true },
-        { email: 'user@domain3.net', shouldPass: true },
-        { email: 'user@forbidden.com', shouldPass: false },
-      ];
-
-      for (const testCase of testCases) {
-        vi.clearAllMocks();
-        if (testCase.shouldPass) {
-          mockFetch.mockResolvedValueOnce({
-            ok: true,
-            json: vi.fn().mockResolvedValue({
-              token: 'token',
-              user: { id: 'user' },
-            }),
-          });
-        }
-
-        const userWithDomain = {
-          ...mockUser,
-          email: testCase.email,
-        };
-
-        const result = await authOptions.callbacks!.signIn!({
-          user: userWithDomain,
-          account: mockAccount,
-          profile: mockProfile,
-        });
-
-        expect(result).toBe(testCase.shouldPass);
-      }
-    });
   });
 
   describe('JWT Callback', () => {
@@ -681,18 +622,6 @@ describe('Auth Configuration', () => {
       expect(authOptions.providers).toHaveLength(1);
     });
 
-    it('should handle missing allowed domains environment variable', async () => {
-      delete process.env.OAUTH_ALLOWED_DOMAINS;
-
-      const result = await authOptions.callbacks!.signIn!({
-        user: mockUser,
-        account: mockAccount,
-        profile: mockProfile,
-      });
-
-      // Should default to empty string and reject all domains
-      expect(result).toBe(false);
-    });
 
     it('should handle missing API URL environment variable', async () => {
       // Test that the callback handles undefined URLs gracefully
