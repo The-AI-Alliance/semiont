@@ -96,8 +96,10 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   }
   
   // If running, check health endpoint using API client
+  // Use localhost for POSIX platform (publicURL may require external auth in environments like Codespaces)
   if (status === 'running' || status === 'unknown') {
-    const client = new SemiontApiClient({ baseUrl: baseUrl(config.publicURL) });
+    const localUrl = `http://localhost:${config.port}`;
+    const client = new SemiontApiClient({ baseUrl: baseUrl(localUrl) });
 
     try {
       const healthData = await client.healthCheck();
@@ -107,7 +109,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
 
       // Get API info
       try {
-        const apiResponse = await fetch(`${config.publicURL}/api`, {
+        const apiResponse = await fetch(`${localUrl}/api`, {
           signal: AbortSignal.timeout(2000)
         });
         if (apiResponse.ok) {

@@ -95,8 +95,9 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
   }
 
   // If running, check health endpoint (frontend serves at root /)
+  // Use localhost for POSIX platform (config.url may require external auth in environments like Codespaces)
   if (status === 'running' || status === 'unknown') {
-    const healthUrl = config.url;
+    const healthUrl = `http://localhost:${config.port}`;
 
     try {
       const response = await fetch(healthUrl, {
