@@ -40,7 +40,6 @@ jobs:
           # Frontend environment variables (required by env.ts imports)
           NEXT_PUBLIC_API_URL: http://localhost:4000
           NEXT_PUBLIC_SITE_NAME: Semiont
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: test.semiont.com
 
       - name: Run frontend tests
         run: |
@@ -137,7 +136,6 @@ jobs:
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
           SITE_DOMAIN: test.semiont.com
-          OAUTH_ALLOWED_DOMAINS: test.semiont.com
 
   test-cli:
     name: CLI Tests
@@ -255,14 +253,12 @@ jobs:
           # Frontend environment variables
           NEXT_PUBLIC_API_URL: http://localhost:4000
           NEXT_PUBLIC_SITE_NAME: Semiont
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: test.semiont.com
           # Backend environment variables
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
           SITE_DOMAIN: test.semiont.com
-          OAUTH_ALLOWED_DOMAINS: test.semiont.com
           
 
   validate-config:
@@ -327,11 +323,9 @@ jobs:
           # Frontend environment variables for Next.js build
           NEXT_PUBLIC_API_URL: http://localhost:4000
           NEXT_PUBLIC_SITE_NAME: Semiont
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: test.semiont.com
           # Backend environment variables for build
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
           SITE_DOMAIN: test.semiont.com
-          OAUTH_ALLOWED_DOMAINS: test.semiont.com
