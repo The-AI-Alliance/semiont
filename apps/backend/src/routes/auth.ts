@@ -17,7 +17,7 @@ import { OAuthService } from '../auth/oauth';
 import type { User } from '@prisma/client';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 import type { components } from '@semiont/api-client';
-import { userId as makeUserId } from '@semiont/core';
+import { userId as makeUserId, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import { email as makeEmail, googleCredential } from '@semiont/api-client';
 
 // Types from OpenAPI spec (generated)
@@ -44,8 +44,21 @@ export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unk
 authRouter.post('/api/tokens/local',
   validateRequestBody('LocalAuthRequest'),  // ← Validate against OpenAPI schema
   async (c) => {
-    // Only allow in development mode
-    if (process.env.NODE_ENV !== 'development' && process.env.ENABLE_LOCAL_AUTH !== 'true') {
+    // Load config to check if local auth is enabled
+    const env = process.env.SEMIONT_ENV || 'local';
+    const projectRoot = findProjectRoot();
+    console.log('[LocalAuth] Loading config:', { env, projectRoot });
+
+    const config = loadEnvironmentConfig(projectRoot, env);
+    console.log('[LocalAuth] Config loaded:', {
+      hasApp: !!config.app,
+      hasSecurity: !!config.app?.security,
+      enableLocalAuth: config.app?.security?.enableLocalAuth
+    });
+
+    // Only allow if enableLocalAuth is true in config
+    if (!config.app?.security?.enableLocalAuth) {
+      console.log('[LocalAuth] Local auth is disabled in config');
       return c.json({
         error: 'Local authentication is not enabled'
       }, 403);
@@ -55,6 +68,7 @@ authRouter.post('/api/tokens/local',
       // Get validated body from context (already validated by middleware)
       const body = c.get('validatedBody') as LocalAuthRequest;
       const { email } = body;
+      console.log('[LocalAuth] Attempting login for email:', email);
 
       // Get user from database by email
       const prisma = DatabaseConnection.getClient();
@@ -63,16 +77,20 @@ authRouter.post('/api/tokens/local',
       });
 
       if (!user) {
+        console.log('[LocalAuth] User not found:', email);
         return c.json({
           error: 'User not found. Please ensure the user has been seeded during backend provisioning.'
         }, 400);
       }
 
       if (!user.isActive) {
+        console.log('[LocalAuth] User not active:', email);
         return c.json({
           error: 'User is not active'
         }, 400);
       }
+
+      console.log('[LocalAuth] User found, generating token for:', email);
 
       // Generate JWT token for the user
       const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
@@ -106,9 +124,13 @@ authRouter.post('/api/tokens/local',
         isNewUser: false,
       };
 
+      console.log('[LocalAuth] Login successful for:', email);
       return c.json(response, 200);
     } catch (error) {
       console.error('[LocalAuth] Error:', error);
+      if (error instanceof Error) {
+        console.error('[LocalAuth] Error stack:', error.stack);
+      }
       return c.json({
         error: 'Authentication failed'
       }, 400);

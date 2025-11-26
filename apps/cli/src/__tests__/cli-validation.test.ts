@@ -162,7 +162,7 @@ describe('CLI Environment Validation Logic', () => {
       expect(config.services).toHaveProperty('api');
       expect(config.services).toHaveProperty('web');
       expect(config.services).toHaveProperty('cache');
-      expect(config.services?.api?.port).toBe(8080);
+      expect((config.services as any).api?.port).toBe(8080);
       expect(config.site?.domain).toBe('demo.example.com');
     });
   });

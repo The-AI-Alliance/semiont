@@ -8,7 +8,7 @@ import { PlatformFactory } from '../../../platforms/index.js';
 
 // Get the singleton MockPlatform instance from PlatformFactory
 // This ensures we're using the same instance that the commands will use
-export const mockPlatformInstance = PlatformFactory.getPlatform('mock') as MockPlatform;
+export const mockPlatformInstance = PlatformFactory.getPlatform('mock' as any) as MockPlatform;
 
 // No need to mock PlatformFactory - it already supports 'mock' platform
 // Just ensure we have a shared instance for test state management

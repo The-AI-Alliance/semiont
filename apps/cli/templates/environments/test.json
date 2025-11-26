@@ -26,7 +26,8 @@
       },
       "image": "semiont-frontend:test",
       "port": 3000,
-      "url": "http://localhost:3000"
+      "url": "http://localhost:3000",
+      "siteName": "Test Site"
     },
     "filesystem": {
       "platform": {
@@ -39,6 +40,8 @@
       "platform": {
         "type": "container"
       },
+      "type": "postgres",
+      "host": "localhost",
       "image": "postgres:15-alpine",
       "name": "semiont-test-db",
       "port": 5432,

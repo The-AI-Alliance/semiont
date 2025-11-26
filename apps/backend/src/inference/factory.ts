@@ -30,7 +30,11 @@ export async function getInferenceClient(config: EnvironmentConfig): Promise<Ant
   let apiKey = inferenceConfig.apiKey;
   if (apiKey?.startsWith('${') && apiKey.endsWith('}')) {
     const envVarName = apiKey.slice(2, -1);
-    apiKey = process.env[envVarName];
+    const envValue = process.env[envVarName];
+    if (!envValue) {
+      throw new Error(`Environment variable ${envVarName} is not set`);
+    }
+    apiKey = envValue;
   }
 
   console.log('Inference config loaded:', {

@@ -3,6 +3,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { getFilesystemPaths } from './filesystem-paths.js';
 
 /**
  * Stop handler for filesystem services on POSIX systems
@@ -13,20 +14,20 @@ import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logg
  */
 const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service, options } = context;
-  const cleanTemp = options.clean || false;
+  const cleanTemp = options.clean;
   
   if (!service.quiet) {
     printInfo(`Stopping filesystem service ${service.name}...`);
   }
   
-  const metadata: Record<string, any> = {
+  const metadata: Record<string, unknown> = {
     serviceType: 'filesystem',
-    cleaned: []
+    cleaned: [] as string[]
   };
-  
-  // Get the configured path
-  const basePath = service.config.path || path.join(process.cwd(), 'data', service.name);
-  const absolutePath = path.isAbsolute(basePath) ? basePath : path.join(service.projectRoot, basePath);
+
+  // Get filesystem paths
+  const paths = getFilesystemPaths(context);
+  const { baseDir: absolutePath, tempDir, cacheDir } = paths;
   
   // Check if the filesystem path exists
   if (!fs.existsSync(absolutePath)) {
@@ -87,25 +88,22 @@ const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<
     
     // Clean temporary files if requested
     if (cleanTemp) {
-      const tempPath = path.join(absolutePath, 'temp');
-      const cachePath = path.join(absolutePath, 'cache');
-      
-      if (fs.existsSync(tempPath)) {
+      if (fs.existsSync(tempDir)) {
         if (!service.quiet) {
           printInfo('Cleaning temporary files...');
         }
         
         // Remove contents of temp directory but keep the directory
-        const tempFiles = fs.readdirSync(tempPath);
+        const tempFiles = fs.readdirSync(tempDir);
         for (const file of tempFiles) {
-          const filePath = path.join(tempPath, file);
+          const filePath = path.join(tempDir, file);
           try {
             if (fs.statSync(filePath).isDirectory()) {
               fs.rmSync(filePath, { recursive: true, force: true });
             } else {
               fs.unlinkSync(filePath);
             }
-            metadata.cleaned.push(filePath);
+            (metadata.cleaned as string[]).push(filePath);
           } catch (error) {
             printWarning(`Could not remove ${filePath}: ${error}`);
           }
@@ -113,21 +111,21 @@ const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<
       }
       
       // Optionally clean cache
-      if (options.clearCache && fs.existsSync(cachePath)) {
+      if (options.clearCache && fs.existsSync(cacheDir)) {
         if (!service.quiet) {
           printInfo('Clearing cache...');
         }
-        
-        const cacheFiles = fs.readdirSync(cachePath);
+
+        const cacheFiles = fs.readdirSync(cacheDir);
         for (const file of cacheFiles) {
-          const filePath = path.join(cachePath, file);
+          const filePath = path.join(cacheDir, file);
           try {
             if (fs.statSync(filePath).isDirectory()) {
               fs.rmSync(filePath, { recursive: true, force: true });
             } else {
               fs.unlinkSync(filePath);
             }
-            metadata.cleaned.push(filePath);
+            (metadata.cleaned as string[]).push(filePath);
           } catch (error) {
             printWarning(`Could not remove ${filePath}: ${error}`);
           }
@@ -158,8 +156,8 @@ const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<
     
     if (!service.quiet) {
       printSuccess(`✅ Filesystem service ${service.name} stopped successfully`);
-      if (metadata.cleaned.length > 0) {
-        printInfo(`Cleaned ${metadata.cleaned.length} temporary files`);
+      if ((metadata.cleaned as string[]).length > 0) {
+        printInfo(`Cleaned ${(metadata.cleaned as string[]).length} temporary files`);
       }
       if (processesUsingFs.length > 0) {
         printWarning('Note: Some processes may still be using the filesystem');

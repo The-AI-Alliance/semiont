@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Check handler for Container graph database services
@@ -7,8 +8,10 @@ import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } f
  */
 const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, runtime, containerName } = context;
-  const requirements = service.getRequirements();
-  const graphType = service.config.type || 'janusgraph';
+
+  // Type narrowing for graph service config
+  const config = service.config as GraphServiceConfig;
+  const graphType = config.type;
   
   try {
     // Check container status
@@ -57,12 +60,12 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
     }
     
     // Check if the graph service is responding
-    const port = requirements.network?.ports?.[0] || getDefaultPort(graphType);
+    const port = config.port;
     let isHealthy = false;
     let healthDetails: any = {
       status: 'running',
       graphType,
-      endpoint: getGraphEndpoint(graphType, port)
+      endpoint: port ? getGraphEndpoint(graphType, port) : undefined
     };
     
     // Try to verify the service is actually responding
@@ -138,7 +141,7 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
           execSync(`nc -z localhost ${port}`, { timeout: 5000 });
           isHealthy = true;
           break;
-        case 'arangodb':
+        case 'arangodb' as any:  // ArangoDB support
           // Check ArangoDB HTTP API
           const httpCode = execSync(
             `curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}/_api/version`,
@@ -241,31 +244,20 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
 /**
  * Get the connection endpoint for the graph database
  */
-function getGraphEndpoint(graphType: string, port?: number): string {
+function getGraphEndpoint(graphType: string, port: number): string {
   const host = 'localhost';
-  const actualPort = port || getDefaultPort(graphType);
-  
+
   switch (graphType) {
     case 'janusgraph':
     case 'neptune':
-      return `ws://${host}:${actualPort}/gremlin`;
+      return `ws://${host}:${port}/gremlin`;
     case 'neo4j':
-      return `bolt://${host}:${actualPort}`;
+      return `bolt://${host}:${port}`;
     case 'arangodb':
-      return `http://${host}:${actualPort}`;
+      return `http://${host}:${port}`;
     default:
-      return `${host}:${actualPort}`;
+      return `${host}:${port}`;
   }
-}
-
-function getDefaultPort(graphType: string): number {
-  const ports: Record<string, number> = {
-    janusgraph: 8182,
-    neo4j: 7687,
-    neptune: 8182,
-    arangodb: 8529
-  };
-  return ports[graphType] || 8182;
 }
 
 /**

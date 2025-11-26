@@ -1,31 +1,33 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
+import { getBackendPaths } from './backend-paths.js';
+import type { BackendServiceConfig } from '@semiont/core';
+import { SemiontApiClient, baseUrl } from '@semiont/api-client';
 
 /**
  * Check handler for backend services on POSIX systems
- * 
+ *
  * Checks if the backend process is running, verifies health endpoint,
  * and collects recent logs.
  */
 const checkBackendService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, savedState } = context;
-  
-  // Setup paths
-  const backendDir = path.join(service.projectRoot, 'backend');
-  const pidFile = path.join(backendDir, '.pid');
-  const logsDir = path.join(backendDir, 'logs');
-  const appLogPath = path.join(logsDir, 'app.log');
-  const errorLogPath = path.join(logsDir, 'error.log');
+
+  // Type narrowing for backend service config
+  const config = service.config as BackendServiceConfig;
+
+  // Get backend paths
+  const paths = getBackendPaths(context);
+  const { sourceDir: backendDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
   
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
   let healthy = false;
-  let details: any = {
+  let details: Record<string, unknown> = {
     backendDir,
-    port: service.config.port || 4000
+    port: config.port
   };
   
   // Check if backend directory exists
@@ -85,7 +87,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
       details.fromSavedState = true;
     } else {
       // Check if port is in use (might be running outside of semiont)
-      const port = service.config.port || 4000;
+      const port = config.port;
       if (await isPortInUse(port)) {
         status = 'unknown';
         details.message = `Port ${port} is in use (backend may be running outside of semiont)`;
@@ -93,37 +95,28 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     }
   }
   
-  // If running, check health endpoint
+  // If running, check health endpoint using API client
+  // Use localhost for POSIX platform (publicURL may require external auth in environments like Codespaces)
   if (status === 'running' || status === 'unknown') {
-    const port = service.config.port || 4000;
-    const healthUrl = `http://localhost:${port}/api/health`;
-    
+    const localUrl = `http://localhost:${config.port}`;
+    const client = new SemiontApiClient({ baseUrl: baseUrl(localUrl) });
+
     try {
-      const response = await fetch(healthUrl, {
-        signal: AbortSignal.timeout(5000)
-      });
-      
-      if (response.ok) {
-        healthy = true;
-        const healthData = await response.json().catch(() => ({}));
-        details.health = healthData;
-        details.message = 'Backend is running and healthy';
-        
-        // Get API info
-        try {
-          const apiResponse = await fetch(`http://localhost:${port}/api`, {
-            signal: AbortSignal.timeout(2000)
-          });
-          if (apiResponse.ok) {
-            details.apiAvailable = true;
-          }
-        } catch {
-          // API endpoint might not exist
+      const healthData = await client.healthCheck();
+      healthy = true;
+      details.health = healthData;
+      details.message = 'Backend is running and healthy';
+
+      // Get API info
+      try {
+        const apiResponse = await fetch(`${localUrl}/api`, {
+          signal: AbortSignal.timeout(2000)
+        });
+        if (apiResponse.ok) {
+          details.apiAvailable = true;
         }
-      } else {
-        status = 'unhealthy';
-        details.message = `Health check failed with status ${response.status}`;
-        details.healthStatus = response.status;
+      } catch {
+        // API endpoint might not exist
       }
     } catch (error) {
       if (status === 'running') {
@@ -177,7 +170,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     platform: 'posix' as const,
     data: {
       pid,
-      port: service.config.port || 4000,
+      port: config.port,
       path: backendDir,
       workingDirectory: backendDir,
       logFile: appLogPath
@@ -196,7 +189,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     metadata: {
       serviceType: 'backend',
       backendDir,
-      port: service.config.port || 4000
+      port: config.port
     }
   };
 };

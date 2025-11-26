@@ -1,7 +1,8 @@
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
+import { getGraphPaths } from './graph-paths.js';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Stop handler for graph database services on POSIX systems
@@ -9,9 +10,12 @@ import { printInfo, printSuccess, printWarning, printError } from '../../../core
  */
 const stopGraphService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
-  
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+
   // Determine which graph database to stop from service config
-  const graphType = service.config.type;
+  const graphType = serviceConfig.type;
   
   if (!service.quiet) {
     printInfo(`🛑 Stopping ${graphType} graph database...`);
@@ -30,8 +34,10 @@ const stopGraphService = async (context: PosixStopHandlerContext): Promise<StopH
 
 async function stopJanusGraph(context: PosixStopHandlerContext): Promise<StopHandlerResult> {
   const { service, options } = context;
-  const dataDir = process.env.JANUSGRAPH_DATA_DIR || path.join(service.projectRoot, '.janusgraph');
-  const pidFile = path.join(dataDir, 'janusgraph.pid');
+
+  // Get graph paths
+  const paths = getGraphPaths(context);
+  const { pidFile } = paths;
   
   // Check if PID file exists
   if (!await fileExists(pidFile)) {
@@ -107,7 +113,7 @@ async function stopJanusGraph(context: PosixStopHandlerContext): Promise<StopHan
       process.kill(pid, 'SIGTERM');
       
       // Wait for process to terminate (with timeout)
-      const timeout = (options.timeout || 30) * 1000;
+      const timeout = options.timeout * 1000;
       const startTime = Date.now();
       let processRunning = true;
       

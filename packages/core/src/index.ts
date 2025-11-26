@@ -116,6 +116,29 @@ export {
   getAllPlatformTypes,
 } from './config/platform-types';
 
+// Schema-generated configuration types
+export type {
+  BackendServiceConfig,
+  FrontendServiceConfig,
+  DatabaseServiceConfig,
+  GraphServiceConfig,
+  FilesystemServiceConfig,
+  InferenceServiceConfig,
+  McpServiceConfig,
+  ServicesConfig,
+  SemiontConfig,
+  GraphDatabaseType,
+  ServicePlatformConfig
+} from './config/config.types';
+
+// Configuration validation
+export {
+  validateSemiontConfig,
+  validateEnvironmentConfig,
+  validateSiteConfig,
+  type ValidationResult,
+} from './config/config-validator';
+
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';
 export const SDK_VERSION = '0.1.0';

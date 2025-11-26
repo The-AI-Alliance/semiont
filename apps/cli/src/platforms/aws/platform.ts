@@ -68,13 +68,14 @@ export class AWSPlatform extends Platform {
   } {
     // Get environment configuration from service
     const envConfig = service.environmentConfig;
+    const aws = (envConfig as any).aws;
 
     // Get AWS config from environment file, fallback to env vars
     return {
-      region: envConfig.aws?.region || process.env.AWS_REGION || 'us-east-1',
-      accountId: envConfig.aws?.accountId || process.env.AWS_ACCOUNT_ID || '',
-      dataStack: envConfig.aws?.stacks?.data,
-      appStack: envConfig.aws?.stacks?.app
+      region: aws?.region || process.env.AWS_REGION || 'us-east-1',
+      accountId: aws?.accountId || process.env.AWS_ACCOUNT_ID || '',
+      dataStack: aws?.stacks?.data,
+      appStack: aws?.stacks?.app
     };
   }
   

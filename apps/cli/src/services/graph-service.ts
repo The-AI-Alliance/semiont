@@ -33,8 +33,14 @@ import { CommandExtensions } from '../core/command-result.js';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
 import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
 import { SERVICE_TYPES } from '../core/service-types.js';
+import { type GraphServiceConfig } from '@semiont/core';
 
 export class GraphService extends BaseService {
+
+  // Type-narrowed config accessor
+  private get typedConfig(): GraphServiceConfig {
+    return this.config as GraphServiceConfig;
+  }
   
   // =====================================================================
   // Service Requirements
@@ -49,7 +55,7 @@ export class GraphService extends BaseService {
       storage: [{
         persistent: true,
         volumeName: `graph-data-${this.environment}`,
-        size: this.config.storageSize || '20Gi',
+        size: '20Gi',  // Default size for graph data
         mountPath: this.getDataPath(),
         type: 'volume',
         backupEnabled: true
@@ -60,8 +66,8 @@ export class GraphService extends BaseService {
         healthCheckPort: this.getPort()
       },
       resources: {
-        memory: this.config.memory || '2g',  // Graph operations need more memory
-        cpu: this.config.cpu || '1.0',
+        memory: this.typedConfig.resources?.memory || '2g',  // Graph operations need more memory
+        cpu: this.typedConfig.resources?.cpu || '1.0',
         replicas: 1  // Graph databases are typically single instance
       },
       security: {
@@ -75,7 +81,7 @@ export class GraphService extends BaseService {
       annotations: {
         [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'true',
         'service/type': SERVICE_TYPES.GRAPH,
-        'graph/type': this.config.name || 'janusgraph'
+        'graph/type': this.typedConfig.name || 'janusgraph'
       }
     };
     
@@ -98,8 +104,8 @@ export class GraphService extends BaseService {
       neptune: 8182,     // Gremlin Server
       arangodb: 8529     // ArangoDB HTTP API
     };
-    
-    const graphType = this.config.name || 'janusgraph';
+
+    const graphType = this.typedConfig.name || 'janusgraph';
     return this.config.port || defaultPorts[graphType] || 8182;
   }
   
@@ -107,23 +113,23 @@ export class GraphService extends BaseService {
    * Get the data path for the graph database
    */
   private getDataPath(): string {
-    const graphType = this.config.name || 'janusgraph';
-    
+    const graphType = this.typedConfig.name || 'janusgraph';
+
     const dataPaths: Record<string, string> = {
       janusgraph: '/var/lib/janusgraph/data',
       neo4j: '/data',
       arangodb: '/var/lib/arangodb3'
     };
-    
-    return this.config.dataPath || dataPaths[graphType] || '/data';
+
+    return this.typedConfig.dataPath || dataPaths[graphType] || '/data';
   }
   
   /**
    * Get required secrets for the graph database
    */
   private getSecrets(): string[] {
-    const graphType = this.config.name || 'janusgraph';
-    
+    const graphType = this.typedConfig.name || 'janusgraph';
+
     switch (graphType) {
       case 'neo4j':
         return ['NEO4J_AUTH'];
@@ -139,36 +145,36 @@ export class GraphService extends BaseService {
    * Get environment variables for the graph database
    */
   override getEnvironmentVariables(): Record<string, string> {
-    const graphType = this.config.name || 'janusgraph';
+    const graphType = this.typedConfig.name || 'janusgraph';
     const env: Record<string, string> = {};
-    
+
     switch (graphType) {
       case 'janusgraph':
-        env.JAVA_OPTIONS = this.config.javaOptions || '-Xms1g -Xmx2g';
-        if (this.config.storage) {
-          env['janusgraph.storage.backend'] = this.config.storage;
+        env.JAVA_OPTIONS = this.typedConfig.javaOptions || '-Xms1g -Xmx2g';
+        if (this.typedConfig.storage && typeof this.typedConfig.storage === 'string') {
+          env['janusgraph.storage.backend'] = this.typedConfig.storage;
         }
-        if (this.config.index) {
-          env['janusgraph.index.search.backend'] = this.config.index;
+        if (this.typedConfig.index) {
+          env['janusgraph.index.search.backend'] = this.typedConfig.index;
         }
         break;
-        
+
       case 'neo4j':
         env.NEO4J_ACCEPT_LICENSE_AGREEMENT = 'yes';
-        env.NEO4J_dbms_memory_heap_max__size = this.config.heapSize || '1G';
-        env.NEO4J_dbms_memory_pagecache_size = this.config.pageCacheSize || '512M';
+        env.NEO4J_dbms_memory_heap_max__size = this.typedConfig.heapSize || '1G';
+        env.NEO4J_dbms_memory_pagecache_size = this.typedConfig.pageCacheSize || '512M';
         break;
-        
+
       case 'arangodb':
-        env.ARANGO_NO_AUTH = this.config.noAuth ? '1' : '0';
+        env.ARANGO_NO_AUTH = this.typedConfig.noAuth ? '1' : '0';
         break;
     }
-    
+
     // Add any custom environment variables
     if (this.config.environment) {
       Object.assign(env, this.config.environment);
     }
-    
+
     return env;
   }
   
@@ -187,10 +193,10 @@ export class GraphService extends BaseService {
    * Get the connection endpoint for the graph database
    */
   private getEndpoint(): string {
-    const graphType = this.config.name || 'janusgraph';
-    const host = this.config.host || 'localhost';
+    const graphType = this.typedConfig.name || 'janusgraph';
+    const host = this.typedConfig.host || 'localhost';
     const port = this.getPort();
-    
+
     switch (graphType) {
       case 'janusgraph':
       case 'neptune':

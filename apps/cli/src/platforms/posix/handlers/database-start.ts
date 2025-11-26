@@ -4,18 +4,19 @@ import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
+import type { DatabaseServiceConfig } from '@semiont/core';
 
 /**
  * Start handler for database services on POSIX systems
  */
 const startDatabaseService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
-  const requirements = service.getRequirements();
+  const config = service.config as DatabaseServiceConfig;
   const command = service.getCommand();
-  
+
   // Check network port availability
-  const primaryPort = requirements.network?.ports?.[0];
-  if (primaryPort && await isPortInUse(primaryPort)) {
+  const primaryPort = config.port;
+  if (await isPortInUse(primaryPort)) {
     return {
       success: false,
       error: `Port ${primaryPort} is already in use`,
@@ -25,38 +26,31 @@ const startDatabaseService = async (context: PosixStartHandlerContext): Promise<
       }
     };
   }
-  
+
   // Ensure data directory exists for database
-  const dataDir = requirements.storage?.[0]?.mountPath || 
-                  path.join(process.cwd(), 'data', service.name);
+  const dataDir = path.join(process.cwd(), 'data', service.name);
   fs.mkdirSync(dataDir, { recursive: true });
-  
-  // Build environment from requirements
+
+  // Build environment from config
   const env = {
     ...process.env,
     ...service.getEnvironmentVariables(),
-    ...(requirements.environment || {}),
-    NODE_ENV: service.environment,
     DATA_DIR: dataDir
   };
   
-  // Add port if specified
-  if (primaryPort) {
-    (env as any).PORT = primaryPort.toString();
-    (env as any).DATABASE_PORT = primaryPort.toString();
+  // Add port
+  (env as any).PORT = primaryPort.toString();
+  (env as any).DATABASE_PORT = primaryPort.toString();
+
+  // Add database-specific environment variables from config
+  if (config.database) {
+    (env as any).DATABASE_NAME = config.database;
   }
-  
-  // Add database-specific environment variables
-  if (requirements.database) {
-    if (requirements.database.name) {
-      (env as any).DATABASE_NAME = requirements.database.name;
-    }
-    if (requirements.database.user) {
-      (env as any).DATABASE_USER = requirements.database.user;
-    }
-    if (requirements.database.password) {
-      (env as any).DATABASE_PASSWORD = requirements.database.password;
-    }
+  if (config.username) {
+    (env as any).DATABASE_USER = config.username;
+  }
+  if (config.password) {
+    (env as any).DATABASE_PASSWORD = config.password;
   }
   
   // Parse command
@@ -107,29 +101,28 @@ const startDatabaseService = async (context: PosixStartHandlerContext): Promise<
     
     // Build connection string for database
     let endpoint: string | undefined;
-    if (primaryPort) {
-      const dbType = requirements.database?.type || 'generic';
-      const host = 'localhost';
-      
-      switch (dbType) {
-        case 'postgres':
-        case 'postgresql':
-          endpoint = `postgresql://${host}:${primaryPort}/${requirements.database?.name || 'postgres'}`;
-          break;
-        case 'mysql':
-        case 'mariadb':
-          endpoint = `mysql://${host}:${primaryPort}/${requirements.database?.name || 'mysql'}`;
-          break;
-        case 'mongodb':
-        case 'mongo':
-          endpoint = `mongodb://${host}:${primaryPort}/${requirements.database?.name || 'admin'}`;
-          break;
-        case 'redis':
-          endpoint = `redis://${host}:${primaryPort}`;
-          break;
-        default:
-          endpoint = `${dbType}://${host}:${primaryPort}`;
-      }
+    const dbType = config.type;
+    const host = 'localhost';
+    const dbName = config.database;
+
+    switch (dbType) {
+      case 'postgres':
+      case 'postgresql':
+        endpoint = `postgresql://${host}:${primaryPort}/${dbName}`;
+        break;
+      case 'mysql':
+      case 'mariadb':
+        endpoint = `mysql://${host}:${primaryPort}/${dbName}`;
+        break;
+      case 'mongodb':
+      case 'mongo':
+        endpoint = `mongodb://${host}:${primaryPort}/${dbName}`;
+        break;
+      case 'redis':
+        endpoint = `redis://${host}:${primaryPort}`;
+        break;
+      default:
+        endpoint = `${dbType}://${host}:${primaryPort}`;
     }
     
     const resources: PlatformResources = {
@@ -152,7 +145,7 @@ const startDatabaseService = async (context: PosixStartHandlerContext): Promise<
       resources,
       metadata: {
         serviceType: 'database',
-        databaseType: requirements.database?.type,
+        databaseType: config.type,
         command,
         pid: proc.pid,
         port: primaryPort,

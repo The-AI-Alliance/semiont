@@ -35,7 +35,7 @@ export function getServicePlatform(
   if (!environment) {
     throw new Error('Environment is required in config._metadata');
   }
-  const serviceConfig = config.services?.[serviceName];
+  const serviceConfig = config.services?.[serviceName] as ServiceConfig | undefined;
 
   if (!serviceConfig) {
     throw new ConfigurationError(
@@ -150,10 +150,12 @@ export function getServicesByPlatform(
   const matchingServices: ServicePlatformInfo[] = [];
 
   for (const [serviceName, serviceConfig] of Object.entries(config.services || {})) {
+    const typedConfig = serviceConfig as ServiceConfig;
+
     // Determine service platform
     let servicePlatform: PlatformType | undefined;
-    if (serviceConfig.platform?.type) {
-      servicePlatform = serviceConfig.platform.type;
+    if (typedConfig.platform?.type) {
+      servicePlatform = typedConfig.platform.type;
     } else if (config.platform?.default) {
       servicePlatform = config.platform.default;
     }
@@ -168,7 +170,7 @@ export function getServicesByPlatform(
       matchingServices.push({
         name: serviceName,
         platform,
-        config: serviceConfig
+        config: typedConfig
       });
     }
   }

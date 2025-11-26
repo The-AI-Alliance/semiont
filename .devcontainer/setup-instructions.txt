@@ -1,0 +1,19 @@
+==========================================
+   SEMIONT DEVELOPMENT ENVIRONMENT
+==========================================
+
+Welcome to your Codespace!
+
+To complete the setup, run:
+
+  bash .devcontainer/post-create.sh
+
+This will:
+  • Install dependencies
+  • Build the Semiont CLI
+  • Configure your environment
+  • Start backend and frontend services
+
+Setup takes approximately 5-7 minutes.
+
+==========================================

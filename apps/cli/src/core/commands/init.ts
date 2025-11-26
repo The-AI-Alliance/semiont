@@ -189,33 +189,20 @@ async function init(
       fs.mkdirSync(envDir, { recursive: true });
       
       for (const envName of environments) {
-        // Use the appropriate template for each environment type
-        let templateName = 'production.json';
-        if (envName === 'local') {
-          templateName = 'local.json';
-        } else if (envName === 'test') {
-          templateName = 'test.json';
-        } else if (envName === 'staging') {
-          templateName = 'staging.json';
-        }
-        
-        // Check if template exists, fallback to production template
+        // Copy the environment template if it exists, otherwise skip
         const templatesDir = getTemplatesDir();
-        const templatePath = path.join(templatesDir, 'environments', templateName);
-        if (!fs.existsSync(templatePath)) {
-          templateName = 'production.json';
-        }
-        
-        copyTemplate(`environments/${templateName}`, path.join(envDir, `${envName}.json`), {
-          'production': envName,
-          'staging': envName,
-          'YOUR_AWS_ACCOUNT_ID': '123456789012',  // Placeholder
-          'YOUR_HOSTED_ZONE_ID': 'Z1234567890ABC',  // Placeholder
-          'YOUR_CERT_ID': 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'  // Placeholder
-        });
-        
-        if (!options.quiet) {
-          console.log(`${colors.green}✅ Created environments/${envName}.json${colors.reset}`);
+        const templatePath = path.join(templatesDir, 'environments', `${envName}.json`);
+
+        if (fs.existsSync(templatePath)) {
+          copyTemplate(`environments/${envName}.json`, path.join(envDir, `${envName}.json`));
+
+          if (!options.quiet) {
+            console.log(`${colors.green}✅ Created environments/${envName}.json${colors.reset}`);
+          }
+        } else {
+          if (!options.quiet) {
+            console.log(`${colors.yellow}⚠️  No template for environment '${envName}', skipped${colors.reset}`);
+          }
         }
       }
       

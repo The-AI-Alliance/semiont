@@ -1,8 +1,9 @@
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import { spawn } from 'child_process';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { getGraphPaths } from './graph-paths.js';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Start handler for graph database services on POSIX systems
@@ -10,9 +11,12 @@ import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logg
  */
 const startGraphService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
-  
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+
   // Determine which graph database to start from service config
-  const graphType = service.config.type;
+  const graphType = serviceConfig.type;
   
   if (!service.quiet) {
     printInfo(`🚀 Starting ${graphType} graph database...`);
@@ -31,11 +35,17 @@ const startGraphService = async (context: PosixStartHandlerContext): Promise<Sta
 
 async function startJanusGraph(context: PosixStartHandlerContext): Promise<StartHandlerResult> {
   const { service } = context;
-  const dataDir = process.env.JANUSGRAPH_DATA_DIR || path.join(service.projectRoot, '.janusgraph');
-  const janusgraphVersion = '1.0.0';
-  const janusgraphDir = path.join(dataDir, `janusgraph-${janusgraphVersion}`);
-  
-  // Check if JanusGraph is provisioned
+
+  const paths = getGraphPaths(context);
+  const {
+    janusgraphDir,
+    pidFile,
+    configPath,
+    graphConfigPath: graphConfig,
+    gremlinServerScript: gremlinServer,
+    gremlinShellScript
+  } = paths;
+
   if (!await fileExists(janusgraphDir)) {
     return {
       success: false,
@@ -43,45 +53,33 @@ async function startJanusGraph(context: PosixStartHandlerContext): Promise<Start
       metadata: { serviceType: 'graph', serviceName: 'janusgraph' }
     };
   }
-  
-  // Check if already running
-  const pidFile = path.join(dataDir, 'janusgraph.pid');
+
   if (await fileExists(pidFile)) {
     const pid = await fs.readFile(pidFile, 'utf-8');
     try {
-      process.kill(parseInt(pid), 0); // Check if process exists
+      process.kill(parseInt(pid), 0);
       if (!service.quiet) {
         printWarning('JanusGraph is already running');
       }
       return {
         success: true,
-        metadata: { 
-          serviceType: 'graph', 
+        metadata: {
+          serviceType: 'graph',
           serviceName: 'janusgraph',
           pid: parseInt(pid),
           alreadyRunning: true
         }
       };
     } catch {
-      // Process doesn't exist, clean up pid file
       await fs.unlink(pidFile);
     }
   }
-  
-  // Check for custom configuration
-  const configPath = path.join(janusgraphDir, 'conf', 'gremlin-server', 'custom-server.yaml');
-  const graphConfig = path.join(janusgraphDir, 'conf', 'custom-graph.properties');
-  
-  let serverConfig = configPath;
+
   if (!await fileExists(configPath)) {
-    // Use default configuration
-    serverConfig = path.join(janusgraphDir, 'conf', 'gremlin-server', 'gremlin-server.yaml');
+    throw new Error('JanusGraph server config not found. Run: semiont provision --service janusgraph');
   }
-  
-  // Start JanusGraph
-  const gremlinServer = path.join(janusgraphDir, 'bin', 'gremlin-server.sh');
-  
-  const child = spawn(gremlinServer, [serverConfig], {
+
+  const child = spawn(gremlinServer, [configPath], {
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
@@ -103,7 +101,7 @@ async function startJanusGraph(context: PosixStartHandlerContext): Promise<Start
     // Try to connect to Gremlin server
     try {
       const { execSync } = await import('child_process');
-      execSync(`${path.join(janusgraphDir, 'bin', 'gremlin.sh')} -e "g.V().count()"`, {
+      execSync(`${gremlinShellScript} -e "g.V().count()"`, {
         stdio: 'ignore',
         timeout: 5000
       });

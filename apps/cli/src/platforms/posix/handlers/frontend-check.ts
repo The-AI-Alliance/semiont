@@ -1,31 +1,32 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
+import { getFrontendPaths } from './frontend-paths.js';
+import type { FrontendServiceConfig } from '@semiont/core';
 
 /**
  * Check handler for frontend services on POSIX systems
- * 
+ *
  * Checks if the frontend process is running, verifies health endpoint,
  * and collects recent logs.
  */
 const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, savedState } = context;
-  
-  // Setup paths
-  const frontendDir = path.join(service.projectRoot, 'frontend');
-  const pidFile = path.join(frontendDir, '.pid');
-  const logsDir = path.join(frontendDir, 'logs');
-  const appLogPath = path.join(logsDir, 'app.log');
-  const errorLogPath = path.join(logsDir, 'error.log');
-  
+
+  // Type narrowing for frontend service config
+  const config = service.config as FrontendServiceConfig;
+
+  // Get frontend paths
+  const paths = getFrontendPaths(context);
+  const { sourceDir: frontendDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
+
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
   let healthy = false;
-  let details: any = {
+  let details: Record<string, unknown> = {
     frontendDir,
-    port: service.config.port || 3000
+    port: config.port
   };
   
   // Check if frontend directory exists
@@ -85,39 +86,39 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
       details.fromSavedState = true;
     } else {
       // Check if port is in use (might be running outside of semiont)
-      const port = service.config.port || 3000;
+      const port = config.port;
       if (await isPortInUse(port)) {
         status = 'unknown';
         details.message = `Port ${port} is in use (frontend may be running outside of semiont)`;
       }
     }
   }
-  
-  // If running, check health endpoint
+
+  // If running, check health endpoint (frontend serves at root /)
+  // Use localhost for POSIX platform (config.url may require external auth in environments like Codespaces)
   if (status === 'running' || status === 'unknown') {
-    const port = service.config.port || 3000;
-    const healthUrl = `http://localhost:${port}/`;
-    
+    const healthUrl = `http://localhost:${config.port}`;
+
     try {
       const response = await fetch(healthUrl, {
         signal: AbortSignal.timeout(5000)
       });
-      
+
       if (response.ok) {
         healthy = true;
         details.message = 'Frontend is running and healthy';
         details.statusCode = response.status;
-        
+
         // Check if Next.js is responding
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('text/html')) {
           details.framework = 'Next.js';
           details.htmlAvailable = true;
         }
-        
-        // Try to check API endpoint
+
+        // Try to check frontend's API route (if it exists)
         try {
-          const apiResponse = await fetch(`http://localhost:${port}/api/health`, {
+          const apiResponse = await fetch(`${healthUrl}/api/health`, {
             signal: AbortSignal.timeout(2000)
           });
           if (apiResponse.ok) {
@@ -183,13 +184,13 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     platform: 'posix' as const,
     data: {
       pid,
-      port: service.config.port || 3000,
+      port: config.port,
       path: frontendDir,
       workingDirectory: frontendDir,
       logFile: appLogPath
     }
   } : undefined;
-  
+
   return {
     success: true,
     status,
@@ -202,7 +203,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     metadata: {
       serviceType: 'frontend',
       frontendDir,
-      port: service.config.port || 3000
+      port: config.port
     }
   };
 };

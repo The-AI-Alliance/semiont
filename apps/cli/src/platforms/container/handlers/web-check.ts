@@ -1,12 +1,14 @@
 import { execSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import type { FrontendServiceConfig, BackendServiceConfig } from '@semiont/core';
+import { SemiontApiClient, baseUrl } from '@semiont/api-client';
 
 /**
  * Check handler for containerized web services
  */
 const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, runtime, containerName } = context;
-  const requirements = service.getRequirements();
+  const config = service.config as FrontendServiceConfig | BackendServiceConfig;
   
   try {
     // Check container status
@@ -56,21 +58,51 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
       }
     }
     
-    // Perform health check if available
+    // Perform health check
     let health = { healthy: true, details: {} };
-    if (requirements.network?.healthCheckPath) {
-      try {
-        const port = requirements.network?.healthCheckPort || requirements.network?.ports?.[0] || 3000;
-        const healthUrl = `http://localhost:${port}${requirements.network.healthCheckPath}`;
-        
-        // Try external health check first
+
+    // Determine if this is a backend service (has publicURL)
+    const isBackend = 'publicURL' in config;
+
+    try {
+      if (isBackend) {
+        // Backend service - use API client
+        const backendConfig = config as BackendServiceConfig;
+        const client = new SemiontApiClient({ baseUrl: baseUrl(backendConfig.publicURL) });
+
+        try {
+          const healthData = await client.healthCheck();
+          health = {
+            healthy: dockerHealthStatus !== 'unhealthy',
+            details: {
+              health: healthData,
+              endpoint: '/api/health',
+              containerHealth: 'running',
+              dockerHealthStatus
+            }
+          };
+        } catch (error) {
+          health = {
+            healthy: false,
+            details: {
+              endpoint: '/api/health',
+              error: error instanceof Error ? error.message : 'Health check failed',
+              containerHealth: 'running'
+            }
+          };
+        }
+      } else {
+        // Frontend service - check root endpoint
+        const frontendConfig = config as FrontendServiceConfig;
+        const healthUrl = frontendConfig.url;
+
         try {
           const response = await fetch(healthUrl, {
             signal: AbortSignal.timeout(5000)
           });
           health = {
             healthy: response.ok && dockerHealthStatus !== 'unhealthy',
-            details: { 
+            details: {
               endpoint: healthUrl,
               statusCode: response.status,
               status: response.ok ? 'healthy' : 'unhealthy',
@@ -78,30 +110,30 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
               dockerHealthStatus
             }
           };
-        } catch {
-          // Fall back to container exec
-          execSync(
-            `${runtime} exec ${containerName} curl -f -s ${healthUrl}`,
-            { encoding: 'utf-8' }
-          );
-          health.healthy = true;
-          health.details = { healthCheck: 'passed', containerHealth: 'running' };
+        } catch (error) {
+          health = {
+            healthy: false,
+            details: {
+              endpoint: healthUrl,
+              error: error instanceof Error ? error.message : 'Health check failed',
+              containerHealth: 'running'
+            }
+          };
         }
-      } catch (error) {
-        health = {
-          healthy: false,
-          details: { 
-            endpoint: `http://localhost:${requirements.network?.healthCheckPort || requirements.network?.ports?.[0]}${requirements.network.healthCheckPath}`,
-            error: error instanceof Error ? error.message : 'Health check failed',
-            containerHealth: 'running'
-          }
-        };
       }
+    } catch (error) {
+      health = {
+        healthy: false,
+        details: {
+          error: error instanceof Error ? error.message : 'Health check failed',
+          containerHealth: 'running'
+        }
+      };
     }
-    
+
     // Build port mapping for resources
-    const ports = requirements.network?.ports ? {
-      [requirements.network.ports[0]]: String(requirements.network.ports[0])
+    const ports = config.port ? {
+      [config.port]: String(config.port)
     } : undefined;
     
     return {

@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import { ContainerProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printError, printWarning } from '../../../core/io/cli-logger.js';
 import * as yaml from 'js-yaml';
+import type { GraphServiceConfig } from '@semiont/core';
 
 /**
  * Provision handler for graph database services using Docker
@@ -11,9 +12,12 @@ import * as yaml from 'js-yaml';
  */
 const provisionGraphService = async (context: ContainerProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service } = context;
-  
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+
   // Determine which graph database to provision from service config
-  const graphType = service.config.type;
+  const graphType = serviceConfig.type;
   
   if (graphType !== 'janusgraph') {
     return {
@@ -29,8 +33,8 @@ const provisionGraphService = async (context: ContainerProvisionHandlerContext):
     
   try {
     // Read configuration from service config
-    const storage = service.config.storage || 'cassandra';
-    const index = service.config.index || 'elasticsearch';
+    const storage = serviceConfig.storage;
+    const index = serviceConfig.index;
     const withElasticsearch = index === 'elasticsearch';
     const withCassandra = storage === 'cassandra';
     const networkName = 'semiont-network';

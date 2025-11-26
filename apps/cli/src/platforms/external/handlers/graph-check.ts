@@ -1,4 +1,5 @@
 import { ExternalCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import type { GraphServiceConfig } from '@semiont/core';
 import neo4j from 'neo4j-driver';
 
 /**
@@ -7,7 +8,10 @@ import neo4j from 'neo4j-driver';
  */
 const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service } = context;
-  const graphType = service.config.type || 'neo4j';
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+  const graphType = serviceConfig.type;
 
   // Configuration display (sanitized)
   const config: any = {
@@ -17,15 +21,15 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
 
   // Handle Neo4j connectivity check
   if (graphType === 'neo4j') {
-    config.uri = service.config.uri ? '***' : 'not configured';
-    config.database = service.config.database || 'neo4j';
-    config.authentication = service.config.username ? 'configured' : 'not configured';
+    config.uri = serviceConfig.uri ? '***' : 'not configured';
+    config.database = serviceConfig.database;
+    config.authentication = serviceConfig.username ? 'configured' : 'not configured';
 
     // Test actual connectivity
-    if (service.config.uri && service.config.username && service.config.password) {
+    if (serviceConfig.uri && serviceConfig.username && serviceConfig.password) {
       const driver = neo4j.driver(
-        service.config.uri,
-        neo4j.auth.basic(service.config.username, service.config.password)
+        serviceConfig.uri,
+        neo4j.auth.basic(serviceConfig.username, serviceConfig.password)
       );
 
       try {
@@ -46,7 +50,7 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
               message: `Neo4j connected successfully`,
               protocolVersion: serverInfo.protocolVersion,
               address: serverInfo.address,
-              database: service.config.database || 'neo4j',
+              database: serviceConfig.database,
               configuration: config
             }
           },
@@ -93,9 +97,9 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
             message: 'Neo4j configuration incomplete',
             configuration: config,
             missing: [
-              !service.config.uri && 'uri',
-              !service.config.username && 'username',
-              !service.config.password && 'password'
+              !serviceConfig.uri && 'uri',
+              !serviceConfig.username && 'username',
+              !serviceConfig.password && 'password'
             ].filter(Boolean).join(', ')
           }
         },
@@ -111,10 +115,10 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
 
   // Handle other graph types
   switch (graphType) {
-    case 'arangodb':
-      config.url = service.config.url ? '***' : 'not configured';
-      config.database = service.config.database || 'default';
-      config.authentication = service.config.username ? 'configured' : 'not configured';
+    case 'arangodb' as any:  // ArangoDB support
+      config.url = serviceConfig.url ? '***' : 'not configured';
+      config.database = serviceConfig.database;
+      config.authentication = serviceConfig.username ? 'configured' : 'not configured';
       break;
     default:
       config.note = 'External graph service - configuration not validated';

@@ -30,7 +30,7 @@
  */
 
 import { BaseService } from './base-service.js';
-import { ServiceRequirements, StorageRequirement } from './service-requirements.js';
+import { ServiceRequirements } from './service-requirements.js';
 import { ServiceName } from './service-discovery.js';
 import { SERVICE_TYPES, ServiceType } from './service-types.js';
 
@@ -40,15 +40,17 @@ export class GenericService extends BaseService {
    * Determine service type from config or use default
    */
   private determineServiceType(): ServiceType {
+    const config = this.config as any;
+
     // Check explicit service type in config
-    if (this.config.serviceType && Object.values(SERVICE_TYPES).includes(this.config.serviceType as ServiceType)) {
-      return this.config.serviceType as ServiceType;
+    if (config.serviceType && Object.values(SERVICE_TYPES).includes(config.serviceType as ServiceType)) {
+      return config.serviceType as ServiceType;
     }
-    
+
     // Check annotations in config
-    if (this.config.annotations?.['service/type'] && 
-        Object.values(SERVICE_TYPES).includes(this.config.annotations['service/type'] as ServiceType)) {
-      return this.config.annotations['service/type'] as ServiceType;
+    if (config.annotations?.['service/type'] &&
+        Object.values(SERVICE_TYPES).includes(config.annotations['service/type'] as ServiceType)) {
+      return config.annotations['service/type'] as ServiceType;
     }
     
     // Try to infer from service name
@@ -69,51 +71,54 @@ export class GenericService extends BaseService {
   
   override getRequirements(): ServiceRequirements {
     const requirements: ServiceRequirements = {};
-    
+
+    // Cast config to any for GenericService - it handles all config types dynamically
+    const config = this.config as any;
+
     // Network requirements from config
-    if (this.config.port || this.config.ports) {
-      const ports = this.config.ports || [this.config.port];
+    if (config.port || config.ports) {
+      const ports = config.ports || [config.port];
       requirements.network = {
         ports: ports.filter(Boolean) as number[],
-        protocol: this.config.protocol as 'tcp' | 'udp' || 'tcp',
-        needsLoadBalancer: this.config.loadBalancer || false,
-        healthCheckPath: this.config.healthCheck || undefined,
-        healthCheckPort: this.config.healthCheckPort || ports[0],
-        customDomains: this.config.domains as string[] || undefined
+        protocol: config.protocol as 'tcp' | 'udp' || 'tcp',
+        needsLoadBalancer: config.loadBalancer || false,
+        healthCheckPath: config.healthCheck || undefined,
+        healthCheckPort: config.healthCheckPort || ports[0],
+        customDomains: config.domains as string[] || undefined
       };
     }
     
     // Storage requirements from config
-    if (this.config.storage) {
-      const storageConfig = this.config.storage;
-      const storage: StorageRequirement[] = Array.isArray(storageConfig) 
-        ? storageConfig 
+    if (config.storage && typeof config.storage !== 'string') {
+      const storageConfig = config.storage;
+      const storageArray = Array.isArray(storageConfig)
+        ? storageConfig
         : [storageConfig];
-        
-      requirements.storage = storage.map(s => ({
+
+      requirements.storage = storageArray.map(s => ({
         persistent: s.persistent !== false,
         volumeName: s.volumeName || `${this.name}-data-${this.environment}`,
         size: s.size || '1Gi',
         mountPath: s.mountPath || '/data',
-        type: s.type || 'volume',
-        backupEnabled: s.backupEnabled || false
+        type: (s.type || 'volume') as 'volume' | 'bind' | 'tmpfs',
+        backupEnabled: false
       }));
     }
-    
+
     // Dependencies from config
-    if (this.config.dependencies) {
+    if (config.dependencies) {
       requirements.dependencies = {
-        services: (Array.isArray(this.config.dependencies) 
-          ? this.config.dependencies 
-          : [this.config.dependencies]) as ServiceName[]
+        services: (Array.isArray(config.dependencies)
+          ? config.dependencies
+          : [config.dependencies]) as ServiceName[]
       };
     }
-    
+
     // External dependencies from config
-    if (this.config.externalDependencies) {
+    if (config.externalDependencies) {
       requirements.dependencies = {
         services: requirements.dependencies?.services || [],
-        external: this.config.externalDependencies.map((dep: any) => ({
+        external: config.externalDependencies.map((dep: any) => ({
           name: dep.name || dep,
           url: dep.url || undefined,
           required: dep.required !== false,
@@ -121,55 +126,57 @@ export class GenericService extends BaseService {
         }))
       };
     }
-    
+
     // Resource requirements from config
-    if (this.config.resources) {
+    if (config.resources) {
       requirements.resources = {
-        cpu: this.config.resources.cpu || undefined,
-        memory: this.config.resources.memory || undefined,
-        replicas: this.config.resources.replicas || 1,
-        gpus: this.config.resources.gpus || undefined,
-        ephemeralStorage: this.config.resources.ephemeralStorage || undefined
+        cpu: config.resources.cpu || undefined,
+        memory: config.resources.memory || undefined,
+        replicas: config.resources.replicas || 1,
+        gpus: config.resources.gpus || undefined,
+        ephemeralStorage: config.resources.ephemeralStorage || undefined
       };
     }
-    
+
     // Build requirements from config
-    if (this.config.build || this.config.dockerfile) {
+    if (config.build || config.dockerfile) {
       requirements.build = {
-        dockerfile: this.config.dockerfile || 'Dockerfile',
-        buildContext: this.config.buildContext || '.',
-        buildArgs: this.config.buildArgs || {},
-        prebuilt: this.config.prebuilt || false,
-        target: this.config.buildTarget || undefined
+        dockerfile: config.dockerfile || 'Dockerfile',
+        buildContext: config.buildContext || '.',
+        buildArgs: config.buildArgs || {},
+        prebuilt: config.prebuilt || false,
+        target: config.buildTarget || undefined
       };
     }
-    
+
     // Security requirements from config
-    if (this.config.security || this.config.secrets) {
+    if (config.security || config.secrets) {
       requirements.security = {
-        secrets: this.config.secrets || [],
-        runAsUser: this.config.security?.runAsUser || undefined,
-        runAsGroup: this.config.security?.runAsGroup || undefined,
-        readOnlyRootFilesystem: this.config.security?.readOnlyRootFilesystem || false,
-        allowPrivilegeEscalation: this.config.security?.allowPrivilegeEscalation || false,
-        capabilities: this.config.security?.capabilities || undefined
+        secrets: config.secrets || [],
+        runAsUser: config.security?.runAsUser || undefined,
+        runAsGroup: config.security?.runAsGroup || undefined,
+        readOnlyRootFilesystem: config.security?.readOnlyRootFilesystem || false,
+        allowPrivilegeEscalation: config.security?.allowPrivilegeEscalation || false,
+        capabilities: Array.isArray(config.security?.capabilities)
+          ? { add: config.security.capabilities, drop: [] }
+          : config.security?.capabilities
       };
     }
-    
+
     // Environment variables
-    if (this.config.environment) {
-      requirements.environment = this.config.environment;
+    if (config.environment) {
+      requirements.environment = config.environment;
     }
-    
+
     // Labels
-    if (this.config.labels) {
-      requirements.labels = this.config.labels;
+    if (config.labels) {
+      requirements.labels = config.labels;
     }
-    
+
     // Annotations - MUST include service/type
     const serviceType = this.determineServiceType();
     requirements.annotations = {
-      ...this.config.annotations,
+      ...config.annotations,
       'service/type': serviceType
     };
     
@@ -181,16 +188,19 @@ export class GenericService extends BaseService {
   // =====================================================================
   
   override getPort(): number {
-    return this.config.port || 3000;
+    const config = this.config as any;
+    return config.port || 3000;
   }
-  
+
   override getHealthEndpoint(): string {
-    return this.config.healthEndpoint || '/health';
+    const config = this.config as any;
+    return config.healthEndpoint || '/health';
   }
-  
-  
+
+
   override getImage(): string {
-    return this.config.image || `${this.name}:latest`;
+    const config = this.config as any;
+    return config.image || `${this.name}:latest`;
   }
   
   override getEnvironmentVariables(): Record<string, string> {
@@ -200,8 +210,8 @@ export class GenericService extends BaseService {
     return {
       ...baseEnv,
       ...(requirements.environment || {}),
-      // Add any additional env vars from config
-      ...(this.config.env || {})
+      // Add any additional env vars from config (only if object, not string path)
+      ...(typeof this.config.env === 'object' ? this.config.env : {})
     };
   }
 }

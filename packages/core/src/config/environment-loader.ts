@@ -11,39 +11,41 @@ import { ConfigurationError } from './configuration-error';
 import { findProjectRoot } from './project-discovery';
 import { PlatformType } from './platform-types';
 import { isObject } from '../index';
+import { validateEnvironmentConfig } from './config-validator.js';
+import type {
+  EnvironmentConfig,
+  SiteConfig,
+  AppConfig,
+  SemiontConfig,
+  ServicesConfig,
+  BackendServiceConfig,
+  FrontendServiceConfig,
+  DatabaseServiceConfig,
+  GraphServiceConfig,
+  FilesystemServiceConfig,
+  InferenceServiceConfig,
+  ServicePlatformConfig
+} from './config.types.js';
 
 /**
- * Environment configuration structure
+ * Re-export generated types from JSON Schema
+ * These types are automatically generated from config.schema.json
  */
-export interface EnvironmentConfig {
-  _comment?: string;  // Optional comment for documentation
-  _metadata?: {
-    environment: string;  // Environment name (e.g., "local", "staging", "prod")
-    projectRoot: string;  // Absolute path to project root
-  };
-  platform?: {
-    default?: PlatformType;  // No fallback - must be explicit
-  };
-  services: Record<string, ServiceConfig>;
-  aws?: AWSConfig;
-  site?: SiteConfig;
-  app?: AppConfig;
-  env?: {
-    NODE_ENV?: 'development' | 'production' | 'test';
-    [key: string]: string | undefined;
-  };
-  cloud?: {
-    aws?: {
-      stacks?: {
-        data?: string;
-        app?: string;
-      };
-    };
-  };
-  deployment?: {
-    imageTagStrategy?: 'mutable' | 'immutable' | 'git-hash';
-  };
-}
+export type {
+  EnvironmentConfig,
+  SiteConfig,
+  AppConfig,
+  SemiontConfig,
+  PlatformType,
+  ServicesConfig,
+  BackendServiceConfig,
+  FrontendServiceConfig,
+  DatabaseServiceConfig,
+  GraphServiceConfig,
+  FilesystemServiceConfig,
+  InferenceServiceConfig,
+  ServicePlatformConfig
+};
 
 /**
  * Generic service configuration
@@ -86,32 +88,6 @@ export interface AWSConfig {
   monitoring?: {
     enableDetailedMonitoring?: boolean;
     logRetentionDays?: number;
-  };
-}
-
-export interface SiteConfig {
-  siteName: string;
-  domain: string;
-  adminEmail: string;
-  supportEmail?: string;
-  oauthAllowedDomains?: string[];
-}
-
-export interface AppConfig {
-  features?: {
-    enableAnalytics?: boolean;
-    enableMaintenanceMode?: boolean;
-    enableDebugLogging?: boolean;
-  };
-  security?: {
-    sessionTimeout?: number;
-    maxLoginAttempts?: number;
-    corsAllowedOrigins?: string[];
-  };
-  performance?: {
-    enableCaching?: boolean;
-    cacheTimeout?: number;
-    maxRequestSize?: string;
   };
 }
 
@@ -237,6 +213,17 @@ export function loadEnvironmentConfig(projectRoot: string, environment: string):
       }
     };
 
+    // Validate with AJV
+    const validationResult = validateEnvironmentConfig(configWithMetadata);
+
+    if (!validationResult.valid) {
+      throw new ConfigurationError(
+        `Invalid environment configuration: ${validationResult.errorMessage}`,
+        environment,
+        `Fix the validation errors in your environments/${environment}.json file`
+      );
+    }
+
     return configWithMetadata as EnvironmentConfig;
   } catch (error) {
     if (error instanceof ConfigurationError) {
@@ -313,7 +300,7 @@ export function isValidEnvironment(environment: string): boolean {
  * @returns True if AWS configuration is present
  */
 export function hasAWSConfig(config: EnvironmentConfig): config is EnvironmentConfig & { aws: AWSConfig } {
-  return !!config.aws && !!config.aws.region;
+  return !!(config as any).aws && !!(config as any).aws.region;
 }
 
 /**

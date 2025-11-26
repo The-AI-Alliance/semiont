@@ -21,6 +21,7 @@ import { HandlerResult } from '../handlers/types.js';
 
 const StartOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
+  semiontRepo: z.string().optional(),
 });
 
 export type StartOptions = z.output<typeof StartOptionsSchema>;
@@ -42,6 +43,7 @@ const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
+    semiontRepo: options.semiontRepo || process.env.SEMIONT_REPO,
   }),
   
   buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {

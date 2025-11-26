@@ -42,11 +42,16 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 export class MCPService extends BaseService {
-  
+
+  // Type-cast config accessor for accessing dynamic properties
+  private get typedConfig(): any {
+    return this.config as any;
+  }
+
   // =====================================================================
   // Service Requirements
   // =====================================================================
-  
+
   override getRequirements(): ServiceRequirements {
     // MCP service acts like a background worker/API with special CLI behaviors
     const baseRequirements = RequirementPresets.backgroundWorker();
@@ -92,7 +97,7 @@ export class MCPService extends BaseService {
     
     return {
       ...baseEnv,
-      SEMIONT_ENV: this.config.environment || 'development',
+      SEMIONT_ENV: this.environment,
       SEMIONT_API_URL: this.getApiUrl()
     };
   }
@@ -126,8 +131,8 @@ export class MCPService extends BaseService {
       path.join(cliDir, 'mcp-server', 'index.js'),
       path.join(cliDir, '..', 'mcp-server', 'index.js'),
       // Development paths (when running from source)
-      path.join(this.config.projectRoot || process.cwd(), 'packages/mcp-server/dist/index.js'),
-      path.join(this.config.projectRoot || process.cwd(), 'apps/mcp-server/dist/index.js'),
+      path.join(this.typedConfig.projectRoot || process.cwd(), 'packages/mcp-server/dist/index.js'),
+      path.join(this.typedConfig.projectRoot || process.cwd(), 'apps/mcp-server/dist/index.js'),
       // Fallback to current directory
       path.join(process.cwd(), 'mcp-server/index.js'),
       'mcp-server'  // Global install

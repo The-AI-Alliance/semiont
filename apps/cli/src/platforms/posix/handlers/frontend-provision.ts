@@ -4,6 +4,8 @@ import * as crypto from 'crypto';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
+import { getFrontendPaths } from './frontend-paths.js';
+import type { FrontendServiceConfig } from '@semiont/core';
 
 /**
  * Provision handler for frontend services on POSIX systems
@@ -12,46 +14,32 @@ import { printInfo, printSuccess, printWarning, printError } from '../../../core
  * configures environment variables, and prepares the build.
  */
 const provisionFrontendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
-  const { service, options } = context;
-  
-  // Get semiont repo path from options or environment
-  const semiontRepo = options.semiontRepo || process.env.SEMIONT_REPO;
-  if (!semiontRepo) {
-    return {
-      success: false,
-      error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
-      metadata: { serviceType: 'frontend' }
-    };
-  }
-  
-  // Verify semiont repo exists and has frontend
-  const frontendSourceDir = path.join(semiontRepo, 'apps', 'frontend');
+  const { service } = context;
+
+  // Get frontend paths
+  const paths = getFrontendPaths(context);
+  const { sourceDir: frontendSourceDir, logsDir, tmpDir, envLocalFile: envFile } = paths;
+
+  // Verify frontend source directory exists
   if (!fs.existsSync(frontendSourceDir)) {
     return {
       success: false,
       error: `Frontend source not found at ${frontendSourceDir}`,
-      metadata: { serviceType: 'frontend', semiontRepo }
+      metadata: { serviceType: 'frontend' }
     };
   }
-  
+
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);
-    printInfo(`Using semiont repo: ${semiontRepo}`);
+    printInfo(`Using source directory: ${frontendSourceDir}`);
   }
-  
-  // Create frontend runtime directory structure
-  const frontendDir = path.join(service.projectRoot, 'frontend');
-  const logsDir = path.join(frontendDir, 'logs');
-  const tmpDir = path.join(frontendDir, 'tmp');
-  const envFile = path.join(frontendDir, '.env.local');
-  
+
   // Create directories
-  fs.mkdirSync(frontendDir, { recursive: true });
   fs.mkdirSync(logsDir, { recursive: true });
   fs.mkdirSync(tmpDir, { recursive: true });
   
   if (!service.quiet) {
-    printInfo(`Created frontend directory: ${frontendDir}`);
+    printInfo(`Created runtime directories in: ${frontendSourceDir}`);
   }
   
   // Setup .env.local file
@@ -69,18 +57,58 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   
   // Always generate a new secure NEXTAUTH_SECRET
   const nextAuthSecret = crypto.randomBytes(32).toString('base64');
-  
-  // Always create/overwrite .env.local with correct configuration
+
+  // Get values from service config (already validated by schema)
+  // Type narrowing: we know this is a frontend service
+  const config = service.config as FrontendServiceConfig;
+  const frontendUrl = config.url;
+  const port = config.port;
+  const semiontEnv = service.environment;
+  const siteName = config.siteName;
+
+  // Get backend publicURL from environment config
+  const backendService = service.environmentConfig.services['backend'];
+  if (!backendService) {
+    return {
+      success: false,
+      error: 'Backend service not found in environment configuration',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+  const backendUrl = backendService.publicURL;
+  if (!backendUrl) {
+    return {
+      success: false,
+      error: 'Backend publicURL not configured',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+  if (!siteName) {
+    return {
+      success: false,
+      error: 'Frontend siteName not configured',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+
+  // Get OAuth allowed domains from environment config
+  const oauthAllowedDomains = service.environmentConfig.site?.oauthAllowedDomains || [];
+
+  // Get local auth setting from environment config
+  const enableLocalAuth = service.environmentConfig.app?.security?.enableLocalAuth || false;
+
+  // Always create/overwrite .env.local with minimal configuration
+  // Most config now comes from the semiont config system
   const envUpdates: Record<string, string> = {
     'NODE_ENV': 'development',
-    'PORT': (service.config.port || 3000).toString(),
-    'NEXT_PUBLIC_API_URL': `http://localhost:${service.config.backendPort || 4000}`,
-    'NEXT_PUBLIC_FRONTEND_URL': `http://localhost:${service.config.port || 3000}`,
-    'NEXTAUTH_URL': `http://localhost:${service.config.port || 3000}`,
+    'PORT': port.toString(),
+    'NEXTAUTH_URL': frontendUrl,
     'NEXTAUTH_SECRET': nextAuthSecret,
-    'ENABLE_LOCAL_AUTH': 'true',  // Enable local development authentication
-    'LOG_DIR': logsDir,
-    'TMP_DIR': tmpDir
+    'SEMIONT_ENV': semiontEnv,
+    'NEXT_PUBLIC_API_URL': backendUrl,
+    'NEXT_PUBLIC_SITE_NAME': siteName,
+    'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS': oauthAllowedDomains.join(','),
+    'NEXT_PUBLIC_ENABLE_LOCAL_AUTH': enableLocalAuth.toString()
   };
   
   if (fs.existsSync(envExamplePath)) {
@@ -114,20 +142,30 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
       printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
     }
   } else {
-    // Create a basic .env.local
+    // Create .env.local from scratch
     const basicEnv = `# Frontend Environment Configuration
 NODE_ENV=development
-PORT=${service.config.port || 3000}
-NEXT_PUBLIC_API_URL=http://localhost:${service.config.backendPort || 4000}
-NEXT_PUBLIC_FRONTEND_URL=http://localhost:${service.config.port || 3000}
-NEXTAUTH_URL=http://localhost:${service.config.port || 3000}
+PORT=${port}
+NEXTAUTH_URL=${frontendUrl}
 NEXTAUTH_SECRET=${nextAuthSecret}
-ENABLE_LOCAL_AUTH=true
-LOG_DIR=${logsDir}
-TMP_DIR=${tmpDir}
+
+# Semiont Configuration System
+SEMIONT_ENV=${semiontEnv}
+
+# Backend API URL (from backend.publicURL in environment config)
+NEXT_PUBLIC_API_URL=${backendUrl}
+
+# Site name (from frontend.siteName in environment config)
+NEXT_PUBLIC_SITE_NAME=${siteName}
+
+# OAuth allowed domains (comma-separated)
+NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
+
+# Enable local development authentication
+NEXT_PUBLIC_ENABLE_LOCAL_AUTH=${enableLocalAuth.toString()}
 `;
     fs.writeFileSync(envFile, basicEnv);
-    
+
     if (!service.quiet) {
       printSuccess('Created .env.local with updated configuration');
       printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
@@ -141,7 +179,7 @@ TMP_DIR=${tmpDir}
   
   try {
     // For monorepo, install from the root
-    const monorepoRoot = path.resolve(semiontRepo);
+    const monorepoRoot = path.dirname(path.dirname(frontendSourceDir));
     const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
     
     if (fs.existsSync(rootPackageJsonPath)) {
@@ -154,14 +192,12 @@ TMP_DIR=${tmpDir}
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
       } else {
-        // Install in frontend directory
         execSync('npm install', {
           cwd: frontendSourceDir,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
       }
     } else {
-      // Fallback to frontend directory
       execSync('npm install', {
         cwd: frontendSourceDir,
         stdio: service.verbose ? 'inherit' : 'pipe'
@@ -176,12 +212,12 @@ TMP_DIR=${tmpDir}
     return {
       success: false,
       error: `Failed to install dependencies: ${error}`,
-      metadata: { serviceType: 'frontend', frontendDir }
+      metadata: { serviceType: 'frontend', frontendSourceDir }
     };
   }
   
   // Build frontend if in production mode
-  if (service.environment === 'prod' || options.build) {
+  if (service.environment === 'prod') {
     if (!service.quiet) {
       printInfo('Building frontend for production...');
     }
@@ -214,8 +250,8 @@ TMP_DIR=${tmpDir}
     }
   }
   
-  // Create README in frontend directory
-  const readmePath = path.join(frontendDir, 'README.md');
+  // Create README in frontend source directory
+  const readmePath = path.join(frontendSourceDir, 'RUNTIME.md');
   if (!fs.existsSync(readmePath)) {
     const readmeContent = `# Frontend Runtime Directory
 
@@ -252,12 +288,10 @@ ${frontendSourceDir}
   
   const metadata = {
     serviceType: 'frontend',
-    frontendDir,
+    frontendSourceDir,
     envFile,
     logsDir,
     tmpDir,
-    semiontRepo,
-    frontendSourceDir,
     configured: true
   };
   
@@ -265,7 +299,6 @@ ${frontendSourceDir}
     printSuccess(`✅ Frontend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Frontend details:');
-    printInfo(`  Runtime directory: ${frontendDir}`);
     printInfo(`  Source directory: ${frontendSourceDir}`);
     printInfo(`  Environment file: ${envFile}`);
     printInfo(`  Logs directory: ${logsDir}`);
@@ -282,7 +315,7 @@ ${frontendSourceDir}
     resources: {
       platform: 'posix',
       data: {
-        path: frontendDir,
+        path: frontendSourceDir,
         workingDirectory: frontendSourceDir
       }
     }

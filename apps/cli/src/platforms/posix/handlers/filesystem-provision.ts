@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { getFilesystemPaths } from './filesystem-paths.js';
 
 /**
  * Provision handler for filesystem services on POSIX systems
@@ -12,65 +13,42 @@ import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logg
  */
 const provisionFilesystemService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service } = context;
-  const requirements = service.getRequirements();
-  
+
   if (!service.quiet) {
     printInfo(`Provisioning filesystem service ${service.name}...`);
   }
-  
-  const metadata: Record<string, any> = {
+
+  const metadata: Record<string, unknown> = {
     serviceType: 'filesystem',
-    directories: []
+    directories: [] as string[]
   };
-  
-  // Get the configured path from service config, or use default
-  const basePath = service.config.path || path.join(process.cwd(), 'data', service.name);
-  const absolutePath = path.isAbsolute(basePath) ? basePath : path.join(service.projectRoot, basePath);
-  
+
+  // Get filesystem paths
+  const paths = getFilesystemPaths(context);
+  const { baseDir: absolutePath } = paths;
+
   // Create the main filesystem directory
   try {
     fs.mkdirSync(absolutePath, { recursive: true });
-    metadata.directories.push(absolutePath);
-    
+    (metadata.directories as string[]).push(absolutePath);
+
     if (!service.quiet) {
       printInfo(`Created directory: ${absolutePath}`);
     }
-    
+
     // Check and set permissions (make it writable)
     try {
       fs.chmodSync(absolutePath, 0o755);
     } catch (error) {
       printWarning(`Could not set permissions on ${absolutePath}: ${error}`);
     }
-    
-    // Create subdirectories based on requirements
-    if (requirements.storage) {
-      for (const storage of requirements.storage) {
-        const subPath = storage.mountPath || path.join(absolutePath, storage.volumeName || 'default');
-        const absSubPath = path.isAbsolute(subPath) ? subPath : path.join(service.projectRoot, subPath);
-        
-        fs.mkdirSync(absSubPath, { recursive: true });
-        metadata.directories.push(absSubPath);
-        
-        if (!service.quiet) {
-          printInfo(`Created storage directory: ${absSubPath}`);
-        }
-        
-        // Set permissions
-        try {
-          fs.chmodSync(absSubPath, 0o755);
-        } catch (error) {
-          printWarning(`Could not set permissions on ${absSubPath}: ${error}`);
-        }
-      }
-    }
-    
+
     // Create standard subdirectories for common use cases
     const standardDirs = ['uploads', 'temp', 'cache', 'logs'];
     for (const dir of standardDirs) {
       const dirPath = path.join(absolutePath, dir);
       fs.mkdirSync(dirPath, { recursive: true });
-      metadata.directories.push(dirPath);
+      (metadata.directories as string[]).push(dirPath);
     }
     
     // Check available disk space
@@ -141,7 +119,7 @@ Files placed here will persist across service restarts.
       printInfo('');
       printInfo('Filesystem details:');
       printInfo(`  Path: ${absolutePath}`);
-      printInfo(`  Directories: ${metadata.directories.length} created`);
+      printInfo(`  Directories: ${(metadata.directories as string[]).length} created`);
       if (metadata.availableSpace) {
         printInfo(`  Available space: ${metadata.availableSpace}`);
       }

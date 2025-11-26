@@ -181,20 +181,20 @@ describe('init command', () => {
   describe('environment configuration', () => {
     it('should create configs for custom environment list', async () => {
       const options = createInitOptions({
-        environments: ['dev', 'qa', 'prod'],
+        environments: ['local', 'test', 'ci'],
         quiet: true
       });
 
       await init(options);
 
-      // Check that custom environment files were created
-      expect(fs.existsSync('environments/dev.json')).toBe(true);
-      expect(fs.existsSync('environments/qa.json')).toBe(true);
-      expect(fs.existsSync('environments/prod.json')).toBe(true);
-      
-      // Should not create default environments
-      expect(fs.existsSync('environments/local.json')).toBe(false);
+      // Check that environment files with templates were created
+      expect(fs.existsSync('environments/local.json')).toBe(true);
+      expect(fs.existsSync('environments/test.json')).toBe(true);
+      expect(fs.existsSync('environments/ci.json')).toBe(true);
+
+      // Should not create environments that weren't requested
       expect(fs.existsSync('environments/staging.json')).toBe(false);
+      expect(fs.existsSync('environments/production.json')).toBe(false);
     });
 
     it('should generate appropriate configs for each environment type', async () => {

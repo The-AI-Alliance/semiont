@@ -18,7 +18,7 @@ import { CommandResults } from './command-types.js';
 import { HandlerRegistry } from './handlers/registry.js';
 import { HandlerContextBuilder } from './handlers/context.js';
 import { HandlerResult } from './handlers/types.js';
-import { Config } from './cli-config.js';
+import { Config, ServiceConfig } from './cli-config.js';
 import { parseEnvironment } from '@semiont/core';
 import { printError, printInfo } from './io/cli-logger.js';
 
@@ -194,8 +194,8 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
       {
         ...serviceInfo.config,
         ...serviceConfig,
-        platform: serviceInfo.platform
-      }
+        platform: { type: serviceInfo.platform }
+      } as ServiceConfig
     );
     
     // 5. Determine service type

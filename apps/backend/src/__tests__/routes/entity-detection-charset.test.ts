@@ -50,7 +50,16 @@ describe('Entity Detection - Charset Handling', () => {
 
     config = {
       services: {
-        filesystem: { path: testDir },
+        filesystem: {
+          platform: { type: 'posix' },
+          path: testDir
+        },
+      },
+      site: {
+        siteName: 'Test Site',
+        domain: 'localhost:3000',
+        adminEmail: 'admin@test.local',
+        oauthAllowedDomains: ['test.local']
       },
       _metadata: {
         environment: 'test',

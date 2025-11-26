@@ -1,109 +1,167 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
+import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
+import { getBackendPaths } from './backend-paths.js';
+import { getNodeEnvForEnvironment } from '@semiont/core';
 
 /**
  * Provision handler for backend services on POSIX systems
- * 
+ *
  * Sets up the backend runtime directory structure, installs dependencies,
  * configures environment variables, and prepares the database.
  */
 const provisionBackendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, options } = context;
-  
-  // Get semiont repo path from options or environment
-  const semiontRepo = options.semiontRepo || process.env.SEMIONT_REPO;
-  if (!semiontRepo) {
+
+  // Type narrowing for backend service config
+  const config = service.config as BackendServiceConfig;
+
+  // Get backend paths
+  const paths = getBackendPaths(context);
+  if (!paths) {
     return {
       success: false,
       error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
       metadata: { serviceType: 'backend' }
     };
   }
-  
-  // Verify semiont repo exists and has backend
-  const backendSourceDir = path.join(semiontRepo, 'apps', 'backend');
+
+  const { sourceDir: backendSourceDir, envFile, logsDir, tmpDir } = paths;
+
+  // Verify backend source exists
   if (!fs.existsSync(backendSourceDir)) {
     return {
       success: false,
       error: `Backend source not found at ${backendSourceDir}`,
-      metadata: { serviceType: 'backend', semiontRepo }
+      metadata: { serviceType: 'backend' }
     };
   }
-  
+
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
+    const semiontRepo = options.semiontRepo;
     printInfo(`Using semiont repo: ${semiontRepo}`);
   }
-  
-  // Create backend runtime directory structure
-  const backendDir = path.join(service.projectRoot, 'backend');
-  const logsDir = path.join(backendDir, 'logs');
-  const tmpDir = path.join(backendDir, 'tmp');
-  const envFile = path.join(backendDir, '.env.local');
-  
+
   // Create directories
-  fs.mkdirSync(backendDir, { recursive: true });
   fs.mkdirSync(logsDir, { recursive: true });
   fs.mkdirSync(tmpDir, { recursive: true });
-  
+
   if (!service.quiet) {
-    printInfo(`Created backend directory: ${backendDir}`);
+    printInfo(`Created runtime directories in: ${backendSourceDir}`);
   }
 
   // Get environment configuration from service
   const envConfig = service.environmentConfig;
   const dbConfig = envConfig.services?.database;
-  
-  // Build database URL from environment config
-  let databaseUrl = 'postgresql://semiont:localpass@localhost:5432/semiont'; // fallback
-  if (dbConfig?.environment) {
-    const dbUser = dbConfig.environment.POSTGRES_USER || 'postgres';
-    const dbPassword = dbConfig.environment.POSTGRES_PASSWORD || 'localpass';
-    const dbName = dbConfig.environment.POSTGRES_DB || 'semiont';
-    const dbPort = dbConfig.port || 5432;
-    const dbHost = 'localhost'; // For local development, always use localhost
-    databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
-    
-    if (!service.quiet) {
-      printInfo(`Using database configuration from ${service.environment}.json:`);
-      printInfo(`  Database: ${dbName} on ${dbHost}:${dbPort}`);
-      printInfo(`  User: ${dbUser}`);
-    }
-  } else {
-    if (!service.quiet) {
-      printWarning('No database configuration found in environment file, using defaults');
-    }
+
+  if (!dbConfig?.environment) {
+    throw new Error('Database configuration not found in environment file');
+  }
+
+  const dbUser = dbConfig.environment.POSTGRES_USER;
+  if (!dbUser) {
+    throw new Error('POSTGRES_USER not configured');
+  }
+
+  const dbPassword = dbConfig.environment.POSTGRES_PASSWORD;
+  if (!dbPassword) {
+    throw new Error('POSTGRES_PASSWORD not configured');
+  }
+
+  const dbName = dbConfig.environment.POSTGRES_DB;
+  if (!dbName) {
+    throw new Error('POSTGRES_DB not configured');
+  }
+
+  const dbPort = dbConfig.port;
+  if (!dbPort) {
+    throw new Error('Database port not configured');
+  }
+
+  const dbHost = 'localhost';
+  const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
+
+  if (!service.quiet) {
+    printInfo(`Using database configuration from ${service.environment}.json:`);
+    printInfo(`  Database: ${dbName} on ${dbHost}:${dbPort}`);
+    printInfo(`  User: ${dbUser}`);
   }
   
-  // Check if .env.local already exists and backup if it does
+  // Check if .env already exists and backup if it does
   if (fs.existsSync(envFile)) {
     const backupPath = `${envFile}.backup.${Date.now()}`;
     fs.copyFileSync(envFile, backupPath);
     if (!service.quiet) {
-      printWarning(`.env.local already exists, backing up to: ${path.basename(backupPath)}`);
-      printInfo('Creating new .env.local with updated configuration...');
+      printWarning(`.env already exists, backing up to: ${path.basename(backupPath)}`);
+      printInfo('Creating new .env with updated configuration...');
     }
   }
   
-  // Define all environment variables in one place
+  // Get URLs from environment config
+  const frontendService = service.environmentConfig.services?.frontend;
+  if (!frontendService?.url) {
+    throw new Error('Frontend URL not configured in environment');
+  }
+  const frontendUrl = frontendService.url;
+
+  const backendUrl = config.publicURL;
+  if (!backendUrl) {
+    throw new Error('Backend publicURL not configured');
+  }
+
+  const port = config.port;
+  if (!port) {
+    throw new Error('Backend port not configured');
+  }
+
+  if (!service.environmentConfig.site) {
+    throw new Error('Site configuration not found in environment file');
+  }
+
+  const siteDomain = service.environmentConfig.site.domain;
+  if (!siteDomain) {
+    throw new Error('Site domain not configured');
+  }
+
+  // Read OAuth allowed domains from site config
+  const oauthAllowedDomains = service.environmentConfig.site.oauthAllowedDomains;
+  if (!oauthAllowedDomains || oauthAllowedDomains.length === 0) {
+    throw new Error('OAuth allowed domains not configured in site config');
+  }
+
+  const allowedDomains = oauthAllowedDomains.join(',');
+
+  // Get NODE_ENV from environment config
+  const nodeEnv = getNodeEnvForEnvironment(service.environmentConfig);
+
+  // Get enableLocalAuth from app config, default to true for development
+  const enableLocalAuth = service.environmentConfig.app?.security?.enableLocalAuth ??
+    (nodeEnv === 'development');
+
+  // Get JWT secret from config or generate a secure one
+  const jwtSecret = service.environmentConfig.app?.security?.jwtSecret ??
+    crypto.randomBytes(32).toString('base64');
+
   const envUpdates: Record<string, string> = {
-    'NODE_ENV': 'development',
-    'PORT': (service.config.port || 4000).toString(),
+    'NODE_ENV': nodeEnv,
+    'PORT': port.toString(),
     'DATABASE_URL': databaseUrl,
     'LOG_DIR': logsDir,
     'TMP_DIR': tmpDir,
-    'JWT_SECRET': 'local-development-secret-change-in-production',
-    'FRONTEND_URL': 'http://localhost:3000',
-    'BACKEND_URL': `http://localhost:${service.config.port || 4000}`,
-    'ENABLE_LOCAL_AUTH': 'true',  // Enable local development authentication
-    'SITE_DOMAIN': 'localhost',  // Required for JWT issuer
-    'OAUTH_ALLOWED_DOMAINS': 'localhost'  // Allowed domains for OAuth authentication
+    'JWT_SECRET': jwtSecret,
+    'FRONTEND_URL': frontendUrl,
+    'BACKEND_URL': backendUrl,
+    'ENABLE_LOCAL_AUTH': enableLocalAuth.toString(),
+    'SITE_DOMAIN': siteDomain,
+    'OAUTH_ALLOWED_DOMAINS': allowedDomains
   };
   
-  // Create .env.local from the single source of truth
+  // Create .env from the single source of truth
   let envContent = '# Backend Environment Configuration\n';
   for (const [key, value] of Object.entries(envUpdates)) {
     envContent += `${key}=${value}\n`;
@@ -112,7 +170,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   fs.writeFileSync(envFile, envContent);
   
   if (!service.quiet) {
-    printSuccess('Created .env.local with configuration from environment file');
+    printSuccess('Created .env with configuration from environment file');
   }
   
   // Install npm dependencies
@@ -121,28 +179,28 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   }
   
   try {
-    // For monorepo, install from the root
+    const semiontRepo = context.options?.semiontRepo;
+    if (!semiontRepo) {
+      throw new Error('SEMIONT_REPO not configured');
+    }
+
     const monorepoRoot = path.resolve(semiontRepo);
     const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
-    
+
     if (fs.existsSync(rootPackageJsonPath)) {
-      // Check if this is a monorepo with workspaces
       const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
       if (rootPackageJson.workspaces) {
-        // Install from monorepo root
         execSync('npm install', {
           cwd: monorepoRoot,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
       } else {
-        // Install in backend directory
         execSync('npm install', {
           cwd: backendSourceDir,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
       }
     } else {
-      // Fallback to backend directory
       execSync('npm install', {
         cwd: backendSourceDir,
         stdio: service.verbose ? 'inherit' : 'pipe'
@@ -157,7 +215,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     return {
       success: false,
       error: `Failed to install dependencies: ${error}`,
-      metadata: { serviceType: 'backend', backendDir }
+      metadata: { serviceType: 'backend', backendSourceDir }
     };
   }
   
@@ -235,11 +293,9 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
         });
       }
       
-      // Get admin email from options or environment
-      const adminEmail = options.adminEmail || process.env.ADMIN_EMAIL;
+      const adminEmail = options.adminEmail;
       if (!adminEmail) {
-        printWarning('No admin email provided. Skipping admin user creation.');
-        printInfo('Use --admin-email flag or set ADMIN_EMAIL environment variable');
+        throw new Error('Admin email not provided. Use --admin-email flag');
       } else {
         // Extract domain from email
         const emailParts = adminEmail.split('@');
@@ -336,8 +392,8 @@ main()
     }
   }
   
-  // Create README in backend directory
-  const readmePath = path.join(backendDir, 'README.md');
+  // Create README in backend source directory
+  const readmePath = path.join(backendSourceDir, 'RUNTIME.md');
   if (!fs.existsSync(readmePath)) {
     const readmeContent = `# Backend Runtime Directory
 
@@ -345,14 +401,14 @@ This directory contains runtime files for the backend service.
 
 ## Structure
 
-- \`.env.local\` - Environment configuration (git-ignored)
+- \`.env\` - Environment configuration (git-ignored)
 - \`logs/\` - Application logs
 - \`tmp/\` - Temporary files
 - \`.pid\` - Process ID when running
 
 ## Configuration
 
-Edit \`.env.local\` to configure:
+Edit \`.env\` to configure:
 - Database connection (DATABASE_URL)
 - Backend URL (BACKEND_URL)
 - JWT secret (JWT_SECRET)
@@ -376,12 +432,10 @@ ${backendSourceDir}
   
   const metadata = {
     serviceType: 'backend',
-    backendDir,
+    backendSourceDir,
     envFile,
     logsDir,
     tmpDir,
-    semiontRepo,
-    backendSourceDir,
     configured: true
   };
   
@@ -389,7 +443,6 @@ ${backendSourceDir}
     printSuccess(`✅ Backend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Backend details:');
-    printInfo(`  Runtime directory: ${backendDir}`);
     printInfo(`  Source directory: ${backendSourceDir}`);
     printInfo(`  Environment file: ${envFile}`);
     printInfo(`  Logs directory: ${logsDir}`);
@@ -406,7 +459,7 @@ ${backendSourceDir}
     resources: {
       platform: 'posix',
       data: {
-        path: backendDir,
+        path: backendSourceDir,
         workingDirectory: backendSourceDir
       }
     }

@@ -66,8 +66,8 @@ const provisionDatabaseContainer = async (context: ContainerProvisionHandlerCont
   
   // Get database configuration from environment variables
   const envVars = service.getEnvironmentVariables();
-  const dbName = envVars.POSTGRES_DB || envVars.MYSQL_DATABASE || 'semiont';
-  const dbUser = envVars.POSTGRES_USER || envVars.MYSQL_USER || 'semiont';
+  const dbName = envVars.POSTGRES_DB || envVars.MYSQL_DATABASE;
+  const dbUser = envVars.POSTGRES_USER || envVars.MYSQL_USER;
   
   // Check if container is already running
   let containerRunning = false;
