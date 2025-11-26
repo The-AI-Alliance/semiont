@@ -39,6 +39,8 @@
       "platform": {
         "type": "container"
       },
+      "type": "postgres",
+      "host": "localhost",
       "image": "postgres:15-alpine",
       "name": "semiont-test-db",
       "port": 5432,
