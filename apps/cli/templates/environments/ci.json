@@ -1,0 +1,52 @@
+{
+  "name": "ci",
+  "site": {
+    "domain": "localhost",
+    "oauthAllowedDomains": ["example.com", "test.example.com"]
+  },
+  "platform": {
+    "default": "posix"
+  },
+  "env": {
+    "NODE_ENV": "test"
+  },
+  "services": {
+    "backend": {
+      "platform": {
+        "type": "posix"
+      },
+      "port": 4000,
+      "publicURL": "http://localhost:4000",
+      "corsOrigin": "http://localhost:3000"
+    },
+    "frontend": {
+      "platform": {
+        "type": "posix"
+      },
+      "port": 3000,
+      "url": "http://localhost:3000",
+      "siteName": "CI Test Site"
+    },
+    "filesystem": {
+      "platform": {
+        "type": "posix"
+      },
+      "path": "data",
+      "description": "CI filesystem storage"
+    },
+    "database": {
+      "platform": {
+        "type": "external"
+      },
+      "type": "postgres",
+      "host": "localhost",
+      "port": 5432
+    },
+    "mcp": {
+      "platform": {
+        "type": "posix"
+      },
+      "dependsOn": ["backend"]
+    }
+  }
+}
