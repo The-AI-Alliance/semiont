@@ -118,7 +118,7 @@ vi.mock('next-intl/navigation', async () => {
     usePathname: () => '/',
     redirect: vi.fn(),
     Link: MockLink,
-    createNavigation: vi.fn((config) => {
+    createNavigation: vi.fn(() => {
       // Dynamically require next/navigation to get the mocked hooks
       // This way tests that re-mock next/navigation will work
       const { usePathname, useRouter } = require('next/navigation');
@@ -135,30 +135,11 @@ vi.mock('next-intl/navigation', async () => {
   };
 });
 
-// Mock @semiont/core to avoid config loading issues in tests
-vi.mock('@semiont/core', () => ({
-  findProjectRoot: vi.fn(() => '/mock/project/root'),
-  loadEnvironmentConfig: vi.fn(() => ({
-    app: {
-      security: {
-        enableLocalAuth: true
-      }
-    },
-    site: {
-      domain: 'localhost',
-      oauthAllowedDomains: ['example.com', 'test.com']
-    },
-    services: {
-      backend: {
-        publicURL: 'http://localhost:3001'
-      }
-    }
-  }))
-}));
-
 // Set test environment variables
 process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
 process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
+process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
+process.env.NEXT_PUBLIC_ENABLE_LOCAL_AUTH = 'true';
 
 // Polyfill fetch to handle relative URLs
 const originalFetch = global.fetch;

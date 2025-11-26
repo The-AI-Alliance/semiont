@@ -91,6 +91,12 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     };
   }
 
+  // Get OAuth allowed domains from environment config
+  const oauthAllowedDomains = service.environmentConfig.site?.oauthAllowedDomains || [];
+
+  // Get local auth setting from environment config
+  const enableLocalAuth = service.environmentConfig.app?.security?.enableLocalAuth || false;
+
   // Always create/overwrite .env.local with minimal configuration
   // Most config now comes from the semiont config system
   const envUpdates: Record<string, string> = {
@@ -100,7 +106,9 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     'NEXTAUTH_SECRET': nextAuthSecret,
     'SEMIONT_ENV': semiontEnv,
     'NEXT_PUBLIC_API_URL': backendUrl,
-    'NEXT_PUBLIC_SITE_NAME': siteName
+    'NEXT_PUBLIC_SITE_NAME': siteName,
+    'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS': oauthAllowedDomains.join(','),
+    'NEXT_PUBLIC_ENABLE_LOCAL_AUTH': enableLocalAuth.toString()
   };
   
   if (fs.existsSync(envExamplePath)) {
@@ -149,6 +157,12 @@ NEXT_PUBLIC_API_URL=${backendUrl}
 
 # Site name (from frontend.siteName in environment config)
 NEXT_PUBLIC_SITE_NAME=${siteName}
+
+# OAuth allowed domains (comma-separated)
+NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
+
+# Enable local development authentication
+NEXT_PUBLIC_ENABLE_LOCAL_AUTH=${enableLocalAuth.toString()}
 `;
     fs.writeFileSync(envFile, basicEnv);
 

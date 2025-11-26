@@ -10,46 +10,40 @@ import * as path from 'path';
 import { ConfigurationError } from './configuration-error';
 
 /**
- * Find project root - uses SEMIONT_ROOT if set, otherwise current directory
- * 
+ * Find project root - returns SEMIONT_ROOT environment variable
+ *
  * @returns The absolute path to the project root
- * @throws ConfigurationError if not in a valid Semiont project
+ * @throws ConfigurationError if SEMIONT_ROOT is not set or invalid
  */
 export function findProjectRoot(): string {
-  // If SEMIONT_ROOT is set, use it and validate
-  if (process.env.SEMIONT_ROOT) {
-    const root = process.env.SEMIONT_ROOT;
-    if (!fs.existsSync(root)) {
-      throw new ConfigurationError(
-        `SEMIONT_ROOT points to non-existent directory: ${root}`,
-        undefined,
-        'Check that SEMIONT_ROOT environment variable is set correctly'
-      );
-    }
-    
-    // Verify it's a valid project root
-    if (!isProjectRoot(root)) {
-      throw new ConfigurationError(
-        `SEMIONT_ROOT does not point to a valid Semiont project: ${root}`,
-        undefined,
-        'Ensure SEMIONT_ROOT points to a directory containing semiont.json or environments/'
-      );
-    }
-    
-    return root;
-  }
-  
-  // Otherwise use current directory and validate
-  const currentDir = process.cwd();
-  if (!isProjectRoot(currentDir)) {
+  const root = process.env.SEMIONT_ROOT;
+
+  if (!root) {
     throw new ConfigurationError(
-      `Not in a Semiont project directory: ${currentDir}`,
+      'SEMIONT_ROOT environment variable is not set',
       undefined,
-      'Change to a project directory, run "semiont init" to initialize a new project, or set SEMIONT_ROOT environment variable'
+      'Set SEMIONT_ROOT to your project directory, or use the semiont CLI which sets it automatically'
     );
   }
 
-  return currentDir;
+  if (!fs.existsSync(root)) {
+    throw new ConfigurationError(
+      `SEMIONT_ROOT points to non-existent directory: ${root}`,
+      undefined,
+      'Check that SEMIONT_ROOT environment variable is set correctly'
+    );
+  }
+
+  // Verify it's a valid project root
+  if (!isProjectRoot(root)) {
+    throw new ConfigurationError(
+      `SEMIONT_ROOT does not point to a valid Semiont project: ${root}`,
+      undefined,
+      'Ensure SEMIONT_ROOT points to a directory containing semiont.json or environments/'
+    );
+  }
+
+  return root;
 }
 
 /**

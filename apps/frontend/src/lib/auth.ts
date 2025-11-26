@@ -2,19 +2,17 @@ import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { validateData, JWTTokenSchema } from '@semiont/api-client';
 import { OAuthUserSchema } from '@/lib/validation';
-import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
+import {
+  NEXT_PUBLIC_API_URL,
+  NEXT_PUBLIC_ENABLE_LOCAL_AUTH,
+  getAllowedDomains
+} from '@/lib/env';
 import type { NextAuthOptions } from 'next-auth';
 
-// Load config once at module initialization
-const env = process.env.SEMIONT_ENV || 'local';
-const projectRoot = findProjectRoot();
-const config = loadEnvironmentConfig(projectRoot, env);
-
 console.log('[Frontend Auth] Config loaded:', {
-  env,
-  projectRoot,
-  enableLocalAuth: config.app?.security?.enableLocalAuth,
-  backendUrl: config.services?.backend?.publicURL
+  enableLocalAuth: NEXT_PUBLIC_ENABLE_LOCAL_AUTH,
+  backendUrl: NEXT_PUBLIC_API_URL,
+  allowedDomains: getAllowedDomains()
 });
 
 // Build providers array based on environment
@@ -23,7 +21,7 @@ const providers: NextAuthOptions['providers'] = [];
 console.log('[Frontend Auth] Environment check:', {
   NODE_ENV: process.env.NODE_ENV,
   hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
-  localAuthEnabled: config.app?.security?.enableLocalAuth
+  localAuthEnabled: NEXT_PUBLIC_ENABLE_LOCAL_AUTH
 });
 
 // Add Google provider if credentials are configured
@@ -38,7 +36,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 }
 
 // Add local development provider if enabled in config
-if (config.app?.security?.enableLocalAuth && process.env.NODE_ENV === 'development') {
+if (NEXT_PUBLIC_ENABLE_LOCAL_AUTH && process.env.NODE_ENV === 'development') {
   console.log('[Frontend Auth] Adding local credentials provider');
   providers.push(
     CredentialsProvider({
@@ -51,7 +49,7 @@ if (config.app?.security?.enableLocalAuth && process.env.NODE_ENV === 'developme
           return null;
         }
 
-        const apiUrl = config.services?.backend?.publicURL;
+        const apiUrl = NEXT_PUBLIC_API_URL;
 
         try {
           console.log('[Frontend Auth] Calling backend for local auth:', {
@@ -105,15 +103,15 @@ if (config.app?.security?.enableLocalAuth && process.env.NODE_ENV === 'developme
 export const authOptions: NextAuthOptions = {
   providers,
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       // Local development auth - already validated
       if (account?.provider === 'credentials') {
         return true;
       }
-      
+
       if (account?.provider === 'google') {
-        // Get allowed domains from config
-        const allowedDomains = config.site?.oauthAllowedDomains;
+        // Get allowed domains from environment
+        const allowedDomains = getAllowedDomains();
 
         if (!allowedDomains || allowedDomains.length === 0) {
           console.error('site.oauthAllowedDomains is not configured - rejecting all OAuth logins');
@@ -146,7 +144,7 @@ export const authOptions: NextAuthOptions = {
 
         // Backend authentication for security validation and token generation
         try {
-          const apiUrl = config.services?.backend?.publicURL;
+          const apiUrl = NEXT_PUBLIC_API_URL;
           console.log(`Calling backend at: ${apiUrl}/api/tokens/google`);
           const response = await fetch(`${apiUrl}/api/tokens/google`, {
             method: 'POST',
