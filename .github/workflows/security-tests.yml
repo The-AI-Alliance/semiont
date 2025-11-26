@@ -56,7 +56,7 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          NEXT_PUBLIC_API_URL: http://localhost:3001
+          NEXT_PUBLIC_API_URL: http://localhost:4000
           NEXT_PUBLIC_SITE_NAME: Semiont Test
           NEXTAUTH_URL: http://localhost:3000
           NEXTAUTH_SECRET: test-secret-for-ci-only
@@ -72,7 +72,7 @@ jobs:
           timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Frontend not ready yet, continuing..."
           sleep 5
         env:
-          NEXT_PUBLIC_API_URL: http://localhost:3001
+          NEXT_PUBLIC_API_URL: http://localhost:4000
           NEXT_PUBLIC_SITE_NAME: Semiont Test
           NEXTAUTH_URL: http://localhost:3000
           NEXTAUTH_SECRET: test-secret-for-ci-only
@@ -240,6 +240,9 @@ jobs:
           export SEMIONT_ENV=ci
           export NODE_ENV=test
           export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
+          export JWT_SECRET=test-secret-for-ci
+          export GOOGLE_CLIENT_ID=test-client-id
+          export GOOGLE_CLIENT_SECRET=test-client-secret
 
           echo "Starting backend with SEMIONT_ENV=ci..."
           cd apps/backend
@@ -257,10 +260,10 @@ jobs:
             exit 1
           fi
 
-          # Try to curl the health endpoint with verbose output
+          # Try to curl the health endpoint (ci.json uses port 4000)
           echo "Attempting to connect to backend health endpoint..."
           for i in {1..30}; do
-            if curl -f -v http://localhost:3001/api/health 2>&1; then
+            if curl -f -v http://localhost:4000/api/health 2>&1; then
               echo "Backend is healthy!"
               break
             fi
@@ -276,7 +279,7 @@ jobs:
           done
 
           # Final check
-          if ! curl -f http://localhost:3001/api/health 2>/dev/null; then
+          if ! curl -f http://localhost:4000/api/health 2>/dev/null; then
             echo "Backend never became healthy. Process status:"
             ps aux | grep -E "node|npm" || true
             echo "Backend logs:"
@@ -295,7 +298,7 @@ jobs:
             echo "Testing $endpoint..."
             
             # Test without Authorization header
-            status_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3001$endpoint")
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:4000$endpoint")
             if [ "$status_code" != "401" ]; then
               echo "❌ SECURITY FAILURE: $endpoint returned $status_code instead of 401 for missing auth"
               exit 1
@@ -303,7 +306,7 @@ jobs:
             echo "✅ $endpoint properly returns 401 for missing authentication"
             
             # Test with invalid token
-            status_code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer invalid-token" "http://localhost:3001$endpoint")
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer invalid-token" "http://localhost:4000$endpoint")
             if [ "$status_code" != "401" ]; then
               echo "❌ SECURITY FAILURE: $endpoint returned $status_code instead of 401 for invalid token"
               exit 1
@@ -312,7 +315,7 @@ jobs:
           done
           
           # Test 2: Verify error responses don't leak sensitive data
-          response=$(curl -s http://localhost:3001/api/admin/users)
+          response=$(curl -s http://localhost:4000/api/admin/users)
           if echo "$response" | grep -qE "postgresql://|secret|jwt.*key|password|database.*connection|stack.*trace|\.js:[0-9]+"; then
             echo "❌ SECURITY FAILURE: Sensitive data leaked in API error response!"
             echo "Response: $response"
