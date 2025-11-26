@@ -8,7 +8,7 @@
     "default": "posix"
   },
   "env": {
-    "NODE_ENV": "test"
+    "NODE_ENV": "development"
   },
   "services": {
     "backend": {
