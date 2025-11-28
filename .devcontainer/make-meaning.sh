@@ -8,8 +8,8 @@ exec 2>&1
 export PYTHONUNBUFFERED=1
 
 # Create a log file for debugging if needed
-LOG_FILE="/tmp/post-create.log"
-echo "Starting post-create setup at $(date)" > $LOG_FILE
+LOG_FILE="/tmp/make-meaning.log"
+echo "Starting make-meaning setup at $(date)" > $LOG_FILE
 
 # Clear the screen for clean output
 clear

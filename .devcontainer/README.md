@@ -18,10 +18,10 @@ This directory contains the configuration for GitHub Codespaces and VS Code Dev 
    - `NEO4J_PASSWORD` - Neo4j password
    - `NEO4J_DATABASE` - Neo4j database name (usually `neo4j`)
 
-3. **Initial Setup**: After the Codespace starts, run the post-create script to complete setup:
+3. **Initial Setup**: After the Codespace starts, run the setup script to complete setup:
 
    ```bash
-   bash .devcontainer/post-create.sh
+   bash .devcontainer/make-meaning.sh
    ```
 
    This script:

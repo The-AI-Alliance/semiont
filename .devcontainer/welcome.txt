@@ -37,7 +37,7 @@ Your Codespace is ready with:
   • README: /workspace/README.md
 
 🔧 Troubleshooting:
-  • Check logs: cat /tmp/post-create.log
+  • Check logs: cat /tmp/make-meaning.log
   • Service PIDs are shown above
 
 ==========================================

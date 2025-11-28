@@ -31,7 +31,7 @@
 
   // Use 'postCreateCommand' to run commands after the container is created
   // Note: Output is buffered by Codespaces - use Cmd/Ctrl+Shift+P -> "View Creation Log" to see progress
-  // "postCreateCommand": "bash .devcontainer/post-create.sh",
+  // "postCreateCommand": "bash .devcontainer/make-meaning.sh",
 
   // Show setup instructions when VS Code attaches
   "postAttachCommand": "clear && cat /workspace/.devcontainer/setup-instructions.txt",
