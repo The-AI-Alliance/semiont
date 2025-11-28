@@ -10,7 +10,7 @@ This directory contains the configuration for GitHub Codespaces and VS Code Dev 
 
    [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
 
-2. **Configure Secrets** (Optional): For AI features and graph database support, configure these secrets in your GitHub settings ([Settings → Codespaces → Secrets](https://github.com/settings/codespaces)):
+2. **Configure Secrets**: For AI features and graph database support, configure these secrets in your GitHub settings ([Settings → Codespaces → Secrets](https://github.com/settings/codespaces)):
 
    - `ANTHROPIC_API_KEY` - Your Anthropic API key for AI features
    - `NEO4J_URI` - Neo4j connection URI (e.g., `neo4j+s://xxxxx.databases.neo4j.io`)
@@ -58,7 +58,7 @@ This directory contains the configuration for GitHub Codespaces and VS Code Dev 
 ### VS Code Dev Containers (Local)
 
 1. **Prerequisites**:
-   - Docker Desktop installed and running
+   - Docker Desktop or Podman installed and running
    - VS Code with the "Dev Containers" extension
 
 2. **Environment Variables**: Create a `.env` file in the `.devcontainer` directory:

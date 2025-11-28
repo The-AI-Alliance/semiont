@@ -110,6 +110,7 @@ semiont provision --service backend   # Updates backend configuration
 The frontend syncs configuration from Semiont environment files at provision-time. After changing environment config, re-run `semiont provision --service frontend` to update `.env.local`.
 
 Key environment variables:
+
 - `NEXT_PUBLIC_API_URL` - Backend API URL (from `services.backend.publicURL`)
 - `NEXT_PUBLIC_SITE_NAME` - Site name (from `services.frontend.siteName`)
 - `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` - Enable email-only auth (from `app.security.enableLocalAuth`)
