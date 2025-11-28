@@ -107,7 +107,8 @@
           "ANTHROPIC",
           "NEO4J",
           "postgres",
-          "postgresql"
+          "postgresql",
+          "redocly"
         ],
         "workbench.colorCustomizations": {
           "[Default Dark Modern]": {
