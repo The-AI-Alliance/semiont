@@ -88,6 +88,7 @@
         "workbench.startupView": "workbench.explorer.fileView",
         "explorer.autoReveal": true,
         "workbench.panel.defaultLocation": "bottom",
+        "workbench.panel.opensMaximized": "always",
         "workbench.welcome.enabled": false,
         "workbench.editorAssociations": {
           "*.md": "default"
