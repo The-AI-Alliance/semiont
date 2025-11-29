@@ -21,11 +21,12 @@
   "portsAttributes": {
     "3000": {
       "label": "Frontend UI",
-      "onAutoForward": "notify"
+      "onAutoForward": "silent"
     },
     "4000": {
       "label": "Backend API",
-      "onAutoForward": "silent"
+      "onAutoForward": "silent",
+      "visibility": "public"
     }
   },
 
