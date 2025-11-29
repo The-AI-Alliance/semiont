@@ -250,6 +250,7 @@ describe('MCP Authentication security', () => {
         domain: 'example.com',
         provider: 'google',
         providerId: 'google-123',
+    passwordHash: null,
         image: null,
         isActive: true,
         isAdmin: false,

@@ -15,6 +15,7 @@ function SignInContent() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showLocalAuth, setShowLocalAuth] = useState(false);
   const callbackUrl = searchParams?.get('callbackUrl') || '/know';
 
@@ -67,16 +68,21 @@ function SignInContent() {
       setError(t('errorEmailRequired'));
       return;
     }
+    if (!password) {
+      setError(t('errorPasswordRequired'));
+      return;
+    }
 
     try {
       const result = await signIn('credentials', {
         email,
+        password,
         redirect: false,
         callbackUrl
       });
 
       if (result?.error) {
-        setError(t('errorCheckEmail'));
+        setError(t('errorInvalidCredentials'));
       } else if (result?.ok) {
         window.location.href = callbackUrl;
       }
@@ -132,6 +138,20 @@ function SignInContent() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder={t('emailPlaceholder')}
+                        className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm bg-white dark:bg-gray-800"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {t('passwordLabel')}
+                      </label>
+                      <input
+                        id="password"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={t('passwordPlaceholder')}
                         className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm bg-white dark:bg-gray-800"
                         required
                       />

@@ -36,6 +36,7 @@
     "@semiont/core": "*",
     "ajv": "^8.17.1",
     "ajv-formats": "^2.1.1",
+    "bcrypt": "^5.1.1",
     "dotenv": "^16.3.1",
     "google-auth-library": "^9.10.0",
     "gremlin": "^3.7.4",
@@ -48,6 +49,7 @@
   "devDependencies": {
     "@faker-js/faker": "^9.9.0",
     "@testcontainers/postgresql": "^11.5.0",
+    "@types/bcrypt": "^5.0.2",
     "@types/gremlin": "^3.6.7",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.9",

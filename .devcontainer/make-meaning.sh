@@ -7,10 +7,11 @@ set -euo pipefail
 exec 2>&1
 export PYTHONUNBUFFERED=1
 
-# Generate random admin email for this environment
+# Generate random admin email and password for this environment
 # Uses random hex string for uniqueness (not guessable)
 RANDOM_ID=$(openssl rand -hex 8)
 ADMIN_EMAIL="dev-${RANDOM_ID}@example.com"
+ADMIN_PASSWORD=$(openssl rand -base64 16)
 
 # Create a log file for debugging if needed
 LOG_FILE="/tmp/make-meaning.log"
@@ -290,12 +291,12 @@ cd $SEMIONT_ROOT || {
 # Database is already running via docker-compose, no need to provision
 print_success "Database already running via docker-compose"
 
-# Provision backend service (this creates the proper .env file and admin user)
-semiont provision --service backend --seed-admin --admin-email "$ADMIN_EMAIL" >> $LOG_FILE 2>&1 || {
+# Provision backend service (this creates the proper .env file)
+semiont provision --service backend >> $LOG_FILE 2>&1 || {
     print_error "Backend provisioning failed - check $LOG_FILE"
     exit 1
 }
-print_success "Backend provisioned (admin user: $ADMIN_EMAIL)"
+print_success "Backend provisioned"
 
 # Provision frontend service (this creates the proper .env.local file)
 semiont provision --service frontend >> $LOG_FILE 2>&1 || {
@@ -324,6 +325,18 @@ npx prisma db push --skip-generate >> $LOG_FILE 2>&1 || {
 }
 print_success "Database schema ready"
 
+# Create admin user
+print_status "Creating admin user..."
+cd $SEMIONT_ROOT || {
+    print_error "Failed to change to SEMIONT_ROOT directory"
+    exit 1
+}
+semiont useradd --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --admin >> $LOG_FILE 2>&1 || {
+    print_error "Admin user creation failed - check $LOG_FILE"
+    exit 1
+}
+print_success "Admin user created: $ADMIN_EMAIL"
+
 # Skip frontend production build - dev server handles compilation
 print_success "Frontend ready for development (typecheck already completed)"
 
@@ -340,6 +353,7 @@ if [ ! -f .env ]; then
 BACKEND_URL="http://localhost:4000"
 FRONTEND_URL="http://localhost:3000"
 AUTH_EMAIL="$ADMIN_EMAIL"
+AUTH_PASSWORD="$ADMIN_PASSWORD"
 
 # AI Services (from Codespaces secrets)
 ANTHROPIC_API_KEY=\${ANTHROPIC_API_KEY}
@@ -440,19 +454,21 @@ if [ -n "$CODESPACE_NAME" ]; then
     echo "   $FRONTEND_URL"
     echo "   (Or use: http://localhost:3000)"
     echo ""
-    echo "4. Sign in with your admin email:"
+    echo "4. Sign in with your admin credentials:"
     echo ""
-    echo "   ✨ $ADMIN_EMAIL ✨"
+    echo "   Email:    $ADMIN_EMAIL"
+    echo "   Password: $ADMIN_PASSWORD"
     echo ""
-    echo "   (This email is unique to this Codespace)"
+    echo "   (These credentials are unique to this Codespace)"
 else
     echo "🚀 Ready to start! Open the application:"
     echo ""
     echo "   http://localhost:3000"
     echo ""
-    echo "   Sign in with your admin email:"
+    echo "   Sign in with your admin credentials:"
     echo ""
-    echo "   ✨ $ADMIN_EMAIL ✨"
+    echo "   Email:    $ADMIN_EMAIL"
+    echo "   Password: $ADMIN_PASSWORD"
 fi
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

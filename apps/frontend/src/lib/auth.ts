@@ -35,36 +35,38 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
-// Add local development provider if enabled in config
+// Add password provider if enabled in config
 if (NEXT_PUBLIC_ENABLE_LOCAL_AUTH && process.env.NODE_ENV === 'development') {
-  console.log('[Frontend Auth] Adding local credentials provider');
+  console.log('[Frontend Auth] Adding password credentials provider');
   providers.push(
     CredentialsProvider({
-      name: 'Local Development',
+      name: 'Password',
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "admin@example.com" }
+        email: { label: "Email", type: "email", placeholder: "admin@example.com" },
+        password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email) {
+        if (!credentials?.email || !credentials?.password) {
           return null;
         }
 
         const apiUrl = NEXT_PUBLIC_API_URL;
 
         try {
-          console.log('[Frontend Auth] Calling backend for local auth:', {
+          console.log('[Frontend Auth] Calling backend for password auth:', {
             apiUrl,
-            endpoint: `${apiUrl}/api/tokens/local`,
+            endpoint: `${apiUrl}/api/tokens/password`,
             email: credentials.email
           });
 
-          const response = await fetch(`${apiUrl}/api/tokens/local`, {
+          const response = await fetch(`${apiUrl}/api/tokens/password`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
               email: credentials.email,
+              password: credentials.password,
             }),
           });
 
@@ -76,23 +78,23 @@ if (NEXT_PUBLIC_ENABLE_LOCAL_AUTH && process.env.NODE_ENV === 'development') {
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error('[Frontend Auth] Local authentication failed:', errorText);
+            console.error('[Frontend Auth] Password authentication failed:', errorText);
             return null;
           }
 
           const data = await response.json();
-          
+
           // Return user object with backend token
           return {
             id: data.user.id,
             email: data.user.email,
-            name: data.user.name || 'Local User',
+            name: data.user.name || 'User',
             image: data.user.image,
             backendToken: data.token,
             backendUser: data.user,
           };
         } catch (error) {
-          console.error('Local authentication error:', error);
+          console.error('Password authentication error:', error);
           return null;
         }
       }

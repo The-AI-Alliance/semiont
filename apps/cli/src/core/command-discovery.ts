@@ -25,6 +25,7 @@ import { provisionCommand } from './commands/provision.js';
 import { publishCommand } from './commands/publish.js';
 import { updateCommand } from './commands/update.js';
 import { watchCommand } from './commands/watch.js';
+import { useraddCommand } from './commands/useradd.js';
 
 /**
  * Cache of loaded command definitions
@@ -44,6 +45,7 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'publish': publishCommand,
   'update': updateCommand,
   'watch': watchCommand,
+  'useradd': useraddCommand,
 };
 
 /**

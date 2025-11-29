@@ -130,6 +130,7 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
       domain: 'example.com',
       provider: 'google',
       providerId: 'google-123',
+    passwordHash: null,
       isAdmin: false,
       isModerator: false,
       isActive: true,

@@ -40,6 +40,7 @@ describe('OAuth Service', () => {
     domain: 'example.com',
     provider: 'google',
     providerId: mockGoogleUser.id,
+    passwordHash: null,
     isAdmin: false,
     isActive: true,
     isModerator: false,
@@ -120,6 +121,7 @@ describe('OAuth Service', () => {
           image: mockGoogleUser.picture,
           provider: 'google',
           providerId: mockGoogleUser.id,
+    passwordHash: null,
           domain: 'example.com',
           isAdmin: false,
           lastLogin: expect.any(Date),
@@ -148,6 +150,7 @@ describe('OAuth Service', () => {
           image: mockGoogleUser.picture,
           provider: 'google',
           providerId: mockGoogleUser.id,
+    passwordHash: null,
           domain: 'example.com',
           lastLogin: expect.any(Date),
         }
@@ -177,6 +180,7 @@ describe('OAuth Service', () => {
           image: null,
           provider: 'google',
           providerId: userWithoutPicture.id,
+    passwordHash: null,
           domain: 'example.com',
           lastLogin: expect.any(Date),
         }
@@ -254,6 +258,7 @@ describe('OAuth Service', () => {
           image: userWithUndefinedDomain.picture,
           provider: 'google',
           providerId: userWithUndefinedDomain.id,
+    passwordHash: null,
           lastLogin: expect.any(Date),
         }
       });
