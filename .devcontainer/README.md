@@ -10,7 +10,7 @@ This directory contains the configuration for GitHub Codespaces and VS Code Dev 
 
    [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
 
-2. **Configure Secrets**: Before launching, configure these secrets in your GitHub settings ([Settings → Codespaces → Secrets](https://github.com/settings/codespaces)):
+2. **Configure Secrets**: For AI features and graph database support, configure these secrets in your GitHub settings ([Settings → Codespaces → Secrets](https://github.com/settings/codespaces)):
 
    - `ANTHROPIC_API_KEY` - Your Anthropic API key for AI features
    - `NEO4J_URI` - Neo4j connection URI (e.g., `neo4j+s://xxxxx.databases.neo4j.io`)
@@ -18,16 +18,47 @@ This directory contains the configuration for GitHub Codespaces and VS Code Dev 
    - `NEO4J_PASSWORD` - Neo4j password
    - `NEO4J_DATABASE` - Neo4j database name (usually `neo4j`)
 
-3. **Start Development**: Once the Codespace is ready, run:
+3. **Initial Setup**: After the Codespace starts, run the setup script to complete setup:
 
    ```bash
-   npm run dev  # Starts both frontend and backend
+   bash .devcontainer/make-meaning.sh
    ```
+
+   This script:
+   - Installs npm dependencies and builds packages
+   - Installs the Semiont CLI globally
+   - Creates Semiont project configuration
+   - Provisions backend database and frontend
+   - Creates `.env` files with defaults
+
+4. **Make Ports Public**: In VS Code, open the Ports panel (View → Ports) and make ports **3000** and **4000** public:
+   - Right-click port 3000 → Port Visibility → Public
+   - Right-click port 4000 → Port Visibility → Public
+
+5. **Start Services**: Use the Semiont CLI to start services:
+
+   ```bash
+   semiont start --service backend
+   semiont start --service frontend
+   ```
+
+6. **Verify Setup**: Check that all services are running:
+
+   ```bash
+   semiont check
+   ```
+
+   You should see:
+   - Backend: `running` on port 4000
+   - Frontend: `running` on port 3000
+
+7. **Access the Application**: Browse to the public URL for port 3000 (shown in Ports panel) and login with:
+   - Email: `dev@example.com`
 
 ### VS Code Dev Containers (Local)
 
 1. **Prerequisites**:
-   - Docker Desktop installed and running
+   - Docker Desktop or Podman installed and running
    - VS Code with the "Dev Containers" extension
 
 2. **Environment Variables**: Create a `.env` file in the `.devcontainer` directory:
@@ -44,154 +75,122 @@ This directory contains the configuration for GitHub Codespaces and VS Code Dev 
    - Open the repository in VS Code
    - Press `F1` and select "Dev Containers: Reopen in Container"
    - Wait for the container to build and initialize
+   - Follow steps 3-7 from the Codespaces instructions above
 
-## 📦 What's Included
+## 🏗️ How It Works
+
+### Architecture
+
+Semiont uses a **CLI-driven architecture** where:
+- **`semiont init`**: Creates project configuration (`semiont.json`, environment files)
+- **`semiont provision`**: Sets up services (database schema, environment variables)
+- **`semiont start`**: Starts services in the background
+- **`semiont check`**: Verifies service health
+- **`semiont stop`**: Stops running services
+
+### Configuration System
+
+Configuration flows from **Semiont config → environment variables** at provision-time:
+
+1. **Environment Files** (`environments/*.json`):
+   - Define service configurations per environment (local, staging, production)
+   - Specify backend URL, database settings, OAuth domains, etc.
+
+2. **Provision Step** (`semiont provision --service frontend`):
+   - Reads environment config
+   - Writes `NEXT_PUBLIC_*` variables to `.env.local`
+   - Frontend syncs with config at provision-time, not start-time
+
+3. **Start Step** (`semiont start --service frontend`):
+   - Reads environment variables from `.env.local`
+   - No config file loading at runtime
+   - Clean separation of concerns
 
 ### Services
 
-- **PostgreSQL 16**: Local database for development
-- **Node.js 22**: Latest LTS version
-- **Docker-in-Docker**: For running containers inside the dev container
+- **PostgreSQL 16**: Local database (connection: `postgresql://semiont:semiont@localhost:5432/semiont`)
+- **Backend API** (port 4000): Hono.js server with Prisma ORM
+- **Frontend** (port 3000): Next.js 15 with NextAuth authentication
 
-### Tools & Features
+### Authentication
 
-- **GitHub CLI**: For repository operations
-- **Git**: Version control
-- **PostgreSQL Client**: Database management tools
-- **Docker-in-Docker**: For container operations
+- **Local Development**: Email-only auth (no password) via `dev@example.com`
+- **OAuth**: Google OAuth for production environments
+- **Configuration**: Controlled via `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` and `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS`
+
+## 📦 What's Included
 
 ### VS Code Extensions
 
-- **Code Quality**:
-  - ESLint
-  - Prettier
-  - Error Lens
-  - Pretty TypeScript Errors
+- **Code Quality**: ESLint, Prettier, Error Lens, Pretty TypeScript Errors
+- **Productivity**: GitHub Copilot, Path Intellisense, NPM Intellisense
+- **Framework Support**: Prisma, Tailwind CSS, Docker
 
-- **Productivity**:
-  - GitHub Copilot & Copilot Chat
-  - Path Intellisense
-  - NPM Intellisense
-  - Auto Rename Tag
+### Tools
 
-- **Framework Support**:
-  - Prisma
-  - Tailwind CSS
-  - Docker
-
-### Pre-configured Environment
-
-The container automatically:
-
-1. Installs all npm dependencies
-2. Builds all packages including the Semiont CLI
-3. Installs the Semiont CLI globally (`npm link`)
-4. Sets environment variables (`SEMIONT_ENV=local`, `SEMIONT_ROOT=/workspace`)
-5. Runs `semiont init` to create project configuration
-6. Runs `semiont provision --service backend` to set up database schema
-7. Runs `semiont provision --service frontend` to configure frontend
-8. Creates `.env` files with proper defaults (as fallback)
-9. Configures ports for frontend (3000) and backend (4000)
-
-## 🔧 Configuration
-
-### Ports
-
-- **3000**: Frontend (Next.js)
-- **4000**: Backend API (Hono)
-- **5432**: PostgreSQL database
-
-### Environment Files Created
-
-- `/workspace/apps/backend/.env` - Backend configuration
-- `/workspace/apps/frontend/.env.local` - Frontend configuration
-- `/workspace/demo/.env` - Demo scripts configuration
-
-### Database
-
-A local PostgreSQL instance is automatically configured with:
-
-- Username: `semiont`
-- Password: `semiont`
-- Database: `semiont`
-- Connection: `postgresql://semiont:semiont@localhost:5432/semiont`
-
-## 🔑 Secrets Configuration
-
-### For GitHub Codespaces
-
-1. Go to [GitHub Settings → Codespaces → Secrets](https://github.com/settings/codespaces)
-2. Add the following repository or user secrets:
-
-| Secret Name | Description | How to Get |
-|------------|-------------|------------|
-| `ANTHROPIC_API_KEY` | Anthropic Claude API key | [Anthropic Console](https://console.anthropic.com/settings/keys) |
-| `NEO4J_URI` | Neo4j database URI | [Neo4j Aura Console](https://console.neo4j.io) |
-| `NEO4J_USERNAME` | Neo4j username | Usually `neo4j` |
-| `NEO4J_PASSWORD` | Neo4j password | Set during database creation |
-| `NEO4J_DATABASE` | Neo4j database name | Usually `neo4j` |
-
-### For Local Dev Containers
-
-Create `.devcontainer/.env` with your secrets (this file is gitignored):
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-xxxxx
-NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your-password
-NEO4J_DATABASE=neo4j
-```
+- GitHub CLI, Git, PostgreSQL Client, Docker-in-Docker
+- Node.js 22 LTS
+- Semiont CLI (globally installed)
 
 ## 📝 Common Commands
 
 ```bash
-# Start development servers
-npm run dev                    # Start both frontend and backend
-cd apps/frontend && npm run dev  # Frontend only
-cd apps/backend && npm run dev   # Backend only
+# Semiont CLI
+semiont check                      # Check service status
+semiont start --service backend    # Start backend
+semiont start --service frontend   # Start frontend
+semiont stop --service frontend    # Stop frontend
+semiont provision --service frontend  # Re-provision frontend
 
 # Database operations
 cd apps/backend
-npm run db:generate           # Generate Prisma client
-npm run db:push              # Push schema to database
-npm run db:studio            # Open Prisma Studio
+npm run db:studio                 # Open Prisma Studio (port 5555)
+npm run db:push                   # Push schema changes
 
-# Testing
-npm run test                 # Run all tests
-npm run test:watch          # Run tests in watch mode
+# Development
+npm run test                      # Run all tests
+npm run build                     # Build all packages
 
-# Building
-npm run build               # Build all packages
-npm run typecheck          # Type check all packages
-
-# Demo
-cd demo && npm run pro-bo   # Run Prometheus Bound demo
+# Demo Scripts
+cd demo
+npm run demo:interactive          # Interactive demo menu
 ```
+
+See [demo/README.md](../demo/README.md) for more demo options and documentation.
 
 ## 🐛 Troubleshooting
 
-### Codespace is slow
+### Services won't start
 
-- Upgrade to a larger machine type in Codespace settings
-- Use 4-core or 8-core machines for better performance
+```bash
+# Check service status
+semiont check
 
-### Secrets not working
+# View logs
+tail -f apps/backend/logs/app.log
+tail -f apps/frontend/logs/app.log
 
-- Verify secrets are configured in GitHub settings
-- Restart the Codespace after adding secrets
-- Check the post-create script output for warnings
+# Re-provision if needed
+semiont provision --service backend --force
+semiont provision --service frontend --force
+```
 
-### Database connection issues
+### Port visibility issues
 
-- Ensure PostgreSQL container is running: `docker ps`
-- Check database logs: `docker logs semiont-devcontainer-db-1`
-- Verify DATABASE_URL in `.env` files
+- Ensure ports 3000 and 4000 are set to **Public** in the Ports panel
+- If using Codespaces, check the forwarded URL in the Ports panel
 
-### Port already in use
+### Database connection errors
 
-- Stop any local services using ports 3000, 4000, or 5432
-- Or modify port mappings in `docker-compose.yml`
+- Verify PostgreSQL is running: `docker ps`
+- Check DATABASE_URL in `apps/backend/.env`
+- Restart: `semiont stop --service backend && semiont start --service backend`
+
+### Authentication not working
+
+- Check `NEXT_PUBLIC_ENABLE_LOCAL_AUTH=true` in `apps/frontend/.env.local`
+- Verify backend is running on port 4000
+- Clear browser cookies and retry
 
 ## 📚 Resources
 

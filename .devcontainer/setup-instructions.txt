@@ -6,7 +6,7 @@ Welcome to your Codespace!
 
 To complete the setup, run:
 
-  bash .devcontainer/post-create.sh
+  bash .devcontainer/make-meaning.sh
 
 This will:
   • Install dependencies

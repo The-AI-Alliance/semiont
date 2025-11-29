@@ -8,8 +8,8 @@ exec 2>&1
 export PYTHONUNBUFFERED=1
 
 # Create a log file for debugging if needed
-LOG_FILE="/tmp/post-create.log"
-echo "Starting post-create setup at $(date)" > $LOG_FILE
+LOG_FILE="/tmp/make-meaning.log"
+echo "Starting make-meaning setup at $(date)" > $LOG_FILE
 
 # Clear the screen for clean output
 clear
@@ -406,10 +406,42 @@ else
     print_info "You can check status manually with: semiont check"
 fi
 
-
 # Change to workspace directory for user
 cd /workspace
 
 # Display welcome message
 echo ""
 cat /workspace/.devcontainer/welcome.txt
+
+# Call to action
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+if [ -n "$CODESPACE_NAME" ]; then
+    BACKEND_HEALTH_URL="https://${CODESPACE_NAME}-4000.app.github.dev/api/health"
+    FRONTEND_URL="https://${CODESPACE_NAME}-3000.app.github.dev"
+
+    echo "📋 SETUP STEPS (Codespaces):"
+    echo ""
+    echo "1. Make port 4000 public:"
+    echo "   • Open the 'Ports' panel (View → Ports)"
+    echo "   • Right-click port 4000 → Port Visibility → Public"
+    echo ""
+    echo "2. Verify backend API is accessible:"
+    echo "   $BACKEND_HEALTH_URL"
+    echo ""
+    echo "3. Open the application:"
+    echo "   $FRONTEND_URL"
+    echo "   (Or use: http://localhost:3000)"
+    echo ""
+    echo "4. Sign in with: dev@example.com"
+else
+    echo "🚀 Ready to start! Open the application:"
+    echo ""
+    echo "   http://localhost:3000"
+    echo ""
+    echo "   Sign in with: dev@example.com"
+fi
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""

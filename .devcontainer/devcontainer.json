@@ -31,10 +31,10 @@
 
   // Use 'postCreateCommand' to run commands after the container is created
   // Note: Output is buffered by Codespaces - use Cmd/Ctrl+Shift+P -> "View Creation Log" to see progress
-  // "postCreateCommand": "bash .devcontainer/post-create.sh",
+  // "postCreateCommand": "bash .devcontainer/make-meaning.sh",
 
-  // Show setup instructions when VS Code attaches
-  "postAttachCommand": "clear && cat /workspace/.devcontainer/setup-instructions.txt",
+  // Show setup instructions and offer to run setup when VS Code attaches
+  "postAttachCommand": "bash /workspace/.devcontainer/prompt-setup.sh",
 
   // Configure tool-specific properties
   "customizations": {
@@ -88,6 +88,7 @@
         "workbench.startupView": "workbench.explorer.fileView",
         "explorer.autoReveal": true,
         "workbench.panel.defaultLocation": "bottom",
+        "workbench.panel.opensMaximized": "always",
         "workbench.welcome.enabled": false,
         "workbench.editorAssociations": {
           "*.md": "default"
@@ -106,7 +107,8 @@
           "ANTHROPIC",
           "NEO4J",
           "postgres",
-          "postgresql"
+          "postgresql",
+          "redocly"
         ],
         "workbench.colorCustomizations": {
           "[Default Dark Modern]": {
