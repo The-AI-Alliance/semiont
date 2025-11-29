@@ -7,9 +7,15 @@ set -euo pipefail
 exec 2>&1
 export PYTHONUNBUFFERED=1
 
+# Generate random admin email for this environment
+# Uses random hex string for uniqueness (not guessable)
+RANDOM_ID=$(openssl rand -hex 8)
+ADMIN_EMAIL="dev-${RANDOM_ID}@example.com"
+
 # Create a log file for debugging if needed
 LOG_FILE="/tmp/make-meaning.log"
 echo "Starting make-meaning setup at $(date)" > $LOG_FILE
+echo "Generated admin email: $ADMIN_EMAIL" >> $LOG_FILE
 
 # Clear the screen for clean output
 clear
@@ -285,11 +291,11 @@ cd $SEMIONT_ROOT || {
 print_success "Database already running via docker-compose"
 
 # Provision backend service (this creates the proper .env file and admin user)
-semiont provision --service backend --seed-admin --admin-email dev@example.com >> $LOG_FILE 2>&1 || {
+semiont provision --service backend --seed-admin --admin-email "$ADMIN_EMAIL" >> $LOG_FILE 2>&1 || {
     print_error "Backend provisioning failed - check $LOG_FILE"
     exit 1
 }
-print_success "Backend provisioned (admin user: dev@example.com)"
+print_success "Backend provisioned (admin user: $ADMIN_EMAIL)"
 
 # Provision frontend service (this creates the proper .env.local file)
 semiont provision --service frontend >> $LOG_FILE 2>&1 || {
@@ -333,7 +339,7 @@ if [ ! -f .env ]; then
 # Semiont API
 BACKEND_URL="http://localhost:4000"
 FRONTEND_URL="http://localhost:3000"
-AUTH_EMAIL="dev@example.com"
+AUTH_EMAIL="$ADMIN_EMAIL"
 
 # AI Services (from Codespaces secrets)
 ANTHROPIC_API_KEY=\${ANTHROPIC_API_KEY}
@@ -434,13 +440,19 @@ if [ -n "$CODESPACE_NAME" ]; then
     echo "   $FRONTEND_URL"
     echo "   (Or use: http://localhost:3000)"
     echo ""
-    echo "4. Sign in with: dev@example.com"
+    echo "4. Sign in with your admin email:"
+    echo ""
+    echo "   ✨ $ADMIN_EMAIL ✨"
+    echo ""
+    echo "   (This email is unique to this Codespace)"
 else
     echo "🚀 Ready to start! Open the application:"
     echo ""
     echo "   http://localhost:3000"
     echo ""
-    echo "   Sign in with: dev@example.com"
+    echo "   Sign in with your admin email:"
+    echo ""
+    echo "   ✨ $ADMIN_EMAIL ✨"
 fi
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
