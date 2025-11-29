@@ -406,6 +406,16 @@ else
     print_info "You can check status manually with: semiont check"
 fi
 
+# Initialize Codespaces port forwarding (Codespaces only)
+if [ -n "$CODESPACE_NAME" ]; then
+    print_status "Initializing Codespaces port forwarding..."
+    PUBLIC_URL="https://${CODESPACE_NAME}-4000.app.github.dev/api/health"
+    if curl -f -s "$PUBLIC_URL" > /dev/null 2>&1; then
+        print_success "Port forwarding initialized"
+    else
+        print_warning "Could not reach public API URL on port 4000"
+    fi
+fi
 
 # Change to workspace directory for user
 cd /workspace
