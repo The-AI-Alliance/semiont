@@ -343,7 +343,14 @@ cd /workspace/apps/frontend || {
     print_error "Failed to change to frontend directory"
     exit 1
 }
-# Set NODE_ENV=production for build (devcontainer has development by default)
+# IMPORTANT: Set NODE_ENV=production for production builds
+# The devcontainer sets NODE_ENV=development by default (see .devcontainer/environments-local.json)
+# Next.js requires NODE_ENV=production during 'next build' to avoid triggering Pages Router compatibility mode
+# which causes build errors in App Router projects.
+#
+# To skip the production build during development (faster startup):
+# - Comment out this entire build step, OR
+# - Change to: npm run dev (starts dev server without building)
 NODE_ENV=production npm run build >> $LOG_FILE 2>&1 || {
     print_error "Frontend build failed - check $LOG_FILE"
     exit 1
