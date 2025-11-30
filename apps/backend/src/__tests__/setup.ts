@@ -55,6 +55,10 @@ vi.mock('@semiont/core', async () => {
           url: 'http://localhost:3000',
           port: 3000,
           siteName: 'Test Site'
+        },
+        filesystem: {
+          platform: { type: 'posix' },
+          path: '/tmp/semiont-test'
         }
       },
       app: {}
