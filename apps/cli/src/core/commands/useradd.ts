@@ -36,7 +36,7 @@ import { PrismaClient } from '@prisma/client';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
-import { printInfo, printSuccess, printWarning, printError } from '../io/cli-logger.js';
+import { printInfo, printSuccess, printError } from '../io/cli-logger.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -192,10 +192,18 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
 
     return {
       command: 'useradd',
+      environment: options.environment!,
+      timestamp: new Date(),
       summary: {
         succeeded: 1,
         failed: 0,
-        total: 1
+        total: 1,
+        warnings: 0
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun
       },
       results: [{
         entity: options.email,
@@ -223,10 +231,18 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
 
     return {
       command: 'useradd',
+      environment: options.environment!,
+      timestamp: new Date(),
       summary: {
         succeeded: 0,
         failed: 1,
-        total: 1
+        total: 1,
+        warnings: 0
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun
       },
       results: [{
         entity: options.email,

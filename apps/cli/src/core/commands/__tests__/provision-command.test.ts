@@ -27,8 +27,6 @@ function createProvisionOptions(partial: Partial<ProvisionOptions> = {}): Provis
     skipDependencies: false,
     destroy: false,
     stack: undefined,
-    seedAdmin: false,
-    adminEmail: undefined,
     service: undefined,
     semiontRepo: undefined,
     ...partial

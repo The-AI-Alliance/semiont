@@ -3,7 +3,7 @@
  * Tests user creation with password authentication (TDD)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useradd, type UseraddOptions } from '../useradd';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -23,8 +23,10 @@ function createUseraddOptions(partial: Partial<UseraddOptions> = {}): UseraddOpt
     inactive: false,
     update: false,
     verbose: false,
+    dryRun: false,
     quiet: true,
     output: 'summary',
+    forceDiscovery: false,
     environment: 'local',
     ...partial
   };
@@ -62,7 +64,7 @@ describe('useradd command', () => {
 
       const result = await useradd(options);
 
-      expect(result.success).toBe(true);
+      expect(result.results[0].success).toBe(true);
 
       // Verify user was created in database
       const user = await prisma.user.findUnique({
@@ -109,9 +111,9 @@ describe('useradd command', () => {
 
       const result = await useradd(options);
 
-      expect(result.success).toBe(true);
-      expect(result.metadata?.generatedPassword).toBeDefined();
-      expect(result.metadata?.generatedPassword?.length).toBeGreaterThanOrEqual(16);
+      expect(result.results[0].success).toBe(true);
+      expect(result.results[0].metadata?.generatedPassword).toBeDefined();
+      expect(result.results[0].metadata?.generatedPassword?.length).toBeGreaterThanOrEqual(16);
 
       const user = await prisma.user.findUnique({
         where: { email: 'generated@example.com' }
@@ -128,7 +130,7 @@ describe('useradd command', () => {
 
       const result = await useradd(options);
 
-      expect(result.metadata?.generatedPassword?.length).toBeGreaterThanOrEqual(16);
+      expect(result.results[0].metadata?.generatedPassword?.length).toBeGreaterThanOrEqual(16);
     });
   });
 
@@ -306,7 +308,7 @@ describe('useradd command', () => {
       });
 
       const result = await useradd(options);
-      expect(result.success).toBe(true);
+      expect(result.results[0].success).toBe(true);
     });
   });
 
