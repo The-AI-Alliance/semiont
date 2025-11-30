@@ -191,7 +191,6 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
   it('should create a job when SSE connection is established', async () => {
     const jobQueue = getJobQueue();
     const jobsBefore = await jobQueue.listJobs();
-    const countBefore = jobsBefore.length;
 
     await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
@@ -205,11 +204,16 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
     });
 
     const jobsAfter = await jobQueue.listJobs();
-    expect(jobsAfter.length).toBeGreaterThan(countBefore);
 
+    // Find the new job that was created by this request
     const newJob = jobsAfter.find(j => !jobsBefore.some(old => old.id === j.id));
     expect(newJob).toBeDefined();
     expect(newJob?.type).toBe('detection');
+
+    // Type guard to access DetectionJob-specific properties
+    if (newJob && newJob.type === 'detection') {
+      expect(newJob.entityTypes).toEqual(['Person', 'Organization']);
+    }
   });
 
   it('should send detection-started event immediately', async () => {
