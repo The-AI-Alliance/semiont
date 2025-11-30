@@ -89,6 +89,7 @@ export class OAuthService {
           image: googleUser.picture || null,
           provider: 'google',
           providerId: googleUser.id,
+          passwordHash: null,
           domain: domain || '',
           isAdmin: false, // Default to non-admin for security
           lastLogin: new Date(),
