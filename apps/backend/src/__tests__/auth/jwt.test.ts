@@ -54,6 +54,7 @@ describe('JWT Service', () => {
     domain: 'example.com',
     provider: 'google',
     providerId: 'google-123',
+    passwordHash: null,
     isAdmin: false,
     isActive: true,
     isModerator: false,

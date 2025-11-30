@@ -154,6 +154,8 @@
     "signInPrompt": "Sign in to continue to your knowledge workspace",
     "emailLabel": "Email Address (Local Development)",
     "emailPlaceholder": "admin@example.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter your password",
     "signInLocal": "Sign in with Local Development",
     "or": "Or",
     "continueWithGoogle": "Continue with Google",

@@ -155,8 +155,8 @@ export class SemiontApiClient {
   // AUTHENTICATION
   // ============================================================================
 
-  async authenticateLocal(email: Email): Promise<ResponseContent<paths['/api/tokens/local']['post']>> {
-    const response = await this.http.post(`${this.baseUrl}/api/tokens/local`, { json: { email } }).json<any>();
+  async authenticatePassword(email: Email, password: string): Promise<ResponseContent<paths['/api/tokens/password']['post']>> {
+    const response = await this.http.post(`${this.baseUrl}/api/tokens/password`, { json: { email, password } }).json<any>();
     if (response.token) {
       this.setAccessToken(response.token);
     }

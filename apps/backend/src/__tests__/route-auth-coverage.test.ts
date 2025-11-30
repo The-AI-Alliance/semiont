@@ -551,7 +551,7 @@ describe('Route Authentication Coverage', () => {
       // Validate expected public routes from spec are present
       const expectedFromSpec = [
         '/api/health',
-        '/api/tokens/local',
+        '/api/tokens/password',
         '/api/tokens/google',
         '/api/tokens/refresh',
       ];

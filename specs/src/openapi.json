@@ -27,8 +27,8 @@
     "/api/health": {
       "$ref": "paths/api_health.json"
     },
-    "/api/tokens/local": {
-      "$ref": "paths/api_tokens_local.json"
+    "/api/tokens/password": {
+      "$ref": "paths/api_tokens_password.json"
     },
     "/api/tokens/google": {
       "$ref": "paths/api_tokens_google.json"
@@ -301,8 +301,8 @@
       "ListResourcesResponse": {
         "$ref": "components/schemas/ListResourcesResponse.json"
       },
-      "LocalAuthRequest": {
-        "$ref": "components/schemas/LocalAuthRequest.json"
+      "PasswordAuthRequest": {
+        "$ref": "components/schemas/PasswordAuthRequest.json"
       },
       "MCPGenerateResponse": {
         "$ref": "components/schemas/MCPGenerateResponse.json"

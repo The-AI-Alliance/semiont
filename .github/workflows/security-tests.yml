@@ -294,13 +294,13 @@ jobs:
       - name: Verify API security
         run: |
           echo "Testing backend API security..."
-          
+
           # Test 1: Verify admin endpoints require authentication
           endpoints=("/api/admin/users" "/api/admin/users/stats")
-          
+
           for endpoint in "${endpoints[@]}"; do
             echo "Testing $endpoint..."
-            
+
             # Test without Authorization header
             status_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:4000$endpoint")
             if [ "$status_code" != "401" ]; then
@@ -308,7 +308,7 @@ jobs:
               exit 1
             fi
             echo "✅ $endpoint properly returns 401 for missing authentication"
-            
+
             # Test with invalid token
             status_code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer invalid-token" "http://localhost:4000$endpoint")
             if [ "$status_code" != "401" ]; then
@@ -317,7 +317,7 @@ jobs:
             fi
             echo "✅ $endpoint properly returns 401 for invalid token"
           done
-          
+
           # Test 2: Verify error responses don't leak sensitive data
           response=$(curl -s http://localhost:4000/api/admin/users)
           if echo "$response" | grep -qE "postgresql://|secret|jwt.*key|password|database.*connection|stack.*trace|\.js:[0-9]+"; then
@@ -326,14 +326,86 @@ jobs:
             exit 1
           fi
           echo "✅ No sensitive data leaked in API error responses"
-          
+
           # Test 3: Verify proper JSON error format
           if ! echo "$response" | grep -q '"error".*"Unauthorized"'; then
             echo "❌ SECURITY FAILURE: API doesn't return proper JSON error format"
             exit 1
           fi
           echo "✅ Proper JSON error format returned"
-          
+
+          # Test 4: Password authentication endpoint security
+          echo "Testing password authentication endpoint security..."
+
+          # Test 4a: Missing email field
+          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
+            -H "Content-Type: application/json" \
+            -d '{"password":"test"}')
+          status_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          if [ "$status_code" != "400" ]; then
+            echo "❌ SECURITY FAILURE: Password endpoint returned $status_code instead of 400 for missing email"
+            exit 1
+          fi
+          echo "✅ Password endpoint returns 400 for missing email"
+
+          # Test 4b: Missing password field
+          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
+            -H "Content-Type: application/json" \
+            -d '{"email":"test@example.com"}')
+          status_code=$(echo "$response" | tail -n1)
+
+          if [ "$status_code" != "400" ]; then
+            echo "❌ SECURITY FAILURE: Password endpoint returned $status_code instead of 400 for missing password"
+            exit 1
+          fi
+          echo "✅ Password endpoint returns 400 for missing password"
+
+          # Test 4c: Invalid credentials (should return 401)
+          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
+            -H "Content-Type: application/json" \
+            -d '{"email":"nonexistent@example.com","password":"wrongpassword"}')
+          status_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          if [ "$status_code" != "401" ]; then
+            echo "❌ SECURITY FAILURE: Password endpoint returned $status_code instead of 401 for invalid credentials"
+            exit 1
+          fi
+
+          # Verify error message doesn't reveal whether user exists (email enumeration prevention)
+          if echo "$body" | grep -qi "user.*not.*found\|email.*not.*exist\|no.*user\|unknown.*email"; then
+            echo "❌ SECURITY FAILURE: Password endpoint reveals user existence (email enumeration vulnerability)!"
+            echo "Response: $body"
+            exit 1
+          fi
+
+          if ! echo "$body" | grep -qi "invalid.*credentials\|authentication.*failed"; then
+            echo "⚠️ WARNING: Password endpoint should use generic error message like 'Invalid credentials'"
+          fi
+          echo "✅ Password endpoint returns generic error (prevents email enumeration)"
+
+          # Test 4d: No sensitive data in error responses
+          if echo "$body" | grep -qE "bcrypt|hash|salt|postgresql://|jwt.*key|\.js:[0-9]+|stack.*trace"; then
+            echo "❌ SECURITY FAILURE: Password endpoint leaks sensitive data in error response!"
+            echo "Response: $body"
+            exit 1
+          fi
+          echo "✅ No sensitive data leaked in password authentication errors"
+
+          # Test 4e: Verify SQL injection protection (basic test)
+          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@example.com'\'' OR '\''1'\''='\''1","password":"test"}')
+          status_code=$(echo "$response" | tail -n1)
+
+          if [ "$status_code" != "400" ] && [ "$status_code" != "401" ]; then
+            echo "❌ SECURITY FAILURE: Password endpoint may be vulnerable to SQL injection (status: $status_code)"
+            exit 1
+          fi
+          echo "✅ Password endpoint appears protected against SQL injection"
+
           echo "🎉 All backend API security checks passed!"
 
       - name: Stop backend
@@ -382,6 +454,8 @@ jobs:
             echo "✅ **Backend Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
             echo "- API authentication enforced" >> $GITHUB_STEP_SUMMARY
             echo "- Admin endpoints properly protected" >> $GITHUB_STEP_SUMMARY
+            echo "- Password authentication secure (no email enumeration)" >> $GITHUB_STEP_SUMMARY
+            echo "- SQL injection protection verified" >> $GITHUB_STEP_SUMMARY
             echo "- No sensitive data leakage" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Backend Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY

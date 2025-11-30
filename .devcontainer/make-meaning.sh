@@ -7,9 +7,16 @@ set -euo pipefail
 exec 2>&1
 export PYTHONUNBUFFERED=1
 
+# Generate random admin email and password for this environment
+# Uses random hex string for uniqueness (not guessable)
+RANDOM_ID=$(openssl rand -hex 8)
+ADMIN_EMAIL="dev-${RANDOM_ID}@example.com"
+ADMIN_PASSWORD=$(openssl rand -base64 16)
+
 # Create a log file for debugging if needed
 LOG_FILE="/tmp/make-meaning.log"
 echo "Starting make-meaning setup at $(date)" > $LOG_FILE
+echo "Generated admin email: $ADMIN_EMAIL" >> $LOG_FILE
 
 # Clear the screen for clean output
 clear
@@ -284,12 +291,12 @@ cd $SEMIONT_ROOT || {
 # Database is already running via docker-compose, no need to provision
 print_success "Database already running via docker-compose"
 
-# Provision backend service (this creates the proper .env file and admin user)
-semiont provision --service backend --seed-admin --admin-email dev@example.com >> $LOG_FILE 2>&1 || {
+# Provision backend service (this creates the proper .env file)
+semiont provision --service backend >> $LOG_FILE 2>&1 || {
     print_error "Backend provisioning failed - check $LOG_FILE"
     exit 1
 }
-print_success "Backend provisioned (admin user: dev@example.com)"
+print_success "Backend provisioned"
 
 # Provision frontend service (this creates the proper .env.local file)
 semiont provision --service frontend >> $LOG_FILE 2>&1 || {
@@ -318,8 +325,37 @@ npx prisma db push --skip-generate >> $LOG_FILE 2>&1 || {
 }
 print_success "Database schema ready"
 
-# Skip frontend production build - dev server handles compilation
-print_success "Frontend ready for development (typecheck already completed)"
+# Create admin user
+print_status "Creating admin user..."
+cd $SEMIONT_ROOT || {
+    print_error "Failed to change to SEMIONT_ROOT directory"
+    exit 1
+}
+semiont useradd --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --admin >> $LOG_FILE 2>&1 || {
+    print_error "Admin user creation failed - check $LOG_FILE"
+    exit 1
+}
+print_success "Admin user created: $ADMIN_EMAIL"
+
+# Build frontend (production build to catch errors early)
+print_status "Building frontend application..."
+cd /workspace/apps/frontend || {
+    print_error "Failed to change to frontend directory"
+    exit 1
+}
+# IMPORTANT: Set NODE_ENV=production for production builds
+# The devcontainer sets NODE_ENV=development by default (see .devcontainer/environments-local.json)
+# Next.js requires NODE_ENV=production during 'next build' to avoid triggering Pages Router compatibility mode
+# which causes build errors in App Router projects.
+#
+# To skip the production build during development (faster startup):
+# - Comment out this entire build step, OR
+# - Change to: npm run dev (starts dev server without building)
+NODE_ENV=production npm run build >> $LOG_FILE 2>&1 || {
+    print_error "Frontend build failed - check $LOG_FILE"
+    exit 1
+}
+print_success "Frontend built"
 
 # Demo .env
 print_status "Creating demo .env file..."
@@ -333,7 +369,8 @@ if [ ! -f .env ]; then
 # Semiont API
 BACKEND_URL="http://localhost:4000"
 FRONTEND_URL="http://localhost:3000"
-AUTH_EMAIL="dev@example.com"
+AUTH_EMAIL="$ADMIN_EMAIL"
+AUTH_PASSWORD="$ADMIN_PASSWORD"
 
 # AI Services (from Codespaces secrets)
 ANTHROPIC_API_KEY=\${ANTHROPIC_API_KEY}
@@ -434,13 +471,21 @@ if [ -n "$CODESPACE_NAME" ]; then
     echo "   $FRONTEND_URL"
     echo "   (Or use: http://localhost:3000)"
     echo ""
-    echo "4. Sign in with: dev@example.com"
+    echo "4. Sign in with your admin credentials:"
+    echo ""
+    echo "   Email:    $ADMIN_EMAIL"
+    echo "   Password: $ADMIN_PASSWORD"
+    echo ""
+    echo "   (These credentials are unique to this Codespace)"
 else
     echo "🚀 Ready to start! Open the application:"
     echo ""
     echo "   http://localhost:3000"
     echo ""
-    echo "   Sign in with: dev@example.com"
+    echo "   Sign in with your admin credentials:"
+    echo ""
+    echo "   Email:    $ADMIN_EMAIL"
+    echo "   Password: $ADMIN_PASSWORD"
 fi
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

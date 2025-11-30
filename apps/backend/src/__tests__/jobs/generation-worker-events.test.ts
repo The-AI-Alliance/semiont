@@ -242,7 +242,13 @@ describe('GenerationWorker - Event Emission', () => {
     const events = await query.getResourceEvents(resourceId('source-resource-3'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
-    const percentages = progressEvents.map(e => (e.event.payload as any).percentage);
+
+    // Sort events by timestamp to ensure chronological order
+    const sortedProgressEvents = [...progressEvents].sort((a, b) =>
+      new Date(a.metadata.timestamp).getTime() - new Date(b.metadata.timestamp).getTime()
+    );
+
+    const percentages = sortedProgressEvents.map(e => (e.event.payload as any).percentage);
 
     // Percentages should be in ascending order
     for (let i = 1; i < percentages.length; i++) {

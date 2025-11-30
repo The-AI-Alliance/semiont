@@ -35,8 +35,36 @@ vi.mock('../db', () => ({
   prisma: mockPrismaClient,
 }));
 
-// Mock environment configuration loader is no longer needed
-// The backend now uses environment variables directly
+// Mock project discovery to avoid needing actual semiont.json
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
+  return {
+    ...actual,
+    findProjectRoot: vi.fn(() => '/tmp/test-project'),
+    loadEnvironmentConfig: vi.fn(() => ({
+      site: { domain: 'test.local', oauthAllowedDomains: ['test.local'] },
+      services: {
+        backend: {
+          platform: { type: 'posix' },
+          corsOrigin: 'http://localhost:3000',
+          publicURL: 'http://localhost:4000',
+          port: 4000
+        },
+        frontend: {
+          platform: { type: 'posix' },
+          url: 'http://localhost:3000',
+          port: 3000,
+          siteName: 'Test Site'
+        },
+        filesystem: {
+          platform: { type: 'posix' },
+          path: '/tmp/semiont-test'
+        }
+      },
+      app: {}
+    })),
+  };
+});
 
 // Set minimal required environment variables
 process.env.NODE_ENV = 'test';

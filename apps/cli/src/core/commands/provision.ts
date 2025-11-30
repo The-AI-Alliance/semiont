@@ -28,9 +28,6 @@ const ProvisionOptionsSchema = BaseOptionsSchema.extend({
   skipValidation: z.boolean().default(false),
   skipDependencies: z.boolean().default(false),
   destroy: z.boolean().default(false),
-  // Backend-specific options
-  seedAdmin: z.boolean().default(false),
-  adminEmail: z.string().optional(),
   semiontRepo: z.string().optional(),
 });
 
@@ -181,15 +178,6 @@ export const provisionCommand = new CommandBuilder()
         type: 'boolean',
         description: 'Skip provisioning service dependencies',
         default: false,
-      },
-      '--seed-admin': {
-        type: 'boolean',
-        description: 'Create initial admin user (backend only)',
-        default: false,
-      },
-      '--admin-email': {
-        type: 'string',
-        description: 'Email address for initial admin user',
       },
       '--semiont-repo': {
         type: 'string',

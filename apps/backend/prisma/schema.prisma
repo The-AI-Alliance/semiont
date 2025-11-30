@@ -10,22 +10,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model for OAuth authentication
+// User model for OAuth and password authentication
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  image     String?  // Profile picture from OAuth provider
-  provider  String   // 'google', 'github', etc.
-  providerId String  // OAuth provider's user ID
-  domain    String   // Email domain for access control
-  isActive  Boolean  @default(true)
-  isAdmin   Boolean  @default(false) // Admin role for administrative access
-  isModerator Boolean @default(false) // Moderator role for content governance
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String?
+  image           String? // Profile picture from OAuth provider
+  provider        String // 'password', 'google', 'github', etc.
+  providerId      String // OAuth provider's user ID (or email for password users)
+  passwordHash    String? // bcrypt hash - NULL for OAuth users, required for password provider
+  domain          String // Email domain for access control
+  isActive        Boolean   @default(true)
+  isAdmin         Boolean   @default(false) // Admin role for administrative access
+  isModerator     Boolean   @default(false) // Moderator role for content governance
   termsAcceptedAt DateTime? // When user accepted terms of service
-  lastLogin DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  lastLogin       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([provider, providerId])
   @@map("users")

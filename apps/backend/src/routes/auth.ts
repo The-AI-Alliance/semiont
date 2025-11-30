@@ -14,14 +14,15 @@ import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { JWTService } from '../auth/jwt';
 import { OAuthService } from '../auth/oauth';
+import * as bcrypt from 'bcrypt';
 import type { User } from '@prisma/client';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 import type { components } from '@semiont/api-client';
-import { userId as makeUserId, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
+import { userId as makeUserId } from '@semiont/core';
 import { email as makeEmail, googleCredential } from '@semiont/api-client';
 
 // Types from OpenAPI spec (generated)
-type LocalAuthRequest = components['schemas']['LocalAuthRequest'];
+type PasswordAuthRequest = components['schemas']['PasswordAuthRequest'];
 type GoogleAuthRequest = components['schemas']['GoogleAuthRequest'];
 type TokenRefreshRequest = components['schemas']['TokenRefreshRequest'];
 type AuthResponse = components['schemas']['AuthResponse'];
@@ -34,41 +35,20 @@ type MCPGenerateResponse = components['schemas']['MCPGenerateResponse'];
 export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown } }>();
 
 /**
- * POST /api/tokens/local
+ * POST /api/tokens/password
  *
- * Local development authentication - validates request against OpenAPI schema
+ * Password Authentication
+ * Authenticate with email and password
  *
- * Request validation: Uses validateRequestBody middleware with 'LocalAuthRequest' schema
+ * Request validation: Uses validateRequestBody middleware with 'PasswordAuthRequest' schema
  * Response type: AuthResponse from OpenAPI spec
  */
-authRouter.post('/api/tokens/local',
-  validateRequestBody('LocalAuthRequest'),  // ← Validate against OpenAPI schema
+authRouter.post('/api/tokens/password',
+  validateRequestBody('PasswordAuthRequest'),
   async (c) => {
-    // Load config to check if local auth is enabled
-    const env = process.env.SEMIONT_ENV || 'local';
-    const projectRoot = findProjectRoot();
-    console.log('[LocalAuth] Loading config:', { env, projectRoot });
-
-    const config = loadEnvironmentConfig(projectRoot, env);
-    console.log('[LocalAuth] Config loaded:', {
-      hasApp: !!config.app,
-      hasSecurity: !!config.app?.security,
-      enableLocalAuth: config.app?.security?.enableLocalAuth
-    });
-
-    // Only allow if enableLocalAuth is true in config
-    if (!config.app?.security?.enableLocalAuth) {
-      console.log('[LocalAuth] Local auth is disabled in config');
-      return c.json({
-        error: 'Local authentication is not enabled'
-      }, 403);
-    }
-
     try {
-      // Get validated body from context (already validated by middleware)
-      const body = c.get('validatedBody') as LocalAuthRequest;
-      const { email } = body;
-      console.log('[LocalAuth] Attempting login for email:', email);
+      const body = c.get('validatedBody') as PasswordAuthRequest;
+      const { email, password } = body;
 
       // Get user from database by email
       const prisma = DatabaseConnection.getClient();
@@ -76,23 +56,43 @@ authRouter.post('/api/tokens/local',
         where: { email }
       });
 
+      // Return same error for user not found and wrong password (security)
       if (!user) {
-        console.log('[LocalAuth] User not found:', email);
         return c.json({
-          error: 'User not found. Please ensure the user has been seeded during backend provisioning.'
+          error: 'Invalid credentials'
+        }, 401);
+      }
+
+      // Verify user is password provider
+      if (user.provider !== 'password') {
+        return c.json({
+          error: 'This account uses OAuth. Please sign in with Google.'
         }, 400);
       }
 
+      // Verify password hash exists
+      if (!user.passwordHash) {
+        return c.json({
+          error: 'Password not set for this account'
+        }, 400);
+      }
+
+      // Verify password
+      const isValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isValid) {
+        return c.json({
+          error: 'Invalid credentials'
+        }, 401);
+      }
+
+      // Check if user is active
       if (!user.isActive) {
-        console.log('[LocalAuth] User not active:', email);
         return c.json({
-          error: 'User is not active'
-        }, 400);
+          error: 'Account is not active'
+        }, 403);
       }
 
-      console.log('[LocalAuth] User found, generating token for:', email);
-
-      // Generate JWT token for the user
+      // Generate JWT token
       const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
         userId: makeUserId(user.id),
         email: makeEmail(user.email),
@@ -124,13 +124,9 @@ authRouter.post('/api/tokens/local',
         isNewUser: false,
       };
 
-      console.log('[LocalAuth] Login successful for:', email);
       return c.json(response, 200);
     } catch (error) {
-      console.error('[LocalAuth] Error:', error);
-      if (error instanceof Error) {
-        console.error('[LocalAuth] Error stack:', error.stack);
-      }
+      console.error('[PasswordAuth] Error:', error);
       return c.json({
         error: 'Authentication failed'
       }, 400);
