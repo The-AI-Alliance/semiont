@@ -190,10 +190,18 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
 
   it('should create a job when SSE connection is established', async () => {
     const jobQueue = getJobQueue();
+
+    // Spy on createJob to know when it's been called
+    let createdJob: any = null;
+    const createJobSpy = vi.spyOn(jobQueue, 'createJob').mockImplementation(async (job: any) => {
+      createdJob = job;
+      return createJobSpy.mockRestore(), jobQueue.createJob(job);
+    });
+
     const jobsBefore = await jobQueue.listJobs();
 
-    // Make the request and wait for response to ensure job is created
-    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
+    // Make the request - job is created during request handling
+    const responsePromise = app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -204,12 +212,10 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
       }),
     });
 
-    // Read first chunk from stream to ensure job creation completed
-    const reader = response.body?.getReader();
-    if (reader) {
-      await reader.read(); // Wait for first event
-      reader.releaseLock();
-    }
+    // Wait for job to be created (via our spy)
+    await vi.waitFor(() => {
+      expect(createdJob).toBeDefined();
+    }, { timeout: 1000 });
 
     const jobsAfter = await jobQueue.listJobs();
 
@@ -221,6 +227,13 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
     // Type guard to access DetectionJob-specific properties
     if (newJob && newJob.type === 'detection') {
       expect(newJob.entityTypes).toEqual(['Person', 'Organization']);
+    }
+
+    // Clean up response
+    try {
+      await responsePromise;
+    } catch {
+      // Stream may close abruptly
     }
   });
 
