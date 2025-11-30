@@ -154,6 +154,8 @@
     "signInPrompt": "Inicia sesión para continuar a tu espacio de trabajo de conocimiento",
     "emailLabel": "Dirección de Correo Electrónico (Desarrollo Local)",
     "emailPlaceholder": "admin@ejemplo.com",
+    "passwordLabel": "Contraseña",
+    "passwordPlaceholder": "Ingrese su contraseña",
     "signInLocal": "Iniciar sesión con Desarrollo Local",
     "or": "O",
     "continueWithGoogle": "Continuar con Google",
