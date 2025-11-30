@@ -43,7 +43,7 @@ import { printInfo, printSuccess, printError } from '../io/cli-logger.js';
 // =====================================================================
 
 export const UseraddOptionsSchema = BaseOptionsSchema.extend({
-  email: z.string().email(),
+  email: z.string().email().min(1, 'Email is required'),
   name: z.string().optional(),
   password: z.string().optional(),
   generatePassword: z.boolean().default(false),
@@ -265,6 +265,8 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
 export const useraddCommand = new CommandBuilder()
   .name('useradd')
   .description('Create or update user with password authentication')
+  .requiresEnvironment(true)
+  .requiresServices(false)
   .examples(
     'semiont useradd --email user@example.com --generate-password --admin',
     'semiont useradd --email user@example.com --password mypass123',
@@ -311,7 +313,6 @@ export const useraddCommand = new CommandBuilder()
       },
     },
     aliases: {
-      '-e': '--email',
       '-p': '--password',
       '-g': '--generate-password',
     },
