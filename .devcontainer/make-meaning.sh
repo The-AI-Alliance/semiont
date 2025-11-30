@@ -337,8 +337,17 @@ semiont useradd --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --admin >> $
 }
 print_success "Admin user created: $ADMIN_EMAIL"
 
-# Skip frontend production build - dev server handles compilation
-print_success "Frontend ready for development (typecheck already completed)"
+# Build frontend (production build to catch errors early)
+print_status "Building frontend application..."
+cd /workspace/apps/frontend || {
+    print_error "Failed to change to frontend directory"
+    exit 1
+}
+npm run build >> $LOG_FILE 2>&1 || {
+    print_error "Frontend build failed - check $LOG_FILE"
+    exit 1
+}
+print_success "Frontend built"
 
 # Demo .env
 print_status "Creating demo .env file..."
