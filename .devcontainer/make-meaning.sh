@@ -343,7 +343,8 @@ cd /workspace/apps/frontend || {
     print_error "Failed to change to frontend directory"
     exit 1
 }
-npm run build >> $LOG_FILE 2>&1 || {
+# Set NODE_ENV=production for build (devcontainer has development by default)
+NODE_ENV=production npm run build >> $LOG_FILE 2>&1 || {
     print_error "Frontend build failed - check $LOG_FILE"
     exit 1
 }
