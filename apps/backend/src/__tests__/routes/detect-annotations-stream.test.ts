@@ -192,7 +192,8 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
     const jobQueue = getJobQueue();
     const jobsBefore = await jobQueue.listJobs();
 
-    await app.request('/resources/test-resource/detect-annotations-stream', {
+    // Make the request (job is created before entering streamSSE callback)
+    const responsePromise = app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -202,6 +203,9 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
         entityTypes: ['Person', 'Organization']
       }),
     });
+
+    // Yield to event loop to allow request handler to run and create the job
+    await new Promise(resolve => setImmediate(resolve));
 
     const jobsAfter = await jobQueue.listJobs();
 
@@ -213,6 +217,13 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
     // Type guard to access DetectionJob-specific properties
     if (newJob && newJob.type === 'detection') {
       expect(newJob.entityTypes).toEqual(['Person', 'Organization']);
+    }
+
+    // Allow the response promise to complete (avoids unhandled rejections)
+    try {
+      await responsePromise;
+    } catch {
+      // Ignore errors - the stream may be closed abruptly
     }
   });
 
