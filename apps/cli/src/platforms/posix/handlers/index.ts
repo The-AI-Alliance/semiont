@@ -15,6 +15,8 @@ import { filesystemProvisionDescriptor } from './filesystem-provision.js';
 import { graphProvisionDescriptor } from './graph-provision.js';
 import { backendProvisionDescriptor } from './backend-provision.js';
 import { frontendProvisionDescriptor } from './frontend-provision.js';
+import { backendPublishDescriptor } from './backend-publish.js';
+import { frontendPublishDescriptor } from './frontend-publish.js';
 import { graphStopDescriptor } from './graph-stop.js';
 import { filesystemStopDescriptor } from './filesystem-stop.js';
 import { backendStopDescriptor } from './backend-stop.js';
@@ -51,7 +53,10 @@ const posixHandlers: Array<HandlerDescriptor<any, any>> = [
   filesystemProvisionDescriptor,
   graphProvisionDescriptor,
   backendProvisionDescriptor,
-  frontendProvisionDescriptor
+  frontendProvisionDescriptor,
+  // Publish handlers
+  backendPublishDescriptor,
+  frontendPublishDescriptor
 ];
 
 // Export as base handler type for registry compatibility

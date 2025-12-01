@@ -321,7 +321,7 @@
   // Environment variables that will be set in the container
   // These will use GitHub Codespaces secrets if configured
   "containerEnv": {
-    "SEMIONT_ENV": "local",
+    "SEMIONT_ENV": "local-production",
     "SEMIONT_ROOT": "/workspace/project",
     "SEMIONT_REPO": "/workspace",
     "NODE_ENV": "development"
@@ -329,7 +329,7 @@
 
   // Also set these in remoteEnv to ensure they're available in all terminals
   "remoteEnv": {
-    "SEMIONT_ENV": "local",
+    "SEMIONT_ENV": "local-production",
     "SEMIONT_ROOT": "/workspace/project",
     "SEMIONT_REPO": "/workspace",
     "NODE_ENV": "development"

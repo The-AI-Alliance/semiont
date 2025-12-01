@@ -66,6 +66,7 @@
       "type": "object",
       "properties": {
         "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
+        "devMode": { "type": "boolean" },
         "command": { "type": "string" },
         "port": { "type": "integer" },
         "publicURL": { "type": "string" },
@@ -126,6 +127,7 @@
       "type": "object",
       "properties": {
         "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
+        "devMode": { "type": "boolean" },
         "command": { "type": "string" },
         "port": { "type": "integer" },
         "url": { "type": "string" },

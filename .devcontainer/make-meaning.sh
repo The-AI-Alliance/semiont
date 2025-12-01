@@ -57,6 +57,11 @@ print_success() {
     echo "[$(date '+%H:%M:%S')] SUCCESS: $1" >> $LOG_FILE
 }
 
+print_info() {
+    echo -e "  $1"
+    echo "[$(date '+%H:%M:%S')] INFO: $1" >> $LOG_FILE
+}
+
 print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
     echo "[$(date '+%H:%M:%S')] WARNING: $1" >> $LOG_FILE
@@ -250,6 +255,7 @@ print_success "semiont.json configured"
 print_status "Configuring environment..."
 mkdir -p environments
 cp /workspace/.devcontainer/environments-local.json environments/local.json
+cp /workspace/.devcontainer/environments-local-production.json environments/local-production.json
 
 # Update URLs for Codespaces if running in GitHub Codespaces
 if [ -n "$CODESPACE_NAME" ]; then
@@ -305,20 +311,36 @@ semiont provision --service frontend >> $LOG_FILE 2>&1 || {
 }
 print_success "Frontend provisioned"
 
-# Build backend (required for dev mode - creates dist/ and generates Prisma client)
-print_status "Building backend application..."
+# Publish backend (builds if devMode: false, skips if devMode: true)
+print_status "Publishing backend application..."
+cd $SEMIONT_ROOT || {
+    print_error "Failed to change to SEMIONT_ROOT directory"
+    exit 1
+}
+semiont publish --service backend >> $LOG_FILE 2>&1 || {
+    print_error "Backend publish failed - check $LOG_FILE"
+    exit 1
+}
+print_success "Backend published"
+
+# Publish frontend (builds if devMode: false, skips if devMode: true)
+print_status "Publishing frontend application..."
+cd $SEMIONT_ROOT || {
+    print_error "Failed to change to SEMIONT_ROOT directory"
+    exit 1
+}
+semiont publish --service frontend >> $LOG_FILE 2>&1 || {
+    print_error "Frontend publish failed - check $LOG_FILE"
+    exit 1
+}
+print_success "Frontend published"
+
+# Push database schema
+print_status "Pushing database schema..."
 cd /workspace/apps/backend || {
     print_error "Failed to change to backend directory"
     exit 1
 }
-npm run build >> $LOG_FILE 2>&1 || {
-    print_error "Backend build failed - check $LOG_FILE"
-    exit 1
-}
-print_success "Backend built (includes Prisma client generation)"
-
-# Push database schema
-print_status "Pushing database schema..."
 npx prisma db push --skip-generate >> $LOG_FILE 2>&1 || {
     print_error "Database schema push failed - check $LOG_FILE"
     exit 1
@@ -336,26 +358,6 @@ semiont useradd --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --admin >> $
     exit 1
 }
 print_success "Admin user created: $ADMIN_EMAIL"
-
-# Build frontend (production build to catch errors early)
-print_status "Building frontend application..."
-cd /workspace/apps/frontend || {
-    print_error "Failed to change to frontend directory"
-    exit 1
-}
-# IMPORTANT: Set NODE_ENV=production for production builds
-# The devcontainer sets NODE_ENV=development by default (see .devcontainer/environments-local.json)
-# Next.js requires NODE_ENV=production during 'next build' to avoid triggering Pages Router compatibility mode
-# which causes build errors in App Router projects.
-#
-# To skip the production build during development (faster startup):
-# - Comment out this entire build step, OR
-# - Change to: npm run dev (starts dev server without building)
-NODE_ENV=production npm run build >> $LOG_FILE 2>&1 || {
-    print_error "Frontend build failed - check $LOG_FILE"
-    exit 1
-}
-print_success "Frontend built"
 
 # Demo .env
 print_status "Creating demo .env file..."
@@ -486,6 +488,24 @@ else
     echo ""
     echo "   Email:    $ADMIN_EMAIL"
     echo "   Password: $ADMIN_PASSWORD"
+fi
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "⚙️  Environment: $SEMIONT_ENV"
+echo ""
+if [ "$SEMIONT_ENV" = "local-production" ]; then
+    echo "   Running in PRODUCTION mode (builds enabled)"
+    echo "   To switch to DEVELOPMENT mode (faster, skip builds):"
+    echo "   • Edit .devcontainer/devcontainer.json"
+    echo "   • Change SEMIONT_ENV to 'local'"
+    echo "   • Rebuild the devcontainer"
+else
+    echo "   Running in DEVELOPMENT mode (builds skipped)"
+    echo "   To switch to PRODUCTION mode (validate builds):"
+    echo "   • Edit .devcontainer/devcontainer.json"
+    echo "   • Change SEMIONT_ENV to 'local-production'"
+    echo "   • Rebuild the devcontainer"
 fi
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

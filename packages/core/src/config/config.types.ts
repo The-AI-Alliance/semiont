@@ -74,6 +74,7 @@ export interface BuildRequirements {
  */
 export interface BackendServiceConfig {
   platform: ServicePlatformConfig;
+  devMode?: boolean;
   command?: string;
   port: number;
   publicURL: string;
@@ -131,6 +132,7 @@ export interface BackendServiceConfig {
  */
 export interface FrontendServiceConfig {
   platform: ServicePlatformConfig;
+  devMode?: boolean;
   command?: string;
   port: number;
   url: string;
