@@ -158,6 +158,7 @@ const DATASETS = await loadDatasets();
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const AUTH_EMAIL = process.env.AUTH_EMAIL || 'you@example.com';
+const AUTH_PASSWORD = process.env.AUTH_PASSWORD;
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 const DATA_DIR = process.env.DATA_DIR || '/tmp/semiont/data/uploads';
 
@@ -270,6 +271,7 @@ async function loadCommand(datasetName: string) {
     printSectionHeader('🔐', 0, 'Authentication');
     await authenticate(client, {
       email: AUTH_EMAIL,
+      password: AUTH_PASSWORD,
       accessToken: ACCESS_TOKEN,
     });
 
@@ -438,6 +440,7 @@ async function annotateCommand(datasetName: string) {
     printSectionHeader('🔐', 0, 'Authentication');
     await authenticate(client, {
       email: AUTH_EMAIL,
+      password: AUTH_PASSWORD,
       accessToken: ACCESS_TOKEN,
     });
 
@@ -559,6 +562,7 @@ async function validateCommand(datasetName: string) {
     printSectionHeader('🔐', 0, 'Authentication');
     await authenticate(client, {
       email: AUTH_EMAIL,
+      password: AUTH_PASSWORD,
       accessToken: ACCESS_TOKEN,
     });
 
