@@ -59,7 +59,7 @@ const publishDescriptor: CommandDescriptor<PublishOptions> = createCommandDescri
   extractHandlerOptions: (options) => ({
     tag: options.tag,
     registry: options.registry,
-    semiontRepo: options.semiontRepo,
+    semiontRepo: options.semiontRepo || process.env.SEMIONT_REPO,
     noCache: options.noCache,
     verbose: options.verbose,
     quiet: options.quiet,
