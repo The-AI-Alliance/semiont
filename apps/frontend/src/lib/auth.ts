@@ -36,7 +36,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 }
 
 // Add password provider if enabled in config
-if (NEXT_PUBLIC_ENABLE_LOCAL_AUTH && process.env.NODE_ENV === 'development') {
+if (NEXT_PUBLIC_ENABLE_LOCAL_AUTH) {
   console.log('[Frontend Auth] Adding password credentials provider');
   providers.push(
     CredentialsProvider({
