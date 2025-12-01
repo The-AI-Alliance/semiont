@@ -371,21 +371,26 @@ cd /workspace/demo || {
     exit 1
 }
 
-if [ ! -f .env ]; then
-    cat > .env << EOF
+# Backup existing .env if it exists
+if [ -f .env ]; then
+    BACKUP_FILE=".env.backup.$(date +%Y%m%d-%H%M%S)"
+    mv .env "$BACKUP_FILE"
+    print_success "Backed up existing .env to $BACKUP_FILE"
+fi
+
+# Use Codespaces URLs if available, otherwise localhost
+DEMO_BACKEND_URL="${BACKEND_URL:-http://localhost:4000}"
+DEMO_FRONTEND_URL="${FRONTEND_URL:-http://localhost:3000}"
+
+# Create new .env file
+cat > .env << EOF
 # Semiont API
-BACKEND_URL="http://localhost:4000"
-FRONTEND_URL="http://localhost:3000"
+BACKEND_URL="$DEMO_BACKEND_URL"
+FRONTEND_URL="$DEMO_FRONTEND_URL"
 AUTH_EMAIL="$ADMIN_EMAIL"
 AUTH_PASSWORD="$ADMIN_PASSWORD"
-
-# AI Services (from Codespaces secrets)
-ANTHROPIC_API_KEY=\${ANTHROPIC_API_KEY}
 EOF
-    print_success "Demo .env created"
-else
-    print_success "Demo .env already exists"
-fi
+print_success "Demo .env created with generated credentials"
 
 cd $SEMIONT_ROOT || {
     print_error "Failed to return to SEMIONT_ROOT"
