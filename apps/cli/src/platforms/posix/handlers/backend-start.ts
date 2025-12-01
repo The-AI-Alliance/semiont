@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import type { BackendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
@@ -15,6 +16,7 @@ import { getBackendPaths } from './backend-paths.js';
  */
 const startBackendService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
+  const config = service.config as BackendServiceConfig;
 
   // Get backend paths
   const paths = getBackendPaths(context);
@@ -115,18 +117,20 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     printInfo(`Starting backend service ${service.name}...`);
     printInfo(`Source: ${backendSourceDir}`);
     printInfo(`Port: ${port}`);
+    printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
-  
-  // Run node directly instead of through npm to ensure environment variables are passed
-  const distPath = path.join(backendSourceDir, 'dist', 'index.js');
-  
+
+  // Determine command based on devMode
+  const command = config.devMode ? 'npm' : 'npm';
+  const args = config.devMode ? ['run', 'dev'] : ['start'];
+
   try {
     // Open log files for writing (process will write directly)
     const appLogFd = fs.openSync(appLogPath, 'a');
     const errorLogFd = fs.openSync(errorLogPath, 'a');
-    
-    // Spawn the backend process directly with node
-    const proc = spawn('node', [distPath], {
+
+    // Spawn the backend process
+    const proc = spawn(command, args, {
       cwd: backendSourceDir,  // Run from source directory
       env,
       detached: true,
@@ -172,12 +176,13 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     }
     
     // Build resources
+    const commandStr = config.devMode ? 'npm run dev' : 'npm start';
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
         pid: proc.pid,
         port,
-        command: `node ${distPath}`,
+        command: commandStr,
         workingDirectory: backendSourceDir,
         path: backendSourceDir,
         logFile: appLogPath
@@ -212,7 +217,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
         port,
         backendSourceDir,
         logsDir,
-        command: `node dist/index.js`
+        command: commandStr
       }
     };
     

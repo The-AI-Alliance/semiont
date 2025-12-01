@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import type { FrontendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
@@ -15,6 +16,7 @@ import { getFrontendPaths } from './frontend-paths.js';
  */
 const startFrontendService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
+  const config = service.config as FrontendServiceConfig;
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
@@ -115,22 +117,20 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     printInfo(`Starting frontend service ${service.name}...`);
     printInfo(`Source: ${frontendSourceDir}`);
     printInfo(`Port: ${port}`);
-  }
-  
-  const command = service.config.command;
-  if (!command) {
-    throw new Error('Frontend command not configured');
+    printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
 
-  const [cmd, ...args] = command.split(' ');
-  
+  // Determine command based on devMode
+  const command = config.devMode ? 'npm' : 'npm';
+  const args = config.devMode ? ['run', 'dev'] : ['start'];
+
   try {
     // Open log files for writing (process will write directly)
     const appLogFd = fs.openSync(appLogPath, 'a');
     const errorLogFd = fs.openSync(errorLogPath, 'a');
-    
+
     // Spawn the frontend process with stdio redirected to files
-    const proc = spawn(cmd, args, {
+    const proc = spawn(command, args, {
       cwd: frontendSourceDir,  // Run from source directory
       env,
       detached: true,
@@ -176,20 +176,21 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     }
     
     // Build resources
+    const commandStr = config.devMode ? 'npm run dev' : 'npm start';
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
         pid: proc.pid,
         port,
-        command,
+        command: commandStr,
         workingDirectory: frontendSourceDir,
         path: frontendSourceDir,
         logFile: appLogPath
       }
     };
-    
+
     const endpoint = `http://localhost:${port}`;
-    
+
     if (!service.quiet) {
       printSuccess(`✅ Frontend service ${service.name} started successfully`);
       printInfo('');
@@ -205,7 +206,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
       printInfo(`  View logs: tail -f ${appLogPath}`);
       printInfo(`  Stop: semiont stop --service frontend --environment ${service.environment}`);
     }
-    
+
     return {
       success: true,
       endpoint,
@@ -216,7 +217,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
         port,
         frontendSourceDir,
         logsDir,
-        command
+        command: commandStr
       }
     };
     
