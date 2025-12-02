@@ -114,9 +114,9 @@ Configuration flows from **Semiont config → environment variables** at provisi
 
 ### Authentication
 
-- **Local Development**: Email-only auth (no password) via `dev@example.com`
+- **Password Auth**: Email/password authentication (always available)
 - **OAuth**: Google OAuth for production environments
-- **Configuration**: Controlled via `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` and `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS`
+- **Configuration**: Controlled via `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS`
 
 ## 📦 What's Included
 
@@ -188,8 +188,8 @@ semiont provision --service frontend --force
 
 ### Authentication not working
 
-- Check `NEXT_PUBLIC_ENABLE_LOCAL_AUTH=true` in `apps/frontend/.env.local`
 - Verify backend is running on port 4000
+- Check frontend can reach backend via `NEXT_PUBLIC_API_URL` in `apps/frontend/.env.local`
 - Clear browser cookies and retry
 
 ## 📚 Resources

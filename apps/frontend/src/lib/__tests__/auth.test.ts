@@ -104,7 +104,8 @@ describe('Auth Configuration', () => {
   describe('Configuration Structure', () => {
     it('should have correct basic structure', () => {
       expect(authOptions).toBeDefined();
-      expect(authOptions.providers).toHaveLength(1);
+      // Should have 2 providers: Google + Credentials (both providers are always added)
+      expect(authOptions.providers).toHaveLength(2);
       expect(authOptions.callbacks).toBeDefined();
       expect(authOptions.pages).toBeDefined();
       expect(authOptions.session).toBeDefined();
@@ -617,9 +618,10 @@ describe('Auth Configuration', () => {
       delete process.env.GOOGLE_CLIENT_ID;
       delete process.env.GOOGLE_CLIENT_SECRET;
 
-      // This would normally throw when the provider is called
-      // but we're just testing the configuration structure
-      expect(authOptions.providers).toHaveLength(1);
+      // Note: Deleting env vars after module import doesn't affect the already-imported module
+      // The auth module was imported in beforeAll with Google credentials set,
+      // so both providers (Google + Credentials) are present
+      expect(authOptions.providers).toHaveLength(2);
     });
 
 

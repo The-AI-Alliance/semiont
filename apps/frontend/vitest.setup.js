@@ -139,7 +139,6 @@ vi.mock('next-intl/navigation', async () => {
 process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
 process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
 process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
-process.env.NEXT_PUBLIC_ENABLE_LOCAL_AUTH = 'true';
 
 // Polyfill fetch to handle relative URLs
 const originalFetch = global.fetch;

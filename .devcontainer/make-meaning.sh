@@ -265,21 +265,26 @@ if [ -n "$CODESPACE_NAME" ]; then
     FRONTEND_URL="https://${CODESPACE_NAME}-3000.app.github.dev"
     BACKEND_URL="https://${CODESPACE_NAME}-4000.app.github.dev"
 
-    # Update the environment config with Codespaces URLs
+    # Update both environment configs with Codespaces URLs
     node -e "
     const fs = require('fs');
-    const config = JSON.parse(fs.readFileSync('environments/local.json', 'utf-8'));
     const baseConfig = JSON.parse(fs.readFileSync('semiont.json', 'utf-8'));
     if (!baseConfig.site) {
       throw new Error('semiont.json must have site configuration');
     }
     const siteDomain = '${CODESPACE_NAME}-3000.app.github.dev';
-    config.site.domain = siteDomain;
-    config.site.oauthAllowedDomains = [siteDomain, ...baseConfig.site.oauthAllowedDomains];
-    config.services.frontend.url = '${FRONTEND_URL}';
-    config.services.backend.publicURL = '${BACKEND_URL}';
-    config.services.backend.corsOrigin = '${FRONTEND_URL}';
-    fs.writeFileSync('environments/local.json', JSON.stringify(config, null, 2));
+
+    // Update both local and local-production environment files
+    ['local', 'local-production'].forEach(env => {
+      const envFile = \`environments/\${env}.json\`;
+      const config = JSON.parse(fs.readFileSync(envFile, 'utf-8'));
+      config.site.domain = siteDomain;
+      config.site.oauthAllowedDomains = [siteDomain, ...baseConfig.site.oauthAllowedDomains];
+      config.services.frontend.url = '${FRONTEND_URL}';
+      config.services.backend.publicURL = '${BACKEND_URL}';
+      config.services.backend.corsOrigin = '${FRONTEND_URL}';
+      fs.writeFileSync(envFile, JSON.stringify(config, null, 2));
+    });
     "
 
     print_success "URLs configured for Codespaces: ${FRONTEND_URL}"
@@ -366,21 +371,26 @@ cd /workspace/demo || {
     exit 1
 }
 
-if [ ! -f .env ]; then
-    cat > .env << EOF
+# Backup existing .env if it exists
+if [ -f .env ]; then
+    BACKUP_FILE=".env.backup.$(date +%Y%m%d-%H%M%S)"
+    mv .env "$BACKUP_FILE"
+    print_success "Backed up existing .env to $BACKUP_FILE"
+fi
+
+# Use Codespaces URLs if available, otherwise localhost
+DEMO_BACKEND_URL="${BACKEND_URL:-http://localhost:4000}"
+DEMO_FRONTEND_URL="${FRONTEND_URL:-http://localhost:3000}"
+
+# Create new .env file
+cat > .env << EOF
 # Semiont API
-BACKEND_URL="http://localhost:4000"
-FRONTEND_URL="http://localhost:3000"
+BACKEND_URL="$DEMO_BACKEND_URL"
+FRONTEND_URL="$DEMO_FRONTEND_URL"
 AUTH_EMAIL="$ADMIN_EMAIL"
 AUTH_PASSWORD="$ADMIN_PASSWORD"
-
-# AI Services (from Codespaces secrets)
-ANTHROPIC_API_KEY=\${ANTHROPIC_API_KEY}
 EOF
-    print_success "Demo .env created"
-else
-    print_success "Demo .env already exists"
-fi
+print_success "Demo .env created with generated credentials"
 
 cd $SEMIONT_ROOT || {
     print_error "Failed to return to SEMIONT_ROOT"
