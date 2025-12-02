@@ -19,9 +19,6 @@ export const NEXT_PUBLIC_GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIEN
 // OAuth allowed domains (comma-separated list)
 export const NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || '';
 
-// Security configuration
-export const NEXT_PUBLIC_ENABLE_LOCAL_AUTH = process.env.NEXT_PUBLIC_ENABLE_LOCAL_AUTH === 'true';
-
 // Environment helpers
 export const isDevelopment = process.env.NODE_ENV === 'development';
 export const isProduction = process.env.NODE_ENV === 'production';

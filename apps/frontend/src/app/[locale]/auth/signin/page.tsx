@@ -20,19 +20,16 @@ function SignInContent() {
   const callbackUrl = searchParams?.get('callbackUrl') || '/know';
 
   useEffect(() => {
-    // Check if local auth is enabled
-    if (process.env.NEXT_PUBLIC_ENABLE_LOCAL_AUTH === 'true' || process.env.NODE_ENV === 'development') {
-      // Check providers to see if credentials provider is available
-      fetch('/api/auth/providers')
-        .then(res => res.json())
-        .then(providers => {
-          if (providers.credentials) {
-            setShowLocalAuth(true);
-          }
-        })
-        .catch(() => {});
-    }
-    
+    // Check if credentials provider is available
+    fetch('/api/auth/providers')
+      .then(res => res.json())
+      .then(providers => {
+        if (providers.credentials) {
+          setShowLocalAuth(true);
+        }
+      })
+      .catch(() => {});
+
     const errorParam = searchParams?.get('error');
     if (errorParam) {
       switch (errorParam) {

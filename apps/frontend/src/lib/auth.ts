@@ -4,13 +4,11 @@ import { validateData, JWTTokenSchema } from '@semiont/api-client';
 import { OAuthUserSchema } from '@/lib/validation';
 import {
   NEXT_PUBLIC_API_URL,
-  NEXT_PUBLIC_ENABLE_LOCAL_AUTH,
   getAllowedDomains
 } from '@/lib/env';
 import type { NextAuthOptions } from 'next-auth';
 
 console.log('[Frontend Auth] Config loaded:', {
-  enableLocalAuth: NEXT_PUBLIC_ENABLE_LOCAL_AUTH,
   backendUrl: NEXT_PUBLIC_API_URL,
   allowedDomains: getAllowedDomains()
 });
@@ -20,8 +18,7 @@ const providers: NextAuthOptions['providers'] = [];
 
 console.log('[Frontend Auth] Environment check:', {
   NODE_ENV: process.env.NODE_ENV,
-  hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
-  localAuthEnabled: NEXT_PUBLIC_ENABLE_LOCAL_AUTH
+  hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID
 });
 
 // Add Google provider if credentials are configured
@@ -35,72 +32,70 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
-// Add password provider if enabled in config
-if (NEXT_PUBLIC_ENABLE_LOCAL_AUTH) {
-  console.log('[Frontend Auth] Adding password credentials provider');
-  providers.push(
-    CredentialsProvider({
-      name: 'Password',
-      credentials: {
-        email: { label: "Email", type: "email", placeholder: "admin@example.com" },
-        password: { label: "Password", type: "password" }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
-
-        const apiUrl = NEXT_PUBLIC_API_URL;
-
-        try {
-          console.log('[Frontend Auth] Calling backend for password auth:', {
-            apiUrl,
-            endpoint: `${apiUrl}/api/tokens/password`,
-            email: credentials.email
-          });
-
-          const response = await fetch(`${apiUrl}/api/tokens/password`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password,
-            }),
-          });
-
-          console.log('[Frontend Auth] Backend response:', {
-            status: response.status,
-            statusText: response.statusText,
-            ok: response.ok
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[Frontend Auth] Password authentication failed:', errorText);
-            return null;
-          }
-
-          const data = await response.json();
-
-          // Return user object with backend token
-          return {
-            id: data.user.id,
-            email: data.user.email,
-            name: data.user.name || 'User',
-            image: data.user.image,
-            backendToken: data.token,
-            backendUser: data.user,
-          };
-        } catch (error) {
-          console.error('Password authentication error:', error);
-          return null;
-        }
+// Always add password/credentials provider - it will only be shown if configured
+console.log('[Frontend Auth] Adding password credentials provider');
+providers.push(
+  CredentialsProvider({
+    name: 'Password',
+    credentials: {
+      email: { label: "Email", type: "email", placeholder: "admin@example.com" },
+      password: { label: "Password", type: "password" }
+    },
+    async authorize(credentials) {
+      if (!credentials?.email || !credentials?.password) {
+        return null;
       }
-    })
-  );
-}
+
+      const apiUrl = NEXT_PUBLIC_API_URL;
+
+      try {
+        console.log('[Frontend Auth] Calling backend for password auth:', {
+          apiUrl,
+          endpoint: `${apiUrl}/api/tokens/password`,
+          email: credentials.email
+        });
+
+        const response = await fetch(`${apiUrl}/api/tokens/password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: credentials.email,
+            password: credentials.password,
+          }),
+        });
+
+        console.log('[Frontend Auth] Backend response:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[Frontend Auth] Password authentication failed:', errorText);
+          return null;
+        }
+
+        const data = await response.json();
+
+        // Return user object with backend token
+        return {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.name || 'User',
+          image: data.user.image,
+          backendToken: data.token,
+          backendUser: data.user,
+        };
+      } catch (error) {
+        console.error('Password authentication error:', error);
+        return null;
+      }
+    }
+  })
+);
 
 export const authOptions: NextAuthOptions = {
   providers,

@@ -104,7 +104,7 @@ describe('Auth Configuration', () => {
   describe('Configuration Structure', () => {
     it('should have correct basic structure', () => {
       expect(authOptions).toBeDefined();
-      // Should have 2 providers: Google + Credentials (since NEXT_PUBLIC_ENABLE_LOCAL_AUTH=true in tests)
+      // Should have 2 providers: Google + Credentials (both providers are always added)
       expect(authOptions.providers).toHaveLength(2);
       expect(authOptions.callbacks).toBeDefined();
       expect(authOptions.pages).toBeDefined();
@@ -619,7 +619,7 @@ describe('Auth Configuration', () => {
       delete process.env.GOOGLE_CLIENT_SECRET;
 
       // Should only have Credentials provider (no Google since credentials are missing)
-      // NEXT_PUBLIC_ENABLE_LOCAL_AUTH=true in tests, so Credentials provider is present
+      // Credentials provider is always added
       expect(authOptions.providers).toHaveLength(1);
     });
 
