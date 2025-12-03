@@ -14,7 +14,7 @@ import { generateResourceSummary, generateReferenceSuggestions } from '../../../
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
-import { getResourceId, getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
+import { getResourceId, getPrimaryRepresentation, getEntityTypes, decodeRepresentation } from '../../../utils/resource-helpers';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { resourceUri } from '@semiont/api-client';
 
@@ -70,7 +70,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
       const primaryRep = getPrimaryRepresentation(mainDoc);
       if (primaryRep?.checksum && primaryRep?.mediaType) {
         const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-        mainContent = buffer.toString('utf-8');
+        mainContent = decodeRepresentation(buffer, primaryRep.mediaType);
       }
     }
 
@@ -87,7 +87,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
           const primaryRep = getPrimaryRepresentation(doc);
           if (primaryRep?.checksum && primaryRep?.mediaType) {
             const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-            relatedResourcesContent[getResourceId(doc)] = buffer.toString('utf-8');
+            relatedResourcesContent[getResourceId(doc)] = decodeRepresentation(buffer, primaryRep.mediaType);
           }
         } catch {
           // Skip resources where content can't be loaded

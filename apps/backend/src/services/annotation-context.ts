@@ -15,7 +15,7 @@ import { generateResourceSummary } from '../inference/factory';
 import { getBodySource, getTargetSource, getTargetSelector } from '../lib/annotation-utils';
 import type { components, AnnotationUri } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../storage/representation/representation-store';
-import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes } from '../utils/resource-helpers';
+import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes, decodeRepresentation } from '../utils/resource-helpers';
 import { FilesystemViewStorage } from '../storage/view-storage';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { resourceId as createResourceId } from '@semiont/core';
@@ -131,7 +131,7 @@ export class AnnotationContextService {
         throw new Error('Source content not found');
       }
       const sourceContent = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-      const contentStr = sourceContent.toString('utf-8');
+      const contentStr = decodeRepresentation(sourceContent, primaryRep.mediaType);
 
       const targetSelectorRaw = getTargetSelector(annotation.target);
 
@@ -184,7 +184,7 @@ export class AnnotationContextService {
       const targetRep = getPrimaryRepresentation(targetDoc);
       if (targetRep?.checksum && targetRep?.mediaType) {
         const targetContent = await repStore.retrieve(targetRep.checksum, targetRep.mediaType);
-        const contentStr = targetContent.toString('utf-8');
+        const contentStr = decodeRepresentation(targetContent, targetRep.mediaType);
 
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),

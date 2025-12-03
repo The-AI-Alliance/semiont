@@ -73,6 +73,11 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
       const posSelector = getTextPositionSelector(targetSelector);
       const quoteSelector = targetSelector ? getTextQuoteSelector(targetSelector) : null;
 
+      console.log('[AnnotateView] Processing annotation:', {
+        id: ann.id?.substring(Math.max(0, (ann.id?.length || 0) - 10)),
+        exact: quoteSelector?.exact,
+        posSelector
+      });
 
       // Try fuzzy anchoring if TextQuoteSelector with context is available
       let position;
