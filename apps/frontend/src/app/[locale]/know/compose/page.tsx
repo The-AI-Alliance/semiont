@@ -15,6 +15,7 @@ import { getPrimaryMediaType, getResourceId, isImageMimeType, resourceUri, resou
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
+import { decodeWithCharset } from '@/lib/text-encoding';
 
 function ComposeResourceContent() {
   const t = useTranslations('Compose');
@@ -124,8 +125,9 @@ function ComposeResourceContent() {
             const { data } = await client.getResourceRepresentation(rUri as ResourceUri, {
               accept: mediaType as ContentFormat,
             });
-            // Decode ArrayBuffer to string
-            const content = new TextDecoder().decode(data);
+            // Decode ArrayBuffer to string using charset from mediaType
+            // This ensures the same character space as the source resource
+            const content = decodeWithCharset(data, mediaType);
             setNewResourceContent(content);
           } catch (error) {
             console.error('Failed to fetch representation:', error);

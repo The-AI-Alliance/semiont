@@ -16,6 +16,7 @@ import { buttonStyles } from '@/lib/button-styles';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
 import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery, getAnnotationExactText } from '@semiont/api-client';
 import { groupAnnotationsByType } from '@/lib/annotation-registry';
+import { decodeWithCharset } from '@/lib/text-encoding';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 import { useOpenResources } from '@/contexts/OpenResourcesContext';
@@ -198,8 +199,9 @@ function ResourceView({
         const { data } = await client.getResourceRepresentation(rUri as ResourceUri, {
           accept: mediaType as ContentFormat,
         });
-        // Decode ArrayBuffer to string
-        const text = new TextDecoder().decode(data);
+        // Decode ArrayBuffer to string using charset from mediaType
+        // This ensures the same character space as backend annotation creation
+        const text = decodeWithCharset(data, mediaType);
         setContent(text);
       } catch (error) {
         console.error('Failed to fetch representation:', error);
