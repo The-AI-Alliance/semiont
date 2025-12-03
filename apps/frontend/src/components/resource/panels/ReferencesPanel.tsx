@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths } from '@semiont/api-client';
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
-import { ANNOTATION_TYPES } from '@/lib/annotation-registry';
+import { useAnnotationPanel } from '@/hooks/useAnnotationPanel';
+import { PanelHeader } from './PanelHeader';
 
 type Annotation = components['schemas']['Annotation'];
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
@@ -61,44 +61,12 @@ export function ReferencesPanel({
   const tRef = useTranslations('ReferencesPanel');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
-  const referenceRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sort references by their position in the resource
-  const sortedReferences = useMemo(() => {
-    return [...references].sort((a, b) => {
-      const aSelector = getTextPositionSelector(getTargetSelector(a.target));
-      const bSelector = getTextPositionSelector(getTargetSelector(b.target));
-      if (!aSelector || !bSelector) return 0;
-      return aSelector.start - bSelector.start;
-    });
-  }, [references]);
+  const { sortedAnnotations: sortedReferences, containerRef, handleAnnotationRef } =
+    useAnnotationPanel(references, hoveredReferenceId);
 
   // Check if detection is supported for this media type
   const isTextResource = mediaType?.startsWith('text/');
-
-  // Handle hoveredReferenceId - scroll to and pulse reference entry
-  useEffect(() => {
-    if (!hoveredReferenceId) return;
-
-    const referenceElement = referenceRefs.current.get(hoveredReferenceId);
-
-    if (referenceElement && containerRef.current) {
-      referenceElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      referenceElement.classList.add('bg-gray-200', 'dark:bg-gray-700');
-      setTimeout(() => {
-        referenceElement.classList.remove('bg-gray-200', 'dark:bg-gray-700');
-      }, 1500);
-    }
-  }, [hoveredReferenceId]);
-
-  const handleReferenceRef = (referenceId: string, el: HTMLElement | null) => {
-    if (el) {
-      referenceRefs.current.set(referenceId, el);
-    } else {
-      referenceRefs.current.delete(referenceId);
-    }
-  };
 
   // Clear log when starting new detection
   const handleDetect = () => {
@@ -116,12 +84,7 @@ export function ReferencesPanel({
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          {ANNOTATION_TYPES.reference!.iconEmoji} {tRef('referencesTitle')}
-        </h2>
-      </div>
+      <PanelHeader annotationType="reference" count={references.length} title={tRef('referencesTitle')} />
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -246,7 +209,7 @@ export function ReferencesPanel({
                   reference={reference}
                   isFocused={reference.id === focusedReferenceId}
                   onClick={() => onReferenceClick?.(reference)}
-                  onReferenceRef={handleReferenceRef}
+                  onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}
                   {...(onReferenceHover && { onReferenceHover })}
                   {...(onGenerateDocument && { onGenerateDocument })}

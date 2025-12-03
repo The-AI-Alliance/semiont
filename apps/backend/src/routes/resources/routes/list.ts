@@ -14,7 +14,7 @@ import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { ResourceQueryService } from '../../../services/resource-queries';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
-import { getPrimaryRepresentation, getEntityTypes } from '../../../utils/resource-helpers';
+import { getPrimaryRepresentation, getEntityTypes, decodeRepresentation } from '../../../utils/resource-helpers';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
 
@@ -74,7 +74,7 @@ export function registerListResources(router: ResourcesRouterType) {
             const primaryRep = getPrimaryRepresentation(doc);
             if (primaryRep?.checksum && primaryRep?.mediaType) {
               const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-              const contentPreview = contentBuffer.toString('utf-8').slice(0, 200);
+              const contentPreview = decodeRepresentation(contentBuffer, primaryRep.mediaType).slice(0, 200);
               return formatSearchResult(doc, contentPreview);
             }
             return formatSearchResult(doc, '');

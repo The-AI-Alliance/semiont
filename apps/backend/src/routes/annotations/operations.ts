@@ -16,7 +16,7 @@ import { uriToResourceId } from '../../lib/uri-utils';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { getPrimaryRepresentation } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
 import {
   annotationId,
   resourceId as makeResourceId,
@@ -119,7 +119,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
     throw new HTTPException(404, { message: 'Resource content not found' });
   }
   const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-  const contentStr = content.toString('utf-8');
+  const contentStr = decodeRepresentation(content, primaryRep.mediaType);
 
   // Extract context based on annotation position
   const { before, selected, after } = getAnnotationContext(annotation, contentStr, contextBefore, contextAfter);
@@ -185,7 +185,7 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
     throw new HTTPException(404, { message: 'Resource content not found' });
   }
   const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-  const contentStr = content.toString('utf-8');
+  const contentStr = decodeRepresentation(content, primaryRep.mediaType);
 
   // Extract annotation text with context
   const contextSize = 500; // Fixed context for summary

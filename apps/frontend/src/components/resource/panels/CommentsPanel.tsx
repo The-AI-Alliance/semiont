@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { CommentEntry } from './CommentEntry';
-import { ANNOTATION_TYPES } from '@/lib/annotation-registry';
+import { useAnnotationPanel } from '@/hooks/useAnnotationPanel';
+import { PanelHeader } from './PanelHeader';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -40,33 +40,9 @@ export function CommentsPanel({
 }: CommentsPanelProps) {
   const t = useTranslations('CommentsPanel');
   const [newCommentText, setNewCommentText] = useState('');
-  const commentRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sort comments by their position in the resource
-  const sortedComments = useMemo(() => {
-    return [...comments].sort((a, b) => {
-      const aSelector = getTextPositionSelector(getTargetSelector(a.target));
-      const bSelector = getTextPositionSelector(getTargetSelector(b.target));
-      if (!aSelector || !bSelector) return 0;
-      return aSelector.start - bSelector.start;
-    });
-  }, [comments]);
-
-  // Handle hoveredCommentId - scroll to and pulse comment entry
-  useEffect(() => {
-    if (!hoveredCommentId) return;
-
-    const commentElement = commentRefs.current.get(hoveredCommentId);
-
-    if (commentElement && containerRef.current) {
-      commentElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      commentElement.classList.add('bg-gray-200', 'dark:bg-gray-700');
-      setTimeout(() => {
-        commentElement.classList.remove('bg-gray-200', 'dark:bg-gray-700');
-      }, 1500);
-    }
-  }, [hoveredCommentId]);
+  const { sortedAnnotations: sortedComments, containerRef, handleAnnotationRef } =
+    useAnnotationPanel(comments, hoveredCommentId);
 
   const handleSaveNewComment = () => {
     if (onCreateComment && newCommentText.trim()) {
@@ -75,22 +51,9 @@ export function CommentsPanel({
     }
   };
 
-  const handleCommentRef = (commentId: string, el: HTMLElement | null) => {
-    if (el) {
-      commentRefs.current.set(commentId, el);
-    } else {
-      commentRefs.current.delete(commentId);
-    }
-  };
-
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          {ANNOTATION_TYPES.comment!.iconEmoji} {t('title')} ({comments.length})
-        </h2>
-      </div>
+      <PanelHeader annotationType="comment" count={comments.length} title={t('title')} />
 
       {/* New comment input - shown when there's a pending selection */}
       {pendingSelection && onCreateComment && (
@@ -136,7 +99,7 @@ export function CommentsPanel({
               isFocused={comment.id === focusedCommentId}
               onClick={() => onCommentClick(comment)}
               onUpdate={(newText) => onUpdateComment(comment.id, newText)}
-              onCommentRef={handleCommentRef}
+              onCommentRef={handleAnnotationRef}
               {...(onCommentHover && { onCommentHover })}
               resourceContent={resourceContent}
               annotateMode={annotateMode}
