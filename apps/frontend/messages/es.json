@@ -416,7 +416,19 @@
     "commentPlaceholder": "Escriba su comentario aquí...",
     "save": "Guardar",
     "cancel": "Cancelar",
-    "edit": "Editar"
+    "edit": "Editar",
+    "detectComments": "Detectar Comentarios",
+    "instructions": "Instrucciones",
+    "optional": "(opcional)",
+    "instructionsPlaceholder": "ej., Enfócate en terminología técnica...",
+    "detect": "Detectar",
+    "detecting": "Detectando...",
+    "toneLabel": "Tono",
+    "toneOptional": "(opcional)",
+    "toneScholarly": "Académico",
+    "toneExplanatory": "Explicativo",
+    "toneConversational": "Conversacional",
+    "toneTechnical": "Técnico"
   },
   "HighlightPanel": {
     "title": "Destacados",
