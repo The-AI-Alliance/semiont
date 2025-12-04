@@ -11,6 +11,7 @@ import type {
   GenerationProgress,
   HighlightDetectionProgress,
   AssessmentDetectionProgress,
+  CommentDetectionProgress,
   ResourceEvent,
   SSEStream
 } from './types';
