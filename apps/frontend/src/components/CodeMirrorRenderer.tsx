@@ -66,6 +66,43 @@ interface WidgetUpdate {
 
 const updateWidgetsEffect = StateEffect.define<WidgetUpdate>();
 
+/**
+ * Convert positions from CRLF character space to LF character space.
+ * CodeMirror normalizes all line endings to LF internally, but annotation positions
+ * are calculated in the original content's character space (which may have CRLF).
+ *
+ * @param segments - Segments with positions in CRLF space
+ * @param content - Original content (may have CRLF line endings)
+ * @returns Segments with positions adjusted for LF space
+ */
+function convertSegmentPositions(segments: TextSegment[], content: string): TextSegment[] {
+  // If content has no CRLF, no conversion needed
+  if (!content.includes('\r\n')) {
+    return segments;
+  }
+
+  // Build a map of CRLF positions for efficient lookup
+  const crlfPositions: number[] = [];
+  for (let i = 0; i < content.length - 1; i++) {
+    if (content[i] === '\r' && content[i + 1] === '\n') {
+      crlfPositions.push(i);
+    }
+  }
+
+  // Convert a single position from CRLF space to LF space
+  const convertPosition = (pos: number): number => {
+    // Count how many CRLFs appear before this position
+    const crlfsBefore = crlfPositions.filter(crlfPos => crlfPos < pos).length;
+    return pos - crlfsBefore;
+  };
+
+  return segments.map(seg => ({
+    ...seg,
+    start: convertPosition(seg.start),
+    end: convertPosition(seg.end)
+  }));
+}
+
 // Build decorations from segments
 function buildAnnotationDecorations(
   segments: TextSegment[],
@@ -245,7 +282,12 @@ export function CodeMirrorRenderer({
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const contentRef = useRef(content);
-  const segmentsRef = useRef(segments);
+
+  // Convert segment positions from CRLF space to LF space
+  // CodeMirror normalizes line endings internally, so positions must be adjusted
+  const convertedSegments = convertSegmentPositions(segments, content);
+
+  const segmentsRef = useRef(convertedSegments);
   const lineNumbersCompartment = useRef(new Compartment());
   const callbacksRef = useRef<{
     onWikiLinkClick?: (pageName: string) => void;
@@ -430,9 +472,9 @@ export function CodeMirrorRenderer({
     if (!viewRef.current) return;
 
     viewRef.current.dispatch({
-      effects: updateAnnotationsEffect.of({ segments, ...(newAnnotationIds && { newAnnotationIds }) })
+      effects: updateAnnotationsEffect.of({ segments: convertedSegments, ...(newAnnotationIds && { newAnnotationIds }) })
     });
-  }, [segments, newAnnotationIds]);
+  }, [convertedSegments, newAnnotationIds]);
 
   // Update widgets when content, segments, or generatingReferenceId changes
   useEffect(() => {
@@ -441,12 +483,12 @@ export function CodeMirrorRenderer({
     viewRef.current.dispatch({
       effects: updateWidgetsEffect.of({
         content,
-        segments,
+        segments: convertedSegments,
         generatingReferenceId,
         callbacks: callbacksRef.current
       })
     });
-  }, [content, segments, enableWidgets, generatingReferenceId]);
+  }, [content, convertedSegments, enableWidgets, generatingReferenceId]);
 
   // Handle hovered annotation - add pulse effect and scroll if not visible
   useEffect(() => {
