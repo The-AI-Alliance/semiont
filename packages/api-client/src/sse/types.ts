@@ -131,6 +131,37 @@ export interface AssessmentDetectionProgress {
 }
 
 /**
+ * Progress event for comment detection stream
+ *
+ * Sent by POST /resources/:id/detect-comments-stream
+ *
+ * @example
+ * ```typescript
+ * stream.onProgress((progress: CommentDetectionProgress) => {
+ *   if (progress.status === 'analyzing') {
+ *     console.log(`Analyzing: ${progress.percentage}%`);
+ *   }
+ * });
+ * ```
+ */
+export interface CommentDetectionProgress {
+  /** Current status of comment detection operation */
+  status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
+  /** Resource ID being analyzed */
+  resourceId: string;
+  /** Current stage of processing */
+  stage?: 'analyzing' | 'creating';
+  /** Percentage complete (0-100) */
+  percentage?: number;
+  /** Human-readable status message */
+  message?: string;
+  /** Total comments found */
+  foundCount?: number;
+  /** Total comments created */
+  createdCount?: number;
+}
+
+/**
  * Resource event from real-time event stream
  *
  * Sent by GET /resources/:id/events/stream

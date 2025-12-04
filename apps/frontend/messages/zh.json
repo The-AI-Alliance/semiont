@@ -416,7 +416,19 @@
     "commentPlaceholder": "Type your comment here...",
     "save": "Save",
     "cancel": "Cancel",
-    "edit": "Edit"
+    "edit": "Edit",
+    "detectComments": "Detect Comments",
+    "instructions": "Instructions",
+    "optional": "(optional)",
+    "instructionsPlaceholder": "e.g., Focus on technical terminology...",
+    "detect": "Detect",
+    "detecting": "Detecting...",
+    "toneLabel": "Tone",
+    "toneOptional": "(optional)",
+    "toneScholarly": "Scholarly",
+    "toneExplanatory": "Explanatory",
+    "toneConversational": "Conversational",
+    "toneTechnical": "Technical"
   },
   "HighlightPanel": {
     "title": "Highlights",

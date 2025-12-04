@@ -5,14 +5,14 @@ import { useTranslations } from 'next-intl';
 import { ANNOTATION_TYPES } from '@/lib/annotation-registry';
 
 interface DetectSectionProps {
-  annotationType: 'highlight' | 'assessment';
+  annotationType: 'highlight' | 'assessment' | 'comment';
   isDetecting: boolean;
   detectionProgress?: {
     status: string;
     percentage?: number;
     message?: string;
   } | null | undefined;
-  onDetect: (instructions?: string) => void | Promise<void>;
+  onDetect: (instructions?: string, tone?: string) => void | Promise<void>;
 }
 
 const colorSchemes = {
@@ -23,14 +23,19 @@ const colorSchemes = {
   assessment: {
     border: 'border-red-500 dark:border-red-600',
     button: 'from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700',
+  },
+  comment: {
+    border: 'border-purple-500 dark:border-purple-600',
+    button: 'from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700',
   }
 };
 
 /**
- * Shared detect section for Highlight and Assessment panels
+ * Shared detect section for Highlight, Assessment, and Comment panels
  *
  * Provides:
  * - Optional instructions textarea
+ * - Optional tone selector (for comments)
  * - Detect button with sparkle animation
  * - Progress display during detection
  */
@@ -40,20 +45,30 @@ export function DetectSection({
   detectionProgress,
   onDetect
 }: DetectSectionProps) {
-  const t = useTranslations(`${annotationType === 'highlight' ? 'HighlightPanel' : 'AssessmentPanel'}`);
+  const panelName = annotationType === 'highlight' ? 'HighlightPanel' :
+                     annotationType === 'assessment' ? 'AssessmentPanel' :
+                     'CommentsPanel';
+  const t = useTranslations(panelName);
   const [instructions, setInstructions] = useState('');
+  const [tone, setTone] = useState('');
   const metadata = ANNOTATION_TYPES[annotationType]!;
   const colors = colorSchemes[annotationType];
 
   const handleDetect = () => {
-    onDetect(instructions.trim() || undefined);
+    onDetect(
+      instructions.trim() || undefined,
+      annotationType === 'comment' && tone ? tone : undefined
+    );
     setInstructions('');
+    setTone('');
   };
 
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
-        {t(annotationType === 'highlight' ? 'detectHighlights' : 'detectAssessments')}
+        {t(annotationType === 'highlight' ? 'detectHighlights' :
+           annotationType === 'assessment' ? 'detectAssessments' :
+           'detectComments')}
       </h3>
       <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 ${
         isDetecting && detectionProgress ? `border-2 ${colors.border}` : ''
@@ -76,6 +91,26 @@ export function DetectSection({
                 {instructions.length}/500
               </div>
             </div>
+
+            {/* Tone selector - only for comments */}
+            {annotationType === 'comment' && (
+              <div className="mb-4">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                  {t('toneLabel')} {t('toneOptional')}
+                </label>
+                <select
+                  value={tone}
+                  onChange={(e) => setTone(e.target.value)}
+                  className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+                >
+                  <option value="">Default</option>
+                  <option value="scholarly">{t('toneScholarly')}</option>
+                  <option value="explanatory">{t('toneExplanatory')}</option>
+                  <option value="conversational">{t('toneConversational')}</option>
+                  <option value="technical">{t('toneTechnical')}</option>
+                </select>
+              </div>
+            )}
 
             <button
               onClick={handleDetect}

@@ -304,11 +304,13 @@ if (nodeEnv !== 'test') {
       const { GenerationWorker } = await import('./jobs/workers/generation-worker');
       const { HighlightDetectionWorker } = await import('./jobs/workers/highlight-detection-worker');
       const { AssessmentDetectionWorker } = await import('./jobs/workers/assessment-detection-worker');
+      const { CommentDetectionWorker } = await import('./jobs/workers/comment-detection-worker');
 
       const detectionWorker = new DetectionWorker(config);
       const generationWorker = new GenerationWorker(config);
       const highlightDetectionWorker = new HighlightDetectionWorker(config);
       const assessmentDetectionWorker = new AssessmentDetectionWorker(config);
+      const commentDetectionWorker = new CommentDetectionWorker(config);
 
       // Start workers in background (non-blocking)
       detectionWorker.start().catch((error) => {
@@ -325,6 +327,10 @@ if (nodeEnv !== 'test') {
 
       assessmentDetectionWorker.start().catch((error) => {
         console.error('⚠️ Assessment detection worker stopped with error:', error);
+      });
+
+      commentDetectionWorker.start().catch((error) => {
+        console.error('⚠️ Comment detection worker stopped with error:', error);
       });
 
       console.log('✅ Detection worker started');

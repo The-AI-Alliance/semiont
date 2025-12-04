@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { CommentEntry } from './CommentEntry';
 import { useAnnotationPanel } from '@/hooks/useAnnotationPanel';
+import { DetectSection } from './DetectSection';
 import { PanelHeader } from './PanelHeader';
 
 type Annotation = components['schemas']['Annotation'];
@@ -24,6 +25,13 @@ interface CommentsPanelProps {
     end: number;
   } | null;
   annotateMode?: boolean;
+  onDetectComments?: (instructions?: string, tone?: string) => void | Promise<void>;
+  isDetecting?: boolean;
+  detectionProgress?: {
+    status: string;
+    percentage?: number;
+    message?: string;
+  } | null;
 }
 
 export function CommentsPanel({
@@ -37,6 +45,9 @@ export function CommentsPanel({
   resourceContent,
   pendingSelection,
   annotateMode = true,
+  onDetectComments,
+  isDetecting = false,
+  detectionProgress,
 }: CommentsPanelProps) {
   const t = useTranslations('CommentsPanel');
   const [newCommentText, setNewCommentText] = useState('');
@@ -85,27 +96,40 @@ export function CommentsPanel({
         </div>
       )}
 
-      {/* Comments list */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
-        {sortedComments.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            {t('noComments')}
-          </p>
-        ) : (
-          sortedComments.map((comment) => (
-            <CommentEntry
-              key={comment.id}
-              comment={comment}
-              isFocused={comment.id === focusedCommentId}
-              onClick={() => onCommentClick(comment)}
-              onUpdate={(newText) => onUpdateComment(comment.id, newText)}
-              onCommentRef={handleAnnotationRef}
-              {...(onCommentHover && { onCommentHover })}
-              resourceContent={resourceContent}
-              annotateMode={annotateMode}
-            />
-          ))
+      {/* Scrollable content area */}
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Detection Section - only in Annotate mode and for text resources */}
+        {annotateMode && onDetectComments && (
+          <DetectSection
+            annotationType="comment"
+            isDetecting={isDetecting}
+            detectionProgress={detectionProgress}
+            onDetect={onDetectComments}
+          />
         )}
+
+        {/* Comments list */}
+        <div className="space-y-4">
+          {sortedComments.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              {t('noComments')}
+            </p>
+          ) : (
+            sortedComments.map((comment) => (
+              <CommentEntry
+                key={comment.id}
+                comment={comment}
+                isFocused={comment.id === focusedCommentId}
+                onClick={() => onCommentClick(comment)}
+                onUpdate={(newText) => onUpdateComment(comment.id, newText)}
+                onCommentRef={handleAnnotationRef}
+                {...(onCommentHover && { onCommentHover })}
+                resourceContent={resourceContent}
+                annotateMode={annotateMode}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

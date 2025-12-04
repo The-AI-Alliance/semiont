@@ -299,6 +299,14 @@ function ResourceView({
     message?: string;
   } | null>(null);
 
+  // Detection states for comments
+  const [isDetectingComments, setIsDetectingComments] = useState(false);
+  const [commentDetectionProgress, setCommentDetectionProgress] = useState<{
+    status: string;
+    percentage?: number;
+    message?: string;
+  } | null>(null);
+
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
     setHoveredAnnotationId(annotationId);
@@ -549,6 +557,52 @@ function ResourceView({
       setIsDetectingAssessments(false);
       setAssessmentDetectionProgress(null);
       showError('Failed to start assessment detection');
+    }
+  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
+
+  /**
+   * Handle comment detection
+   */
+  const handleDetectComments = useCallback(async (instructions?: string, tone?: string) => {
+    if (!client) return;
+
+    setIsDetectingComments(true);
+    setCommentDetectionProgress({ status: 'started', message: 'Starting comment detection...' });
+
+    try {
+      const stream = client.sse.detectComments(rUri, {
+        ...(instructions && { instructions }),
+        ...(tone && { tone: tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' })
+      });
+
+      stream.onProgress((progress: any) => {
+        setCommentDetectionProgress({
+          status: progress.status,
+          percentage: progress.percentage,
+          message: progress.message
+        });
+      });
+
+      stream.onComplete((result: any) => {
+        setCommentDetectionProgress({
+          status: 'complete',
+          percentage: 100,
+          message: `Created ${result.createdCount} comments`
+        });
+        setIsDetectingComments(false);
+        refetchAnnotations();
+        showSuccess(`Created ${result.createdCount} comments`);
+      });
+
+      stream.onError((error: any) => {
+        setCommentDetectionProgress(null);
+        setIsDetectingComments(false);
+        showError(`Comment detection failed: ${error.message}`);
+      });
+    } catch (error) {
+      setIsDetectingComments(false);
+      setCommentDetectionProgress(null);
+      showError('Failed to start comment detection');
     }
   }, [client, rUri, refetchAnnotations, showSuccess, showError]);
 
@@ -900,6 +954,9 @@ function ResourceView({
                 resourceContent={content}
                 pendingSelection={pendingCommentSelection}
                 annotateMode={annotateMode}
+                {...(primaryMediaType?.startsWith('text/') ? { onDetectComments: handleDetectComments } : {})}
+                isDetecting={isDetectingComments}
+                detectionProgress={commentDetectionProgress}
               />
             )}
 

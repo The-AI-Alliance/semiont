@@ -11,6 +11,7 @@ import type {
   GenerationProgress,
   HighlightDetectionProgress,
   AssessmentDetectionProgress,
+  CommentDetectionProgress,
   ResourceEvent,
   SSEStream
 } from './types';
@@ -45,6 +46,14 @@ export interface DetectHighlightsStreamRequest {
  */
 export interface DetectAssessmentsStreamRequest {
   instructions?: string;
+}
+
+/**
+ * Request body for comment detection stream
+ */
+export interface DetectCommentsStreamRequest {
+  instructions?: string;
+  tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
 }
 
 /**
@@ -349,6 +358,62 @@ export class SSEClient {
         progressEvents: ['assessment-detection-started', 'assessment-detection-progress'],
         completeEvent: 'assessment-detection-complete',
         errorEvent: 'assessment-detection-error'
+      }
+    );
+  }
+
+  /**
+   * Detect comments in a resource (streaming)
+   *
+   * Streams comment detection progress via Server-Sent Events.
+   * Uses AI to identify passages that would benefit from explanatory comments
+   * and creates comment annotations with contextual information.
+   *
+   * @param resourceId - Resource URI or ID
+   * @param request - Detection configuration (optional instructions and tone)
+   * @returns SSE stream controller with progress/complete/error callbacks
+   *
+   * @example
+   * ```typescript
+   * const stream = sseClient.detectComments('http://localhost:4000/resources/doc-123', {
+   *   instructions: 'Focus on technical terminology',
+   *   tone: 'scholarly'
+   * });
+   *
+   * stream.onProgress((progress) => {
+   *   console.log(`${progress.status}: ${progress.percentage}%`);
+   * });
+   *
+   * stream.onComplete((result) => {
+   *   console.log(`Detection complete! Created ${result.createdCount} comments`);
+   * });
+   *
+   * stream.onError((error) => {
+   *   console.error('Detection failed:', error.message);
+   * });
+   *
+   * // Cleanup when done
+   * stream.close();
+   * ```
+   */
+  detectComments(
+    resourceId: ResourceUri,
+    request: DetectCommentsStreamRequest = {}
+  ): SSEStream<CommentDetectionProgress, CommentDetectionProgress> {
+    const id = this.extractId(resourceId);
+    const url = `${this.baseUrl}/resources/${id}/detect-comments-stream`;
+
+    return createSSEStream<CommentDetectionProgress, CommentDetectionProgress>(
+      url,
+      {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(request)
+      },
+      {
+        progressEvents: ['comment-detection-started', 'comment-detection-progress'],
+        completeEvent: 'comment-detection-complete',
+        errorEvent: 'comment-detection-error'
       }
     );
   }

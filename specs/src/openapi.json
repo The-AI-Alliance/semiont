@@ -75,6 +75,9 @@
     "/resources/{id}/detect-assessments-stream": {
       "$ref": "paths/resources_{id}_detect-assessments-stream.json"
     },
+    "/resources/{id}/detect-comments-stream": {
+      "$ref": "paths/resources_{id}_detect-comments-stream.json"
+    },
     "/resources/{id}/llm-context": {
       "$ref": "paths/resources_{id}_llm-context.json"
     },
