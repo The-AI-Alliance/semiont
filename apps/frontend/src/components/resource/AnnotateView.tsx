@@ -67,6 +67,31 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
     return [{ exact: '', start: 0, end: 0 }];
   }
 
+  // COMPREHENSIVE DEBUG - captures everything needed to diagnose the bug
+  const ouranosIndex = exact.indexOf('Ouranos');
+  const hasCRLF = exact.includes('\r\n');
+  const hasLF = exact.includes('\n');
+
+  console.group('🔍 ANNOTATE VIEW DEBUG');
+  console.log('Content length:', exact.length);
+  console.log('Has CRLF (\\r\\n):', hasCRLF);
+  console.log('Has LF (\\n):', hasLF);
+  console.log('First 150 chars:', JSON.stringify(exact.substring(0, 150)));
+  console.log('---');
+  console.log('Position 52-59 contains:', JSON.stringify(exact.substring(52, 59)));
+  console.log('Position 52-59 char codes:', Array.from(exact.substring(52, 59)).map(c => c.charCodeAt(0)));
+  console.log('---');
+  console.log('Ouranos first occurrence at:', ouranosIndex);
+  if (ouranosIndex >= 0) {
+    console.log('Context around Ouranos:', JSON.stringify(exact.substring(Math.max(0, ouranosIndex - 30), ouranosIndex + 37)));
+    console.log('20 chars before Ouranos:', JSON.stringify(exact.substring(ouranosIndex - 20, ouranosIndex)));
+    console.log('20 chars after Ouranos:', JSON.stringify(exact.substring(ouranosIndex + 7, ouranosIndex + 27)));
+  }
+  console.log('---');
+  console.log('CRLF count:', (exact.match(/\r\n/g) || []).length);
+  console.log('LF-only count:', (exact.match(/(?<!\r)\n/g) || []).length);
+  console.groupEnd();
+
   const normalizedAnnotations = annotations
     .map(ann => {
       const targetSelector = getTargetSelector(ann.target);
