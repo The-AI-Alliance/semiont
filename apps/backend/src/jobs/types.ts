@@ -11,7 +11,7 @@ import type { ResourceId, UserId, AnnotationId } from '@semiont/core';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
-export type JobType = 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection';
+export type JobType = 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
 
 /**
@@ -111,9 +111,28 @@ export interface AssessmentDetectionJob extends BaseJob {
 }
 
 /**
+ * Comment Detection job - generates explanatory comments on passages using AI
+ */
+export interface CommentDetectionJob extends BaseJob {
+  type: 'comment-detection';
+  resourceId: ResourceId;
+  instructions?: string;  // Optional user instructions for AI
+  tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';  // Optional tone/style
+  progress?: {
+    stage: 'analyzing' | 'creating';
+    percentage: number;
+    message?: string;
+  };
+  result?: {
+    commentsFound: number;
+    commentsCreated: number;
+  };
+}
+
+/**
  * Discriminated union of all job types
  */
-export type Job = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentDetectionJob;
+export type Job = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentDetectionJob | CommentDetectionJob;
 
 /**
  * Job creation request types (without server-generated fields)
