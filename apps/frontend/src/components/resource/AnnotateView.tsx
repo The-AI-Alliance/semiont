@@ -41,18 +41,6 @@ interface Props {
 }
 
 /**
- * Detect line separator from first line break in content
- * This is critical for annotation position accuracy since positions are calculated
- * in the original character space where CRLF = 2 chars, LF = 1 char
- */
-function detectLineSeparator(text: string): '\r\n' | '\n' {
-  const lfIndex = text.indexOf('\n');
-  if (lfIndex === -1) return '\n'; // No line breaks, default to LF
-  // Check if there's a \r immediately before the \n
-  return (lfIndex > 0 && text[lfIndex - 1] === '\r') ? '\r\n' : '\n';
-}
-
-/**
  * Extract prefix and suffix context for TextQuoteSelector
  * Extracts up to 32 characters before and after the selected text
  */
@@ -404,7 +392,6 @@ export function AnnotateView({
             <CodeMirrorRenderer
             content={content}
             segments={segments}
-            lineSeparator={detectLineSeparator(content)}
             {...(onAnnotationClick && { onAnnotationClick })}
             onAnnotationHover={handleAnnotationHover}
             editable={false}
