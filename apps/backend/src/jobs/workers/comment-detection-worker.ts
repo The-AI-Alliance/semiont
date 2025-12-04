@@ -274,10 +274,12 @@ Example format:
 
     console.log(`[CommentDetectionWorker] Sending request to AI with content length: ${content.substring(0, 8000).length}`);
 
-    const response = await generateText(prompt, {
-      maxTokens: 3000,  // Higher than highlights/assessments due to comment text
-      temperature: 0.4  // Slightly higher to allow creative context
-    });
+    const response = await generateText(
+      prompt,
+      this.config,
+      3000,  // maxTokens: Higher than highlights/assessments due to comment text
+      0.4    // temperature: Slightly higher to allow creative context
+    );
 
     console.log(`[CommentDetectionWorker] Got response from AI`);
 
@@ -321,36 +323,36 @@ Example format:
 
   private async createCommentAnnotation(
     resourceId: ResourceId,
-    userId_: typeof userId extends (x: infer T) => any ? T : never,
+    userId_: string,
     comment: CommentMatch
   ): Promise<void> {
     const eventStore = await createEventStore(this.config);
-    const resourceUri = resourceIdToURI(resourceId, this.config);
     const backendUrl = this.config.services.backend?.publicURL;
 
     if (!backendUrl) {
       throw new Error('Backend publicURL not configured');
     }
 
+    const resourceUri = resourceIdToURI(resourceId, backendUrl);
     const annotationId = generateAnnotationId(backendUrl);
 
     // Create W3C-compliant annotation with motivation: "commenting"
     const annotation = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld',
-      type: 'Annotation',
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      type: 'Annotation' as const,
       id: annotationId,
-      motivation: 'commenting',
+      motivation: 'commenting' as const,
       target: {
-        type: 'SpecificResource',
+        type: 'SpecificResource' as const,
         source: resourceUri,
         selector: [
           {
-            type: 'TextPositionSelector',
+            type: 'TextPositionSelector' as const,
             start: comment.start,
             end: comment.end
           },
           {
-            type: 'TextQuoteSelector',
+            type: 'TextQuoteSelector' as const,
             exact: comment.exact,
             prefix: comment.prefix || '',
             suffix: comment.suffix || ''
@@ -359,9 +361,9 @@ Example format:
       },
       body: [
         {
-          type: 'TextualBody',
+          type: 'TextualBody' as const,
           value: comment.comment,
-          purpose: 'commenting',
+          purpose: 'commenting' as const,
           format: 'text/plain',
           language: 'en'
         }
@@ -372,7 +374,7 @@ Example format:
     await eventStore.appendEvent({
       type: 'annotation.added',
       resourceId,
-      userId: userId_,
+      userId: userId(userId_),
       version: 1,
       payload: {
         annotation

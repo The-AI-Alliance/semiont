@@ -54,12 +54,12 @@ jobsRouter.get('/api/jobs/:id', async (c) => {
     startedAt: job.startedAt,
     completedAt: job.completedAt,
     error: job.error,
-    progress: job.type === 'detection' || job.type === 'highlight-detection' || job.type === 'assessment-detection'
+    progress: job.type === 'detection' || job.type === 'highlight-detection' || job.type === 'assessment-detection' || job.type === 'comment-detection'
       ? (job as any).progress
       : job.type === 'generation'
         ? (job as any).progress
         : undefined,
-    result: job.type === 'detection' || job.type === 'highlight-detection' || job.type === 'assessment-detection'
+    result: job.type === 'detection' || job.type === 'highlight-detection' || job.type === 'assessment-detection' || job.type === 'comment-detection'
       ? (job as any).result
       : job.type === 'generation'
         ? (job as any).result

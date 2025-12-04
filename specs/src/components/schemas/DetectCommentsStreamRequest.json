@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "properties": {
+    "instructions": {
+      "type": "string",
+      "description": "Optional instructions to guide AI comment detection"
+    },
+    "tone": {
+      "type": "string",
+      "enum": ["scholarly", "explanatory", "conversational", "technical"],
+      "description": "Optional tone/style for generated comments"
+    }
+  }
+}

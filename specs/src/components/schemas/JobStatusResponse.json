@@ -10,7 +10,8 @@
         "detection",
         "generation",
         "highlight-detection",
-        "assessment-detection"
+        "assessment-detection",
+        "comment-detection"
       ]
     },
     "status": {
