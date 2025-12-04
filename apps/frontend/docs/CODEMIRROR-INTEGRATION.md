@@ -136,6 +136,66 @@ view.dispatch({
 });
 ```
 
+### Line Ending Normalization
+
+**Critical Implementation Detail**: CodeMirror internally normalizes all line endings to LF (`\n`), regardless of the original content's line endings. This creates a position mismatch when content has CRLF (`\r\n`) line endings.
+
+**The Problem**:
+- Annotation positions are calculated in the **original content's character space** (which may have CRLF)
+- CodeMirror's internal document uses **LF character space** (after normalization)
+- Each CRLF is 2 characters in the original, but becomes 1 character in CodeMirror's document
+
+**Example**:
+```
+Original (CRLF): "PROMETHEUS BOUND\r\n\r\nARGUMENT\r\n\r\n\r\nIn the beginning, Ouranos"
+                  Position 52-59: "Ouranos" ✓
+
+After CodeMirror normalization (LF): "PROMETHEUS BOUND\n\nARGUMENT\n\n\nIn the beginning, Ouranos"
+                                       Position 52-59: wrong text ✗
+                                       Position 47-54: "Ouranos" ✓
+```
+
+With 5 CRLF sequences before position 52, the adjustment is: `52 - 5 = 47`
+
+**The Solution**:
+
+CodeMirrorRenderer automatically converts segment positions from CRLF space to LF space:
+
+```typescript
+function convertSegmentPositions(segments: TextSegment[], content: string): TextSegment[] {
+  if (!content.includes('\r\n')) {
+    return segments; // No conversion needed for LF-only content
+  }
+
+  // Find all CRLF positions
+  const crlfPositions: number[] = [];
+  for (let i = 0; i < content.length - 1; i++) {
+    if (content[i] === '\r' && content[i + 1] === '\n') {
+      crlfPositions.push(i);
+    }
+  }
+
+  // Convert position: LF position = CRLF position - (number of CRLFs before it)
+  const convertPosition = (pos: number): number => {
+    const crlfsBefore = crlfPositions.filter(crlfPos => crlfPos < pos).length;
+    return pos - crlfsBefore;
+  };
+
+  return segments.map(seg => ({
+    ...seg,
+    start: convertPosition(seg.start),
+    end: convertPosition(seg.end)
+  }));
+}
+```
+
+**When This Matters**:
+- Files created on Windows (default CRLF line endings)
+- Files edited in editors that preserve original line endings
+- Content retrieved from systems that use CRLF
+
+**Testing**: See `/src/components/__tests__/CodeMirrorRenderer.test.tsx` for comprehensive tests verifying CRLF position conversion accuracy.
+
 ### Hover Detection
 
 The component uses `mousemove` event (not `mouseenter`/`mouseleave`) to detect annotation hovers:
