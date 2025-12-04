@@ -17,6 +17,18 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import { decodeWithCharset } from '@/lib/text-encoding';
 
+/**
+ * Detect line separator from first line break in content
+ * This is critical for annotation position accuracy since positions are calculated
+ * in the original character space where CRLF = 2 chars, LF = 1 char
+ */
+function detectLineSeparator(text: string): '\r\n' | '\n' {
+  const lfIndex = text.indexOf('\n');
+  if (lfIndex === -1) return '\n'; // No line breaks, default to LF
+  // Check if there's a \r immediately before the \n
+  return (lfIndex > 0 && text[lfIndex - 1] === '\r') ? '\r\n' : '\n';
+}
+
 function ComposeResourceContent() {
   const t = useTranslations('Compose');
   const locale = useLocale();
@@ -600,6 +612,7 @@ function ComposeResourceContent() {
                   <CodeMirrorRenderer
                     content={newResourceContent}
                     segments={[]}
+                    lineSeparator={detectLineSeparator(newResourceContent)}
                     editable={!isCreating}
                     sourceView={true}
                     showLineNumbers={showLineNumbers}

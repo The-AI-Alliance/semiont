@@ -22,6 +22,7 @@ export interface TextSegment {
 interface Props {
   content: string;
   segments: TextSegment[];
+  lineSeparator?: '\r\n' | '\n'; // Line separator to use - must match the character space used for position calculations
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
@@ -235,6 +236,7 @@ export function CodeMirrorRenderer({
   sourceView = false,
   showLineNumbers = false,
   enableWidgets = false,
+  lineSeparator = '\n',
   onEntityTypeClick,
   onReferenceNavigate,
   onUnresolvedReferenceClick,
@@ -282,6 +284,10 @@ export function CodeMirrorRenderer({
     const state = EditorState.create({
       doc: content,
       extensions: [
+        // Preserve the document's native line endings for position accuracy
+        // CodeMirror defaults to normalizing to LF which would break all position calculations
+        // The lineSeparator must match the character space used for annotation position calculations
+        EditorState.lineSeparator.of(lineSeparator),
         markdown(),
         lineNumbersCompartment.current.of(showLineNumbers ? lineNumbers() : []),
         EditorView.editable.of(editable),
@@ -388,7 +394,7 @@ export function CodeMirrorRenderer({
       view.destroy();
       viewRef.current = null;
     };
-  }, []); // Only create once
+  }, [lineSeparator]); // Only create once, but recreate if line separator changes
 
   // Update content when it changes externally (not from user typing)
   useEffect(() => {
