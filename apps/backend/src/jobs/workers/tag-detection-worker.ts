@@ -179,7 +179,7 @@ export class TagDetectionWorker extends JobWorker {
     const byCategory: Record<string, number> = {};
 
     for (let i = 0; i < job.categories.length; i++) {
-      const category = job.categories[i];
+      const category = job.categories[i]!; // Safe: i < length check guarantees element exists
 
       job.progress = {
         stage: 'analyzing',
