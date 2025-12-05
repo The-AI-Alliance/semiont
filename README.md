@@ -17,7 +17,7 @@ Semiont is a standards-compliant multimedia resource management system built on 
 
 **AI-Native Enhancements:**
 
-- **Entity Detection** - Automatically identify people, places, concepts, and other entities
+- **[Annotation Detection](docs/ai/DETECTION.md)** - Automatically detect highlights, assessments, comments, tags, and entity references
 - **Entity Resolution** - Link detected entities to specific resources or external knowledge bases
 - **Context Retrieval** - Extract semantic context from the knowledge graph for LLM consumption
 - **Contextualized Generation** - Create new resources aligned with your existing knowledge

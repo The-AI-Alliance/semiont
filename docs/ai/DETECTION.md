@@ -25,6 +25,7 @@ Semiont uses AI to automatically detect and create W3C-compliant annotations in 
 | `highlighting` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Mark important passages | Empty array `[]` | Optional instructions (max 500 chars) |
 | `assessing` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Evaluate and assess content | Assessment text as `TextualBody` | Optional instructions (max 500 chars) |
 | `commenting` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Add explanatory comments | Comment text as `TextualBody` with `purpose: "commenting"` | Optional instructions (max 500 chars) + tone (scholarly/explanatory/conversational/technical) |
+| `tagging` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Identify structural roles | Dual-body structure: category (`purpose: "tagging"`) + schema ID (`purpose: "describing"`) | Selected schema (IRAC/IMRAD/Toulmin) + categories |
 | `linking` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Extract entity references | Entity type tags as `TextualBody` with `purpose: "tagging"` | Selected entity types from registry |
 
 All types create annotations with:
