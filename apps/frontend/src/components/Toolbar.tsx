@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-type ToolbarPanel = 'document' | 'history' | 'info' | 'references' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments' | 'highlights' | 'assessments';
+type ToolbarPanel = 'document' | 'history' | 'info' | 'references' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments' | 'highlights' | 'assessments' | 'tags';
 type ToolbarContext = 'document' | 'simple';
 
 interface Props<T extends string = string> {
@@ -122,6 +122,19 @@ export function Toolbar<T extends string = string>({
           >
             <span className="text-xl" aria-hidden="true">💬</span>
           </button>
+
+          {/* Tags Icon - show in both Browse and Annotate modes (not archived) */}
+          {!isArchived && (
+            <button
+              onClick={() => onPanelToggle('tags' as T)}
+              className={buttonClass('tags')}
+              aria-label={t('tags')}
+              aria-pressed={activePanel === 'tags'}
+              title={t('tags')}
+            >
+              <span className="text-xl" aria-hidden="true">🏷️</span>
+            </button>
+          )}
 
           {/* History Icon */}
           <button

@@ -12,6 +12,7 @@ import type {
   HighlightDetectionProgress,
   AssessmentDetectionProgress,
   CommentDetectionProgress,
+  TagDetectionProgress,
   ResourceEvent,
   SSEStream
 } from './types';
@@ -54,6 +55,14 @@ export interface DetectAssessmentsStreamRequest {
 export interface DetectCommentsStreamRequest {
   instructions?: string;
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
+}
+
+/**
+ * Request body for tag detection stream
+ */
+export interface DetectTagsStreamRequest {
+  schemaId: string;
+  categories: string[];
 }
 
 /**
@@ -414,6 +423,63 @@ export class SSEClient {
         progressEvents: ['comment-detection-started', 'comment-detection-progress'],
         completeEvent: 'comment-detection-complete',
         errorEvent: 'comment-detection-error'
+      }
+    );
+  }
+
+  /**
+   * Detect tags in a resource (streaming)
+   *
+   * Streams tag detection progress via Server-Sent Events.
+   * Uses AI to identify passages serving specific structural roles
+   * (e.g., IRAC, IMRAD, Toulmin) and creates tag annotations with dual-body structure.
+   *
+   * @param resourceId - Resource URI or ID
+   * @param request - Detection configuration (schema and categories to detect)
+   * @returns SSE stream controller with progress/complete/error callbacks
+   *
+   * @example
+   * ```typescript
+   * const stream = sseClient.detectTags('http://localhost:4000/resources/doc-123', {
+   *   schemaId: 'legal-irac',
+   *   categories: ['Issue', 'Rule', 'Application', 'Conclusion']
+   * });
+   *
+   * stream.onProgress((progress) => {
+   *   console.log(`${progress.status}: ${progress.percentage}%`);
+   *   console.log(`Processing ${progress.currentCategory}...`);
+   * });
+   *
+   * stream.onComplete((result) => {
+   *   console.log(`Detection complete! Created ${result.tagsCreated} tags`);
+   * });
+   *
+   * stream.onError((error) => {
+   *   console.error('Detection failed:', error.message);
+   * });
+   *
+   * // Cleanup when done
+   * stream.close();
+   * ```
+   */
+  detectTags(
+    resourceId: ResourceUri,
+    request: DetectTagsStreamRequest
+  ): SSEStream<TagDetectionProgress, TagDetectionProgress> {
+    const id = this.extractId(resourceId);
+    const url = `${this.baseUrl}/resources/${id}/detect-tags-stream`;
+
+    return createSSEStream<TagDetectionProgress, TagDetectionProgress>(
+      url,
+      {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(request)
+      },
+      {
+        progressEvents: ['tag-detection-started', 'tag-detection-progress'],
+        completeEvent: 'tag-detection-complete',
+        errorEvent: 'tag-detection-error'
       }
     );
   }

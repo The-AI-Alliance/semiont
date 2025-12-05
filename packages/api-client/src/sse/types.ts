@@ -162,6 +162,45 @@ export interface CommentDetectionProgress {
 }
 
 /**
+ * Progress event for tag detection stream
+ *
+ * Sent by POST /resources/:id/detect-tags-stream
+ *
+ * @example
+ * ```typescript
+ * stream.onProgress((progress: TagDetectionProgress) => {
+ *   if (progress.status === 'analyzing') {
+ *     console.log(`Analyzing ${progress.currentCategory}: ${progress.percentage}%`);
+ *   }
+ * });
+ * ```
+ */
+export interface TagDetectionProgress {
+  /** Current status of tag detection operation */
+  status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
+  /** Resource ID being analyzed */
+  resourceId: string;
+  /** Current stage of processing */
+  stage?: 'analyzing' | 'creating';
+  /** Percentage complete (0-100) */
+  percentage?: number;
+  /** Currently processing this category */
+  currentCategory?: string;
+  /** Number of categories processed */
+  processedCategories?: number;
+  /** Total number of categories */
+  totalCategories?: number;
+  /** Human-readable status message */
+  message?: string;
+  /** Total tags found */
+  tagsFound?: number;
+  /** Total tags created */
+  tagsCreated?: number;
+  /** Tags found by category */
+  byCategory?: Record<string, number>;
+}
+
+/**
  * Resource event from real-time event stream
  *
  * Sent by GET /resources/:id/events/stream

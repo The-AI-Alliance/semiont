@@ -41,6 +41,7 @@ import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
 import { CommentsPanel } from '@/components/resource/panels/CommentsPanel';
 import { HighlightPanel } from '@/components/resource/panels/HighlightPanel';
 import { AssessmentPanel } from '@/components/resource/panels/AssessmentPanel';
+import { TaggingPanel } from '@/components/resource/panels/TaggingPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
@@ -224,6 +225,7 @@ function ResourceView({
   const references = groups.reference || [];
   const assessments = groups.assessment || [];
   const comments = groups.comment || [];
+  const tags = groups.tag || [];
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   // Using React Query's invalidateQueries is the best practice - it invalidates cache
@@ -279,6 +281,8 @@ function ResourceView({
   const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null);
   const [focusedAssessmentId, setFocusedAssessmentId] = useState<string | null>(null);
   const [hoveredAssessmentId, setHoveredAssessmentId] = useState<string | null>(null);
+  const [focusedTagId, setFocusedTagId] = useState<string | null>(null);
+  const [hoveredTagId, setHoveredTagId] = useState<string | null>(null);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
@@ -305,6 +309,15 @@ function ResourceView({
     status: string;
     percentage?: number;
     message?: string;
+  } | null>(null);
+
+  // Detection states for tags
+  const [isDetectingTags, setIsDetectingTags] = useState(false);
+  const [tagDetectionProgress, setTagDetectionProgress] = useState<{
+    status: string;
+    percentage?: number;
+    message?: string;
+    currentCategory?: string;
   } | null>(null);
 
   // Handle event hover - trigger sparkle animation
@@ -606,6 +619,50 @@ function ResourceView({
     }
   }, [client, rUri, refetchAnnotations, showSuccess, showError]);
 
+  /**
+   * Handle tag detection
+   */
+  const handleDetectTags = useCallback(async (schemaId: string, categories: string[]) => {
+    if (!client) return;
+
+    setIsDetectingTags(true);
+    setTagDetectionProgress({ status: 'started', message: 'Starting tag detection...' });
+
+    try {
+      const stream = client.sse.detectTags(rUri, { schemaId, categories });
+
+      stream.onProgress((progress: any) => {
+        setTagDetectionProgress({
+          status: progress.status,
+          percentage: progress.percentage,
+          message: progress.message,
+          currentCategory: progress.currentCategory
+        });
+      });
+
+      stream.onComplete((result: any) => {
+        setTagDetectionProgress({
+          status: 'complete',
+          percentage: 100,
+          message: `Created ${result.tagsCreated} tags`
+        });
+        setIsDetectingTags(false);
+        refetchAnnotations();
+        showSuccess(`Created ${result.tagsCreated} tags`);
+      });
+
+      stream.onError((error: any) => {
+        setTagDetectionProgress(null);
+        setIsDetectingTags(false);
+        showError(`Tag detection failed: ${error.message}`);
+      });
+    } catch (error) {
+      setIsDetectingTags(false);
+      setTagDetectionProgress(null);
+      showError('Failed to start tag detection');
+    }
+  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
+
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useResourceEvents({
     rUri,
@@ -810,6 +867,7 @@ function ResourceView({
               activePanel === 'comments' ? 'w-[400px]' :
               activePanel === 'highlights' ? 'w-[400px]' :
               activePanel === 'assessments' ? 'w-[400px]' :
+              activePanel === 'tags' ? 'w-[400px]' :
               'w-64'
             }
           >
@@ -995,6 +1053,24 @@ function ResourceView({
                 isDetecting={isDetectingAssessments}
                 detectionProgress={assessmentDetectionProgress}
                 annotateMode={annotateMode}
+              />
+            )}
+
+            {/* Tags Panel */}
+            {activePanel === 'tags' && (
+              <TaggingPanel
+                tags={tags}
+                onTagClick={(annotation) => {
+                  setHoveredTagId(annotation.id);
+                  setTimeout(() => setHoveredTagId(null), 1500);
+                }}
+                focusedTagId={focusedTagId}
+                hoveredTagId={hoveredTagId}
+                onTagHover={setHoveredTagId}
+                resourceContent={content}
+                {...(primaryMediaType?.startsWith('text/') ? { onDetectTags: handleDetectTags } : {})}
+                isDetecting={isDetectingTags}
+                detectionProgress={tagDetectionProgress}
               />
             )}
 
