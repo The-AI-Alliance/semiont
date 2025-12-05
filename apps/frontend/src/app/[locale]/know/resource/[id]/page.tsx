@@ -798,7 +798,7 @@ function ResourceView({
               ) : (
                 <ResourceViewer
                   resource={{ ...resource, content }}
-                annotations={{ highlights, references, assessments, comments }}
+                annotations={{ highlights, references, assessments, comments, tags }}
                 onRefetchAnnotations={() => {
                   // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
                   // This prevents race condition where we refetch before the event is processed
@@ -837,6 +837,13 @@ function ResourceView({
                   setFocusedAssessmentId(assessmentId);
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedAssessmentId(null), 3000);
+                }}
+                onTagClick={(tagId) => {
+                  // Open Tags Panel and focus on this tag
+                  setActivePanel('tags');
+                  setFocusedTagId(tagId);
+                  // Clear after a short delay to remove highlight
+                  setTimeout(() => setFocusedTagId(null), 3000);
                 }}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}

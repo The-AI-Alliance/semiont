@@ -187,9 +187,9 @@ export function AnnotateView({
 
   const category = getMimeCategory(mimeType);
 
-  const { highlights, references, assessments, comments } = annotations;
+  const { highlights, references, assessments, comments, tags } = annotations;
 
-  const allAnnotations = [...highlights, ...references, ...assessments, ...comments];
+  const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
 
   // Extract individual handlers from grouped objects
