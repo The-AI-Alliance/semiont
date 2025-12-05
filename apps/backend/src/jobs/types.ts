@@ -11,7 +11,7 @@ import type { ResourceId, UserId, AnnotationId } from '@semiont/core';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
-export type JobType = 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection';
+export type JobType = 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
 
 /**
@@ -130,9 +130,32 @@ export interface CommentDetectionJob extends BaseJob {
 }
 
 /**
+ * Tag Detection job - identifies passages serving structural roles using AI
+ */
+export interface TagDetectionJob extends BaseJob {
+  type: 'tag-detection';
+  resourceId: ResourceId;
+  schemaId: string;  // e.g., 'legal-irac', 'scientific-imrad'
+  categories: string[];  // e.g., ['Issue', 'Rule', 'Application', 'Conclusion']
+  progress?: {
+    stage: 'analyzing' | 'creating';
+    percentage: number;
+    currentCategory?: string;  // Category currently being processed
+    processedCategories: number;
+    totalCategories: number;
+    message?: string;
+  };
+  result?: {
+    tagsFound: number;
+    tagsCreated: number;
+    byCategory: Record<string, number>;  // e.g., { "Issue": 1, "Rule": 2 }
+  };
+}
+
+/**
  * Discriminated union of all job types
  */
-export type Job = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentDetectionJob | CommentDetectionJob;
+export type Job = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentDetectionJob | CommentDetectionJob | TagDetectionJob;
 
 /**
  * Job creation request types (without server-generated fields)

@@ -11,7 +11,8 @@
         "generation",
         "highlight-detection",
         "assessment-detection",
-        "comment-detection"
+        "comment-detection",
+        "tag-detection"
       ]
     },
     "status": {
