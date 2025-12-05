@@ -479,7 +479,10 @@
     "cancel": "Cancelar",
     "selectAll": "Seleccionar Todo",
     "deselectAll": "Deseleccionar Todo",
-    "categoriesSelected": "{count, plural, =0 {Ninguna categoría seleccionada} =1 {1 categoría seleccionada} other {# categorías seleccionadas}}"
+    "categoriesSelected": "{count, plural, =0 {Ninguna categoría seleccionada} =1 {1 categoría seleccionada} other {# categorías seleccionadas}}",
+    "createTagForSelection": "Crear Etiqueta para Selección",
+    "selectCategory": "Seleccionar Categoría",
+    "chooseCategory": "Elegir una categoría..."
   },
   "Toolbar": {
     "comments": "Comentarios",

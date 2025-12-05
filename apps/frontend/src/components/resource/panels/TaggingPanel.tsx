@@ -19,6 +19,7 @@ interface TaggingPanelProps {
   resourceContent: string;
   annotateMode?: boolean;
   onDetectTags?: (schemaId: string, categories: string[]) => void | Promise<void>;
+  onCreateTag?: (selection: { exact: string; start: number; end: number }, schemaId: string, category: string) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
@@ -27,6 +28,11 @@ interface TaggingPanelProps {
     processedCategories?: number;
     totalCategories?: number;
     message?: string;
+  } | null;
+  pendingSelection?: {
+    exact: string;
+    start: number;
+    end: number;
   } | null;
 }
 
@@ -39,8 +45,10 @@ export function TaggingPanel({
   resourceContent,
   annotateMode = true,
   onDetectTags,
+  onCreateTag,
   isDetecting = false,
   detectionProgress,
+  pendingSelection
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
@@ -95,6 +103,60 @@ export function TaggingPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Pending Manual Tag Creation */}
+        {pendingSelection && onCreateTag && (
+          <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-4">
+            <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-100 mb-2">
+              {t('createTagForSelection')}
+            </h3>
+            <div className="p-3 bg-white dark:bg-gray-800 rounded border-l-4 border-orange-500 mb-3">
+              <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+                "{pendingSelection.exact.substring(0, 100)}{pendingSelection.exact.length > 100 ? '...' : ''}"
+              </p>
+            </div>
+
+            {/* Schema and Category Selection for Manual Tag */}
+            <div className="mb-3">
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                {t('selectSchema')}
+              </label>
+              <select
+                value={selectedSchemaId}
+                onChange={(e) => handleSchemaChange(e.target.value)}
+                className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+              >
+                {schemas.map(schema => (
+                  <option key={schema.id} value={schema.id}>
+                    {t(`schema${schema.id === 'legal-irac' ? 'Legal' : schema.id === 'scientific-imrad' ? 'Scientific' : 'Argument'}`)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedSchema && (
+              <div className="mb-3">
+                <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  {t('selectCategory')}
+                </label>
+                <select
+                  className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      onCreateTag(pendingSelection, selectedSchemaId, e.target.value);
+                    }
+                  }}
+                  defaultValue=""
+                >
+                  <option value="">{t('chooseCategory')}</option>
+                  {selectedSchema.tags.map((tag) => (
+                    <option key={tag.name} value={tag.name}>{tag.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Detection Section - only in Annotate mode */}
         {annotateMode && onDetectTags && (
           <div>

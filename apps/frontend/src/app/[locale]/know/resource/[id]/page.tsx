@@ -179,7 +179,7 @@ function ResourceView({
   const { data: session } = useSession();
   const locale = useLocale();
   const { addResource } = useOpenResources();
-  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight, deleteAnnotation, addComment } = useResourceAnnotations();
+  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight, deleteAnnotation, addComment, createAnnotation } = useResourceAnnotations();
   const { showError, showSuccess } = useToast();
   const client = useApiClient();
   const queryClient = useQueryClient();
@@ -275,6 +275,7 @@ function ResourceView({
   const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
+  const [pendingTagSelection, setPendingTagSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
   const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
   const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
@@ -663,6 +664,51 @@ function ResourceView({
     }
   }, [client, rUri, refetchAnnotations, showSuccess, showError]);
 
+  // Manual tag creation handler
+  const handleCreateTag = useCallback(async (
+    selection: { exact: string; start: number; end: number },
+    schemaId: string,
+    category: string
+  ) => {
+    try {
+      // Create tag annotation with dual-body structure
+      await createAnnotation(
+        rUri,
+        'tagging',
+        [
+          {
+            type: 'TextPositionSelector',
+            start: selection.start,
+            end: selection.end
+          },
+          {
+            type: 'TextQuoteSelector',
+            exact: selection.exact
+          }
+        ],
+        [
+          {
+            type: 'TextualBody',
+            purpose: 'tagging',
+            value: category
+          },
+          {
+            type: 'TextualBody',
+            purpose: 'describing',
+            value: schemaId
+          }
+        ]
+      );
+
+      setPendingTagSelection(null);
+      refetchAnnotations();
+      showSuccess(`Tag "${category}" created`);
+    } catch (error) {
+      console.error('Failed to create tag:', error);
+      showError('Failed to create tag');
+    }
+  }, [createAnnotation, rUri, refetchAnnotations, showSuccess, showError]);
+
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useResourceEvents({
     rUri,
@@ -809,6 +855,12 @@ function ResourceView({
                   setPendingCommentSelection(selection);
                   // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
                   setActivePanel('comments');
+                }}
+                onTagCreationRequested={(selection) => {
+                  // Store the selection and ensure the Tags Panel is open
+                  setPendingTagSelection(selection);
+                  // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
+                  setActivePanel('tags');
                 }}
                 onCommentClick={(commentId) => {
                   // Open Comments Panel and focus on this comment
@@ -1075,9 +1127,13 @@ function ResourceView({
                 hoveredTagId={hoveredTagId}
                 onTagHover={setHoveredTagId}
                 resourceContent={content}
-                {...(primaryMediaType?.startsWith('text/') ? { onDetectTags: handleDetectTags } : {})}
+                {...(primaryMediaType?.startsWith('text/') ? {
+                  onDetectTags: handleDetectTags,
+                  onCreateTag: handleCreateTag
+                } : {})}
                 isDetecting={isDetectingTags}
                 detectionProgress={tagDetectionProgress}
+                pendingSelection={pendingTagSelection}
               />
             )}
 

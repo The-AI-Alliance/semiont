@@ -30,6 +30,7 @@ interface Props {
   scrollToAnnotationId?: string | null;
   showLineNumbers?: boolean;
   onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
+  onTagCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
   onCommentClick?: (commentId: string) => void;
   onReferenceClick?: (referenceId: string) => void;
   onHighlightClick?: (highlightId: string) => void;
@@ -50,6 +51,7 @@ export function ResourceViewer({
   scrollToAnnotationId,
   showLineNumbers = false,
   onCommentCreationRequested,
+  onTagCreationRequested,
   onCommentClick,
   onReferenceClick,
   onHighlightClick,
@@ -328,6 +330,31 @@ export function ResourceViewer({
           }
           break;
 
+        case 'tagging':
+          if (selector.type === 'TextQuoteSelector' && selector.exact) {
+            // Text: notify parent to open Tags Panel
+            if (onTagCreationRequested) {
+              onTagCreationRequested({
+                exact: selector.exact,
+                start: selector.start || 0,
+                end: selector.end || 0
+              });
+            }
+          } else if (selector.type === 'SvgSelector' && selector.value) {
+            // Image: create annotation, then open panel
+            const annotation = await createAnnotation(
+              rUri,
+              motivation,
+              { type: 'SvgSelector', value: selector.value },
+              []
+            );
+            if (annotation && onTagClick) {
+              onTagClick(annotation.id);
+            }
+            onRefetchAnnotations?.();
+          }
+          break;
+
         case 'linking':
           // Show Quick Reference popup FIRST (works for both text and images)
           if (selector.type === 'TextQuoteSelector' && selector.exact) {
@@ -360,7 +387,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create annotation:', err);
     }
-  }, [rUri, addHighlight, addAssessment, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onCommentClick]);
+  }, [rUri, addHighlight, addAssessment, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onTagCreationRequested, onCommentClick, onTagClick]);
 
   // Handle quick reference creation from popup
   const handleQuickReferenceCreate = useCallback(async (entityType?: string) => {

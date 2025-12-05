@@ -479,7 +479,10 @@
     "cancel": "Cancel",
     "selectAll": "Select All",
     "deselectAll": "Deselect All",
-    "categoriesSelected": "{count, plural, =0 {No categories selected} =1 {1 category selected} other {# categories selected}}"
+    "categoriesSelected": "{count, plural, =0 {No categories selected} =1 {1 category selected} other {# categories selected}}",
+    "createTagForSelection": "Create Tag for Selection",
+    "selectCategory": "Select Category",
+    "chooseCategory": "Choose a category..."
   },
   "Toolbar": {
     "comments": "Comments",
