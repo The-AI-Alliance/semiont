@@ -571,8 +571,8 @@
     "recentResourcesDescription": "View recently submitted and modified resources",
     "entityTags": "Entity Tags",
     "entityTagsDescription": "Manage resource classification tags",
-    "referenceTags": "Reference Tags",
-    "referenceTagsDescription": "Manage resource relationship types",
+    "tagSchemas": "Tag Schemas",
+    "tagSchemasDescription": "View structural analysis frameworks for automatic tagging",
     "redirecting": "Redirecting..."
   },
   "ModerateRecent": {
@@ -594,6 +594,12 @@
     "adding": "Adding...",
     "addTag": "Add Tag",
     "errorFailedToAdd": "Failed to add tag"
+  },
+  "ModerateTagSchemas": {
+    "loading": "Loading...",
+    "pageTitle": "Tag Schemas",
+    "pageDescription": "View structural analysis frameworks used for automatic tagging detection. These schemas define categories for legal analysis (IRAC), scientific papers (IMRAD), and argument structure (Toulmin).",
+    "categories": "Categories"
   },
   "Administration": {
     "title": "Administration",

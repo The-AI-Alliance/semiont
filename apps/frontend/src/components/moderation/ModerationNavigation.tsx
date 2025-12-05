@@ -7,9 +7,9 @@ import { usePathname } from '@/i18n/routing';
 import {
   ClockIcon,
   TagIcon,
-  LinkIcon,
   FlagIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  BookOpenIcon
 } from '@heroicons/react/24/outline';
 
 export function ModerationNavigation() {
@@ -30,10 +30,10 @@ export function ModerationNavigation() {
       description: t('entityTagsDescription')
     },
     {
-      name: t('referenceTags'),
-      href: '/moderate/reference-tags',
-      icon: LinkIcon,
-      description: t('referenceTagsDescription')
+      name: t('tagSchemas'),
+      href: '/moderate/tag-schemas',
+      icon: BookOpenIcon,
+      description: t('tagSchemasDescription')
     }
     // Future navigation items can be added here
     // {

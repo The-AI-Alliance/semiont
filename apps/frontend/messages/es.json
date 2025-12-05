@@ -571,8 +571,8 @@
     "recentResourcesDescription": "Ver recursos enviados y modificados recientemente",
     "entityTags": "Etiquetas de Entidad",
     "entityTagsDescription": "Gestionar etiquetas de clasificación de documentos",
-    "referenceTags": "Etiquetas de Referencia",
-    "referenceTagsDescription": "Gestionar tipos de relaciones entre documentos",
+    "tagSchemas": "Esquemas de Etiquetas",
+    "tagSchemasDescription": "Ver marcos de análisis estructural para etiquetado automático",
     "redirecting": "Redirigiendo..."
   },
   "ModerateRecent": {
@@ -594,6 +594,12 @@
     "adding": "Agregando...",
     "addTag": "Agregar Etiqueta",
     "errorFailedToAdd": "No se pudo agregar la etiqueta"
+  },
+  "ModerateTagSchemas": {
+    "loading": "Cargando...",
+    "pageTitle": "Esquemas de Etiquetas",
+    "pageDescription": "Ver marcos de análisis estructural utilizados para la detección automática de etiquetado. Estos esquemas definen categorías para análisis legal (IRAC), artículos científicos (IMRAD) y estructura argumentativa (Toulmin).",
+    "categories": "Categorías"
   },
   "Administration": {
     "title": "Administración",
