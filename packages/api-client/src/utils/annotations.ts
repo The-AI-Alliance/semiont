@@ -197,6 +197,13 @@ export function isComment(annotation: Annotation): annotation is Annotation {
 }
 
 /**
+ * Type guard to check if an annotation is a tag
+ */
+export function isTag(annotation: Annotation): annotation is Annotation {
+  return annotation.motivation === 'tagging';
+}
+
+/**
  * Extract comment text from a comment annotation's body
  * @param annotation - The annotation to extract comment text from
  * @returns The comment text, or undefined if not a comment or no text found
@@ -206,6 +213,38 @@ export function getCommentText(annotation: Annotation): string | undefined {
   const body = Array.isArray(annotation.body) ? annotation.body[0] : annotation.body;
   if (body && 'value' in body) {
     return body.value;
+  }
+  return undefined;
+}
+
+/**
+ * Extract tag category from a tag annotation's body
+ * Tags use dual-body structure: first body has purpose: "tagging" with category value
+ * @param annotation - The annotation to extract category from
+ * @returns The tag category (e.g., "Issue", "Rule"), or undefined if not a tag or no category found
+ */
+export function getTagCategory(annotation: Annotation): string | undefined {
+  if (!isTag(annotation)) return undefined;
+  const bodies = Array.isArray(annotation.body) ? annotation.body : [annotation.body];
+  const taggingBody = bodies.find(b => b && 'purpose' in b && b.purpose === 'tagging');
+  if (taggingBody && 'value' in taggingBody) {
+    return taggingBody.value;
+  }
+  return undefined;
+}
+
+/**
+ * Extract tag schema ID from a tag annotation's body
+ * Tags use dual-body structure: second body has purpose: "classifying" with schema ID
+ * @param annotation - The annotation to extract schema ID from
+ * @returns The schema ID (e.g., "legal-irac"), or undefined if not a tag or no schema found
+ */
+export function getTagSchemaId(annotation: Annotation): string | undefined {
+  if (!isTag(annotation)) return undefined;
+  const bodies = Array.isArray(annotation.body) ? annotation.body : [annotation.body];
+  const classifyingBody = bodies.find(b => b && 'purpose' in b && b.purpose === 'classifying');
+  if (classifyingBody && 'value' in classifyingBody) {
+    return classifyingBody.value;
   }
   return undefined;
 }

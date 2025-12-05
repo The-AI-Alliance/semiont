@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting';
+export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'tagging';
 export type ClickAction = 'detail' | 'follow' | 'jsonld' | 'deleting';
 export type ShapeType = 'rectangle' | 'circle' | 'polygon';
 
@@ -169,6 +169,16 @@ export function AnnotateToolbar({
             aria-pressed={selectedMotivation === 'commenting'}
           >
             <span className="text-lg">💬</span>
+          </button>
+
+          {/* Tagging Button */}
+          <button
+            onClick={() => handleSelectionClick('tagging')}
+            className={getButtonClass('tagging')}
+            title={t('tagging')}
+            aria-pressed={selectedMotivation === 'tagging'}
+          >
+            <span className="text-lg">🏷️</span>
           </button>
         </div>
       )}

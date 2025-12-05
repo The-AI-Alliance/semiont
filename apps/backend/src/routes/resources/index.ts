@@ -11,6 +11,7 @@ import { registerDetectAnnotationsStream } from './routes/detect-annotations-str
 import { registerDetectHighlightsStream } from './routes/detect-highlights-stream';
 import { registerDetectAssessmentsStream } from './routes/detect-assessments-stream';
 import { registerDetectCommentsStream } from './routes/detect-comments-stream';
+import { registerDetectTagsStream } from './routes/detect-tags-stream';
 import { registerGetResourceLLMContext } from './routes/llm-context';
 import { registerGetAnnotationLLMContext } from './routes/annotation-llm-context';
 import { registerGetReferencedBy } from './routes/referenced-by';
@@ -46,6 +47,7 @@ registerDetectAnnotationsStream(resourcesRouter);  // POST /resources/:id/detect
 registerDetectHighlightsStream(resourcesRouter);  // POST /resources/:id/detect-highlights-stream
 registerDetectAssessmentsStream(resourcesRouter);  // POST /resources/:id/detect-assessments-stream
 registerDetectCommentsStream(resourcesRouter);  // POST /resources/:id/detect-comments-stream
+registerDetectTagsStream(resourcesRouter);  // POST /resources/:id/detect-tags-stream
 registerGetResourceLLMContext(resourcesRouter);  // GET /resources/:id/llm-context
 registerGetAnnotationLLMContext(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/llm-context
 registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by

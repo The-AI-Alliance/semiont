@@ -9,7 +9,7 @@ import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferen
 import { PopupContainer } from '@/components/annotation-popups/SharedPopupElements';
 import { JsonLdView } from '@/components/annotation-popups/JsonLdView';
 import type { components, ResourceUri } from '@semiont/api-client';
-import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, getBodySource } from '@semiont/api-client';
+import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
 import type { AnnotationsCollection } from '@/types/annotation-props';
@@ -30,10 +30,12 @@ interface Props {
   scrollToAnnotationId?: string | null;
   showLineNumbers?: boolean;
   onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
+  onTagCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
   onCommentClick?: (commentId: string) => void;
   onReferenceClick?: (referenceId: string) => void;
   onHighlightClick?: (highlightId: string) => void;
   onAssessmentClick?: (assessmentId: string) => void;
+  onTagClick?: (tagId: string) => void;
 }
 
 export function ResourceViewer({
@@ -49,16 +51,18 @@ export function ResourceViewer({
   scrollToAnnotationId,
   showLineNumbers = false,
   onCommentCreationRequested,
+  onTagCreationRequested,
   onCommentClick,
   onReferenceClick,
   onHighlightClick,
-  onAssessmentClick
+  onAssessmentClick,
+  onTagClick
 }: Props) {
   const router = useRouter();
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
-  const { highlights, references, assessments, comments } = annotations;
+  const { highlights, references, assessments, comments, tags } = annotations;
 
   // Extract resource URI once at the top - required for all annotation operations
   // Resources have @id (canonical URI), not id
@@ -93,7 +97,7 @@ export function ResourceViewer({
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('semiont-toolbar-selection');
       if (stored === 'null') return null;
-      if (stored && ['linking', 'highlighting', 'assessing', 'commenting'].includes(stored)) {
+      if (stored && ['linking', 'highlighting', 'assessing', 'commenting', 'tagging'].includes(stored)) {
         return stored as SelectionMotivation;
       }
     }
@@ -207,6 +211,10 @@ export function ResourceViewer({
           onAssessmentClick(annotation.id);
           return;
         }
+        if (isTag(annotation) && onTagClick) {
+          onTagClick(annotation.id);
+          return;
+        }
       }
       // Don't return early for delete/jsonld/follow modes - let them be handled below
       if (selectedClick !== 'deleting' && selectedClick !== 'jsonld' && selectedClick !== 'follow') {
@@ -214,8 +222,8 @@ export function ResourceViewer({
       }
     }
 
-    // Check if this is a highlight, assessment, comment, or reference
-    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation);
+    // Check if this is a highlight, assessment, comment, reference, or tag
+    const isSimpleAnnotation = isHighlight(annotation) || isAssessment(annotation) || isComment(annotation) || isReference(annotation) || isTag(annotation);
 
     // Handle follow mode - navigate to resolved references only (works in both Browse and Annotate modes)
     if (selectedClick === 'follow' && isReference(annotation)) {
@@ -250,7 +258,7 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [router, curationMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, selectedClick, handleDeleteAnnotation]);
+  }, [router, curationMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, onTagClick, selectedClick, handleDeleteAnnotation]);
 
   // Unified annotation creation handler - works for both text and images
   const handleAnnotationCreate = useCallback(async (params: import('@/types/annotation-props').CreateAnnotationParams) => {
@@ -322,6 +330,31 @@ export function ResourceViewer({
           }
           break;
 
+        case 'tagging':
+          if (selector.type === 'TextQuoteSelector' && selector.exact) {
+            // Text: notify parent to open Tags Panel
+            if (onTagCreationRequested) {
+              onTagCreationRequested({
+                exact: selector.exact,
+                start: selector.start || 0,
+                end: selector.end || 0
+              });
+            }
+          } else if (selector.type === 'SvgSelector' && selector.value) {
+            // Image: create annotation, then open panel
+            const annotation = await createAnnotation(
+              rUri,
+              motivation,
+              { type: 'SvgSelector', value: selector.value },
+              []
+            );
+            if (annotation && onTagClick) {
+              onTagClick(annotation.id);
+            }
+            onRefetchAnnotations?.();
+          }
+          break;
+
         case 'linking':
           // Show Quick Reference popup FIRST (works for both text and images)
           if (selector.type === 'TextQuoteSelector' && selector.exact) {
@@ -354,7 +387,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create annotation:', err);
     }
-  }, [rUri, addHighlight, addAssessment, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onCommentClick]);
+  }, [rUri, addHighlight, addAssessment, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onTagCreationRequested, onCommentClick, onTagClick]);
 
   // Handle quick reference creation from popup
   const handleQuickReferenceCreate = useCallback(async (entityType?: string) => {
@@ -415,7 +448,7 @@ export function ResourceViewer({
           content={resource.content}
           mimeType={mimeType}
           resourceUri={resource['@id']}
-          annotations={{ highlights, references, assessments, comments }}
+          annotations={{ highlights, references, assessments, comments, tags }}
           handlers={{
             onClick: handleAnnotationClick,
             ...(onAnnotationHover && { onHover: onAnnotationHover }),
@@ -451,7 +484,7 @@ export function ResourceViewer({
           content={resource.content}
           mimeType={mimeType}
           resourceUri={resource['@id']}
-          annotations={{ highlights, references, assessments, comments }}
+          annotations={{ highlights, references, assessments, comments, tags }}
           handlers={{
             onClick: handleAnnotationClick,
             ...(onCommentHover && { onCommentHover })

@@ -78,6 +78,9 @@
     "/resources/{id}/detect-comments-stream": {
       "$ref": "paths/resources_{id}_detect-comments-stream.json"
     },
+    "/resources/{id}/detect-tags-stream": {
+      "$ref": "paths/resources_{id}_detect-tags-stream.json"
+    },
     "/resources/{id}/llm-context": {
       "$ref": "paths/resources_{id}_llm-context.json"
     },
@@ -246,6 +249,12 @@
       },
       "DetectAssessmentsStreamRequest": {
         "$ref": "components/schemas/DetectAssessmentsStreamRequest.json"
+      },
+      "DetectCommentsStreamRequest": {
+        "$ref": "components/schemas/DetectCommentsStreamRequest.json"
+      },
+      "DetectTagsStreamRequest": {
+        "$ref": "components/schemas/DetectTagsStreamRequest.json"
       },
       "ErrorResponse": {
         "$ref": "components/schemas/ErrorResponse.json"

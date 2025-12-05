@@ -27,7 +27,7 @@ interface ResourceAnnotationsContextType {
   // Generic annotation creation (supports both text and image annotations)
   createAnnotation: (
     rUri: ResourceUri,
-    motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting',
+    motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
     body?: any[]
   ) => Promise<Annotation | undefined>;
@@ -62,7 +62,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   // Generic annotation creation function (supports both text and image annotations)
   const createAnnotation = useCallback(async (
     rUri: ResourceUri,
-    motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting',
+    motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
     body: any[] = []
   ): Promise<Annotation | undefined> => {

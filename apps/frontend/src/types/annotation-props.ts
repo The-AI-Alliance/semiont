@@ -13,13 +13,14 @@ type Annotation = components['schemas']['Annotation'];
 
 /**
  * Collection of all annotation types for a resource.
- * Replaces separate highlights, references, assessments, comments props.
+ * Replaces separate highlights, references, assessments, comments, tags props.
  */
 export interface AnnotationsCollection {
   highlights: Annotation[];
   references: Annotation[];
   assessments: Annotation[];
   comments: Annotation[];
+  tags: Annotation[];
 }
 
 /**

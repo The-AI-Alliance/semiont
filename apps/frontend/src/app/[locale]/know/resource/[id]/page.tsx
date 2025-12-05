@@ -41,6 +41,7 @@ import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
 import { CommentsPanel } from '@/components/resource/panels/CommentsPanel';
 import { HighlightPanel } from '@/components/resource/panels/HighlightPanel';
 import { AssessmentPanel } from '@/components/resource/panels/AssessmentPanel';
+import { TaggingPanel } from '@/components/resource/panels/TaggingPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
@@ -178,7 +179,7 @@ function ResourceView({
   const { data: session } = useSession();
   const locale = useLocale();
   const { addResource } = useOpenResources();
-  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight, deleteAnnotation, addComment } = useResourceAnnotations();
+  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight, deleteAnnotation, addComment, createAnnotation } = useResourceAnnotations();
   const { showError, showSuccess } = useToast();
   const client = useApiClient();
   const queryClient = useQueryClient();
@@ -224,6 +225,7 @@ function ResourceView({
   const references = groups.reference || [];
   const assessments = groups.assessment || [];
   const comments = groups.comment || [];
+  const tags = groups.tag || [];
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   // Using React Query's invalidateQueries is the best practice - it invalidates cache
@@ -273,12 +275,15 @@ function ResourceView({
   const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
+  const [pendingTagSelection, setPendingTagSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
   const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
   const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
   const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null);
   const [focusedAssessmentId, setFocusedAssessmentId] = useState<string | null>(null);
   const [hoveredAssessmentId, setHoveredAssessmentId] = useState<string | null>(null);
+  const [focusedTagId, setFocusedTagId] = useState<string | null>(null);
+  const [hoveredTagId, setHoveredTagId] = useState<string | null>(null);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
@@ -305,6 +310,15 @@ function ResourceView({
     status: string;
     percentage?: number;
     message?: string;
+  } | null>(null);
+
+  // Detection states for tags
+  const [isDetectingTags, setIsDetectingTags] = useState(false);
+  const [tagDetectionProgress, setTagDetectionProgress] = useState<{
+    status: string;
+    percentage?: number;
+    message?: string;
+    currentCategory?: string;
   } | null>(null);
 
   // Handle event hover - trigger sparkle animation
@@ -606,6 +620,95 @@ function ResourceView({
     }
   }, [client, rUri, refetchAnnotations, showSuccess, showError]);
 
+  /**
+   * Handle tag detection
+   */
+  const handleDetectTags = useCallback(async (schemaId: string, categories: string[]) => {
+    if (!client) return;
+
+    setIsDetectingTags(true);
+    setTagDetectionProgress({ status: 'started', message: 'Starting tag detection...' });
+
+    try {
+      const stream = client.sse.detectTags(rUri, { schemaId, categories });
+
+      stream.onProgress((progress: any) => {
+        setTagDetectionProgress({
+          status: progress.status,
+          percentage: progress.percentage,
+          message: progress.message,
+          currentCategory: progress.currentCategory
+        });
+      });
+
+      stream.onComplete((result: any) => {
+        setTagDetectionProgress({
+          status: 'complete',
+          percentage: 100,
+          message: `Created ${result.tagsCreated} tags`
+        });
+        setIsDetectingTags(false);
+        refetchAnnotations();
+        showSuccess(`Created ${result.tagsCreated} tags`);
+      });
+
+      stream.onError((error: any) => {
+        setTagDetectionProgress(null);
+        setIsDetectingTags(false);
+        showError(`Tag detection failed: ${error.message}`);
+      });
+    } catch (error) {
+      setIsDetectingTags(false);
+      setTagDetectionProgress(null);
+      showError('Failed to start tag detection');
+    }
+  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
+
+  // Manual tag creation handler
+  const handleCreateTag = useCallback(async (
+    selection: { exact: string; start: number; end: number },
+    schemaId: string,
+    category: string
+  ) => {
+    try {
+      // Create tag annotation with dual-body structure
+      await createAnnotation(
+        rUri,
+        'tagging',
+        [
+          {
+            type: 'TextPositionSelector',
+            start: selection.start,
+            end: selection.end
+          },
+          {
+            type: 'TextQuoteSelector',
+            exact: selection.exact
+          }
+        ],
+        [
+          {
+            type: 'TextualBody',
+            purpose: 'tagging',
+            value: category
+          },
+          {
+            type: 'TextualBody',
+            purpose: 'describing',
+            value: schemaId
+          }
+        ]
+      );
+
+      setPendingTagSelection(null);
+      refetchAnnotations();
+      showSuccess(`Tag "${category}" created`);
+    } catch (error) {
+      console.error('Failed to create tag:', error);
+      showError('Failed to create tag');
+    }
+  }, [createAnnotation, rUri, refetchAnnotations, showSuccess, showError]);
+
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useResourceEvents({
     rUri,
@@ -741,7 +844,7 @@ function ResourceView({
               ) : (
                 <ResourceViewer
                   resource={{ ...resource, content }}
-                annotations={{ highlights, references, assessments, comments }}
+                annotations={{ highlights, references, assessments, comments, tags }}
                 onRefetchAnnotations={() => {
                   // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
                   // This prevents race condition where we refetch before the event is processed
@@ -752,6 +855,12 @@ function ResourceView({
                   setPendingCommentSelection(selection);
                   // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
                   setActivePanel('comments');
+                }}
+                onTagCreationRequested={(selection) => {
+                  // Store the selection and ensure the Tags Panel is open
+                  setPendingTagSelection(selection);
+                  // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
+                  setActivePanel('tags');
                 }}
                 onCommentClick={(commentId) => {
                   // Open Comments Panel and focus on this comment
@@ -780,6 +889,13 @@ function ResourceView({
                   setFocusedAssessmentId(assessmentId);
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedAssessmentId(null), 3000);
+                }}
+                onTagClick={(tagId) => {
+                  // Open Tags Panel and focus on this tag
+                  setActivePanel('tags');
+                  setFocusedTagId(tagId);
+                  // Clear after a short delay to remove highlight
+                  setTimeout(() => setFocusedTagId(null), 3000);
                 }}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
@@ -810,6 +926,7 @@ function ResourceView({
               activePanel === 'comments' ? 'w-[400px]' :
               activePanel === 'highlights' ? 'w-[400px]' :
               activePanel === 'assessments' ? 'w-[400px]' :
+              activePanel === 'tags' ? 'w-[400px]' :
               'w-64'
             }
           >
@@ -995,6 +1112,28 @@ function ResourceView({
                 isDetecting={isDetectingAssessments}
                 detectionProgress={assessmentDetectionProgress}
                 annotateMode={annotateMode}
+              />
+            )}
+
+            {/* Tags Panel */}
+            {activePanel === 'tags' && (
+              <TaggingPanel
+                tags={tags}
+                onTagClick={(annotation) => {
+                  setHoveredTagId(annotation.id);
+                  setTimeout(() => setHoveredTagId(null), 1500);
+                }}
+                focusedTagId={focusedTagId}
+                hoveredTagId={hoveredTagId}
+                onTagHover={setHoveredTagId}
+                resourceContent={content}
+                {...(primaryMediaType?.startsWith('text/') ? {
+                  onDetectTags: handleDetectTags,
+                  onCreateTag: handleCreateTag
+                } : {})}
+                isDetecting={isDetectingTags}
+                detectionProgress={tagDetectionProgress}
+                pendingSelection={pendingTagSelection}
               />
             )}
 

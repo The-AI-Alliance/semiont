@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "schemaId": {
+      "type": "string",
+      "description": "Tag schema ID (e.g., 'legal-irac', 'scientific-imrad', 'argument-toulmin')"
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Categories to detect from the selected schema (e.g., ['Issue', 'Rule', 'Application', 'Conclusion'])"
+    }
+  },
+  "required": ["schemaId", "categories"]
+}

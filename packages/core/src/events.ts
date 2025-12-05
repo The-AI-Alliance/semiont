@@ -93,7 +93,7 @@ export interface AnnotationRemovedEvent extends BaseEvent {
 
 // Body operation types for fine-grained annotation body modifications
 export type BodyItem =
-  | { type: 'TextualBody'; value: string; purpose: 'tagging' | 'commenting' | 'describing'; format?: string; language?: string }
+  | { type: 'TextualBody'; value: string; purpose: 'tagging' | 'commenting' | 'describing' | 'classifying'; format?: string; language?: string }
   | { type: 'SpecificResource'; source: string; purpose: 'linking' };
 
 export type BodyOperation =
@@ -116,7 +116,7 @@ export interface JobStartedEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection';
+    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
     totalSteps?: number;  // Optional - total number of steps if known
   };
 }
@@ -126,7 +126,7 @@ export interface JobProgressEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection';
+    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
     percentage: number;  // 0-100
     currentStep?: string;  // Human-readable current step (e.g., "Scanning for Person")
     processedSteps?: number;  // Number of steps completed
@@ -142,7 +142,7 @@ export interface JobCompletedEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection';
+    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
     totalSteps?: number;  // Total steps completed
     foundCount?: number;  // For detection: total entities found
     resultResourceId?: ResourceId;  // For generation: ID of generated resource (branded type)
@@ -157,7 +157,7 @@ export interface JobFailedEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection';
+    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
     error: string;  // Error message
     details?: string;  // Optional detailed error information
   };

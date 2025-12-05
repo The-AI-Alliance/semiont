@@ -70,7 +70,7 @@ export function BrowseView({
 
   const category = getMimeCategory(mimeType);
 
-  const { highlights, references, assessments, comments } = annotations;
+  const { highlights, references, assessments, comments, tags } = annotations;
 
   // Extract individual handlers from grouped object
   const onAnnotationClick = handlers?.onClick;
@@ -78,8 +78,8 @@ export function BrowseView({
   const onCommentHover = handlers?.onCommentHover;
 
   const allAnnotations = useMemo(() =>
-    [...highlights, ...references, ...assessments, ...comments],
-    [highlights, references, assessments, comments]
+    [...highlights, ...references, ...assessments, ...comments, ...tags],
+    [highlights, references, assessments, comments, tags]
   );
 
   const preparedAnnotations = useMemo(() =>

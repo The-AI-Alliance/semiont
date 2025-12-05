@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-export type ToolbarPanelType = 'document' | 'history' | 'info' | 'references' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments' | 'highlights' | 'assessments';
+export type ToolbarPanelType = 'document' | 'history' | 'info' | 'references' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments' | 'highlights' | 'assessments' | 'tags';
 
 interface UseToolbarOptions {
   /** Initial panel to show (default: null) */
@@ -55,5 +55,5 @@ export function useToolbar(options: UseToolbarOptions = {}) {
 
 // Helper to validate panel names
 function isValidPanel(value: string): boolean {
-  return ['document', 'history', 'info', 'references', 'settings', 'collaboration', 'user', 'jsonld', 'comments', 'highlights', 'assessments'].includes(value);
+  return ['document', 'history', 'info', 'references', 'settings', 'collaboration', 'user', 'jsonld', 'comments', 'highlights', 'assessments', 'tags'].includes(value);
 }

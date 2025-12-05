@@ -14,7 +14,8 @@
       "enum": [
         "tagging",
         "describing",
-        "commenting"
+        "commenting",
+        "classifying"
       ],
       "description": "Why this body is included"
     },

@@ -12,7 +12,7 @@
  */
 
 import type { components } from '@semiont/api-client';
-import { isHighlight, isComment, isReference } from '@semiont/api-client';
+import { isHighlight, isComment, isReference, isTag } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation']; // Already defined in api-client with all 13 W3C motivations!
@@ -94,6 +94,20 @@ export const ANNOTATION_TYPES: Record<string, AnnotationTypeMetadata> = {
     hasSidePanel: true,
     matchesAnnotation: (ann) => isReference(ann),
     announceOnCreate: 'Reference created'
+  },
+
+  tag: {
+    motivation: 'tagging',
+    internalType: 'tag',
+    displayName: 'Tag',
+    description: 'Structural role annotation',
+    className: 'rounded px-0.5 cursor-pointer transition-all duration-200 bg-gradient-to-r from-orange-200 to-amber-200 hover:from-orange-300 hover:to-amber-300 text-gray-900 dark:from-orange-900/50 dark:to-amber-900/50 dark:hover:from-orange-900/60 dark:hover:to-amber-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-orange-500/60 dark:outline-offset-1',
+    iconEmoji: '🏷️',
+    isClickable: true,
+    hasHoverInteraction: true,
+    hasSidePanel: true,
+    matchesAnnotation: (ann) => isTag(ann),
+    announceOnCreate: 'Tag created'
   }
 };
 
