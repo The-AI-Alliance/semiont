@@ -32,16 +32,12 @@ import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 import { useResourceEvents } from '@/hooks/useResourceEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
-import { ReferencesPanel } from '@/components/resource/panels/ReferencesPanel';
+import { UnifiedAnnotationsPanel } from '@/components/resource/panels/UnifiedAnnotationsPanel';
 import { ResourceInfoPanel } from '@/components/resource/panels/ResourceInfoPanel';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/resource/panels/CollaborationPanel';
 import { ResourceActionsPanel } from '@/components/resource/panels/ResourceActionsPanel';
 import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
-import { CommentsPanel } from '@/components/resource/panels/CommentsPanel';
-import { HighlightPanel } from '@/components/resource/panels/HighlightPanel';
-import { AssessmentPanel } from '@/components/resource/panels/AssessmentPanel';
-import { TaggingPanel } from '@/components/resource/panels/TaggingPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
@@ -851,48 +847,48 @@ function ResourceView({
                 }}
                 curationMode={annotateMode}
                 onCommentCreationRequested={(selection) => {
-                  // Store the selection and ensure the Comments Panel is open
+                  // Store the selection and ensure the Annotations Panel is open
                   setPendingCommentSelection(selection);
                   // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
-                  setActivePanel('comments');
+                  setActivePanel('annotations');
                 }}
                 onTagCreationRequested={(selection) => {
-                  // Store the selection and ensure the Tags Panel is open
+                  // Store the selection and ensure the Annotations Panel is open
                   setPendingTagSelection(selection);
                   // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
-                  setActivePanel('tags');
+                  setActivePanel('annotations');
                 }}
                 onCommentClick={(commentId) => {
-                  // Open Comments Panel and focus on this comment
-                  setActivePanel('comments');
+                  // Open Annotations Panel and focus on this comment
+                  setActivePanel('annotations');
                   setFocusedCommentId(commentId);
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedCommentId(null), 3000);
                 }}
                 onReferenceClick={(referenceId) => {
-                  // Open References Panel and focus on this reference
-                  setActivePanel('references');
+                  // Open Annotations Panel and focus on this reference
+                  setActivePanel('annotations');
                   setFocusedReferenceId(referenceId);
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedReferenceId(null), 3000);
                 }}
                 onHighlightClick={(highlightId) => {
-                  // Open Highlights Panel and focus on this highlight
-                  setActivePanel('highlights');
+                  // Open Annotations Panel and focus on this highlight
+                  setActivePanel('annotations');
                   setFocusedHighlightId(highlightId);
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedHighlightId(null), 3000);
                 }}
                 onAssessmentClick={(assessmentId) => {
-                  // Open Assessments Panel and focus on this assessment
-                  setActivePanel('assessments');
+                  // Open Annotations Panel and focus on this assessment
+                  setActivePanel('annotations');
                   setFocusedAssessmentId(assessmentId);
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedAssessmentId(null), 3000);
                 }}
                 onTagClick={(tagId) => {
-                  // Open Tags Panel and focus on this tag
-                  setActivePanel('tags');
+                  // Open Annotations Panel and focus on this tag
+                  setActivePanel('annotations');
                   setFocusedTagId(tagId);
                   // Clear after a short delay to remove highlight
                   setTimeout(() => setFocusedTagId(null), 3000);
@@ -922,11 +918,7 @@ function ResourceView({
             onLineNumbersToggle={toggleLineNumbers}
             width={
               activePanel === 'jsonld' ? 'w-[600px]' :
-              activePanel === 'references' ? 'w-[400px]' :
-              activePanel === 'comments' ? 'w-[400px]' :
-              activePanel === 'highlights' ? 'w-[400px]' :
-              activePanel === 'assessments' ? 'w-[400px]' :
-              activePanel === 'tags' ? 'w-[400px]' :
+              activePanel === 'annotations' ? 'w-[400px]' :
               'w-64'
             }
           >
@@ -949,91 +941,77 @@ function ResourceView({
               />
             )}
 
-            {/* References Panel */}
-            {activePanel === 'references' && !resource.archived && (
-              <ReferencesPanel
-                allEntityTypes={allEntityTypes}
-                isDetecting={isDetecting}
-                detectionProgress={detectionProgress}
-                onDetect={handleDetectEntityReferences}
-                onCancelDetection={cancelDetection}
+            {/* Unified Annotations Panel */}
+            {activePanel === 'annotations' && !resource.archived && (
+              <UnifiedAnnotationsPanel
+                highlights={highlights}
                 references={references}
-                annotateMode={annotateMode}
-                mediaType={primaryMediaType}
+                assessments={assessments}
+                comments={comments}
+                tags={tags}
+                onHighlightClick={(annotation) => {
+                  setHoveredHighlightId(annotation.id);
+                  setTimeout(() => setHoveredHighlightId(null), 1500);
+                }}
                 onReferenceClick={(annotation) => {
-                  // Scroll to reference in document and highlight it
                   setHoveredAnnotationId(annotation.id);
                   setTimeout(() => setHoveredAnnotationId(null), 1500);
                 }}
-                focusedReferenceId={focusedReferenceId}
-                hoveredReferenceId={hoveredAnnotationId}
+                onAssessmentClick={(annotation) => {
+                  setHoveredAssessmentId(annotation.id);
+                  setTimeout(() => setHoveredAssessmentId(null), 1500);
+                }}
+                onCommentClick={(annotation) => {
+                  setHoveredCommentId(annotation.id);
+                  setTimeout(() => setHoveredCommentId(null), 1500);
+                }}
+                onTagClick={(annotation) => {
+                  setHoveredTagId(annotation.id);
+                  setTimeout(() => setHoveredTagId(null), 1500);
+                }}
+                onHighlightHover={setHoveredHighlightId}
                 onReferenceHover={setHoveredAnnotationId}
-                onGenerateDocument={(title) => {
-                  // Find the reference by title (exact text)
-                  const reference = references.find(r => {
-                    const exact = getAnnotationExactText(r);
-                    return exact === title;
-                  });
-                  if (reference) {
-                    handleGenerateDocument(annotationUri(reference.id), { title });
+                onAssessmentHover={setHoveredAssessmentId}
+                onCommentHover={setHoveredCommentId}
+                onTagHover={setHoveredTagId}
+                focusedHighlightId={focusedHighlightId}
+                focusedReferenceId={focusedReferenceId}
+                focusedAssessmentId={focusedAssessmentId}
+                focusedCommentId={focusedCommentId}
+                focusedTagId={focusedTagId}
+                hoveredHighlightId={hoveredHighlightId}
+                hoveredReferenceId={hoveredAnnotationId}
+                hoveredAssessmentId={hoveredAssessmentId}
+                hoveredCommentId={hoveredCommentId}
+                hoveredTagId={hoveredTagId}
+                annotateMode={annotateMode}
+                {...(primaryMediaType?.startsWith('text/') ? {
+                  onDetectHighlights: handleDetectHighlights,
+                  onDetectAssessments: handleDetectAssessments,
+                  onDetectComments: handleDetectComments,
+                  onDetectTags: handleDetectTags,
+                } : {})}
+                isDetectingHighlights={isDetectingHighlights}
+                isDetectingAssessments={isDetectingAssessments}
+                isDetectingComments={isDetectingComments}
+                isDetectingTags={isDetectingTags}
+                highlightDetectionProgress={highlightDetectionProgress}
+                assessmentDetectionProgress={assessmentDetectionProgress}
+                commentDetectionProgress={commentDetectionProgress}
+                tagDetectionProgress={tagDetectionProgress}
+                onUpdateComment={async (annotationIdStr, newText) => {
+                  // TODO: Implement update comment mutation
+                }}
+                onCreateComment={async (commentText) => {
+                  if (pendingCommentSelection) {
+                    await addComment(rUri, pendingCommentSelection, commentText);
+                    setPendingCommentSelection(null);
                   }
                 }}
-                onSearchDocuments={(referenceId, searchTerm) => {
-                  setSearchTerm(searchTerm);
-                  setPendingReferenceId(referenceId);
-                  setSearchModalOpen(true);
-                }}
-                onUpdateReference={async (referenceId, updates) => {
-                  try {
-                    // Extract short annotation ID from the full URI
-                    const annotationIdShort = referenceId.split('/').pop();
-                    if (!annotationIdShort) {
-                      throw new Error('Invalid reference ID');
-                    }
-
-                    // Construct the nested URI format required by the API
-                    const resourceIdSegment = rUri.split('/').pop() || '';
-                    const nestedUri = `${NEXT_PUBLIC_API_URL}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
-
-                    // Determine operation type based on updates
-                    let operations: any[];
-                    if (Array.isArray(updates.body) && updates.body.length === 0) {
-                      // Unlinking: remove all linking body items
-                      const reference = references.find(r => r.id === referenceId);
-                      if (!reference) {
-                        throw new Error('Reference not found');
-                      }
-                      const bodyArray = Array.isArray(reference.body) ? reference.body : [];
-                      operations = bodyArray
-                        .filter((item: any) => item.purpose === 'linking')
-                        .map((item: any) => ({
-                          op: 'remove',
-                          item,
-                        }));
-                    } else {
-                      // Adding: add the body item
-                      operations = [{
-                        op: 'add',
-                        item: updates.body as any,
-                      }];
-                    }
-
-                    await updateAnnotationBodyMutation.mutateAsync({
-                      annotationUri: resourceAnnotationUri(nestedUri),
-                      data: {
-                        resourceId: resourceIdSegment,
-                        operations,
-                      },
-                    });
-                    showSuccess('Reference updated');
-                    await refetchAnnotations();
-                  } catch (error) {
-                    console.error('Failed to update reference:', error);
-                    showError('Failed to update reference');
-                  }
-                }}
-                referencedBy={referencedBy}
-                referencedByLoading={referencedByLoading}
+                pendingCommentSelection={pendingCommentSelection}
+                {...(primaryMediaType?.startsWith('text/') ? { onCreateTag: handleCreateTag } : {})}
+                pendingTagSelection={pendingTagSelection}
+                resourceId={rUri.split('/').pop() || ''}
               />
             )}
 
@@ -1044,96 +1022,6 @@ function ResourceView({
                 hoveredAnnotationId={hoveredAnnotationId}
                 onEventHover={handleEventHover}
                 onEventClick={handleEventClick}
-              />
-            )}
-
-            {/* Comments Panel */}
-            {activePanel === 'comments' && (
-              <CommentsPanel
-                comments={comments}
-                onCommentClick={(annotation) => {
-                  // Scroll to comment in document and highlight it
-                  setHoveredCommentId(annotation.id);
-                  setTimeout(() => setHoveredCommentId(null), 1500);
-                }}
-                onUpdateComment={async (annotationIdStr, newText) => {
-                  // TODO: Implement update comment mutation
-                }}
-                onCreateComment={async (commentText) => {
-                  if (pendingCommentSelection) {
-                    await addComment(rUri, pendingCommentSelection, commentText);
-                    setPendingCommentSelection(null);
-                  }
-                }}
-                focusedCommentId={focusedCommentId}
-                hoveredCommentId={hoveredCommentId}
-                onCommentHover={setHoveredCommentId}
-                resourceContent={content}
-                pendingSelection={pendingCommentSelection}
-                annotateMode={annotateMode}
-                {...(primaryMediaType?.startsWith('text/') ? { onDetectComments: handleDetectComments } : {})}
-                isDetecting={isDetectingComments}
-                detectionProgress={commentDetectionProgress}
-              />
-            )}
-
-            {/* Highlights Panel */}
-            {activePanel === 'highlights' && (
-              <HighlightPanel
-                highlights={highlights}
-                onHighlightClick={(annotation) => {
-                  setHoveredHighlightId(annotation.id);
-                  setTimeout(() => setHoveredHighlightId(null), 1500);
-                }}
-                focusedHighlightId={focusedHighlightId}
-                hoveredHighlightId={hoveredHighlightId}
-                onHighlightHover={setHoveredHighlightId}
-                resourceContent={content}
-                {...(primaryMediaType?.startsWith('text/') ? { onDetectHighlights: handleDetectHighlights } : {})}
-                isDetecting={isDetectingHighlights}
-                detectionProgress={highlightDetectionProgress}
-                annotateMode={annotateMode}
-              />
-            )}
-
-            {/* Assessments Panel */}
-            {activePanel === 'assessments' && (
-              <AssessmentPanel
-                assessments={assessments}
-                onAssessmentClick={(annotation) => {
-                  setHoveredAssessmentId(annotation.id);
-                  setTimeout(() => setHoveredAssessmentId(null), 1500);
-                }}
-                focusedAssessmentId={focusedAssessmentId}
-                hoveredAssessmentId={hoveredAssessmentId}
-                onAssessmentHover={setHoveredAssessmentId}
-                resourceContent={content}
-                {...(primaryMediaType?.startsWith('text/') ? { onDetectAssessments: handleDetectAssessments } : {})}
-                isDetecting={isDetectingAssessments}
-                detectionProgress={assessmentDetectionProgress}
-                annotateMode={annotateMode}
-              />
-            )}
-
-            {/* Tags Panel */}
-            {activePanel === 'tags' && (
-              <TaggingPanel
-                tags={tags}
-                onTagClick={(annotation) => {
-                  setHoveredTagId(annotation.id);
-                  setTimeout(() => setHoveredTagId(null), 1500);
-                }}
-                focusedTagId={focusedTagId}
-                hoveredTagId={hoveredTagId}
-                onTagHover={setHoveredTagId}
-                resourceContent={content}
-                {...(primaryMediaType?.startsWith('text/') ? {
-                  onDetectTags: handleDetectTags,
-                  onCreateTag: handleCreateTag
-                } : {})}
-                isDetecting={isDetectingTags}
-                detectionProgress={tagDetectionProgress}
-                pendingSelection={pendingTagSelection}
               />
             )}
 

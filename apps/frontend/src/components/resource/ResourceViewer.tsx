@@ -11,7 +11,7 @@ import { JsonLdView } from '@/components/annotation-popups/JsonLdView';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
-import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import { getAnnotator } from '@/lib/annotation-registry';
 import type { AnnotationsCollection } from '@/types/annotation-props';
 
 type Annotation = components['schemas']['Annotation'];
@@ -188,7 +188,7 @@ export function ResourceViewer({
 
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
-    const metadata = getAnnotationTypeMetadata(annotation);
+    const metadata = getAnnotator(annotation);
 
     // If annotation has a side panel, only open it when Detail mode is active
     // For delete/jsonld/follow modes, let those handlers below process it
@@ -527,7 +527,7 @@ export function ResourceViewer({
       {/* Delete Confirmation Modal */}
       {deleteConfirmation && (() => {
         const annotation = deleteConfirmation.annotation;
-        const metadata = getAnnotationTypeMetadata(annotation);
+        const metadata = getAnnotator(annotation);
         const targetSelector = getTargetSelector(annotation.target);
         const selectedText = getExactText(targetSelector);
         const motivationEmoji = metadata?.iconEmoji || '📝';

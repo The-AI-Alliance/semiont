@@ -14,7 +14,6 @@ interface CommentEntryProps {
   onUpdate: (newText: string) => void;
   onCommentRef: (commentId: string, el: HTMLElement | null) => void;
   onCommentHover?: (commentId: string | null) => void;
-  resourceContent: string;
   annotateMode?: boolean;
 }
 
@@ -42,7 +41,6 @@ export function CommentEntry({
   onUpdate,
   onCommentRef,
   onCommentHover,
-  resourceContent,
   annotateMode = true,
 }: CommentEntryProps) {
   const t = useTranslations('CommentsPanel');

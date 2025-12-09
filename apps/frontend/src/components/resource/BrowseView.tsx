@@ -7,7 +7,7 @@ import { remarkAnnotations, type PreparedAnnotation } from '@/lib/remark-annotat
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
 import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource, getMimeCategory, type MimeCategory } from '@semiont/api-client';
-import { getAnnotationInternalType, getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import { getAnnotationInternalType, getAnnotator } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
 import { AnnotateToolbar, type ClickAction } from '@/components/annotation/AnnotateToolbar';
 import type { AnnotationsCollection, AnnotationHandlers } from '@/types/annotation-props';
@@ -100,7 +100,7 @@ export function BrowseView({
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
       const annotation = annotationMap.get(annotationId);
-      const metadata = annotation ? getAnnotationTypeMetadata(annotation) : null;
+      const metadata = annotation ? getAnnotator(annotation) : null;
 
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {

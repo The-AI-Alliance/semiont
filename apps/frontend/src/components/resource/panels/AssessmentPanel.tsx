@@ -16,7 +16,6 @@ interface AssessmentPanelProps {
   focusedAssessmentId: string | null;
   hoveredAssessmentId?: string | null;
   onAssessmentHover?: (assessmentId: string | null) => void;
-  resourceContent: string;
   onDetectAssessments?: (instructions?: string) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
@@ -33,7 +32,6 @@ export function AssessmentPanel({
   focusedAssessmentId,
   hoveredAssessmentId,
   onAssessmentHover,
-  resourceContent,
   onDetectAssessments,
   isDetecting = false,
   detectionProgress,
@@ -75,7 +73,6 @@ export function AssessmentPanel({
                 onClick={() => onAssessmentClick(assessment)}
                 onAssessmentRef={handleAnnotationRef}
                 {...(onAssessmentHover && { onAssessmentHover })}
-                resourceContent={resourceContent}
               />
             ))
           )}

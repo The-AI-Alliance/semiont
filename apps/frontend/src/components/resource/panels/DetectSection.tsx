@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ANNOTATION_TYPES } from '@/lib/annotation-registry';
+import { ANNOTATORS } from '@/lib/annotation-registry';
 
 interface DetectSectionProps {
   annotationType: 'highlight' | 'assessment' | 'comment';
@@ -51,7 +51,7 @@ export function DetectSection({
   const t = useTranslations(panelName);
   const [instructions, setInstructions] = useState('');
   const [tone, setTone] = useState('');
-  const metadata = ANNOTATION_TYPES[annotationType]!;
+  const metadata = ANNOTATORS[annotationType]!;
   const colors = colorSchemes[annotationType];
 
   const handleDetect = () => {

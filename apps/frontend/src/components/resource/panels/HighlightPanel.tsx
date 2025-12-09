@@ -16,7 +16,6 @@ interface HighlightPanelProps {
   focusedHighlightId: string | null;
   hoveredHighlightId?: string | null;
   onHighlightHover?: (highlightId: string | null) => void;
-  resourceContent: string;
   onDetectHighlights?: (instructions?: string) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
@@ -33,7 +32,6 @@ export function HighlightPanel({
   focusedHighlightId,
   hoveredHighlightId,
   onHighlightHover,
-  resourceContent,
   onDetectHighlights,
   isDetecting = false,
   detectionProgress,
@@ -75,7 +73,6 @@ export function HighlightPanel({
                 onClick={() => onHighlightClick(highlight)}
                 onHighlightRef={handleAnnotationRef}
                 {...(onHighlightHover && { onHighlightHover })}
-                resourceContent={resourceContent}
               />
             ))
           )}

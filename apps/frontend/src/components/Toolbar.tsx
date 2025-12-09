@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-type ToolbarPanel = 'document' | 'history' | 'info' | 'references' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'comments' | 'highlights' | 'assessments' | 'tags';
+type ToolbarPanel = 'document' | 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
 type ToolbarContext = 'document' | 'simple';
 
 interface Props<T extends string = string> {
@@ -73,66 +73,16 @@ export function Toolbar<T extends string = string>({
             <span className="text-xl" aria-hidden="true">📄</span>
           </button>
 
-          {/* References Icon - show in both Browse and Annotate modes (not archived) */}
+          {/* Annotations Icon - unified panel for all annotation types */}
           {!isArchived && (
             <button
-              onClick={() => onPanelToggle('references' as T)}
-              className={buttonClass('references')}
-              aria-label={t('detectReferences')}
-              aria-pressed={activePanel === 'references'}
-              title={t('detectReferences')}
+              onClick={() => onPanelToggle('annotations' as T)}
+              className={buttonClass('annotations')}
+              aria-label={t('annotations')}
+              aria-pressed={activePanel === 'annotations'}
+              title={t('annotations')}
             >
-              <span className="text-xl" aria-hidden="true">🔵</span>
-            </button>
-          )}
-
-          {/* Highlights Icon - show in both Browse and Annotate modes (not archived) */}
-          {!isArchived && (
-            <button
-              onClick={() => onPanelToggle('highlights' as T)}
-              className={buttonClass('highlights')}
-              aria-label={t('highlights')}
-              aria-pressed={activePanel === 'highlights'}
-              title={t('highlights')}
-            >
-              <span className="text-xl" aria-hidden="true">🟡</span>
-            </button>
-          )}
-
-          {/* Assessments Icon - show in both Browse and Annotate modes (not archived) */}
-          {!isArchived && (
-            <button
-              onClick={() => onPanelToggle('assessments' as T)}
-              className={buttonClass('assessments')}
-              aria-label={t('assessments')}
-              aria-pressed={activePanel === 'assessments'}
-              title={t('assessments')}
-            >
-              <span className="text-xl" aria-hidden="true">🔴</span>
-            </button>
-          )}
-
-          {/* Comments Icon */}
-          <button
-            onClick={() => onPanelToggle('comments' as T)}
-            className={buttonClass('comments')}
-            aria-label={t('comments')}
-            aria-pressed={activePanel === 'comments'}
-            title={t('comments')}
-          >
-            <span className="text-xl" aria-hidden="true">💬</span>
-          </button>
-
-          {/* Tags Icon - show in both Browse and Annotate modes (not archived) */}
-          {!isArchived && (
-            <button
-              onClick={() => onPanelToggle('tags' as T)}
-              className={buttonClass('tags')}
-              aria-label={t('tags')}
-              aria-pressed={activePanel === 'tags'}
-              title={t('tags')}
-            >
-              <span className="text-xl" aria-hidden="true">🏷️</span>
+              <span className="text-xl" aria-hidden="true">📝</span>
             </button>
           )}
 

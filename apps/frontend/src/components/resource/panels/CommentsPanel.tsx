@@ -18,7 +18,6 @@ interface CommentsPanelProps {
   focusedCommentId: string | null;
   hoveredCommentId?: string | null;
   onCommentHover?: (commentId: string | null) => void;
-  resourceContent: string;
   pendingSelection?: {
     exact: string;
     start: number;
@@ -42,7 +41,6 @@ export function CommentsPanel({
   focusedCommentId,
   hoveredCommentId,
   onCommentHover,
-  resourceContent,
   pendingSelection,
   annotateMode = true,
   onDetectComments,
@@ -124,7 +122,6 @@ export function CommentsPanel({
                 onUpdate={(newText) => onUpdateComment(comment.id, newText)}
                 onCommentRef={handleAnnotationRef}
                 {...(onCommentHover && { onCommentHover })}
-                resourceContent={resourceContent}
                 annotateMode={annotateMode}
               />
             ))

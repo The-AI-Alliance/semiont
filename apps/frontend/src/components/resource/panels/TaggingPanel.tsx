@@ -16,7 +16,6 @@ interface TaggingPanelProps {
   focusedTagId: string | null;
   hoveredTagId?: string | null;
   onTagHover?: (tagId: string | null) => void;
-  resourceContent: string;
   annotateMode?: boolean;
   onDetectTags?: (schemaId: string, categories: string[]) => void | Promise<void>;
   onCreateTag?: (selection: { exact: string; start: number; end: number }, schemaId: string, category: string) => void | Promise<void>;
@@ -42,7 +41,6 @@ export function TaggingPanel({
   focusedTagId,
   hoveredTagId,
   onTagHover,
-  resourceContent,
   annotateMode = true,
   onDetectTags,
   onCreateTag,
@@ -300,7 +298,6 @@ export function TaggingPanel({
                 onClick={() => onTagClick(tag)}
                 onTagRef={handleAnnotationRef}
                 {...(onTagHover && { onTagHover })}
-                resourceContent={resourceContent}
               />
             ))
           )}

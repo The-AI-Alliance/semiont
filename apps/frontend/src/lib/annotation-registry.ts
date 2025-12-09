@@ -6,6 +6,7 @@
  * - Behavior flags (clickable, hover, side panel)
  * - Type guards (motivation matching)
  * - Accessibility (screen reader announcements)
+ * - Runtime handlers (click, hover, detect, update, create)
  *
  * Per CLAUDE.md: This is the ONLY place to define annotation type metadata.
  * No aliasing, wrappers, or compatibility layers elsewhere.
@@ -17,7 +18,14 @@ import { isHighlight, isComment, isReference, isTag } from '@semiont/api-client'
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation']; // Already defined in api-client with all 13 W3C motivations!
 
-export interface AnnotationTypeMetadata {
+/**
+ * Annotator: Encapsulates all motivation-specific behavior
+ * Handles clicks, hovers, detection, and other operations for one annotation type
+ *
+ * Metadata is static (defined in registry), handlers are injected at runtime (from page.tsx)
+ */
+export interface Annotator {
+  // Metadata (static)
   motivation: Motivation;
   internalType: string;
   displayName: string;
@@ -37,9 +45,22 @@ export interface AnnotationTypeMetadata {
 
   // Accessibility
   announceOnCreate: string;
+
+  // Handlers (injected at runtime)
+  handlers?: {
+    onClick?: (annotation: Annotation) => void;
+    onHover?: (annotationId: string | null) => void;
+    onDetect?: (...args: any[]) => void | Promise<void>;
+    onUpdate?: (annotationId: string, ...args: any[]) => void | Promise<void>;
+    onCreate?: (...args: any[]) => void | Promise<void>;
+  };
 }
 
-export const ANNOTATION_TYPES: Record<string, AnnotationTypeMetadata> = {
+/**
+ * Registry of all annotators (motivation handlers)
+ * Metadata is defined here, handlers are injected at runtime
+ */
+export const ANNOTATORS: Record<string, Annotator> = {
   highlight: {
     motivation: 'highlighting',
     internalType: 'highlight',
@@ -112,13 +133,13 @@ export const ANNOTATION_TYPES: Record<string, AnnotationTypeMetadata> = {
 };
 
 /**
- * Get metadata for an annotation by checking all registered types
+ * Get annotator for an annotation by checking all registered types
  * Returns null if annotation doesn't match any registered type
  */
-export function getAnnotationTypeMetadata(annotation: Annotation): AnnotationTypeMetadata | null {
-  for (const metadata of Object.values(ANNOTATION_TYPES)) {
-    if (metadata.matchesAnnotation(annotation)) {
-      return metadata;
+export function getAnnotator(annotation: Annotation): Annotator | null {
+  for (const annotator of Object.values(ANNOTATORS)) {
+    if (annotator.matchesAnnotation(annotation)) {
+      return annotator;
     }
   }
   return null;
@@ -129,8 +150,8 @@ export function getAnnotationTypeMetadata(annotation: Annotation): AnnotationTyp
  * Falls back to highlight style if no match found
  */
 export function getAnnotationClassName(annotation: Annotation): string {
-  const metadata = getAnnotationTypeMetadata(annotation);
-  return metadata?.className ?? ANNOTATION_TYPES.highlight!.className;
+  const annotator = getAnnotator(annotation);
+  return annotator?.className ?? ANNOTATORS.highlight!.className;
 }
 
 /**
@@ -138,8 +159,8 @@ export function getAnnotationClassName(annotation: Annotation): string {
  * Falls back to 'highlight' if no match found
  */
 export function getAnnotationInternalType(annotation: Annotation): string {
-  const metadata = getAnnotationTypeMetadata(annotation);
-  return metadata?.internalType ?? 'highlight';
+  const annotator = getAnnotator(annotation);
+  return annotator?.internalType ?? 'highlight';
 }
 
 /**
@@ -151,19 +172,36 @@ export function groupAnnotationsByType(annotations: Annotation[]): Record<string
   const groups: Record<string, Annotation[]> = {};
 
   // Initialize empty arrays for all registered types
-  for (const metadata of Object.values(ANNOTATION_TYPES)) {
-    if (metadata) {
-      groups[metadata.internalType] = [];
-    }
+  for (const annotator of Object.values(ANNOTATORS)) {
+    groups[annotator.internalType] = [];
   }
 
   // Group annotations by type
   for (const ann of annotations) {
-    const metadata = getAnnotationTypeMetadata(ann);
-    if (metadata) {
-      groups[metadata.internalType]!.push(ann);
+    const annotator = getAnnotator(ann);
+    if (annotator) {
+      groups[annotator.internalType]!.push(ann);
     }
   }
 
   return groups;
+}
+
+/**
+ * Create a copy of annotators with handlers injected
+ * Use this in page.tsx to inject runtime handlers into the registry
+ */
+export function withHandlers(
+  handlers: Record<string, Annotator['handlers']>
+): Record<string, Annotator> {
+  const annotatorsWithHandlers: Record<string, Annotator> = {};
+
+  for (const [key, annotator] of Object.entries(ANNOTATORS)) {
+    annotatorsWithHandlers[key] = {
+      ...annotator,
+      ...(handlers[key] ? { handlers: handlers[key] } : {})
+    };
+  }
+
+  return annotatorsWithHandlers;
 }

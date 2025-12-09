@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, resourceUri as toResourceUri } from '@semiont/api-client';
-import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import { getAnnotator } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
 import { SvgDrawingCanvas, type DrawingMode } from '@/components/image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
@@ -217,7 +217,7 @@ export function AnnotateView({
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
       const annotation = allAnnotations.find(a => a.id === annotationId);
-      const metadata = annotation ? getAnnotationTypeMetadata(annotation) : null;
+      const metadata = annotation ? getAnnotator(annotation) : null;
 
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {
