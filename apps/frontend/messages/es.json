@@ -310,7 +310,7 @@
     "switchToBrowse": "Cambiar a Modo Exploración",
     "switchToAnnotate": "Cambiar a Modo Anotación",
     "resource": "Recurso",
-    "detectReferences": "Referencias",
+    "annotations": "Anotaciones",
     "history": "Historial",
     "resourceInfo": "Información del Recurso",
     "collaboration": "Colaboración",
@@ -484,22 +484,12 @@
     "selectCategory": "Seleccionar Categoría",
     "chooseCategory": "Elegir una categoría..."
   },
-  "Toolbar": {
-    "comments": "Comentarios",
-    "highlights": "Destacados",
-    "assessments": "Evaluaciones",
-    "tags": "Etiquetas",
-    "history": "Historial",
-    "resource": "Recurso",
-    "resourceInfo": "Información del Recurso",
-    "detectReferences": "Referencias",
-    "collaboration": "Colaboración",
-    "annotateMode": "Modo Anotar",
-    "browseMode": "Modo Navegar",
-    "switchToAnnotate": "Cambiar a Anotar",
-    "switchToBrowse": "Cambiar a Navegar",
-    "userAccount": "Cuenta de Usuario",
-    "settings": "Configuración"
+  "UnifiedAnnotationsPanel": {
+    "highlight": "Destacados",
+    "reference": "Referencias",
+    "assessment": "Evaluaciones",
+    "comment": "Comentarios",
+    "tag": "Etiquetas"
   },
   "StubReferencePopup": {
     "title": "Referencia Stub",

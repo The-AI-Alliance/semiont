@@ -310,7 +310,7 @@
     "switchToBrowse": "Switch to Browse Mode",
     "switchToAnnotate": "Switch to Annotate Mode",
     "resource": "Resource",
-    "detectReferences": "References",
+    "annotations": "Annotations",
     "history": "History",
     "resourceInfo": "Resource Info",
     "collaboration": "Collaboration",
@@ -484,22 +484,12 @@
     "selectCategory": "Select Category",
     "chooseCategory": "Choose a category..."
   },
-  "Toolbar": {
-    "comments": "Comments",
-    "highlights": "Highlights",
-    "assessments": "Assessments",
-    "tags": "Tags",
-    "history": "History",
-    "resource": "Resource",
-    "resourceInfo": "Resource Info",
-    "detectReferences": "References",
-    "collaboration": "Collaboration",
-    "annotateMode": "Annotate Mode",
-    "browseMode": "Browse Mode",
-    "switchToAnnotate": "Switch to Annotate",
-    "switchToBrowse": "Switch to Browse",
-    "userAccount": "User Account",
-    "settings": "Settings"
+  "UnifiedAnnotationsPanel": {
+    "highlight": "Highlights",
+    "reference": "References",
+    "assessment": "Assessments",
+    "comment": "Comments",
+    "tag": "Tags"
   },
   "StubReferencePopup": {
     "title": "Stub Reference",
