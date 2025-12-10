@@ -771,7 +771,7 @@ function ResourceView({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.highlight, detectionContext) } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.highlight!, detectionContext) } : {})
                 },
                 reference: {
                   onClick: (annotation) => {
@@ -811,7 +811,7 @@ function ResourceView({
                       refetchAnnotations();
                     }
                   },
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.reference, detectionContext) } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.reference!, detectionContext) } : {})
                 },
                 assessment: {
                   onClick: (annotation) => {
@@ -819,7 +819,7 @@ function ResourceView({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.assessment, detectionContext) } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.assessment!, detectionContext) } : {})
                 },
                 comment: {
                   onClick: (annotation) => {
@@ -836,7 +836,7 @@ function ResourceView({
                       setPendingCommentSelection(null);
                     }
                   },
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.comment, detectionContext) } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.comment!, detectionContext) } : {})
                 },
                 tag: {
                   onClick: (annotation) => {
@@ -844,7 +844,7 @@ function ResourceView({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.tag, detectionContext) } : {}),
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.tag!, detectionContext) } : {}),
                   ...(supportsDetection(primaryMediaType) ? { onCreate: handleCreateTag } : {})
                 }
               });
