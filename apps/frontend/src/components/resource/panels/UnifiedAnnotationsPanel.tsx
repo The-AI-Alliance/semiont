@@ -156,8 +156,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
           const annotator = props.annotators[key];
           if (!annotator) return null;
 
-          const count = grouped[key]?.length || 0;
-
           return (
             <button
               key={key}
@@ -165,7 +163,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
               className={tabButtonClass(key)}
               aria-pressed={activeTab === key}
             >
-              {annotator.iconEmoji} {t(key)} ({count})
+              {annotator.iconEmoji} {t(key)}
             </button>
           );
         })}
