@@ -408,7 +408,6 @@ function ResourceView({
 
   // Use SSE-based detection progress
   const {
-    isDetecting,
     progress: detectionProgress,
     startDetection,
     cancelDetection
@@ -425,6 +424,9 @@ function ResourceView({
       // Final refetch + invalidation when ALL entity types complete
       refetchAnnotations();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+      // Clear detection state after completion
+      setDetectingMotivation(null);
+      setMotivationDetectionProgress(null);
     },
     onError: (error) => {
       showError(error);
@@ -433,26 +435,21 @@ function ResourceView({
 
   // Sync entity detection progress to motivationDetectionProgress for UnifiedAnnotationsPanel
   React.useEffect(() => {
-    if (detectingMotivation === 'linking') {
-      if (detectionProgress) {
-        // Map DetectionProgress to motivationDetectionProgress format
-        setMotivationDetectionProgress({
-          status: detectionProgress.status,
-          message: detectionProgress.message ||
-            (detectionProgress.currentEntityType
-              ? `Detecting ${detectionProgress.currentEntityType}...`
-              : `Processing ${detectionProgress.processedEntityTypes} of ${detectionProgress.totalEntityTypes} entity types...`),
-          processedCategories: detectionProgress.processedEntityTypes,
-          totalCategories: detectionProgress.totalEntityTypes,
-          ...(detectionProgress.currentEntityType && { currentCategory: detectionProgress.currentEntityType })
-        });
-      } else if (!isDetecting) {
-        // Detection complete or cancelled - clear state
-        setDetectingMotivation(null);
-        setMotivationDetectionProgress(null);
-      }
+    if (detectingMotivation === 'linking' && detectionProgress) {
+      // Map DetectionProgress to motivationDetectionProgress format
+      setMotivationDetectionProgress({
+        status: detectionProgress.status,
+        message: detectionProgress.message ||
+          (detectionProgress.currentEntityType
+            ? `Detecting ${detectionProgress.currentEntityType}...`
+            : `Processing ${detectionProgress.processedEntityTypes} of ${detectionProgress.totalEntityTypes} entity types...`),
+        processedCategories: detectionProgress.processedEntityTypes,
+        totalCategories: detectionProgress.totalEntityTypes,
+        ...(detectionProgress.currentEntityType && { currentCategory: detectionProgress.currentEntityType })
+      });
     }
-  }, [detectingMotivation, detectionProgress, isDetecting]);
+    // Don't clear state here - let onComplete callback handle cleanup
+  }, [detectingMotivation, detectionProgress]);
 
   // Use SSE-based document generation progress - provides inline sparkle animation
   const {
