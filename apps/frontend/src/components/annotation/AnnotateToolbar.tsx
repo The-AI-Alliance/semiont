@@ -8,18 +8,11 @@ export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'co
 export type ClickAction = 'detail' | 'follow' | 'jsonld' | 'deleting';
 export type ShapeType = 'rectangle' | 'circle' | 'polygon';
 
-// Map SelectionMotivation to AnnotatorKey for emoji lookup
-const MOTIVATION_TO_KEY: Record<SelectionMotivation, keyof typeof ANNOTATORS> = {
-  linking: 'reference',
-  highlighting: 'highlight',
-  assessing: 'assessment',
-  commenting: 'comment',
-  tagging: 'tag'
-};
-
-// Helper to get emoji from registry (with fallback for safety)
+// Helper to get emoji from registry by motivation (with fallback for safety)
 const getMotivationEmoji = (motivation: SelectionMotivation): string => {
-  return ANNOTATORS[MOTIVATION_TO_KEY[motivation]]?.iconEmoji || '❓';
+  // Find annotator by motivation
+  const annotator = Object.values(ANNOTATORS).find(a => a.motivation === motivation);
+  return annotator?.iconEmoji || '❓';
 };
 
 interface AnnotateToolbarProps {
