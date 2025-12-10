@@ -89,6 +89,7 @@ interface UnifiedAnnotationsPanelProps {
   allEntityTypes?: string[];
   generatingReferenceId?: string | null;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
+  onCancelDetection?: () => void;
   mediaType?: string;
   referencedBy?: any[];
   referencedByLoading?: boolean;
@@ -202,7 +203,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 onCreate={annotator.handlers?.onCreate}
                 pendingSelection={props.pendingReferenceSelection}
                 allEntityTypes={props.allEntityTypes || []}
-                onCancelDetection={() => {}} // TODO: add to handlers
+                onCancelDetection={props.onCancelDetection || (() => {})}
                 onGenerateDocument={props.onGenerateDocument}
                 mediaType={props.mediaType}
                 referencedBy={props.referencedBy}

@@ -169,7 +169,9 @@ export function ReferencesPanel({
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
               {t('title')}
             </h3>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 ${
+              detectionProgress ? 'border-2 border-blue-500 dark:border-blue-600' : ''
+            }`}>
             {/* Show annotation UI only when not detecting and no completed log */}
             {!detectionProgress && !lastDetectionLog && (
             <>

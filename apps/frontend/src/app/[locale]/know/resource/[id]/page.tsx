@@ -431,6 +431,29 @@ function ResourceView({
     }
   });
 
+  // Sync entity detection progress to motivationDetectionProgress for UnifiedAnnotationsPanel
+  React.useEffect(() => {
+    if (detectingMotivation === 'linking') {
+      if (detectionProgress) {
+        // Map DetectionProgress to motivationDetectionProgress format
+        setMotivationDetectionProgress({
+          status: detectionProgress.status,
+          message: detectionProgress.message ||
+            (detectionProgress.currentEntityType
+              ? `Detecting ${detectionProgress.currentEntityType}...`
+              : `Processing ${detectionProgress.processedEntityTypes} of ${detectionProgress.totalEntityTypes} entity types...`),
+          processedCategories: detectionProgress.processedEntityTypes,
+          totalCategories: detectionProgress.totalEntityTypes,
+          ...(detectionProgress.currentEntityType && { currentCategory: detectionProgress.currentEntityType })
+        });
+      } else if (!isDetecting) {
+        // Detection complete or cancelled - clear state
+        setDetectingMotivation(null);
+        setMotivationDetectionProgress(null);
+      }
+    }
+  }, [detectingMotivation, detectionProgress, isDetecting]);
+
   // Use SSE-based document generation progress - provides inline sparkle animation
   const {
     progress: generationProgress,
@@ -451,6 +474,10 @@ function ResourceView({
 
   // Handle detect entity references - updated for SSE
   const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
+    // Set motivation to 'linking' so UnifiedAnnotationsPanel knows reference panel is detecting
+    setDetectingMotivation('linking');
+    setMotivationDetectionProgress({ status: 'started', message: 'Starting entity detection...' });
+
     // Start detection with the selected entity types
     setTimeout(() => startDetection(selectedTypes), 100);
   }, [startDetection]);
@@ -1043,6 +1070,7 @@ function ResourceView({
                   pendingReferenceSelection={pendingReferenceSelection}
                   allEntityTypes={allEntityTypes}
                   onGenerateDocument={handleGenerateDocument}
+                  onCancelDetection={cancelDetection}
                   {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
                   referencedBy={referencedBy}
                   referencedByLoading={referencedByLoading}
