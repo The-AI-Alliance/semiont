@@ -1041,7 +1041,7 @@ function ResourceView({
                   pendingCommentSelection={pendingCommentSelection}
                   pendingTagSelection={pendingTagSelection}
                   pendingReferenceSelection={pendingReferenceSelection}
-                  allEntityTypes={documentEntityTypes}
+                  allEntityTypes={allEntityTypes}
                   onGenerateDocument={handleGenerateDocument}
                   {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
                   referencedBy={referencedBy}
