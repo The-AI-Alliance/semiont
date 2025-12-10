@@ -14,8 +14,8 @@ type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 type AnnotatorKey = keyof typeof ANNOTATORS;
 
-// Tab display order (controls the order tabs appear in the UI)
-const TAB_ORDER: AnnotatorKey[] = ['highlight', 'reference', 'assessment', 'comment', 'tag'];
+// Tab display order (matches AnnotateToolbar selection group order)
+const TAB_ORDER: AnnotatorKey[] = ['reference', 'highlight', 'assessment', 'comment', 'tag'];
 
 // Panel component mapping for dynamic rendering
 type PanelComponent = React.ComponentType<any>;
@@ -136,14 +136,14 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
     setActiveTab(tab);
   };
 
-  // Tab button styling
+  // Tab button styling (matches AnnotateToolbar button style)
   const tabButtonClass = (tab: AnnotatorKey) => {
     const isActive = activeTab === tab;
     return `
-      px-3 py-1.5 text-sm font-medium rounded-md transition-colors
+      px-3 py-1.5 rounded-md transition-all flex items-center font-medium border-none focus:outline-none
       ${isActive
-        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+        ? 'bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] translate-y-1 scale-95'
+        : 'text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800'
       }
     `.trim();
   };
@@ -151,7 +151,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
       {/* Tab Navigation */}
-      <div className="flex flex-wrap gap-1 p-2 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center gap-0 p-2 border-b border-gray-200 dark:border-gray-700">
         {TAB_ORDER.map(key => {
           const annotator = props.annotators[key];
           if (!annotator) return null;
@@ -161,9 +161,10 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
               key={key}
               onClick={() => handleTabClick(key)}
               className={tabButtonClass(key)}
+              title={t(key)}
               aria-pressed={activeTab === key}
             >
-              {annotator.iconEmoji} {t(key)}
+              <span className="text-lg">{annotator.iconEmoji}</span>
             </button>
           );
         })}
