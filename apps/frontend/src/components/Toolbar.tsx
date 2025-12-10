@@ -82,7 +82,7 @@ export function Toolbar<T extends string = string>({
               aria-pressed={activePanel === 'annotations'}
               title={t('annotations')}
             >
-              <span className="text-xl" aria-hidden="true">📝</span>
+              <span className="text-xl" aria-hidden="true">Ⓐ</span>
             </button>
           )}
 
