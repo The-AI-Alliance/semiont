@@ -267,8 +267,9 @@ export function ResourceViewer({
           // Create highlight/assessment immediately
           if (selector.type === 'TextQuoteSelector' && selector.exact) {
             // Text annotations use specialized helpers
+            let newAnnotationId: string | undefined;
             if (motivation === 'highlighting') {
-              await addHighlight(
+              newAnnotationId = await addHighlight(
                 rUri,
                 selector.exact,
                 { start: selector.start || 0, end: selector.end || 0 },
@@ -277,8 +278,12 @@ export function ResourceViewer({
                   ...(selector.suffix && { suffix: selector.suffix })
                 }
               );
+              // Focus the new highlight to trigger panel tab switch
+              if (newAnnotationId && onHighlightClick) {
+                onHighlightClick(newAnnotationId);
+              }
             } else {
-              await addAssessment(
+              newAnnotationId = await addAssessment(
                 rUri,
                 selector.exact,
                 { start: selector.start || 0, end: selector.end || 0 },
@@ -287,6 +292,10 @@ export function ResourceViewer({
                   ...(selector.suffix && { suffix: selector.suffix })
                 }
               );
+              // Focus the new assessment to trigger panel tab switch
+              if (newAnnotationId && onAssessmentClick) {
+                onAssessmentClick(newAnnotationId);
+              }
             }
             onRefetchAnnotations?.();
           } else if (selector.type === 'SvgSelector' && selector.value) {

@@ -132,6 +132,42 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
     localStorage.setItem(storageKey, activeTab);
   }, [activeTab, props.resourceId]);
 
+  // Auto-switch to the appropriate tab when an annotation is focused
+  useEffect(() => {
+    if (!props.focusedAnnotationId) return;
+
+    // Find which annotation type this focused annotation belongs to
+    const focusedAnnotation = props.annotations.find(ann => ann.id === props.focusedAnnotationId);
+    if (!focusedAnnotation) return;
+
+    // Determine the annotator key for this annotation
+    for (const [key, annotator] of Object.entries(props.annotators)) {
+      if (annotator.matchesAnnotation(focusedAnnotation)) {
+        setActiveTab(key as AnnotatorKey);
+        break;
+      }
+    }
+  }, [props.focusedAnnotationId, props.annotations, props.annotators]);
+
+  // Auto-switch to the appropriate tab when creating a new annotation
+  useEffect(() => {
+    if (props.pendingCommentSelection) {
+      setActiveTab('comment');
+    }
+  }, [props.pendingCommentSelection]);
+
+  useEffect(() => {
+    if (props.pendingTagSelection) {
+      setActiveTab('tag');
+    }
+  }, [props.pendingTagSelection]);
+
+  useEffect(() => {
+    if (props.pendingReferenceSelection) {
+      setActiveTab('reference');
+    }
+  }, [props.pendingReferenceSelection]);
+
   const handleTabClick = (tab: AnnotatorKey) => {
     setActiveTab(tab);
   };
