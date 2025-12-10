@@ -15,7 +15,9 @@ import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
 import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery, getAnnotationExactText } from '@semiont/api-client';
-import { groupAnnotationsByType } from '@/lib/annotation-registry';
+import { groupAnnotationsByType, withHandlers } from '@/lib/annotation-registry';
+
+type Motivation = components['schemas']['Motivation'];
 import { decodeWithCharset } from '@/lib/text-encoding';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -267,54 +269,30 @@ function ResourceView({
   const { theme, setTheme } = useTheme();
   const { activePanel, togglePanel, setActivePanel } = useToolbar({ persistToStorage: true });
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+
+  // Unified annotation state (motivation-agnostic)
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
-  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
+
+  // Pending selections for creating annotations
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
   const [pendingTagSelection, setPendingTagSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
-  const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
-  const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
-  const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
-  const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null);
-  const [focusedAssessmentId, setFocusedAssessmentId] = useState<string | null>(null);
-  const [hoveredAssessmentId, setHoveredAssessmentId] = useState<string | null>(null);
-  const [focusedTagId, setFocusedTagId] = useState<string | null>(null);
-  const [hoveredTagId, setHoveredTagId] = useState<string | null>(null);
+
+  // Search state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
 
-  // Detection states for highlights
-  const [isDetectingHighlights, setIsDetectingHighlights] = useState(false);
-  const [highlightDetectionProgress, setHighlightDetectionProgress] = useState<{
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null>(null);
-
-  // Detection states for assessments
-  const [isDetectingAssessments, setIsDetectingAssessments] = useState(false);
-  const [assessmentDetectionProgress, setAssessmentDetectionProgress] = useState<{
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null>(null);
-
-  // Detection states for comments
-  const [isDetectingComments, setIsDetectingComments] = useState(false);
-  const [commentDetectionProgress, setCommentDetectionProgress] = useState<{
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null>(null);
-
-  // Detection states for tags
-  const [isDetectingTags, setIsDetectingTags] = useState(false);
-  const [tagDetectionProgress, setTagDetectionProgress] = useState<{
+  // Unified detection state (motivation-based)
+  const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
+  const [motivationDetectionProgress, setMotivationDetectionProgress] = useState<{
     status: string;
     percentage?: number;
     message?: string;
     currentCategory?: string;
+    processedCategories?: number;
+    totalCategories?: number;
   } | null>(null);
 
   // Handle event hover - trigger sparkle animation
@@ -490,14 +468,14 @@ function ResourceView({
   const handleDetectHighlights = useCallback(async (instructions?: string) => {
     if (!client) return;
 
-    setIsDetectingHighlights(true);
-    setHighlightDetectionProgress({ status: 'started', message: 'Starting highlight detection...' });
+    setDetectingMotivation('highlighting');
+    setMotivationDetectionProgress({ status: 'started', message: 'Starting highlight detection...' });
 
     try {
       const stream = client.sse.detectHighlights(rUri, instructions ? { instructions } : {});
 
       stream.onProgress((progress: any) => {
-        setHighlightDetectionProgress({
+        setMotivationDetectionProgress({
           status: progress.status,
           percentage: progress.percentage,
           message: progress.message
@@ -505,24 +483,24 @@ function ResourceView({
       });
 
       stream.onComplete((result: any) => {
-        setHighlightDetectionProgress({
+        setMotivationDetectionProgress({
           status: 'complete',
           percentage: 100,
           message: `Created ${result.createdCount} highlights`
         });
-        setIsDetectingHighlights(false);
+        setDetectingMotivation(null);
         refetchAnnotations();
         showSuccess(`Created ${result.createdCount} highlights`);
       });
 
       stream.onError((error: any) => {
-        setHighlightDetectionProgress(null);
-        setIsDetectingHighlights(false);
+        setMotivationDetectionProgress(null);
+        setDetectingMotivation(null);
         showError(`Highlight detection failed: ${error.message}`);
       });
     } catch (error) {
-      setIsDetectingHighlights(false);
-      setHighlightDetectionProgress(null);
+      setDetectingMotivation(null);
+      setMotivationDetectionProgress(null);
       showError('Failed to start highlight detection');
     }
   }, [client, rUri, refetchAnnotations, showSuccess, showError]);
@@ -533,14 +511,14 @@ function ResourceView({
   const handleDetectAssessments = useCallback(async (instructions?: string) => {
     if (!client) return;
 
-    setIsDetectingAssessments(true);
-    setAssessmentDetectionProgress({ status: 'started', message: 'Starting assessment detection...' });
+    setDetectingMotivation('assessing');
+    setMotivationDetectionProgress({ status: 'started', message: 'Starting assessment detection...' });
 
     try {
       const stream = client.sse.detectAssessments(rUri, instructions ? { instructions } : {});
 
       stream.onProgress((progress: any) => {
-        setAssessmentDetectionProgress({
+        setMotivationDetectionProgress({
           status: progress.status,
           percentage: progress.percentage,
           message: progress.message
@@ -548,24 +526,24 @@ function ResourceView({
       });
 
       stream.onComplete((result: any) => {
-        setAssessmentDetectionProgress({
+        setMotivationDetectionProgress({
           status: 'complete',
           percentage: 100,
           message: `Created ${result.createdCount} assessments`
         });
-        setIsDetectingAssessments(false);
+        setDetectingMotivation(null);
         refetchAnnotations();
         showSuccess(`Created ${result.createdCount} assessments`);
       });
 
       stream.onError((error: any) => {
-        setAssessmentDetectionProgress(null);
-        setIsDetectingAssessments(false);
+        setMotivationDetectionProgress(null);
+        setDetectingMotivation(null);
         showError(`Assessment detection failed: ${error.message}`);
       });
     } catch (error) {
-      setIsDetectingAssessments(false);
-      setAssessmentDetectionProgress(null);
+      setDetectingMotivation(null);
+      setMotivationDetectionProgress(null);
       showError('Failed to start assessment detection');
     }
   }, [client, rUri, refetchAnnotations, showSuccess, showError]);
@@ -576,8 +554,8 @@ function ResourceView({
   const handleDetectComments = useCallback(async (instructions?: string, tone?: string) => {
     if (!client) return;
 
-    setIsDetectingComments(true);
-    setCommentDetectionProgress({ status: 'started', message: 'Starting comment detection...' });
+    setDetectingMotivation('commenting');
+    setMotivationDetectionProgress({ status: 'started', message: 'Starting comment detection...' });
 
     try {
       const stream = client.sse.detectComments(rUri, {
@@ -586,7 +564,7 @@ function ResourceView({
       });
 
       stream.onProgress((progress: any) => {
-        setCommentDetectionProgress({
+        setMotivationDetectionProgress({
           status: progress.status,
           percentage: progress.percentage,
           message: progress.message
@@ -594,24 +572,24 @@ function ResourceView({
       });
 
       stream.onComplete((result: any) => {
-        setCommentDetectionProgress({
+        setMotivationDetectionProgress({
           status: 'complete',
           percentage: 100,
           message: `Created ${result.createdCount} comments`
         });
-        setIsDetectingComments(false);
+        setDetectingMotivation(null);
         refetchAnnotations();
         showSuccess(`Created ${result.createdCount} comments`);
       });
 
       stream.onError((error: any) => {
-        setCommentDetectionProgress(null);
-        setIsDetectingComments(false);
+        setMotivationDetectionProgress(null);
+        setDetectingMotivation(null);
         showError(`Comment detection failed: ${error.message}`);
       });
     } catch (error) {
-      setIsDetectingComments(false);
-      setCommentDetectionProgress(null);
+      setDetectingMotivation(null);
+      setMotivationDetectionProgress(null);
       showError('Failed to start comment detection');
     }
   }, [client, rUri, refetchAnnotations, showSuccess, showError]);
@@ -622,14 +600,14 @@ function ResourceView({
   const handleDetectTags = useCallback(async (schemaId: string, categories: string[]) => {
     if (!client) return;
 
-    setIsDetectingTags(true);
-    setTagDetectionProgress({ status: 'started', message: 'Starting tag detection...' });
+    setDetectingMotivation('tagging');
+    setMotivationDetectionProgress({ status: 'started', message: 'Starting tag detection...' });
 
     try {
       const stream = client.sse.detectTags(rUri, { schemaId, categories });
 
       stream.onProgress((progress: any) => {
-        setTagDetectionProgress({
+        setMotivationDetectionProgress({
           status: progress.status,
           percentage: progress.percentage,
           message: progress.message,
@@ -638,24 +616,24 @@ function ResourceView({
       });
 
       stream.onComplete((result: any) => {
-        setTagDetectionProgress({
+        setMotivationDetectionProgress({
           status: 'complete',
           percentage: 100,
           message: `Created ${result.tagsCreated} tags`
         });
-        setIsDetectingTags(false);
+        setDetectingMotivation(null);
         refetchAnnotations();
         showSuccess(`Created ${result.tagsCreated} tags`);
       });
 
       stream.onError((error: any) => {
-        setTagDetectionProgress(null);
-        setIsDetectingTags(false);
+        setMotivationDetectionProgress(null);
+        setDetectingMotivation(null);
         showError(`Tag detection failed: ${error.message}`);
       });
     } catch (error) {
-      setIsDetectingTags(false);
-      setTagDetectionProgress(null);
+      setDetectingMotivation(null);
+      setMotivationDetectionProgress(null);
       showError('Failed to start tag detection');
     }
   }, [client, rUri, refetchAnnotations, showSuccess, showError]);
@@ -861,43 +839,43 @@ function ResourceView({
                 onCommentClick={(commentId) => {
                   // Open Annotations Panel and focus on this comment
                   setActivePanel('annotations');
-                  setFocusedCommentId(commentId);
+                  setFocusedAnnotationId(commentId);
                   // Clear after a short delay to remove highlight
-                  setTimeout(() => setFocusedCommentId(null), 3000);
+                  setTimeout(() => setFocusedAnnotationId(null), 3000);
                 }}
                 onReferenceClick={(referenceId) => {
                   // Open Annotations Panel and focus on this reference
                   setActivePanel('annotations');
-                  setFocusedReferenceId(referenceId);
+                  setFocusedAnnotationId(referenceId);
                   // Clear after a short delay to remove highlight
-                  setTimeout(() => setFocusedReferenceId(null), 3000);
+                  setTimeout(() => setFocusedAnnotationId(null), 3000);
                 }}
                 onHighlightClick={(highlightId) => {
                   // Open Annotations Panel and focus on this highlight
                   setActivePanel('annotations');
-                  setFocusedHighlightId(highlightId);
+                  setFocusedAnnotationId(highlightId);
                   // Clear after a short delay to remove highlight
-                  setTimeout(() => setFocusedHighlightId(null), 3000);
+                  setTimeout(() => setFocusedAnnotationId(null), 3000);
                 }}
                 onAssessmentClick={(assessmentId) => {
                   // Open Annotations Panel and focus on this assessment
                   setActivePanel('annotations');
-                  setFocusedAssessmentId(assessmentId);
+                  setFocusedAnnotationId(assessmentId);
                   // Clear after a short delay to remove highlight
-                  setTimeout(() => setFocusedAssessmentId(null), 3000);
+                  setTimeout(() => setFocusedAnnotationId(null), 3000);
                 }}
                 onTagClick={(tagId) => {
                   // Open Annotations Panel and focus on this tag
                   setActivePanel('annotations');
-                  setFocusedTagId(tagId);
+                  setFocusedAnnotationId(tagId);
                   // Clear after a short delay to remove highlight
-                  setTimeout(() => setFocusedTagId(null), 3000);
+                  setTimeout(() => setFocusedAnnotationId(null), 3000);
                 }}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
-                onCommentHover={setHoveredCommentId}
+                onCommentHover={setHoveredAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
-                hoveredCommentId={hoveredCommentId}
+                hoveredCommentId={hoveredAnnotationId}
                 scrollToAnnotationId={scrollToAnnotationId}
                 showLineNumbers={showLineNumbers}
               />
@@ -942,78 +920,81 @@ function ResourceView({
             )}
 
             {/* Unified Annotations Panel */}
-            {activePanel === 'annotations' && !resource.archived && (
-              <UnifiedAnnotationsPanel
-                highlights={highlights}
-                references={references}
-                assessments={assessments}
-                comments={comments}
-                tags={tags}
-                onHighlightClick={(annotation) => {
-                  setHoveredHighlightId(annotation.id);
-                  setTimeout(() => setHoveredHighlightId(null), 1500);
-                }}
-                onReferenceClick={(annotation) => {
-                  setHoveredAnnotationId(annotation.id);
-                  setTimeout(() => setHoveredAnnotationId(null), 1500);
-                }}
-                onAssessmentClick={(annotation) => {
-                  setHoveredAssessmentId(annotation.id);
-                  setTimeout(() => setHoveredAssessmentId(null), 1500);
-                }}
-                onCommentClick={(annotation) => {
-                  setHoveredCommentId(annotation.id);
-                  setTimeout(() => setHoveredCommentId(null), 1500);
-                }}
-                onTagClick={(annotation) => {
-                  setHoveredTagId(annotation.id);
-                  setTimeout(() => setHoveredTagId(null), 1500);
-                }}
-                onHighlightHover={setHoveredHighlightId}
-                onReferenceHover={setHoveredAnnotationId}
-                onAssessmentHover={setHoveredAssessmentId}
-                onCommentHover={setHoveredCommentId}
-                onTagHover={setHoveredTagId}
-                focusedHighlightId={focusedHighlightId}
-                focusedReferenceId={focusedReferenceId}
-                focusedAssessmentId={focusedAssessmentId}
-                focusedCommentId={focusedCommentId}
-                focusedTagId={focusedTagId}
-                hoveredHighlightId={hoveredHighlightId}
-                hoveredReferenceId={hoveredAnnotationId}
-                hoveredAssessmentId={hoveredAssessmentId}
-                hoveredCommentId={hoveredCommentId}
-                hoveredTagId={hoveredTagId}
-                annotateMode={annotateMode}
-                {...(primaryMediaType?.startsWith('text/') ? {
-                  onDetectHighlights: handleDetectHighlights,
-                  onDetectAssessments: handleDetectAssessments,
-                  onDetectComments: handleDetectComments,
-                  onDetectTags: handleDetectTags,
-                } : {})}
-                isDetectingHighlights={isDetectingHighlights}
-                isDetectingAssessments={isDetectingAssessments}
-                isDetectingComments={isDetectingComments}
-                isDetectingTags={isDetectingTags}
-                highlightDetectionProgress={highlightDetectionProgress}
-                assessmentDetectionProgress={assessmentDetectionProgress}
-                commentDetectionProgress={commentDetectionProgress}
-                tagDetectionProgress={tagDetectionProgress}
-                onUpdateComment={async (annotationIdStr, newText) => {
-                  // TODO: Implement update comment mutation
-                }}
-                onCreateComment={async (commentText) => {
-                  if (pendingCommentSelection) {
-                    await addComment(rUri, pendingCommentSelection, commentText);
-                    setPendingCommentSelection(null);
-                  }
-                }}
-                pendingCommentSelection={pendingCommentSelection}
-                {...(primaryMediaType?.startsWith('text/') ? { onCreateTag: handleCreateTag } : {})}
-                pendingTagSelection={pendingTagSelection}
-                resourceId={rUri.split('/').pop() || ''}
-              />
-            )}
+            {activePanel === 'annotations' && !resource.archived && (() => {
+              // Create annotators with injected handlers
+              const annotators = withHandlers({
+                highlight: {
+                  onClick: (annotation) => {
+                    setHoveredAnnotationId(annotation.id);
+                    setTimeout(() => setHoveredAnnotationId(null), 1500);
+                  },
+                  onHover: setHoveredAnnotationId,
+                  ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectHighlights } : {})
+                },
+                reference: {
+                  onClick: (annotation) => {
+                    setHoveredAnnotationId(annotation.id);
+                    setTimeout(() => setHoveredAnnotationId(null), 1500);
+                  },
+                  onHover: setHoveredAnnotationId,
+                  onCreate: handleGenerateDocument,
+                  ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectEntityReferences } : {})
+                },
+                assessment: {
+                  onClick: (annotation) => {
+                    setHoveredAnnotationId(annotation.id);
+                    setTimeout(() => setHoveredAnnotationId(null), 1500);
+                  },
+                  onHover: setHoveredAnnotationId,
+                  ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectAssessments } : {})
+                },
+                comment: {
+                  onClick: (annotation) => {
+                    setHoveredAnnotationId(annotation.id);
+                    setTimeout(() => setHoveredAnnotationId(null), 1500);
+                  },
+                  onHover: setHoveredAnnotationId,
+                  onUpdate: async (annotationIdStr: string, newText: string) => {
+                    // TODO: Implement update comment mutation
+                  },
+                  onCreate: async (commentText: string) => {
+                    if (pendingCommentSelection) {
+                      await addComment(rUri, pendingCommentSelection, commentText);
+                      setPendingCommentSelection(null);
+                    }
+                  },
+                  ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectComments } : {})
+                },
+                tag: {
+                  onClick: (annotation) => {
+                    setHoveredAnnotationId(annotation.id);
+                    setTimeout(() => setHoveredAnnotationId(null), 1500);
+                  },
+                  onHover: setHoveredAnnotationId,
+                  ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectTags } : {}),
+                  ...(primaryMediaType?.startsWith('text/') ? { onCreate: handleCreateTag } : {})
+                }
+              });
+
+              return (
+                <UnifiedAnnotationsPanel
+                  annotations={[...highlights, ...references, ...assessments, ...comments, ...tags]}
+                  annotators={annotators}
+                  focusedAnnotationId={focusedAnnotationId}
+                  hoveredAnnotationId={hoveredAnnotationId}
+                  annotateMode={annotateMode}
+                  detectingMotivation={detectingMotivation}
+                  detectionProgress={motivationDetectionProgress}
+                  pendingCommentSelection={pendingCommentSelection}
+                  pendingTagSelection={pendingTagSelection}
+                  allEntityTypes={documentEntityTypes}
+                  {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
+                  referencedBy={referencedBy}
+                  referencedByLoading={referencedByLoading}
+                  resourceId={rUri.split('/').pop() || ''}
+                />
+              );
+            })()}
 
             {/* History Panel */}
             {activePanel === 'history' && (

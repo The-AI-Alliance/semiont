@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
-import { groupAnnotationsByType, type Annotator } from '@/lib/annotation-registry';
+import { groupAnnotationsByType, type Annotator, ANNOTATORS } from '@/lib/annotation-registry';
 import { HighlightPanel } from './HighlightPanel';
 import { ReferencesPanel } from './ReferencesPanel';
 import { AssessmentPanel } from './AssessmentPanel';
@@ -11,8 +11,22 @@ import { CommentsPanel } from './CommentsPanel';
 import { TaggingPanel } from './TaggingPanel';
 
 type Annotation = components['schemas']['Annotation'];
+type Motivation = components['schemas']['Motivation'];
+type AnnotatorKey = keyof typeof ANNOTATORS;
 
-type AnnotationType = 'highlights' | 'references' | 'assessments' | 'comments' | 'tags';
+// Tab display order (controls the order tabs appear in the UI)
+const TAB_ORDER: AnnotatorKey[] = ['highlight', 'reference', 'assessment', 'comment', 'tag'];
+
+// Panel component mapping for dynamic rendering
+type PanelComponent = React.ComponentType<any>;
+
+const PANEL_COMPONENTS: Record<AnnotatorKey, PanelComponent> = {
+  highlight: HighlightPanel,
+  reference: ReferencesPanel,
+  assessment: AssessmentPanel,
+  comment: CommentsPanel,
+  tag: TaggingPanel
+};
 
 /**
  * Simplified UnifiedAnnotationsPanel using Annotator abstraction
@@ -38,7 +52,7 @@ interface UnifiedAnnotationsPanelProps {
   annotateMode?: boolean;
 
   // Detection state (per motivation)
-  detectingMotivation?: string | null;
+  detectingMotivation?: Motivation | null;
   detectionProgress?: {
     status: string;
     percentage?: number;
@@ -71,7 +85,111 @@ interface UnifiedAnnotationsPanelProps {
 
   // Resource context
   resourceId?: string;
-  initialTab?: AnnotationType;
+  initialTab?: AnnotatorKey;
+}
+
+/**
+ * Adapter function to convert unified props to panel-specific prop names
+ * Each panel has different prop naming conventions (highlights vs assessments vs tags, etc.)
+ * This function maps the generic props to the specific names each panel expects
+ */
+function getPanelSpecificProps(
+  key: AnnotatorKey,
+  props: UnifiedAnnotationsPanelProps,
+  grouped: Record<string, Annotation[]>
+): any {
+  const annotator = props.annotators[key];
+  if (!annotator) return {};
+
+  const baseProps = {
+    focusedAnnotationId: props.focusedAnnotationId,
+    hoveredAnnotationId: props.hoveredAnnotationId,
+    annotateMode: props.annotateMode,
+    isDetecting: props.detectingMotivation === annotator.motivation,
+    detectionProgress: props.detectingMotivation === annotator.motivation ? props.detectionProgress : null
+  };
+
+  switch (key) {
+    case 'highlight':
+      return {
+        highlights: grouped.highlight || [],
+        onHighlightClick: annotator.handlers?.onClick || (() => {}),
+        focusedHighlightId: props.focusedAnnotationId,
+        hoveredHighlightId: props.hoveredAnnotationId ?? null,
+        ...(annotator.handlers?.onHover ? { onHighlightHover: annotator.handlers.onHover } : {}),
+        ...(annotator.handlers?.onDetect ? { onDetectHighlights: annotator.handlers.onDetect } : {}),
+        ...(baseProps.isDetecting ? { isDetecting: true } : {}),
+        ...(baseProps.detectionProgress ? { detectionProgress: baseProps.detectionProgress } : {}),
+        ...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {})
+      };
+
+    case 'reference':
+      return {
+        allEntityTypes: props.allEntityTypes || [],
+        isDetecting: baseProps.isDetecting,
+        detectionProgress: baseProps.detectionProgress,
+        onDetect: annotator.handlers?.onDetect || (() => {}),
+        onCancelDetection: () => {}, // TODO: add to handlers
+        references: grouped.reference || [],
+        ...(annotator.handlers?.onClick ? { onReferenceClick: annotator.handlers.onClick } : {}),
+        ...(props.focusedAnnotationId ? { focusedReferenceId: props.focusedAnnotationId } : {}),
+        hoveredReferenceId: props.hoveredAnnotationId ?? null,
+        ...(annotator.handlers?.onHover ? { onReferenceHover: annotator.handlers.onHover } : {}),
+        ...(annotator.handlers?.onCreate ? { onGenerateDocument: annotator.handlers.onCreate } : {}),
+        ...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {}),
+        ...(props.mediaType ? { mediaType: props.mediaType } : {}),
+        ...(props.referencedBy ? { referencedBy: props.referencedBy } : {}),
+        ...(props.referencedByLoading !== undefined ? { referencedByLoading: props.referencedByLoading } : {})
+      };
+
+    case 'assessment':
+      return {
+        assessments: grouped.assessment || [],
+        onAssessmentClick: annotator.handlers?.onClick || (() => {}),
+        focusedAssessmentId: props.focusedAnnotationId,
+        hoveredAssessmentId: props.hoveredAnnotationId ?? null,
+        ...(annotator.handlers?.onHover ? { onAssessmentHover: annotator.handlers.onHover } : {}),
+        ...(annotator.handlers?.onDetect ? { onDetectAssessments: annotator.handlers.onDetect } : {}),
+        ...(baseProps.isDetecting ? { isDetecting: true } : {}),
+        ...(baseProps.detectionProgress ? { detectionProgress: baseProps.detectionProgress } : {}),
+        ...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {})
+      };
+
+    case 'comment':
+      if (!annotator.handlers?.onUpdate) return null;
+      return {
+        comments: grouped.comment || [],
+        onCommentClick: annotator.handlers.onClick || (() => {}),
+        onUpdateComment: annotator.handlers.onUpdate,
+        ...(annotator.handlers.onCreate ? { onCreateComment: annotator.handlers.onCreate } : {}),
+        focusedCommentId: props.focusedAnnotationId,
+        hoveredCommentId: props.hoveredAnnotationId ?? null,
+        ...(annotator.handlers.onHover ? { onCommentHover: annotator.handlers.onHover } : {}),
+        ...(props.pendingCommentSelection ? { pendingSelection: props.pendingCommentSelection } : {}),
+        ...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {}),
+        ...(annotator.handlers.onDetect ? { onDetectComments: annotator.handlers.onDetect } : {}),
+        ...(baseProps.isDetecting ? { isDetecting: true } : {}),
+        ...(baseProps.detectionProgress ? { detectionProgress: baseProps.detectionProgress } : {})
+      };
+
+    case 'tag':
+      return {
+        tags: grouped.tag || [],
+        onTagClick: annotator.handlers?.onClick || (() => {}),
+        focusedTagId: props.focusedAnnotationId,
+        hoveredTagId: props.hoveredAnnotationId ?? null,
+        ...(annotator.handlers?.onHover ? { onTagHover: annotator.handlers.onHover } : {}),
+        ...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {}),
+        ...(annotator.handlers?.onDetect ? { onDetectTags: annotator.handlers.onDetect } : {}),
+        ...(annotator.handlers?.onCreate ? { onCreateTag: annotator.handlers.onCreate } : {}),
+        ...(baseProps.isDetecting ? { isDetecting: true } : {}),
+        ...(baseProps.detectionProgress ? { detectionProgress: baseProps.detectionProgress } : {}),
+        ...(props.pendingTagSelection ? { pendingSelection: props.pendingTagSelection } : {})
+      };
+
+    default:
+      return {};
+  }
 }
 
 export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
@@ -81,19 +199,19 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
   const grouped = groupAnnotationsByType(props.annotations);
 
   // Load tab from localStorage (per-resource)
-  const [activeTab, setActiveTab] = useState<AnnotationType>(() => {
-    if (typeof window === 'undefined') return props.initialTab || 'highlights';
+  const [activeTab, setActiveTab] = useState<AnnotatorKey>(() => {
+    if (typeof window === 'undefined') return props.initialTab || 'highlight';
 
     const storageKey = props.resourceId
       ? `annotations-tab-${props.resourceId}`
       : 'annotations-tab-global';
 
     const stored = localStorage.getItem(storageKey);
-    if (stored && ['highlights', 'references', 'assessments', 'comments', 'tags'].includes(stored)) {
-      return stored as AnnotationType;
+    if (stored && TAB_ORDER.includes(stored as AnnotatorKey)) {
+      return stored as AnnotatorKey;
     }
 
-    return props.initialTab || 'highlights';
+    return props.initialTab || 'highlight';
   });
 
   // Persist tab selection
@@ -107,12 +225,12 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
     localStorage.setItem(storageKey, activeTab);
   }, [activeTab, props.resourceId]);
 
-  const handleTabClick = (tab: AnnotationType) => {
+  const handleTabClick = (tab: AnnotatorKey) => {
     setActiveTab(tab);
   };
 
   // Tab button styling
-  const tabButtonClass = (tab: AnnotationType) => {
+  const tabButtonClass = (tab: AnnotatorKey) => {
     const isActive = activeTab === tab;
     return `
       px-3 py-1.5 text-sm font-medium rounded-md transition-colors
@@ -123,136 +241,40 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
     `.trim();
   };
 
-  // Get annotators for each type
-  const highlightAnnotator = props.annotators.highlight;
-  const referenceAnnotator = props.annotators.reference;
-  const assessmentAnnotator = props.annotators.assessment;
-  const commentAnnotator = props.annotators.comment;
-  const tagAnnotator = props.annotators.tag;
-
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
       {/* Tab Navigation */}
       <div className="flex flex-wrap gap-1 p-2 border-b border-gray-200 dark:border-gray-700">
-        <button
-          onClick={() => handleTabClick('highlights')}
-          className={tabButtonClass('highlights')}
-          aria-pressed={activeTab === 'highlights'}
-        >
-          {highlightAnnotator?.iconEmoji || '🟡'} {t('highlights')} ({grouped.highlight?.length || 0})
-        </button>
-        <button
-          onClick={() => handleTabClick('references')}
-          className={tabButtonClass('references')}
-          aria-pressed={activeTab === 'references'}
-        >
-          {referenceAnnotator?.iconEmoji || '🔵'} {t('references')} ({grouped.reference?.length || 0})
-        </button>
-        <button
-          onClick={() => handleTabClick('assessments')}
-          className={tabButtonClass('assessments')}
-          aria-pressed={activeTab === 'assessments'}
-        >
-          {assessmentAnnotator?.iconEmoji || '🔴'} {t('assessments')} ({grouped.assessment?.length || 0})
-        </button>
-        <button
-          onClick={() => handleTabClick('comments')}
-          className={tabButtonClass('comments')}
-          aria-pressed={activeTab === 'comments'}
-        >
-          {commentAnnotator?.iconEmoji || '💬'} {t('comments')} ({grouped.comment?.length || 0})
-        </button>
-        <button
-          onClick={() => handleTabClick('tags')}
-          className={tabButtonClass('tags')}
-          aria-pressed={activeTab === 'tags'}
-        >
-          {tagAnnotator?.iconEmoji || '🏷️'} {t('tags')} ({grouped.tag?.length || 0})
-        </button>
+        {TAB_ORDER.map(key => {
+          const annotator = props.annotators[key];
+          if (!annotator) return null;
+
+          const count = grouped[key]?.length || 0;
+
+          return (
+            <button
+              key={key}
+              onClick={() => handleTabClick(key)}
+              className={tabButtonClass(key)}
+              aria-pressed={activeTab === key}
+            >
+              {annotator.iconEmoji} {t(key)} ({count})
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab Content */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'highlights' && (
-          <HighlightPanel
-            highlights={grouped.highlight || []}
-            onHighlightClick={highlightAnnotator?.handlers?.onClick || (() => {})}
-            focusedHighlightId={props.focusedAnnotationId}
-            hoveredHighlightId={props.hoveredAnnotationId ?? null}
-            {...(highlightAnnotator?.handlers?.onHover ? { onHighlightHover: highlightAnnotator.handlers.onHover } : {})}
-            {...(highlightAnnotator?.handlers?.onDetect ? { onDetectHighlights: highlightAnnotator.handlers.onDetect } : {})}
-            {...(props.detectingMotivation === 'highlighting' ? { isDetecting: true } : {})}
-            {...(props.detectingMotivation === 'highlighting' && props.detectionProgress ? { detectionProgress: props.detectionProgress } : {})}
-            {...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {})}
-          />
-        )}
+        {(() => {
+          const PanelComponent = PANEL_COMPONENTS[activeTab];
+          const annotator = props.annotators[activeTab];
+          const panelProps = getPanelSpecificProps(activeTab, props, grouped);
 
-        {activeTab === 'references' && (
-          <ReferencesPanel
-            allEntityTypes={props.allEntityTypes || []}
-            isDetecting={props.detectingMotivation === 'linking'}
-            detectionProgress={props.detectionProgress}
-            onDetect={referenceAnnotator?.handlers?.onDetect || (() => {})}
-            onCancelDetection={() => {}} // TODO: add to handlers
-            references={grouped.reference || []}
-            {...(referenceAnnotator?.handlers?.onClick ? { onReferenceClick: referenceAnnotator.handlers.onClick } : {})}
-            {...(props.focusedAnnotationId ? { focusedReferenceId: props.focusedAnnotationId } : {})}
-            hoveredReferenceId={props.hoveredAnnotationId ?? null}
-            {...(referenceAnnotator?.handlers?.onHover ? { onReferenceHover: referenceAnnotator.handlers.onHover } : {})}
-            {...(referenceAnnotator?.handlers?.onCreate ? { onGenerateDocument: referenceAnnotator.handlers.onCreate } : {})}
-            {...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {})}
-            {...(props.mediaType ? { mediaType: props.mediaType } : {})}
-            {...(props.referencedBy ? { referencedBy: props.referencedBy } : {})}
-            {...(props.referencedByLoading !== undefined ? { referencedByLoading: props.referencedByLoading } : {})}
-          />
-        )}
+          if (!PanelComponent || !annotator || !panelProps) return null;
 
-        {activeTab === 'assessments' && (
-          <AssessmentPanel
-            assessments={grouped.assessment || []}
-            onAssessmentClick={assessmentAnnotator?.handlers?.onClick || (() => {})}
-            focusedAssessmentId={props.focusedAnnotationId}
-            hoveredAssessmentId={props.hoveredAnnotationId ?? null}
-            {...(assessmentAnnotator?.handlers?.onHover ? { onAssessmentHover: assessmentAnnotator.handlers.onHover } : {})}
-            {...(assessmentAnnotator?.handlers?.onDetect ? { onDetectAssessments: assessmentAnnotator.handlers.onDetect } : {})}
-            {...(props.detectingMotivation === 'assessing' ? { isDetecting: true } : {})}
-            {...(props.detectingMotivation === 'assessing' && props.detectionProgress ? { detectionProgress: props.detectionProgress } : {})}
-            {...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {})}
-          />
-        )}
-
-        {activeTab === 'comments' && commentAnnotator?.handlers?.onUpdate && (
-          <CommentsPanel
-            comments={grouped.comment || []}
-            onCommentClick={commentAnnotator.handlers.onClick || (() => {})}
-            onUpdateComment={commentAnnotator.handlers.onUpdate}
-            {...(commentAnnotator.handlers.onCreate ? { onCreateComment: commentAnnotator.handlers.onCreate } : {})}
-            focusedCommentId={props.focusedAnnotationId}
-            hoveredCommentId={props.hoveredAnnotationId ?? null}
-            {...(commentAnnotator.handlers.onHover ? { onCommentHover: commentAnnotator.handlers.onHover } : {})}
-            {...(props.pendingCommentSelection ? { pendingSelection: props.pendingCommentSelection } : {})}
-            {...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {})}
-            {...(commentAnnotator.handlers.onDetect ? { onDetectComments: commentAnnotator.handlers.onDetect } : {})}
-            {...(props.detectingMotivation === 'commenting' ? { isDetecting: true } : {})}
-            {...(props.detectingMotivation === 'commenting' && props.detectionProgress ? { detectionProgress: props.detectionProgress } : {})}
-          />
-        )}
-
-        {activeTab === 'tags' && (
-          <TaggingPanel
-            tags={grouped.tag || []}
-            onTagClick={tagAnnotator?.handlers?.onClick || (() => {})}
-            focusedTagId={props.focusedAnnotationId}
-            hoveredTagId={props.hoveredAnnotationId ?? null}
-            {...(tagAnnotator?.handlers?.onHover ? { onTagHover: tagAnnotator.handlers.onHover } : {})}
-            {...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {})}
-            {...(tagAnnotator?.handlers?.onDetect ? { onDetectTags: tagAnnotator.handlers.onDetect } : {})}
-            {...(tagAnnotator?.handlers?.onCreate ? { onCreateTag: tagAnnotator.handlers.onCreate } : {})}
-            {...(props.detectingMotivation === 'tagging' ? { isDetecting: true } : {})}
-            {...(props.detectingMotivation === 'tagging' && props.detectionProgress ? { detectionProgress: props.detectionProgress } : {})}
-            {...(props.pendingTagSelection ? { pendingSelection: props.pendingTagSelection } : {})}
-          />
-        )}
+          return <PanelComponent {...panelProps} />;
+        })()}
       </div>
     </div>
   );
