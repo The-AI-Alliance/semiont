@@ -14,7 +14,7 @@
 
 import type { MutableRefObject } from 'react';
 import type { components } from '@semiont/api-client';
-import { isHighlight, isComment, isReference, isTag } from '@semiont/api-client';
+import { isHighlight, isComment, isReference, isTag, entityType } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation']; // Already defined in api-client with all 13 W3C motivations!
@@ -295,7 +295,22 @@ export function createDetectionHandler(
     try {
       // Call the appropriate SSE method
       const sseClient = context.client.sse;
-      const stream = sseClient[detection.sseMethod](context.rUri, ...args);
+
+      // Transform arguments for detectAnnotations (expects { entityTypes: EntityType[] })
+      // Other detection methods expect no arguments or different formats
+      let stream;
+      if (detection.sseMethod === 'detectAnnotations') {
+        // args[0] is selectedEntityTypes: string[]
+        const selectedTypes = args[0] || [];
+        stream = sseClient.detectAnnotations(context.rUri, {
+          entityTypes: selectedTypes.map((type: string) => entityType(type))
+        });
+      } else {
+        // Other methods (detectHighlights, detectAssessments, detectComments, detectTags)
+        // expect no additional arguments beyond resourceUri
+        stream = sseClient[detection.sseMethod](context.rUri);
+      }
+
       context.detectionStreamRef.current = stream;
 
       stream.onProgress((progress: any) => {
