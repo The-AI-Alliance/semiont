@@ -14,8 +14,8 @@ import { ResourceTagsInline } from '@/components/ResourceTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
-import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery, getAnnotationExactText } from '@semiont/api-client';
-import { groupAnnotationsByType, withHandlers } from '@/lib/annotation-registry';
+import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery, getAnnotationExactText, entityType } from '@semiont/api-client';
+import { groupAnnotationsByType, withHandlers, createDetectionHandler, createCancelDetectionHandler, ANNOTATORS } from '@/lib/annotation-registry';
 import { supportsDetection } from '@/lib/resource-utils';
 
 type Motivation = components['schemas']['Motivation'];
@@ -26,7 +26,6 @@ import { useOpenResources } from '@/contexts/OpenResourcesContext';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useToast } from '@/components/Toast';
-import { useDetectionProgress } from '@/hooks/useDetectionProgress';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { useGenerationProgress } from '@/hooks/useGenerationProgress';
 import { AnnotationHistory } from '@/components/resource/AnnotationHistory';
@@ -304,6 +303,9 @@ function ResourceView({
     totalCategories?: number;
   } | null>(null);
 
+  // SSE stream reference for cancellation
+  const detectionStreamRef = React.useRef<any>(null);
+
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
     setHoveredAnnotationId(annotationId);
@@ -406,50 +408,6 @@ function ResourceView({
   }, [annotateMode]);
 
 
-  // Use SSE-based detection progress
-  const {
-    progress: detectionProgress,
-    startDetection,
-    cancelDetection
-  } = useDetectionProgress({
-    rUri,
-    onProgress: (progress) => {
-      // When an entity type completes, refetch to show new annotations immediately
-      // Use both refetch (for immediate document view update) AND invalidate (for Annotation History)
-      refetchAnnotations();
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
-    },
-    onComplete: (progress) => {
-      // Don't show toast - the widget already shows completion status
-      // Final refetch + invalidation when ALL entity types complete
-      refetchAnnotations();
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
-      // Clear detection state after completion
-      setDetectingMotivation(null);
-      setMotivationDetectionProgress(null);
-    },
-    onError: (error) => {
-      showError(error);
-    }
-  });
-
-  // Sync entity detection progress to motivationDetectionProgress for UnifiedAnnotationsPanel
-  React.useEffect(() => {
-    if (detectingMotivation === 'linking' && detectionProgress) {
-      // Map DetectionProgress to motivationDetectionProgress format
-      setMotivationDetectionProgress({
-        status: detectionProgress.status,
-        message: detectionProgress.message ||
-          (detectionProgress.currentEntityType
-            ? `Detecting ${detectionProgress.currentEntityType}...`
-            : `Processing ${detectionProgress.processedEntityTypes} of ${detectionProgress.totalEntityTypes} entity types...`),
-        processedCategories: detectionProgress.processedEntityTypes,
-        totalCategories: detectionProgress.totalEntityTypes,
-        ...(detectionProgress.currentEntityType && { currentCategory: detectionProgress.currentEntityType })
-      });
-    }
-    // Don't clear state here - let onComplete callback handle cleanup
-  }, [detectingMotivation, detectionProgress]);
 
   // Use SSE-based document generation progress - provides inline sparkle animation
   const {
@@ -469,15 +427,28 @@ function ResourceView({
     }
   });
 
-  // Handle detect entity references - updated for SSE
-  const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
-    // Set motivation to 'linking' so UnifiedAnnotationsPanel knows reference panel is detecting
-    setDetectingMotivation('linking');
-    setMotivationDetectionProgress({ status: 'started', message: 'Starting entity detection...' });
+  // Generic detection context for all annotation types
+  const detectionContext = {
+    client,
+    rUri,
+    setDetectingMotivation,
+    setMotivationDetectionProgress,
+    detectionStreamRef,
+    refetchAnnotations,
+    queryClient,
+    showSuccess,
+    showError
+  };
 
-    // Start detection with the selected entity types
-    setTimeout(() => startDetection(selectedTypes), 100);
-  }, [startDetection]);
+  // Generic cancel handler (works for all detection types)
+  const handleCancelDetection = React.useMemo(
+    () => createCancelDetectionHandler({
+      detectionStreamRef,
+      setDetectingMotivation,
+      setMotivationDetectionProgress
+    }),
+    []
+  );
 
   // Handle document generation from stub reference
   const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
@@ -495,181 +466,6 @@ function ResourceView({
     startGeneration(annotationUri(referenceId), resourceUri(resourceUriStr), optionsWithLanguage);
   }, [startGeneration, resource, clearNewAnnotationId, locale]);
 
-  /**
-   * Handle highlight detection
-   */
-  const handleDetectHighlights = useCallback(async (instructions?: string) => {
-    if (!client) return;
-
-    setDetectingMotivation('highlighting');
-    setMotivationDetectionProgress({ status: 'started', message: 'Starting highlight detection...' });
-
-    try {
-      const stream = client.sse.detectHighlights(rUri, instructions ? { instructions } : {});
-
-      stream.onProgress((progress: any) => {
-        setMotivationDetectionProgress({
-          status: progress.status,
-          percentage: progress.percentage,
-          message: progress.message
-        });
-      });
-
-      stream.onComplete((result: any) => {
-        setMotivationDetectionProgress({
-          status: 'complete',
-          percentage: 100,
-          message: `Created ${result.createdCount} highlights`
-        });
-        setDetectingMotivation(null);
-        refetchAnnotations();
-        showSuccess(`Created ${result.createdCount} highlights`);
-      });
-
-      stream.onError((error: any) => {
-        setMotivationDetectionProgress(null);
-        setDetectingMotivation(null);
-        showError(`Highlight detection failed: ${error.message}`);
-      });
-    } catch (error) {
-      setDetectingMotivation(null);
-      setMotivationDetectionProgress(null);
-      showError('Failed to start highlight detection');
-    }
-  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
-
-  /**
-   * Handle assessment detection
-   */
-  const handleDetectAssessments = useCallback(async (instructions?: string) => {
-    if (!client) return;
-
-    setDetectingMotivation('assessing');
-    setMotivationDetectionProgress({ status: 'started', message: 'Starting assessment detection...' });
-
-    try {
-      const stream = client.sse.detectAssessments(rUri, instructions ? { instructions } : {});
-
-      stream.onProgress((progress: any) => {
-        setMotivationDetectionProgress({
-          status: progress.status,
-          percentage: progress.percentage,
-          message: progress.message
-        });
-      });
-
-      stream.onComplete((result: any) => {
-        setMotivationDetectionProgress({
-          status: 'complete',
-          percentage: 100,
-          message: `Created ${result.createdCount} assessments`
-        });
-        setDetectingMotivation(null);
-        refetchAnnotations();
-        showSuccess(`Created ${result.createdCount} assessments`);
-      });
-
-      stream.onError((error: any) => {
-        setMotivationDetectionProgress(null);
-        setDetectingMotivation(null);
-        showError(`Assessment detection failed: ${error.message}`);
-      });
-    } catch (error) {
-      setDetectingMotivation(null);
-      setMotivationDetectionProgress(null);
-      showError('Failed to start assessment detection');
-    }
-  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
-
-  /**
-   * Handle comment detection
-   */
-  const handleDetectComments = useCallback(async (instructions?: string, tone?: string) => {
-    if (!client) return;
-
-    setDetectingMotivation('commenting');
-    setMotivationDetectionProgress({ status: 'started', message: 'Starting comment detection...' });
-
-    try {
-      const stream = client.sse.detectComments(rUri, {
-        ...(instructions && { instructions }),
-        ...(tone && { tone: tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' })
-      });
-
-      stream.onProgress((progress: any) => {
-        setMotivationDetectionProgress({
-          status: progress.status,
-          percentage: progress.percentage,
-          message: progress.message
-        });
-      });
-
-      stream.onComplete((result: any) => {
-        setMotivationDetectionProgress({
-          status: 'complete',
-          percentage: 100,
-          message: `Created ${result.createdCount} comments`
-        });
-        setDetectingMotivation(null);
-        refetchAnnotations();
-        showSuccess(`Created ${result.createdCount} comments`);
-      });
-
-      stream.onError((error: any) => {
-        setMotivationDetectionProgress(null);
-        setDetectingMotivation(null);
-        showError(`Comment detection failed: ${error.message}`);
-      });
-    } catch (error) {
-      setDetectingMotivation(null);
-      setMotivationDetectionProgress(null);
-      showError('Failed to start comment detection');
-    }
-  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
-
-  /**
-   * Handle tag detection
-   */
-  const handleDetectTags = useCallback(async (schemaId: string, categories: string[]) => {
-    if (!client) return;
-
-    setDetectingMotivation('tagging');
-    setMotivationDetectionProgress({ status: 'started', message: 'Starting tag detection...' });
-
-    try {
-      const stream = client.sse.detectTags(rUri, { schemaId, categories });
-
-      stream.onProgress((progress: any) => {
-        setMotivationDetectionProgress({
-          status: progress.status,
-          percentage: progress.percentage,
-          message: progress.message,
-          currentCategory: progress.currentCategory
-        });
-      });
-
-      stream.onComplete((result: any) => {
-        setMotivationDetectionProgress({
-          status: 'complete',
-          percentage: 100,
-          message: `Created ${result.tagsCreated} tags`
-        });
-        setDetectingMotivation(null);
-        refetchAnnotations();
-        showSuccess(`Created ${result.tagsCreated} tags`);
-      });
-
-      stream.onError((error: any) => {
-        setMotivationDetectionProgress(null);
-        setDetectingMotivation(null);
-        showError(`Tag detection failed: ${error.message}`);
-      });
-    } catch (error) {
-      setDetectingMotivation(null);
-      setMotivationDetectionProgress(null);
-      showError('Failed to start tag detection');
-    }
-  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
 
   // Manual tag creation handler
   const handleCreateTag = useCallback(async (
@@ -975,7 +771,7 @@ function ResourceView({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: handleDetectHighlights } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.highlight, detectionContext) } : {})
                 },
                 reference: {
                   onClick: (annotation) => {
@@ -1015,7 +811,7 @@ function ResourceView({
                       refetchAnnotations();
                     }
                   },
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: handleDetectEntityReferences } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.reference, detectionContext) } : {})
                 },
                 assessment: {
                   onClick: (annotation) => {
@@ -1023,7 +819,7 @@ function ResourceView({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: handleDetectAssessments } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.assessment, detectionContext) } : {})
                 },
                 comment: {
                   onClick: (annotation) => {
@@ -1040,7 +836,7 @@ function ResourceView({
                       setPendingCommentSelection(null);
                     }
                   },
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: handleDetectComments } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.comment, detectionContext) } : {})
                 },
                 tag: {
                   onClick: (annotation) => {
@@ -1048,7 +844,7 @@ function ResourceView({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: handleDetectTags } : {}),
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.tag, detectionContext) } : {}),
                   ...(supportsDetection(primaryMediaType) ? { onCreate: handleCreateTag } : {})
                 }
               });
@@ -1067,7 +863,7 @@ function ResourceView({
                   pendingReferenceSelection={pendingReferenceSelection}
                   allEntityTypes={allEntityTypes}
                   onGenerateDocument={handleGenerateDocument}
-                  onCancelDetection={cancelDetection}
+                  onCancelDetection={handleCancelDetection}
                   {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
                   referencedBy={referencedBy}
                   referencedByLoading={referencedByLoading}

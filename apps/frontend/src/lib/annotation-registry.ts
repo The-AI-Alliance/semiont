@@ -12,11 +12,29 @@
  * No aliasing, wrappers, or compatibility layers elsewhere.
  */
 
+import type { MutableRefObject } from 'react';
 import type { components } from '@semiont/api-client';
 import { isHighlight, isComment, isReference, isTag } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation']; // Already defined in api-client with all 13 W3C motivations!
+
+/**
+ * Detection configuration for SSE-based annotation detection
+ */
+export interface DetectionConfig {
+  // SSE method name (e.g., 'detectAnnotations', 'detectHighlights')
+  sseMethod: 'detectAnnotations' | 'detectHighlights' | 'detectAssessments' | 'detectComments' | 'detectTags';
+
+  // How to extract count from completion result
+  countField: 'foundCount' | 'createdCount' | 'tagsCreated';
+
+  // Plural display name for messages (e.g., 'entity references', 'highlights')
+  displayNamePlural: string;
+
+  // Singular display name for messages (e.g., 'entity reference', 'highlight')
+  displayNameSingular: string;
+}
 
 /**
  * Annotator: Encapsulates all motivation-specific behavior
@@ -46,6 +64,9 @@ export interface Annotator {
   // Accessibility
   announceOnCreate: string;
 
+  // Detection configuration (optional - only for types that support AI detection)
+  detection?: DetectionConfig;
+
   // Handlers (injected at runtime)
   handlers?: {
     onClick?: (annotation: Annotation) => void;
@@ -72,7 +93,13 @@ export const ANNOTATORS: Record<string, Annotator> = {
     hasHoverInteraction: true,
     hasSidePanel: true,
     matchesAnnotation: (ann) => isHighlight(ann),
-    announceOnCreate: 'Highlight created'
+    announceOnCreate: 'Highlight created',
+    detection: {
+      sseMethod: 'detectHighlights',
+      countField: 'createdCount',
+      displayNamePlural: 'highlights',
+      displayNameSingular: 'highlight'
+    }
   },
 
   comment: {
@@ -86,7 +113,13 @@ export const ANNOTATORS: Record<string, Annotator> = {
     hasHoverInteraction: true,
     hasSidePanel: true,
     matchesAnnotation: (ann) => isComment(ann),
-    announceOnCreate: 'Comment created'
+    announceOnCreate: 'Comment created',
+    detection: {
+      sseMethod: 'detectComments',
+      countField: 'createdCount',
+      displayNamePlural: 'comments',
+      displayNameSingular: 'comment'
+    }
   },
 
   assessment: {
@@ -100,7 +133,13 @@ export const ANNOTATORS: Record<string, Annotator> = {
     hasHoverInteraction: true,
     hasSidePanel: true,
     matchesAnnotation: (ann) => ann.motivation === 'assessing',
-    announceOnCreate: 'Assessment created'
+    announceOnCreate: 'Assessment created',
+    detection: {
+      sseMethod: 'detectAssessments',
+      countField: 'createdCount',
+      displayNamePlural: 'assessments',
+      displayNameSingular: 'assessment'
+    }
   },
 
   reference: {
@@ -114,7 +153,13 @@ export const ANNOTATORS: Record<string, Annotator> = {
     hasHoverInteraction: true,
     hasSidePanel: true,
     matchesAnnotation: (ann) => isReference(ann),
-    announceOnCreate: 'Reference created'
+    announceOnCreate: 'Reference created',
+    detection: {
+      sseMethod: 'detectAnnotations',
+      countField: 'foundCount',
+      displayNamePlural: 'entity references',
+      displayNameSingular: 'entity reference'
+    }
   },
 
   tag: {
@@ -128,7 +173,13 @@ export const ANNOTATORS: Record<string, Annotator> = {
     hasHoverInteraction: true,
     hasSidePanel: true,
     matchesAnnotation: (ann) => isTag(ann),
-    announceOnCreate: 'Tag created'
+    announceOnCreate: 'Tag created',
+    detection: {
+      sseMethod: 'detectTags',
+      countField: 'tagsCreated',
+      displayNamePlural: 'tags',
+      displayNameSingular: 'tag'
+    }
   }
 };
 
@@ -204,4 +255,119 @@ export function withHandlers(
   }
 
   return annotatorsWithHandlers;
+}
+
+/**
+ * Generic detection handler factory
+ * Creates a detection handler for any annotator with detection config
+ *
+ * This eliminates the need for motivation-specific detection handlers
+ * (handleDetectHighlights, handleDetectAssessments, etc.)
+ */
+export function createDetectionHandler(
+  annotator: Annotator,
+  context: {
+    client: any; // ApiClient from @semiont/api-client
+    rUri: any; // ResourceUri
+    setDetectingMotivation: (motivation: Motivation | null) => void;
+    setMotivationDetectionProgress: (progress: any) => void;
+    detectionStreamRef: MutableRefObject<any>;
+    refetchAnnotations: () => void;
+    queryClient?: any;
+    showSuccess: (message: string) => void;
+    showError: (message: string) => void;
+  }
+) {
+  const { detection } = annotator;
+  if (!detection) {
+    throw new Error(`Annotator ${annotator.internalType} does not support detection`);
+  }
+
+  return async (...args: any[]) => {
+    if (!context.client) return;
+
+    context.setDetectingMotivation(annotator.motivation);
+    context.setMotivationDetectionProgress({
+      status: 'started',
+      message: `Starting ${detection.displayNameSingular} detection...`
+    });
+
+    try {
+      // Call the appropriate SSE method
+      const sseClient = context.client.sse;
+      const stream = sseClient[detection.sseMethod](context.rUri, ...args);
+      context.detectionStreamRef.current = stream;
+
+      stream.onProgress((progress: any) => {
+        // Handle reference detection's special progress format
+        if (detection.sseMethod === 'detectAnnotations') {
+          context.setMotivationDetectionProgress({
+            status: progress.status,
+            message: progress.message ||
+              (progress.currentEntityType
+                ? `Detecting ${progress.currentEntityType}...`
+                : `Processing ${progress.processedEntityTypes} of ${progress.totalEntityTypes} entity types...`),
+            processedCategories: progress.processedEntityTypes,
+            totalCategories: progress.totalEntityTypes,
+            ...(progress.currentEntityType && { currentCategory: progress.currentEntityType })
+          });
+        } else {
+          // Standard progress format for other types
+          context.setMotivationDetectionProgress({
+            status: progress.status,
+            percentage: progress.percentage,
+            message: progress.message,
+            ...(progress.currentCategory && { currentCategory: progress.currentCategory })
+          });
+        }
+      });
+
+      stream.onComplete((result: any) => {
+        const count = result[detection.countField];
+        context.setMotivationDetectionProgress({
+          status: 'complete',
+          percentage: 100,
+          message: `Created ${count} ${count === 1 ? detection.displayNameSingular : detection.displayNamePlural}`
+        });
+        context.setDetectingMotivation(null);
+        context.detectionStreamRef.current = null;
+        context.refetchAnnotations();
+        if (context.queryClient) {
+          context.queryClient.invalidateQueries({ queryKey: ['documents', 'events', context.rUri] });
+        }
+        context.showSuccess(`Created ${count} ${count === 1 ? detection.displayNameSingular : detection.displayNamePlural}`);
+      });
+
+      stream.onError((error: any) => {
+        context.setMotivationDetectionProgress(null);
+        context.setDetectingMotivation(null);
+        context.detectionStreamRef.current = null;
+        context.showError(`${annotator.displayName} detection failed: ${error.message}`);
+      });
+    } catch (error) {
+      context.setDetectingMotivation(null);
+      context.setMotivationDetectionProgress(null);
+      context.detectionStreamRef.current = null;
+      context.showError(`Failed to start ${detection.displayNameSingular} detection`);
+    }
+  };
+}
+
+/**
+ * Generic detection cancellation handler
+ * Cancels any active detection stream
+ */
+export function createCancelDetectionHandler(context: {
+  detectionStreamRef: MutableRefObject<any>;
+  setDetectingMotivation: (motivation: Motivation | null) => void;
+  setMotivationDetectionProgress: (progress: any) => void;
+}) {
+  return () => {
+    if (context.detectionStreamRef.current) {
+      context.detectionStreamRef.current.close();
+      context.detectionStreamRef.current = null;
+    }
+    context.setDetectingMotivation(null);
+    context.setMotivationDetectionProgress(null);
+  };
 }
