@@ -26,7 +26,7 @@ interface Props {
   hoveredAnnotationId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
   onDetect: (selectedTypes: string[]) => void;
-  onCreate?: (title: string) => void;
+  onCreate?: (entityType?: string) => void;
   isDetecting: boolean;
   detectionProgress: any; // TODO: type this properly
   annotateMode?: boolean;
@@ -36,9 +36,18 @@ interface Props {
   onCancelDetection: () => void;
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onUpdate?: (referenceId: string, updates: Partial<Annotation>) => void;
+  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   mediaType?: string | undefined;
   referencedBy?: ReferencedBy[];
   referencedByLoading?: boolean;
+  pendingSelection?: {
+    exact: string;
+    start: number;
+    end: number;
+    prefix?: string;
+    suffix?: string;
+    svgSelector?: string;
+  } | null;
 }
 
 export function ReferencesPanel({
@@ -56,14 +65,17 @@ export function ReferencesPanel({
   onCancelDetection,
   onSearchDocuments,
   onUpdate,
+  onGenerateDocument,
   mediaType,
   referencedBy = [],
   referencedByLoading = false,
+  pendingSelection,
 }: Props) {
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
+  const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations, hoveredAnnotationId);
@@ -85,9 +97,68 @@ export function ReferencesPanel({
     }
   }, [isDetecting, detectionProgress]);
 
+  const togglePendingEntityType = (type: string) => {
+    setPendingEntityTypes(prev =>
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
+
+  const handleCreateReference = () => {
+    if (onCreate) {
+      const entityType = pendingEntityTypes.join(',') || undefined;
+      onCreate(entityType);
+      setPendingEntityTypes([]);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
       <PanelHeader annotationType="reference" count={annotations.length} title={tRef('referencesTitle')} />
+
+      {/* New reference creation - shown when there's a pending selection */}
+      {pendingSelection && onCreate && (
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/10">
+          <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-blue-300 pl-2">
+            {pendingSelection.svgSelector
+              ? tRef('imageRegionSelected')
+              : `"${pendingSelection.exact.substring(0, 100)}${pendingSelection.exact.length > 100 ? '...' : ''}"`
+            }
+          </div>
+
+          {/* Entity Types Multi-Select */}
+          {allEntityTypes.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                {tRef('entityTypesOptional')}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {allEntityTypes.map((type: string) => (
+                  <button
+                    key={type}
+                    onClick={() => togglePendingEntityType(type)}
+                    className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
+                      pendingEntityTypes.includes(type)
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleCreateReference}
+            className="w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+          >
+            🔗 {tRef('createReference')}
+          </button>
+        </div>
+      )}
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -215,7 +286,7 @@ export function ReferencesPanel({
                   onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}
                   {...(onAnnotationHover && { onAnnotationHover })}
-                  {...(onCreate && { onCreate })}
+                  {...(onGenerateDocument && { onCreate: onGenerateDocument })}
                   {...(onSearchDocuments && { onSearchDocuments })}
                   {...(onUpdate && { onUpdate })}
                 />

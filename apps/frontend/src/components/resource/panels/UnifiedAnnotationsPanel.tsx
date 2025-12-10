@@ -76,9 +76,19 @@ interface UnifiedAnnotationsPanelProps {
     end: number;
   } | null;
 
+  pendingReferenceSelection?: {
+    exact: string;
+    start: number;
+    end: number;
+    prefix?: string;
+    suffix?: string;
+    svgSelector?: string;
+  } | null;
+
   // Reference-specific props (TODO: refactor these into annotator handlers)
   allEntityTypes?: string[];
   generatingReferenceId?: string | null;
+  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   mediaType?: string;
   referencedBy?: any[];
   referencedByLoading?: boolean;
@@ -190,8 +200,10 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
               <PanelComponent
                 {...commonProps}
                 onCreate={annotator.handlers?.onCreate}
+                pendingSelection={props.pendingReferenceSelection}
                 allEntityTypes={props.allEntityTypes || []}
                 onCancelDetection={() => {}} // TODO: add to handlers
+                onGenerateDocument={props.onGenerateDocument}
                 mediaType={props.mediaType}
                 referencedBy={props.referencedBy}
                 referencedByLoading={props.referencedByLoading}

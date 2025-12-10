@@ -278,6 +278,14 @@ function ResourceView({
   // Pending selections for creating annotations
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
   const [pendingTagSelection, setPendingTagSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
+  const [pendingReferenceSelection, setPendingReferenceSelection] = useState<{
+    exact: string;
+    start: number;
+    end: number;
+    prefix?: string;
+    suffix?: string;
+    svgSelector?: string;
+  } | null>(null);
 
   // Search state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -836,6 +844,19 @@ function ResourceView({
                   // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
                   setActivePanel('annotations');
                 }}
+                onReferenceCreationRequested={(selection: {
+                  exact: string;
+                  start: number;
+                  end: number;
+                  prefix?: string;
+                  suffix?: string;
+                  svgSelector?: string;
+                }) => {
+                  // Store the selection and ensure the Annotations Panel is open
+                  setPendingReferenceSelection(selection);
+                  // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
+                  setActivePanel('annotations');
+                }}
                 onCommentClick={(commentId) => {
                   // Open Annotations Panel and focus on this comment
                   setActivePanel('annotations');
@@ -937,7 +958,38 @@ function ResourceView({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
-                  onCreate: handleGenerateDocument,
+                  onCreate: async (entityType?: string) => {
+                    if (pendingReferenceSelection) {
+                      const selector = pendingReferenceSelection.svgSelector
+                        ? { type: 'SvgSelector' as const, value: pendingReferenceSelection.svgSelector }
+                        : [
+                            {
+                              type: 'TextPositionSelector' as const,
+                              start: pendingReferenceSelection.start,
+                              end: pendingReferenceSelection.end
+                            },
+                            {
+                              type: 'TextQuoteSelector' as const,
+                              exact: pendingReferenceSelection.exact,
+                              ...(pendingReferenceSelection.prefix && { prefix: pendingReferenceSelection.prefix }),
+                              ...(pendingReferenceSelection.suffix && { suffix: pendingReferenceSelection.suffix })
+                            }
+                          ];
+
+                      await createAnnotation(
+                        rUri,
+                        'linking',
+                        selector,
+                        entityType ? [{
+                          type: 'TextualBody',
+                          purpose: 'tagging',
+                          value: entityType
+                        }] : []
+                      );
+                      setPendingReferenceSelection(null);
+                      refetchAnnotations();
+                    }
+                  },
                   ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectEntityReferences } : {})
                 },
                 assessment: {
@@ -987,7 +1039,9 @@ function ResourceView({
                   detectionProgress={motivationDetectionProgress}
                   pendingCommentSelection={pendingCommentSelection}
                   pendingTagSelection={pendingTagSelection}
+                  pendingReferenceSelection={pendingReferenceSelection}
                   allEntityTypes={documentEntityTypes}
+                  onGenerateDocument={handleGenerateDocument}
                   {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
                   referencedBy={referencedBy}
                   referencedByLoading={referencedByLoading}
