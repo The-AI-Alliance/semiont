@@ -34,6 +34,10 @@ export interface DetectionConfig {
 
   // Singular display name for messages (e.g., 'entity reference', 'highlight')
   displayNameSingular: string;
+
+  // Function to format request parameters for display in progress UI
+  // Returns array of { label, value } pairs to show what was requested
+  formatRequestParams?: (args: any[]) => Array<{ label: string; value: string }>;
 }
 
 /**
@@ -98,7 +102,14 @@ export const ANNOTATORS: Record<string, Annotator> = {
       sseMethod: 'detectHighlights',
       countField: 'createdCount',
       displayNamePlural: 'highlights',
-      displayNameSingular: 'highlight'
+      displayNameSingular: 'highlight',
+      formatRequestParams: (args) => {
+        const params: Array<{ label: string; value: string }> = [];
+        if (args[0]) {
+          params.push({ label: 'Instructions', value: args[0] });
+        }
+        return params;
+      }
     }
   },
 
@@ -118,7 +129,17 @@ export const ANNOTATORS: Record<string, Annotator> = {
       sseMethod: 'detectComments',
       countField: 'createdCount',
       displayNamePlural: 'comments',
-      displayNameSingular: 'comment'
+      displayNameSingular: 'comment',
+      formatRequestParams: (args) => {
+        const params: Array<{ label: string; value: string }> = [];
+        if (args[0]) {
+          params.push({ label: 'Instructions', value: args[0] });
+        }
+        if (args[1]) {
+          params.push({ label: 'Tone', value: args[1] });
+        }
+        return params;
+      }
     }
   },
 
@@ -138,7 +159,14 @@ export const ANNOTATORS: Record<string, Annotator> = {
       sseMethod: 'detectAssessments',
       countField: 'createdCount',
       displayNamePlural: 'assessments',
-      displayNameSingular: 'assessment'
+      displayNameSingular: 'assessment',
+      formatRequestParams: (args) => {
+        const params: Array<{ label: string; value: string }> = [];
+        if (args[0]) {
+          params.push({ label: 'Instructions', value: args[0] });
+        }
+        return params;
+      }
     }
   },
 
@@ -158,7 +186,14 @@ export const ANNOTATORS: Record<string, Annotator> = {
       sseMethod: 'detectAnnotations',
       countField: 'foundCount',
       displayNamePlural: 'entity references',
-      displayNameSingular: 'entity reference'
+      displayNameSingular: 'entity reference',
+      formatRequestParams: (args) => {
+        const params: Array<{ label: string; value: string }> = [];
+        if (args[0] && Array.isArray(args[0]) && args[0].length > 0) {
+          params.push({ label: 'Entity Types', value: args[0].join(', ') });
+        }
+        return params;
+      }
     }
   },
 
@@ -178,7 +213,23 @@ export const ANNOTATORS: Record<string, Annotator> = {
       sseMethod: 'detectTags',
       countField: 'tagsCreated',
       displayNamePlural: 'tags',
-      displayNameSingular: 'tag'
+      displayNameSingular: 'tag',
+      formatRequestParams: (args) => {
+        const params: Array<{ label: string; value: string }> = [];
+        if (args[0]) {
+          // Map schema ID to friendly name
+          const schemaNames: Record<string, string> = {
+            'legal-irac': 'Legal (IRAC)',
+            'scientific-imrad': 'Scientific (IMRAD)',
+            'argument-toulmin': 'Argument (Toulmin)'
+          };
+          params.push({ label: 'Schema', value: schemaNames[args[0]] || args[0] });
+        }
+        if (args[1] && Array.isArray(args[1]) && args[1].length > 0) {
+          params.push({ label: 'Categories', value: args[1].join(', ') });
+        }
+        return params;
+      }
     }
   }
 };
@@ -286,10 +337,14 @@ export function createDetectionHandler(
   return async (...args: any[]) => {
     if (!context.client) return;
 
+    // Format request parameters for display (if formatter provided)
+    const requestParams = detection.formatRequestParams ? detection.formatRequestParams(args) : [];
+
     context.setDetectingMotivation(annotator.motivation);
     context.setMotivationDetectionProgress({
       status: 'started',
-      message: `Starting ${detection.displayNameSingular} detection...`
+      message: `Starting ${detection.displayNameSingular} detection...`,
+      requestParams
     });
 
     try {
@@ -324,7 +379,8 @@ export function createDetectionHandler(
                 : `Processing ${progress.processedEntityTypes} of ${progress.totalEntityTypes} entity types...`),
             processedCategories: progress.processedEntityTypes,
             totalCategories: progress.totalEntityTypes,
-            ...(progress.currentEntityType && { currentCategory: progress.currentEntityType })
+            ...(progress.currentEntityType && { currentCategory: progress.currentEntityType }),
+            requestParams
           });
         } else {
           // Standard progress format for other types
@@ -332,7 +388,8 @@ export function createDetectionHandler(
             status: progress.status,
             percentage: progress.percentage,
             message: progress.message,
-            ...(progress.currentCategory && { currentCategory: progress.currentCategory })
+            ...(progress.currentCategory && { currentCategory: progress.currentCategory }),
+            requestParams
           });
         }
       });
@@ -342,7 +399,8 @@ export function createDetectionHandler(
         context.setMotivationDetectionProgress({
           status: 'complete',
           percentage: 100,
-          message: `Created ${count} ${count === 1 ? detection.displayNameSingular : detection.displayNamePlural}`
+          message: `Created ${count} ${count === 1 ? detection.displayNameSingular : detection.displayNamePlural}`,
+          requestParams
         });
         context.setDetectingMotivation(null);
         context.detectionStreamRef.current = null;

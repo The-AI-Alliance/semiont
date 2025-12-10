@@ -27,6 +27,7 @@ interface TaggingPanelProps {
     processedCategories?: number;
     totalCategories?: number;
     message?: string;
+    requestParams?: Array<{ label: string; value: string }>;
   } | null;
   pendingSelection?: {
     exact: string;
@@ -258,6 +259,18 @@ export function TaggingPanel({
               {/* Detection Progress */}
               {isDetecting && detectionProgress && (
                 <div className="space-y-3">
+                  {/* Request Parameters */}
+                  {detectionProgress.requestParams && detectionProgress.requestParams.length > 0 && (
+                    <div className="mb-3 p-2 bg-orange-50 dark:bg-orange-950/20 rounded border border-orange-200 dark:border-orange-800">
+                      <div className="text-xs font-semibold text-orange-900 dark:text-orange-100 mb-1">Request Parameters:</div>
+                      {detectionProgress.requestParams.map((param, idx) => (
+                        <div key={idx} className="text-xs text-orange-800 dark:text-orange-200">
+                          <span className="font-medium">{param.label}:</span> {param.value}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center gap-2">
                       <span className="text-lg animate-sparkle-infinite">✨</span>
