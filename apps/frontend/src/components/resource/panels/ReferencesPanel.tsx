@@ -8,6 +8,7 @@ import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths } from '@semiont/api-client';
 import { useAnnotationPanel } from '@/hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
+import { supportsDetection } from '@/lib/resource-utils';
 
 type Annotation = components['schemas']['Annotation'];
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
@@ -81,7 +82,7 @@ export function ReferencesPanel({
     useAnnotationPanel(annotations, hoveredAnnotationId);
 
   // Check if detection is supported for this media type
-  const isTextResource = mediaType?.startsWith('text/');
+  const isTextResource = supportsDetection(mediaType);
 
   // Clear log when starting new detection
   const handleDetect = () => {

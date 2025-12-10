@@ -16,6 +16,7 @@ import { buttonStyles } from '@/lib/button-styles';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
 import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery, getAnnotationExactText } from '@semiont/api-client';
 import { groupAnnotationsByType, withHandlers } from '@/lib/annotation-registry';
+import { supportsDetection } from '@/lib/resource-utils';
 
 type Motivation = components['schemas']['Motivation'];
 import { decodeWithCharset } from '@/lib/text-encoding';
@@ -264,7 +265,7 @@ function ResourceView({
   });
 
   // Debug logging
-  console.log('[ResourcePage] annotateMode:', annotateMode, 'primaryMediaType:', primaryMediaType, 'isText:', primaryMediaType?.startsWith('text/'));
+  console.log('[ResourcePage] annotateMode:', annotateMode, 'primaryMediaType:', primaryMediaType, 'isText:', supportsDetection(primaryMediaType));
 
   const { theme, setTheme } = useTheme();
   const { activePanel, togglePanel, setActivePanel } = useToolbar({ persistToStorage: true });
@@ -950,7 +951,7 @@ function ResourceView({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
-                  ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectHighlights } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: handleDetectHighlights } : {})
                 },
                 reference: {
                   onClick: (annotation) => {
@@ -990,7 +991,7 @@ function ResourceView({
                       refetchAnnotations();
                     }
                   },
-                  ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectEntityReferences } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: handleDetectEntityReferences } : {})
                 },
                 assessment: {
                   onClick: (annotation) => {
@@ -998,7 +999,7 @@ function ResourceView({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
-                  ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectAssessments } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: handleDetectAssessments } : {})
                 },
                 comment: {
                   onClick: (annotation) => {
@@ -1015,7 +1016,7 @@ function ResourceView({
                       setPendingCommentSelection(null);
                     }
                   },
-                  ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectComments } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: handleDetectComments } : {})
                 },
                 tag: {
                   onClick: (annotation) => {
@@ -1023,8 +1024,8 @@ function ResourceView({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
-                  ...(primaryMediaType?.startsWith('text/') ? { onDetect: handleDetectTags } : {}),
-                  ...(primaryMediaType?.startsWith('text/') ? { onCreate: handleCreateTag } : {})
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: handleDetectTags } : {}),
+                  ...(supportsDetection(primaryMediaType) ? { onCreate: handleCreateTag } : {})
                 }
               });
 
