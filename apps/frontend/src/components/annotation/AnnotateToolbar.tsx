@@ -2,10 +2,25 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
+import { ANNOTATORS } from '@/lib/annotation-registry';
 
 export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'tagging';
 export type ClickAction = 'detail' | 'follow' | 'jsonld' | 'deleting';
 export type ShapeType = 'rectangle' | 'circle' | 'polygon';
+
+// Map SelectionMotivation to AnnotatorKey for emoji lookup
+const MOTIVATION_TO_KEY: Record<SelectionMotivation, keyof typeof ANNOTATORS> = {
+  linking: 'reference',
+  highlighting: 'highlight',
+  assessing: 'assessment',
+  commenting: 'comment',
+  tagging: 'tag'
+};
+
+// Helper to get emoji from registry (with fallback for safety)
+const getMotivationEmoji = (motivation: SelectionMotivation): string => {
+  return ANNOTATORS[MOTIVATION_TO_KEY[motivation]]?.iconEmoji || '❓';
+};
 
 interface AnnotateToolbarProps {
   selectedMotivation: SelectionMotivation | null;
@@ -138,7 +153,7 @@ export function AnnotateToolbar({
             title={t('linking')}
             aria-pressed={selectedMotivation === 'linking'}
           >
-            <span className="text-lg">🔵</span>
+            <span className="text-lg">{getMotivationEmoji('linking')}</span>
           </button>
 
           {/* Highlighting Button */}
@@ -148,7 +163,7 @@ export function AnnotateToolbar({
             title={t('highlighting')}
             aria-pressed={selectedMotivation === 'highlighting'}
           >
-            <span className="text-lg">🟡</span>
+            <span className="text-lg">{getMotivationEmoji('highlighting')}</span>
           </button>
 
           {/* Assessing Button */}
@@ -158,7 +173,7 @@ export function AnnotateToolbar({
             title={t('assessing')}
             aria-pressed={selectedMotivation === 'assessing'}
           >
-            <span className="text-lg">🔴</span>
+            <span className="text-lg">{getMotivationEmoji('assessing')}</span>
           </button>
 
           {/* Commenting Button */}
@@ -168,7 +183,7 @@ export function AnnotateToolbar({
             title={t('commenting')}
             aria-pressed={selectedMotivation === 'commenting'}
           >
-            <span className="text-lg">💬</span>
+            <span className="text-lg">{getMotivationEmoji('commenting')}</span>
           </button>
 
           {/* Tagging Button */}
@@ -178,7 +193,7 @@ export function AnnotateToolbar({
             title={t('tagging')}
             aria-pressed={selectedMotivation === 'tagging'}
           >
-            <span className="text-lg">🏷️</span>
+            <span className="text-lg">{getMotivationEmoji('tagging')}</span>
           </button>
         </div>
       )}
