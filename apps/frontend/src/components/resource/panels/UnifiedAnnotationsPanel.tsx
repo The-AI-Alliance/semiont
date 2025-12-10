@@ -88,110 +88,6 @@ interface UnifiedAnnotationsPanelProps {
   initialTab?: AnnotatorKey;
 }
 
-/**
- * Adapter function to convert unified props to panel-specific prop names
- * Each panel has different prop naming conventions (highlights vs assessments vs tags, etc.)
- * This function maps the generic props to the specific names each panel expects
- */
-function getPanelSpecificProps(
-  key: AnnotatorKey,
-  props: UnifiedAnnotationsPanelProps,
-  grouped: Record<string, Annotation[]>
-): any {
-  const annotator = props.annotators[key];
-  if (!annotator) return {};
-
-  const baseProps = {
-    focusedAnnotationId: props.focusedAnnotationId,
-    hoveredAnnotationId: props.hoveredAnnotationId,
-    annotateMode: props.annotateMode,
-    isDetecting: props.detectingMotivation === annotator.motivation,
-    detectionProgress: props.detectingMotivation === annotator.motivation ? props.detectionProgress : null
-  };
-
-  switch (key) {
-    case 'highlight':
-      return {
-        highlights: grouped.highlight || [],
-        onHighlightClick: annotator.handlers?.onClick || (() => {}),
-        focusedHighlightId: props.focusedAnnotationId,
-        hoveredHighlightId: props.hoveredAnnotationId ?? null,
-        ...(annotator.handlers?.onHover ? { onHighlightHover: annotator.handlers.onHover } : {}),
-        ...(annotator.handlers?.onDetect ? { onDetectHighlights: annotator.handlers.onDetect } : {}),
-        ...(baseProps.isDetecting ? { isDetecting: true } : {}),
-        ...(baseProps.detectionProgress ? { detectionProgress: baseProps.detectionProgress } : {}),
-        ...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {})
-      };
-
-    case 'reference':
-      return {
-        allEntityTypes: props.allEntityTypes || [],
-        isDetecting: baseProps.isDetecting,
-        detectionProgress: baseProps.detectionProgress,
-        onDetect: annotator.handlers?.onDetect || (() => {}),
-        onCancelDetection: () => {}, // TODO: add to handlers
-        references: grouped.reference || [],
-        ...(annotator.handlers?.onClick ? { onReferenceClick: annotator.handlers.onClick } : {}),
-        ...(props.focusedAnnotationId ? { focusedReferenceId: props.focusedAnnotationId } : {}),
-        hoveredReferenceId: props.hoveredAnnotationId ?? null,
-        ...(annotator.handlers?.onHover ? { onReferenceHover: annotator.handlers.onHover } : {}),
-        ...(annotator.handlers?.onCreate ? { onGenerateDocument: annotator.handlers.onCreate } : {}),
-        ...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {}),
-        ...(props.mediaType ? { mediaType: props.mediaType } : {}),
-        ...(props.referencedBy ? { referencedBy: props.referencedBy } : {}),
-        ...(props.referencedByLoading !== undefined ? { referencedByLoading: props.referencedByLoading } : {})
-      };
-
-    case 'assessment':
-      return {
-        assessments: grouped.assessment || [],
-        onAssessmentClick: annotator.handlers?.onClick || (() => {}),
-        focusedAssessmentId: props.focusedAnnotationId,
-        hoveredAssessmentId: props.hoveredAnnotationId ?? null,
-        ...(annotator.handlers?.onHover ? { onAssessmentHover: annotator.handlers.onHover } : {}),
-        ...(annotator.handlers?.onDetect ? { onDetectAssessments: annotator.handlers.onDetect } : {}),
-        ...(baseProps.isDetecting ? { isDetecting: true } : {}),
-        ...(baseProps.detectionProgress ? { detectionProgress: baseProps.detectionProgress } : {}),
-        ...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {})
-      };
-
-    case 'comment':
-      if (!annotator.handlers?.onUpdate) return null;
-      return {
-        comments: grouped.comment || [],
-        onCommentClick: annotator.handlers.onClick || (() => {}),
-        onUpdateComment: annotator.handlers.onUpdate,
-        ...(annotator.handlers.onCreate ? { onCreateComment: annotator.handlers.onCreate } : {}),
-        focusedCommentId: props.focusedAnnotationId,
-        hoveredCommentId: props.hoveredAnnotationId ?? null,
-        ...(annotator.handlers.onHover ? { onCommentHover: annotator.handlers.onHover } : {}),
-        ...(props.pendingCommentSelection ? { pendingSelection: props.pendingCommentSelection } : {}),
-        ...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {}),
-        ...(annotator.handlers.onDetect ? { onDetectComments: annotator.handlers.onDetect } : {}),
-        ...(baseProps.isDetecting ? { isDetecting: true } : {}),
-        ...(baseProps.detectionProgress ? { detectionProgress: baseProps.detectionProgress } : {})
-      };
-
-    case 'tag':
-      return {
-        tags: grouped.tag || [],
-        onTagClick: annotator.handlers?.onClick || (() => {}),
-        focusedTagId: props.focusedAnnotationId,
-        hoveredTagId: props.hoveredAnnotationId ?? null,
-        ...(annotator.handlers?.onHover ? { onTagHover: annotator.handlers.onHover } : {}),
-        ...(props.annotateMode !== undefined ? { annotateMode: props.annotateMode } : {}),
-        ...(annotator.handlers?.onDetect ? { onDetectTags: annotator.handlers.onDetect } : {}),
-        ...(annotator.handlers?.onCreate ? { onCreateTag: annotator.handlers.onCreate } : {}),
-        ...(baseProps.isDetecting ? { isDetecting: true } : {}),
-        ...(baseProps.detectionProgress ? { detectionProgress: baseProps.detectionProgress } : {}),
-        ...(props.pendingTagSelection ? { pendingSelection: props.pendingTagSelection } : {})
-      };
-
-    default:
-      return {};
-  }
-}
-
 export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
   const t = useTranslations('UnifiedAnnotationsPanel');
 
@@ -269,11 +165,66 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
         {(() => {
           const PanelComponent = PANEL_COMPONENTS[activeTab];
           const annotator = props.annotators[activeTab];
-          const panelProps = getPanelSpecificProps(activeTab, props, grouped);
+          if (!PanelComponent || !annotator) return null;
 
-          if (!PanelComponent || !annotator || !panelProps) return null;
+          const annotations = grouped[activeTab] || [];
+          const isDetecting = props.detectingMotivation === annotator.motivation;
+          const detectionProgress = isDetecting ? props.detectionProgress : null;
 
-          return <PanelComponent {...panelProps} />;
+          // Common props for all panels
+          const commonProps = {
+            annotations,
+            onAnnotationClick: annotator.handlers?.onClick,
+            focusedAnnotationId: props.focusedAnnotationId,
+            hoveredAnnotationId: props.hoveredAnnotationId,
+            onAnnotationHover: annotator.handlers?.onHover,
+            onDetect: annotator.handlers?.onDetect,
+            isDetecting,
+            detectionProgress,
+            annotateMode: props.annotateMode
+          };
+
+          // Reference panel has special props
+          if (activeTab === 'reference') {
+            return (
+              <PanelComponent
+                {...commonProps}
+                onCreate={annotator.handlers?.onCreate}
+                allEntityTypes={props.allEntityTypes || []}
+                onCancelDetection={() => {}} // TODO: add to handlers
+                mediaType={props.mediaType}
+                referencedBy={props.referencedBy}
+                referencedByLoading={props.referencedByLoading}
+              />
+            );
+          }
+
+          // Comment panel needs onUpdate
+          if (activeTab === 'comment') {
+            if (!annotator.handlers?.onUpdate) return null;
+            return (
+              <PanelComponent
+                {...commonProps}
+                onUpdate={annotator.handlers.onUpdate}
+                onCreate={annotator.handlers?.onCreate}
+                pendingSelection={props.pendingCommentSelection}
+              />
+            );
+          }
+
+          // Tag panel needs onCreate and pendingSelection
+          if (activeTab === 'tag') {
+            return (
+              <PanelComponent
+                {...commonProps}
+                onCreate={annotator.handlers?.onCreate}
+                pendingSelection={props.pendingTagSelection}
+              />
+            );
+          }
+
+          // Highlight and Assessment panels use commonProps only
+          return <PanelComponent {...commonProps} />;
         })()}
       </div>
     </div>

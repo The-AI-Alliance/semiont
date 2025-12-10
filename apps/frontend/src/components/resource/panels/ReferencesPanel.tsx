@@ -19,40 +19,43 @@ interface DetectionLog {
 }
 
 interface Props {
-  allEntityTypes: string[];
+  // Generic panel props
+  annotations?: Annotation[];
+  onAnnotationClick?: (annotation: Annotation) => void;
+  focusedAnnotationId?: string | null;
+  hoveredAnnotationId?: string | null;
+  onAnnotationHover?: (annotationId: string | null) => void;
+  onDetect: (selectedTypes: string[]) => void;
+  onCreate?: (title: string) => void;
   isDetecting: boolean;
   detectionProgress: any; // TODO: type this properly
-  onDetect: (selectedTypes: string[]) => void;
-  onCancelDetection: () => void;
-  references?: Annotation[];
-  onReferenceClick?: (annotation: Annotation) => void;
-  focusedReferenceId?: string | null;
-  hoveredReferenceId?: string | null;
-  onReferenceHover?: (referenceId: string | null) => void;
-  onGenerateDocument?: (title: string) => void;
-  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
-  onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
+
+  // Reference-specific props
+  allEntityTypes: string[];
+  onCancelDetection: () => void;
+  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
+  onUpdate?: (referenceId: string, updates: Partial<Annotation>) => void;
   mediaType?: string | undefined;
   referencedBy?: ReferencedBy[];
   referencedByLoading?: boolean;
 }
 
 export function ReferencesPanel({
-  allEntityTypes,
+  annotations = [],
+  onAnnotationClick,
+  focusedAnnotationId,
+  hoveredAnnotationId,
+  onAnnotationHover,
+  onDetect,
+  onCreate,
   isDetecting,
   detectionProgress,
-  onDetect,
-  onCancelDetection,
-  references = [],
-  onReferenceClick,
-  focusedReferenceId,
-  hoveredReferenceId,
-  onReferenceHover,
-  onGenerateDocument,
-  onSearchDocuments,
-  onUpdateReference,
   annotateMode = true,
+  allEntityTypes,
+  onCancelDetection,
+  onSearchDocuments,
+  onUpdate,
   mediaType,
   referencedBy = [],
   referencedByLoading = false,
@@ -62,8 +65,8 @@ export function ReferencesPanel({
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
 
-  const { sortedAnnotations: sortedReferences, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(references, hoveredReferenceId);
+  const { sortedAnnotations, containerRef, handleAnnotationRef } =
+    useAnnotationPanel(annotations, hoveredAnnotationId);
 
   // Check if detection is supported for this media type
   const isTextResource = mediaType?.startsWith('text/');
@@ -84,7 +87,7 @@ export function ReferencesPanel({
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
-      <PanelHeader annotationType="reference" count={references.length} title={tRef('referencesTitle')} />
+      <PanelHeader annotationType="reference" count={annotations.length} title={tRef('referencesTitle')} />
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -193,28 +196,28 @@ export function ReferencesPanel({
         <div>
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {tRef('outgoingReferences')} ({sortedReferences.length})
+              {tRef('outgoingReferences')} ({sortedAnnotations.length})
             </h3>
           </div>
 
           <div className="space-y-3">
-            {sortedReferences.length === 0 ? (
+            {sortedAnnotations.length === 0 ? (
               <p className="text-gray-500 dark:text-gray-400 text-sm">
                 {tRef('noReferences')}
               </p>
             ) : (
-              sortedReferences.map((reference) => (
+              sortedAnnotations.map((reference) => (
                 <ReferenceEntry
                   key={reference.id}
                   reference={reference}
-                  isFocused={reference.id === focusedReferenceId}
-                  onClick={() => onReferenceClick?.(reference)}
+                  isFocused={reference.id === focusedAnnotationId}
+                  onClick={() => onAnnotationClick?.(reference)}
                   onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}
-                  {...(onReferenceHover && { onReferenceHover })}
-                  {...(onGenerateDocument && { onGenerateDocument })}
+                  {...(onAnnotationHover && { onAnnotationHover })}
+                  {...(onCreate && { onCreate })}
                   {...(onSearchDocuments && { onSearchDocuments })}
-                  {...(onUpdateReference && { onUpdateReference })}
+                  {...(onUpdate && { onUpdate })}
                 />
               ))
             )}

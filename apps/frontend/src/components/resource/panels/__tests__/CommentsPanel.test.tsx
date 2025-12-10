@@ -100,10 +100,10 @@ const mockComments = {
 
 describe('CommentsPanel Component', () => {
   const defaultProps = {
-    comments: mockComments.empty,
-    onCommentClick: vi.fn(),
-    onUpdateComment: vi.fn(),
-    focusedCommentId: null,
+    annotations: mockComments.empty,
+    onAnnotationClick: vi.fn(),
+    onUpdate: vi.fn(),
+    focusedAnnotationId: null,
     resourceContent: 'This is the resource content for testing comments.',
     pendingSelection: null,
   };

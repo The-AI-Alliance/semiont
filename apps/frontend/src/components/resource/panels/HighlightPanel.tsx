@@ -11,12 +11,12 @@ import { PanelHeader } from './PanelHeader';
 type Annotation = components['schemas']['Annotation'];
 
 interface HighlightPanelProps {
-  highlights: Annotation[];
-  onHighlightClick: (annotation: Annotation) => void;
-  focusedHighlightId: string | null;
-  hoveredHighlightId?: string | null;
-  onHighlightHover?: (highlightId: string | null) => void;
-  onDetectHighlights?: (instructions?: string) => void | Promise<void>;
+  annotations: Annotation[];
+  onAnnotationClick: (annotation: Annotation) => void;
+  focusedAnnotationId: string | null;
+  hoveredAnnotationId?: string | null;
+  onAnnotationHover?: (annotationId: string | null) => void;
+  onDetect?: (instructions?: string) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
@@ -27,52 +27,52 @@ interface HighlightPanelProps {
 }
 
 export function HighlightPanel({
-  highlights,
-  onHighlightClick,
-  focusedHighlightId,
-  hoveredHighlightId,
-  onHighlightHover,
-  onDetectHighlights,
+  annotations,
+  onAnnotationClick,
+  focusedAnnotationId,
+  hoveredAnnotationId,
+  onAnnotationHover,
+  onDetect,
   isDetecting = false,
   detectionProgress,
   annotateMode = true,
 }: HighlightPanelProps) {
   const t = useTranslations('HighlightPanel');
 
-  const { sortedAnnotations: sortedHighlights, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(highlights, hoveredHighlightId);
+  const { sortedAnnotations, containerRef, handleAnnotationRef } =
+    useAnnotationPanel(annotations, hoveredAnnotationId);
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
-      <PanelHeader annotationType="highlight" count={highlights.length} title={t('title')} />
+      <PanelHeader annotationType="highlight" count={annotations.length} title={t('title')} />
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* Detection Section - only in Annotate mode and for text resources */}
-        {annotateMode && onDetectHighlights && (
+        {annotateMode && onDetect && (
           <DetectSection
             annotationType="highlight"
             isDetecting={isDetecting}
             detectionProgress={detectionProgress}
-            onDetect={onDetectHighlights}
+            onDetect={onDetect}
           />
         )}
 
         {/* Highlights list */}
         <div className="space-y-4">
-          {sortedHighlights.length === 0 ? (
+          {sortedAnnotations.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 text-sm">
               {t('noHighlights')}
             </p>
           ) : (
-            sortedHighlights.map((highlight) => (
+            sortedAnnotations.map((highlight) => (
               <HighlightEntry
                 key={highlight.id}
                 highlight={highlight}
-                isFocused={highlight.id === focusedHighlightId}
-                onClick={() => onHighlightClick(highlight)}
+                isFocused={highlight.id === focusedAnnotationId}
+                onClick={() => onAnnotationClick(highlight)}
                 onHighlightRef={handleAnnotationRef}
-                {...(onHighlightHover && { onHighlightHover })}
+                {...(onAnnotationHover && { onHighlightHover: onAnnotationHover })}
               />
             ))
           )}
