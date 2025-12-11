@@ -305,12 +305,8 @@
     "languageHint": "Selecciona el idioma de este recurso"
   },
   "Toolbar": {
-    "browseMode": "Modo Exploración",
-    "annotateMode": "Modo Anotación",
-    "switchToBrowse": "Cambiar a Modo Exploración",
-    "switchToAnnotate": "Cambiar a Modo Anotación",
     "resource": "Recurso",
-    "detectReferences": "Referencias",
+    "annotations": "Anotaciones",
     "history": "Historial",
     "resourceInfo": "Información del Recurso",
     "collaboration": "Colaboración",
@@ -484,22 +480,12 @@
     "selectCategory": "Seleccionar Categoría",
     "chooseCategory": "Elegir una categoría..."
   },
-  "Toolbar": {
-    "comments": "Comentarios",
-    "highlights": "Destacados",
-    "assessments": "Evaluaciones",
-    "tags": "Etiquetas",
-    "history": "Historial",
-    "resource": "Recurso",
-    "resourceInfo": "Información del Recurso",
-    "detectReferences": "Referencias",
-    "collaboration": "Colaboración",
-    "annotateMode": "Modo Anotar",
-    "browseMode": "Modo Navegar",
-    "switchToAnnotate": "Cambiar a Anotar",
-    "switchToBrowse": "Cambiar a Navegar",
-    "userAccount": "Cuenta de Usuario",
-    "settings": "Configuración"
+  "UnifiedAnnotationsPanel": {
+    "highlight": "Destacados",
+    "reference": "Referencias",
+    "assessment": "Evaluaciones",
+    "comment": "Comentarios",
+    "tag": "Etiquetas"
   },
   "StubReferencePopup": {
     "title": "Referencia Stub",
@@ -558,7 +544,10 @@
     "loadingEllipsis": "Cargando...",
     "noIncomingReferences": "Sin referencias entrantes",
     "untitledResource": "Recurso Sin Título",
-    "noText": "Sin texto"
+    "noText": "Sin texto",
+    "createReference": "Crear Referencia",
+    "entityTypesOptional": "Tipos de Entidad (Opcional)",
+    "imageRegionSelected": "Región de imagen seleccionada"
   },
   "SortableResourceTab": {
     "dragToReorder": "Arrastrar para reordenar",
@@ -771,9 +760,13 @@
     "close": "Cerrar"
   },
   "AnnotateToolbar": {
+    "modeGroup": "Modo",
+    "browse": "Navegar",
+    "annotate": "Anotar",
     "selectionGroup": "Motivación",
     "clickGroup": "Clic",
     "shapeGroup": "Forma",
+    "none": "Ninguno",
     "linking": "Referenciar",
     "highlighting": "Destacar",
     "assessing": "Evaluar",

@@ -5,13 +5,12 @@ import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
 import { BrowseView } from './BrowseView';
-import { QuickReferencePopup } from '@/components/annotation-popups/QuickReferencePopup';
 import { PopupContainer } from '@/components/annotation-popups/SharedPopupElements';
 import { JsonLdView } from '@/components/annotation-popups/JsonLdView';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
-import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import { getAnnotator } from '@/lib/annotation-registry';
 import type { AnnotationsCollection } from '@/types/annotation-props';
 
 type Annotation = components['schemas']['Annotation'];
@@ -21,7 +20,8 @@ interface Props {
   resource: SemiontResource & { content: string };
   annotations: AnnotationsCollection;
   onRefetchAnnotations?: () => void;
-  curationMode?: boolean;
+  annotateMode: boolean;
+  onAnnotateModeToggle: () => void;
   generatingReferenceId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
   onCommentHover?: (commentId: string | null) => void;
@@ -31,6 +31,14 @@ interface Props {
   showLineNumbers?: boolean;
   onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
   onTagCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
+  onReferenceCreationRequested?: (selection: {
+    exact: string;
+    start: number;
+    end: number;
+    prefix?: string;
+    suffix?: string;
+    svgSelector?: string;
+  }) => void;
   onCommentClick?: (commentId: string) => void;
   onReferenceClick?: (referenceId: string) => void;
   onHighlightClick?: (highlightId: string) => void;
@@ -42,7 +50,8 @@ export function ResourceViewer({
   resource,
   annotations,
   onRefetchAnnotations,
-  curationMode = false,
+  annotateMode,
+  onAnnotateModeToggle,
   generatingReferenceId,
   onAnnotationHover,
   onCommentHover,
@@ -52,6 +61,7 @@ export function ResourceViewer({
   showLineNumbers = false,
   onCommentCreationRequested,
   onTagCreationRequested,
+  onReferenceCreationRequested,
   onCommentClick,
   onReferenceClick,
   onHighlightClick,
@@ -83,7 +93,7 @@ export function ResourceViewer({
   const mimeType = getMimeType();
 
   // Use prop directly instead of internal state
-  const activeView = curationMode ? 'annotate' : 'browse';
+  const activeView = annotateMode ? 'annotate' : 'browse';
   const {
     addHighlight,
     addReference,
@@ -141,18 +151,6 @@ export function ResourceViewer({
     localStorage.setItem('semiont-toolbar-shape', selectedShape);
   }, [selectedShape]);
 
-  // Quick reference popup state
-  const [showQuickReferencePopup, setShowQuickReferencePopup] = useState(false);
-  const [quickReferenceSelection, setQuickReferenceSelection] = useState<{
-    exact: string;
-    start: number;
-    end: number;
-    prefix?: string;
-    suffix?: string;
-    svgSelector?: string;
-  } | null>(null);
-  const [quickReferencePosition, setQuickReferencePosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-
   // JSON-LD view state
   const [showJsonLdView, setShowJsonLdView] = useState(false);
   const [jsonLdAnnotation, setJsonLdAnnotation] = useState<Annotation | null>(null);
@@ -188,7 +186,7 @@ export function ResourceViewer({
 
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
-    const metadata = getAnnotationTypeMetadata(annotation);
+    const metadata = getAnnotator(annotation);
 
     // If annotation has a side panel, only open it when Detail mode is active
     // For delete/jsonld/follow modes, let those handlers below process it
@@ -245,8 +243,8 @@ export function ResourceViewer({
       return;
     }
 
-    // Only handle annotation clicks in curation mode with toolbar modes
-    if (!curationMode) return;
+    // Only handle annotation clicks in annotate mode with toolbar modes
+    if (!annotateMode) return;
 
     // Handle delete mode for all annotation types
     if (selectedClick === 'deleting' && isSimpleAnnotation) {
@@ -258,7 +256,7 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [router, curationMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, onTagClick, selectedClick, handleDeleteAnnotation]);
+  }, [router, annotateMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, onTagClick, selectedClick, handleDeleteAnnotation]);
 
   // Unified annotation creation handler - works for both text and images
   const handleAnnotationCreate = useCallback(async (params: import('@/types/annotation-props').CreateAnnotationParams) => {
@@ -271,8 +269,9 @@ export function ResourceViewer({
           // Create highlight/assessment immediately
           if (selector.type === 'TextQuoteSelector' && selector.exact) {
             // Text annotations use specialized helpers
+            let newAnnotationId: string | undefined;
             if (motivation === 'highlighting') {
-              await addHighlight(
+              newAnnotationId = await addHighlight(
                 rUri,
                 selector.exact,
                 { start: selector.start || 0, end: selector.end || 0 },
@@ -281,8 +280,12 @@ export function ResourceViewer({
                   ...(selector.suffix && { suffix: selector.suffix })
                 }
               );
+              // Focus the new highlight to trigger panel tab switch
+              if (newAnnotationId && onHighlightClick) {
+                onHighlightClick(newAnnotationId);
+              }
             } else {
-              await addAssessment(
+              newAnnotationId = await addAssessment(
                 rUri,
                 selector.exact,
                 { start: selector.start || 0, end: selector.end || 0 },
@@ -291,6 +294,10 @@ export function ResourceViewer({
                   ...(selector.suffix && { suffix: selector.suffix })
                 }
               );
+              // Focus the new assessment to trigger panel tab switch
+              if (newAnnotationId && onAssessmentClick) {
+                onAssessmentClick(newAnnotationId);
+              }
             }
             onRefetchAnnotations?.();
           } else if (selector.type === 'SvgSelector' && selector.value) {
@@ -356,84 +363,33 @@ export function ResourceViewer({
           break;
 
         case 'linking':
-          // Show Quick Reference popup FIRST (works for both text and images)
-          if (selector.type === 'TextQuoteSelector' && selector.exact) {
-            const selection: typeof quickReferenceSelection = {
-              exact: selector.exact,
-              start: selector.start || 0,
-              end: selector.end || 0,
-            };
-            if (selector.prefix) selection.prefix = selector.prefix;
-            if (selector.suffix) selection.suffix = selector.suffix;
-
-            setQuickReferenceSelection(selection);
-            setQuickReferencePosition(position || { x: 0, y: 0 });
-            setShowQuickReferencePopup(true);
-          } else if (selector.type === 'SvgSelector' && selector.value) {
-            // For SVG annotations, show popup at shape center
-            const selection: typeof quickReferenceSelection = {
-              exact: '',  // Images don't have exact text
-              start: 0,
-              end: 0,
-              svgSelector: selector.value
-            };
-
-            setQuickReferenceSelection(selection);
-            setQuickReferencePosition(position || { x: window.innerWidth / 2, y: window.innerHeight / 2 });
-            setShowQuickReferencePopup(true);
+          // Call onReferenceCreationRequested for both text and image selections
+          if (onReferenceCreationRequested) {
+            if (selector.type === 'TextQuoteSelector' && selector.exact) {
+              const selection = {
+                exact: selector.exact,
+                start: selector.start || 0,
+                end: selector.end || 0,
+                ...(selector.prefix && { prefix: selector.prefix }),
+                ...(selector.suffix && { suffix: selector.suffix })
+              };
+              onReferenceCreationRequested(selection);
+            } else if (selector.type === 'SvgSelector' && selector.value) {
+              const selection = {
+                exact: '',  // Images don't have exact text
+                start: 0,
+                end: 0,
+                svgSelector: selector.value
+              };
+              onReferenceCreationRequested(selection);
+            }
           }
           break;
       }
     } catch (err) {
       console.error('Failed to create annotation:', err);
     }
-  }, [rUri, addHighlight, addAssessment, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onTagCreationRequested, onCommentClick, onTagClick]);
-
-  // Handle quick reference creation from popup
-  const handleQuickReferenceCreate = useCallback(async (entityType?: string) => {
-    if (!quickReferenceSelection) return;
-
-    try {
-      // Unified reference creation - works for both text and images
-      const selector = quickReferenceSelection.svgSelector
-        ? { type: 'SvgSelector' as const, value: quickReferenceSelection.svgSelector }
-        : [
-            {
-              type: 'TextPositionSelector' as const,
-              start: quickReferenceSelection.start,
-              end: quickReferenceSelection.end
-            },
-            {
-              type: 'TextQuoteSelector' as const,
-              exact: quickReferenceSelection.exact,
-              ...(quickReferenceSelection.prefix && { prefix: quickReferenceSelection.prefix }),
-              ...(quickReferenceSelection.suffix && { suffix: quickReferenceSelection.suffix })
-            }
-          ];
-
-      await createAnnotation(
-        rUri,
-        'linking',
-        selector,
-        entityType ? [{
-          type: 'TextualBody',
-          purpose: 'tagging',
-          value: entityType
-        }] : []
-      );
-      onRefetchAnnotations?.();
-      setShowQuickReferencePopup(false);
-      setQuickReferenceSelection(null);
-    } catch (err) {
-      console.error('Failed to create reference:', err);
-    }
-  }, [quickReferenceSelection, rUri, createAnnotation, onRefetchAnnotations]);
-
-  // Close quick reference popup
-  const handleCloseQuickReferencePopup = useCallback(() => {
-    setShowQuickReferencePopup(false);
-    setQuickReferenceSelection(null);
-  }, []);
+  }, [rUri, addHighlight, addAssessment, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onTagCreationRequested, onReferenceCreationRequested, onCommentClick, onTagClick]);
 
   // Quick action: Delete annotation from widget
   const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
@@ -478,6 +434,8 @@ export function ResourceViewer({
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           onDeleteAnnotation={handleDeleteAnnotationWidget}
           showLineNumbers={showLineNumbers}
+          annotateMode={annotateMode}
+          onAnnotateModeToggle={onAnnotateModeToggle}
         />
       ) : (
         <BrowseView
@@ -492,17 +450,8 @@ export function ResourceViewer({
           {...(hoveredCommentId !== undefined && { hoveredCommentId })}
           selectedClick={selectedClick}
           onClickChange={setSelectedClick}
-        />
-      )}
-
-      {/* Quick Reference Popup */}
-      {quickReferenceSelection && (
-        <QuickReferencePopup
-          isOpen={showQuickReferencePopup}
-          onClose={handleCloseQuickReferencePopup}
-          position={quickReferencePosition}
-          selection={quickReferenceSelection}
-          onCreateReference={handleQuickReferenceCreate}
+          annotateMode={annotateMode}
+          onAnnotateModeToggle={onAnnotateModeToggle}
         />
       )}
 
@@ -527,7 +476,7 @@ export function ResourceViewer({
       {/* Delete Confirmation Modal */}
       {deleteConfirmation && (() => {
         const annotation = deleteConfirmation.annotation;
-        const metadata = getAnnotationTypeMetadata(annotation);
+        const metadata = getAnnotator(annotation);
         const targetSelector = getTargetSelector(annotation.target);
         const selectedText = getExactText(targetSelector);
         const motivationEmoji = metadata?.iconEmoji || '📝';

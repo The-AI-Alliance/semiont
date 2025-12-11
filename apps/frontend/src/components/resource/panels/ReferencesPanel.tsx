@@ -8,6 +8,7 @@ import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths } from '@semiont/api-client';
 import { useAnnotationPanel } from '@/hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
+import { supportsDetection } from '@/lib/resource-utils';
 
 type Annotation = components['schemas']['Annotation'];
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
@@ -19,54 +20,69 @@ interface DetectionLog {
 }
 
 interface Props {
-  allEntityTypes: string[];
+  // Generic panel props
+  annotations?: Annotation[];
+  onAnnotationClick?: (annotation: Annotation) => void;
+  focusedAnnotationId?: string | null;
+  hoveredAnnotationId?: string | null;
+  onAnnotationHover?: (annotationId: string | null) => void;
+  onDetect: (selectedTypes: string[]) => void;
+  onCreate?: (entityType?: string) => void;
   isDetecting: boolean;
   detectionProgress: any; // TODO: type this properly
-  onDetect: (selectedTypes: string[]) => void;
-  onCancelDetection: () => void;
-  references?: Annotation[];
-  onReferenceClick?: (annotation: Annotation) => void;
-  focusedReferenceId?: string | null;
-  hoveredReferenceId?: string | null;
-  onReferenceHover?: (referenceId: string | null) => void;
-  onGenerateDocument?: (title: string) => void;
-  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
-  onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
+
+  // Reference-specific props
+  allEntityTypes: string[];
+  onCancelDetection: () => void;
+  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
+  onUpdate?: (referenceId: string, updates: Partial<Annotation>) => void;
+  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   mediaType?: string | undefined;
   referencedBy?: ReferencedBy[];
   referencedByLoading?: boolean;
+  pendingSelection?: {
+    exact: string;
+    start: number;
+    end: number;
+    prefix?: string;
+    suffix?: string;
+    svgSelector?: string;
+  } | null;
 }
 
 export function ReferencesPanel({
-  allEntityTypes,
+  annotations = [],
+  onAnnotationClick,
+  focusedAnnotationId,
+  hoveredAnnotationId,
+  onAnnotationHover,
+  onDetect,
+  onCreate,
   isDetecting,
   detectionProgress,
-  onDetect,
-  onCancelDetection,
-  references = [],
-  onReferenceClick,
-  focusedReferenceId,
-  hoveredReferenceId,
-  onReferenceHover,
-  onGenerateDocument,
-  onSearchDocuments,
-  onUpdateReference,
   annotateMode = true,
+  allEntityTypes,
+  onCancelDetection,
+  onSearchDocuments,
+  onUpdate,
+  onGenerateDocument,
   mediaType,
   referencedBy = [],
   referencedByLoading = false,
+  pendingSelection,
 }: Props) {
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
+  const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
 
-  const { sortedAnnotations: sortedReferences, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(references, hoveredReferenceId);
+  const { sortedAnnotations, containerRef, handleAnnotationRef } =
+    useAnnotationPanel(annotations, hoveredAnnotationId);
 
   // Check if detection is supported for this media type
-  const isTextResource = mediaType?.startsWith('text/');
+  const isTextResource = supportsDetection(mediaType);
 
   // Clear log when starting new detection
   const handleDetect = () => {
@@ -82,9 +98,68 @@ export function ReferencesPanel({
     }
   }, [isDetecting, detectionProgress]);
 
+  const togglePendingEntityType = (type: string) => {
+    setPendingEntityTypes(prev =>
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
+
+  const handleCreateReference = () => {
+    if (onCreate) {
+      const entityType = pendingEntityTypes.join(',') || undefined;
+      onCreate(entityType);
+      setPendingEntityTypes([]);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
-      <PanelHeader annotationType="reference" count={references.length} title={tRef('referencesTitle')} />
+      <PanelHeader annotationType="reference" count={annotations.length} title={tRef('referencesTitle')} />
+
+      {/* New reference creation - shown when there's a pending selection */}
+      {pendingSelection && onCreate && (
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/10">
+          <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-blue-300 pl-2">
+            {pendingSelection.svgSelector
+              ? tRef('imageRegionSelected')
+              : `"${pendingSelection.exact.substring(0, 100)}${pendingSelection.exact.length > 100 ? '...' : ''}"`
+            }
+          </div>
+
+          {/* Entity Types Multi-Select */}
+          {allEntityTypes.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                {tRef('entityTypesOptional')}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {allEntityTypes.map((type: string) => (
+                  <button
+                    key={type}
+                    onClick={() => togglePendingEntityType(type)}
+                    className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
+                      pendingEntityTypes.includes(type)
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleCreateReference}
+            className="w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+          >
+            🔗 {tRef('createReference')}
+          </button>
+        </div>
+      )}
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -94,7 +169,9 @@ export function ReferencesPanel({
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
               {t('title')}
             </h3>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 ${
+              detectionProgress ? 'border-2 border-blue-500 dark:border-blue-600' : ''
+            }`}>
             {/* Show annotation UI only when not detecting and no completed log */}
             {!detectionProgress && !lastDetectionLog && (
             <>
@@ -193,28 +270,28 @@ export function ReferencesPanel({
         <div>
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {tRef('outgoingReferences')} ({sortedReferences.length})
+              {tRef('outgoingReferences')} ({sortedAnnotations.length})
             </h3>
           </div>
 
           <div className="space-y-3">
-            {sortedReferences.length === 0 ? (
+            {sortedAnnotations.length === 0 ? (
               <p className="text-gray-500 dark:text-gray-400 text-sm">
                 {tRef('noReferences')}
               </p>
             ) : (
-              sortedReferences.map((reference) => (
+              sortedAnnotations.map((reference) => (
                 <ReferenceEntry
                   key={reference.id}
                   reference={reference}
-                  isFocused={reference.id === focusedReferenceId}
-                  onClick={() => onReferenceClick?.(reference)}
+                  isFocused={reference.id === focusedAnnotationId}
+                  onClick={() => onAnnotationClick?.(reference)}
                   onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}
-                  {...(onReferenceHover && { onReferenceHover })}
+                  {...(onAnnotationHover && { onReferenceHover: onAnnotationHover })}
                   {...(onGenerateDocument && { onGenerateDocument })}
                   {...(onSearchDocuments && { onSearchDocuments })}
-                  {...(onUpdateReference && { onUpdateReference })}
+                  {...(onUpdate && { onUpdateReference: onUpdate })}
                 />
               ))
             )}

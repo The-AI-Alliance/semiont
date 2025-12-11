@@ -13,7 +13,6 @@ interface HighlightEntryProps {
   onClick: () => void;
   onHighlightRef: (highlightId: string, el: HTMLElement | null) => void;
   onHighlightHover?: (highlightId: string | null) => void;
-  resourceContent: string;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -39,7 +38,6 @@ export function HighlightEntry({
   onClick,
   onHighlightRef,
   onHighlightHover,
-  resourceContent,
 }: HighlightEntryProps) {
   const t = useTranslations('HighlightPanel');
   const highlightRef = useRef<HTMLDivElement>(null);

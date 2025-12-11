@@ -14,8 +14,11 @@ import { ResourceTagsInline } from '@/components/ResourceTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
-import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery, getAnnotationExactText } from '@semiont/api-client';
-import { groupAnnotationsByType } from '@/lib/annotation-registry';
+import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery, getAnnotationExactText, entityType } from '@semiont/api-client';
+import { groupAnnotationsByType, withHandlers, createDetectionHandler, createCancelDetectionHandler, ANNOTATORS } from '@/lib/annotation-registry';
+import { supportsDetection } from '@/lib/resource-utils';
+
+type Motivation = components['schemas']['Motivation'];
 import { decodeWithCharset } from '@/lib/text-encoding';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -23,7 +26,6 @@ import { useOpenResources } from '@/contexts/OpenResourcesContext';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useToast } from '@/components/Toast';
-import { useDetectionProgress } from '@/hooks/useDetectionProgress';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { useGenerationProgress } from '@/hooks/useGenerationProgress';
 import { AnnotationHistory } from '@/components/resource/AnnotationHistory';
@@ -32,16 +34,12 @@ import { useToolbar } from '@/hooks/useToolbar';
 import { useLineNumbers } from '@/hooks/useLineNumbers';
 import { useResourceEvents } from '@/hooks/useResourceEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
-import { ReferencesPanel } from '@/components/resource/panels/ReferencesPanel';
+import { UnifiedAnnotationsPanel } from '@/components/resource/panels/UnifiedAnnotationsPanel';
 import { ResourceInfoPanel } from '@/components/resource/panels/ResourceInfoPanel';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/resource/panels/CollaborationPanel';
 import { ResourceActionsPanel } from '@/components/resource/panels/ResourceActionsPanel';
 import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
-import { CommentsPanel } from '@/components/resource/panels/CommentsPanel';
-import { HighlightPanel } from '@/components/resource/panels/HighlightPanel';
-import { AssessmentPanel } from '@/components/resource/panels/AssessmentPanel';
-import { TaggingPanel } from '@/components/resource/panels/TaggingPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
@@ -266,60 +264,47 @@ function ResourceView({
   });
 
   // Debug logging
-  console.log('[ResourcePage] annotateMode:', annotateMode, 'primaryMediaType:', primaryMediaType, 'isText:', primaryMediaType?.startsWith('text/'));
+  console.log('[ResourcePage] annotateMode:', annotateMode, 'primaryMediaType:', primaryMediaType, 'isText:', supportsDetection(primaryMediaType));
 
   const { theme, setTheme } = useTheme();
   const { activePanel, togglePanel, setActivePanel } = useToolbar({ persistToStorage: true });
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+
+  // Unified annotation state (motivation-agnostic)
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
-  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
+
+  // Pending selections for creating annotations
   const [pendingCommentSelection, setPendingCommentSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
   const [pendingTagSelection, setPendingTagSelection] = useState<{ exact: string; start: number; end: number } | null>(null);
-  const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
-  const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
-  const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
-  const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null);
-  const [focusedAssessmentId, setFocusedAssessmentId] = useState<string | null>(null);
-  const [hoveredAssessmentId, setHoveredAssessmentId] = useState<string | null>(null);
-  const [focusedTagId, setFocusedTagId] = useState<string | null>(null);
-  const [hoveredTagId, setHoveredTagId] = useState<string | null>(null);
+  const [pendingReferenceSelection, setPendingReferenceSelection] = useState<{
+    exact: string;
+    start: number;
+    end: number;
+    prefix?: string;
+    suffix?: string;
+    svgSelector?: string;
+  } | null>(null);
+
+  // Search state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
 
-  // Detection states for highlights
-  const [isDetectingHighlights, setIsDetectingHighlights] = useState(false);
-  const [highlightDetectionProgress, setHighlightDetectionProgress] = useState<{
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null>(null);
-
-  // Detection states for assessments
-  const [isDetectingAssessments, setIsDetectingAssessments] = useState(false);
-  const [assessmentDetectionProgress, setAssessmentDetectionProgress] = useState<{
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null>(null);
-
-  // Detection states for comments
-  const [isDetectingComments, setIsDetectingComments] = useState(false);
-  const [commentDetectionProgress, setCommentDetectionProgress] = useState<{
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null>(null);
-
-  // Detection states for tags
-  const [isDetectingTags, setIsDetectingTags] = useState(false);
-  const [tagDetectionProgress, setTagDetectionProgress] = useState<{
+  // Unified detection state (motivation-based)
+  const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
+  const [motivationDetectionProgress, setMotivationDetectionProgress] = useState<{
     status: string;
     percentage?: number;
     message?: string;
     currentCategory?: string;
+    processedCategories?: number;
+    totalCategories?: number;
   } | null>(null);
+
+  // SSE stream reference for cancellation
+  const detectionStreamRef = React.useRef<any>(null);
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -423,30 +408,6 @@ function ResourceView({
   }, [annotateMode]);
 
 
-  // Use SSE-based detection progress
-  const {
-    isDetecting,
-    progress: detectionProgress,
-    startDetection,
-    cancelDetection
-  } = useDetectionProgress({
-    rUri,
-    onProgress: (progress) => {
-      // When an entity type completes, refetch to show new annotations immediately
-      // Use both refetch (for immediate document view update) AND invalidate (for Annotation History)
-      refetchAnnotations();
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
-    },
-    onComplete: (progress) => {
-      // Don't show toast - the widget already shows completion status
-      // Final refetch + invalidation when ALL entity types complete
-      refetchAnnotations();
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
-    },
-    onError: (error) => {
-      showError(error);
-    }
-  });
 
   // Use SSE-based document generation progress - provides inline sparkle animation
   const {
@@ -466,11 +427,28 @@ function ResourceView({
     }
   });
 
-  // Handle detect entity references - updated for SSE
-  const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
-    // Start detection with the selected entity types
-    setTimeout(() => startDetection(selectedTypes), 100);
-  }, [startDetection]);
+  // Generic detection context for all annotation types
+  const detectionContext = {
+    client,
+    rUri,
+    setDetectingMotivation,
+    setMotivationDetectionProgress,
+    detectionStreamRef,
+    refetchAnnotations,
+    queryClient,
+    showSuccess,
+    showError
+  };
+
+  // Generic cancel handler (works for all detection types)
+  const handleCancelDetection = React.useMemo(
+    () => createCancelDetectionHandler({
+      detectionStreamRef,
+      setDetectingMotivation,
+      setMotivationDetectionProgress
+    }),
+    []
+  );
 
   // Handle document generation from stub reference
   const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
@@ -488,181 +466,66 @@ function ResourceView({
     startGeneration(annotationUri(referenceId), resourceUri(resourceUriStr), optionsWithLanguage);
   }, [startGeneration, resource, clearNewAnnotationId, locale]);
 
-  /**
-   * Handle highlight detection
-   */
-  const handleDetectHighlights = useCallback(async (instructions?: string) => {
-    if (!client) return;
+  // Handle search for documents to link to reference
+  const handleSearchDocuments = useCallback((referenceId: string, searchTerm: string) => {
+    setPendingReferenceId(referenceId);
+    setSearchTerm(searchTerm);
+    setSearchModalOpen(true);
+  }, []);
 
-    setIsDetectingHighlights(true);
-    setHighlightDetectionProgress({ status: 'started', message: 'Starting highlight detection...' });
-
+  // Handle unlinking a reference (clearing the body)
+  const handleUpdateReference = useCallback(async (referenceId: string, updates: Partial<components['schemas']['Annotation']>) => {
     try {
-      const stream = client.sse.detectHighlights(rUri, instructions ? { instructions } : {});
+      // Extract short annotation ID from the full URI
+      const annotationIdShort = referenceId.split('/').pop();
+      if (!annotationIdShort) {
+        throw new Error('Invalid reference ID');
+      }
 
-      stream.onProgress((progress: any) => {
-        setHighlightDetectionProgress({
-          status: progress.status,
-          percentage: progress.percentage,
-          message: progress.message
+      // Construct the nested URI format required by the API
+      const resourceIdSegment = rUri.split('/').pop() || '';
+      const nestedUri = `${NEXT_PUBLIC_API_URL}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
+
+      // Check if we're clearing the body (unlinking)
+      // updates.body will be an empty array [] when unlinking
+      const isClearing = Array.isArray(updates.body) && updates.body.length === 0;
+
+      if (isClearing) {
+        // Find the actual reference to get its body items
+        const reference = references.find(r => r.id === referenceId);
+        if (!reference) {
+          throw new Error('Reference not found');
+        }
+
+        // Extract body items with purpose === 'linking' and create remove operations
+        const bodyArray = Array.isArray(reference.body) ? reference.body : [];
+        const operations = bodyArray
+          .filter((item: any) => item.purpose === 'linking')
+          .map((item: any) => ({
+            op: 'remove' as const,
+            item,
+          }));
+
+        if (operations.length === 0) {
+          throw new Error('No linking body items found to remove');
+        }
+
+        await updateAnnotationBodyMutation.mutateAsync({
+          annotationUri: resourceAnnotationUri(nestedUri),
+          data: {
+            resourceId: resourceIdSegment,
+            operations,
+          },
         });
-      });
+        showSuccess('Reference unlinked successfully');
+      }
 
-      stream.onComplete((result: any) => {
-        setHighlightDetectionProgress({
-          status: 'complete',
-          percentage: 100,
-          message: `Created ${result.createdCount} highlights`
-        });
-        setIsDetectingHighlights(false);
-        refetchAnnotations();
-        showSuccess(`Created ${result.createdCount} highlights`);
-      });
-
-      stream.onError((error: any) => {
-        setHighlightDetectionProgress(null);
-        setIsDetectingHighlights(false);
-        showError(`Highlight detection failed: ${error.message}`);
-      });
+      await refetchAnnotations();
     } catch (error) {
-      setIsDetectingHighlights(false);
-      setHighlightDetectionProgress(null);
-      showError('Failed to start highlight detection');
+      console.error('Failed to update reference:', error);
+      showError('Failed to update reference');
     }
-  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
-
-  /**
-   * Handle assessment detection
-   */
-  const handleDetectAssessments = useCallback(async (instructions?: string) => {
-    if (!client) return;
-
-    setIsDetectingAssessments(true);
-    setAssessmentDetectionProgress({ status: 'started', message: 'Starting assessment detection...' });
-
-    try {
-      const stream = client.sse.detectAssessments(rUri, instructions ? { instructions } : {});
-
-      stream.onProgress((progress: any) => {
-        setAssessmentDetectionProgress({
-          status: progress.status,
-          percentage: progress.percentage,
-          message: progress.message
-        });
-      });
-
-      stream.onComplete((result: any) => {
-        setAssessmentDetectionProgress({
-          status: 'complete',
-          percentage: 100,
-          message: `Created ${result.createdCount} assessments`
-        });
-        setIsDetectingAssessments(false);
-        refetchAnnotations();
-        showSuccess(`Created ${result.createdCount} assessments`);
-      });
-
-      stream.onError((error: any) => {
-        setAssessmentDetectionProgress(null);
-        setIsDetectingAssessments(false);
-        showError(`Assessment detection failed: ${error.message}`);
-      });
-    } catch (error) {
-      setIsDetectingAssessments(false);
-      setAssessmentDetectionProgress(null);
-      showError('Failed to start assessment detection');
-    }
-  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
-
-  /**
-   * Handle comment detection
-   */
-  const handleDetectComments = useCallback(async (instructions?: string, tone?: string) => {
-    if (!client) return;
-
-    setIsDetectingComments(true);
-    setCommentDetectionProgress({ status: 'started', message: 'Starting comment detection...' });
-
-    try {
-      const stream = client.sse.detectComments(rUri, {
-        ...(instructions && { instructions }),
-        ...(tone && { tone: tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' })
-      });
-
-      stream.onProgress((progress: any) => {
-        setCommentDetectionProgress({
-          status: progress.status,
-          percentage: progress.percentage,
-          message: progress.message
-        });
-      });
-
-      stream.onComplete((result: any) => {
-        setCommentDetectionProgress({
-          status: 'complete',
-          percentage: 100,
-          message: `Created ${result.createdCount} comments`
-        });
-        setIsDetectingComments(false);
-        refetchAnnotations();
-        showSuccess(`Created ${result.createdCount} comments`);
-      });
-
-      stream.onError((error: any) => {
-        setCommentDetectionProgress(null);
-        setIsDetectingComments(false);
-        showError(`Comment detection failed: ${error.message}`);
-      });
-    } catch (error) {
-      setIsDetectingComments(false);
-      setCommentDetectionProgress(null);
-      showError('Failed to start comment detection');
-    }
-  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
-
-  /**
-   * Handle tag detection
-   */
-  const handleDetectTags = useCallback(async (schemaId: string, categories: string[]) => {
-    if (!client) return;
-
-    setIsDetectingTags(true);
-    setTagDetectionProgress({ status: 'started', message: 'Starting tag detection...' });
-
-    try {
-      const stream = client.sse.detectTags(rUri, { schemaId, categories });
-
-      stream.onProgress((progress: any) => {
-        setTagDetectionProgress({
-          status: progress.status,
-          percentage: progress.percentage,
-          message: progress.message,
-          currentCategory: progress.currentCategory
-        });
-      });
-
-      stream.onComplete((result: any) => {
-        setTagDetectionProgress({
-          status: 'complete',
-          percentage: 100,
-          message: `Created ${result.tagsCreated} tags`
-        });
-        setIsDetectingTags(false);
-        refetchAnnotations();
-        showSuccess(`Created ${result.tagsCreated} tags`);
-      });
-
-      stream.onError((error: any) => {
-        setTagDetectionProgress(null);
-        setIsDetectingTags(false);
-        showError(`Tag detection failed: ${error.message}`);
-      });
-    } catch (error) {
-      setIsDetectingTags(false);
-      setTagDetectionProgress(null);
-      showError('Failed to start tag detection');
-    }
-  }, [client, rUri, refetchAnnotations, showSuccess, showError]);
+  }, [rUri, references, updateAnnotationBodyMutation, refetchAnnotations, showSuccess, showError]);
 
   // Manual tag creation handler
   const handleCreateTag = useCallback(async (
@@ -849,59 +712,73 @@ function ResourceView({
                   // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
                   // This prevents race condition where we refetch before the event is processed
                 }}
-                curationMode={annotateMode}
+                annotateMode={annotateMode}
+                onAnnotateModeToggle={handleAnnotateModeToggle}
                 onCommentCreationRequested={(selection) => {
-                  // Store the selection and ensure the Comments Panel is open
+                  // Store the selection and ensure the Annotations Panel is open
                   setPendingCommentSelection(selection);
                   // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
-                  setActivePanel('comments');
+                  setActivePanel('annotations');
                 }}
                 onTagCreationRequested={(selection) => {
-                  // Store the selection and ensure the Tags Panel is open
+                  // Store the selection and ensure the Annotations Panel is open
                   setPendingTagSelection(selection);
                   // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
-                  setActivePanel('tags');
+                  setActivePanel('annotations');
+                }}
+                onReferenceCreationRequested={(selection: {
+                  exact: string;
+                  start: number;
+                  end: number;
+                  prefix?: string;
+                  suffix?: string;
+                  svgSelector?: string;
+                }) => {
+                  // Store the selection and ensure the Annotations Panel is open
+                  setPendingReferenceSelection(selection);
+                  // Use setActivePanel instead of togglePanel to ensure it opens (not toggles)
+                  setActivePanel('annotations');
                 }}
                 onCommentClick={(commentId) => {
-                  // Open Comments Panel and focus on this comment
-                  setActivePanel('comments');
-                  setFocusedCommentId(commentId);
+                  // Open Annotations Panel and focus on this comment
+                  setActivePanel('annotations');
+                  setFocusedAnnotationId(commentId);
                   // Clear after a short delay to remove highlight
-                  setTimeout(() => setFocusedCommentId(null), 3000);
+                  setTimeout(() => setFocusedAnnotationId(null), 3000);
                 }}
                 onReferenceClick={(referenceId) => {
-                  // Open References Panel and focus on this reference
-                  setActivePanel('references');
-                  setFocusedReferenceId(referenceId);
+                  // Open Annotations Panel and focus on this reference
+                  setActivePanel('annotations');
+                  setFocusedAnnotationId(referenceId);
                   // Clear after a short delay to remove highlight
-                  setTimeout(() => setFocusedReferenceId(null), 3000);
+                  setTimeout(() => setFocusedAnnotationId(null), 3000);
                 }}
                 onHighlightClick={(highlightId) => {
-                  // Open Highlights Panel and focus on this highlight
-                  setActivePanel('highlights');
-                  setFocusedHighlightId(highlightId);
+                  // Open Annotations Panel and focus on this highlight
+                  setActivePanel('annotations');
+                  setFocusedAnnotationId(highlightId);
                   // Clear after a short delay to remove highlight
-                  setTimeout(() => setFocusedHighlightId(null), 3000);
+                  setTimeout(() => setFocusedAnnotationId(null), 3000);
                 }}
                 onAssessmentClick={(assessmentId) => {
-                  // Open Assessments Panel and focus on this assessment
-                  setActivePanel('assessments');
-                  setFocusedAssessmentId(assessmentId);
+                  // Open Annotations Panel and focus on this assessment
+                  setActivePanel('annotations');
+                  setFocusedAnnotationId(assessmentId);
                   // Clear after a short delay to remove highlight
-                  setTimeout(() => setFocusedAssessmentId(null), 3000);
+                  setTimeout(() => setFocusedAnnotationId(null), 3000);
                 }}
                 onTagClick={(tagId) => {
-                  // Open Tags Panel and focus on this tag
-                  setActivePanel('tags');
-                  setFocusedTagId(tagId);
+                  // Open Annotations Panel and focus on this tag
+                  setActivePanel('annotations');
+                  setFocusedAnnotationId(tagId);
                   // Clear after a short delay to remove highlight
-                  setTimeout(() => setFocusedTagId(null), 3000);
+                  setTimeout(() => setFocusedAnnotationId(null), 3000);
                 }}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
-                onCommentHover={setHoveredCommentId}
+                onCommentHover={setHoveredAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
-                hoveredCommentId={hoveredCommentId}
+                hoveredCommentId={hoveredAnnotationId}
                 scrollToAnnotationId={scrollToAnnotationId}
                 showLineNumbers={showLineNumbers}
               />
@@ -922,11 +799,7 @@ function ResourceView({
             onLineNumbersToggle={toggleLineNumbers}
             width={
               activePanel === 'jsonld' ? 'w-[600px]' :
-              activePanel === 'references' ? 'w-[400px]' :
-              activePanel === 'comments' ? 'w-[400px]' :
-              activePanel === 'highlights' ? 'w-[400px]' :
-              activePanel === 'assessments' ? 'w-[400px]' :
-              activePanel === 'tags' ? 'w-[400px]' :
+              activePanel === 'annotations' ? 'w-[400px]' :
               'w-64'
             }
           >
@@ -949,93 +822,118 @@ function ResourceView({
               />
             )}
 
-            {/* References Panel */}
-            {activePanel === 'references' && !resource.archived && (
-              <ReferencesPanel
-                allEntityTypes={allEntityTypes}
-                isDetecting={isDetecting}
-                detectionProgress={detectionProgress}
-                onDetect={handleDetectEntityReferences}
-                onCancelDetection={cancelDetection}
-                references={references}
-                annotateMode={annotateMode}
-                mediaType={primaryMediaType}
-                onReferenceClick={(annotation) => {
-                  // Scroll to reference in document and highlight it
-                  setHoveredAnnotationId(annotation.id);
-                  setTimeout(() => setHoveredAnnotationId(null), 1500);
-                }}
-                focusedReferenceId={focusedReferenceId}
-                hoveredReferenceId={hoveredAnnotationId}
-                onReferenceHover={setHoveredAnnotationId}
-                onGenerateDocument={(title) => {
-                  // Find the reference by title (exact text)
-                  const reference = references.find(r => {
-                    const exact = getAnnotationExactText(r);
-                    return exact === title;
-                  });
-                  if (reference) {
-                    handleGenerateDocument(annotationUri(reference.id), { title });
-                  }
-                }}
-                onSearchDocuments={(referenceId, searchTerm) => {
-                  setSearchTerm(searchTerm);
-                  setPendingReferenceId(referenceId);
-                  setSearchModalOpen(true);
-                }}
-                onUpdateReference={async (referenceId, updates) => {
-                  try {
-                    // Extract short annotation ID from the full URI
-                    const annotationIdShort = referenceId.split('/').pop();
-                    if (!annotationIdShort) {
-                      throw new Error('Invalid reference ID');
+            {/* Unified Annotations Panel */}
+            {activePanel === 'annotations' && !resource.archived && (() => {
+              // Create annotators with injected handlers
+              const annotators = withHandlers({
+                highlight: {
+                  onClick: (annotation) => {
+                    setHoveredAnnotationId(annotation.id);
+                    setTimeout(() => setHoveredAnnotationId(null), 1500);
+                  },
+                  onHover: setHoveredAnnotationId,
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.highlight!, detectionContext) } : {})
+                },
+                reference: {
+                  onClick: (annotation) => {
+                    setHoveredAnnotationId(annotation.id);
+                    setTimeout(() => setHoveredAnnotationId(null), 1500);
+                  },
+                  onHover: setHoveredAnnotationId,
+                  onCreate: async (entityType?: string) => {
+                    if (pendingReferenceSelection) {
+                      const selector = pendingReferenceSelection.svgSelector
+                        ? { type: 'SvgSelector' as const, value: pendingReferenceSelection.svgSelector }
+                        : [
+                            {
+                              type: 'TextPositionSelector' as const,
+                              start: pendingReferenceSelection.start,
+                              end: pendingReferenceSelection.end
+                            },
+                            {
+                              type: 'TextQuoteSelector' as const,
+                              exact: pendingReferenceSelection.exact,
+                              ...(pendingReferenceSelection.prefix && { prefix: pendingReferenceSelection.prefix }),
+                              ...(pendingReferenceSelection.suffix && { suffix: pendingReferenceSelection.suffix })
+                            }
+                          ];
+
+                      await createAnnotation(
+                        rUri,
+                        'linking',
+                        selector,
+                        entityType ? [{
+                          type: 'TextualBody',
+                          purpose: 'tagging',
+                          value: entityType
+                        }] : []
+                      );
+                      setPendingReferenceSelection(null);
+                      refetchAnnotations();
                     }
-
-                    // Construct the nested URI format required by the API
-                    const resourceIdSegment = rUri.split('/').pop() || '';
-                    const nestedUri = `${NEXT_PUBLIC_API_URL}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
-
-                    // Determine operation type based on updates
-                    let operations: any[];
-                    if (Array.isArray(updates.body) && updates.body.length === 0) {
-                      // Unlinking: remove all linking body items
-                      const reference = references.find(r => r.id === referenceId);
-                      if (!reference) {
-                        throw new Error('Reference not found');
-                      }
-                      const bodyArray = Array.isArray(reference.body) ? reference.body : [];
-                      operations = bodyArray
-                        .filter((item: any) => item.purpose === 'linking')
-                        .map((item: any) => ({
-                          op: 'remove',
-                          item,
-                        }));
-                    } else {
-                      // Adding: add the body item
-                      operations = [{
-                        op: 'add',
-                        item: updates.body as any,
-                      }];
+                  },
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.reference!, detectionContext) } : {})
+                },
+                assessment: {
+                  onClick: (annotation) => {
+                    setHoveredAnnotationId(annotation.id);
+                    setTimeout(() => setHoveredAnnotationId(null), 1500);
+                  },
+                  onHover: setHoveredAnnotationId,
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.assessment!, detectionContext) } : {})
+                },
+                comment: {
+                  onClick: (annotation) => {
+                    setHoveredAnnotationId(annotation.id);
+                    setTimeout(() => setHoveredAnnotationId(null), 1500);
+                  },
+                  onHover: setHoveredAnnotationId,
+                  onUpdate: async (annotationIdStr: string, newText: string) => {
+                    // TODO: Implement update comment mutation
+                  },
+                  onCreate: async (commentText: string) => {
+                    if (pendingCommentSelection) {
+                      await addComment(rUri, pendingCommentSelection, commentText);
+                      setPendingCommentSelection(null);
                     }
+                  },
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.comment!, detectionContext) } : {})
+                },
+                tag: {
+                  onClick: (annotation) => {
+                    setHoveredAnnotationId(annotation.id);
+                    setTimeout(() => setHoveredAnnotationId(null), 1500);
+                  },
+                  onHover: setHoveredAnnotationId,
+                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.tag!, detectionContext) } : {}),
+                  ...(supportsDetection(primaryMediaType) ? { onCreate: handleCreateTag } : {})
+                }
+              });
 
-                    await updateAnnotationBodyMutation.mutateAsync({
-                      annotationUri: resourceAnnotationUri(nestedUri),
-                      data: {
-                        resourceId: resourceIdSegment,
-                        operations,
-                      },
-                    });
-                    showSuccess('Reference updated');
-                    await refetchAnnotations();
-                  } catch (error) {
-                    console.error('Failed to update reference:', error);
-                    showError('Failed to update reference');
-                  }
-                }}
-                referencedBy={referencedBy}
-                referencedByLoading={referencedByLoading}
-              />
-            )}
+              return (
+                <UnifiedAnnotationsPanel
+                  annotations={[...highlights, ...references, ...assessments, ...comments, ...tags]}
+                  annotators={annotators}
+                  focusedAnnotationId={focusedAnnotationId}
+                  hoveredAnnotationId={hoveredAnnotationId}
+                  annotateMode={annotateMode}
+                  detectingMotivation={detectingMotivation}
+                  detectionProgress={motivationDetectionProgress}
+                  pendingCommentSelection={pendingCommentSelection}
+                  pendingTagSelection={pendingTagSelection}
+                  pendingReferenceSelection={pendingReferenceSelection}
+                  allEntityTypes={allEntityTypes}
+                  onGenerateDocument={handleGenerateDocument}
+                  onSearchDocuments={handleSearchDocuments}
+                  onUpdateReference={handleUpdateReference}
+                  onCancelDetection={handleCancelDetection}
+                  {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
+                  referencedBy={referencedBy}
+                  referencedByLoading={referencedByLoading}
+                  resourceId={rUri.split('/').pop() || ''}
+                />
+              );
+            })()}
 
             {/* History Panel */}
             {activePanel === 'history' && (
@@ -1044,96 +942,6 @@ function ResourceView({
                 hoveredAnnotationId={hoveredAnnotationId}
                 onEventHover={handleEventHover}
                 onEventClick={handleEventClick}
-              />
-            )}
-
-            {/* Comments Panel */}
-            {activePanel === 'comments' && (
-              <CommentsPanel
-                comments={comments}
-                onCommentClick={(annotation) => {
-                  // Scroll to comment in document and highlight it
-                  setHoveredCommentId(annotation.id);
-                  setTimeout(() => setHoveredCommentId(null), 1500);
-                }}
-                onUpdateComment={async (annotationIdStr, newText) => {
-                  // TODO: Implement update comment mutation
-                }}
-                onCreateComment={async (commentText) => {
-                  if (pendingCommentSelection) {
-                    await addComment(rUri, pendingCommentSelection, commentText);
-                    setPendingCommentSelection(null);
-                  }
-                }}
-                focusedCommentId={focusedCommentId}
-                hoveredCommentId={hoveredCommentId}
-                onCommentHover={setHoveredCommentId}
-                resourceContent={content}
-                pendingSelection={pendingCommentSelection}
-                annotateMode={annotateMode}
-                {...(primaryMediaType?.startsWith('text/') ? { onDetectComments: handleDetectComments } : {})}
-                isDetecting={isDetectingComments}
-                detectionProgress={commentDetectionProgress}
-              />
-            )}
-
-            {/* Highlights Panel */}
-            {activePanel === 'highlights' && (
-              <HighlightPanel
-                highlights={highlights}
-                onHighlightClick={(annotation) => {
-                  setHoveredHighlightId(annotation.id);
-                  setTimeout(() => setHoveredHighlightId(null), 1500);
-                }}
-                focusedHighlightId={focusedHighlightId}
-                hoveredHighlightId={hoveredHighlightId}
-                onHighlightHover={setHoveredHighlightId}
-                resourceContent={content}
-                {...(primaryMediaType?.startsWith('text/') ? { onDetectHighlights: handleDetectHighlights } : {})}
-                isDetecting={isDetectingHighlights}
-                detectionProgress={highlightDetectionProgress}
-                annotateMode={annotateMode}
-              />
-            )}
-
-            {/* Assessments Panel */}
-            {activePanel === 'assessments' && (
-              <AssessmentPanel
-                assessments={assessments}
-                onAssessmentClick={(annotation) => {
-                  setHoveredAssessmentId(annotation.id);
-                  setTimeout(() => setHoveredAssessmentId(null), 1500);
-                }}
-                focusedAssessmentId={focusedAssessmentId}
-                hoveredAssessmentId={hoveredAssessmentId}
-                onAssessmentHover={setHoveredAssessmentId}
-                resourceContent={content}
-                {...(primaryMediaType?.startsWith('text/') ? { onDetectAssessments: handleDetectAssessments } : {})}
-                isDetecting={isDetectingAssessments}
-                detectionProgress={assessmentDetectionProgress}
-                annotateMode={annotateMode}
-              />
-            )}
-
-            {/* Tags Panel */}
-            {activePanel === 'tags' && (
-              <TaggingPanel
-                tags={tags}
-                onTagClick={(annotation) => {
-                  setHoveredTagId(annotation.id);
-                  setTimeout(() => setHoveredTagId(null), 1500);
-                }}
-                focusedTagId={focusedTagId}
-                hoveredTagId={hoveredTagId}
-                onTagHover={setHoveredTagId}
-                resourceContent={content}
-                {...(primaryMediaType?.startsWith('text/') ? {
-                  onDetectTags: handleDetectTags,
-                  onCreateTag: handleCreateTag
-                } : {})}
-                isDetecting={isDetectingTags}
-                detectionProgress={tagDetectionProgress}
-                pendingSelection={pendingTagSelection}
               />
             )}
 
@@ -1170,10 +978,8 @@ function ResourceView({
           <Toolbar
             context="document"
             activePanel={activePanel}
-            annotateMode={annotateMode}
             isArchived={resource.archived ?? false}
             onPanelToggle={togglePanel}
-            onAnnotateModeToggle={handleAnnotateModeToggle}
           />
         </div>
       </div>

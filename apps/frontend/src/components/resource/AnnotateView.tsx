@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, resourceUri as toResourceUri } from '@semiont/api-client';
-import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import { getAnnotator } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
 import { SvgDrawingCanvas, type DrawingMode } from '@/components/image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
@@ -38,6 +38,8 @@ interface Props {
   generatingReferenceId?: string | null;
   onDeleteAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
+  annotateMode: boolean;
+  onAnnotateModeToggle: () => void;
 }
 
 /**
@@ -173,7 +175,9 @@ export function AnnotateView({
   getTargetDocumentName,
   generatingReferenceId,
   onDeleteAnnotation,
-  showLineNumbers = false
+  showLineNumbers = false,
+  annotateMode,
+  onAnnotateModeToggle
 }: Props) {
   const t = useTranslations('AnnotateView');
   const { newAnnotationIds, createAnnotation } = useResourceAnnotations();
@@ -217,7 +221,7 @@ export function AnnotateView({
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
       const annotation = allAnnotations.find(a => a.id === annotationId);
-      const metadata = annotation ? getAnnotationTypeMetadata(annotation) : null;
+      const metadata = annotation ? getAnnotator(annotation) : null;
 
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {
@@ -387,6 +391,8 @@ export function AnnotateView({
             selectedClick={selectedClick}
             onSelectionChange={onSelectionChange || (() => {})}
             onClickChange={onClickChange || (() => {})}
+            annotateMode={annotateMode}
+            onAnnotateModeToggle={onAnnotateModeToggle}
           />
           <div className="flex-1 overflow-auto">
             <CodeMirrorRenderer
@@ -447,6 +453,8 @@ export function AnnotateView({
             showShapeGroup={true}
             selectedShape={selectedShape}
             onShapeChange={onShapeChange}
+            annotateMode={annotateMode}
+            onAnnotateModeToggle={onAnnotateModeToggle}
           />
           <div className="flex-1 overflow-auto">
             {resourceUri && (

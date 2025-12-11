@@ -7,7 +7,7 @@ import { remarkAnnotations, type PreparedAnnotation } from '@/lib/remark-annotat
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
 import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource, getMimeCategory, type MimeCategory } from '@semiont/api-client';
-import { getAnnotationInternalType, getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import { getAnnotationInternalType, getAnnotator } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
 import { AnnotateToolbar, type ClickAction } from '@/components/annotation/AnnotateToolbar';
 import type { AnnotationsCollection, AnnotationHandlers } from '@/types/annotation-props';
@@ -26,6 +26,8 @@ interface Props {
   hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
   onClickChange?: (motivation: ClickAction) => void;
+  annotateMode: boolean;
+  onAnnotateModeToggle: () => void;
 }
 
 /**
@@ -63,7 +65,9 @@ export function BrowseView({
   hoveredAnnotationId,
   hoveredCommentId,
   selectedClick = 'detail',
-  onClickChange
+  onClickChange,
+  annotateMode,
+  onAnnotateModeToggle
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -100,7 +104,7 @@ export function BrowseView({
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
       const annotation = annotationMap.get(annotationId);
-      const metadata = annotation ? getAnnotationTypeMetadata(annotation) : null;
+      const metadata = annotation ? getAnnotator(annotation) : null;
 
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {
@@ -230,6 +234,8 @@ export function BrowseView({
             onClickChange={onClickChange || (() => {})}
             showSelectionGroup={false}
             showDeleteButton={false}
+            annotateMode={annotateMode}
+            onAnnotateModeToggle={onAnnotateModeToggle}
           />
           <div ref={containerRef} className="flex-1 overflow-auto prose prose-lg dark:prose-invert max-w-none py-4 pr-4 pl-2">
             <ReactMarkdown
@@ -257,6 +263,8 @@ export function BrowseView({
             onClickChange={onClickChange || (() => {})}
             showSelectionGroup={false}
             showDeleteButton={false}
+            annotateMode={annotateMode}
+            onAnnotateModeToggle={onAnnotateModeToggle}
           />
           <div ref={containerRef} className="flex-1 overflow-auto">
             <ImageViewer

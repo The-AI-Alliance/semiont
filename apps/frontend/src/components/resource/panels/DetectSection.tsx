@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ANNOTATION_TYPES } from '@/lib/annotation-registry';
+import { ANNOTATORS } from '@/lib/annotation-registry';
 
 interface DetectSectionProps {
   annotationType: 'highlight' | 'assessment' | 'comment';
@@ -11,6 +11,7 @@ interface DetectSectionProps {
     status: string;
     percentage?: number;
     message?: string;
+    requestParams?: Array<{ label: string; value: string }>;
   } | null | undefined;
   onDetect: (instructions?: string, tone?: string) => void | Promise<void>;
 }
@@ -51,7 +52,7 @@ export function DetectSection({
   const t = useTranslations(panelName);
   const [instructions, setInstructions] = useState('');
   const [tone, setTone] = useState('');
-  const metadata = ANNOTATION_TYPES[annotationType]!;
+  const metadata = ANNOTATORS[annotationType]!;
   const colors = colorSchemes[annotationType];
 
   const handleDetect = () => {
@@ -124,6 +125,18 @@ export function DetectSection({
         {/* Detection Progress */}
         {isDetecting && detectionProgress && (
           <div className="space-y-3">
+            {/* Request Parameters */}
+            {detectionProgress.requestParams && detectionProgress.requestParams.length > 0 && (
+              <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-200 dark:border-blue-800">
+                <div className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">Request Parameters:</div>
+                {detectionProgress.requestParams.map((param, idx) => (
+                  <div key={idx} className="text-xs text-blue-800 dark:text-blue-200">
+                    <span className="font-medium">{param.label}:</span> {param.value}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="text-sm text-gray-600 dark:text-gray-400">
               <div className="flex items-center gap-2">
                 <span className="text-lg animate-sparkle-infinite">✨</span>

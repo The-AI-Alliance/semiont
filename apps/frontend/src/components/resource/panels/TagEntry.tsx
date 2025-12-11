@@ -13,7 +13,6 @@ interface TagEntryProps {
   onClick: () => void;
   onTagRef: (tagId: string, el: HTMLElement | null) => void;
   onTagHover?: (tagId: string | null) => void;
-  resourceContent: string;
 }
 
 export function TagEntry({
@@ -22,7 +21,6 @@ export function TagEntry({
   onClick,
   onTagRef,
   onTagHover,
-  resourceContent,
 }: TagEntryProps) {
   const tagRef = useRef<HTMLDivElement>(null);
 

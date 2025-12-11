@@ -34,7 +34,7 @@ vi.mock('@semiont/api-client', async () => {
 
 // Mock CommentEntry component to simplify testing
 vi.mock('../CommentEntry', () => ({
-  CommentEntry: ({ comment, onClick, onDelete, onUpdate, onCommentRef, onCommentHover }: any) => (
+  CommentEntry: ({ comment, onClick, onDelete, onUpdate, onCommentRef, onAnnotationHover }: any) => (
     <div
       data-testid={`comment-${comment.id}`}
       onClick={() => onClick()}
@@ -42,8 +42,8 @@ vi.mock('../CommentEntry', () => ({
       <button onClick={() => onDelete()}>Delete</button>
       <button onClick={() => onUpdate('updated text')}>Update</button>
       <button
-        onMouseEnter={() => onCommentHover?.(comment.id)}
-        onMouseLeave={() => onCommentHover?.(null)}
+        onMouseEnter={() => onAnnotationHover?.(comment.id)}
+        onMouseLeave={() => onAnnotationHover?.(null)}
       >
         Hover
       </button>
@@ -100,10 +100,10 @@ const mockComments = {
 
 describe('CommentsPanel Component', () => {
   const defaultProps = {
-    comments: mockComments.empty,
-    onCommentClick: vi.fn(),
-    onUpdateComment: vi.fn(),
-    focusedCommentId: null,
+    annotations: mockComments.empty,
+    onAnnotationClick: vi.fn(),
+    onUpdate: vi.fn(),
+    focusedAnnotationId: null,
     resourceContent: 'This is the resource content for testing comments.',
     pendingSelection: null,
   };
@@ -130,7 +130,7 @@ describe('CommentsPanel Component', () => {
 
   describe('Rendering', () => {
     it('should render panel header with title and count', () => {
-      render(<CommentsPanel {...defaultProps} comments={mockComments.multiple} />);
+      render(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
 
       expect(screen.getByText(/Comments/)).toBeInTheDocument();
       expect(screen.getByText(/\(3\)/)).toBeInTheDocument();
@@ -143,7 +143,7 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should render all comments', () => {
-      render(<CommentsPanel {...defaultProps} comments={mockComments.multiple} />);
+      render(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
 
       expect(screen.getByTestId('comment-1')).toBeInTheDocument();
       expect(screen.getByTestId('comment-2')).toBeInTheDocument();
@@ -160,7 +160,7 @@ describe('CommentsPanel Component', () => {
 
     it('should have scrollable comments list', () => {
       const { container } = render(
-        <CommentsPanel {...defaultProps} comments={mockComments.many} />
+        <CommentsPanel {...defaultProps} annotations={mockComments.many} />
       );
 
       const commentsList = container.querySelector('.overflow-y-auto');
@@ -171,7 +171,7 @@ describe('CommentsPanel Component', () => {
 
   describe('Comment Sorting', () => {
     it('should sort comments by position in resource', () => {
-      render(<CommentsPanel {...defaultProps} comments={mockComments.multiple} />);
+      render(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
 
       const comments = screen.getAllByTestId(/comment-/);
 
@@ -185,13 +185,13 @@ describe('CommentsPanel Component', () => {
       mockGetTextPositionSelector.mockReturnValue(null);
 
       expect(() => {
-        render(<CommentsPanel {...defaultProps} comments={mockComments.multiple} />);
+        render(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
       }).not.toThrow();
     });
 
     it('should maintain sort order when comments update', () => {
       const { rerender } = render(
-        <CommentsPanel {...defaultProps} comments={mockComments.multiple} />
+        <CommentsPanel {...defaultProps} annotations={mockComments.multiple} />
       );
 
       // Add a new comment at position 25
@@ -200,7 +200,7 @@ describe('CommentsPanel Component', () => {
         createMockComment('4', 25, 35),
       ];
 
-      rerender(<CommentsPanel {...defaultProps} comments={updatedComments} />);
+      rerender(<CommentsPanel {...defaultProps} annotations={updatedComments} />);
 
       const comments = screen.getAllByTestId(/comment-/);
 
@@ -230,7 +230,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -248,7 +248,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -267,7 +267,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -286,7 +286,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -307,7 +307,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -330,7 +330,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -349,7 +349,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -369,7 +369,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={onCreateComment}
+          onCreate={onCreateComment}
         />
       );
 
@@ -393,7 +393,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -415,7 +415,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -434,7 +434,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -456,7 +456,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -478,7 +478,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -495,8 +495,8 @@ describe('CommentsPanel Component', () => {
       render(
         <CommentsPanel
           {...defaultProps}
-          comments={mockComments.single}
-          onCommentClick={onCommentClick}
+          annotations={mockComments.single}
+          onAnnotationClick={onCommentClick}
         />
       );
 
@@ -511,8 +511,8 @@ describe('CommentsPanel Component', () => {
       render(
         <CommentsPanel
           {...defaultProps}
-          comments={mockComments.single}
-          onUpdateComment={onUpdateComment}
+          annotations={mockComments.single}
+          onUpdate={onUpdateComment}
         />
       );
 
@@ -524,38 +524,38 @@ describe('CommentsPanel Component', () => {
   });
 
   describe('Comment Hover Behavior', () => {
-    it('should call onCommentHover when provided', () => {
-      const onCommentHover = vi.fn();
+    it('should call onAnnotationHover when provided', () => {
+      const onAnnotationHover = vi.fn();
       render(
         <CommentsPanel
           {...defaultProps}
-          comments={mockComments.single}
-          onCommentHover={onCommentHover}
+          annotations={mockComments.single}
+          onAnnotationHover={onAnnotationHover}
         />
       );
 
       const hoverButton = screen.getByText('Hover');
       fireEvent.mouseEnter(hoverButton);
 
-      expect(onCommentHover).toHaveBeenCalledWith('1');
+      expect(onAnnotationHover).toHaveBeenCalledWith('1');
     });
 
-    it('should handle hoveredCommentId prop changes', () => {
+    it('should handle hoveredAnnotationId prop changes', () => {
       const { rerender } = render(
         <CommentsPanel
           {...defaultProps}
-          comments={mockComments.multiple}
-          hoveredCommentId={null}
+          annotations={mockComments.multiple}
+          hoveredAnnotationId={null}
         />
       );
 
-      // Should not error when hoveredCommentId changes
+      // Should not error when hoveredAnnotationId changes
       expect(() => {
         rerender(
           <CommentsPanel
             {...defaultProps}
-            comments={mockComments.multiple}
-            hoveredCommentId="2"
+            annotations={mockComments.multiple}
+            hoveredAnnotationId="2"
           />
         );
       }).not.toThrow();
@@ -565,19 +565,19 @@ describe('CommentsPanel Component', () => {
         rerender(
           <CommentsPanel
             {...defaultProps}
-            comments={mockComments.multiple}
-            hoveredCommentId={null}
+            annotations={mockComments.multiple}
+            hoveredAnnotationId={null}
           />
         );
       }).not.toThrow();
     });
 
-    it('should not error when onCommentHover is not provided', () => {
+    it('should not error when onAnnotationHover is not provided', () => {
       expect(() => {
         render(
           <CommentsPanel
             {...defaultProps}
-            comments={mockComments.single}
+            annotations={mockComments.single}
           />
         );
       }).not.toThrow();
@@ -585,12 +585,12 @@ describe('CommentsPanel Component', () => {
   });
 
   describe('Focus Management', () => {
-    it('should pass focusedCommentId to CommentEntry components', () => {
+    it('should pass focusedAnnotationId to CommentEntry components', () => {
       render(
         <CommentsPanel
           {...defaultProps}
-          comments={mockComments.multiple}
-          focusedCommentId="2"
+          annotations={mockComments.multiple}
+          focusedAnnotationId="2"
         />
       );
 
@@ -598,13 +598,13 @@ describe('CommentsPanel Component', () => {
       expect(screen.getByTestId('comment-2')).toBeInTheDocument();
     });
 
-    it('should handle null focusedCommentId', () => {
+    it('should handle null focusedAnnotationId', () => {
       expect(() => {
         render(
           <CommentsPanel
             {...defaultProps}
-            comments={mockComments.multiple}
-            focusedCommentId={null}
+            annotations={mockComments.multiple}
+            focusedAnnotationId={null}
           />
         );
       }).not.toThrow();
@@ -614,7 +614,7 @@ describe('CommentsPanel Component', () => {
   describe('Panel Structure and Styling', () => {
     it('should have fixed header that does not scroll', () => {
       render(
-        <CommentsPanel {...defaultProps} comments={mockComments.many} />
+        <CommentsPanel {...defaultProps} annotations={mockComments.many} />
       );
 
       const header = screen.getByText(/Comments/).closest('div');
@@ -630,7 +630,7 @@ describe('CommentsPanel Component', () => {
 
     it('should have proper spacing between comments', () => {
       const { container } = render(
-        <CommentsPanel {...defaultProps} comments={mockComments.multiple} />
+        <CommentsPanel {...defaultProps} annotations={mockComments.multiple} />
       );
 
       const commentsList = container.querySelector('.space-y-4');
@@ -648,7 +648,7 @@ describe('CommentsPanel Component', () => {
   describe('Edge Cases', () => {
     it('should handle empty comments array', () => {
       expect(() => {
-        render(<CommentsPanel {...defaultProps} comments={[]} />);
+        render(<CommentsPanel {...defaultProps} annotations={[]} />);
       }).not.toThrow();
 
       expect(screen.getByText(/No comments yet/)).toBeInTheDocument();
@@ -656,14 +656,14 @@ describe('CommentsPanel Component', () => {
 
     it('should handle rapid comment additions', () => {
       const { rerender } = render(
-        <CommentsPanel {...defaultProps} comments={mockComments.empty} />
+        <CommentsPanel {...defaultProps} annotations={mockComments.empty} />
       );
 
       for (let i = 1; i <= 5; i++) {
         const comments = Array.from({ length: i }, (_, j) =>
           createMockComment(`${j + 1}`, j * 10, (j + 1) * 10)
         );
-        rerender(<CommentsPanel {...defaultProps} comments={comments} />);
+        rerender(<CommentsPanel {...defaultProps} annotations={comments} />);
       }
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(5);
@@ -671,13 +671,13 @@ describe('CommentsPanel Component', () => {
 
     it('should handle comment removal', () => {
       const { rerender } = render(
-        <CommentsPanel {...defaultProps} comments={mockComments.multiple} />
+        <CommentsPanel {...defaultProps} annotations={mockComments.multiple} />
       );
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(3);
 
       rerender(
-        <CommentsPanel {...defaultProps} comments={mockComments.single} />
+        <CommentsPanel {...defaultProps} annotations={mockComments.single} />
       );
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(1);
@@ -707,7 +707,7 @@ describe('CommentsPanel Component', () => {
       );
 
       expect(() => {
-        render(<CommentsPanel {...defaultProps} comments={manyComments} />);
+        render(<CommentsPanel {...defaultProps} annotations={manyComments} />);
       }).not.toThrow();
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(100);
@@ -721,7 +721,7 @@ describe('CommentsPanel Component', () => {
       ];
 
       expect(() => {
-        render(<CommentsPanel {...defaultProps} comments={commentsAtSamePosition} />);
+        render(<CommentsPanel {...defaultProps} annotations={commentsAtSamePosition} />);
       }).not.toThrow();
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(3);
@@ -747,7 +747,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingSelection={pendingSelection}
-          onCreateComment={vi.fn()}
+          onCreate={vi.fn()}
         />
       );
 
@@ -757,7 +757,7 @@ describe('CommentsPanel Component', () => {
 
     it('should have semantic HTML structure', () => {
       const { container } = render(
-        <CommentsPanel {...defaultProps} comments={mockComments.multiple} />
+        <CommentsPanel {...defaultProps} annotations={mockComments.multiple} />
       );
 
       // Panel should be a properly structured div hierarchy

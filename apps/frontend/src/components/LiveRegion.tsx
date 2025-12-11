@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, createContext, useContext, useCallback } from 'react';
 import type { components } from '@semiont/api-client';
-import { getAnnotationTypeMetadata } from '@/lib/annotation-registry';
+import { getAnnotator } from '@/lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -100,8 +100,8 @@ export function useDocumentAnnouncements() {
   }, [announce]);
 
   const announceAnnotationCreated = useCallback((annotation: Annotation) => {
-    const metadata = getAnnotationTypeMetadata(annotation);
-    const message = metadata?.announceOnCreate ?? 'Annotation created';
+    const annotator = getAnnotator(annotation);
+    const message = annotator?.announceOnCreate ?? 'Annotation created';
     announce(message, 'polite');
   }, [announce]);
 

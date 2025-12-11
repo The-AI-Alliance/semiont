@@ -305,12 +305,8 @@
     "languageHint": "Select the language of this resource"
   },
   "Toolbar": {
-    "browseMode": "Browse Mode",
-    "annotateMode": "Annotate Mode",
-    "switchToBrowse": "Switch to Browse Mode",
-    "switchToAnnotate": "Switch to Annotate Mode",
     "resource": "Resource",
-    "detectReferences": "References",
+    "annotations": "Annotations",
     "history": "History",
     "resourceInfo": "Resource Info",
     "collaboration": "Collaboration",
@@ -484,22 +480,12 @@
     "selectCategory": "Select Category",
     "chooseCategory": "Choose a category..."
   },
-  "Toolbar": {
-    "comments": "Comments",
-    "highlights": "Highlights",
-    "assessments": "Assessments",
-    "tags": "Tags",
-    "history": "History",
-    "resource": "Resource",
-    "resourceInfo": "Resource Info",
-    "detectReferences": "References",
-    "collaboration": "Collaboration",
-    "annotateMode": "Annotate Mode",
-    "browseMode": "Browse Mode",
-    "switchToAnnotate": "Switch to Annotate",
-    "switchToBrowse": "Switch to Browse",
-    "userAccount": "User Account",
-    "settings": "Settings"
+  "UnifiedAnnotationsPanel": {
+    "highlight": "Highlights",
+    "reference": "References",
+    "assessment": "Assessments",
+    "comment": "Comments",
+    "tag": "Tags"
   },
   "StubReferencePopup": {
     "title": "Stub Reference",
@@ -558,7 +544,10 @@
     "loadingEllipsis": "Loading...",
     "noIncomingReferences": "No incoming references",
     "untitledResource": "Untitled Resource",
-    "noText": "No text"
+    "noText": "No text",
+    "createReference": "Create Reference",
+    "entityTypesOptional": "Entity Types (Optional)",
+    "imageRegionSelected": "Image region selected"
   },
   "SortableResourceTab": {
     "dragToReorder": "Drag to reorder",
@@ -771,9 +760,13 @@
     "close": "Close"
   },
   "AnnotateToolbar": {
+    "modeGroup": "Mode",
+    "browse": "Browse",
+    "annotate": "Annotate",
     "selectionGroup": "Motivation",
     "clickGroup": "Click",
     "shapeGroup": "Shape",
+    "none": "None",
     "linking": "Reference",
     "highlighting": "Highlight",
     "assessing": "Assess",

@@ -13,7 +13,6 @@ interface AssessmentEntryProps {
   onClick: () => void;
   onAssessmentRef: (assessmentId: string, el: HTMLElement | null) => void;
   onAssessmentHover?: (assessmentId: string | null) => void;
-  resourceContent: string;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -56,7 +55,6 @@ export function AssessmentEntry({
   onClick,
   onAssessmentRef,
   onAssessmentHover,
-  resourceContent,
 }: AssessmentEntryProps) {
   const t = useTranslations('AssessmentPanel');
   const assessmentRef = useRef<HTMLDivElement>(null);

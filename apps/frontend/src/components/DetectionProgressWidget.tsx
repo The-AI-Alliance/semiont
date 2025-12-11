@@ -33,6 +33,18 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
         )}
       </div>
 
+      {/* Request Parameters */}
+      {(progress as any).requestParams && (progress as any).requestParams.length > 0 && (
+        <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-200 dark:border-blue-800">
+          <div className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">Request Parameters:</div>
+          {(progress as any).requestParams.map((param: { label: string; value: string }, idx: number) => (
+            <div key={idx} className="text-xs text-blue-800 dark:text-blue-200">
+              <span className="font-medium">{param.label}:</span> {param.value}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Completed entity types log */}
       {progress.completedEntityTypes && progress.completedEntityTypes.length > 0 && (
         <div className="mb-3 space-y-1">
