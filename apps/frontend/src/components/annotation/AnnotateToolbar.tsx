@@ -166,12 +166,14 @@ export function AnnotateToolbar({
     onSelectionChange(selectedMotivation === motivation ? null : motivation);
     // Close dropdown after selection
     setSelectionPinned(false);
+    setSelectionHovered(false);
   };
 
   const handleClickClick = (action: ClickAction) => {
     onClickChange(action);
     // Close dropdown after selection
     setClickPinned(false);
+    setClickHovered(false);
   };
 
   const handleShapeClick = (shape: ShapeType) => {
@@ -180,6 +182,7 @@ export function AnnotateToolbar({
     }
     // Close dropdown after selection
     setShapePinned(false);
+    setShapeHovered(false);
   };
 
   // Render button with icon and label
