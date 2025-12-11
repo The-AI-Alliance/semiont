@@ -187,9 +187,13 @@ export function AnnotateToolbar({
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
 
-  const handleSelectionClick = (motivation: SelectionMotivation) => {
-    // Toggle: if already selected, deselect it
-    onSelectionChange(selectedMotivation === motivation ? null : motivation);
+  const handleSelectionClick = (motivation: SelectionMotivation | null) => {
+    // If null is clicked, always deselect. Otherwise toggle.
+    if (motivation === null) {
+      onSelectionChange(null);
+    } else {
+      onSelectionChange(selectedMotivation === motivation ? null : motivation);
+    }
     // Close dropdown after selection
     setSelectionPinned(false);
     setSelectionHovered(false);
@@ -362,17 +366,27 @@ export function AnnotateToolbar({
           onPin={() => setSelectionPinned(!selectionPinned)}
           containerRef={selectionRef}
           collapsedContent={
-            selectedMotivation ? (
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{getMotivationEmoji(selectedMotivation)}</span>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {selectionMotivations.find(m => m.motivation === selectedMotivation)?.label}
-                </span>
-              </div>
-            ) : null
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{selectedMotivation ? getMotivationEmoji(selectedMotivation) : '—'}</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {selectedMotivation
+                  ? selectionMotivations.find(m => m.motivation === selectedMotivation)?.label
+                  : t('none')
+                }
+              </span>
+            </div>
           }
           expandedContent={
             <div className="flex flex-col">
+              {/* None option to deselect */}
+              <div>
+                {renderButton(
+                  '—',
+                  t('none'),
+                  selectedMotivation === null,
+                  () => handleSelectionClick(null)
+                )}
+              </div>
               {selectionMotivations.map(({ motivation, label }) => (
                 <div key={motivation}>
                   {renderButton(

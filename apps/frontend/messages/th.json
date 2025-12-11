@@ -766,6 +766,7 @@
     "selectionGroup": "Motivation",
     "clickGroup": "Click",
     "shapeGroup": "Shape",
+    "none": "None",
     "linking": "Reference",
     "highlighting": "Highlight",
     "assessing": "Assess",
