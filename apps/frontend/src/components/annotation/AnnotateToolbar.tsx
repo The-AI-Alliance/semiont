@@ -68,16 +68,30 @@ function DropdownGroup({
     }
   }, [isExpanded, containerRef]);
 
+  // Keyboard navigation
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onPin();
+    }
+  };
+
   return (
     <div
       ref={containerRef}
-      className="relative flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent"
+      role="button"
+      tabIndex={0}
+      aria-haspopup="true"
+      aria-expanded={isExpanded}
+      aria-label={label}
+      className="relative flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
       onClick={onPin}
+      onKeyDown={handleKeyDown}
     >
       {/* Group label - always visible */}
-      <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+      <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider" aria-hidden="true">
         {label}
       </span>
 
@@ -89,6 +103,8 @@ function DropdownGroup({
         // Expanded: show dropdown menu replacing selected value
         <div
           ref={dropdownRef}
+          role="menu"
+          aria-orientation="vertical"
           className={`absolute ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-max`}
         >
           {expandedContent}
@@ -223,7 +239,7 @@ export function AnnotateToolbar({
     onClick: () => void,
     isDelete: boolean = false
   ) => {
-    const baseClasses = 'px-3 py-1.5 rounded-md transition-all flex items-center gap-2 font-medium border-none focus:outline-none w-full text-left';
+    const baseClasses = 'px-3 py-1.5 rounded-md transition-all flex items-center gap-2 font-medium border-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 w-full text-left';
 
     let classes = baseClasses;
     if (isDelete) {
@@ -238,11 +254,13 @@ export function AnnotateToolbar({
 
     return (
       <button
+        role="menuitem"
         onClick={onClick}
         className={classes}
         aria-pressed={isSelected}
+        aria-label={label}
       >
-        <span className="text-lg">{icon}</span>
+        <span className="text-lg" aria-hidden="true">{icon}</span>
         <span className="text-sm">{label}</span>
       </button>
     );
