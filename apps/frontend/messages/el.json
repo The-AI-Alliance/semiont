@@ -548,7 +548,10 @@
     "loadingEllipsis": "Loading...",
     "noIncomingReferences": "No incoming references",
     "untitledResource": "Untitled Resource",
-    "noText": "No text"
+    "noText": "No text",
+    "createReference": "Create Reference",
+    "entityTypesOptional": "Entity Types (Optional)",
+    "imageRegionSelected": "Image region selected"
   },
   "SortableResourceTab": {
     "dragToReorder": "Drag to reorder",
