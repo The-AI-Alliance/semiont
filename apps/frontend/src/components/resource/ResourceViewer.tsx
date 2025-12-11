@@ -20,8 +20,8 @@ interface Props {
   resource: SemiontResource & { content: string };
   annotations: AnnotationsCollection;
   onRefetchAnnotations?: () => void;
-  annotateMode?: boolean;
-  onAnnotateModeToggle?: () => void;
+  annotateMode: boolean;
+  onAnnotateModeToggle: () => void;
   generatingReferenceId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
   onCommentHover?: (commentId: string | null) => void;
@@ -50,7 +50,7 @@ export function ResourceViewer({
   resource,
   annotations,
   onRefetchAnnotations,
-  annotateMode = false,
+  annotateMode,
   onAnnotateModeToggle,
   generatingReferenceId,
   onAnnotationHover,

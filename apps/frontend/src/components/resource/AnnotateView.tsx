@@ -38,8 +38,8 @@ interface Props {
   generatingReferenceId?: string | null;
   onDeleteAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
-  annotateMode?: boolean;
-  onAnnotateModeToggle?: () => void;
+  annotateMode: boolean;
+  onAnnotateModeToggle: () => void;
 }
 
 /**
@@ -176,7 +176,7 @@ export function AnnotateView({
   generatingReferenceId,
   onDeleteAnnotation,
   showLineNumbers = false,
-  annotateMode = false,
+  annotateMode,
   onAnnotateModeToggle
 }: Props) {
   const t = useTranslations('AnnotateView');

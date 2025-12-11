@@ -26,8 +26,8 @@ interface Props {
   hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
   onClickChange?: (motivation: ClickAction) => void;
-  annotateMode?: boolean;
-  onAnnotateModeToggle?: () => void;
+  annotateMode: boolean;
+  onAnnotateModeToggle: () => void;
 }
 
 /**
@@ -66,7 +66,7 @@ export function BrowseView({
   hoveredCommentId,
   selectedClick = 'detail',
   onClickChange,
-  annotateMode = false,
+  annotateMode,
   onAnnotateModeToggle
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();

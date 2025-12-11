@@ -27,8 +27,8 @@ interface AnnotateToolbarProps {
   onShapeChange?: (shape: ShapeType) => void;
 
   // Mode props
-  annotateMode?: boolean;
-  onAnnotateModeToggle?: () => void;
+  annotateMode: boolean;
+  onAnnotateModeToggle: () => void;
 }
 
 interface DropdownGroupProps {
@@ -212,9 +212,7 @@ export function AnnotateToolbar({
   };
 
   const handleModeToggle = () => {
-    if (onAnnotateModeToggle) {
-      onAnnotateModeToggle();
-    }
+    onAnnotateModeToggle();
     setModePinned(false);
     setModeHovered(false);
   };
@@ -295,36 +293,32 @@ export function AnnotateToolbar({
 
   return (
     <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-      {/* Mode Group - conditionally shown */}
-      {onAnnotateModeToggle && (
-        <>
-          <DropdownGroup
-            label={t('modeGroup')}
-            isExpanded={modeExpanded}
-            isPinned={modePinned}
-            onHoverChange={setModeHovered}
-            onPin={() => setModePinned(!modePinned)}
-            containerRef={modeRef}
-            collapsedContent={
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{annotateMode ? '✏️' : '📖'}</span>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {annotateMode ? t('annotate') : t('browse')}
-                </span>
-              </div>
-            }
-            expandedContent={
-              <div className="flex flex-col">
-                {renderButton('📖', t('browse'), !annotateMode, handleBrowseClick)}
-                {renderButton('✏️', t('annotate'), annotateMode, handleAnnotateClick)}
-              </div>
-            }
-          />
+      {/* Mode Group */}
+      <DropdownGroup
+        label={t('modeGroup')}
+        isExpanded={modeExpanded}
+        isPinned={modePinned}
+        onHoverChange={setModeHovered}
+        onPin={() => setModePinned(!modePinned)}
+        containerRef={modeRef}
+        collapsedContent={
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{annotateMode ? '✏️' : '📖'}</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {annotateMode ? t('annotate') : t('browse')}
+            </span>
+          </div>
+        }
+        expandedContent={
+          <div className="flex flex-col">
+            {renderButton('📖', t('browse'), !annotateMode, handleBrowseClick)}
+            {renderButton('✏️', t('annotate'), annotateMode, handleAnnotateClick)}
+          </div>
+        }
+      />
 
-          {/* Separator after mode group */}
-          <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />
-        </>
-      )}
+      {/* Separator after mode group */}
+      <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />
 
       {/* Click Group */}
       <DropdownGroup

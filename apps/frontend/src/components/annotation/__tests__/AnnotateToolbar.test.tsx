@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 import { NextIntlClientProvider } from 'next-intl';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../AnnotateToolbar';
 
@@ -40,12 +40,14 @@ describe('AnnotateToolbar', () => {
   const defaultProps = {
     selectedMotivation: null as SelectionMotivation | null,
     selectedClick: 'detail' as ClickAction,
-    onSelectionChange: jest.fn(),
-    onClickChange: jest.fn()
+    onSelectionChange: vi.fn(),
+    onClickChange: vi.fn(),
+    annotateMode: false,
+    onAnnotateModeToggle: vi.fn()
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Rendering', () => {
@@ -55,21 +57,10 @@ describe('AnnotateToolbar', () => {
       expect(screen.getByText('Detail')).toBeInTheDocument();
     });
 
-    it('shows MODE group when onAnnotateModeToggle is provided', () => {
-      renderWithIntl(
-        <AnnotateToolbar
-          {...defaultProps}
-          annotateMode={false}
-          onAnnotateModeToggle={jest.fn()}
-        />
-      );
+    it('shows MODE group', () => {
+      renderWithIntl(<AnnotateToolbar {...defaultProps} />);
       expect(screen.getByText('Mode')).toBeInTheDocument();
       expect(screen.getByText('Browse')).toBeInTheDocument();
-    });
-
-    it('hides MODE group when onAnnotateModeToggle is not provided', () => {
-      renderWithIntl(<AnnotateToolbar {...defaultProps} />);
-      expect(screen.queryByText('Mode')).not.toBeInTheDocument();
     });
 
     it('shows selection group by default', () => {
@@ -85,7 +76,7 @@ describe('AnnotateToolbar', () => {
     });
 
     it('hides delete button when showDeleteButton is false', () => {
-      const { container } = renderWithIntl(
+      renderWithIntl(
         <AnnotateToolbar {...defaultProps} showDeleteButton={false} />
       );
       // Open click dropdown
@@ -115,7 +106,7 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={jest.fn()}
+          onAnnotateModeToggle={vi.fn()}
         />
       );
       expect(screen.getByText('Browse')).toBeInTheDocument();
@@ -125,7 +116,7 @@ describe('AnnotateToolbar', () => {
           <AnnotateToolbar
             {...defaultProps}
             annotateMode={true}
-            onAnnotateModeToggle={jest.fn()}
+            onAnnotateModeToggle={vi.fn()}
           />
         </NextIntlClientProvider>
       );
@@ -137,7 +128,7 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={jest.fn()}
+          onAnnotateModeToggle={vi.fn()}
         />
       );
 
@@ -154,7 +145,7 @@ describe('AnnotateToolbar', () => {
     });
 
     it('calls onAnnotateModeToggle when Browse is clicked in Annotate mode', async () => {
-      const handleToggle = jest.fn();
+      const handleToggle = vi.fn();
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
@@ -180,7 +171,7 @@ describe('AnnotateToolbar', () => {
     });
 
     it('calls onAnnotateModeToggle when Annotate is clicked in Browse mode', async () => {
-      const handleToggle = jest.fn();
+      const handleToggle = vi.fn();
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
@@ -206,7 +197,7 @@ describe('AnnotateToolbar', () => {
     });
 
     it('closes dropdown after selection', async () => {
-      const handleToggle = jest.fn();
+      const handleToggle = vi.fn();
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
@@ -244,7 +235,7 @@ describe('AnnotateToolbar', () => {
 
   describe('CLICK Group Interactions', () => {
     it('calls onClickChange when clicking an action', async () => {
-      const handleChange = jest.fn();
+      const handleChange = vi.fn();
       renderWithIntl(
         <AnnotateToolbar {...defaultProps} onClickChange={handleChange} />
       );
@@ -270,7 +261,7 @@ describe('AnnotateToolbar', () => {
 
   describe('MOTIVATION Group Interactions', () => {
     it('calls onSelectionChange when clicking a motivation', async () => {
-      const handleChange = jest.fn();
+      const handleChange = vi.fn();
       renderWithIntl(
         <AnnotateToolbar {...defaultProps} onSelectionChange={handleChange} />
       );
@@ -287,7 +278,7 @@ describe('AnnotateToolbar', () => {
     });
 
     it('toggles motivation on/off', async () => {
-      const handleChange = jest.fn();
+      const handleChange = vi.fn();
       const { rerender } = renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
@@ -329,7 +320,7 @@ describe('AnnotateToolbar', () => {
 
   describe('SHAPE Group Interactions', () => {
     it('calls onShapeChange when clicking a shape', async () => {
-      const handleChange = jest.fn();
+      const handleChange = vi.fn();
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
@@ -357,7 +348,7 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={jest.fn()}
+          onAnnotateModeToggle={vi.fn()}
         />
       );
 
