@@ -53,26 +53,30 @@ describe('AnnotateToolbar', () => {
   describe('Rendering', () => {
     it('renders with required props', () => {
       renderWithIntl(<AnnotateToolbar {...defaultProps} />);
-      expect(screen.getByText('Click')).toBeInTheDocument();
+      // Check for aria-labels (labels only shown when expanded)
+      expect(screen.getByLabelText('Click')).toBeInTheDocument();
       expect(screen.getByText('Detail')).toBeInTheDocument();
     });
 
     it('shows MODE group', () => {
       renderWithIntl(<AnnotateToolbar {...defaultProps} />);
-      expect(screen.getByText('Mode')).toBeInTheDocument();
+      // Check for aria-label (label only shown when expanded)
+      expect(screen.getByLabelText('Mode')).toBeInTheDocument();
       expect(screen.getByText('Browse')).toBeInTheDocument();
     });
 
     it('shows selection group by default', () => {
       renderWithIntl(<AnnotateToolbar {...defaultProps} />);
-      expect(screen.getByText('Motivation')).toBeInTheDocument();
+      // Check for aria-label (label only shown when expanded)
+      expect(screen.getByLabelText('Motivation')).toBeInTheDocument();
     });
 
     it('hides selection group when showSelectionGroup is false', () => {
       renderWithIntl(
         <AnnotateToolbar {...defaultProps} showSelectionGroup={false} />
       );
-      expect(screen.queryByText('Motivation')).not.toBeInTheDocument();
+      // Check for aria-label absence
+      expect(screen.queryByLabelText('Motivation')).not.toBeInTheDocument();
     });
 
     it('hides delete button when showDeleteButton is false', () => {
@@ -80,8 +84,8 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar {...defaultProps} showDeleteButton={false} />
       );
       // Open click dropdown
-      const clickGroup = screen.getByText('Click');
-      fireEvent.mouseEnter(clickGroup.parentElement!);
+      const clickGroup = screen.getByLabelText('Click');
+      fireEvent.mouseEnter(clickGroup);
 
       // Delete option should not be present
       expect(screen.queryByText('Delete')).not.toBeInTheDocument();
@@ -95,7 +99,8 @@ describe('AnnotateToolbar', () => {
           selectedShape="rectangle"
         />
       );
-      expect(screen.getByText('Shape')).toBeInTheDocument();
+      // Check for aria-label (label only shown when expanded)
+      expect(screen.getByLabelText('Shape')).toBeInTheDocument();
       expect(screen.getByText('Rectangle')).toBeInTheDocument();
     });
   });
@@ -132,7 +137,7 @@ describe('AnnotateToolbar', () => {
         />
       );
 
-      const modeGroup = screen.getByText('Mode').parentElement!;
+      const modeGroup = screen.getByLabelText('Mode');
       fireEvent.mouseEnter(modeGroup);
 
       await waitFor(() => {
@@ -153,7 +158,7 @@ describe('AnnotateToolbar', () => {
         />
       );
 
-      const modeGroup = screen.getByText('Mode').parentElement!;
+      const modeGroup = screen.getByLabelText('Mode');
       fireEvent.mouseEnter(modeGroup);
 
       await waitFor(() => {
@@ -174,7 +179,7 @@ describe('AnnotateToolbar', () => {
         />
       );
 
-      const modeGroup = screen.getByText('Mode').parentElement!;
+      const modeGroup = screen.getByLabelText('Mode');
       fireEvent.mouseEnter(modeGroup);
 
       await waitFor(() => {
@@ -195,7 +200,7 @@ describe('AnnotateToolbar', () => {
         />
       );
 
-      const modeGroup = screen.getByText('Mode').parentElement!;
+      const modeGroup = screen.getByLabelText('Mode');
       fireEvent.mouseEnter(modeGroup);
 
       await waitFor(() => {
@@ -236,7 +241,7 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar {...defaultProps} onClickChange={handleChange} />
       );
 
-      const clickGroup = screen.getByText('Click').parentElement!;
+      const clickGroup = screen.getByLabelText('Click');
       fireEvent.mouseEnter(clickGroup);
 
       await waitFor(() => {
@@ -262,7 +267,7 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar {...defaultProps} onSelectionChange={handleChange} />
       );
 
-      const motivationGroup = screen.getByText('Motivation').parentElement!;
+      const motivationGroup = screen.getByLabelText('Motivation');
       fireEvent.mouseEnter(motivationGroup);
 
       await waitFor(() => {
@@ -283,7 +288,7 @@ describe('AnnotateToolbar', () => {
         />
       );
 
-      const motivationGroup = screen.getByText('Motivation').parentElement!;
+      const motivationGroup = screen.getByLabelText('Motivation');
       fireEvent.mouseEnter(motivationGroup);
 
       await waitFor(() => {
@@ -326,7 +331,7 @@ describe('AnnotateToolbar', () => {
         />
       );
 
-      const shapeGroup = screen.getByText('Shape').parentElement!;
+      const shapeGroup = screen.getByLabelText('Shape');
       fireEvent.mouseEnter(shapeGroup);
 
       await waitFor(() => {
@@ -349,7 +354,7 @@ describe('AnnotateToolbar', () => {
       );
 
       // Open mode dropdown
-      const modeGroup = screen.getByText('Mode').parentElement!;
+      const modeGroup = screen.getByLabelText('Mode');
       fireEvent.mouseEnter(modeGroup);
       fireEvent.click(modeGroup); // Pin it
 
@@ -378,7 +383,7 @@ describe('AnnotateToolbar', () => {
     it('closes pinned dropdown when clicking outside', async () => {
       renderWithIntl(<AnnotateToolbar {...defaultProps} />);
 
-      const clickGroup = screen.getByText('Click').parentElement!;
+      const clickGroup = screen.getByLabelText('Click');
       fireEvent.mouseEnter(clickGroup);
       fireEvent.click(clickGroup); // Pin it
 

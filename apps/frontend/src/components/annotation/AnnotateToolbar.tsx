@@ -74,25 +74,25 @@ function DropdownGroup({
       onClick={onPin}
       onKeyDown={handleKeyDown}
     >
-      {/* Group label - always visible */}
-      <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider" aria-hidden="true">
-        {label}
-      </span>
-
       {/* Selected value or expanded menu */}
       {!isExpanded ? (
-        // Collapsed: show selected value inline
+        // Collapsed: show selected value inline (no label)
         collapsedContent
       ) : (
-        // Expanded: show dropdown menu inline (replacing collapsed content)
-        <div
-          ref={dropdownRef}
-          role="menu"
-          aria-orientation="horizontal"
-          className="flex items-center gap-1"
-        >
-          {expandedContent}
-        </div>
+        // Expanded: show label + dropdown menu inline
+        <>
+          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider" aria-hidden="true">
+            {label}
+          </span>
+          <div
+            ref={dropdownRef}
+            role="menu"
+            aria-orientation="horizontal"
+            className="flex items-center gap-1"
+          >
+            {expandedContent}
+          </div>
+        </>
       )}
     </div>
   );
@@ -284,32 +284,6 @@ export function AnnotateToolbar({
 
   return (
     <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-      {/* Mode Group */}
-      <DropdownGroup
-        label={t('modeGroup')}
-        isExpanded={modeExpanded}
-        onHoverChange={setModeHovered}
-        onPin={() => setModePinned(!modePinned)}
-        containerRef={modeRef}
-        collapsedContent={
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{annotateMode ? '✏️' : '📖'}</span>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {annotateMode ? t('annotate') : t('browse')}
-            </span>
-          </div>
-        }
-        expandedContent={
-          <>
-            {renderButton('📖', t('browse'), !annotateMode, handleBrowseClick)}
-            {renderButton('✏️', t('annotate'), annotateMode, handleAnnotateClick)}
-          </>
-        }
-      />
-
-      {/* Separator after mode group */}
-      <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />
-
       {/* Click Group */}
       <DropdownGroup
         label={t('clickGroup')}
@@ -334,6 +308,32 @@ export function AnnotateToolbar({
                 {renderButton(icon, label, selectedClick === action, () => handleClickClick(action), isDelete)}
               </React.Fragment>
             ))}
+          </>
+        }
+      />
+
+      {/* Separator */}
+      <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />
+
+      {/* Mode Group */}
+      <DropdownGroup
+        label={t('modeGroup')}
+        isExpanded={modeExpanded}
+        onHoverChange={setModeHovered}
+        onPin={() => setModePinned(!modePinned)}
+        containerRef={modeRef}
+        collapsedContent={
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{annotateMode ? '✏️' : '📖'}</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {annotateMode ? t('annotate') : t('browse')}
+            </span>
+          </div>
+        }
+        expandedContent={
+          <>
+            {renderButton('📖', t('browse'), !annotateMode, handleBrowseClick)}
+            {renderButton('✏️', t('annotate'), annotateMode, handleAnnotateClick)}
           </>
         }
       />
