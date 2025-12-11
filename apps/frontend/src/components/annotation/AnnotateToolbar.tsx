@@ -29,7 +29,8 @@ interface AnnotateToolbarProps {
 
 interface DropdownGroupProps {
   label: string;
-  children: React.ReactNode;
+  collapsedContent: React.ReactNode;
+  expandedContent: React.ReactNode;
   isExpanded: boolean;
   isPinned: boolean;
   onHoverChange: (hovering: boolean) => void;
@@ -39,7 +40,8 @@ interface DropdownGroupProps {
 
 function DropdownGroup({
   label,
-  children,
+  collapsedContent,
+  expandedContent,
   isExpanded,
   isPinned,
   onHoverChange,
@@ -69,23 +71,28 @@ function DropdownGroup({
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
     >
-      {/* Collapsed trigger */}
-      <div
-        className="cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent"
-        onClick={onPin}
-      >
-        {children}
-      </div>
-
-      {/* Expanded dropdown */}
-      {isExpanded && (
+      {!isExpanded ? (
+        // Collapsed trigger - only shown when not expanded
         <div
-          ref={dropdownRef}
-          className={`absolute ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-max`}
+          className="cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent"
           onClick={onPin}
         >
-          {children}
+          {collapsedContent}
         </div>
+      ) : (
+        // Expanded dropdown - overlay positioned absolutely
+        <>
+          {/* Invisible placeholder to maintain space */}
+          <div className="px-3 py-1.5 opacity-0 pointer-events-none">
+            {collapsedContent}
+          </div>
+          <div
+            ref={dropdownRef}
+            className={`absolute ${dropUp ? 'bottom-full mb-1' : 'top-0'} left-0 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-max`}
+          >
+            {expandedContent}
+          </div>
+        </>
       )}
     </div>
   );
@@ -157,16 +164,22 @@ export function AnnotateToolbar({
   const handleSelectionClick = (motivation: SelectionMotivation) => {
     // Toggle: if already selected, deselect it
     onSelectionChange(selectedMotivation === motivation ? null : motivation);
+    // Close dropdown after selection
+    setSelectionPinned(false);
   };
 
   const handleClickClick = (action: ClickAction) => {
     onClickChange(action);
+    // Close dropdown after selection
+    setClickPinned(false);
   };
 
   const handleShapeClick = (shape: ShapeType) => {
     if (onShapeChange) {
       onShapeChange(shape);
     }
+    // Close dropdown after selection
+    setShapePinned(false);
   };
 
   // Render button with icon and label
@@ -239,19 +252,11 @@ export function AnnotateToolbar({
         onHoverChange={setClickHovered}
         onPin={() => setClickPinned(!clickPinned)}
         containerRef={clickRef}
-      >
-        {clickExpanded ? (
-          // Expanded: Show all options
-          <div className="flex flex-col">
-            {clickActions.map(({ action, icon, label, isDelete }) => (
-              <div key={action}>
-                {renderButton(icon, label, selectedClick === action, () => handleClickClick(action), isDelete)}
-              </div>
-            ))}
-          </div>
-        ) : (
-          // Collapsed: Show selected option
+        collapsedContent={
           <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              {t('clickGroup')}
+            </span>
             <span className="text-lg">
               {clickActions.find(a => a.action === selectedClick)?.icon}
             </span>
@@ -259,8 +264,17 @@ export function AnnotateToolbar({
               {clickActions.find(a => a.action === selectedClick)?.label}
             </span>
           </div>
-        )}
-      </DropdownGroup>
+        }
+        expandedContent={
+          <div className="flex flex-col">
+            {clickActions.map(({ action, icon, label, isDelete }) => (
+              <div key={action}>
+                {renderButton(icon, label, selectedClick === action, () => handleClickClick(action), isDelete)}
+              </div>
+            ))}
+          </div>
+        }
+      />
 
       {/* Separator */}
       {showSelectionGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />}
@@ -274,9 +288,22 @@ export function AnnotateToolbar({
           onHoverChange={setSelectionHovered}
           onPin={() => setSelectionPinned(!selectionPinned)}
           containerRef={selectionRef}
-        >
-          {selectionExpanded ? (
-            // Expanded: Show all options
+          collapsedContent={
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('selectionGroup')}
+              </span>
+              {selectedMotivation && (
+                <>
+                  <span className="text-lg">{getMotivationEmoji(selectedMotivation)}</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {selectionMotivations.find(m => m.motivation === selectedMotivation)?.label}
+                  </span>
+                </>
+              )}
+            </div>
+          }
+          expandedContent={
             <div className="flex flex-col">
               {selectionMotivations.map(({ motivation, label }) => (
                 <div key={motivation}>
@@ -289,23 +316,8 @@ export function AnnotateToolbar({
                 </div>
               ))}
             </div>
-          ) : selectedMotivation ? (
-            // Collapsed with selection: Show selected option
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{getMotivationEmoji(selectedMotivation)}</span>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {selectionMotivations.find(m => m.motivation === selectedMotivation)?.label}
-              </span>
-            </div>
-          ) : (
-            // Collapsed with no selection: Show group label
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                {t('selectionGroup')}
-              </span>
-            </div>
-          )}
-        </DropdownGroup>
+          }
+        />
       )}
 
       {/* Separator */}
@@ -320,19 +332,11 @@ export function AnnotateToolbar({
           onHoverChange={setShapeHovered}
           onPin={() => setShapePinned(!shapePinned)}
           containerRef={shapeRef}
-        >
-          {shapeExpanded ? (
-            // Expanded: Show all options
-            <div className="flex flex-col">
-              {shapeTypes.map(({ shape, icon, label }) => (
-                <div key={shape}>
-                  {renderButton(icon, label, selectedShape === shape, () => handleShapeClick(shape))}
-                </div>
-              ))}
-            </div>
-          ) : (
-            // Collapsed: Show selected option
+          collapsedContent={
             <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('shapeGroup')}
+              </span>
               <span className="text-lg">
                 {shapeTypes.find(s => s.shape === selectedShape)?.icon}
               </span>
@@ -340,8 +344,17 @@ export function AnnotateToolbar({
                 {shapeTypes.find(s => s.shape === selectedShape)?.label}
               </span>
             </div>
-          )}
-        </DropdownGroup>
+          }
+          expandedContent={
+            <div className="flex flex-col">
+              {shapeTypes.map(({ shape, icon, label }) => (
+                <div key={shape}>
+                  {renderButton(icon, label, selectedShape === shape, () => handleShapeClick(shape))}
+                </div>
+              ))}
+            </div>
+          }
+        />
       )}
     </div>
   );
