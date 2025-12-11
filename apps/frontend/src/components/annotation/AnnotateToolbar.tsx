@@ -67,32 +67,28 @@ function DropdownGroup({
   return (
     <div
       ref={containerRef}
-      className="relative"
+      className="relative flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent"
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
+      onClick={onPin}
     >
+      {/* Group label - always visible */}
+      <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+        {label}
+      </span>
+
+      {/* Selected value or expanded menu */}
       {!isExpanded ? (
-        // Collapsed trigger - only shown when not expanded
-        <div
-          className="cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent"
-          onClick={onPin}
-        >
-          {collapsedContent}
-        </div>
+        // Collapsed: show selected value
+        collapsedContent
       ) : (
-        // Expanded dropdown - overlay positioned absolutely
-        <>
-          {/* Invisible placeholder to maintain space */}
-          <div className="px-3 py-1.5 opacity-0 pointer-events-none">
-            {collapsedContent}
-          </div>
-          <div
-            ref={dropdownRef}
-            className={`absolute ${dropUp ? 'bottom-full mb-1' : 'top-0'} left-0 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-max`}
-          >
-            {expandedContent}
-          </div>
-        </>
+        // Expanded: show dropdown menu replacing selected value
+        <div
+          ref={dropdownRef}
+          className={`absolute ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-max`}
+        >
+          {expandedContent}
+        </div>
       )}
     </div>
   );
@@ -257,9 +253,6 @@ export function AnnotateToolbar({
         containerRef={clickRef}
         collapsedContent={
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              {t('clickGroup')}
-            </span>
             <span className="text-lg">
               {clickActions.find(a => a.action === selectedClick)?.icon}
             </span>
@@ -292,19 +285,14 @@ export function AnnotateToolbar({
           onPin={() => setSelectionPinned(!selectionPinned)}
           containerRef={selectionRef}
           collapsedContent={
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                {t('selectionGroup')}
-              </span>
-              {selectedMotivation && (
-                <>
-                  <span className="text-lg">{getMotivationEmoji(selectedMotivation)}</span>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {selectionMotivations.find(m => m.motivation === selectedMotivation)?.label}
-                  </span>
-                </>
-              )}
-            </div>
+            selectedMotivation ? (
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{getMotivationEmoji(selectedMotivation)}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {selectionMotivations.find(m => m.motivation === selectedMotivation)?.label}
+                </span>
+              </div>
+            ) : null
           }
           expandedContent={
             <div className="flex flex-col">
@@ -337,9 +325,6 @@ export function AnnotateToolbar({
           containerRef={shapeRef}
           collapsedContent={
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                {t('shapeGroup')}
-              </span>
               <span className="text-lg">
                 {shapeTypes.find(s => s.shape === selectedShape)?.icon}
               </span>
