@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:mock": "node scripts/dev-with-mock.js",
     "dev:fast": "next dev --turbo",
-    "build": "npm run typecheck && next build",
+    "build": "npm run typecheck && NODE_OPTIONS='--max-old-space-size=4096' next build",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "start": "next start",
     "test": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=default --reporter=json --outputFile=test-results.json --exclude='**/admin/**/*.test.tsx' --exclude='**/admin/**/*.test.ts' --exclude='src/app/privacy/__tests__/page.test.tsx' --exclude='src/lib/__tests__/validation.test.ts' --exclude='src/app/api/auth/\\[...nextauth\\]/__tests__/route.test.ts'",
