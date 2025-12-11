@@ -16,7 +16,7 @@ interface ReferenceEntryProps {
   onClick: () => void;
   onReferenceRef: (referenceId: string, el: HTMLElement | null) => void;
   onReferenceHover?: (referenceId: string | null) => void;
-  onGenerateDocument?: (title: string) => void;
+  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
@@ -83,7 +83,7 @@ export function ReferenceEntry({
 
   const handleGenerate = () => {
     if (onGenerateDocument) {
-      onGenerateDocument(selectedText);
+      onGenerateDocument(reference.id, { title: selectedText });
     }
   };
 

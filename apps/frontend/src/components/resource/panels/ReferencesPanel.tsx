@@ -288,10 +288,10 @@ export function ReferencesPanel({
                   onClick={() => onAnnotationClick?.(reference)}
                   onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}
-                  {...(onAnnotationHover && { onAnnotationHover })}
-                  {...(onGenerateDocument && { onCreate: onGenerateDocument })}
+                  {...(onAnnotationHover && { onReferenceHover: onAnnotationHover })}
+                  {...(onGenerateDocument && { onGenerateDocument })}
                   {...(onSearchDocuments && { onSearchDocuments })}
-                  {...(onUpdate && { onUpdate })}
+                  {...(onUpdate && { onUpdateReference: onUpdate })}
                 />
               ))
             )}
