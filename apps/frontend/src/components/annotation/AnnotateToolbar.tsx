@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { ANNOTATORS } from '@/lib/annotation-registry';
 
@@ -27,6 +27,70 @@ interface AnnotateToolbarProps {
   onShapeChange?: (shape: ShapeType) => void;
 }
 
+interface DropdownGroupProps {
+  label: string;
+  children: React.ReactNode;
+  isExpanded: boolean;
+  isPinned: boolean;
+  onHoverChange: (hovering: boolean) => void;
+  onPin: () => void;
+  containerRef: React.RefObject<HTMLDivElement>;
+}
+
+function DropdownGroup({
+  label,
+  children,
+  isExpanded,
+  isPinned,
+  onHoverChange,
+  onPin,
+  containerRef,
+}: DropdownGroupProps) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropUp, setDropUp] = useState(false);
+
+  // Calculate if we should drop up or down based on available space
+  useEffect(() => {
+    if (isExpanded && dropdownRef.current && containerRef.current) {
+      const dropdownRect = dropdownRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - dropdownRect.bottom;
+      const spaceAbove = dropdownRect.top;
+
+      // If not enough space below and more space above, drop up
+      setDropUp(spaceBelow < 200 && spaceAbove > spaceBelow);
+    }
+  }, [isExpanded, containerRef]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative"
+      onMouseEnter={() => onHoverChange(true)}
+      onMouseLeave={() => onHoverChange(false)}
+    >
+      {/* Collapsed trigger */}
+      <div
+        className="cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent"
+        onClick={onPin}
+      >
+        {children}
+      </div>
+
+      {/* Expanded dropdown */}
+      {isExpanded && (
+        <div
+          ref={dropdownRef}
+          className={`absolute ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-max`}
+          onClick={onPin}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AnnotateToolbar({
   selectedMotivation,
   selectedClick,
@@ -40,197 +104,244 @@ export function AnnotateToolbar({
 }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
 
+  // State for each group
+  const [clickHovered, setClickHovered] = useState(false);
+  const [clickPinned, setClickPinned] = useState(false);
+  const [selectionHovered, setSelectionHovered] = useState(false);
+  const [selectionPinned, setSelectionPinned] = useState(false);
+  const [shapeHovered, setShapeHovered] = useState(false);
+  const [shapePinned, setShapePinned] = useState(false);
+
+  // Refs for each group
+  const clickRef = useRef<HTMLDivElement>(null);
+  const selectionRef = useRef<HTMLDivElement>(null);
+  const shapeRef = useRef<HTMLDivElement>(null);
+
+  // Expanded state = hover OR pinned
+  const clickExpanded = clickHovered || clickPinned;
+  const selectionExpanded = selectionHovered || selectionPinned;
+  const shapeExpanded = shapeHovered || shapePinned;
+
+  // Click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (clickPinned && clickRef.current && !clickRef.current.contains(event.target as Node)) {
+        setClickPinned(false);
+      }
+      if (selectionPinned && selectionRef.current && !selectionRef.current.contains(event.target as Node)) {
+        setSelectionPinned(false);
+      }
+      if (shapePinned && shapeRef.current && !shapeRef.current.contains(event.target as Node)) {
+        setShapePinned(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [clickPinned, selectionPinned, shapePinned]);
+
+  // Escape key handler
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setClickPinned(false);
+        setSelectionPinned(false);
+        setShapePinned(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
   const handleSelectionClick = (motivation: SelectionMotivation) => {
     // Toggle: if already selected, deselect it
     onSelectionChange(selectedMotivation === motivation ? null : motivation);
   };
 
-  const handleClickClick = (motivation: ClickAction) => {
-    // Always set the clicked motivation (no toggle)
-    onClickChange(motivation);
+  const handleClickClick = (action: ClickAction) => {
+    onClickChange(action);
   };
 
   const handleShapeClick = (shape: ShapeType) => {
-    // Always set the clicked shape (no toggle)
     if (onShapeChange) {
       onShapeChange(shape);
     }
   };
 
-  const getButtonClass = (motivation: SelectionMotivation | ClickAction | ShapeType, isDeleteButton = false) => {
-    const isSelected = selectedMotivation === motivation || selectedClick === motivation || selectedShape === motivation;
-    const baseClasses = 'px-3 py-1.5 rounded-md transition-all flex items-center font-medium border-none focus:outline-none';
+  // Render button with icon and label
+  const renderButton = (
+    icon: string,
+    label: string,
+    isSelected: boolean,
+    onClick: () => void,
+    isDelete: boolean = false
+  ) => {
+    const baseClasses = 'px-3 py-1.5 rounded-md transition-all flex items-center gap-2 font-medium border-none focus:outline-none w-full text-left';
 
-    if (isDeleteButton) {
-      // Delete button has deep red background when selected
-      return `${baseClasses} ${
-        isSelected
-          ? 'bg-red-600 dark:bg-red-800 text-white dark:text-red-50 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] translate-y-1 scale-95'
-          : 'text-red-700 dark:text-red-400 shadow-sm hover:bg-red-50 dark:hover:bg-red-950/20'
-      }`;
+    let classes = baseClasses;
+    if (isDelete) {
+      classes += isSelected
+        ? ' bg-red-600 dark:bg-red-800 text-white dark:text-red-50'
+        : ' text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20';
+    } else {
+      classes += isSelected
+        ? ' bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+        : ' text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800';
     }
 
-    // All other buttons: strong depressed effect when selected
-    return `${baseClasses} ${
-      isSelected
-        ? 'bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] translate-y-1 scale-95'
-        : 'text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800'
-    }`;
+    return (
+      <button
+        onClick={onClick}
+        className={classes}
+        aria-pressed={isSelected}
+      >
+        <span className="text-lg">{icon}</span>
+        <span className="text-sm">{label}</span>
+      </button>
+    );
   };
+
+  // Click actions data
+  const clickActions: Array<{ action: ClickAction; icon: string; label: string; isDelete?: boolean }> = [
+    { action: 'detail', icon: '🔍', label: t('detail') },
+    { action: 'follow', icon: '➡️', label: t('follow') },
+    { action: 'jsonld', icon: '🌐', label: t('jsonld') },
+  ];
+
+  if (showDeleteButton) {
+    clickActions.push({ action: 'deleting', icon: '🗑️', label: t('deleting'), isDelete: true });
+  }
+
+  // Selection motivations data
+  const selectionMotivations: Array<{ motivation: SelectionMotivation; label: string }> = [
+    { motivation: 'linking', label: t('linking') },
+    { motivation: 'highlighting', label: t('highlighting') },
+    { motivation: 'assessing', label: t('assessing') },
+    { motivation: 'commenting', label: t('commenting') },
+    { motivation: 'tagging', label: t('tagging') },
+  ];
+
+  // Shape types data
+  const shapeTypes: Array<{ shape: ShapeType; icon: string; label: string }> = [
+    { shape: 'rectangle', icon: '▭', label: t('rectangle') },
+    { shape: 'circle', icon: '○', label: t('circle') },
+    { shape: 'polygon', icon: '⬡', label: t('polygon') },
+  ];
 
   return (
     <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
       {/* Click Group */}
-      <div className="flex items-center gap-0 hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md border border-transparent rounded-lg px-2 py-1 transition-all">
-        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-2">
-          {t('clickGroup')}
-        </span>
-
-        {/* Detail Button */}
-        <button
-          onClick={() => handleClickClick('detail')}
-          className={getButtonClass('detail')}
-          title={t('detail')}
-          aria-pressed={selectedClick === 'detail'}
-        >
-          <span className="text-lg">🔍</span>
-        </button>
-
-        {/* Follow Button */}
-        <button
-          onClick={() => handleClickClick('follow')}
-          className={getButtonClass('follow')}
-          title={t('follow')}
-          aria-pressed={selectedClick === 'follow'}
-        >
-          <span className="text-lg">➡️</span>
-        </button>
-
-        {/* JSON-LD Button */}
-        <button
-          onClick={() => handleClickClick('jsonld')}
-          className={getButtonClass('jsonld')}
-          title={t('jsonld')}
-          aria-pressed={selectedClick === 'jsonld'}
-        >
-          <span className="text-lg">🌐</span>
-        </button>
-
-        {/* Delete Button */}
-        {showDeleteButton && (
-          <button
-            onClick={() => handleClickClick('deleting')}
-            className={getButtonClass('deleting', true)}
-            title={t('deleting')}
-            aria-pressed={selectedClick === 'deleting'}
-          >
-            <span className="text-lg">🗑️</span>
-          </button>
+      <DropdownGroup
+        label={t('clickGroup')}
+        isExpanded={clickExpanded}
+        isPinned={clickPinned}
+        onHoverChange={setClickHovered}
+        onPin={() => setClickPinned(!clickPinned)}
+        containerRef={clickRef}
+      >
+        {clickExpanded ? (
+          // Expanded: Show all options
+          <div className="flex flex-col">
+            {clickActions.map(({ action, icon, label, isDelete }) => (
+              <div key={action}>
+                {renderButton(icon, label, selectedClick === action, () => handleClickClick(action), isDelete)}
+              </div>
+            ))}
+          </div>
+        ) : (
+          // Collapsed: Show selected option
+          <div className="flex items-center gap-2">
+            <span className="text-lg">
+              {clickActions.find(a => a.action === selectedClick)?.icon}
+            </span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {clickActions.find(a => a.action === selectedClick)?.label}
+            </span>
+          </div>
         )}
-      </div>
+      </DropdownGroup>
 
       {/* Separator */}
-      {showSelectionGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2" />}
+      {showSelectionGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />}
 
       {/* Selection Group */}
       {showSelectionGroup && (
-        <div className="flex items-center gap-0 hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md border border-transparent rounded-lg px-2 py-1 transition-all">
-          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-2">
-            {t('selectionGroup')}
-          </span>
-
-          {/* Reference Button */}
-          <button
-            onClick={() => handleSelectionClick('linking')}
-            className={getButtonClass('linking')}
-            title={t('linking')}
-            aria-pressed={selectedMotivation === 'linking'}
-          >
-            <span className="text-lg">{getMotivationEmoji('linking')}</span>
-          </button>
-
-          {/* Highlighting Button */}
-          <button
-            onClick={() => handleSelectionClick('highlighting')}
-            className={getButtonClass('highlighting')}
-            title={t('highlighting')}
-            aria-pressed={selectedMotivation === 'highlighting'}
-          >
-            <span className="text-lg">{getMotivationEmoji('highlighting')}</span>
-          </button>
-
-          {/* Assessing Button */}
-          <button
-            onClick={() => handleSelectionClick('assessing')}
-            className={getButtonClass('assessing')}
-            title={t('assessing')}
-            aria-pressed={selectedMotivation === 'assessing'}
-          >
-            <span className="text-lg">{getMotivationEmoji('assessing')}</span>
-          </button>
-
-          {/* Commenting Button */}
-          <button
-            onClick={() => handleSelectionClick('commenting')}
-            className={getButtonClass('commenting')}
-            title={t('commenting')}
-            aria-pressed={selectedMotivation === 'commenting'}
-          >
-            <span className="text-lg">{getMotivationEmoji('commenting')}</span>
-          </button>
-
-          {/* Tagging Button */}
-          <button
-            onClick={() => handleSelectionClick('tagging')}
-            className={getButtonClass('tagging')}
-            title={t('tagging')}
-            aria-pressed={selectedMotivation === 'tagging'}
-          >
-            <span className="text-lg">{getMotivationEmoji('tagging')}</span>
-          </button>
-        </div>
+        <DropdownGroup
+          label={t('selectionGroup')}
+          isExpanded={selectionExpanded}
+          isPinned={selectionPinned}
+          onHoverChange={setSelectionHovered}
+          onPin={() => setSelectionPinned(!selectionPinned)}
+          containerRef={selectionRef}
+        >
+          {selectionExpanded ? (
+            // Expanded: Show all options
+            <div className="flex flex-col">
+              {selectionMotivations.map(({ motivation, label }) => (
+                <div key={motivation}>
+                  {renderButton(
+                    getMotivationEmoji(motivation),
+                    label,
+                    selectedMotivation === motivation,
+                    () => handleSelectionClick(motivation)
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : selectedMotivation ? (
+            // Collapsed with selection: Show selected option
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{getMotivationEmoji(selectedMotivation)}</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {selectionMotivations.find(m => m.motivation === selectedMotivation)?.label}
+              </span>
+            </div>
+          ) : (
+            // Collapsed with no selection: Show group label
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('selectionGroup')}
+              </span>
+            </div>
+          )}
+        </DropdownGroup>
       )}
 
       {/* Separator */}
-      {showShapeGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2" />}
+      {showShapeGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />}
 
       {/* Shape Group */}
       {showShapeGroup && (
-        <div className="flex items-center gap-0 hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md border border-transparent rounded-lg px-2 py-1 transition-all">
-          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-2">
-            {t('shapeGroup')}
-          </span>
-
-          {/* Rectangle Button */}
-          <button
-            onClick={() => handleShapeClick('rectangle')}
-            className={getButtonClass('rectangle')}
-            title={t('rectangle')}
-            aria-pressed={selectedShape === 'rectangle'}
-          >
-            <span className="text-lg">▭</span>
-          </button>
-
-          {/* Circle Button */}
-          <button
-            onClick={() => handleShapeClick('circle')}
-            className={getButtonClass('circle')}
-            title={t('circle')}
-            aria-pressed={selectedShape === 'circle'}
-          >
-            <span className="text-lg">○</span>
-          </button>
-
-          {/* Polygon Button */}
-          <button
-            onClick={() => handleShapeClick('polygon')}
-            className={getButtonClass('polygon')}
-            title={t('polygon')}
-            aria-pressed={selectedShape === 'polygon'}
-          >
-            <span className="text-lg">⬡</span>
-          </button>
-        </div>
+        <DropdownGroup
+          label={t('shapeGroup')}
+          isExpanded={shapeExpanded}
+          isPinned={shapePinned}
+          onHoverChange={setShapeHovered}
+          onPin={() => setShapePinned(!shapePinned)}
+          containerRef={shapeRef}
+        >
+          {shapeExpanded ? (
+            // Expanded: Show all options
+            <div className="flex flex-col">
+              {shapeTypes.map(({ shape, icon, label }) => (
+                <div key={shape}>
+                  {renderButton(icon, label, selectedShape === shape, () => handleShapeClick(shape))}
+                </div>
+              ))}
+            </div>
+          ) : (
+            // Collapsed: Show selected option
+            <div className="flex items-center gap-2">
+              <span className="text-lg">
+                {shapeTypes.find(s => s.shape === selectedShape)?.icon}
+              </span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {shapeTypes.find(s => s.shape === selectedShape)?.label}
+              </span>
+            </div>
+          )}
+        </DropdownGroup>
       )}
     </div>
   );
