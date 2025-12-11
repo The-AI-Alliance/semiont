@@ -466,6 +466,66 @@ function ResourceView({
     startGeneration(annotationUri(referenceId), resourceUri(resourceUriStr), optionsWithLanguage);
   }, [startGeneration, resource, clearNewAnnotationId, locale]);
 
+  // Handle search for documents to link to reference
+  const handleSearchDocuments = useCallback((referenceId: string, searchTerm: string) => {
+    setPendingReferenceId(referenceId);
+    setSearchTerm(searchTerm);
+    setSearchModalOpen(true);
+  }, []);
+
+  // Handle unlinking a reference (clearing the body)
+  const handleUpdateReference = useCallback(async (referenceId: string, updates: Partial<components['schemas']['Annotation']>) => {
+    try {
+      // Extract short annotation ID from the full URI
+      const annotationIdShort = referenceId.split('/').pop();
+      if (!annotationIdShort) {
+        throw new Error('Invalid reference ID');
+      }
+
+      // Construct the nested URI format required by the API
+      const resourceIdSegment = rUri.split('/').pop() || '';
+      const nestedUri = `${NEXT_PUBLIC_API_URL}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
+
+      // Check if we're clearing the body (unlinking)
+      // updates.body will be an empty array [] when unlinking
+      const isClearing = Array.isArray(updates.body) && updates.body.length === 0;
+
+      if (isClearing) {
+        // Find the actual reference to get its body items
+        const reference = references.find(r => r.id === referenceId);
+        if (!reference) {
+          throw new Error('Reference not found');
+        }
+
+        // Extract body items with purpose === 'linking' and create remove operations
+        const bodyArray = Array.isArray(reference.body) ? reference.body : [];
+        const operations = bodyArray
+          .filter((item: any) => item.purpose === 'linking')
+          .map((item: any) => ({
+            op: 'remove' as const,
+            item,
+          }));
+
+        if (operations.length === 0) {
+          throw new Error('No linking body items found to remove');
+        }
+
+        await updateAnnotationBodyMutation.mutateAsync({
+          annotationUri: resourceAnnotationUri(nestedUri),
+          data: {
+            resourceId: resourceIdSegment,
+            operations,
+          },
+        });
+        showSuccess('Reference unlinked successfully');
+      }
+
+      await refetchAnnotations();
+    } catch (error) {
+      console.error('Failed to update reference:', error);
+      showError('Failed to update reference');
+    }
+  }, [rUri, references, updateAnnotationBodyMutation, refetchAnnotations, showSuccess, showError]);
 
   // Manual tag creation handler
   const handleCreateTag = useCallback(async (
@@ -863,6 +923,8 @@ function ResourceView({
                   pendingReferenceSelection={pendingReferenceSelection}
                   allEntityTypes={allEntityTypes}
                   onGenerateDocument={handleGenerateDocument}
+                  onSearchDocuments={handleSearchDocuments}
+                  onUpdateReference={handleUpdateReference}
                   onCancelDetection={handleCancelDetection}
                   {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
                   referencedBy={referencedBy}

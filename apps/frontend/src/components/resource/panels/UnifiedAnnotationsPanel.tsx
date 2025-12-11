@@ -89,6 +89,8 @@ interface UnifiedAnnotationsPanelProps {
   allEntityTypes?: string[];
   generatingReferenceId?: string | null;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
+  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
+  onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   onCancelDetection?: () => void;
   mediaType?: string;
   referencedBy?: any[];
@@ -240,6 +242,8 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 allEntityTypes={props.allEntityTypes || []}
                 onCancelDetection={props.onCancelDetection || (() => {})}
                 onGenerateDocument={props.onGenerateDocument}
+                onSearchDocuments={props.onSearchDocuments}
+                onUpdate={props.onUpdateReference}
                 mediaType={props.mediaType}
                 referencedBy={props.referencedBy}
                 referencedByLoading={props.referencedByLoading}
