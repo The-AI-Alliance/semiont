@@ -305,10 +305,6 @@
     "languageHint": "Selecciona el idioma de este recurso"
   },
   "Toolbar": {
-    "browseMode": "Modo Exploración",
-    "annotateMode": "Modo Anotación",
-    "switchToBrowse": "Cambiar a Modo Exploración",
-    "switchToAnnotate": "Cambiar a Modo Anotación",
     "resource": "Recurso",
     "annotations": "Anotaciones",
     "history": "Historial",
@@ -764,6 +760,9 @@
     "close": "Cerrar"
   },
   "AnnotateToolbar": {
+    "modeGroup": "Modo",
+    "browse": "Navegar",
+    "annotate": "Anotar",
     "selectionGroup": "Motivación",
     "clickGroup": "Clic",
     "shapeGroup": "Forma",
