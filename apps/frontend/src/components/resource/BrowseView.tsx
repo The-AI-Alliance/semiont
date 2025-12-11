@@ -26,6 +26,8 @@ interface Props {
   hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
   onClickChange?: (motivation: ClickAction) => void;
+  annotateMode?: boolean;
+  onAnnotateModeToggle?: () => void;
 }
 
 /**
@@ -63,7 +65,9 @@ export function BrowseView({
   hoveredAnnotationId,
   hoveredCommentId,
   selectedClick = 'detail',
-  onClickChange
+  onClickChange,
+  annotateMode = false,
+  onAnnotateModeToggle
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -230,6 +234,8 @@ export function BrowseView({
             onClickChange={onClickChange || (() => {})}
             showSelectionGroup={false}
             showDeleteButton={false}
+            annotateMode={annotateMode}
+            onAnnotateModeToggle={onAnnotateModeToggle}
           />
           <div ref={containerRef} className="flex-1 overflow-auto prose prose-lg dark:prose-invert max-w-none py-4 pr-4 pl-2">
             <ReactMarkdown
@@ -257,6 +263,8 @@ export function BrowseView({
             onClickChange={onClickChange || (() => {})}
             showSelectionGroup={false}
             showDeleteButton={false}
+            annotateMode={annotateMode}
+            onAnnotateModeToggle={onAnnotateModeToggle}
           />
           <div ref={containerRef} className="flex-1 overflow-auto">
             <ImageViewer

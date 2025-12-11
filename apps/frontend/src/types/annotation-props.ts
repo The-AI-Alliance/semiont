@@ -125,6 +125,6 @@ export interface AnnotationConfig {
   /** Whether to show line numbers in code view */
   showLineNumbers?: boolean;
 
-  /** Whether view is in curation mode (annotate) or browse mode */
-  curationMode?: boolean;
+  /** Whether view is in annotate mode or browse mode */
+  annotateMode?: boolean;
 }

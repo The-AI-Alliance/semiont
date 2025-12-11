@@ -38,6 +38,8 @@ interface Props {
   generatingReferenceId?: string | null;
   onDeleteAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
+  annotateMode?: boolean;
+  onAnnotateModeToggle?: () => void;
 }
 
 /**
@@ -173,7 +175,9 @@ export function AnnotateView({
   getTargetDocumentName,
   generatingReferenceId,
   onDeleteAnnotation,
-  showLineNumbers = false
+  showLineNumbers = false,
+  annotateMode = false,
+  onAnnotateModeToggle
 }: Props) {
   const t = useTranslations('AnnotateView');
   const { newAnnotationIds, createAnnotation } = useResourceAnnotations();
@@ -387,6 +391,8 @@ export function AnnotateView({
             selectedClick={selectedClick}
             onSelectionChange={onSelectionChange || (() => {})}
             onClickChange={onClickChange || (() => {})}
+            annotateMode={annotateMode}
+            onAnnotateModeToggle={onAnnotateModeToggle}
           />
           <div className="flex-1 overflow-auto">
             <CodeMirrorRenderer
@@ -447,6 +453,8 @@ export function AnnotateView({
             showShapeGroup={true}
             selectedShape={selectedShape}
             onShapeChange={onShapeChange}
+            annotateMode={annotateMode}
+            onAnnotateModeToggle={onAnnotateModeToggle}
           />
           <div className="flex-1 overflow-auto">
             {resourceUri && (

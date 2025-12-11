@@ -712,7 +712,8 @@ function ResourceView({
                   // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
                   // This prevents race condition where we refetch before the event is processed
                 }}
-                curationMode={annotateMode}
+                annotateMode={annotateMode}
+                onAnnotateModeToggle={handleAnnotateModeToggle}
                 onCommentCreationRequested={(selection) => {
                   // Store the selection and ensure the Annotations Panel is open
                   setPendingCommentSelection(selection);
@@ -977,10 +978,8 @@ function ResourceView({
           <Toolbar
             context="document"
             activePanel={activePanel}
-            annotateMode={annotateMode}
             isArchived={resource.archived ?? false}
             onPanelToggle={togglePanel}
-            onAnnotateModeToggle={handleAnnotateModeToggle}
           />
         </div>
       </div>

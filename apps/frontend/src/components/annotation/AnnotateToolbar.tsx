@@ -25,6 +25,10 @@ interface AnnotateToolbarProps {
   showShapeGroup?: boolean;
   selectedShape?: ShapeType;
   onShapeChange?: (shape: ShapeType) => void;
+
+  // Mode props
+  annotateMode?: boolean;
+  onAnnotateModeToggle?: () => void;
 }
 
 interface DropdownGroupProps {
@@ -103,11 +107,15 @@ export function AnnotateToolbar({
   showDeleteButton = true,
   showShapeGroup = false,
   selectedShape = 'rectangle',
-  onShapeChange
+  onShapeChange,
+  annotateMode = false,
+  onAnnotateModeToggle
 }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
 
   // State for each group
+  const [modeHovered, setModeHovered] = useState(false);
+  const [modePinned, setModePinned] = useState(false);
   const [clickHovered, setClickHovered] = useState(false);
   const [clickPinned, setClickPinned] = useState(false);
   const [selectionHovered, setSelectionHovered] = useState(false);
@@ -116,11 +124,13 @@ export function AnnotateToolbar({
   const [shapePinned, setShapePinned] = useState(false);
 
   // Refs for each group
+  const modeRef = useRef<HTMLDivElement>(null);
   const clickRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<HTMLDivElement>(null);
   const shapeRef = useRef<HTMLDivElement>(null);
 
   // Expanded state = hover OR pinned
+  const modeExpanded = modeHovered || modePinned;
   const clickExpanded = clickHovered || clickPinned;
   const selectionExpanded = selectionHovered || selectionPinned;
   const shapeExpanded = shapeHovered || shapePinned;
@@ -128,6 +138,9 @@ export function AnnotateToolbar({
   // Click outside handler
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (modePinned && modeRef.current && !modeRef.current.contains(event.target as Node)) {
+        setModePinned(false);
+      }
       if (clickPinned && clickRef.current && !clickRef.current.contains(event.target as Node)) {
         setClickPinned(false);
       }
@@ -141,12 +154,13 @@ export function AnnotateToolbar({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [clickPinned, selectionPinned, shapePinned]);
+  }, [modePinned, clickPinned, selectionPinned, shapePinned]);
 
   // Escape key handler
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        setModePinned(false);
         setClickPinned(false);
         setSelectionPinned(false);
         setShapePinned(false);
@@ -179,6 +193,26 @@ export function AnnotateToolbar({
     // Close dropdown after selection
     setShapePinned(false);
     setShapeHovered(false);
+  };
+
+  const handleModeToggle = () => {
+    if (onAnnotateModeToggle) {
+      onAnnotateModeToggle();
+    }
+    setModePinned(false);
+    setModeHovered(false);
+  };
+
+  const handleBrowseClick = () => {
+    if (annotateMode) {
+      handleModeToggle();
+    }
+  };
+
+  const handleAnnotateClick = () => {
+    if (!annotateMode) {
+      handleModeToggle();
+    }
   };
 
   // Render button with icon and label
@@ -243,6 +277,37 @@ export function AnnotateToolbar({
 
   return (
     <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      {/* Mode Group - conditionally shown */}
+      {onAnnotateModeToggle && (
+        <>
+          <DropdownGroup
+            label={t('modeGroup')}
+            isExpanded={modeExpanded}
+            isPinned={modePinned}
+            onHoverChange={setModeHovered}
+            onPin={() => setModePinned(!modePinned)}
+            containerRef={modeRef}
+            collapsedContent={
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{annotateMode ? '✏️' : '📖'}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {annotateMode ? t('annotate') : t('browse')}
+                </span>
+              </div>
+            }
+            expandedContent={
+              <div className="flex flex-col">
+                {renderButton('📖', t('browse'), !annotateMode, handleBrowseClick)}
+                {renderButton('✏️', t('annotate'), annotateMode, handleAnnotateClick)}
+              </div>
+            }
+          />
+
+          {/* Separator after mode group */}
+          <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />
+        </>
+      )}
+
       {/* Click Group */}
       <DropdownGroup
         label={t('clickGroup')}

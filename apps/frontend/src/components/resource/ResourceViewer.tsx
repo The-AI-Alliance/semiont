@@ -20,7 +20,8 @@ interface Props {
   resource: SemiontResource & { content: string };
   annotations: AnnotationsCollection;
   onRefetchAnnotations?: () => void;
-  curationMode?: boolean;
+  annotateMode?: boolean;
+  onAnnotateModeToggle?: () => void;
   generatingReferenceId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
   onCommentHover?: (commentId: string | null) => void;
@@ -49,7 +50,8 @@ export function ResourceViewer({
   resource,
   annotations,
   onRefetchAnnotations,
-  curationMode = false,
+  annotateMode = false,
+  onAnnotateModeToggle,
   generatingReferenceId,
   onAnnotationHover,
   onCommentHover,
@@ -91,7 +93,7 @@ export function ResourceViewer({
   const mimeType = getMimeType();
 
   // Use prop directly instead of internal state
-  const activeView = curationMode ? 'annotate' : 'browse';
+  const activeView = annotateMode ? 'annotate' : 'browse';
   const {
     addHighlight,
     addReference,
@@ -241,8 +243,8 @@ export function ResourceViewer({
       return;
     }
 
-    // Only handle annotation clicks in curation mode with toolbar modes
-    if (!curationMode) return;
+    // Only handle annotation clicks in annotate mode with toolbar modes
+    if (!annotateMode) return;
 
     // Handle delete mode for all annotation types
     if (selectedClick === 'deleting' && isSimpleAnnotation) {
@@ -254,7 +256,7 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [router, curationMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, onTagClick, selectedClick, handleDeleteAnnotation]);
+  }, [router, annotateMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, onTagClick, selectedClick, handleDeleteAnnotation]);
 
   // Unified annotation creation handler - works for both text and images
   const handleAnnotationCreate = useCallback(async (params: import('@/types/annotation-props').CreateAnnotationParams) => {
@@ -432,6 +434,8 @@ export function ResourceViewer({
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           onDeleteAnnotation={handleDeleteAnnotationWidget}
           showLineNumbers={showLineNumbers}
+          annotateMode={annotateMode}
+          onAnnotateModeToggle={onAnnotateModeToggle}
         />
       ) : (
         <BrowseView
@@ -446,6 +450,8 @@ export function ResourceViewer({
           {...(hoveredCommentId !== undefined && { hoveredCommentId })}
           selectedClick={selectedClick}
           onClickChange={setSelectedClick}
+          annotateMode={annotateMode}
+          onAnnotateModeToggle={onAnnotateModeToggle}
         />
       )}
 
