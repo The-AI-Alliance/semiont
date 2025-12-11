@@ -36,7 +36,6 @@ interface DropdownGroupProps {
   collapsedContent: React.ReactNode;
   expandedContent: React.ReactNode;
   isExpanded: boolean;
-  isPinned: boolean;
   onHoverChange: (hovering: boolean) => void;
   onPin: () => void;
   containerRef: React.RefObject<HTMLDivElement>;
@@ -47,26 +46,11 @@ function DropdownGroup({
   collapsedContent,
   expandedContent,
   isExpanded,
-  isPinned,
   onHoverChange,
   onPin,
   containerRef,
 }: DropdownGroupProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [dropUp, setDropUp] = useState(false);
-
-  // Calculate if we should drop up or down based on available space
-  useEffect(() => {
-    if (isExpanded && dropdownRef.current && containerRef.current) {
-      const dropdownRect = dropdownRef.current.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const spaceBelow = viewportHeight - dropdownRect.bottom;
-      const spaceAbove = dropdownRect.top;
-
-      // If not enough space below and more space above, drop up
-      setDropUp(spaceBelow < 200 && spaceAbove > spaceBelow);
-    }
-  }, [isExpanded, containerRef]);
 
   // Keyboard navigation
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -97,15 +81,15 @@ function DropdownGroup({
 
       {/* Selected value or expanded menu */}
       {!isExpanded ? (
-        // Collapsed: show selected value
+        // Collapsed: show selected value inline
         collapsedContent
       ) : (
-        // Expanded: show dropdown menu replacing selected value
+        // Expanded: show dropdown menu inline (replacing collapsed content)
         <div
           ref={dropdownRef}
           role="menu"
-          aria-orientation="vertical"
-          className={`absolute ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-max`}
+          aria-orientation="horizontal"
+          className="flex items-center gap-1"
         >
           {expandedContent}
         </div>
@@ -241,7 +225,7 @@ export function AnnotateToolbar({
     onClick: () => void,
     isDelete: boolean = false
   ) => {
-    const baseClasses = 'px-3 py-1.5 rounded-md transition-all flex items-center gap-2 font-medium border-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 w-full text-left';
+    const baseClasses = 'px-2 py-1 rounded-md transition-all flex items-center gap-1.5 font-medium border-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-left whitespace-nowrap';
 
     let classes = baseClasses;
     if (isDelete) {
@@ -304,7 +288,6 @@ export function AnnotateToolbar({
       <DropdownGroup
         label={t('modeGroup')}
         isExpanded={modeExpanded}
-        isPinned={modePinned}
         onHoverChange={setModeHovered}
         onPin={() => setModePinned(!modePinned)}
         containerRef={modeRef}
@@ -317,10 +300,10 @@ export function AnnotateToolbar({
           </div>
         }
         expandedContent={
-          <div className="flex flex-col">
+          <>
             {renderButton('📖', t('browse'), !annotateMode, handleBrowseClick)}
             {renderButton('✏️', t('annotate'), annotateMode, handleAnnotateClick)}
-          </div>
+          </>
         }
       />
 
@@ -331,7 +314,6 @@ export function AnnotateToolbar({
       <DropdownGroup
         label={t('clickGroup')}
         isExpanded={clickExpanded}
-        isPinned={clickPinned}
         onHoverChange={setClickHovered}
         onPin={() => setClickPinned(!clickPinned)}
         containerRef={clickRef}
@@ -346,13 +328,13 @@ export function AnnotateToolbar({
           </div>
         }
         expandedContent={
-          <div className="flex flex-col">
+          <>
             {clickActions.map(({ action, icon, label, isDelete }) => (
-              <div key={action}>
+              <React.Fragment key={action}>
                 {renderButton(icon, label, selectedClick === action, () => handleClickClick(action), isDelete)}
-              </div>
+              </React.Fragment>
             ))}
-          </div>
+          </>
         }
       />
 
@@ -364,7 +346,6 @@ export function AnnotateToolbar({
         <DropdownGroup
           label={t('selectionGroup')}
           isExpanded={selectionExpanded}
-          isPinned={selectionPinned}
           onHoverChange={setSelectionHovered}
           onPin={() => setSelectionPinned(!selectionPinned)}
           containerRef={selectionRef}
@@ -380,27 +361,25 @@ export function AnnotateToolbar({
             </div>
           }
           expandedContent={
-            <div className="flex flex-col">
+            <>
               {/* None option to deselect */}
-              <div>
-                {renderButton(
-                  '—',
-                  t('none'),
-                  selectedMotivation === null,
-                  () => handleSelectionClick(null)
-                )}
-              </div>
+              {renderButton(
+                '—',
+                t('none'),
+                selectedMotivation === null,
+                () => handleSelectionClick(null)
+              )}
               {selectionMotivations.map(({ motivation, label }) => (
-                <div key={motivation}>
+                <React.Fragment key={motivation}>
                   {renderButton(
                     getMotivationEmoji(motivation),
                     label,
                     selectedMotivation === motivation,
                     () => handleSelectionClick(motivation)
                   )}
-                </div>
+                </React.Fragment>
               ))}
-            </div>
+            </>
           }
         />
       )}
@@ -413,7 +392,6 @@ export function AnnotateToolbar({
         <DropdownGroup
           label={t('shapeGroup')}
           isExpanded={shapeExpanded}
-          isPinned={shapePinned}
           onHoverChange={setShapeHovered}
           onPin={() => setShapePinned(!shapePinned)}
           containerRef={shapeRef}
@@ -428,13 +406,13 @@ export function AnnotateToolbar({
             </div>
           }
           expandedContent={
-            <div className="flex flex-col">
+            <>
               {shapeTypes.map(({ shape, icon, label }) => (
-                <div key={shape}>
+                <React.Fragment key={shape}>
                   {renderButton(icon, label, selectedShape === shape, () => handleShapeClick(shape))}
-                </div>
+                </React.Fragment>
               ))}
-            </div>
+            </>
           }
         />
       )}
