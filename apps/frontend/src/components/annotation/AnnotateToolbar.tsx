@@ -257,7 +257,10 @@ export function AnnotateToolbar({
     return (
       <button
         role="menuitem"
-        onClick={onClick}
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent click from bubbling to parent container
+          onClick();
+        }}
         className={classes}
         aria-pressed={isSelected}
         aria-label={label}
