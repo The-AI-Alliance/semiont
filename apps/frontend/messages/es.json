@@ -328,16 +328,7 @@
     "entityTypeTags": "Etiquetas de Tipo de Entidad",
     "representation": "Representación",
     "mediaType": "Tipo de Medios",
-    "byteSize": "Tamaño",
-    "bytes": "{count} bytes",
-    "statistics": "Estadísticas",
-    "highlights": "Destacados",
-    "comments": "Comentarios",
-    "assessments": "Evaluaciones",
-    "references": "Referencias",
-    "stub": "Stub",
-    "resolved": "Resueltas",
-    "entityTypes": "Tipos de Entidad"
+    "byteSize": "Tamaño"
   },
   "CollaborationPanel": {
     "connectionStatus": "Estado de Conexión",
@@ -481,11 +472,23 @@
     "chooseCategory": "Elegir una categoría..."
   },
   "UnifiedAnnotationsPanel": {
+    "statistics": "Estadísticas",
     "highlight": "Destacados",
     "reference": "Referencias",
     "assessment": "Evaluaciones",
     "comment": "Comentarios",
     "tag": "Etiquetas"
+  },
+  "StatisticsPanel": {
+    "title": "Estadísticas",
+    "highlights": "Destacados",
+    "comments": "Comentarios",
+    "assessments": "Evaluaciones",
+    "tags": "Etiquetas",
+    "references": "Referencias",
+    "stub": "Stub",
+    "resolved": "Resuelto",
+    "entityTypes": "Tipos de Entidad"
   },
   "StubReferencePopup": {
     "title": "Referencia Stub",
