@@ -42,11 +42,11 @@ interface ToolbarPanelsProps {
  *   showLineNumbers={showLineNumbers}
 *   onLineNumbersToggle={handleLineNumbersToggle}
  * >
- *   {activePanel === 'document' && <ResourceActionsPanel ... />}
-*   {activePanel === 'references' && <ReferencesPanel ... />}
+ *   {activePanel === 'annotations' && <UnifiedAnnotationsPanel ... />}
  *   {activePanel === 'history' && <AnnotationHistory ... />}
  *   {activePanel === 'info' && <ResourceInfoPanel ... />}
  *   {activePanel === 'collaboration' && <CollaborationPanel ... />}
+ *   {activePanel === 'jsonld' && <JsonLdPanel ... />}
  * </ToolbarPanels>
  */
 export function ToolbarPanels({

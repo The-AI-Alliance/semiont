@@ -305,7 +305,6 @@
     "languageHint": "Selecciona el idioma de este recurso"
   },
   "Toolbar": {
-    "resource": "Recurso",
     "annotations": "Anotaciones",
     "history": "Historial",
     "resourceInfo": "Información del Recurso",
