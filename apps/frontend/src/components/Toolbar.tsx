@@ -48,17 +48,6 @@ export function Toolbar<T extends string = string>({
             </button>
           )}
 
-          {/* History Icon */}
-          <button
-            onClick={() => onPanelToggle('history' as T)}
-            className={buttonClass('history')}
-            aria-label={t('history')}
-            aria-pressed={activePanel === 'history'}
-            title={t('history')}
-          >
-            <span className="text-xl" aria-hidden="true">📒</span>
-          </button>
-
           {/* Document Info Icon */}
           <button
             onClick={() => onPanelToggle('info' as T)}
@@ -68,6 +57,17 @@ export function Toolbar<T extends string = string>({
             title={t('resourceInfo')}
           >
             <span className="text-xl" aria-hidden="true">ℹ️</span>
+          </button>
+
+          {/* History Icon */}
+          <button
+            onClick={() => onPanelToggle('history' as T)}
+            className={buttonClass('history')}
+            aria-label={t('history')}
+            aria-pressed={activePanel === 'history'}
+            title={t('history')}
+          >
+            <span className="text-xl" aria-hidden="true">📒</span>
           </button>
 
           {/* Collaboration Icon */}
