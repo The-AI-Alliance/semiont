@@ -320,6 +320,8 @@
     "representation": "Representación",
     "mediaType": "Tipo de Medios",
     "byteSize": "Tamaño",
+    "clone": "Clonar",
+    "cloneDescription": "Generar un enlace de clonación compartible para este recurso",
     "archive": "Archivar",
     "archiveDescription": "Mover este recurso al estado archivado",
     "unarchive": "Desarchivar",

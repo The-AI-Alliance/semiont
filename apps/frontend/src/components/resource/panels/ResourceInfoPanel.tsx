@@ -13,6 +13,7 @@ interface Props {
   isArchived?: boolean;
   onArchive?: () => void;
   onUnarchive?: () => void;
+  onClone?: () => void;
 }
 
 export function ResourceInfoPanel({
@@ -22,7 +23,8 @@ export function ResourceInfoPanel({
   primaryByteSize,
   isArchived = false,
   onArchive,
-  onUnarchive
+  onUnarchive,
+  onClone
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
 
@@ -81,6 +83,21 @@ export function ResourceInfoPanel({
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Clone Action */}
+      {onClone && (
+        <div>
+          <button
+            onClick={onClone}
+            className={`${buttonStyles.secondary.base} w-full justify-center`}
+          >
+            🔗 {t('clone')}
+          </button>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {t('cloneDescription')}
+          </p>
         </div>
       )}
 

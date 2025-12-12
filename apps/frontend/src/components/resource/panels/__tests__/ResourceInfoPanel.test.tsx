@@ -14,6 +14,8 @@ vi.mock('next-intl', () => ({
       representation: 'Representation',
       mediaType: 'Media Type',
       byteSize: 'Size',
+      clone: 'Clone',
+      cloneDescription: 'Generate a shareable clone link for this resource',
       archive: 'Archive',
       archiveDescription: 'Move this resource to archived status',
       unarchive: 'Unarchive',
@@ -156,6 +158,45 @@ describe('ResourceInfoPanel Component', () => {
 
       const headings = screen.getAllByRole('heading', { level: 3 });
       expect(headings.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Clone Action', () => {
+    it('should render clone button when handler provided', () => {
+      const onClone = vi.fn();
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          onClone={onClone}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: /Clone/i })).toBeInTheDocument();
+      expect(screen.getByText('Generate a shareable clone link for this resource')).toBeInTheDocument();
+    });
+
+    it('should call onClone when clone button clicked', () => {
+      const onClone = vi.fn();
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          onClone={onClone}
+        />
+      );
+
+      const button = screen.getByRole('button', { name: /Clone/i });
+      fireEvent.click(button);
+      expect(onClone).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not render clone button when handler not provided', () => {
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+        />
+      );
+
+      expect(screen.queryByText('Clone')).not.toBeInTheDocument();
     });
   });
 

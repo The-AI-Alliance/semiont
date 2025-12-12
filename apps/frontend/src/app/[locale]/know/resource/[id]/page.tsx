@@ -253,6 +253,7 @@ function ResourceView({
   // Set up mutations
   const updateDocMutation = resources.update.useMutation();
   const updateAnnotationBodyMutation = annotationsAPI.updateBody.useMutation();
+  const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
 
   const [annotateMode, setAnnotateMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -380,6 +381,23 @@ function ResourceView({
       showError('Failed to unarchive document');
     }
   }, [resource, rUri, updateDocMutation, loadDocument, showSuccess, showError]);
+
+  // Handle clone - memoized
+  const handleClone = useCallback(async () => {
+    if (!resource) return;
+
+    try {
+      const result = await generateCloneTokenMutation.mutateAsync(rUri);
+      const token = result.token;
+      const cloneUrl = `${window.location.origin}/know/clone?token=${token}`;
+
+      await navigator.clipboard.writeText(cloneUrl);
+      showSuccess('Clone link copied to clipboard');
+    } catch (err) {
+      console.error('Failed to generate clone token:', err);
+      showError('Failed to generate clone link');
+    }
+  }, [resource, rUri, generateCloneTokenMutation, showSuccess, showError]);
 
   // Handle annotate mode toggle - memoized
   const handleAnnotateModeToggle = useCallback(() => {
@@ -926,6 +944,7 @@ function ResourceView({
                 primaryMediaType={primaryMediaType}
                 primaryByteSize={primaryByteSize}
                 isArchived={resource.archived ?? false}
+                onClone={handleClone}
                 onArchive={handleArchive}
                 onUnarchive={handleUnarchive}
               />
