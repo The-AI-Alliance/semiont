@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { groupAnnotationsByType, type Annotator, ANNOTATORS } from '@/lib/annotation-registry';
+import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
 import { ReferencesPanel } from './ReferencesPanel';
 import { AssessmentPanel } from './AssessmentPanel';
@@ -13,14 +14,16 @@ import { TaggingPanel } from './TaggingPanel';
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 type AnnotatorKey = keyof typeof ANNOTATORS;
+type TabKey = 'statistics' | AnnotatorKey;
 
-// Tab display order (matches AnnotateToolbar selection group order)
-const TAB_ORDER: AnnotatorKey[] = ['reference', 'highlight', 'assessment', 'comment', 'tag'];
+// Tab display order - statistics first, then matches AnnotateToolbar selection group order
+const TAB_ORDER: TabKey[] = ['statistics', 'reference', 'highlight', 'assessment', 'comment', 'tag'];
 
 // Panel component mapping for dynamic rendering
 type PanelComponent = React.ComponentType<any>;
 
-const PANEL_COMPONENTS: Record<AnnotatorKey, PanelComponent> = {
+const PANEL_COMPONENTS: Record<TabKey, PanelComponent> = {
+  statistics: StatisticsPanel,
   highlight: HighlightPanel,
   reference: ReferencesPanel,
   assessment: AssessmentPanel,
@@ -98,7 +101,7 @@ interface UnifiedAnnotationsPanelProps {
 
   // Resource context
   resourceId?: string;
-  initialTab?: AnnotatorKey;
+  initialTab?: TabKey;
 }
 
 export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
@@ -108,19 +111,19 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
   const grouped = groupAnnotationsByType(props.annotations);
 
   // Load tab from localStorage (per-resource)
-  const [activeTab, setActiveTab] = useState<AnnotatorKey>(() => {
-    if (typeof window === 'undefined') return props.initialTab || 'highlight';
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    if (typeof window === 'undefined') return props.initialTab || 'statistics';
 
     const storageKey = props.resourceId
       ? `annotations-tab-${props.resourceId}`
       : 'annotations-tab-global';
 
     const stored = localStorage.getItem(storageKey);
-    if (stored && TAB_ORDER.includes(stored as AnnotatorKey)) {
-      return stored as AnnotatorKey;
+    if (stored && TAB_ORDER.includes(stored as TabKey)) {
+      return stored as TabKey;
     }
 
-    return props.initialTab || 'highlight';
+    return props.initialTab || 'statistics';
   });
 
   // Persist tab selection
@@ -170,12 +173,12 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
     }
   }, [props.pendingReferenceSelection]);
 
-  const handleTabClick = (tab: AnnotatorKey) => {
+  const handleTabClick = (tab: TabKey) => {
     setActiveTab(tab);
   };
 
   // Tab button styling (matches AnnotateToolbar button style)
-  const tabButtonClass = (tab: AnnotatorKey) => {
+  const tabButtonClass = (tab: TabKey) => {
     const isActive = activeTab === tab;
     return `
       px-3 py-1.5 rounded-md transition-all flex items-center font-medium border-none focus:outline-none
@@ -191,6 +194,22 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
       {/* Tab Navigation */}
       <div className="flex items-center gap-0 p-2 border-b border-gray-200 dark:border-gray-700">
         {TAB_ORDER.map(key => {
+          // Statistics tab (special case - not in annotators)
+          if (key === 'statistics') {
+            return (
+              <button
+                key={key}
+                onClick={() => handleTabClick(key)}
+                className={tabButtonClass(key)}
+                title={t(key)}
+                aria-pressed={activeTab === key}
+              >
+                <span className="text-lg">📊</span>
+              </button>
+            );
+          }
+
+          // Regular annotator tabs
           const annotator = props.annotators[key];
           if (!annotator) return null;
 
@@ -212,8 +231,23 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
       <div className="flex-1 overflow-hidden">
         {(() => {
           const PanelComponent = PANEL_COMPONENTS[activeTab];
+          if (!PanelComponent) return null;
+
+          // Statistics panel (special case - doesn't use annotators)
+          if (activeTab === 'statistics') {
+            return (
+              <PanelComponent
+                highlights={grouped.highlight || []}
+                comments={grouped.comment || []}
+                assessments={grouped.assessment || []}
+                references={grouped.reference || []}
+                tags={grouped.tag || []}
+              />
+            );
+          }
+
           const annotator = props.annotators[activeTab];
-          if (!PanelComponent || !annotator) return null;
+          if (!annotator) return null;
 
           const annotations = grouped[activeTab] || [];
           const isDetecting = props.detectingMotivation === annotator.motivation;

@@ -948,10 +948,6 @@ function ResourceView({
             {/* Document Info Panel */}
             {activePanel === 'info' && (
               <ResourceInfoPanel
-                highlights={highlights}
-                comments={comments}
-                assessments={assessments}
-                references={references}
                 documentEntityTypes={documentEntityTypes}
                 documentLocale={getLanguage(resource)}
                 primaryMediaType={primaryMediaType}

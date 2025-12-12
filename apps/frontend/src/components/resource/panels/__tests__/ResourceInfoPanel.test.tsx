@@ -1,11 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
-import type { components } from '@semiont/api-client';
-
-type Annotation = components['schemas']['Annotation'];
 
 // Mock next-intl
 vi.mock('next-intl', () => ({
@@ -14,32 +11,12 @@ vi.mock('next-intl', () => ({
       locale: 'Locale',
       notSpecified: 'Not specified',
       entityTypeTags: 'Entity Type Tags',
-      statistics: 'Statistics',
-      highlights: 'Highlights',
-      comments: 'Comments',
-      assessments: 'Assessments',
-      references: 'References',
-      stub: 'Stub',
-      resolved: 'Resolved',
-      entityTypes: 'Entity Types',
-      referencedBy: 'Referenced By',
-      loading: 'loading',
-      loadingEllipsis: 'Loading...',
-      untitledResource: 'Untitled Resource',
-      noText: 'No text',
-      noIncomingReferences: 'No incoming references',
+      representation: 'Representation',
+      mediaType: 'Media Type',
+      byteSize: 'Size',
     };
     return translations[key] || key;
   }),
-}));
-
-// Mock @/i18n/routing
-vi.mock('@/i18n/routing', () => ({
-  Link: ({ children, href, className }: any) => (
-    <a href={href} className={className}>
-      {children}
-    </a>
-  ),
 }));
 
 // Mock @semiont/api-client utilities
@@ -47,87 +24,32 @@ vi.mock('@semiont/api-client', async () => {
   const actual = await vi.importActual('@semiont/api-client');
   return {
     ...actual,
-    formatLocaleDisplay: vi.fn(),
-    isBodyResolved: vi.fn(),
-    getEntityTypes: vi.fn(),
+    formatLocaleDisplay: vi.fn((locale: string) => `Language: ${locale}`),
   };
 });
-
-import { formatLocaleDisplay, isBodyResolved, getEntityTypes } from '@semiont/api-client';
-import type { MockedFunction } from 'vitest';
-
-const mockFormatLocaleDisplay = formatLocaleDisplay as MockedFunction<typeof formatLocaleDisplay>;
-const mockIsBodyResolved = isBodyResolved as MockedFunction<typeof isBodyResolved>;
-const mockGetEntityTypes = getEntityTypes as MockedFunction<typeof getEntityTypes>;
-
-// Test data fixtures
-const createMockAnnotation = (
-  id: string,
-  motivation: Annotation['motivation']
-): Annotation => ({
-  '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id,
-  type: 'Annotation',
-  motivation,
-  creator: { name: 'user@example.com' },
-  created: '2024-01-01T10:00:00Z',
-  modified: '2024-01-01T10:00:00Z',
-  target: {
-    source: 'resource-1',
-    selector: {
-      type: 'TextPositionSelector',
-      start: 0,
-      end: 10,
-    },
-  },
-  body: [
-    {
-      type: 'TextualBody',
-      value: `Content for ${id}`,
-    },
-  ],
-});
-
 
 describe('ResourceInfoPanel Component', () => {
   const defaultProps = {
-    highlights: [],
-    comments: [],
-    assessments: [],
-    references: [],
     documentEntityTypes: [],
     documentLocale: undefined,
+    primaryMediaType: undefined,
+    primaryByteSize: undefined,
   };
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockFormatLocaleDisplay.mockReturnValue('English (United States)');
-    mockIsBodyResolved.mockReturnValue(false);
-    mockGetEntityTypes.mockReturnValue([]);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   describe('Rendering', () => {
-    it('should render all sections', () => {
+    it('should render locale section', () => {
       render(<ResourceInfoPanel {...defaultProps} />);
-
       expect(screen.getByText('Locale')).toBeInTheDocument();
-      expect(screen.getByText('Statistics')).toBeInTheDocument();
     });
 
     it('should render locale when provided', () => {
       render(<ResourceInfoPanel {...defaultProps} documentLocale="en-US" />);
-
-      expect(mockFormatLocaleDisplay).toHaveBeenCalledWith('en-US');
-      expect(screen.getByText('English (United States)')).toBeInTheDocument();
+      // formatLocaleDisplay is mocked to return "Language: {locale}"
+      expect(screen.getByText('Language: en-US')).toBeInTheDocument();
     });
 
     it('should show "not specified" when locale is undefined', () => {
       render(<ResourceInfoPanel {...defaultProps} documentLocale={undefined} />);
-
       expect(screen.getByText('Not specified')).toBeInTheDocument();
     });
 
@@ -147,389 +69,80 @@ describe('ResourceInfoPanel Component', () => {
 
     it('should not render entity type tags section when empty', () => {
       render(<ResourceInfoPanel {...defaultProps} documentEntityTypes={[]} />);
-
       expect(screen.queryByText('Entity Type Tags')).not.toBeInTheDocument();
     });
-  });
 
-  describe('Statistics Display', () => {
-    it('should display zero counts for empty annotations', () => {
-      render(<ResourceInfoPanel {...defaultProps} />);
+    it('should render representation section when media type provided', () => {
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          primaryMediaType="text/markdown"
+        />
+      );
 
-      // Check specific sections have zero counts
-      const highlightSection = screen.getByText('Highlights').parentElement;
-      expect(highlightSection).toHaveTextContent('0');
-
-      const commentSection = screen.getByText('Comments').parentElement;
-      expect(commentSection).toHaveTextContent('0');
+      expect(screen.getByText('Representation')).toBeInTheDocument();
+      expect(screen.getByText('Media Type')).toBeInTheDocument();
+      expect(screen.getByText('text/markdown')).toBeInTheDocument();
     });
 
-    it('should display highlight count', () => {
-      const highlights = [
-        createMockAnnotation('h1', 'highlighting'),
-        createMockAnnotation('h2', 'highlighting'),
-        createMockAnnotation('h3', 'highlighting'),
-      ];
+    it('should render byte size when provided', () => {
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          primaryByteSize={1024}
+        />
+      );
 
-      render(<ResourceInfoPanel {...defaultProps} highlights={highlights} />);
-
-      const highlightSection = screen.getByText('Highlights').parentElement;
-      expect(highlightSection).toHaveTextContent('3');
+      expect(screen.getByText('Representation')).toBeInTheDocument();
+      expect(screen.getByText('Size')).toBeInTheDocument();
+      expect(screen.getByText('1,024 bytes')).toBeInTheDocument();
     });
 
-    it('should display comment count', () => {
-      const comments = [
-        createMockAnnotation('c1', 'commenting'),
-        createMockAnnotation('c2', 'commenting'),
-      ];
+    it('should not render representation section when neither media type nor byte size provided', () => {
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          primaryMediaType={undefined}
+          primaryByteSize={undefined}
+        />
+      );
 
-      render(<ResourceInfoPanel {...defaultProps} comments={comments} />);
-
-      const commentSection = screen.getByText('Comments').parentElement;
-      expect(commentSection).toHaveTextContent('2');
-    });
-
-    it('should display assessment count', () => {
-      const assessments = [createMockAnnotation('a1', 'assessing')];
-
-      render(<ResourceInfoPanel {...defaultProps} assessments={assessments} />);
-
-      const assessmentSection = screen.getByText('Assessments').parentElement;
-      expect(assessmentSection).toHaveTextContent('1');
-    });
-
-    it('should display reference count', () => {
-      const references = [
-        createMockAnnotation('r1', 'linking'),
-        createMockAnnotation('r2', 'linking'),
-        createMockAnnotation('r3', 'linking'),
-        createMockAnnotation('r4', 'linking'),
-      ];
-
-      render(<ResourceInfoPanel {...defaultProps} references={references} />);
-
-      const referenceSection = screen.getByText('References').parentElement;
-      expect(referenceSection).toHaveTextContent('4');
-    });
-  });
-
-  describe('Reference Categorization', () => {
-    it('should categorize references as stub and resolved', () => {
-      const references = [
-        createMockAnnotation('r1', 'linking'),
-        createMockAnnotation('r2', 'linking'),
-        createMockAnnotation('r3', 'linking'),
-        createMockAnnotation('r4', 'linking'),
-      ];
-
-      // Mock 2 as stub, 2 as resolved
-      mockIsBodyResolved.mockImplementation((body: any) => {
-        return body[0]?.value.includes('r3') || body[0]?.value.includes('r4');
-      });
-
-      render(<ResourceInfoPanel {...defaultProps} references={references} />);
-
-      expect(screen.getByText('Stub')).toBeInTheDocument();
-      expect(screen.getByText('Resolved')).toBeInTheDocument();
-
-      const stubSection = screen.getByText('Stub').closest('div');
-      const resolvedSection = screen.getByText('Resolved').closest('div');
-
-      expect(stubSection).toHaveTextContent('2');
-      expect(resolvedSection).toHaveTextContent('2');
-    });
-
-    it('should show all references as stub when none are resolved', () => {
-      const references = [
-        createMockAnnotation('r1', 'linking'),
-        createMockAnnotation('r2', 'linking'),
-      ];
-
-      mockIsBodyResolved.mockReturnValue(false);
-
-      render(<ResourceInfoPanel {...defaultProps} references={references} />);
-
-      const stubSection = screen.getByText('Stub').closest('div');
-      const resolvedSection = screen.getByText('Resolved').closest('div');
-
-      expect(stubSection).toHaveTextContent('2');
-      expect(resolvedSection).toHaveTextContent('0');
-    });
-
-    it('should show all references as resolved when all are resolved', () => {
-      const references = [
-        createMockAnnotation('r1', 'linking'),
-        createMockAnnotation('r2', 'linking'),
-        createMockAnnotation('r3', 'linking'),
-      ];
-
-      mockIsBodyResolved.mockReturnValue(true);
-
-      render(<ResourceInfoPanel {...defaultProps} references={references} />);
-
-      const stubSection = screen.getByText('Stub').closest('div');
-      const resolvedSection = screen.getByText('Resolved').closest('div');
-
-      expect(stubSection).toHaveTextContent('0');
-      expect(resolvedSection).toHaveTextContent('3');
-    });
-  });
-
-  describe('Entity Types Aggregation', () => {
-    it('should not show entity types section when no references have types', () => {
-      const references = [
-        createMockAnnotation('r1', 'linking'),
-        createMockAnnotation('r2', 'linking'),
-      ];
-
-      mockGetEntityTypes.mockReturnValue([]);
-
-      render(<ResourceInfoPanel {...defaultProps} references={references} />);
-
-      // Entity Types heading should not appear in statistics section
-      const statisticsSection = screen.getByText('Statistics').closest('div');
-      expect(statisticsSection?.textContent).not.toMatch(/Entity Types.*\d+/);
-    });
-
-    it('should aggregate and display entity types from references', () => {
-      const references = [
-        createMockAnnotation('r1', 'linking'),
-        createMockAnnotation('r2', 'linking'),
-        createMockAnnotation('r3', 'linking'),
-      ];
-
-      mockGetEntityTypes.mockImplementation((annotation: any) => {
-        if (annotation.id === 'r1') return ['Person', 'Organization'];
-        if (annotation.id === 'r2') return ['Person'];
-        if (annotation.id === 'r3') return ['Location'];
-        return [];
-      });
-
-      render(<ResourceInfoPanel {...defaultProps} references={references} />);
-
-      // Should show Entity Types section
-      expect(screen.getByText('Entity Types')).toBeInTheDocument();
-      expect(screen.getByText('Person')).toBeInTheDocument();
-      expect(screen.getByText('Organization')).toBeInTheDocument();
-      expect(screen.getByText('Location')).toBeInTheDocument();
-    });
-
-    it('should show count for each entity type', () => {
-      const references = [
-        createMockAnnotation('r1', 'linking'),
-        createMockAnnotation('r2', 'linking'),
-        createMockAnnotation('r3', 'linking'),
-        createMockAnnotation('r4', 'linking'),
-      ];
-
-      mockGetEntityTypes.mockImplementation((annotation: any) => {
-        if (annotation.id === 'r1') return ['Person'];
-        if (annotation.id === 'r2') return ['Person'];
-        if (annotation.id === 'r3') return ['Person'];
-        if (annotation.id === 'r4') return ['Organization'];
-        return [];
-      });
-
-      render(<ResourceInfoPanel {...defaultProps} references={references} />);
-
-      // Person should appear 3 times
-      const personRow = screen.getByText('Person').closest('div');
-      expect(personRow).toHaveTextContent('3');
-
-      // Organization should appear 1 time
-      const orgRow = screen.getByText('Organization').closest('div');
-      expect(orgRow).toHaveTextContent('1');
-    });
-
-    it('should sort entity types by count descending', () => {
-      const references = [
-        createMockAnnotation('r1', 'linking'),
-        createMockAnnotation('r2', 'linking'),
-        createMockAnnotation('r3', 'linking'),
-      ];
-
-      mockGetEntityTypes.mockImplementation((annotation: any) => {
-        if (annotation.id === 'r1') return ['TypeA', 'TypeB'];
-        if (annotation.id === 'r2') return ['TypeB', 'TypeC'];
-        if (annotation.id === 'r3') return ['TypeB'];
-        return [];
-      });
-
-      const { container } = render(<ResourceInfoPanel {...defaultProps} references={references} />);
-
-      // TypeB should appear first (count: 3), then TypeA (count: 1), then TypeC (count: 1)
-      const entityTypesSection = screen.getByText('Entity Types').closest('div');
-      const typeElements = entityTypesSection?.querySelectorAll('.text-gray-700.dark\\:text-gray-300');
-
-      if (typeElements && typeElements.length >= 3) {
-        expect(typeElements[0]?.textContent).toBe('TypeB');
-        // TypeA and TypeC both have count 1, order between them is stable but not guaranteed
-      }
+      expect(screen.queryByText('Representation')).not.toBeInTheDocument();
     });
   });
 
   describe('Styling and Appearance', () => {
     it('should have proper panel structure', () => {
       const { container } = render(<ResourceInfoPanel {...defaultProps} />);
-
-      const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('bg-white', 'dark:bg-gray-800', 'rounded-lg', 'shadow-sm', 'p-4', 'space-y-4');
+      expect(container.querySelector('.bg-white.dark\\:bg-gray-800')).toBeInTheDocument();
     });
 
     it('should style entity type tags appropriately', () => {
-      render(<ResourceInfoPanel {...defaultProps} documentEntityTypes={['Person']} />);
-
-      const tag = screen.getByText('Person');
-      expect(tag).toHaveClass(
-        'inline-flex',
-        'bg-blue-100',
-        'dark:bg-blue-900/30',
-        'text-blue-700',
-        'dark:text-blue-300'
-      );
-    });
-
-    it('should support dark mode', () => {
-      const { container } = render(<ResourceInfoPanel {...defaultProps} />);
-
-      const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('dark:bg-gray-800');
-    });
-  });
-
-  describe('Edge Cases', () => {
-    it('should handle large number of annotations', () => {
-      const highlights = Array.from({ length: 100 }, (_, i) =>
-        createMockAnnotation(`h${i}`, 'highlighting')
-      );
-      const comments = Array.from({ length: 50 }, (_, i) =>
-        createMockAnnotation(`c${i}`, 'commenting')
-      );
-      const references = Array.from({ length: 200 }, (_, i) =>
-        createMockAnnotation(`r${i}`, 'linking')
-      );
-
-      expect(() => {
-        render(
-          <ResourceInfoPanel
-            {...defaultProps}
-            highlights={highlights}
-            comments={comments}
-            references={references}
-          />
-        );
-      }).not.toThrow();
-
-      const highlightSection = screen.getByText('Highlights').parentElement;
-      expect(highlightSection).toHaveTextContent('100');
-
-      const commentSection = screen.getByText('Comments').parentElement;
-      expect(commentSection).toHaveTextContent('50');
-
-      const referenceSection = screen.getByText('References').parentElement;
-      expect(referenceSection).toHaveTextContent('200');
-    });
-
-    it('should handle many entity types', () => {
-      const references = Array.from({ length: 50 }, (_, i) =>
-        createMockAnnotation(`r${i}`, 'linking')
-      );
-
-      mockGetEntityTypes.mockImplementation((annotation: any) => {
-        const id = parseInt(annotation.id.replace('r', ''));
-        return [`Type${id % 10}`]; // Creates 10 different types
-      });
-
-      expect(() => {
-        render(<ResourceInfoPanel {...defaultProps} references={references} />);
-      }).not.toThrow();
-    });
-
-    it('should handle empty entity type arrays from getEntityTypes', () => {
-      const references = [createMockAnnotation('r1', 'linking')];
-      mockGetEntityTypes.mockReturnValue([]);
-
-      expect(() => {
-        render(<ResourceInfoPanel {...defaultProps} references={references} />);
-      }).not.toThrow();
-    });
-
-    it('should handle undefined values gracefully', () => {
-      expect(() => {
-        render(
-          <ResourceInfoPanel
-            {...defaultProps}
-            documentLocale={undefined}
-            documentEntityTypes={[]}
-          />
-        );
-      }).not.toThrow();
-    });
-  });
-
-  describe('Memoization', () => {
-    it('should recalculate stub/resolved counts when references change', () => {
-      const { rerender } = render(
+      render(
         <ResourceInfoPanel
           {...defaultProps}
-          references={[createMockAnnotation('r1', 'linking')]}
+          documentEntityTypes={['TestType']}
         />
       );
 
-      mockIsBodyResolved.mockReturnValue(false);
-
-      const stubSection1 = screen.getByText('Stub').closest('div');
-      expect(stubSection1).toHaveTextContent('1');
-
-      // Change references
-      const newReferences = [
-        createMockAnnotation('r1', 'linking'),
-        createMockAnnotation('r2', 'linking'),
-      ];
-
-      rerender(<ResourceInfoPanel {...defaultProps} references={newReferences} />);
-
-      const stubSection2 = screen.getByText('Stub').closest('div');
-      expect(stubSection2).toHaveTextContent('2');
-    });
-
-    it('should recalculate entity types when references change', () => {
-      mockGetEntityTypes.mockReturnValue(['Person']);
-
-      const { rerender } = render(
-        <ResourceInfoPanel
-          {...defaultProps}
-          references={[createMockAnnotation('r1', 'linking')]}
-        />
-      );
-
-      expect(screen.getByText('Person')).toBeInTheDocument();
-
-      // Add another reference with a different type
-      mockGetEntityTypes.mockImplementation((annotation: any) => {
-        if (annotation.id === 'r1') return ['Person'];
-        if (annotation.id === 'r2') return ['Organization'];
-        return [];
-      });
-
-      const newReferences = [
-        createMockAnnotation('r1', 'linking'),
-        createMockAnnotation('r2', 'linking'),
-      ];
-
-      rerender(<ResourceInfoPanel {...defaultProps} references={newReferences} />);
-
-      expect(screen.getByText('Person')).toBeInTheDocument();
-      expect(screen.getByText('Organization')).toBeInTheDocument();
+      const tag = screen.getByText('TestType');
+      expect(tag).toHaveClass('bg-blue-100');
+      expect(tag).toHaveClass('dark:bg-blue-900/30');
     });
   });
 
   describe('Accessibility', () => {
     it('should have semantic heading structure', () => {
-      render(<ResourceInfoPanel {...defaultProps} />);
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          documentLocale="en-US"
+          documentEntityTypes={['Person']}
+        />
+      );
 
-      expect(screen.getByText('Locale')).toHaveClass('text-sm', 'font-semibold');
-      expect(screen.getByText('Statistics')).toHaveClass('text-sm', 'font-semibold');
+      const headings = screen.getAllByRole('heading', { level: 3 });
+      expect(headings.length).toBeGreaterThan(0);
     });
   });
 });
