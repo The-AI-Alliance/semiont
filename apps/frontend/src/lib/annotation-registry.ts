@@ -351,8 +351,7 @@ export function createDetectionHandler(
       // Call the appropriate SSE method
       const sseClient = context.client.sse;
 
-      // Transform arguments for detectAnnotations (expects { entityTypes: EntityType[] })
-      // Other detection methods expect no arguments or different formats
+      // Transform arguments for different detection methods
       let stream;
       if (detection.sseMethod === 'detectAnnotations') {
         // args[0] is selectedEntityTypes: string[]
@@ -360,8 +359,16 @@ export function createDetectionHandler(
         stream = sseClient.detectAnnotations(context.rUri, {
           entityTypes: selectedTypes.map((type: string) => entityType(type))
         });
+      } else if (detection.sseMethod === 'detectTags') {
+        // args[0] is schemaId: string, args[1] is categories: string[]
+        const schemaId = args[0];
+        const categories = args[1] || [];
+        stream = sseClient.detectTags(context.rUri, {
+          schemaId,
+          categories
+        });
       } else {
-        // Other methods (detectHighlights, detectAssessments, detectComments, detectTags)
+        // Other methods (detectHighlights, detectAssessments, detectComments)
         // expect no additional arguments beyond resourceUri
         stream = sseClient[detection.sseMethod](context.rUri);
       }
