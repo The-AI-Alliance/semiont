@@ -558,7 +558,7 @@ function ResourceView({
           },
           {
             type: 'TextualBody',
-            purpose: 'describing',
+            purpose: 'classifying',
             value: schemaId
           }
         ]
