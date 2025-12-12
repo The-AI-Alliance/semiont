@@ -305,22 +305,12 @@
     "languageHint": "Selecciona el idioma de este recurso"
   },
   "Toolbar": {
-    "resource": "Recurso",
     "annotations": "Anotaciones",
     "history": "Historial",
     "resourceInfo": "Información del Recurso",
     "collaboration": "Colaboración",
     "userAccount": "Cuenta de Usuario",
     "settings": "Configuración"
-  },
-  "ResourceActionsPanel": {
-    "title": "Acciones del Recurso",
-    "clone": "Clonar",
-    "cloneDescription": "Crear una copia de este recurso",
-    "archive": "Archivar",
-    "archiveDescription": "Mover este recurso al estado archivado",
-    "unarchive": "Desarchivar",
-    "unarchiveDescription": "Restaurar este recurso al estado activo"
   },
   "ResourceInfoPanel": {
     "locale": "Idioma",
@@ -329,15 +319,12 @@
     "representation": "Representación",
     "mediaType": "Tipo de Medios",
     "byteSize": "Tamaño",
-    "bytes": "{count} bytes",
-    "statistics": "Estadísticas",
-    "highlights": "Destacados",
-    "comments": "Comentarios",
-    "assessments": "Evaluaciones",
-    "references": "Referencias",
-    "stub": "Stub",
-    "resolved": "Resueltas",
-    "entityTypes": "Tipos de Entidad"
+    "clone": "Clonar",
+    "cloneDescription": "Generar un enlace de clonación compartible para este recurso",
+    "archive": "Archivar",
+    "archiveDescription": "Mover este recurso al estado archivado",
+    "unarchive": "Desarchivar",
+    "unarchiveDescription": "Restaurar este recurso al estado activo"
   },
   "CollaborationPanel": {
     "connectionStatus": "Estado de Conexión",
@@ -481,11 +468,23 @@
     "chooseCategory": "Elegir una categoría..."
   },
   "UnifiedAnnotationsPanel": {
+    "statistics": "Estadísticas",
     "highlight": "Destacados",
     "reference": "Referencias",
     "assessment": "Evaluaciones",
     "comment": "Comentarios",
     "tag": "Etiquetas"
+  },
+  "StatisticsPanel": {
+    "title": "Estadísticas",
+    "highlights": "Destacados",
+    "comments": "Comentarios",
+    "assessments": "Evaluaciones",
+    "tags": "Etiquetas",
+    "references": "Referencias",
+    "stub": "Stub",
+    "resolved": "Resuelto",
+    "entityTypes": "Tipos de Entidad"
   },
   "StubReferencePopup": {
     "title": "Referencia Stub",

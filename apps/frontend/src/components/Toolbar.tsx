@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
-type ToolbarPanel = 'document' | 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
+type ToolbarPanel = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
 type ToolbarContext = 'document' | 'simple';
 
 interface Props<T extends string = string> {
@@ -35,17 +35,6 @@ export function Toolbar<T extends string = string>({
       {/* Document Context - show document-specific panels */}
       {context === 'document' && (
         <>
-          {/* Document Icon */}
-          <button
-            onClick={() => onPanelToggle('document' as T)}
-            className={buttonClass('document')}
-            aria-label={t('resource')}
-            aria-pressed={activePanel === 'document'}
-            title={t('resource')}
-          >
-            <span className="text-xl" aria-hidden="true">📄</span>
-          </button>
-
           {/* Annotations Icon - unified panel for all annotation types */}
           {!isArchived && (
             <button
@@ -59,17 +48,6 @@ export function Toolbar<T extends string = string>({
             </button>
           )}
 
-          {/* History Icon */}
-          <button
-            onClick={() => onPanelToggle('history' as T)}
-            className={buttonClass('history')}
-            aria-label={t('history')}
-            aria-pressed={activePanel === 'history'}
-            title={t('history')}
-          >
-            <span className="text-xl" aria-hidden="true">📒</span>
-          </button>
-
           {/* Document Info Icon */}
           <button
             onClick={() => onPanelToggle('info' as T)}
@@ -79,6 +57,17 @@ export function Toolbar<T extends string = string>({
             title={t('resourceInfo')}
           >
             <span className="text-xl" aria-hidden="true">ℹ️</span>
+          </button>
+
+          {/* History Icon */}
+          <button
+            onClick={() => onPanelToggle('history' as T)}
+            className={buttonClass('history')}
+            aria-label={t('history')}
+            aria-pressed={activePanel === 'history'}
+            title={t('history')}
+          >
+            <span className="text-xl" aria-hidden="true">📒</span>
           </button>
 
           {/* Collaboration Icon */}

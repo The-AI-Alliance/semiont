@@ -305,22 +305,12 @@
     "languageHint": "Select the language of this resource"
   },
   "Toolbar": {
-    "resource": "Resource",
     "annotations": "Annotations",
     "history": "History",
     "resourceInfo": "Resource Info",
     "collaboration": "Collaboration",
     "userAccount": "User Account",
     "settings": "Settings"
-  },
-  "ResourceActionsPanel": {
-    "title": "Resource Actions",
-    "clone": "Clone",
-    "cloneDescription": "Create a copy of this resource",
-    "archive": "Archive",
-    "archiveDescription": "Move this resource to archived status",
-    "unarchive": "Unarchive",
-    "unarchiveDescription": "Restore this resource to active status"
   },
   "ResourceInfoPanel": {
     "locale": "Locale",
@@ -329,15 +319,12 @@
     "representation": "Representation",
     "mediaType": "Media Type",
     "byteSize": "Size",
-    "bytes": "{count} bytes",
-    "statistics": "Statistics",
-    "highlights": "Highlights",
-    "comments": "Comments",
-    "assessments": "Assessments",
-    "references": "References",
-    "stub": "Stub",
-    "resolved": "Resolved",
-    "entityTypes": "Entity Types"
+    "clone": "Clone",
+    "cloneDescription": "Generate a shareable clone link for this resource",
+    "archive": "Archive",
+    "archiveDescription": "Move this resource to archived status",
+    "unarchive": "Unarchive",
+    "unarchiveDescription": "Restore this resource to active status"
   },
   "CollaborationPanel": {
     "connectionStatus": "Connection Status",
@@ -481,11 +468,23 @@
     "chooseCategory": "Choose a category..."
   },
   "UnifiedAnnotationsPanel": {
+    "statistics": "Statistics",
     "highlight": "Highlights",
     "reference": "References",
     "assessment": "Assessments",
     "comment": "Comments",
     "tag": "Tags"
+  },
+  "StatisticsPanel": {
+    "title": "Statistics",
+    "highlights": "Highlights",
+    "comments": "Comments",
+    "assessments": "Assessments",
+    "tags": "Tags",
+    "references": "References",
+    "stub": "Stub",
+    "resolved": "Resolved",
+    "entityTypes": "Entity Types"
   },
   "StubReferencePopup": {
     "title": "Stub Reference",
