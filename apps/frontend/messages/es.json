@@ -313,22 +313,17 @@
     "userAccount": "Cuenta de Usuario",
     "settings": "Configuración"
   },
-  "ResourceActionsPanel": {
-    "title": "Acciones del Recurso",
-    "clone": "Clonar",
-    "cloneDescription": "Crear una copia de este recurso",
-    "archive": "Archivar",
-    "archiveDescription": "Mover este recurso al estado archivado",
-    "unarchive": "Desarchivar",
-    "unarchiveDescription": "Restaurar este recurso al estado activo"
-  },
   "ResourceInfoPanel": {
     "locale": "Idioma",
     "notSpecified": "No especificado",
     "entityTypeTags": "Etiquetas de Tipo de Entidad",
     "representation": "Representación",
     "mediaType": "Tipo de Medios",
-    "byteSize": "Tamaño"
+    "byteSize": "Tamaño",
+    "archive": "Archivar",
+    "archiveDescription": "Mover este recurso al estado archivado",
+    "unarchive": "Desarchivar",
+    "unarchiveDescription": "Restaurar este recurso al estado activo"
   },
   "CollaborationPanel": {
     "connectionStatus": "Estado de Conexión",

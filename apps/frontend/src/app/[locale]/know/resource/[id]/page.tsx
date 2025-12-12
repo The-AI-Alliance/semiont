@@ -38,7 +38,6 @@ import { UnifiedAnnotationsPanel } from '@/components/resource/panels/UnifiedAnn
 import { ResourceInfoPanel } from '@/components/resource/panels/ResourceInfoPanel';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/resource/panels/CollaborationPanel';
-import { ResourceActionsPanel } from '@/components/resource/panels/ResourceActionsPanel';
 import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
@@ -253,7 +252,6 @@ function ResourceView({
 
   // Set up mutations
   const updateDocMutation = resources.update.useMutation();
-  const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
   const updateAnnotationBodyMutation = annotationsAPI.updateBody.useMutation();
 
   const [annotateMode, setAnnotateMode] = useState(() => {
@@ -382,21 +380,6 @@ function ResourceView({
       showError('Failed to unarchive document');
     }
   }, [resource, rUri, updateDocMutation, loadDocument, showSuccess, showError]);
-
-  const handleClone = useCallback(async () => {
-    try {
-      const response = await generateCloneTokenMutation.mutateAsync(rUri) as { token: string; expiresAt: string; resource: SemiontResource };
-      if (response.token) {
-        // Navigate to compose page with clone token
-        router.push(`/know/compose?mode=clone&token=${response.token}`);
-      } else {
-        showError('Failed to generate clone token');
-      }
-    } catch (err) {
-      console.error('Failed to generate clone token:', err);
-      showError('Failed to clone document');
-    }
-  }, [rUri, generateCloneTokenMutation, router, showError]);
 
   // Handle annotate mode toggle - memoized
   const handleAnnotateModeToggle = useCallback(() => {
@@ -812,16 +795,6 @@ function ResourceView({
               </div>
             )}
 
-            {/* Document Panel */}
-            {activePanel === 'document' && (
-              <ResourceActionsPanel
-                isArchived={resource.archived ?? false}
-                onArchive={handleArchive}
-                onUnarchive={handleUnarchive}
-                onClone={handleClone}
-              />
-            )}
-
             {/* Unified Annotations Panel */}
             {activePanel === 'annotations' && !resource.archived && (() => {
               // Create annotators with injected handlers
@@ -952,6 +925,9 @@ function ResourceView({
                 documentLocale={getLanguage(resource)}
                 primaryMediaType={primaryMediaType}
                 primaryByteSize={primaryByteSize}
+                isArchived={resource.archived ?? false}
+                onArchive={handleArchive}
+                onUnarchive={handleUnarchive}
               />
             )}
 

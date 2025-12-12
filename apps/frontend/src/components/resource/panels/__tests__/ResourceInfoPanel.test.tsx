@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 
@@ -14,6 +14,10 @@ vi.mock('next-intl', () => ({
       representation: 'Representation',
       mediaType: 'Media Type',
       byteSize: 'Size',
+      archive: 'Archive',
+      archiveDescription: 'Move this resource to archived status',
+      unarchive: 'Unarchive',
+      unarchiveDescription: 'Restore this resource to active status',
     };
     return translations[key] || key;
   }),
@@ -27,6 +31,15 @@ vi.mock('@semiont/api-client', async () => {
     formatLocaleDisplay: vi.fn((locale: string) => `Language: ${locale}`),
   };
 });
+
+// Mock button styles
+vi.mock('@/lib/button-styles', () => ({
+  buttonStyles: {
+    secondary: {
+      base: 'px-4 py-2 rounded-lg font-medium',
+    },
+  },
+}));
 
 describe('ResourceInfoPanel Component', () => {
   const defaultProps = {
@@ -143,6 +156,78 @@ describe('ResourceInfoPanel Component', () => {
 
       const headings = screen.getAllByRole('heading', { level: 3 });
       expect(headings.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Archive Actions', () => {
+    it('should render archive button when not archived', () => {
+      const onArchive = vi.fn();
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          isArchived={false}
+          onArchive={onArchive}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: /Archive/i })).toBeInTheDocument();
+      expect(screen.getByText('Move this resource to archived status')).toBeInTheDocument();
+    });
+
+    it('should render unarchive button when archived', () => {
+      const onUnarchive = vi.fn();
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          isArchived={true}
+          onUnarchive={onUnarchive}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: /Unarchive/i })).toBeInTheDocument();
+      expect(screen.getByText('Restore this resource to active status')).toBeInTheDocument();
+    });
+
+    it('should call onArchive when archive button clicked', () => {
+      const onArchive = vi.fn();
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          isArchived={false}
+          onArchive={onArchive}
+        />
+      );
+
+      const button = screen.getByRole('button', { name: /Archive/i });
+      fireEvent.click(button);
+      expect(onArchive).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call onUnarchive when unarchive button clicked', () => {
+      const onUnarchive = vi.fn();
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          isArchived={true}
+          onUnarchive={onUnarchive}
+        />
+      );
+
+      const button = screen.getByRole('button', { name: /Unarchive/i });
+      fireEvent.click(button);
+      expect(onUnarchive).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not render archive buttons when handlers not provided', () => {
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          isArchived={false}
+        />
+      );
+
+      expect(screen.queryByText('Archive')).not.toBeInTheDocument();
+      expect(screen.queryByText('Unarchive')).not.toBeInTheDocument();
     });
   });
 });

@@ -3,19 +3,26 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 import { formatLocaleDisplay } from '@semiont/api-client';
+import { buttonStyles } from '@/lib/button-styles';
 
 interface Props {
   documentEntityTypes: string[];
   documentLocale?: string | undefined;
   primaryMediaType?: string | undefined;
   primaryByteSize?: number | undefined;
+  isArchived?: boolean;
+  onArchive?: () => void;
+  onUnarchive?: () => void;
 }
 
 export function ResourceInfoPanel({
   documentEntityTypes,
   documentLocale,
   primaryMediaType,
-  primaryByteSize
+  primaryByteSize,
+  isArchived = false,
+  onArchive,
+  onUnarchive
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
 
@@ -74,6 +81,37 @@ export function ResourceInfoPanel({
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Archive/Unarchive Actions */}
+      {(onArchive || onUnarchive) && (
+        <div>
+          {isArchived ? (
+            <>
+              <button
+                onClick={onUnarchive}
+                className={`${buttonStyles.secondary.base} w-full justify-center`}
+              >
+                📤 {t('unarchive')}
+              </button>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {t('unarchiveDescription')}
+              </p>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onArchive}
+                className="w-full px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 justify-center bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                📦 {t('archive')}
+              </button>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {t('archiveDescription')}
+              </p>
+            </>
+          )}
         </div>
       )}
     </div>
