@@ -784,5 +784,25 @@
     "deleteConfirmationMessage": "¿Está seguro de que desea eliminar esta anotación? Esta acción no se puede deshacer.",
     "deleteConfirmationCancel": "Cancelar",
     "deleteConfirmationDelete": "Eliminar"
+  },
+  "GenerationConfigModal": {
+    "title": "Configurar generación de recurso",
+    "sourceContext": "Contexto de origen",
+    "contextHelp": "Este contexto se proporcionará a la IA para generar contenido relevante.",
+    "loadingContext": "Cargando contexto...",
+    "failedContext": "Error al cargar el contexto",
+    "resourceTitle": "Título del recurso",
+    "resourceTitlePlaceholder": "Ingrese un título para el recurso generado",
+    "additionalInstructions": "Instrucciones adicionales (opcional)",
+    "additionalInstructionsPlaceholder": "Proporcione contexto adicional o requisitos específicos para la generación...",
+    "language": "Idioma",
+    "languageHelp": "Idioma para el contenido generado (predeterminado: idioma actual de la interfaz)",
+    "creativity": "Creatividad (temperatura): {value}",
+    "creativityFocused": "Enfocado (0.0)",
+    "creativityCreative": "Creativo (1.0)",
+    "maxLength": "Longitud máxima (tokens)",
+    "maxLengthHelp": "Valores más altos permiten contenido más largo (100-4000 tokens)",
+    "cancel": "Cancelar",
+    "generate": "✨ Generar"
   }
 }
