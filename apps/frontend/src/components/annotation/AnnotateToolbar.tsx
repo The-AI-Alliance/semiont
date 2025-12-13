@@ -62,20 +62,24 @@ function DropdownGroup({
 
   return (
     <div
-      ref={containerRef}
-      role="button"
-      tabIndex={0}
-      aria-haspopup="true"
-      aria-expanded={isExpanded}
-      aria-label={label}
-      className="relative flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      className="relative"
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
-      onClick={onPin}
-      onKeyDown={handleKeyDown}
     >
-      {/* Always show collapsed content */}
-      {collapsedContent}
+      <div
+        ref={containerRef}
+        role="button"
+        tabIndex={0}
+        aria-haspopup="true"
+        aria-expanded={isExpanded}
+        aria-label={label}
+        className="flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        onClick={onPin}
+        onKeyDown={handleKeyDown}
+      >
+        {/* Always show collapsed content */}
+        {collapsedContent}
+      </div>
 
       {/* Expanded menu appears as dropdown below */}
       {isExpanded && (

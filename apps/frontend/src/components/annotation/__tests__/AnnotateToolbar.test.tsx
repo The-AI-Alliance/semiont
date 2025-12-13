@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import { NextIntlClientProvider } from 'next-intl';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction } from '../AnnotateToolbar';
@@ -141,10 +141,11 @@ describe('AnnotateToolbar', () => {
       fireEvent.mouseEnter(modeGroup);
 
       await waitFor(() => {
-        // Both options should be visible in the expanded menu
-        // (collapsed content is hidden when expanded)
-        expect(screen.getByText('Browse')).toBeInTheDocument();
-        expect(screen.getByText('Annotate')).toBeInTheDocument();
+        // Find the dropdown menu by role
+        const dropdown = screen.getByRole('menu');
+        // Both options should be visible in the expanded dropdown menu
+        expect(within(dropdown).getByText('Browse')).toBeInTheDocument();
+        expect(within(dropdown).getByText('Annotate')).toBeInTheDocument();
       });
     });
 
@@ -292,10 +293,12 @@ describe('AnnotateToolbar', () => {
       fireEvent.mouseEnter(motivationGroup);
 
       await waitFor(() => {
-        expect(screen.getByText('Highlight')).toBeInTheDocument();
+        const dropdown = screen.getByRole('menu');
+        expect(within(dropdown).getByText('Highlight')).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Highlight'));
+      const dropdown = screen.getByRole('menu');
+      fireEvent.click(within(dropdown).getByText('Highlight'));
       expect(handleChange).toHaveBeenCalledWith('highlighting');
 
       // Simulate selection
@@ -312,9 +315,11 @@ describe('AnnotateToolbar', () => {
       // Click again to deselect
       fireEvent.mouseEnter(motivationGroup);
       await waitFor(() => {
-        expect(screen.getByText('Highlight')).toBeInTheDocument();
+        const dropdown = screen.getByRole('menu');
+        expect(within(dropdown).getByText('Highlight')).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByText('Highlight'));
+      const dropdown2 = screen.getByRole('menu');
+      fireEvent.click(within(dropdown2).getByText('Highlight'));
       expect(handleChange).toHaveBeenCalledWith(null);
     });
   });
@@ -359,9 +364,10 @@ describe('AnnotateToolbar', () => {
       fireEvent.click(modeGroup); // Pin it
 
       await waitFor(() => {
-        // When expanded, both Browse and Annotate should be in the dropdown
-        expect(screen.getByText('Browse')).toBeInTheDocument();
-        expect(screen.getByText('Annotate')).toBeInTheDocument();
+        // When expanded, dropdown menu should be visible with both options
+        const dropdown = screen.getByRole('menu');
+        expect(within(dropdown).getByText('Browse')).toBeInTheDocument();
+        expect(within(dropdown).getByText('Annotate')).toBeInTheDocument();
       });
 
       // Press Escape
@@ -371,10 +377,10 @@ describe('AnnotateToolbar', () => {
       fireEvent.mouseLeave(modeGroup);
 
       await waitFor(() => {
-        // After closing, only the collapsed "Browse" label should remain
+        // After closing, dropdown menu should not be present
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+        // But collapsed "Browse" label should still be visible
         expect(screen.getByText('Browse')).toBeInTheDocument();
-        // Annotate should not be visible in collapsed state
-        expect(screen.queryByText('Annotate')).not.toBeInTheDocument();
       });
     });
   });
