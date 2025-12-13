@@ -44,53 +44,20 @@ interface Props {
 
 /**
  * Extract prefix and suffix context for TextQuoteSelector
- * Extracts up to 64 characters before and after the selected text,
- * extending to word boundaries to avoid cutting words in half.
- * This ensures prefix/suffix are meaningful context for fuzzy anchoring.
+ * Extracts up to 32 characters before and after the selected text
  */
 function extractContext(content: string, start: number, end: number): { prefix?: string; suffix?: string } {
-  const CONTEXT_LENGTH = 64;
-  const MAX_EXTENSION = 32; // Maximum additional chars to extend for word boundary
+  const CONTEXT_LENGTH = 32;
   const result: { prefix?: string; suffix?: string } = {};
 
-  // Extract prefix (up to CONTEXT_LENGTH chars before start, extended to word boundary)
+  // Extract prefix (up to CONTEXT_LENGTH chars before start)
   if (start > 0) {
-    let prefixStart = Math.max(0, start - CONTEXT_LENGTH);
-
-    // Extend backward to word boundary (whitespace or punctuation)
-    // Stop if we hit start of content or exceed MAX_EXTENSION
-    let extensionCount = 0;
-    while (prefixStart > 0 && extensionCount < MAX_EXTENSION) {
-      const char = content[prefixStart - 1];
-      // Break on whitespace, punctuation, or common delimiters
-      if (!char || /[\s.,;:!?'"()\[\]{}<>\/\\]/.test(char)) {
-        break;
-      }
-      prefixStart--;
-      extensionCount++;
-    }
-
-    result.prefix = content.substring(prefixStart, start);
+    result.prefix = content.substring(Math.max(0, start - CONTEXT_LENGTH), start);
   }
 
-  // Extract suffix (up to CONTEXT_LENGTH chars after end, extended to word boundary)
+  // Extract suffix (up to CONTEXT_LENGTH chars after end)
   if (end < content.length) {
-    let suffixEnd = Math.min(content.length, end + CONTEXT_LENGTH);
-
-    // Extend forward to word boundary (whitespace or punctuation)
-    // Stop if we hit end of content or exceed MAX_EXTENSION
-    let extensionCount = 0;
-    while (suffixEnd < content.length && extensionCount < MAX_EXTENSION) {
-      const char = content[suffixEnd];
-      // Break on whitespace, punctuation, or common delimiters
-      if (!char || /[\s.,;:!?'"()\[\]{}<>\/\\]/.test(char)) {
-        break;
-      }
-      suffixEnd++;
-      extensionCount++;
-    }
-
-    result.suffix = content.substring(end, suffixEnd);
+    result.suffix = content.substring(end, Math.min(content.length, end + CONTEXT_LENGTH));
   }
 
   return result;
