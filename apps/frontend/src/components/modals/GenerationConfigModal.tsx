@@ -41,9 +41,13 @@ export function GenerationConfigModal({
   const [maxTokens, setMaxTokens] = useState(500);
 
   const annotations = useAnnotations();
+
+  // Extract annotation ID from full URI (e.g., "http://localhost:4000/annotations/abc123" -> "abc123")
+  const annotationId = referenceId.split('/').pop() || '';
+
   const { data: contextData, isLoading: contextLoading, error: contextError } = annotations.llmContext.useQuery(
     resourceUri,
-    referenceId,
+    annotationId,
     { contextWindow: 2000 }
   );
 
