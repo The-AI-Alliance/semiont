@@ -62,37 +62,40 @@ function DropdownGroup({
 
   return (
     <div
-      ref={containerRef}
-      role="button"
-      tabIndex={0}
-      aria-haspopup="true"
-      aria-expanded={isExpanded}
-      aria-label={label}
-      className="relative flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      className="relative"
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
-      onClick={onPin}
-      onKeyDown={handleKeyDown}
     >
-      {/* Selected value or expanded menu */}
-      {!isExpanded ? (
-        // Collapsed: show selected value inline (no label)
-        collapsedContent
-      ) : (
-        // Expanded: show label + dropdown menu inline
-        <>
-          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider" aria-hidden="true">
-            {label}
-          </span>
-          <div
-            ref={dropdownRef}
-            role="menu"
-            aria-orientation="horizontal"
-            className="flex items-center gap-1"
-          >
+      <div
+        ref={containerRef}
+        role="button"
+        tabIndex={0}
+        aria-haspopup="true"
+        aria-expanded={isExpanded}
+        aria-label={label}
+        className="flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        onClick={onPin}
+        onKeyDown={handleKeyDown}
+      >
+        {/* Always show collapsed content */}
+        {collapsedContent}
+      </div>
+
+      {/* Expanded menu appears as dropdown below */}
+      {isExpanded && (
+        <div
+          ref={dropdownRef}
+          role="menu"
+          aria-orientation="vertical"
+          className="absolute top-full left-0 pt-2 z-50"
+        >
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-max flex flex-col gap-1">
+            <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider px-2 py-1 border-b border-gray-200 dark:border-gray-700">
+              {label}
+            </div>
             {expandedContent}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
