@@ -278,7 +278,10 @@ export function TaggingPanel({
                     </div>
                     {detectionProgress.currentCategory && (
                       <div className="mt-2 text-xs text-gray-500">
-                        Processing: {detectionProgress.currentCategory} ({detectionProgress.processedCategories}/{detectionProgress.totalCategories})
+                        Processing: {detectionProgress.currentCategory}
+                        {detectionProgress.processedCategories !== undefined && detectionProgress.totalCategories !== undefined && (
+                          <> ({detectionProgress.processedCategories}/{detectionProgress.totalCategories})</>
+                        )}
                       </div>
                     )}
                   </div>
