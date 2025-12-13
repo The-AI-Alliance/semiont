@@ -170,10 +170,25 @@ export async function handleResolveAnnotation(client: SemiontApiClient, args: an
 export async function handleGenerateResourceFromAnnotation(client: SemiontApiClient, args: any) {
   const rUri = resourceUri(args?.resourceId);
   const aUri = annotationUri(args?.annotationId);
+
+  // Extract annotation ID from full URI for context fetch
+  const annotationId = aUri.split('/').pop();
+  if (!annotationId) {
+    throw new Error('Invalid annotation URI');
+  }
+
+  // Fetch context before generation
+  const contextData = await client.getAnnotationLLMContext(rUri, annotationId, { contextWindow: 2000 });
+
+  if (!contextData?.context) {
+    throw new Error('Failed to fetch generation context');
+  }
+
   const request = {
     title: args?.title,
     prompt: args?.prompt,
     language: args?.language,
+    context: contextData.context,
   };
 
   return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {

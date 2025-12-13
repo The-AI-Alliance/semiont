@@ -30,6 +30,20 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const testResourceUri = (id: string): ResourceUri => `http://localhost:4000/resources/${id}` as ResourceUri;
 const testAnnotationUri = (id: string): AnnotationUri => `http://localhost:4000/annotations/${id}` as AnnotationUri;
 
+// Mock GenerationContext for tests
+const mockGenerationContext = {
+  sourceContext: {
+    before: 'Text before',
+    selected: 'selected text',
+    after: 'text after'
+  },
+  metadata: {
+    resourceType: 'document',
+    language: 'en',
+    entityTypes: ['test']
+  }
+};
+
 describe('SSEClient', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -272,7 +286,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
         body: createSSEReadableStream('')
       });
 
-      client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'), {});
+      client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'), { context: mockGenerationContext });
 
       expect(fetchMock).toHaveBeenCalledWith(
         'http://localhost:4000/resources/doc-123/annotations/ann-456/generate-resource-stream',
@@ -293,7 +307,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
       client.generateResourceFromAnnotation(
         testResourceUri('doc-123'),
         testAnnotationUri('ann-456'),
-        {}
+        { context: mockGenerationContext }
       );
 
       expect(fetchMock).toHaveBeenCalledWith(
@@ -315,7 +329,8 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
       client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'), {
         title: 'Custom Title',
         language: 'es',
-        prompt: 'Custom prompt'
+        prompt: 'Custom prompt',
+        context: mockGenerationContext
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
@@ -331,7 +346,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
       );
     });
 
-    it('should allow empty request body', () => {
+    it('should require context in request body', () => {
       const client = new SSEClient({
         baseUrl: baseUrl('http://localhost:4000')
       });
@@ -341,13 +356,13 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
         body: createSSEReadableStream('')
       });
 
-      client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'));
+      client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'), { context: mockGenerationContext });
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({})
+          body: expect.stringContaining('"sourceContext"')
         })
       );
     });
@@ -376,7 +391,7 @@ data: {"status":"complete","referenceId":"ann-456","resourceId":"doc-789","perce
       const progressCallback = vi.fn<(progress: GenerationProgress) => void>();
       const completeCallback = vi.fn<(result: GenerationProgress) => void>();
 
-      const stream = client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'), {});
+      const stream = client.generateResourceFromAnnotation(testResourceUri('doc-123'), testAnnotationUri('ann-456'), { context: mockGenerationContext });
 
       stream.onProgress(progressCallback);
       stream.onComplete(completeCallback);

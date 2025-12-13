@@ -11,7 +11,6 @@ import { JobWorker } from './job-worker';
 import type { Job, GenerationJob } from '../types';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { AnnotationQueryService } from '../../services/annotation-queries';
-import { AnnotationContextService } from '../../services/annotation-context';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { generateResourceFromTopic } from '../../inference/factory';
 import { getTargetSelector } from '../../lib/annotation-utils';
@@ -88,26 +87,13 @@ export class GenerationWorker extends JobWorker {
     const resourceName = job.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
     console.log(`[GenerationWorker] Generating resource: "${resourceName}"`);
 
-    // Update progress: fetching context
-    job.progress = {
-      stage: 'fetching',
-      percentage: 30,
-      message: 'Fetching document context...'
-    };
-    console.log(`[GenerationWorker] 📄 ${job.progress.message}`);
-    await this.updateJobProgress(job);
+    // Verify context is provided (required for generation)
+    if (!job.context) {
+      throw new Error('Generation context is required but was not provided in job');
+    }
+    console.log(`[GenerationWorker] Using pre-fetched context: ${job.context.sourceContext?.before?.length || 0} chars before, ${job.context.sourceContext?.selected?.length || 0} chars selected, ${job.context.sourceContext?.after?.length || 0} chars after`);
 
-    // Build LLM context (before/selected/after text from source document)
-    // This is done as a job phase because it can be slow (reading files, extracting text)
-    const llmContext = await AnnotationContextService.buildLLMContext(
-      annotationUri(expectedAnnotationUri),
-      job.sourceResourceId,
-      this.config,
-      { includeSourceContext: true, includeTargetContext: false, contextWindow: 2000 }
-    );
-    console.log(`[GenerationWorker] ✅ Context fetched: ${llmContext.sourceContext?.before?.length || 0} chars before, ${llmContext.sourceContext?.selected?.length || 0} chars selected, ${llmContext.sourceContext?.after?.length || 0} chars after`);
-
-    // Update progress: generating
+    // Update progress: generating (skip fetching context since it's already in job)
     job.progress = {
       stage: 'generating',
       percentage: 40,
@@ -116,7 +102,7 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] 🤖 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
-    // Generate content using AI
+    // Generate content using AI with context from job
     const prompt = job.prompt || `Create a comprehensive resource about "${resourceName}"`;
     // Extract entity types from annotation body
     const annotationEntityTypes = getEntityTypes({ body: annotation.body });
@@ -127,7 +113,9 @@ export class GenerationWorker extends JobWorker {
       this.config,
       prompt,
       job.language,
-      llmContext
+      job.context,      // NEW - context from job (passed from modal)
+      job.temperature,  // NEW - from job
+      job.maxTokens     // NEW - from job
     );
 
     console.log(`[GenerationWorker] ✅ Generated ${generatedContent.content.length} bytes of content`);

@@ -320,7 +320,7 @@ describe('SemiontApiClient - Archive Operations', () => {
     });
 
     test('should get annotation LLM context with default options', async () => {
-      const annotationUri = `${testResourceUri}/annotations/ann-123` as ResourceAnnotationUri;
+      const annotationId = 'ann-123';
       const mockResponse = {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -347,11 +347,11 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getAnnotationLLMContext(annotationUri);
+      const result = await client.getAnnotationLLMContext(testResourceUri, annotationId);
 
       expect(result.annotation.id).toBe('ann-123');
       expect(mockKy.get).toHaveBeenCalledWith(
-        `${annotationUri}/llm-context`,
+        `${testResourceUri}/annotations/${annotationId}/llm-context`,
         expect.objectContaining({
           searchParams: expect.any(URLSearchParams),
         })
@@ -359,7 +359,7 @@ describe('SemiontApiClient - Archive Operations', () => {
     });
 
     test('should get annotation LLM context with custom options', async () => {
-      const annotationUri = `${testResourceUri}/annotations/ann-123` as ResourceAnnotationUri;
+      const annotationId = 'ann-123';
       const mockResponse = {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -386,17 +386,13 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getAnnotationLLMContext(annotationUri, {
-        includeSourceContext: true,
-        includeTargetContext: false,
+      const result = await client.getAnnotationLLMContext(testResourceUri, annotationId, {
         contextWindow: 500,
       });
 
       expect(result.sourceContext).toBeDefined();
       const call = vi.mocked(mockKy.get).mock.calls[0];
       const searchParams = call[1]?.searchParams as URLSearchParams;
-      expect(searchParams.get('includeSourceContext')).toBe('true');
-      expect(searchParams.get('includeTargetContext')).toBe('false');
       expect(searchParams.get('contextWindow')).toBe('500');
     });
   });

@@ -29,6 +29,7 @@ export const QUERY_KEYS = {
   annotations: {
     detail: (aUri: AnnotationUri) => ['annotations', aUri] as const,
     history: (aUri: ResourceAnnotationUri) => ['annotations', aUri, 'history'] as const,
+    llmContext: (resourceUri: ResourceUri, annotationId: string) => ['annotations', 'llm-context', resourceUri, annotationId] as const,
   },
 
   entityTypes: {

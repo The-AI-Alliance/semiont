@@ -104,6 +104,11 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
       // Construct full resource URI for event subscriptions
       const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${resourceIdParam}`);
 
+      // Validate context is provided (required by schema)
+      if (!body.context) {
+        throw new HTTPException(400, { message: 'Context is required for generation' });
+      }
+
       // Create a generation job (this decouples event emission from HTTP client)
       const jobQueue = getJobQueue();
       const job: GenerationJob = {
@@ -117,6 +122,9 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
         prompt: body.prompt,
         language: body.language,
         entityTypes: getEntityTypes(reference).map(et => entityType(et)),
+        context: body.context,           // NEW - context from frontend modal
+        temperature: body.temperature,   // NEW - inference parameter
+        maxTokens: body.maxTokens,       // NEW - inference parameter
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3

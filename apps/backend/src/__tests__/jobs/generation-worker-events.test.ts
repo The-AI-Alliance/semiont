@@ -11,6 +11,21 @@ import type { GenerationJob } from '../../jobs/types';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
+import type { GenerationContext } from '@semiont/api-client';
+
+// Mock GenerationContext for tests
+const mockGenerationContext: GenerationContext = {
+  sourceContext: {
+    before: 'Text before',
+    selected: 'Test Topic',
+    after: 'text after'
+  },
+  metadata: {
+    resourceType: 'document',
+    language: 'en',
+    entityTypes: ['Person']
+  }
+};
 
 // Mock AI generation to avoid external API calls
 vi.mock('../../inference/factory', () => ({
@@ -153,6 +168,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-1'),  // Unique per test
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
+      context: mockGenerationContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -193,6 +209,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-2'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
+      context: mockGenerationContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -227,6 +244,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-3'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
+      context: mockGenerationContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -269,6 +287,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-4'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
+      context: mockGenerationContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -308,6 +327,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-5'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
+      context: mockGenerationContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -355,6 +375,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-6'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
+      context: mockGenerationContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -392,6 +413,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-7'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
+      context: mockGenerationContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3

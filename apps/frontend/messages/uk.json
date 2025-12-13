@@ -784,5 +784,25 @@
     "deleteConfirmationMessage": "Are you sure you want to delete this annotation? This action cannot be undone.",
     "deleteConfirmationCancel": "Cancel",
     "deleteConfirmationDelete": "Delete"
+  },
+  "GenerationConfigModal": {
+    "title": "Configure Resource Generation",
+    "sourceContext": "Source Context",
+    "contextHelp": "This context will be provided to the AI to generate relevant content.",
+    "loadingContext": "Loading context...",
+    "failedContext": "Failed to load context",
+    "resourceTitle": "Resource Title",
+    "resourceTitlePlaceholder": "Enter a title for the generated resource",
+    "additionalInstructions": "Additional Instructions (Optional)",
+    "additionalInstructionsPlaceholder": "Provide additional context or specific requirements for generation...",
+    "language": "Language",
+    "languageHelp": "Language for the generated content (defaults to your current UI language)",
+    "creativity": "Creativity (Temperature): {value}",
+    "creativityFocused": "Focused (0.0)",
+    "creativityCreative": "Creative (1.0)",
+    "maxLength": "Maximum Length (Tokens)",
+    "maxLengthHelp": "Higher values allow longer content (100-4000 tokens)",
+    "cancel": "Cancel",
+    "generate": "✨ Generate"
   }
 }

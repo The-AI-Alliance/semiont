@@ -32,6 +32,12 @@
 // Generated OpenAPI types and client
 export * from './types';
 export * from './client';
+export type { components } from './types';
+import type { components } from './types';
+
+// Export specific types for generation context
+export type GenerationContext = components['schemas']['GenerationContext'];
+export type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
 // SSE streaming types and client
 export type {

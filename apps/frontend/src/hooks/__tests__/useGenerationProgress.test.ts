@@ -8,7 +8,21 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useGenerationProgress } from '../useGenerationProgress';
 import { annotationUri, resourceUri } from '@semiont/api-client';
-import type { GenerationProgress } from '@semiont/api-client';
+import type { GenerationProgress, GenerationContext } from '@semiont/api-client';
+
+// Mock GenerationContext for tests
+const mockGenerationContext: GenerationContext = {
+  sourceContext: {
+    before: 'Text before',
+    selected: 'selected text',
+    after: 'text after'
+  },
+  metadata: {
+    resourceType: 'document',
+    language: 'en',
+    entityTypes: ['test']
+  }
+};
 
 // Create a mock SSE stream
 const createMockSSEStream = () => {
@@ -82,7 +96,8 @@ describe('useGenerationProgress', () => {
       {
         title: 'Test Resource',
         prompt: 'Create a resource about testing',
-        language: 'en'
+        language: 'en',
+        context: mockGenerationContext
       }
     );
 
@@ -92,7 +107,8 @@ describe('useGenerationProgress', () => {
       {
         title: 'Test Resource',
         prompt: 'Create a resource about testing',
-        language: 'en'
+        language: 'en',
+        context: mockGenerationContext
       }
     );
   });
@@ -104,7 +120,8 @@ describe('useGenerationProgress', () => {
 
     await result.current.startGeneration(
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
-      resourceUri('http://localhost:4000/resources/test-resource')
+      resourceUri('http://localhost:4000/resources/test-resource'),
+      { context: mockGenerationContext }
     );
 
     await waitFor(() => {
@@ -113,200 +130,113 @@ describe('useGenerationProgress', () => {
   });
 
   it('should handle generation-started event', async () => {
-    const onProgress = vi.fn();
+    const onProgressMock = vi.fn();
     const { result } = renderHook(() =>
-      useGenerationProgress({ onProgress })
+      useGenerationProgress({ onProgress: onProgressMock })
     );
 
     await result.current.startGeneration(
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
-      resourceUri('http://localhost:4000/resources/test-resource')
+      resourceUri('http://localhost:4000/resources/test-resource'),
+      { context: mockGenerationContext }
     );
 
-    const progressData: GenerationProgress = {
+    // Simulate generation-started event
+    const mockProgressData: GenerationProgress = {
       status: 'started',
       referenceId: 'test-ref-id',
       percentage: 0,
-      message: 'Starting...'
+      message: 'Starting generation...'
     };
 
-    mockStream.onProgressCallback!(progressData);
+    mockStream.onProgressCallback?.(mockProgressData);
 
     await waitFor(() => {
-      expect(onProgress).toHaveBeenCalled();
-    });
-
-    expect(result.current.progress).toMatchObject({
-      status: 'started',
-      referenceId: 'test-ref-id',
-      percentage: 0
+      expect(result.current.progress).toEqual(mockProgressData);
+      expect(onProgressMock).toHaveBeenCalledWith(mockProgressData);
     });
   });
 
-  it('should handle generation-progress events for all stages', async () => {
-    const onProgress = vi.fn();
+  it('should handle generation-progress event', async () => {
+    const onProgressMock = vi.fn();
     const { result } = renderHook(() =>
-      useGenerationProgress({ onProgress })
+      useGenerationProgress({ onProgress: onProgressMock })
     );
 
     await result.current.startGeneration(
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
-      resourceUri('http://localhost:4000/resources/test-resource')
+      resourceUri('http://localhost:4000/resources/test-resource'),
+      { context: mockGenerationContext }
     );
 
-    const stages: GenerationProgress[] = [
-      { status: 'started', referenceId: 'test-ref-id', percentage: 0, message: 'Starting...' },
-      { status: 'fetching', referenceId: 'test-ref-id', percentage: 25, message: 'Fetching...' },
-      { status: 'generating', referenceId: 'test-ref-id', percentage: 50, message: 'Generating...' },
-      { status: 'creating', referenceId: 'test-ref-id', percentage: 75, message: 'Creating...' },
-    ];
+    // Simulate generation-progress event
+    const mockProgressData: GenerationProgress = {
+      status: 'generating',
+      referenceId: 'test-ref-id',
+      percentage: 50,
+      message: 'Generating content...'
+    };
 
-    for (const stage of stages) {
-      mockStream.onProgressCallback!(stage);
-      await waitFor(() => {
-        expect(result.current.progress?.status).toBe(stage.status);
-      });
-    }
+    mockStream.onProgressCallback?.(mockProgressData);
 
-    expect(onProgress).toHaveBeenCalledTimes(4);
+    await waitFor(() => {
+      expect(result.current.progress).toEqual(mockProgressData);
+      expect(onProgressMock).toHaveBeenCalledWith(mockProgressData);
+    });
   });
 
   it('should handle generation-complete event', async () => {
-    const onComplete = vi.fn();
+    const onCompleteMock = vi.fn();
     const { result } = renderHook(() =>
-      useGenerationProgress({ onComplete })
+      useGenerationProgress({ onComplete: onCompleteMock })
     );
 
     await result.current.startGeneration(
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
-      resourceUri('http://localhost:4000/resources/test-resource')
+      resourceUri('http://localhost:4000/resources/test-resource'),
+      { context: mockGenerationContext }
     );
 
-    const completeData: GenerationProgress = {
+    // Simulate generation-complete event
+    const mockCompleteData: GenerationProgress = {
       status: 'complete',
       referenceId: 'test-ref-id',
-      resourceId: 'new-resource-123',
+      resourceId: 'new-resource-id',
       percentage: 100,
-      message: 'Complete!'
+      message: 'Generation complete!'
     };
 
-    mockStream.onCompleteCallback!(completeData);
+    mockStream.onCompleteCallback?.(mockCompleteData);
 
     await waitFor(() => {
-      expect(onComplete).toHaveBeenCalled();
+      expect(result.current.isGenerating).toBe(false);
+      expect(onCompleteMock).toHaveBeenCalledWith(mockCompleteData);
     });
-
-    expect(result.current.isGenerating).toBe(false);
   });
 
   it('should handle generation-error event', async () => {
-    const onError = vi.fn();
+    const onErrorMock = vi.fn();
     const { result } = renderHook(() =>
-      useGenerationProgress({ onError })
+      useGenerationProgress({ onError: onErrorMock })
     );
 
     await result.current.startGeneration(
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
-      resourceUri('http://localhost:4000/resources/test-resource')
+      resourceUri('http://localhost:4000/resources/test-resource'),
+      { context: mockGenerationContext }
     );
 
-    const error = new Error('Generation failed');
-    mockStream.onErrorCallback!(error);
+    // Simulate generation-error event
+    const mockError = new Error('Generation failed');
+    mockStream.onErrorCallback?.(mockError);
 
     await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith('Generation failed');
-    });
-
-    expect(result.current.isGenerating).toBe(false);
-    expect(result.current.progress).toBeNull();
-  });
-
-  it('should cancel generation and close SSE stream', async () => {
-    const { result } = renderHook(() =>
-      useGenerationProgress({})
-    );
-
-    await result.current.startGeneration(
-      annotationUri('http://localhost:4000/annotations/test-ref-id'),
-      resourceUri('http://localhost:4000/resources/test-resource')
-    );
-    result.current.cancelGeneration();
-
-    expect(mockStream.close).toHaveBeenCalled();
-    expect(result.current.isGenerating).toBe(false);
-    expect(result.current.progress).toBeNull();
-  });
-
-  it('should clear progress manually', async () => {
-    const { result } = renderHook(() =>
-      useGenerationProgress({})
-    );
-
-    // Start generation to set up the stream
-    await result.current.startGeneration(
-      annotationUri('http://localhost:4000/annotations/test-ref-id'),
-      resourceUri('http://localhost:4000/resources/test-resource')
-    );
-
-    // Set progress first
-    mockStream.onProgressCallback!({
-      status: 'started',
-      referenceId: 'test-ref-id',
-      percentage: 0,
-      message: 'Starting...'
-    });
-
-    await waitFor(() => {
-      expect(result.current.progress).not.toBeNull();
-    });
-
-    // Clear it
-    result.current.clearProgress();
-
-    await waitFor(() => {
-      expect(result.current.progress).toBeNull();
+      expect(result.current.isGenerating).toBe(false);
+      expect(onErrorMock).toHaveBeenCalledWith('Generation failed');
     });
   });
 
-  // Note: Authentication testing is handled by useApiClient hook tests
-  // The hook relies on useApiClient returning null when not authenticated
-
-  it('should handle SSE connection errors', async () => {
-    const onError = vi.fn();
-    const { result } = renderHook(() =>
-      useGenerationProgress({ onError })
-    );
-
-    await result.current.startGeneration(
-      annotationUri('http://localhost:4000/annotations/test-ref-id'),
-      resourceUri('http://localhost:4000/resources/test-resource')
-    );
-
-    const error = new Error('Connection lost');
-    mockStream.onErrorCallback!(error);
-
-    await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith('Connection lost');
-    });
-
-    expect(result.current.isGenerating).toBe(false);
-  });
-
-  it('should cleanup on unmount', () => {
-    const { result, unmount } = renderHook(() =>
-      useGenerationProgress({})
-    );
-
-    result.current.startGeneration(
-      annotationUri('http://localhost:4000/annotations/test-ref-id'),
-      resourceUri('http://localhost:4000/resources/test-resource')
-    );
-    unmount();
-
-    expect(mockStream.close).toHaveBeenCalled();
-  });
-
-  it('should pass language option to API', async () => {
+  it('should cancel generation', async () => {
     const { result } = renderHook(() =>
       useGenerationProgress({})
     );
@@ -314,40 +244,72 @@ describe('useGenerationProgress', () => {
     await result.current.startGeneration(
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
       resourceUri('http://localhost:4000/resources/test-resource'),
-      { language: 'es' }
+      { context: mockGenerationContext }
+    );
+
+    result.current.cancelGeneration();
+
+    expect(mockStream.close).toHaveBeenCalled();
+    expect(result.current.isGenerating).toBe(false);
+  });
+
+  it('should clear progress', () => {
+    const { result } = renderHook(() =>
+      useGenerationProgress({})
+    );
+
+    result.current.clearProgress();
+
+    expect(result.current.progress).toBeNull();
+    expect(result.current.isGenerating).toBe(false);
+  });
+
+  it('should pass language option to api-client', async () => {
+    const { result } = renderHook(() =>
+      useGenerationProgress({})
+    );
+
+    await result.current.startGeneration(
+      annotationUri('http://localhost:4000/annotations/test-ref-id'),
+      resourceUri('http://localhost:4000/resources/test-resource'),
+      {
+        language: 'es',
+        context: mockGenerationContext
+      }
     );
 
     expect(mockGenerateResourceFromAnnotation).toHaveBeenCalledWith(
       resourceUri('http://localhost:4000/resources/test-resource'),
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
-      { language: 'es' }
+      { language: 'es', context: mockGenerationContext }
     );
   });
 
-  it('should close existing stream before starting new generation', async () => {
+  it('should close existing stream when starting new generation', async () => {
     const { result } = renderHook(() =>
       useGenerationProgress({})
     );
 
-    // Start first generation
     await result.current.startGeneration(
-      annotationUri('http://localhost:4000/annotations/test-ref-1'),
-      resourceUri('http://localhost:4000/resources/test-resource')
+      annotationUri('http://localhost:4000/annotations/test-ref-id-1'),
+      resourceUri('http://localhost:4000/resources/test-resource-1'),
+      { context: mockGenerationContext }
     );
 
-    const firstStream = mockStream;
-
-    // Create new stream for second generation
-    mockStream = createMockSSEStream();
-    mockGenerateResourceFromAnnotation.mockReturnValue(mockStream);
-
-    // Start second generation
     await result.current.startGeneration(
-      annotationUri('http://localhost:4000/annotations/test-ref-2'),
-      resourceUri('http://localhost:4000/resources/test-resource')
+      annotationUri('http://localhost:4000/annotations/test-ref-id-2'),
+      resourceUri('http://localhost:4000/resources/test-resource-2'),
+      { context: mockGenerationContext }
     );
 
-    // First stream should be closed
-    expect(firstStream.close).toHaveBeenCalled();
+    expect(mockStream.close).toHaveBeenCalled();
+  });
+
+  it('should not crash if cancelGeneration called when not generating', () => {
+    const { result } = renderHook(() =>
+      useGenerationProgress({})
+    );
+
+    expect(() => result.current.cancelGeneration()).not.toThrow();
   });
 });

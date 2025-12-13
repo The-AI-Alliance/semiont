@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import type { AnnotationUri, ResourceUri, GenerationProgress as ApiGenerationProgress, SSEStream } from '@semiont/api-client';
+import type { AnnotationUri, ResourceUri, GenerationProgress as ApiGenerationProgress, SSEStream, GenerationContext } from '@semiont/api-client';
 import { useApiClient } from '@/lib/api-hooks';
 
 // Use API type directly (no extensions needed)
@@ -26,7 +26,14 @@ export function useGenerationProgress({
   const startGeneration = useCallback(async (
     referenceId: AnnotationUri,
     resourceId: ResourceUri,
-    options?: { prompt?: string; title?: string; language?: string }
+    options: {
+      title?: string;
+      prompt?: string;
+      language?: string;
+      context: GenerationContext;
+      temperature?: number;
+      maxTokens?: number;
+    }
   ) => {
     console.log('[useGenerationProgress] startGeneration called with:', {
       referenceId,
@@ -52,7 +59,7 @@ export function useGenerationProgress({
 
     try {
       // Start SSE stream using api-client
-      const stream = client.sse.generateResourceFromAnnotation(resourceId, referenceId, options || {});
+      const stream = client.sse.generateResourceFromAnnotation(resourceId, referenceId, options);
       streamRef.current = stream;
 
       // Handle progress events
