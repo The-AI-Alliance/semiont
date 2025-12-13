@@ -74,25 +74,22 @@ function DropdownGroup({
       onClick={onPin}
       onKeyDown={handleKeyDown}
     >
-      {/* Selected value or expanded menu */}
-      {!isExpanded ? (
-        // Collapsed: show selected value inline (no label)
-        collapsedContent
-      ) : (
-        // Expanded: show label + dropdown menu inline
-        <>
-          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider" aria-hidden="true">
+      {/* Always show collapsed content */}
+      {collapsedContent}
+
+      {/* Expanded menu appears as dropdown below */}
+      {isExpanded && (
+        <div
+          ref={dropdownRef}
+          role="menu"
+          aria-orientation="vertical"
+          className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 z-50 min-w-max flex flex-col gap-1"
+        >
+          <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider px-2 py-1 border-b border-gray-200 dark:border-gray-700">
             {label}
-          </span>
-          <div
-            ref={dropdownRef}
-            role="menu"
-            aria-orientation="horizontal"
-            className="flex items-center gap-1"
-          >
-            {expandedContent}
           </div>
-        </>
+          {expandedContent}
+        </div>
       )}
     </div>
   );
