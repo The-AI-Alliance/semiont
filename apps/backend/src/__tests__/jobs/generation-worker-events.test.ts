@@ -327,6 +327,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-5'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
+      context: mockGenerationContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -374,6 +375,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-6'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
+      context: mockGenerationContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
@@ -411,6 +413,7 @@ describe('GenerationWorker - Event Emission', () => {
       sourceResourceId: resourceId('source-resource-7'),
       title: 'Test Resource',
       entityTypes: [entityType('Person')],
+      context: mockGenerationContext,
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
