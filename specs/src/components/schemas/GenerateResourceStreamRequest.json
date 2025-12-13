@@ -12,6 +12,23 @@
     "language": {
       "type": "string",
       "description": "Language locale for generated content (e.g., \"es\", \"fr\", \"ja\")"
+    },
+    "context": {
+      "$ref": "./GenerationContext.json",
+      "description": "Generation context including source document excerpts and metadata"
+    },
+    "temperature": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Inference temperature (0.0 = focused, 1.0 = creative)"
+    },
+    "maxTokens": {
+      "type": "number",
+      "minimum": 100,
+      "maximum": 4000,
+      "description": "Maximum tokens to generate"
     }
-  }
+  },
+  "required": ["context"]
 }

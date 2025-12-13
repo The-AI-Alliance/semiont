@@ -18,6 +18,7 @@ import type {
 } from './types';
 import type { ResourceUri, AnnotationUri } from '../branded-types';
 import type { AccessToken, BaseUrl, EntityType } from '../branded-types';
+import type { components } from '../types';
 
 /**
  * Request body for detection stream
@@ -28,12 +29,9 @@ export interface DetectAnnotationsStreamRequest {
 
 /**
  * Request body for generation stream
+ * Uses generated type from OpenAPI schema
  */
-export interface GenerateResourceStreamRequest {
-  title?: string;
-  prompt?: string;
-  language?: string;
-}
+export type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
 
 /**
  * Request body for highlight detection stream
@@ -240,7 +238,7 @@ export class SSEClient {
   generateResourceFromAnnotation(
     resourceId: ResourceUri,
     annotationId: AnnotationUri,
-    request: GenerateResourceStreamRequest = {}
+    request: GenerateResourceStreamRequest
   ): SSEStream<GenerationProgress, GenerationProgress> {
     const resId = this.extractId(resourceId);
     const annId = this.extractId(annotationId);

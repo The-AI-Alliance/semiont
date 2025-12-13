@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "description": "Context information used for AI generation. Includes source document excerpts and metadata.",
+  "properties": {
+    "sourceContext": {
+      "type": "object",
+      "description": "Text context from the source document",
+      "properties": {
+        "before": {
+          "type": "string",
+          "description": "Text appearing before the selected passage"
+        },
+        "selected": {
+          "type": "string",
+          "description": "The selected text passage (the annotation target)"
+        },
+        "after": {
+          "type": "string",
+          "description": "Text appearing after the selected passage"
+        }
+      },
+      "required": ["selected"]
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional context metadata (reserved for future use)",
+      "properties": {
+        "resourceType": {
+          "type": "string",
+          "description": "Type of source resource (e.g., 'document', 'image', 'video')"
+        },
+        "language": {
+          "type": "string",
+          "description": "BCP 47 language tag of source content"
+        },
+        "entityTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Entity types associated with the annotation"
+        }
+      }
+    }
+  },
+  "required": ["sourceContext"]
+}

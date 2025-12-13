@@ -13,7 +13,8 @@
 
 import { generateResourceSummary } from '../inference/factory';
 import { getBodySource, getTargetSource, getTargetSelector } from '../lib/annotation-utils';
-import type { components, AnnotationUri } from '@semiont/api-client';
+import type { components, AnnotationUri, GenerationContext } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes, decodeRepresentation } from '../utils/resource-helpers';
 import { FilesystemViewStorage } from '../storage/view-storage';
@@ -196,11 +197,26 @@ export class AnnotationContextService {
     // TODO: Generate suggested resolution using AI
     const suggestedResolution = undefined;
 
+    // Build GenerationContext structure
+    const generationContext: GenerationContext | undefined = sourceContext ? {
+      sourceContext: {
+        before: sourceContext.before || '',
+        selected: sourceContext.selected,
+        after: sourceContext.after || '',
+      },
+      metadata: {
+        resourceType: 'document',
+        language: sourceDoc.language as string | undefined,
+        entityTypes: getEntityTypes(annotation),
+      },
+    } : undefined;
+
     const response: AnnotationLLMContextResponse = {
       annotation,
       sourceResource: sourceDoc,
       targetResource: targetDoc,
-      ...(sourceContext ? { sourceContext } : {}),
+      ...(generationContext ? { context: generationContext } : {}),
+      ...(sourceContext ? { sourceContext } : {}),  // Keep for backward compatibility
       ...(targetContext ? { targetContext } : {}),
       ...(suggestedResolution ? { suggestedResolution } : {}),
     };

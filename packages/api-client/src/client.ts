@@ -395,6 +395,22 @@ export class SemiontApiClient {
     return this.http.get(`${resourceUri}/annotations`).json();
   }
 
+  async getAnnotationLLMContext(
+    resourceUri: ResourceUri,
+    annotationId: string,
+    options?: { contextWindow?: number }
+  ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/llm-context']['get']>> {
+    const searchParams = new URLSearchParams();
+    if (options?.contextWindow) {
+      searchParams.append('contextWindow', options.contextWindow.toString());
+    }
+    // resourceUri is already a full URI, use it directly
+    return this.http.get(
+      `${resourceUri}/annotations/${annotationId}/llm-context`,
+      { searchParams }
+    ).json();
+  }
+
   async getResourceReferencedBy(resourceUri: ResourceUri): Promise<{ referencedBy: any[] }> {
     // resourceUri is already a full URI, use it directly
     return this.http.get(`${resourceUri}/referenced-by`).json();
@@ -582,22 +598,6 @@ export class SemiontApiClient {
     if (options?.includeSummary !== undefined) searchParams.append('includeSummary', options.includeSummary.toString());
 
     return this.http.get(`${resourceUri}/llm-context`, { searchParams }).json();
-  }
-
-  async getAnnotationLLMContext(
-    annotationUri: ResourceAnnotationUri,
-    options?: {
-      includeSourceContext?: boolean;
-      includeTargetContext?: boolean;
-      contextWindow?: number;
-    }
-  ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/llm-context']['get']>> {
-    const searchParams = new URLSearchParams();
-    if (options?.includeSourceContext !== undefined) searchParams.append('includeSourceContext', options.includeSourceContext.toString());
-    if (options?.includeTargetContext !== undefined) searchParams.append('includeTargetContext', options.includeTargetContext.toString());
-    if (options?.contextWindow !== undefined) searchParams.append('contextWindow', options.contextWindow.toString());
-
-    return this.http.get(`${annotationUri}/llm-context`, { searchParams }).json();
   }
 
   // ============================================================================

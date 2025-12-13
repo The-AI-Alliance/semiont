@@ -13,7 +13,7 @@ import { ResourceViewer } from '@/components/resource/ResourceViewer';
 import { ResourceTagsInline } from '@/components/ResourceTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
-import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
+import type { components, ResourceUri, ContentFormat, GenerationContext } from '@semiont/api-client';
 import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, searchQuery, getAnnotationExactText, entityType } from '@semiont/api-client';
 import { groupAnnotationsByType, withHandlers, createDetectionHandler, createCancelDetectionHandler, ANNOTATORS } from '@/lib/annotation-registry';
 import { supportsDetection } from '@/lib/resource-utils';
@@ -42,6 +42,7 @@ import { JsonLdPanel } from '@/components/resource/panels/JsonLdPanel';
 import { Toolbar } from '@/components/Toolbar';
 import { annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
+import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
 
 // Loading state component
 function ResourceLoadingState() {
@@ -291,6 +292,11 @@ function ResourceView({
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
 
+  // Generation config modal state
+  const [generationModalOpen, setGenerationModalOpen] = useState(false);
+  const [generationReferenceId, setGenerationReferenceId] = useState<string | null>(null);
+  const [generationDefaultTitle, setGenerationDefaultTitle] = useState('');
+
   // Unified detection state (motivation-based)
   const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
   const [motivationDetectionProgress, setMotivationDetectionProgress] = useState<{
@@ -452,19 +458,40 @@ function ResourceView({
   );
 
   // Handle document generation from stub reference
-  const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
+  const handleGenerateDocument = useCallback((
+    referenceId: string,
+    options: {
+      title: string;
+      prompt?: string;
+      language?: string;
+      temperature?: number;
+      maxTokens?: number;
+      context?: GenerationContext;
+    }
+  ) => {
+    // Only open modal if this is the initial click (no context provided)
+    if (!options.context) {
+      setGenerationReferenceId(referenceId);
+      setGenerationDefaultTitle(options.title);
+      setGenerationModalOpen(true);
+      return;
+    }
+
+    // Modal submitted with full options including context - proceed with generation
+    if (!resource) return;
+
     // Clear CSS sparkle animation if reference was recently created
-    // (it may still be in newAnnotationIds with a 6-second timer from creation)
-    // We only want the widget sparkle (✨ emoji) during generation, not the CSS pulse
-    // referenceId is already a full W3C-compliant URI from the API
     clearNewAnnotationId(annotationUri(referenceId));
 
     // Widget sparkle (✨ emoji) will show automatically during generation via generatingReferenceId
-    // Pass language (using locale from Next.js routing) to ensure generated content is in the user's preferred language
-    const optionsWithLanguage = { ...options, language: locale };
     // Use full resource URI (W3C Web Annotation spec requires URIs)
     const resourceUriStr = resource['@id'];
-    startGeneration(annotationUri(referenceId), resourceUri(resourceUriStr), optionsWithLanguage);
+    startGeneration(annotationUri(referenceId), resourceUri(resourceUriStr), {
+      ...options,
+      // Use language from modal if provided, otherwise fall back to current locale
+      language: options.language || locale,
+      context: options.context // TypeScript knows context exists due to check above
+    });
   }, [startGeneration, resource, clearNewAnnotationId, locale]);
 
   // Handle search for documents to link to reference
@@ -1020,6 +1047,23 @@ function ResourceView({
           }
         }}
         searchTerm={searchTerm}
+      />
+
+      {/* Generation Config Modal */}
+      <GenerationConfigModal
+        isOpen={generationModalOpen}
+        onClose={() => {
+          setGenerationModalOpen(false);
+          setGenerationReferenceId(null);
+        }}
+        onGenerate={(options) => {
+          if (generationReferenceId) {
+            handleGenerateDocument(generationReferenceId, options);
+          }
+        }}
+        referenceId={generationReferenceId || ''}
+        resourceUri={rUri}
+        defaultTitle={generationDefaultTitle}
       />
     </div>
   );

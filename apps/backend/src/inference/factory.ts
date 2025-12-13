@@ -1,9 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getLocaleEnglishName } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
+import type { GenerationContext } from '@semiont/api-client';
 import type { EnvironmentConfig } from '@semiont/core';
-
-type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
 function getLanguageName(locale: string): string {
   return getLocaleEnglishName(locale) || locale;
@@ -112,18 +110,27 @@ export async function generateResourceFromTopic(
   config: EnvironmentConfig,
   userPrompt?: string,
   locale?: string,
-  llmContext?: AnnotationLLMContextResponse
+  context?: GenerationContext,
+  temperature?: number,
+  maxTokens?: number
 ): Promise<{ title: string; content: string }> {
   console.log('generateResourceFromTopic called with:', {
     topic: topic.substring(0, 100),
     entityTypes,
     hasUserPrompt: !!userPrompt,
-    locale
+    locale,
+    hasContext: !!context,
+    temperature,
+    maxTokens
   });
 
   const inferenceConfig = config.services.inference;
   const provider = inferenceConfig?.type || 'anthropic';
   console.log('Using provider:', provider, 'with model:', inferenceConfig?.model);
+
+  // Use provided values or defaults
+  const finalTemperature = temperature ?? 0.7;
+  const finalMaxTokens = maxTokens ?? 500;
 
   // Determine language instruction
   const languageInstruction = locale && locale !== 'en'
@@ -132,8 +139,8 @@ export async function generateResourceFromTopic(
 
   // Build context section if available
   let contextSection = '';
-  if (llmContext?.sourceContext) {
-    const { before, selected, after } = llmContext.sourceContext;
+  if (context?.sourceContext) {
+    const { before, selected, after } = context.sourceContext;
     contextSection = `\n\nSource document context:
 ---
 ${before ? `...${before}` : ''}
@@ -183,8 +190,8 @@ Requirements:
     };
   };
 
-  console.log('Sending prompt to inference (length:', prompt.length, 'chars)');
-  const response = await generateText(prompt, config, 500, 0.7);
+  console.log('Sending prompt to inference (length:', prompt.length, 'chars)', 'temp:', finalTemperature, 'maxTokens:', finalMaxTokens);
+  const response = await generateText(prompt, config, finalMaxTokens, finalTemperature);
   console.log('Got raw response (length:', response.length, 'chars)');
 
   const result = parseResponse(response);

@@ -17,8 +17,13 @@
         }
       ]
     },
+    "context": {
+      "$ref": "./GenerationContext.json",
+      "description": "Generation context for this annotation"
+    },
     "sourceContext": {
       "type": "object",
+      "description": "DEPRECATED: Use 'context' instead. Legacy source context format.",
       "properties": {
         "before": {
           "type": "string"

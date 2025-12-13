@@ -5,11 +5,9 @@
  * They are completely independent of HTTP request/response cycles.
  */
 
-import type { components } from '@semiont/api-client';
+import type { GenerationContext } from '@semiont/api-client';
 import type { JobId, EntityType } from '@semiont/api-client';
 import type { ResourceId, UserId, AnnotationId } from '@semiont/core';
-
-type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
 export type JobType = 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
@@ -62,7 +60,9 @@ export interface GenerationJob extends BaseJob {
   title?: string;
   entityTypes?: EntityType[];
   language?: string;
-  llmContext?: AnnotationLLMContextResponse;  // Pre-fetched context from annotation-llm-context endpoint
+  context?: GenerationContext;  // Generation context (required for generation to proceed)
+  temperature?: number;         // AI inference temperature (0.0-1.0)
+  maxTokens?: number;           // Maximum tokens to generate
   progress?: {
     stage: 'fetching' | 'generating' | 'creating' | 'linking';
     percentage: number;
