@@ -317,16 +317,25 @@ Example format:
 
       // Validate and correct AI's offsets, then extract proper context
       // AI sometimes returns offsets that don't match the actual text position
-      return valid.map(comment => {
-        const validated = validateAndCorrectOffsets(content, comment.start, comment.end, comment.exact);
-        return {
-          ...comment,
-          start: validated.start,
-          end: validated.end,
-          prefix: validated.prefix,
-          suffix: validated.suffix
-        };
-      });
+      const validatedComments: CommentMatch[] = [];
+
+      for (const comment of valid) {
+        try {
+          const validated = validateAndCorrectOffsets(content, comment.start, comment.end, comment.exact);
+          validatedComments.push({
+            ...comment,
+            start: validated.start,
+            end: validated.end,
+            prefix: validated.prefix,
+            suffix: validated.suffix
+          });
+        } catch (error) {
+          console.warn(`[CommentDetectionWorker] Skipping invalid comment "${comment.exact}":`, error);
+          // Skip this comment - AI hallucinated text that doesn't exist
+        }
+      }
+
+      return validatedComments;
     } catch (error) {
       console.error('[CommentDetectionWorker] Failed to parse AI response:', error);
       return [];

@@ -283,16 +283,25 @@ Example format:
 
       // Validate and correct AI's offsets, then extract proper context
       // AI sometimes returns offsets that don't match the actual text position
-      return highlights.map(highlight => {
-        const validated = validateAndCorrectOffsets(content, highlight.start, highlight.end, highlight.exact);
-        return {
-          ...highlight,
-          start: validated.start,
-          end: validated.end,
-          prefix: validated.prefix,
-          suffix: validated.suffix
-        };
-      });
+      const validatedHighlights: HighlightMatch[] = [];
+
+      for (const highlight of highlights) {
+        try {
+          const validated = validateAndCorrectOffsets(content, highlight.start, highlight.end, highlight.exact);
+          validatedHighlights.push({
+            ...highlight,
+            start: validated.start,
+            end: validated.end,
+            prefix: validated.prefix,
+            suffix: validated.suffix
+          });
+        } catch (error) {
+          console.warn(`[HighlightDetectionWorker] Skipping invalid highlight "${highlight.exact}":`, error);
+          // Skip this highlight - AI hallucinated text that doesn't exist
+        }
+      }
+
+      return validatedHighlights;
     } catch (error) {
       console.error('[HighlightDetectionWorker] Failed to parse AI response:', error);
       console.error('Raw response:', response);

@@ -90,25 +90,135 @@ export interface ValidatedAnnotation {
   prefix?: string;
   suffix?: string;
   corrected: boolean; // True if offsets were adjusted from AI's original values
+  fuzzyMatched?: boolean; // True if we had to use fuzzy matching (minor text differences)
+  matchQuality?: 'exact' | 'case-insensitive' | 'fuzzy'; // How we found the match
 }
 
 /**
- * Validate and correct AI-provided annotation offsets
+ * Calculate Levenshtein distance between two strings
+ * Used for fuzzy matching when exact text doesn't match
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+  const len1 = str1.length;
+  const len2 = str2.length;
+  const matrix: number[][] = [];
+
+  // Initialize matrix
+  for (let i = 0; i <= len1; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= len2; j++) {
+    matrix[0]![j] = j;
+  }
+
+  // Fill matrix
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      const deletion = matrix[i - 1]![j]! + 1;
+      const insertion = matrix[i]![j - 1]! + 1;
+      const substitution = matrix[i - 1]![j - 1]! + cost;
+      matrix[i]![j] = Math.min(deletion, insertion, substitution);
+    }
+  }
+
+  return matrix[len1]![len2]!;
+}
+
+/**
+ * Find best match for text in content using various strategies
+ * Returns { start, end, matchQuality } or null if no acceptable match found
+ */
+function findBestMatch(
+  content: string,
+  searchText: string,
+  aiStart: number,
+  aiEnd: number
+): { start: number; end: number; matchQuality: 'exact' | 'case-insensitive' | 'fuzzy' } | null {
+  const maxFuzzyDistance = Math.max(5, Math.floor(searchText.length * 0.05)); // 5% tolerance or minimum 5 chars
+
+  // Strategy 1: Exact match (case-sensitive)
+  const exactIndex = content.indexOf(searchText);
+  if (exactIndex !== -1) {
+    return {
+      start: exactIndex,
+      end: exactIndex + searchText.length,
+      matchQuality: 'exact'
+    };
+  }
+
+  console.log('[findBestMatch] Exact match failed, trying case-insensitive...');
+
+  // Strategy 2: Case-insensitive match
+  const lowerContent = content.toLowerCase();
+  const lowerSearch = searchText.toLowerCase();
+  const caseInsensitiveIndex = lowerContent.indexOf(lowerSearch);
+  if (caseInsensitiveIndex !== -1) {
+    console.log('[findBestMatch] Found case-insensitive match');
+    return {
+      start: caseInsensitiveIndex,
+      end: caseInsensitiveIndex + searchText.length,
+      matchQuality: 'case-insensitive'
+    };
+  }
+
+  console.log('[findBestMatch] Case-insensitive failed, trying fuzzy match...');
+
+  // Strategy 3: Fuzzy match using sliding window
+  // Search near AI's suggested position first, then expand outward
+  const windowSize = searchText.length;
+  const searchRadius = Math.min(500, content.length); // Search within 500 chars of AI position
+  const searchStart = Math.max(0, aiStart - searchRadius);
+  const searchEnd = Math.min(content.length, aiEnd + searchRadius);
+
+  let bestMatch: { start: number; distance: number } | null = null;
+
+  // Scan through content with sliding window
+  for (let i = searchStart; i <= searchEnd - windowSize; i++) {
+    const candidate = content.substring(i, i + windowSize);
+    const distance = levenshteinDistance(searchText, candidate);
+
+    if (distance <= maxFuzzyDistance) {
+      if (!bestMatch || distance < bestMatch.distance) {
+        bestMatch = { start: i, distance };
+        console.log(`[findBestMatch] Found fuzzy match at ${i} with distance ${distance}`);
+      }
+    }
+  }
+
+  if (bestMatch) {
+    return {
+      start: bestMatch.start,
+      end: bestMatch.start + windowSize,
+      matchQuality: 'fuzzy'
+    };
+  }
+
+  console.log('[findBestMatch] No acceptable match found');
+  return null;
+}
+
+/**
+ * Validate and correct AI-provided annotation offsets with fuzzy matching tolerance
  *
- * AI models sometimes return offsets that don't match the actual text position.
- * This function:
- * 1. Validates that content.substring(start, end) === exact
- * 2. If validation fails, searches for the exact text in content
- * 3. Returns corrected offsets and proper prefix/suffix context
+ * AI models sometimes return offsets that don't match the actual text position,
+ * or provide text with minor variations (case differences, whitespace, typos).
  *
- * This ensures TextPositionSelector and TextQuoteSelector are always consistent.
+ * This function uses a multi-strategy approach:
+ * 1. Check if AI's offsets are exactly correct
+ * 2. Try exact case-sensitive search
+ * 3. Try case-insensitive search
+ * 4. Try fuzzy matching with Levenshtein distance (5% tolerance)
+ *
+ * This ensures we're maximally tolerant of AI errors while still maintaining
+ * annotation quality and logging what corrections were made.
  *
  * @param content - Full text content
  * @param aiStart - Start offset from AI
  * @param aiEnd - End offset from AI
- * @param exact - The exact text that should be at this position
+ * @param exact - The exact text that should be at this position (from AI)
  * @returns Validated annotation with corrected offsets and context
- * @throws Error if exact text cannot be found in content
+ * @throws Error if no acceptable match can be found
  *
  * @example
  * ```typescript
@@ -119,7 +229,7 @@ export interface ValidatedAnnotation {
  *   1289,
  *   "the question \"whether..."
  * );
- * // Returns: { start: 1161, end: 1303, exact: "...", corrected: true, prefix: "...", suffix: "..." }
+ * // Returns: { start: 1161, end: 1303, exact: "...", corrected: true, matchQuality: 'exact', ... }
  * ```
  */
 export function validateAndCorrectOffsets(
@@ -128,11 +238,14 @@ export function validateAndCorrectOffsets(
   aiEnd: number,
   exact: string
 ): ValidatedAnnotation {
+  const exactPreview = exact.length > 50 ? exact.substring(0, 50) + '...' : exact;
+
   // First, check if AI's offsets are correct
   const textAtOffset = content.substring(aiStart, aiEnd);
 
   if (textAtOffset === exact) {
     // AI got it right! Just add proper context
+    console.log(`[validateAndCorrectOffsets] ✓ Offsets correct for: "${exactPreview}"`);
     const context = extractContext(content, aiStart, aiEnd);
     return {
       start: aiStart,
@@ -140,51 +253,75 @@ export function validateAndCorrectOffsets(
       exact,
       prefix: context.prefix,
       suffix: context.suffix,
-      corrected: false
+      corrected: false,
+      matchQuality: 'exact'
     };
   }
 
-  // AI's offsets are wrong - search for the exact text
-  const exactPreview = exact.length > 50 ? exact.substring(0, 50) + '...' : exact;
+  // AI's offsets are wrong - try to find the text using multiple strategies
   const foundPreview = textAtOffset.length > 50 ? textAtOffset.substring(0, 50) + '...' : textAtOffset;
 
   console.warn(
-    '[validateAndCorrectOffsets] AI offset mismatch:\n' +
-    `  Expected: "${exactPreview}"\n` +
-    `  Found at offset: "${foundPreview}"\n` +
-    '  Searching for correct position...'
+    '[validateAndCorrectOffsets] ⚠ AI offset mismatch:\n' +
+    `  Expected text: "${exactPreview}"\n` +
+    `  Found at AI offset (${aiStart}-${aiEnd}): "${foundPreview}"\n` +
+    `  Attempting multi-strategy search...`
   );
 
-  const correctStart = content.indexOf(exact);
+  const match = findBestMatch(content, exact, aiStart, aiEnd);
 
-  if (correctStart === -1) {
+  if (!match) {
     const exactLong = exact.length > 100 ? exact.substring(0, 100) + '...' : exact;
-    throw new Error(
-      'Cannot find exact text in content. AI provided:\n' +
-      `  Start: ${aiStart}, End: ${aiEnd}\n` +
-      `  Exact: "${exactLong}"\n` +
+    console.error(
+      '[validateAndCorrectOffsets] ✗ No acceptable match found:\n' +
+      `  AI offsets: start=${aiStart}, end=${aiEnd}\n` +
+      `  AI text: "${exactLong}"\n` +
+      `  Text at AI offset: "${foundPreview}"\n` +
+      '  All search strategies (exact, case-insensitive, fuzzy) failed.\n' +
       '  This suggests the AI hallucinated text that doesn\'t exist in the document.'
+    );
+    throw new Error(
+      'Cannot find acceptable match for text in content. ' +
+      'All search strategies failed. Text may be hallucinated.'
     );
   }
 
-  const correctEnd = correctStart + exact.length;
+  // Found a match! Extract the actual text from content
+  const actualText = content.substring(match.start, match.end);
+  const actualPreview = actualText.length > 50 ? actualText.substring(0, 50) + '...' : actualText;
+
+  const offsetDelta = match.start - aiStart;
+  const matchSymbol = match.matchQuality === 'exact' ? '✓' : match.matchQuality === 'case-insensitive' ? '≈' : '~';
 
   console.warn(
-    '[validateAndCorrectOffsets] Corrected offsets:\n' +
-    `  AI said: start=${aiStart}, end=${aiEnd}\n` +
-    `  Actual: start=${correctStart}, end=${correctEnd}\n` +
-    `  Offset delta: ${correctStart - aiStart} characters`
+    `[validateAndCorrectOffsets] ${matchSymbol} Found ${match.matchQuality} match:\n` +
+    `  AI offsets: start=${aiStart}, end=${aiEnd}\n` +
+    `  Corrected: start=${match.start}, end=${match.end}\n` +
+    `  Offset delta: ${offsetDelta} characters\n` +
+    `  Actual text: "${actualPreview}"`
   );
 
+  // If fuzzy match, log the difference for debugging
+  if (match.matchQuality === 'fuzzy') {
+    console.warn(
+      '[validateAndCorrectOffsets] Fuzzy match details:\n' +
+      `  AI provided: "${exactPreview}"\n` +
+      `  Found in doc: "${actualPreview}"\n` +
+      '  Minor text differences detected - using document version'
+    );
+  }
+
   // Extract context using corrected offsets
-  const context = extractContext(content, correctStart, correctEnd);
+  const context = extractContext(content, match.start, match.end);
 
   return {
-    start: correctStart,
-    end: correctEnd,
-    exact,
+    start: match.start,
+    end: match.end,
+    exact: actualText, // Use actual text from document, not AI's version
     prefix: context.prefix,
     suffix: context.suffix,
-    corrected: true
+    corrected: true,
+    fuzzyMatched: match.matchQuality !== 'exact',
+    matchQuality: match.matchQuality
   };
 }

@@ -93,26 +93,31 @@ export class ReferenceDetectionWorker extends JobWorker {
       // Validate and correct AI's offsets, then extract proper context
       // AI sometimes returns offsets that don't match the actual text position
       for (const entity of extractedEntities) {
-        const validated = validateAndCorrectOffsets(
-          content,
-          entity.startOffset,
-          entity.endOffset,
-          entity.exact
-        );
+        try {
+          const validated = validateAndCorrectOffsets(
+            content,
+            entity.startOffset,
+            entity.endOffset,
+            entity.exact
+          );
 
-        const annotation: DetectedAnnotation = {
-          annotation: {
-            selector: {
-              start: validated.start,
-              end: validated.end,
-              exact: validated.exact,
-              prefix: validated.prefix,
-              suffix: validated.suffix,
+          const annotation: DetectedAnnotation = {
+            annotation: {
+              selector: {
+                start: validated.start,
+                end: validated.end,
+                exact: validated.exact,
+                prefix: validated.prefix,
+                suffix: validated.suffix,
+              },
+              entityTypes: [entity.entityType],
             },
-            entityTypes: [entity.entityType],
-          },
-        };
-        detectedAnnotations.push(annotation);
+          };
+          detectedAnnotations.push(annotation);
+        } catch (error) {
+          console.warn(`[ReferenceDetectionWorker] Skipping invalid entity "${entity.exact}":`, error);
+          // Skip this entity - AI hallucinated text that doesn't exist
+        }
       }
     }
 

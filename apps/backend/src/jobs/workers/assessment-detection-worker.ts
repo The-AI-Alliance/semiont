@@ -299,16 +299,25 @@ Example format:
 
       // Validate and correct AI's offsets, then extract proper context
       // AI sometimes returns offsets that don't match the actual text position
-      return assessments.map(assessment => {
-        const validated = validateAndCorrectOffsets(content, assessment.start, assessment.end, assessment.exact);
-        return {
-          ...assessment,
-          start: validated.start,
-          end: validated.end,
-          prefix: validated.prefix,
-          suffix: validated.suffix
-        };
-      });
+      const validatedAssessments: AssessmentMatch[] = [];
+
+      for (const assessment of assessments) {
+        try {
+          const validated = validateAndCorrectOffsets(content, assessment.start, assessment.end, assessment.exact);
+          validatedAssessments.push({
+            ...assessment,
+            start: validated.start,
+            end: validated.end,
+            prefix: validated.prefix,
+            suffix: validated.suffix
+          });
+        } catch (error) {
+          console.warn(`[AssessmentDetectionWorker] Skipping invalid assessment "${assessment.exact}":`, error);
+          // Skip this assessment - AI hallucinated text that doesn't exist
+        }
+      }
+
+      return validatedAssessments;
     } catch (error) {
       console.error('[AssessmentDetectionWorker] Failed to parse AI response:', error);
       console.error('Raw response:', response);

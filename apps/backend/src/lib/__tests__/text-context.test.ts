@@ -215,6 +215,8 @@ describe('validateAndCorrectOffsets - AI Offset Validation', () => {
     expect(result.end).toBe(end);
     expect(result.exact).toBe(exact);
     expect(result.corrected).toBe(false);
+    expect(result.matchQuality).toBe('exact');
+    expect(result.fuzzyMatched).toBeUndefined();
     expect(result.prefix).toBe('The ');
     expect(result.suffix).toBe(' jumps over the lazy dog');
   });
@@ -235,6 +237,8 @@ describe('validateAndCorrectOffsets - AI Offset Validation', () => {
     expect(result.end).toBe(correctEnd);
     expect(result.exact).toBe(exact);
     expect(result.corrected).toBe(true);
+    expect(result.matchQuality).toBe('exact');
+    expect(result.fuzzyMatched).toBe(false);
     expect(result.prefix).toBe('The quick ');
     expect(result.suffix).toBe(' jumps over the lazy dog');
   });
@@ -277,7 +281,7 @@ describe('validateAndCorrectOffsets - AI Offset Validation', () => {
 
     expect(() => {
       validateAndCorrectOffsets(content, aiStart, aiEnd, exact);
-    }).toThrow('Cannot find exact text in content');
+    }).toThrow('Cannot find acceptable match');
   });
 
   it('should handle exact text appearing multiple times (finds first occurrence)', () => {
@@ -330,5 +334,86 @@ describe('validateAndCorrectOffsets - AI Offset Validation', () => {
     expect(result.end).toBe(correctEnd);
     expect(result.corrected).toBe(false);
     expect(content.substring(result.start, result.end)).toBe(exact);
+  });
+
+  it('should handle case-insensitive match when exact case differs', () => {
+    const content = 'The Quick Brown Fox jumps over the lazy dog';
+    const exact = 'quick brown fox'; // AI provided lowercase
+    const wrongStart = 0;
+    const wrongEnd = 15;
+
+    const result = validateAndCorrectOffsets(content, wrongStart, wrongEnd, exact);
+
+    // Should find "Quick Brown Fox" despite case difference
+    expect(result.corrected).toBe(true);
+    expect(result.matchQuality).toBe('case-insensitive');
+    expect(result.fuzzyMatched).toBe(true);
+    expect(result.exact).toBe('Quick Brown Fox'); // Uses document version
+    expect(result.start).toBe(4);
+    expect(result.end).toBe(19);
+  });
+
+  it('should handle fuzzy match with minor typos', () => {
+    const content = 'The plaintiff has jurisdiction over the defendant';
+    const exact = 'The plaintif has juridiction over the defenda'; // AI made typos
+    const wrongStart = 0;
+    const wrongEnd = exact.length; // 45 chars
+
+    const result = validateAndCorrectOffsets(content, wrongStart, wrongEnd, exact);
+
+    // Should find close match using Levenshtein distance (4 char difference)
+    expect(result.corrected).toBe(true);
+    expect(result.matchQuality).toBe('fuzzy');
+    expect(result.fuzzyMatched).toBe(true);
+    // Fuzzy match uses same length as input (sliding window)
+    expect(result.exact.length).toBe(exact.length);
+    expect(result.exact).toBe('The plaintiff has jurisdiction over the defen'); // Document version at same position/length
+    expect(result.start).toBe(0);
+  });
+
+  it('should handle fuzzy match within tolerance threshold', () => {
+    // Test 5% tolerance - 10 char string allows 1-2 char difference
+    const content = 'Hello world from the test suite';
+    const exact = 'Hello word'; // AI says "word" instead of "world"
+    const wrongStart = 0;
+    const wrongEnd = 10;
+
+    const result = validateAndCorrectOffsets(content, wrongStart, wrongEnd, exact);
+
+    // Should find "Hello worl" or similar close match
+    expect(result.corrected).toBe(true);
+    expect(result.fuzzyMatched).toBe(true);
+    expect(['fuzzy', 'exact']).toContain(result.matchQuality);
+  });
+
+  it('should throw on text that is too different (exceeds fuzzy threshold)', () => {
+    const content = 'The quick brown fox jumps over the lazy dog';
+    const exact = 'Completely different and unrelated text goes here now'; // Totally different, longer
+    const wrongStart = 0;
+    const wrongEnd = exact.length;
+
+    expect(() => {
+      validateAndCorrectOffsets(content, wrongStart, wrongEnd, exact);
+    }).toThrow('Cannot find acceptable match');
+  });
+
+  it('should search near AI position first (fuzzy match)', () => {
+    // When text with typos appears, fuzzy search finds the best match
+    const content = 'Start: The slow cat. Middle: The quick fox is here. End: The lazy dog.';
+    const exact = 'The quik fox'; // AI typo: "quik" instead of "quick" (12 chars)
+    const aiStart = 30; // Points near middle section where "The quick fox" appears
+    const aiEnd = aiStart + exact.length;
+
+    const result = validateAndCorrectOffsets(content, aiStart, aiEnd, exact);
+
+    // Should find fuzzy match for 12-char window
+    expect(result.corrected).toBe(true);
+    expect(result.fuzzyMatched).toBe(true);
+    expect(result.matchQuality).toBe('fuzzy');
+    // The result should be 12 characters (same length as input)
+    expect(result.exact.length).toBe(12);
+    // Should match part of "The quick fox"
+    expect(result.start).toBeGreaterThanOrEqual(28);
+    expect(result.start).toBeLessThanOrEqual(32);
   });
 });
