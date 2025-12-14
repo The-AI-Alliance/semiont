@@ -14,6 +14,7 @@ import { resourceIdToURI } from '../../lib/uri-utils';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
 import { generateText } from '../../inference/factory';
+import { extractContext } from '../../lib/text-context';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 
@@ -274,11 +275,22 @@ Example format:
       }
 
       // Validate and filter results
-      return parsed.filter((h: any) =>
+      const highlights = parsed.filter((h: any) =>
         h && typeof h.exact === 'string' &&
         typeof h.start === 'number' &&
         typeof h.end === 'number'
       );
+
+      // Extract proper context with word boundaries for each highlight
+      // This replaces the AI's prefix/suffix which may cut words in half
+      return highlights.map(highlight => {
+        const context = extractContext(content, highlight.start, highlight.end);
+        return {
+          ...highlight,
+          prefix: context.prefix,
+          suffix: context.suffix
+        };
+      });
     } catch (error) {
       console.error('[HighlightDetectionWorker] Failed to parse AI response:', error);
       console.error('Raw response:', response);

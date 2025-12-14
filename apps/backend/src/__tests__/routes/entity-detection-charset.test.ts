@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { detectAnnotationsInResource } from '../../routes/resources/helpers';
+import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import type { components } from '@semiont/api-client';
 import type { EnvironmentConfig } from '@semiont/core';
@@ -43,6 +43,7 @@ vi.mock('../../inference/entity-extractor', () => ({
 describe('Entity Detection - Charset Handling', () => {
   let testDir: string;
   let config: EnvironmentConfig;
+  let worker: ReferenceDetectionWorker;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-charset-${Date.now()}`);
@@ -66,6 +67,8 @@ describe('Entity Detection - Charset Handling', () => {
         projectRoot: testDir
       },
     } as EnvironmentConfig;
+
+    worker = new ReferenceDetectionWorker(config);
   });
 
   afterAll(async () => {
@@ -100,7 +103,7 @@ describe('Entity Detection - Charset Handling', () => {
     };
 
     // Detect entities
-    const results = await detectAnnotationsInResource(resource, ['Person', 'Location'], config);
+    const results = await worker.detectReferences(resource, ['Person', 'Location']);
 
     // Verify entity offsets match original text
     expect(results).toHaveLength(2);
@@ -155,7 +158,7 @@ describe('Entity Detection - Charset Handling', () => {
     };
 
     // Detect entities
-    const results = await detectAnnotationsInResource(resource, ['Person', 'Location'], config);
+    const results = await worker.detectReferences(resource, ['Person', 'Location']);
 
     // Verify entity offsets match original text
     expect(results).toHaveLength(2);
@@ -211,7 +214,7 @@ describe('Entity Detection - Charset Handling', () => {
     };
 
     // Detect entities
-    const results = await detectAnnotationsInResource(resource, ['Person', 'Location'], config);
+    const results = await worker.detectReferences(resource, ['Person', 'Location']);
 
     // Verify offsets are correct
     expect(results).toHaveLength(2);
@@ -256,7 +259,7 @@ describe('Entity Detection - Charset Handling', () => {
     };
 
     // Detect entities
-    const results = await detectAnnotationsInResource(resource, ['Person', 'Location'], config);
+    const results = await worker.detectReferences(resource, ['Person', 'Location']);
 
     // Should find 2 Person entities and 1 Location entity
     expect(results).toHaveLength(3);
@@ -318,7 +321,7 @@ describe('Entity Detection - Charset Handling', () => {
     });
 
     // Detect entities
-    const results = await detectAnnotationsInResource(resource, ['Place'], config);
+    const results = await worker.detectReferences(resource, ['Place']);
 
     // Should find the entity with correct offset
     expect(results).toHaveLength(1);
@@ -362,7 +365,7 @@ describe('Entity Detection - Charset Handling', () => {
     };
 
     // Detect entities
-    const results = await detectAnnotationsInResource(resource, ['Person', 'Location'], config);
+    const results = await worker.detectReferences(resource, ['Person', 'Location']);
 
     // Should still work correctly with UTF-8 default
     expect(results).toHaveLength(2);

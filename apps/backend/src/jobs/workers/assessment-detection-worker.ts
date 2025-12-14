@@ -14,6 +14,7 @@ import { resourceIdToURI } from '../../lib/uri-utils';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
 import { generateText } from '../../inference/factory';
+import { extractContext } from '../../lib/text-context';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 
@@ -289,12 +290,23 @@ Example format:
       }
 
       // Validate and filter results
-      return parsed.filter((a: any) =>
+      const assessments = parsed.filter((a: any) =>
         a && typeof a.exact === 'string' &&
         typeof a.start === 'number' &&
         typeof a.end === 'number' &&
         typeof a.assessment === 'string'
       );
+
+      // Extract proper context with word boundaries for each assessment
+      // This replaces the AI's prefix/suffix which may cut words in half
+      return assessments.map(assessment => {
+        const context = extractContext(content, assessment.start, assessment.end);
+        return {
+          ...assessment,
+          prefix: context.prefix,
+          suffix: context.suffix
+        };
+      });
     } catch (error) {
       console.error('[AssessmentDetectionWorker] Failed to parse AI response:', error);
       console.error('Raw response:', response);

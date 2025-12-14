@@ -1,5 +1,5 @@
 /**
- * Detection Worker
+ * Reference Detection Worker
  *
  * Processes detection jobs: runs AI inference to find entities in resources
  * and emits reference.created events for each detected entity.
@@ -10,19 +10,38 @@
 import { JobWorker } from './job-worker';
 import type { Job, DetectionJob } from '../types';
 import { ResourceQueryService } from '../../services/resource-queries';
-import { detectAnnotationsInResource } from '../../routes/resources/helpers';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { resourceIdToURI } from '../../lib/uri-utils';
 import type { EnvironmentConfig } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+import { extractEntities } from '../../inference/entity-extractor';
+import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
+import { extractContext } from '../../lib/text-context';
 
-export class DetectionWorker extends JobWorker {
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+
+export interface DetectedAnnotation {
+  annotation: {
+    selector: {
+      start: number;
+      end: number;
+      exact: string;
+      prefix?: string;
+      suffix?: string;
+    };
+    entityTypes: string[];
+  };
+}
+
+export class ReferenceDetectionWorker extends JobWorker {
   constructor(private config: EnvironmentConfig) {
     super();
   }
 
   protected getWorkerName(): string {
-    return 'DetectionWorker';
+    return 'ReferenceDetectionWorker';
   }
 
   protected canProcessJob(job: Job): boolean {
@@ -37,9 +56,65 @@ export class DetectionWorker extends JobWorker {
     await this.processDetectionJob(job);
   }
 
+  /**
+   * Detect entity references in resource using AI
+   * Self-contained implementation for reference detection
+   *
+   * Public for testing charset handling - see entity-detection-charset.test.ts
+   */
+  public async detectReferences(
+    resource: ResourceDescriptor,
+    entityTypes: string[]
+  ): Promise<DetectedAnnotation[]> {
+    console.log(`Detecting entities of types: ${entityTypes.join(', ')}`);
+
+    const detectedAnnotations: DetectedAnnotation[] = [];
+
+    // Get primary representation
+    const primaryRep = getPrimaryRepresentation(resource);
+    if (!primaryRep) return detectedAnnotations;
+
+    // Only process text content (check base media type, ignoring charset parameters)
+    const mediaType = primaryRep.mediaType;
+    const baseMediaType = mediaType?.split(';')[0]?.trim() || '';
+    if (baseMediaType === 'text/plain' || baseMediaType === 'text/markdown') {
+      // Load content from representation store using content-addressed lookup
+      if (!primaryRep.checksum || !primaryRep.mediaType) return detectedAnnotations;
+
+      const basePath = this.config.services.filesystem!.path;
+      const projectRoot = this.config._metadata?.projectRoot;
+      const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
+      const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+      const content = decodeRepresentation(contentBuffer, primaryRep.mediaType);
+
+      // Use AI to extract entities
+      const extractedEntities = await extractEntities(content, entityTypes, this.config);
+
+      // Convert extracted entities to annotation format with prefix/suffix context
+      for (const entity of extractedEntities) {
+        const context = extractContext(content, entity.startOffset, entity.endOffset);
+
+        const annotation: DetectedAnnotation = {
+          annotation: {
+            selector: {
+              start: entity.startOffset,
+              end: entity.endOffset,
+              exact: entity.exact,
+              ...context, // Add prefix/suffix if available
+            },
+            entityTypes: [entity.entityType],
+          },
+        };
+        detectedAnnotations.push(annotation);
+      }
+    }
+
+    return detectedAnnotations;
+  }
+
   private async processDetectionJob(job: DetectionJob): Promise<void> {
-    console.log(`[DetectionWorker] Processing detection for resource ${job.resourceId} (job: ${job.id})`);
-    console.log(`[DetectionWorker] 🔍 Entity types: ${job.entityTypes.join(', ')}`);
+    console.log(`[ReferenceDetectionWorker] Processing detection for resource ${job.resourceId} (job: ${job.id})`);
+    console.log(`[ReferenceDetectionWorker] 🔍 Entity types: ${job.entityTypes.join(', ')}`);
 
     // Fetch resource content
     const resource = await ResourceQueryService.getResourceMetadata(job.resourceId, this.config);
@@ -67,17 +142,13 @@ export class DetectionWorker extends JobWorker {
 
       if (!entityType) continue;
 
-      console.log(`[DetectionWorker] 🤖 [${i + 1}/${job.entityTypes.length}] Detecting ${entityType}...`);
+      console.log(`[ReferenceDetectionWorker] 🤖 [${i + 1}/${job.entityTypes.length}] Detecting ${entityType}...`);
 
       // Detect entities using AI (loads content from filesystem internally)
-      const detectedAnnotations = await detectAnnotationsInResource(
-        resource,
-        [entityType],
-        this.config
-      );
+      const detectedAnnotations = await this.detectReferences(resource, [entityType]);
 
       totalFound += detectedAnnotations.length;
-      console.log(`[DetectionWorker] ✅ Found ${detectedAnnotations.length} ${entityType} entities`);
+      console.log(`[ReferenceDetectionWorker] ✅ Found ${detectedAnnotations.length} ${entityType} entities`);
 
       // Emit events for each detected entity
       // This happens INDEPENDENT of any HTTP client!
@@ -85,7 +156,7 @@ export class DetectionWorker extends JobWorker {
         const detected = detectedAnnotations[idx];
 
         if (!detected) {
-          console.warn(`[DetectionWorker] Skipping undefined entity at index ${idx}`);
+          console.warn(`[ReferenceDetectionWorker] Skipping undefined entity at index ${idx}`);
           continue;
         }
 
@@ -97,7 +168,7 @@ export class DetectionWorker extends JobWorker {
           }
           referenceId = generateAnnotationId(backendUrl);
         } catch (error) {
-          console.error(`[DetectionWorker] Failed to generate annotation ID:`, error);
+          console.error(`[ReferenceDetectionWorker] Failed to generate annotation ID:`, error);
           job.status = 'failed';
           job.error = 'Configuration error: Backend publicURL not set';
           await this.updateJobProgress(job);
@@ -146,17 +217,17 @@ export class DetectionWorker extends JobWorker {
           totalEmitted++;
 
           if ((idx + 1) % 10 === 0 || idx === detectedAnnotations.length - 1) {
-            console.log(`[DetectionWorker] 📤 Emitted ${idx + 1}/${detectedAnnotations.length} events for ${entityType}`);
+            console.log(`[ReferenceDetectionWorker] 📤 Emitted ${idx + 1}/${detectedAnnotations.length} events for ${entityType}`);
           }
 
         } catch (error) {
           totalErrors++;
-          console.error(`[DetectionWorker] ❌ Failed to emit event for ${referenceId}:`, error);
+          console.error(`[ReferenceDetectionWorker] ❌ Failed to emit event for ${referenceId}:`, error);
           // Continue processing other entities even if one fails
         }
       }
 
-      console.log(`[DetectionWorker] ✅ Completed ${entityType}: ${detectedAnnotations.length} found, ${detectedAnnotations.length - (totalErrors - (totalFound - totalEmitted))} emitted`);
+      console.log(`[ReferenceDetectionWorker] ✅ Completed ${entityType}: ${detectedAnnotations.length} found, ${detectedAnnotations.length - (totalErrors - (totalFound - totalEmitted))} emitted`);
 
       // Update progress after processing this entity type
       job.progress = {
@@ -176,7 +247,7 @@ export class DetectionWorker extends JobWorker {
       errors: totalErrors
     };
 
-    console.log(`[DetectionWorker] ✅ Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted, ${totalErrors} errors`);
+    console.log(`[ReferenceDetectionWorker] ✅ Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted, ${totalErrors} errors`);
   }
 
   protected override async handleJobFailure(job: Job, error: any): Promise<void> {

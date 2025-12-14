@@ -14,6 +14,7 @@ import { resourceIdToURI } from '../../lib/uri-utils';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
 import { generateText } from '../../inference/factory';
+import { extractContext } from '../../lib/text-context';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 
@@ -284,10 +285,10 @@ Example format:
     console.log(`[CommentDetectionWorker] Got response from AI`);
 
     // Parse and validate response
-    return this.parseComments(response);
+    return this.parseComments(response, content);
   }
 
-  private parseComments(response: string): CommentMatch[] {
+  private parseComments(response: string, content: string): CommentMatch[] {
     try {
       // Clean up markdown code fences if present
       let cleaned = response.trim();
@@ -314,7 +315,16 @@ Example format:
 
       console.log(`[CommentDetectionWorker] Parsed ${valid.length} valid comments from ${parsed.length} total`);
 
-      return valid;
+      // Extract proper context with word boundaries for each comment
+      // This replaces the AI's prefix/suffix which may cut words in half
+      return valid.map(comment => {
+        const context = extractContext(content, comment.start, comment.end);
+        return {
+          ...comment,
+          prefix: context.prefix,
+          suffix: context.suffix
+        };
+      });
     } catch (error) {
       console.error('[CommentDetectionWorker] Failed to parse AI response:', error);
       return [];
