@@ -14,7 +14,7 @@ import { resourceIdToURI } from '../../lib/uri-utils';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
 import { generateText } from '../../inference/factory';
-import { extractContext } from '../../lib/text-context';
+import { validateAndCorrectOffsets } from '../../lib/text-context';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 
@@ -297,14 +297,16 @@ Example format:
         typeof a.assessment === 'string'
       );
 
-      // Extract proper context with word boundaries for each assessment
-      // This replaces the AI's prefix/suffix which may cut words in half
+      // Validate and correct AI's offsets, then extract proper context
+      // AI sometimes returns offsets that don't match the actual text position
       return assessments.map(assessment => {
-        const context = extractContext(content, assessment.start, assessment.end);
+        const validated = validateAndCorrectOffsets(content, assessment.start, assessment.end, assessment.exact);
         return {
           ...assessment,
-          prefix: context.prefix,
-          suffix: context.suffix
+          start: validated.start,
+          end: validated.end,
+          prefix: validated.prefix,
+          suffix: validated.suffix
         };
       });
     } catch (error) {

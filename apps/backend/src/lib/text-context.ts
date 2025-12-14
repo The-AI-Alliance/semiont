@@ -79,3 +79,112 @@ export function extractContext(
 
   return { prefix, suffix };
 }
+
+/**
+ * Result of validating and correcting AI-provided annotation offsets
+ */
+export interface ValidatedAnnotation {
+  start: number;
+  end: number;
+  exact: string;
+  prefix?: string;
+  suffix?: string;
+  corrected: boolean; // True if offsets were adjusted from AI's original values
+}
+
+/**
+ * Validate and correct AI-provided annotation offsets
+ *
+ * AI models sometimes return offsets that don't match the actual text position.
+ * This function:
+ * 1. Validates that content.substring(start, end) === exact
+ * 2. If validation fails, searches for the exact text in content
+ * 3. Returns corrected offsets and proper prefix/suffix context
+ *
+ * This ensures TextPositionSelector and TextQuoteSelector are always consistent.
+ *
+ * @param content - Full text content
+ * @param aiStart - Start offset from AI
+ * @param aiEnd - End offset from AI
+ * @param exact - The exact text that should be at this position
+ * @returns Validated annotation with corrected offsets and context
+ * @throws Error if exact text cannot be found in content
+ *
+ * @example
+ * ```typescript
+ * // AI said start=1143, but actual text is at 1161
+ * const result = validateAndCorrectOffsets(
+ *   content,
+ *   1143,
+ *   1289,
+ *   "the question \"whether..."
+ * );
+ * // Returns: { start: 1161, end: 1303, exact: "...", corrected: true, prefix: "...", suffix: "..." }
+ * ```
+ */
+export function validateAndCorrectOffsets(
+  content: string,
+  aiStart: number,
+  aiEnd: number,
+  exact: string
+): ValidatedAnnotation {
+  // First, check if AI's offsets are correct
+  const textAtOffset = content.substring(aiStart, aiEnd);
+
+  if (textAtOffset === exact) {
+    // AI got it right! Just add proper context
+    const context = extractContext(content, aiStart, aiEnd);
+    return {
+      start: aiStart,
+      end: aiEnd,
+      exact,
+      prefix: context.prefix,
+      suffix: context.suffix,
+      corrected: false
+    };
+  }
+
+  // AI's offsets are wrong - search for the exact text
+  const exactPreview = exact.length > 50 ? exact.substring(0, 50) + '...' : exact;
+  const foundPreview = textAtOffset.length > 50 ? textAtOffset.substring(0, 50) + '...' : textAtOffset;
+
+  console.warn(
+    '[validateAndCorrectOffsets] AI offset mismatch:\n' +
+    `  Expected: "${exactPreview}"\n` +
+    `  Found at offset: "${foundPreview}"\n` +
+    '  Searching for correct position...'
+  );
+
+  const correctStart = content.indexOf(exact);
+
+  if (correctStart === -1) {
+    const exactLong = exact.length > 100 ? exact.substring(0, 100) + '...' : exact;
+    throw new Error(
+      'Cannot find exact text in content. AI provided:\n' +
+      `  Start: ${aiStart}, End: ${aiEnd}\n` +
+      `  Exact: "${exactLong}"\n` +
+      '  This suggests the AI hallucinated text that doesn\'t exist in the document.'
+    );
+  }
+
+  const correctEnd = correctStart + exact.length;
+
+  console.warn(
+    '[validateAndCorrectOffsets] Corrected offsets:\n' +
+    `  AI said: start=${aiStart}, end=${aiEnd}\n` +
+    `  Actual: start=${correctStart}, end=${correctEnd}\n` +
+    `  Offset delta: ${correctStart - aiStart} characters`
+  );
+
+  // Extract context using corrected offsets
+  const context = extractContext(content, correctStart, correctEnd);
+
+  return {
+    start: correctStart,
+    end: correctEnd,
+    exact,
+    prefix: context.prefix,
+    suffix: context.suffix,
+    corrected: true
+  };
+}

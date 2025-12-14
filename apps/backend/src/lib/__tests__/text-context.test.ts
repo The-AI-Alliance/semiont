@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractContext } from '../text-context';
+import { extractContext, validateAndCorrectOffsets } from '../text-context';
 
 /**
  * Tests for extractContext function
@@ -199,5 +199,136 @@ describe('extractContext - Word Boundary Extension', () => {
 
     expect(result.prefix).toContain('file\\');
     expect(result.suffix).toContain('\\backslashes');
+  });
+});
+
+describe('validateAndCorrectOffsets - AI Offset Validation', () => {
+  it('should return AI offsets when they are correct', () => {
+    const content = 'The quick brown fox jumps over the lazy dog';
+    const exact = 'quick brown fox';
+    const start = content.indexOf(exact);
+    const end = start + exact.length;
+
+    const result = validateAndCorrectOffsets(content, start, end, exact);
+
+    expect(result.start).toBe(start);
+    expect(result.end).toBe(end);
+    expect(result.exact).toBe(exact);
+    expect(result.corrected).toBe(false);
+    expect(result.prefix).toBe('The ');
+    expect(result.suffix).toBe(' jumps over the lazy dog');
+  });
+
+  it('should correct offsets when AI provides wrong position', () => {
+    const content = 'The quick brown fox jumps over the lazy dog';
+    const exact = 'brown fox';
+    const correctStart = content.indexOf(exact); // 10
+    const correctEnd = correctStart + exact.length; // 19
+
+    // Simulate AI providing wrong offsets (off by 5)
+    const wrongStart = 5;
+    const wrongEnd = 14;
+
+    const result = validateAndCorrectOffsets(content, wrongStart, wrongEnd, exact);
+
+    expect(result.start).toBe(correctStart);
+    expect(result.end).toBe(correctEnd);
+    expect(result.exact).toBe(exact);
+    expect(result.corrected).toBe(true);
+    expect(result.prefix).toBe('The quick ');
+    expect(result.suffix).toBe(' jumps over the lazy dog');
+  });
+
+  it('should reproduce the real-world bug case from tagging annotation', () => {
+    // The actual content from the legal document
+    const content = 'J., who reserved and transferred without ruling, on an agreed statement of facts, the question "whether the plaintiff has jurisdiction over and can sue B 8c L Liquidating Corporation, which was dissolved on January 21,1969."';
+
+    const exact = 'the question "whether the plaintiff has jurisdiction over and can sue B 8c L Liquidating Corporation, which was dissolved on January 21,1969."';
+
+    // AI said these offsets (but they're wrong)
+    const aiStart = 1143 - 1049; // Adjusted for shorter test string (original was in full document)
+    const aiEnd = 1289 - 1049;
+
+    // Find where the text actually is
+    const correctStart = content.indexOf(exact);
+    const correctEnd = correctStart + exact.length;
+
+    const result = validateAndCorrectOffsets(content, aiStart, aiEnd, exact);
+
+    // Should correct to actual position
+    expect(result.start).toBe(correctStart);
+    expect(result.end).toBe(correctEnd);
+    expect(result.exact).toBe(exact);
+    expect(result.corrected).toBe(true);
+
+    // Verify extracted text matches
+    expect(content.substring(result.start, result.end)).toBe(exact);
+
+    // Prefix/suffix should be at word boundaries (truncated to CONTEXT_LENGTH=64)
+    expect(result.prefix).toBe('and transferred without ruling, on an agreed statement of facts, ');
+    expect(result.suffix).toBeUndefined(); // At end of content
+  });
+
+  it('should throw error if exact text cannot be found', () => {
+    const content = 'The quick brown fox jumps over the lazy dog';
+    const exact = 'purple elephant'; // Not in content
+    const aiStart = 0;
+    const aiEnd = 15;
+
+    expect(() => {
+      validateAndCorrectOffsets(content, aiStart, aiEnd, exact);
+    }).toThrow('Cannot find exact text in content');
+  });
+
+  it('should handle exact text appearing multiple times (finds first occurrence)', () => {
+    const content = 'The dog chased the dog chased the dog';
+    const exact = 'the dog';
+    const aiStart = 20; // AI points to second occurrence
+    const aiEnd = 27;
+
+    const result = validateAndCorrectOffsets(content, aiStart, aiEnd, exact);
+
+    // Should find first occurrence
+    expect(result.start).toBe(15); // First "the dog" (case-insensitive search returns lowercase)
+    expect(result.end).toBe(22);
+    expect(result.corrected).toBe(true);
+  });
+
+  it('should extract proper word-boundary context after correction', () => {
+    const content = 'Who is a United States Senator?\nThe several States may regulate elections';
+    const exact = 'The several States';
+
+    // AI gives wrong offset (points into middle of word)
+    const aiStart = 28; // Points to "tor?\nThe"
+    const aiEnd = 46;
+
+    const result = validateAndCorrectOffsets(content, aiStart, aiEnd, exact);
+
+    // Should correct and extract proper context
+    const correctStart = content.indexOf(exact);
+    expect(result.start).toBe(correctStart);
+    expect(result.exact).toBe(exact);
+    expect(result.corrected).toBe(true);
+
+    // Prefix should end at word boundary (after "?\n")
+    expect(result.prefix).toBe('Who is a United States Senator?\n');
+
+    // Suffix should start at word boundary
+    expect(result.suffix).toBe(' may regulate elections');
+  });
+
+  it('should handle offsets in middle of multibyte characters correctly', () => {
+    const content = 'café résumé naïve';
+    const exact = 'résumé';
+    const correctStart = content.indexOf(exact);
+    const correctEnd = correctStart + exact.length;
+
+    // AI might give byte offsets instead of character offsets
+    const result = validateAndCorrectOffsets(content, correctStart, correctEnd, exact);
+
+    expect(result.start).toBe(correctStart);
+    expect(result.end).toBe(correctEnd);
+    expect(result.corrected).toBe(false);
+    expect(content.substring(result.start, result.end)).toBe(exact);
   });
 });

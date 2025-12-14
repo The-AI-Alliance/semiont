@@ -18,7 +18,7 @@ import type { components } from '@semiont/api-client';
 import { extractEntities } from '../../inference/entity-extractor';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
-import { extractContext } from '../../lib/text-context';
+import { validateAndCorrectOffsets } from '../../lib/text-context';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -90,17 +90,24 @@ export class ReferenceDetectionWorker extends JobWorker {
       // Use AI to extract entities
       const extractedEntities = await extractEntities(content, entityTypes, this.config);
 
-      // Convert extracted entities to annotation format with prefix/suffix context
+      // Validate and correct AI's offsets, then extract proper context
+      // AI sometimes returns offsets that don't match the actual text position
       for (const entity of extractedEntities) {
-        const context = extractContext(content, entity.startOffset, entity.endOffset);
+        const validated = validateAndCorrectOffsets(
+          content,
+          entity.startOffset,
+          entity.endOffset,
+          entity.exact
+        );
 
         const annotation: DetectedAnnotation = {
           annotation: {
             selector: {
-              start: entity.startOffset,
-              end: entity.endOffset,
-              exact: entity.exact,
-              ...context, // Add prefix/suffix if available
+              start: validated.start,
+              end: validated.end,
+              exact: validated.exact,
+              prefix: validated.prefix,
+              suffix: validated.suffix,
             },
             entityTypes: [entity.entityType],
           },
