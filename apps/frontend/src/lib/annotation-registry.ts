@@ -390,12 +390,14 @@ export function createDetectionHandler(
             requestParams
           });
         } else {
-          // Standard progress format for other types
+          // Standard progress format for other types (tags, etc.)
           context.setMotivationDetectionProgress({
             status: progress.status,
             percentage: progress.percentage,
             message: progress.message,
             ...(progress.currentCategory && { currentCategory: progress.currentCategory }),
+            ...(progress.processedCategories !== undefined && { processedCategories: progress.processedCategories }),
+            ...(progress.totalCategories !== undefined && { totalCategories: progress.totalCategories }),
             requestParams
           });
         }

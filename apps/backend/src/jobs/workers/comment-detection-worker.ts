@@ -14,6 +14,7 @@ import { resourceIdToURI } from '../../lib/uri-utils';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
 import { generateText } from '../../inference/factory';
+import { validateAndCorrectOffsets } from '../../lib/text-context';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 
@@ -284,10 +285,10 @@ Example format:
     console.log(`[CommentDetectionWorker] Got response from AI`);
 
     // Parse and validate response
-    return this.parseComments(response);
+    return this.parseComments(response, content);
   }
 
-  private parseComments(response: string): CommentMatch[] {
+  private parseComments(response: string, content: string): CommentMatch[] {
     try {
       // Clean up markdown code fences if present
       let cleaned = response.trim();
@@ -314,7 +315,27 @@ Example format:
 
       console.log(`[CommentDetectionWorker] Parsed ${valid.length} valid comments from ${parsed.length} total`);
 
-      return valid;
+      // Validate and correct AI's offsets, then extract proper context
+      // AI sometimes returns offsets that don't match the actual text position
+      const validatedComments: CommentMatch[] = [];
+
+      for (const comment of valid) {
+        try {
+          const validated = validateAndCorrectOffsets(content, comment.start, comment.end, comment.exact);
+          validatedComments.push({
+            ...comment,
+            start: validated.start,
+            end: validated.end,
+            prefix: validated.prefix,
+            suffix: validated.suffix
+          });
+        } catch (error) {
+          console.warn(`[CommentDetectionWorker] Skipping invalid comment "${comment.exact}":`, error);
+          // Skip this comment - AI hallucinated text that doesn't exist
+        }
+      }
+
+      return validatedComments;
     } catch (error) {
       console.error('[CommentDetectionWorker] Failed to parse AI response:', error);
       return [];

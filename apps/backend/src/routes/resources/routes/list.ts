@@ -9,7 +9,6 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { formatSearchResult } from '../helpers';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { ResourceQueryService } from '../../../services/resource-queries';
@@ -17,6 +16,15 @@ import { FilesystemRepresentationStore } from '../../../storage/representation/r
 import { getPrimaryRepresentation, getEntityTypes, decodeRepresentation } from '../../../utils/resource-helpers';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+
+// Helper to add content preview to search results
+function formatSearchResult(doc: ResourceDescriptor, contentPreview: string): ResourceDescriptor & { content: string } {
+  return {
+    ...doc,
+    content: contentPreview,
+  };
+}
 
 export function registerListResources(router: ResourcesRouterType) {
   /**

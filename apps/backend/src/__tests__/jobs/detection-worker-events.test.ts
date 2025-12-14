@@ -1,12 +1,12 @@
 /**
- * Detection Worker Event Emission Tests
+ * Reference Detection Worker Event Emission Tests
  *
- * Tests that detection worker emits proper job progress events to Event Store
+ * Tests that reference detection worker emits proper job progress events to Event Store
  * during entity detection processing.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { DetectionWorker } from '../../jobs/workers/detection-worker';
+import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
 import type { DetectionJob } from '../../jobs/types';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
@@ -77,13 +77,13 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
   };
 });
 
-describe('DetectionWorker - Event Emission', () => {
-  let worker: DetectionWorker;
+describe('ReferenceDetectionWorker - Event Emission', () => {
+  let worker: ReferenceDetectionWorker;
   let testEnv: TestEnvironmentConfig;
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
-    worker = new DetectionWorker(testEnv.config);
+    worker = new ReferenceDetectionWorker(testEnv.config);
   });
 
   afterAll(async () => {

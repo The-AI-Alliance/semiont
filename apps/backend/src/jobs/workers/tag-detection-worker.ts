@@ -16,6 +16,7 @@ import { FilesystemRepresentationStore } from '../../storage/representation/repr
 import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
 import { generateText } from '../../inference/factory';
 import { getTagSchema, getTagCategory } from '../../lib/tag-schemas';
+import { validateAndCorrectOffsets } from '../../lib/text-context';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 
@@ -326,8 +327,28 @@ Example format:
     // Parse and validate response
     const tags = this.parseTags(response);
 
-    // Add category to each tag
-    return tags.map(tag => ({ ...tag, category }));
+    // Validate and correct AI's offsets, then extract proper context
+    // AI sometimes returns offsets that don't match the actual text position
+    const validatedTags: TagMatch[] = [];
+
+    for (const tag of tags) {
+      try {
+        const validated = validateAndCorrectOffsets(content, tag.start, tag.end, tag.exact);
+        validatedTags.push({
+          ...tag,
+          category,
+          start: validated.start,
+          end: validated.end,
+          prefix: validated.prefix,
+          suffix: validated.suffix
+        });
+      } catch (error) {
+        console.warn(`[TagDetectionWorker] Skipping invalid tag for category "${category}":`, error);
+        // Skip this tag - AI hallucinated text that doesn't exist
+      }
+    }
+
+    return validatedTags;
   }
 
   private parseTags(response: string): TagMatch[] {

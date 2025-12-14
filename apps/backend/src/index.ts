@@ -300,14 +300,14 @@ if (nodeEnv !== 'test') {
     // Start Job Workers
     try {
       console.log('👷 Starting job workers...');
-      const { DetectionWorker } = await import('./jobs/workers/detection-worker');
+      const { ReferenceDetectionWorker } = await import('./jobs/workers/reference-detection-worker');
       const { GenerationWorker } = await import('./jobs/workers/generation-worker');
       const { HighlightDetectionWorker } = await import('./jobs/workers/highlight-detection-worker');
       const { AssessmentDetectionWorker } = await import('./jobs/workers/assessment-detection-worker');
       const { CommentDetectionWorker } = await import('./jobs/workers/comment-detection-worker');
       const { TagDetectionWorker } = await import('./jobs/workers/tag-detection-worker');
 
-      const detectionWorker = new DetectionWorker(config);
+      const referenceDetectionWorker = new ReferenceDetectionWorker(config);
       const generationWorker = new GenerationWorker(config);
       const highlightDetectionWorker = new HighlightDetectionWorker(config);
       const assessmentDetectionWorker = new AssessmentDetectionWorker(config);
@@ -315,8 +315,8 @@ if (nodeEnv !== 'test') {
       const tagDetectionWorker = new TagDetectionWorker(config);
 
       // Start workers in background (non-blocking)
-      detectionWorker.start().catch((error) => {
-        console.error('⚠️ Detection worker stopped with error:', error);
+      referenceDetectionWorker.start().catch((error) => {
+        console.error('⚠️ Reference detection worker stopped with error:', error);
       });
 
       generationWorker.start().catch((error) => {

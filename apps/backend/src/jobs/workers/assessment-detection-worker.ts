@@ -14,6 +14,7 @@ import { resourceIdToURI } from '../../lib/uri-utils';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
 import { generateText } from '../../inference/factory';
+import { validateAndCorrectOffsets } from '../../lib/text-context';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 
@@ -289,12 +290,34 @@ Example format:
       }
 
       // Validate and filter results
-      return parsed.filter((a: any) =>
+      const assessments = parsed.filter((a: any) =>
         a && typeof a.exact === 'string' &&
         typeof a.start === 'number' &&
         typeof a.end === 'number' &&
         typeof a.assessment === 'string'
       );
+
+      // Validate and correct AI's offsets, then extract proper context
+      // AI sometimes returns offsets that don't match the actual text position
+      const validatedAssessments: AssessmentMatch[] = [];
+
+      for (const assessment of assessments) {
+        try {
+          const validated = validateAndCorrectOffsets(content, assessment.start, assessment.end, assessment.exact);
+          validatedAssessments.push({
+            ...assessment,
+            start: validated.start,
+            end: validated.end,
+            prefix: validated.prefix,
+            suffix: validated.suffix
+          });
+        } catch (error) {
+          console.warn(`[AssessmentDetectionWorker] Skipping invalid assessment "${assessment.exact}":`, error);
+          // Skip this assessment - AI hallucinated text that doesn't exist
+        }
+      }
+
+      return validatedAssessments;
     } catch (error) {
       console.error('[AssessmentDetectionWorker] Failed to parse AI response:', error);
       console.error('Raw response:', response);

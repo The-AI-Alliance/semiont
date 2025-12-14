@@ -14,6 +14,7 @@ import { resourceIdToURI } from '../../lib/uri-utils';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
 import { generateText } from '../../inference/factory';
+import { validateAndCorrectOffsets } from '../../lib/text-context';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 
@@ -274,11 +275,33 @@ Example format:
       }
 
       // Validate and filter results
-      return parsed.filter((h: any) =>
+      const highlights = parsed.filter((h: any) =>
         h && typeof h.exact === 'string' &&
         typeof h.start === 'number' &&
         typeof h.end === 'number'
       );
+
+      // Validate and correct AI's offsets, then extract proper context
+      // AI sometimes returns offsets that don't match the actual text position
+      const validatedHighlights: HighlightMatch[] = [];
+
+      for (const highlight of highlights) {
+        try {
+          const validated = validateAndCorrectOffsets(content, highlight.start, highlight.end, highlight.exact);
+          validatedHighlights.push({
+            ...highlight,
+            start: validated.start,
+            end: validated.end,
+            prefix: validated.prefix,
+            suffix: validated.suffix
+          });
+        } catch (error) {
+          console.warn(`[HighlightDetectionWorker] Skipping invalid highlight "${highlight.exact}":`, error);
+          // Skip this highlight - AI hallucinated text that doesn't exist
+        }
+      }
+
+      return validatedHighlights;
     } catch (error) {
       console.error('[HighlightDetectionWorker] Failed to parse AI response:', error);
       console.error('Raw response:', response);
