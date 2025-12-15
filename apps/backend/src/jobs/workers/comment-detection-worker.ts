@@ -168,7 +168,7 @@ export class CommentDetectionWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Use AI to detect passages needing comments
-    const comments = await this.detectComments(content, job.instructions, job.tone, job.density);
+    const comments = await this.detectComments(content, job.instructions, job.tone);
 
     console.log(`[CommentDetectionWorker] Found ${comments.length} comments to create`);
 
@@ -232,60 +232,26 @@ export class CommentDetectionWorker extends JobWorker {
   private async detectComments(
     content: string,
     instructions?: string,
-    tone?: string,
-    density?: number
+    tone?: string
   ): Promise<CommentMatch[]> {
-    // Build prompt with user instructions taking priority
-    let prompt: string;
+    const instructionsText = instructions
+      ? `\n\nUser instructions: ${instructions}`
+      : '';
 
-    if (instructions) {
-      // User provided specific instructions - minimal prompt, let instructions drive behavior
-      const toneGuidance = tone ? ` Use a ${tone} tone.` : '';
-      const densityGuidance = density
-        ? `\n\nAim for approximately ${density} comments per 2000 words of text.`
-        : ''; // Let user instructions determine density
+    const toneGuidance = tone
+      ? `\n\nTone: Use a ${tone} style in your comments.`
+      : '';
 
-      prompt = `Add comments to passages in this text following these instructions:
-
-${instructions}${toneGuidance}${densityGuidance}
-
-Text to analyze:
----
-${content.substring(0, 8000)}
----
-
-Return a JSON array of comments. Each comment must have:
-- "exact": the exact text passage being commented on (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
-- "comment": your comment following the instructions above
-
-Return ONLY a valid JSON array, no additional text or explanation.
-
-Example:
-[
-  {"exact": "the quarterly review meeting", "start": 142, "end": 169, "prefix": "We need to schedule ", "suffix": " for next month.", "comment": "Who will lead this? Should we invite the external auditors?"}
-]`;
-    } else {
-      // No specific instructions - fall back to explanatory/educational mode
-      const toneGuidance = tone
-        ? `\n\nTone: Use a ${tone} style in your comments.`
-        : '';
-      const densityGuidance = density
-        ? `\n- Aim for approximately ${density} comments per 2000 words`
-        : `\n- Aim for 3-8 comments per 2000 words (not too sparse or dense)`;
-
-      prompt = `Identify passages in this text that would benefit from explanatory comments.
-For each passage, provide contextual information, clarification, or background.${toneGuidance}
+    const prompt = `Identify passages in this text that would benefit from explanatory comments.
+For each passage, provide contextual information, clarification, or background that would help readers understand the text better.${instructionsText}${toneGuidance}
 
 Guidelines:
 - Select passages that reference technical terms, historical figures, complex concepts, or unclear references
 - Provide comments that ADD VALUE beyond restating the text
 - Focus on explanation, background, or connections to other ideas
 - Avoid obvious or trivial comments
-- Keep comments concise (1-3 sentences typically)${densityGuidance}
+- Keep comments concise (1-3 sentences typically)
+- Aim for 3-8 comments per 2000 words (not too sparse or dense)
 
 Text to analyze:
 ---
@@ -306,7 +272,6 @@ Example format:
 [
   {"exact": "Ouranos", "start": 52, "end": 59, "prefix": "In the beginning, ", "suffix": " ruled the universe", "comment": "Ouranos (also spelled Uranus) is the primordial Greek deity personifying the sky. In Hesiod's Theogony, he is the son and husband of Gaia (Earth) and father of the Titans."}
 ]`;
-    }
 
     console.log(`[CommentDetectionWorker] Sending request to AI with content length: ${content.substring(0, 8000).length}`);
 
