@@ -26,7 +26,7 @@ interface Props {
   focusedAnnotationId?: string | null;
   hoveredAnnotationId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
-  onDetect: (selectedTypes: string[], includeDescriptiveReferences?: boolean) => void;
+  onDetect: (selectedTypes: string[]) => void;
   onCreate?: (entityType?: string) => void;
   isDetecting: boolean;
   detectionProgress: any; // TODO: type this properly
@@ -77,7 +77,6 @@ export function ReferencesPanel({
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
-  const [includeDescriptiveReferences, setIncludeDescriptiveReferences] = useState(false);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations, hoveredAnnotationId);
@@ -88,7 +87,7 @@ export function ReferencesPanel({
   // Clear log when starting new detection
   const handleDetect = () => {
     setLastDetectionLog(null);
-    onDetect(selectedEntityTypes, includeDescriptiveReferences);
+    onDetect(selectedEntityTypes);
   };
 
   // When detection completes, save log
@@ -211,26 +210,6 @@ export function ReferencesPanel({
                   )}
                 </div>
               </div>
-
-              {/* Descriptive References Toggle */}
-              {selectedEntityTypes.length > 0 && (
-                <div className="mb-4 flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="includeDescriptiveReferences"
-                    checked={includeDescriptiveReferences}
-                    onChange={(e) => setIncludeDescriptiveReferences(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
-                  />
-                  <label
-                    htmlFor="includeDescriptiveReferences"
-                    className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
-                    title={tRef('descriptiveReferencesTooltip')}
-                  >
-                    {tRef('includeDescriptiveReferences')}
-                  </label>
-                </div>
-              )}
 
               {/* Selected Count */}
               {selectedEntityTypes.length > 0 && (

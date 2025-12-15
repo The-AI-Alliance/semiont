@@ -19,14 +19,12 @@ export interface ExtractedEntity {
  * @param text - The text to analyze
  * @param entityTypes - Array of entity types to detect (optionally with examples)
  * @param config - Application configuration
- * @param includeDescriptiveReferences - Include anaphoric/cataphoric references (default: false)
  * @returns Array of extracted entities with their character offsets
  */
 export async function extractEntities(
   exact: string,
   entityTypes: string[] | { type: string; examples?: string[] }[],
-  config: EnvironmentConfig,
-  includeDescriptiveReferences: boolean = false
+  config: EnvironmentConfig
 ): Promise<ExtractedEntity[]> {
   console.log('extractEntities called with:', {
     textLength: exact.length,
@@ -45,37 +43,8 @@ export async function extractEntities(
       : et.type;
   }).join(', ');
 
-  // Build prompt with optional support for anaphoric/cataphoric references
-  // Anaphora: references that point backward (e.g., "John arrived. He was tired.")
-  // Cataphora: references that point forward (e.g., "When she arrived, Mary was surprised.")
-  // When enabled, include substantive descriptive references beyond simple pronouns
-  const descriptiveReferenceGuidance = includeDescriptiveReferences
-    ? `
-Include both:
-- Direct mentions (names, proper nouns)
-- Descriptive references (substantive phrases that refer to entities)
-
-For descriptive references, include:
-- Definite descriptions: "the Nobel laureate", "the tech giant", "the former president"
-- Role-based references: "the CEO", "the physicist", "the author", "the owner", "the contractor"
-- Epithets with context: "the Cupertino-based company", "the iPhone maker"
-- References to entities even when identity is unknown or unspecified
-
-Do NOT include:
-- Simple pronouns alone: he, she, it, they, him, her, them
-- Generic determiners alone: this, that, these, those
-- Possessives without substance: his, her, their, its
-
-Examples:
-- For "Marie Curie", include "the Nobel laureate" and "the physicist" but NOT "she"
-- For an unknown person, include "the owner" or "the contractor" (role-based references count even when identity is unspecified)
-`
-    : `
-Find direct mentions only (names, proper nouns). Do not include pronouns or descriptive references.
-`;
-
   const prompt = `Identify entity references in the following text. Look for mentions of: ${entityTypesDescription}.
-${descriptiveReferenceGuidance}
+
 Text to analyze:
 """
 ${exact}

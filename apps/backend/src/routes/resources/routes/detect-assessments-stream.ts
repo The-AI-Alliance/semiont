@@ -57,15 +57,10 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType) {
     async (c) => {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as DetectAssessmentsStreamRequest;
-      const { instructions, tone, density } = body;
+      const { instructions } = body;
       const config = c.get('config');
 
-      // Validate density if provided
-      if (density !== undefined && (typeof density !== 'number' || density < 1 || density > 10)) {
-        throw new HTTPException(400, { message: 'Invalid density. Must be a number between 1 and 10.' });
-      }
-
-      console.log(`[DetectAssessments] Starting assessment detection for resource ${id}${instructions ? ' with instructions' : ''}${tone ? ` (tone: ${tone})` : ''}${density ? ` (density: ${density})` : ''}`);
+      console.log(`[DetectAssessments] Starting assessment detection for resource ${id}${instructions ? ' with instructions' : ''}`);
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -94,8 +89,6 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType) {
         userId: userId(user.id),
         resourceId: resourceId(id),
         instructions,
-        tone,
-        density,
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 1

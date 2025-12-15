@@ -4,17 +4,6 @@
     "instructions": {
       "type": "string",
       "description": "Optional instructions to guide AI assessment detection"
-    },
-    "tone": {
-      "type": "string",
-      "enum": ["analytical", "critical", "balanced", "constructive"],
-      "description": "Optional tone/style for generated assessments"
-    },
-    "density": {
-      "type": "number",
-      "minimum": 1,
-      "maximum": 10,
-      "description": "Optional density: desired number of assessments per 2000 words of text (1-10)"
     }
   }
 }

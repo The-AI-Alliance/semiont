@@ -35,7 +35,6 @@ export interface DetectionJob extends BaseJob {
   type: 'detection';
   resourceId: ResourceId;
   entityTypes: EntityType[];
-  includeDescriptiveReferences?: boolean;  // Include anaphoric/cataphoric references (e.g., "the CEO", "the tech giant")
   progress?: {
     totalEntityTypes: number;
     processedEntityTypes: number;
@@ -82,7 +81,6 @@ export interface HighlightDetectionJob extends BaseJob {
   type: 'highlight-detection';
   resourceId: ResourceId;
   instructions?: string;  // Optional user instructions for AI
-  density?: number;  // Optional: desired number of highlights per 2000 words (1-15)
   progress?: {
     stage: 'analyzing' | 'creating';
     percentage: number;
@@ -101,8 +99,6 @@ export interface AssessmentDetectionJob extends BaseJob {
   type: 'assessment-detection';
   resourceId: ResourceId;
   instructions?: string;  // Optional user instructions for AI
-  tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';  // Optional tone/style
-  density?: number;  // Optional: desired number of assessments per 2000 words (1-10)
   progress?: {
     stage: 'analyzing' | 'creating';
     percentage: number;
@@ -122,7 +118,6 @@ export interface CommentDetectionJob extends BaseJob {
   resourceId: ResourceId;
   instructions?: string;  // Optional user instructions for AI
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';  // Optional tone/style
-  density?: number;  // Optional: desired number of comments per 2000 words (2-12)
   progress?: {
     stage: 'analyzing' | 'creating';
     percentage: number;
