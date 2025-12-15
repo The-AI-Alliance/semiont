@@ -411,7 +411,10 @@
     "toneScholarly": "Scholarly",
     "toneExplanatory": "Explanatory",
     "toneConversational": "Conversational",
-    "toneTechnical": "Technical"
+    "toneTechnical": "Technical",
+    "densityLabel": "Density",
+    "densitySparse": "Sparse",
+    "densityDense": "Dense"
   },
   "HighlightPanel": {
     "title": "Highlights",
@@ -422,7 +425,10 @@
     "instructionsPlaceholder": "e.g., Focus on key technical concepts...",
     "detect": "Detect",
     "detecting": "Detecting...",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "densityLabel": "Density",
+    "densitySparse": "Sparse",
+    "densityDense": "Dense"
   },
   "AssessmentPanel": {
     "title": "Assessments",
@@ -433,7 +439,16 @@
     "instructionsPlaceholder": "e.g., Evaluate claims for accuracy and evidence...",
     "detect": "Detect",
     "detecting": "Detecting...",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "toneLabel": "Tone",
+    "toneOptional": "(optional)",
+    "toneAnalytical": "Analytical",
+    "toneCritical": "Critical",
+    "toneBalanced": "Balanced",
+    "toneConstructive": "Constructive",
+    "densityLabel": "Density",
+    "densitySparse": "Sparse",
+    "densityDense": "Dense"
   },
   "TaggingPanel": {
     "title": "Tags",
@@ -546,7 +561,9 @@
     "noText": "No text",
     "createReference": "Create Reference",
     "entityTypesOptional": "Entity Types (Optional)",
-    "imageRegionSelected": "Image region selected"
+    "imageRegionSelected": "Image region selected",
+    "includeDescriptiveReferences": "Include descriptive references",
+    "descriptiveReferencesTooltip": "Also find phrases like 'the CEO', 'the tech giant', 'the physicist' (in addition to names)"
   },
   "SortableResourceTab": {
     "dragToReorder": "Drag to reorder",
