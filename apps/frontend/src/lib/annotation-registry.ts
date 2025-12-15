@@ -108,6 +108,10 @@ export const ANNOTATORS: Record<string, Annotator> = {
         if (args[0]) {
           params.push({ label: 'Instructions', value: args[0] });
         }
+        // args[2] is density (args[1] is tone which is unused for highlights)
+        if (args[2] !== undefined) {
+          params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
+        }
         return params;
       }
     }
@@ -138,6 +142,9 @@ export const ANNOTATORS: Record<string, Annotator> = {
         if (args[1]) {
           params.push({ label: 'Tone', value: args[1] });
         }
+        if (args[2] !== undefined) {
+          params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
+        }
         return params;
       }
     }
@@ -165,6 +172,12 @@ export const ANNOTATORS: Record<string, Annotator> = {
         if (args[0]) {
           params.push({ label: 'Instructions', value: args[0] });
         }
+        if (args[1]) {
+          params.push({ label: 'Tone', value: args[1] });
+        }
+        if (args[2] !== undefined) {
+          params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
+        }
         return params;
       }
     }
@@ -191,6 +204,10 @@ export const ANNOTATORS: Record<string, Annotator> = {
         const params: Array<{ label: string; value: string }> = [];
         if (args[0] && Array.isArray(args[0]) && args[0].length > 0) {
           params.push({ label: 'Entity Types', value: args[0].join(', ') });
+        }
+        // args[1] is includeDescriptiveReferences: boolean
+        if (args[1] === true) {
+          params.push({ label: 'Include Descriptive References', value: 'Yes' });
         }
         return params;
       }
@@ -354,10 +371,12 @@ export function createDetectionHandler(
       // Transform arguments for different detection methods
       let stream;
       if (detection.sseMethod === 'detectAnnotations') {
-        // args[0] is selectedEntityTypes: string[]
+        // args[0] is selectedEntityTypes: string[], args[1] is includeDescriptiveReferences: boolean
         const selectedTypes = args[0] || [];
+        const includeDescriptiveReferences = args[1];
         stream = sseClient.detectAnnotations(context.rUri, {
-          entityTypes: selectedTypes.map((type: string) => entityType(type))
+          entityTypes: selectedTypes.map((type: string) => entityType(type)),
+          includeDescriptiveReferences
         });
       } else if (detection.sseMethod === 'detectTags') {
         // args[0] is schemaId: string, args[1] is categories: string[]
@@ -367,10 +386,36 @@ export function createDetectionHandler(
           schemaId,
           categories
         });
+      } else if (detection.sseMethod === 'detectHighlights') {
+        // args[0] is instructions: string, args[1] is tone (unused for highlights), args[2] is density: number
+        const instructions = args[0];
+        const density = args[2];
+        stream = sseClient.detectHighlights(context.rUri, {
+          instructions,
+          density
+        });
+      } else if (detection.sseMethod === 'detectComments') {
+        // args[0] is instructions: string, args[1] is tone: string, args[2] is density: number
+        const instructions = args[0];
+        const tone = args[1];
+        const density = args[2];
+        stream = sseClient.detectComments(context.rUri, {
+          instructions,
+          tone,
+          density
+        });
+      } else if (detection.sseMethod === 'detectAssessments') {
+        // args[0] is instructions: string, args[1] is tone: string, args[2] is density: number
+        const instructions = args[0];
+        const tone = args[1];
+        const density = args[2];
+        stream = sseClient.detectAssessments(context.rUri, {
+          instructions,
+          tone,
+          density
+        });
       } else {
-        // Other methods (detectHighlights, detectAssessments, detectComments)
-        // expect no additional arguments beyond resourceUri
-        stream = sseClient[detection.sseMethod](context.rUri);
+        throw new Error(`Unknown detection method: ${detection.sseMethod}`);
       }
 
       context.detectionStreamRef.current = stream;
