@@ -25,6 +25,7 @@ import type { components } from '../types';
  */
 export interface DetectAnnotationsStreamRequest {
   entityTypes: EntityType[];
+  includeDescriptiveReferences?: boolean;  // Include anaphoric/cataphoric references (e.g., "the CEO", "the tech giant")
 }
 
 /**
@@ -38,6 +39,7 @@ export type GenerateResourceStreamRequest = components['schemas']['GenerateResou
  */
 export interface DetectHighlightsStreamRequest {
   instructions?: string;
+  density?: number; // Optional: desired number of highlights per 2000 words (1-15)
 }
 
 /**
@@ -45,6 +47,8 @@ export interface DetectHighlightsStreamRequest {
  */
 export interface DetectAssessmentsStreamRequest {
   instructions?: string;
+  tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
+  density?: number; // Optional: desired number of assessments per 2000 words (1-10)
 }
 
 /**
@@ -53,6 +57,7 @@ export interface DetectAssessmentsStreamRequest {
 export interface DetectCommentsStreamRequest {
   instructions?: string;
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
+  density?: number; // Optional: desired number of comments per 2000 words (2-12)
 }
 
 /**

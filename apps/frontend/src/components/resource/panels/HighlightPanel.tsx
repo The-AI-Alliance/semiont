@@ -16,7 +16,7 @@ interface HighlightPanelProps {
   focusedAnnotationId: string | null;
   hoveredAnnotationId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
-  onDetect?: (instructions?: string) => void | Promise<void>;
+  onDetect?: (instructions?: string, tone?: string, density?: number) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
