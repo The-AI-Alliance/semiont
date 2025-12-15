@@ -57,10 +57,10 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
     async (c) => {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as DetectAnnotationsStreamRequest;
-      const { entityTypes } = body;
+      const { entityTypes, includeDescriptiveReferences } = body;
       const config = c.get('config');
 
-      console.log(`[DetectAnnotations] Starting detection for resource ${id} with entity types:`, entityTypes);
+      console.log(`[DetectAnnotations] Starting detection for resource ${id} with entity types:`, entityTypes, includeDescriptiveReferences ? '(including descriptive references)' : '');
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -89,6 +89,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
         userId: userId(user.id),
         resourceId: resourceId(id),
         entityTypes: entityTypes.map(et => entityType(et)),
+        includeDescriptiveReferences,
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 1

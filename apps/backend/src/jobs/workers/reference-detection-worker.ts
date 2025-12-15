@@ -64,7 +64,8 @@ export class ReferenceDetectionWorker extends JobWorker {
    */
   public async detectReferences(
     resource: ResourceDescriptor,
-    entityTypes: string[]
+    entityTypes: string[],
+    includeDescriptiveReferences: boolean = false
   ): Promise<DetectedAnnotation[]> {
     console.log(`Detecting entities of types: ${entityTypes.join(', ')}`);
 
@@ -87,8 +88,8 @@ export class ReferenceDetectionWorker extends JobWorker {
       const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
       const content = decodeRepresentation(contentBuffer, primaryRep.mediaType);
 
-      // Use AI to extract entities
-      const extractedEntities = await extractEntities(content, entityTypes, this.config);
+      // Use AI to extract entities (with optional anaphoric/cataphoric references)
+      const extractedEntities = await extractEntities(content, entityTypes, this.config, includeDescriptiveReferences);
 
       // Validate and correct AI's offsets, then extract proper context
       // AI sometimes returns offsets that don't match the actual text position
@@ -157,7 +158,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       console.log(`[ReferenceDetectionWorker] 🤖 [${i + 1}/${job.entityTypes.length}] Detecting ${entityType}...`);
 
       // Detect entities using AI (loads content from filesystem internally)
-      const detectedAnnotations = await this.detectReferences(resource, [entityType]);
+      const detectedAnnotations = await this.detectReferences(resource, [entityType], job.includeDescriptiveReferences);
 
       totalFound += detectedAnnotations.length;
       console.log(`[ReferenceDetectionWorker] ✅ Found ${detectedAnnotations.length} ${entityType} entities`);

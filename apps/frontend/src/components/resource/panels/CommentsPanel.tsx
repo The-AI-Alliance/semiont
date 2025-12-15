@@ -24,7 +24,7 @@ interface CommentsPanelProps {
     end: number;
   } | null;
   annotateMode?: boolean;
-  onDetect?: (instructions?: string, tone?: string) => void | Promise<void>;
+  onDetect?: (instructions?: string, tone?: string, density?: number) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
