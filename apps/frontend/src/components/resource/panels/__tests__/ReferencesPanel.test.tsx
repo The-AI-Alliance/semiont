@@ -18,6 +18,8 @@ vi.mock('next-intl', () => ({
       startDetection: 'Start Detection',
       found: 'Found {count}',
       more: 'Detect More',
+      includeDescriptiveReferences: 'Include descriptive references',
+      descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',
     };
     let result = translations[key] || key;
     // Replace {count} with actual count value if provided
@@ -46,6 +48,7 @@ describe('ReferencesPanel Component', () => {
     onDetect: vi.fn(),
     onCancelDetection: vi.fn(),
     mediaType: 'text/plain',
+    annotateMode: true,
   };
 
   beforeEach(() => {
@@ -212,7 +215,7 @@ describe('ReferencesPanel Component', () => {
       expect(startButton).not.toBeDisabled();
     });
 
-    it('should call onDetect with selected types', async () => {
+    it('should call onDetect with selected types and includeDescriptiveReferences', async () => {
       const onDetect = vi.fn();
       render(<ReferencesPanel {...defaultProps} onDetect={onDetect} />);
 
@@ -222,7 +225,24 @@ describe('ReferencesPanel Component', () => {
       const startButton = screen.getByTitle('Start Detection');
       await userEvent.click(startButton);
 
-      expect(onDetect).toHaveBeenCalledWith(['Person', 'Organization']);
+      expect(onDetect).toHaveBeenCalledWith(['Person', 'Organization'], false);
+    });
+
+    it('should call onDetect with includeDescriptiveReferences when checkbox is checked', async () => {
+      const onDetect = vi.fn();
+      render(<ReferencesPanel {...defaultProps} onDetect={onDetect} />);
+
+      await userEvent.click(screen.getByText('Person'));
+
+      // Check the "Include descriptive references" checkbox
+      const checkboxLabel = screen.getByText('Include descriptive references');
+      const checkbox = checkboxLabel.previousElementSibling as HTMLInputElement;
+      await userEvent.click(checkbox);
+
+      const startButton = screen.getByTitle('Start Detection');
+      await userEvent.click(startButton);
+
+      expect(onDetect).toHaveBeenCalledWith(['Person'], true);
     });
 
     it('should clear selected types after detection starts', async () => {

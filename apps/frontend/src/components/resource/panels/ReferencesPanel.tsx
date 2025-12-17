@@ -26,7 +26,7 @@ interface Props {
   focusedAnnotationId?: string | null;
   hoveredAnnotationId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
-  onDetect: (selectedTypes: string[]) => void;
+  onDetect: (selectedTypes: string[], includeDescriptiveReferences?: boolean) => void;
   onCreate?: (entityType?: string) => void;
   isDetecting: boolean;
   detectionProgress: any; // TODO: type this properly
@@ -77,6 +77,7 @@ export function ReferencesPanel({
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
+  const [includeDescriptiveReferences, setIncludeDescriptiveReferences] = useState(false);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations, hoveredAnnotationId);
@@ -87,7 +88,7 @@ export function ReferencesPanel({
   // Clear log when starting new detection
   const handleDetect = () => {
     setLastDetectionLog(null);
-    onDetect(selectedEntityTypes);
+    onDetect(selectedEntityTypes, includeDescriptiveReferences);
   };
 
   // When detection completes, save log
@@ -215,6 +216,22 @@ export function ReferencesPanel({
                   {t('typesSelected', { count: selectedEntityTypes.length })}
                 </p>
               )}
+
+              {/* Include Descriptive References Checkbox */}
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeDescriptiveReferences}
+                    onChange={(e) => setIncludeDescriptiveReferences(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
+                  />
+                  <span>{tRef('includeDescriptiveReferences')}</span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
+                  {tRef('descriptiveReferencesTooltip')}
+                </p>
+              </div>
 
               {/* Start Detection Button */}
               <button
