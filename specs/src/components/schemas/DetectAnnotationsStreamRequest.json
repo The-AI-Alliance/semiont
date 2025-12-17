@@ -5,7 +5,12 @@
       "type": "array",
       "items": {
         "type": "string"
-      }
+      },
+      "description": "Entity types to detect (e.g., 'Person', 'Organization', 'Location')"
+    },
+    "includeDescriptiveReferences": {
+      "type": "boolean",
+      "description": "Include anaphoric/cataphoric references (e.g., 'the CEO', 'the tech giant') in addition to direct mentions"
     }
   },
   "required": [

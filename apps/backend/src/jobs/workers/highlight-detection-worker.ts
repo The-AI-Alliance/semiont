@@ -167,7 +167,7 @@ export class HighlightDetectionWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Use AI to detect highlights
-    const highlights = await this.detectHighlights(content, job.instructions);
+    const highlights = await this.detectHighlights(content, job.instructions, job.density);
 
     console.log(`[HighlightDetectionWorker] Found ${highlights.length} highlights to create`);
 
@@ -228,12 +228,58 @@ export class HighlightDetectionWorker extends JobWorker {
     return decodeRepresentation(contentBuffer, primaryRep.mediaType);
   }
 
-  private async detectHighlights(content: string, instructions?: string): Promise<HighlightMatch[]> {
-    const instructionsText = instructions
-      ? `\n\nUser instructions: ${instructions}`
-      : '';
+  private async detectHighlights(
+    content: string,
+    instructions?: string,
+    density?: number
+  ): Promise<HighlightMatch[]> {
+    // Build prompt with user instructions taking priority
+    let prompt: string;
 
-    const prompt = `Identify passages in this text that should be highlighted as important or noteworthy.${instructionsText}
+    if (instructions) {
+      // User provided specific instructions - minimal prompt, let instructions drive behavior
+      const densityGuidance = density
+        ? `\n\nAim for approximately ${density} highlights per 2000 words of text.`
+        : ''; // Let user instructions determine density
+
+      prompt = `Identify passages in this text to highlight following these instructions:
+
+${instructions}${densityGuidance}
+
+Text to analyze:
+---
+${content.substring(0, 8000)}
+---
+
+Return a JSON array of highlights. Each highlight must have:
+- "exact": the exact text passage to highlight (quoted verbatim from source)
+- "start": character offset where the passage starts
+- "end": character offset where the passage ends
+- "prefix": up to 32 characters of text immediately before the passage
+- "suffix": up to 32 characters of text immediately after the passage
+
+Return ONLY a valid JSON array, no additional text or explanation.
+
+Example:
+[
+  {"exact": "revenue grew 45% year-over-year", "start": 142, "end": 174, "prefix": "In Q3 2024, ", "suffix": ", exceeding all forecasts."}
+]`;
+    } else {
+      // No specific instructions - fall back to importance/salience mode
+      const densityGuidance = density
+        ? `\n- Aim for approximately ${density} highlights per 2000 words`
+        : `\n- Aim for 3-8 highlights per 2000 words (be selective)`;
+
+      prompt = `Identify passages in this text that merit highlighting for their importance or salience.
+Focus on content that readers should notice and remember.
+
+Guidelines:
+- Highlight key claims, findings, or conclusions
+- Highlight important definitions, terminology, or concepts
+- Highlight notable quotes or particularly striking statements
+- Highlight critical decisions, action items, or turning points
+- Select passages that are SIGNIFICANT, not just interesting
+- Avoid trivial or obvious content${densityGuidance}
 
 Text to analyze:
 ---
@@ -241,20 +287,28 @@ ${content.substring(0, 8000)}
 ---
 
 Return a JSON array of highlights. Each highlight should have:
-- "exact": the exact text to highlight (quoted verbatim from the source)
-- "start": character offset where the text starts
-- "end": character offset where the text ends
-- "prefix": up to 32 characters of text immediately before the highlighted passage (helps identify correct occurrence)
-- "suffix": up to 32 characters of text immediately after the highlighted passage (helps identify correct occurrence)
+- "exact": the exact text passage to highlight (quoted verbatim from source)
+- "start": character offset where the passage starts
+- "end": character offset where the passage ends
+- "prefix": up to 32 characters of text immediately before the passage
+- "suffix": up to 32 characters of text immediately after the passage
 
 Return ONLY a valid JSON array, no additional text or explanation.
 
 Example format:
 [
-  {"exact": "important passage here", "start": 42, "end": 64, "prefix": "some context ", "suffix": " more text"}
+  {"exact": "we will discontinue support for legacy systems by March 2025", "start": 52, "end": 113, "prefix": "After careful consideration, ", "suffix": ". This decision affects"}
 ]`;
+    }
 
-    const response = await generateText(prompt, this.config, 2000, 0.3);
+    console.log(`[HighlightDetectionWorker] Sending request to AI with content length: ${content.substring(0, 8000).length}`);
+
+    const response = await generateText(
+      prompt,
+      this.config,
+      2000,  // maxTokens: Lower than comments/assessments (no body text)
+      0.3    // temperature: Low for consistent importance judgments
+    );
 
     // Parse JSON response
     try {
