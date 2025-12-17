@@ -168,7 +168,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Use AI to detect assessments
-    const assessments = await this.detectAssessments(content, job.instructions, job.tone, job.density);
+    const assessments = await this.detectAssessments(content, job.instructions);
 
     console.log(`[AssessmentDetectionWorker] Found ${assessments.length} assessments to create`);
 
@@ -229,63 +229,18 @@ export class AssessmentDetectionWorker extends JobWorker {
     return decodeRepresentation(contentBuffer, primaryRep.mediaType);
   }
 
-  private async detectAssessments(
-    content: string,
-    instructions?: string,
-    tone?: string,
-    density?: number
-  ): Promise<AssessmentMatch[]> {
-    // Build prompt with user instructions taking priority
-    let prompt: string;
+  private async detectAssessments(content: string, instructions?: string): Promise<AssessmentMatch[]> {
+    const instructionsText = instructions
+      ? `\n\nUser instructions: ${instructions}`
+      : '';
 
-    if (instructions) {
-      // User provided specific instructions - minimal prompt, let instructions drive behavior
-      const toneGuidance = tone ? ` Use a ${tone} tone.` : '';
-      const densityGuidance = density
-        ? `\n\nAim for approximately ${density} assessments per 2000 words of text.`
-        : ''; // Let user instructions determine density
+    const prompt = `Assess and evaluate key passages in this text.${instructionsText}
 
-      prompt = `Assess passages in this text following these instructions:
-
-${instructions}${toneGuidance}${densityGuidance}
-
-Text to analyze:
----
-${content.substring(0, 8000)}
----
-
-Return a JSON array of assessments. Each assessment must have:
-- "exact": the exact text passage being assessed (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
-- "assessment": your assessment following the instructions above
-
-Return ONLY a valid JSON array, no additional text or explanation.
-
-Example:
-[
-  {"exact": "the quarterly revenue target", "start": 142, "end": 169, "prefix": "We established ", "suffix": " for Q4 2024.", "assessment": "This target seems ambitious given market conditions. Consider revising based on recent trends."}
-]`;
-    } else {
-      // No specific instructions - fall back to analytical/evaluation mode
-      const toneGuidance = tone
-        ? `\n\nTone: Use a ${tone} style in your assessments.`
-        : '';
-      const densityGuidance = density
-        ? `\n- Aim for approximately ${density} assessments per 2000 words`
-        : `\n- Aim for 2-6 assessments per 2000 words (focus on key passages)`;
-
-      prompt = `Identify passages in this text that merit critical assessment or evaluation.
-For each passage, provide analysis of its validity, strength, or implications.${toneGuidance}
-
-Guidelines:
-- Select passages containing claims, arguments, conclusions, or assertions
-- Assess evidence quality, logical soundness, or practical implications
-- Provide assessments that ADD INSIGHT beyond restating the text
-- Focus on passages where evaluation would help readers form judgments
-- Keep assessments concise yet substantive (1-3 sentences typically)${densityGuidance}
+For each passage worth assessing, provide:
+- The exact text from the document (quoted verbatim)
+- Your assessment or evaluation of that passage
+- Character offsets (start and end)
+- Context before and after the passage
 
 Text to analyze:
 ---
@@ -293,29 +248,28 @@ ${content.substring(0, 8000)}
 ---
 
 Return a JSON array of assessments. Each assessment should have:
-- "exact": the exact text passage being assessed (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
-- "assessment": your analytical assessment (1-3 sentences, evaluate validity/strength/implications)
+- "exact": the exact text being assessed (quoted verbatim from the source)
+- "start": character offset where the text starts
+- "end": character offset where the text ends
+- "prefix": up to 32 characters of text immediately before the assessed passage (helps identify correct occurrence)
+- "suffix": up to 32 characters of text immediately after the assessed passage (helps identify correct occurrence)
+- "assessment": your evaluation or assessment of this passage
 
 Return ONLY a valid JSON array, no additional text or explanation.
 
 Example format:
 [
-  {"exact": "AI will replace most jobs by 2030", "start": 52, "end": 89, "prefix": "Many experts predict that ", "suffix": ", fundamentally reshaping", "assessment": "This claim lacks nuance and supporting evidence. Employment patterns historically show job transformation rather than wholesale replacement. The timeline appears speculative without specific sector analysis."}
+  {
+    "exact": "passage to assess",
+    "start": 42,
+    "end": 59,
+    "prefix": "some context ",
+    "suffix": " more text",
+    "assessment": "This claim is well-supported by evidence..."
+  }
 ]`;
-    }
 
-    console.log(`[AssessmentDetectionWorker] Sending request to AI with content length: ${content.substring(0, 8000).length}`);
-
-    const response = await generateText(
-      prompt,
-      this.config,
-      3000,  // maxTokens: Higher for assessment text
-      0.3    // temperature: Lower for analytical consistency
-    );
+    const response = await generateText(prompt, this.config, 3000, 0.3);
 
     // Parse JSON response
     try {

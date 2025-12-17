@@ -57,15 +57,10 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType) {
     async (c) => {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as DetectHighlightsStreamRequest;
-      const { instructions, density } = body;
+      const { instructions } = body;
       const config = c.get('config');
 
-      // Validate density if provided
-      if (density !== undefined && (typeof density !== 'number' || density < 1 || density > 15)) {
-        throw new HTTPException(400, { message: 'Invalid density. Must be a number between 1 and 15.' });
-      }
-
-      console.log(`[DetectHighlights] Starting highlight detection for resource ${id}${instructions ? ' with instructions' : ''}${density ? ` (density: ${density})` : ''}`);
+      console.log(`[DetectHighlights] Starting highlight detection for resource ${id}${instructions ? ' with instructions' : ''}`);
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -94,7 +89,6 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType) {
         userId: userId(user.id),
         resourceId: resourceId(id),
         instructions,
-        density,
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 1
