@@ -311,6 +311,40 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
 
     expect(response.status).toBe(404);
   });
+
+  it('should accept includeDescriptiveReferences parameter', async () => {
+    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        entityTypes: ['Person'],
+        includeDescriptiveReferences: true
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const contentType = response.headers.get('content-type');
+    expect(contentType).toMatch(/text\/event-stream/);
+  });
+
+  it('should accept includeDescriptiveReferences as false', async () => {
+    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        entityTypes: ['Person', 'Organization'],
+        includeDescriptiveReferences: false
+      }),
+    });
+
+    expect(response.status).toBe(200);
+  });
 });
 
 describe('Event Store Subscription Pattern', () => {
