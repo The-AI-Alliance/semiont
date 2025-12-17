@@ -22,11 +22,11 @@ Semiont uses AI to automatically detect and create W3C-compliant annotations in 
 
 | Motivation | W3C Spec | Purpose | Body Content | User Control |
 |------------|----------|---------|--------------|--------------|
-| `highlighting` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Mark important passages | Empty array `[]` | Optional instructions (max 500 chars) |
-| `assessing` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Evaluate and assess content | Assessment text as `TextualBody` | Optional instructions (max 500 chars) |
-| `commenting` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Add explanatory comments | Comment text as `TextualBody` with `purpose: "commenting"` | Optional instructions (max 500 chars) + tone (scholarly/explanatory/conversational/technical) |
+| `highlighting` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Mark important passages | Empty array `[]` | Optional instructions (max 500 chars) + density (1-15) |
+| `assessing` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Evaluate and assess content | Assessment text as `TextualBody` | Optional instructions (max 500 chars) + tone + density (1-10) |
+| `commenting` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Add explanatory comments | Comment text as `TextualBody` with `purpose: "commenting"` | Optional instructions (max 500 chars) + tone + density (2-12) |
 | `tagging` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Identify structural roles | Dual-body structure: category (`purpose: "tagging"`) + schema ID (`purpose: "describing"`) | Selected schema (IRAC/IMRAD/Toulmin) + categories |
-| `linking` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Extract entity references | Entity type tags as `TextualBody` with `purpose: "tagging"` | Selected entity types from registry |
+| `linking` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Extract entity references | Entity type tags as `TextualBody` with `purpose: "tagging"` | Selected entity types from registry + include descriptive references option |
 
 All types create annotations with:
 - **Target**: Text selection with dual selectors (TextPositionSelector + TextQuoteSelector)
@@ -187,39 +187,86 @@ Detection workers use structured prompts optimized for each annotation type:
 - **Output**: JSON array with `exact`, `entityType`, `startOffset`, `endOffset`, `prefix`, `suffix`
 - **Model params**: max_tokens=4000, temperature=0.3
 
-### User Instructions
+### Detection Parameters
 
-**Highlights and Assessments** support optional instructions (max 500 chars):
+All detection types support various parameters to customize AI behavior and control output.
 
-Examples for Highlights:
+#### Instructions (Highlights, Assessments, Comments)
+
+Optional free-text guidance (max 500 characters) to influence what the AI detects:
+
+**Highlight Examples**:
 - "Focus on key technical points"
 - "Highlight definitions and important concepts"
 - "Find passages related to security"
 
-Examples for Assessments:
+**Assessment Examples**:
 - "Evaluate claims for accuracy"
 - "Assess the strength of evidence"
 - "Focus on methodology"
 
-**Comments** support optional instructions (max 500 chars) and tone selection:
-
-Instructions examples:
-
+**Comment Examples**:
 - "Focus on technical terminology"
 - "Explain historical references"
 - "Clarify complex concepts"
 
-Tone options:
+#### Tone (Assessments, Comments)
 
-- **Scholarly**: Academic style with citations and formal language
-- **Explanatory**: Clear, educational explanations for general audience
-- **Conversational**: Casual, friendly style for approachable learning
-- **Technical**: Precise, detailed technical explanations for expert audience
+Controls the writing style of generated text:
 
-**References** use entity type selection instead of free-text instructions:
-- Users select from entity type registry (Person, Location, Organization, etc.)
+- **Analytical** (Assessments): Objective, evidence-based evaluation
+- **Critical** (Assessments): Rigorous examination, identifies weaknesses
+- **Balanced** (Assessments): Fair consideration of strengths and limitations
+- **Constructive** (Assessments): Improvement-focused, actionable feedback
+- **Scholarly** (Comments): Academic style with citations and formal language
+- **Explanatory** (Comments): Clear, educational explanations for general audience
+- **Conversational** (Comments): Casual, friendly style for approachable learning
+- **Technical** (Comments): Precise, detailed technical explanations for expert audience
+
+#### Density (Highlights, Assessments, Comments)
+
+Controls the target number of annotations per 2000 words:
+
+| Type | Range | Default | Sparse (Low) | Dense (High) |
+|------|-------|---------|--------------|--------------|
+| **Highlights** | 1-15 | 5 | 1-3 per 2000 words | 13-15 per 2000 words |
+| **Assessments** | 1-10 | 4 | 1-2 per 2000 words | 8-10 per 2000 words |
+| **Comments** | 2-12 | 5 | 2-3 per 2000 words | 10-12 per 2000 words |
+
+**Implementation**: Density is communicated to the AI via prompt guidance. The AI aims for the specified density but may vary based on content (e.g., fewer highlights if content lacks noteworthy passages).
+
+**UI**: Density selector includes:
+- Checkbox to enable/disable (enabled by default)
+- Slider control with numeric display
+- Labels showing "sparse" at minimum, "dense" at maximum
+- Current value displayed as "X per 2000 words"
+
+#### Entity Types (References)
+
+**Selection**: Users select from entity type registry (Person, Location, Organization, Event, Concept, etc.)
+- Multiple types can be selected in a single detection run
 - Optional examples can be provided per entity type
-- Multiple entity types can be selected in a single detection run
+- Detection runs once per selected entity type
+
+#### Include Descriptive References (References)
+
+**Purpose**: Also detect descriptive references in addition to proper names.
+
+**Checkbox option** (default: unchecked):
+- **Unchecked (default)**: Only detect explicit entity names (e.g., "Einstein", "Paris", "IBM")
+- **Checked**: Also detect descriptive references like "the physicist", "the city", "the tech giant"
+
+**Example**:
+- Text: "Albert Einstein was born in Ulm. The physicist later moved to Switzerland."
+- Without descriptive refs: Detects "Albert Einstein", "Ulm", "Switzerland"
+- With descriptive refs: Also detects "the physicist" (referencing Einstein)
+
+**Use Cases**:
+- Academic writing with frequent pronoun/description usage
+- Historical documents using titles and descriptive phrases
+- Technical documents with role-based references ("the CEO", "the lead developer")
+
+**Prompt Impact**: When enabled, the AI is instructed to find both explicit names and descriptive references that clearly refer to entities.
 
 ### Content Truncation Strategy
 
@@ -324,7 +371,11 @@ Frontend updates UI in real-time (<50ms latency)
 
 **Responsibilities**:
 
-1. Validate request body (instructions for highlights/assessments/comments, tone for comments, entity types for references)
+1. Validate request body:
+   - Highlights: instructions (optional), density (optional, 1-15)
+   - Assessments: instructions (optional), tone (optional: analytical/critical/balanced/constructive), density (optional, 1-10)
+   - Comments: instructions (optional), tone (optional: scholarly/explanatory/conversational/technical), density (optional, 2-12)
+   - References: entityTypes (required array), includeDescriptiveReferences (optional boolean)
 2. Check authentication and resource existence (View Storage query)
 3. Create job and submit to queue
 4. Subscribe to Event Store for job events (resourceUri stream)
@@ -431,7 +482,11 @@ Neptune/In-Memory graph: (Document)-[:HAS_ANNOTATION]->(Annotation)
 
 Shared component for HighlightPanel, AssessmentPanel, and CommentsPanel:
 - Optional instructions textarea (max 500 characters with counter)
-- Optional tone selector dropdown (for comments only: scholarly, explanatory, conversational, technical)
+- Optional tone selector dropdown (assessments: analytical/critical/balanced/constructive; comments: scholarly/explanatory/conversational/technical)
+- Optional density slider (checkbox + slider control, enabled by default)
+  - Highlights: 1-15 (default 5)
+  - Assessments: 1-10 (default 4)
+  - Comments: 2-12 (default 5)
 - Sparkle button (✨) triggers detection
 - Real-time progress display during detection
 - Color-coded by motivation (yellow/amber for highlights, red/pink for assessments, purple/indigo for comments)
@@ -441,6 +496,7 @@ Shared component for HighlightPanel, AssessmentPanel, and CommentsPanel:
 Entity type selection UI:
 - Checkbox list of available entity types
 - Select all/none buttons
+- "Include descriptive references" checkbox (finds descriptive phrases like "the physicist" in addition to proper names)
 - Detection progress widget showing per-entity-type progress
 - Completion log showing counts per entity type
 
@@ -531,39 +587,23 @@ After detection completes:
 
 ---
 
-## Testing & Validation
-
-### Manual Testing Workflow
-
-**Highlights/Assessments/Comments**:
-
-1. Upload or paste a text document (markdown or plain text)
-2. Open Highlight, Assessment, or Comments panel
-3. Optionally provide instructions (e.g., "Focus on definitions")
-4. For comments: optionally select tone (scholarly, explanatory, conversational, technical)
-5. Click sparkle button (✨)
-6. Observe real-time progress (10% → 30% → 60% → 100%)
-7. Verify annotations appear correctly positioned
-8. Check annotation count matches reported count
-9. For comments: verify comment text provides value beyond restating the text
-
-**References**:
-1. Upload or paste a text document
-2. Open References panel
-3. Select entity types (Person, Location, etc.)
-4. Click detect button
-5. Observe per-entity-type progress
-6. Verify references appear correctly positioned with entity type tags
-7. Check completion log shows counts per entity type
+## Validation
 
 ### Validation Checks
 
 - **Position accuracy**: Annotations render at correct character positions
-- **Fuzzy anchoring**: Works when LLM positions are approximate (±5 chars)
+- **Fuzzy anchoring**: Finds correct text even when LLM positions are wrong by searching for exact text and using prefix/suffix context for disambiguation
 - **CRLF handling**: Windows line endings normalized correctly ([CODEMIRROR-INTEGRATION.md:139-197](../../apps/frontend/docs/CODEMIRROR-INTEGRATION.md))
 - **Content limits**: Highlights/assessments/comments process first 8000 chars, references process full document
 - **User instructions**: Influence LLM detection results as expected (highlights/assessments/comments)
-- **Tone selection**: Comment tone influences style as expected (scholarly vs conversational)
+- **Tone selection**: Tone influences writing style as expected
+  - Assessment tones: analytical/critical/balanced/constructive
+  - Comment tones: scholarly/explanatory/conversational/technical
+- **Density control**: Annotation count roughly matches density setting (±20% variance acceptable)
+  - Highlights: 1-15 per 2000 words
+  - Assessments: 1-10 per 2000 words
+  - Comments: 2-12 per 2000 words
+- **Descriptive references**: When enabled, detects both proper names and descriptive phrases
 - **Comment quality**: Comments add value beyond restating text, provide context/background
 - **Entity type selection**: References detect only selected types
 - **W3C compliance**: Annotations validate against W3C schema
@@ -577,31 +617,6 @@ After detection completes:
 4. **No batch position validation**: Highlights/assessments/comments don't validate positions before creating annotations (rely on fuzzy anchoring)
 5. **Comment selectivity**: AI may occasionally over-comment or under-comment (target is 3-8 per 2000 words)
 6. **Reference max tokens**: Very long documents may hit 4000 token limit, truncating entity extraction response
-
----
-
-## Future Enhancements
-
-### Short Term
-1. Increase content limit for highlights/assessments (10K-20K range)
-2. Add position validation before creating annotations (verify exact text match)
-3. Better error messages with specific failure reasons
-4. Confidence scores for each detection
-5. Increase max_tokens for reference detection to handle longer documents
-
-### Medium Term
-1. Chunking strategy for long documents (sliding window with overlap)
-2. User-selectable excerpts for analysis (manual section selection)
-3. Iterative refinement (detect → verify → adjust loop)
-4. Multiple LLM providers (fallback and comparison)
-5. Custom entity type definitions with examples
-
-### Long Term
-1. Multi-pass detection with different strategies (technical, contextual, structural)
-2. Cross-document pattern detection (entity recognition across corpus)
-3. Learning from user corrections (fine-tuning feedback loop)
-4. Custom detection models per domain (legal, scientific, technical)
-5. Real-time collaborative detection (multi-user annotation sessions)
 
 ---
 
