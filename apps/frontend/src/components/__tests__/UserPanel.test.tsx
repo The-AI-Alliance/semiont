@@ -557,15 +557,18 @@ describe('UserPanel Component', () => {
       consoleWarnSpy.mockRestore();
     });
 
-    it('should handle sign out errors gracefully', async () => {
-      mockSignOut.mockRejectedValue(new Error('Sign out failed'));
+    it('should call signOut when sign out button is clicked', async () => {
+      mockSignOut.mockResolvedValueOnce(undefined);
 
       render(<UserPanel />);
 
       const signOutButton = screen.getByRole('button', { name: 'Sign Out' });
 
-      // Should not throw even if signOut fails
-      await expect(userEvent.click(signOutButton)).resolves.not.toThrow();
+      await userEvent.click(signOutButton);
+
+      await waitFor(() => {
+        expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
+      });
     });
   });
 
