@@ -18,6 +18,8 @@ vi.mock('next-intl', () => ({
       startDetection: 'Start Detection',
       found: 'Found {count}',
       more: 'Detect More',
+      includeDescriptiveReferences: 'Include descriptive references',
+      descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',
     };
     let result = translations[key] || key;
     // Replace {count} with actual count value if provided
@@ -46,6 +48,7 @@ describe('ReferencesPanel Component', () => {
     onDetect: vi.fn(),
     onCancelDetection: vi.fn(),
     mediaType: 'text/plain',
+    annotateMode: true,
   };
 
   beforeEach(() => {
