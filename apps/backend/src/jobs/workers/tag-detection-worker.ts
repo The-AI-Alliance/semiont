@@ -186,7 +186,7 @@ export class TagDetectionWorker extends JobWorker {
         stage: 'analyzing',
         percentage: 10 + Math.floor((i / job.categories.length) * 50),
         currentCategory: category,
-        processedCategories: i,
+        processedCategories: i + 1,
         totalCategories: job.categories.length,
         message: `Analyzing ${category}...`
       };

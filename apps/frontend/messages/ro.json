@@ -538,9 +538,7 @@
     "found": "{count} found",
     "complete": "Detection complete!",
     "failed": "Detection failed",
-    "current": "Current: {entityType}",
-    "progress": "{processed} of {total} entity types",
-    "infoText": "New references appear in resource's History as they're detected"
+    "current": "Current: {entityType}"
   },
   "ReferencesPanel": {
     "referencesTitle": "References",

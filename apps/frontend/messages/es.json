@@ -538,9 +538,7 @@
     "found": "{count} encontrados",
     "complete": "¡Detección completa!",
     "failed": "Detección fallida",
-    "current": "Actual: {entityType}",
-    "progress": "{processed} de {total} tipos de entidad",
-    "infoText": "Las nuevas referencias aparecen en el Historial del documento a medida que se detectan"
+    "current": "Actual: {entityType}"
   },
   "ReferencesPanel": {
     "referencesTitle": "Referencias",

@@ -13,7 +13,7 @@ interface DetectSectionProps {
     message?: string;
     requestParams?: Array<{ label: string; value: string }>;
   } | null | undefined;
-  onDetect: (instructions?: string, tone?: string) => void | Promise<void>;
+  onDetect: (instructions?: string, tone?: string, density?: number) => void | Promise<void>;
 }
 
 const colorSchemes = {
@@ -52,16 +52,22 @@ export function DetectSection({
   const t = useTranslations(panelName);
   const [instructions, setInstructions] = useState('');
   const [tone, setTone] = useState('');
+  // Default density depends on annotation type
+  const defaultDensity = annotationType === 'comment' ? 5 : annotationType === 'assessment' ? 4 : annotationType === 'highlight' ? 5 : 5;
+  const [density, setDensity] = useState(defaultDensity);
+  const [useDensity, setUseDensity] = useState(true); // Enabled by default
   const metadata = ANNOTATORS[annotationType]!;
   const colors = colorSchemes[annotationType];
 
   const handleDetect = () => {
     onDetect(
       instructions.trim() || undefined,
-      annotationType === 'comment' && tone ? tone : undefined
+      (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
+      (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined
     );
     setInstructions('');
     setTone('');
+    // Don't reset density/useDensity - persist across detections
   };
 
   return (
@@ -93,8 +99,8 @@ export function DetectSection({
               </div>
             </div>
 
-            {/* Tone selector - only for comments */}
-            {annotationType === 'comment' && (
+            {/* Tone selector - for comments and assessments */}
+            {(annotationType === 'comment' || annotationType === 'assessment') && (
               <div className="mb-4">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
                   {t('toneLabel')} {t('toneOptional')}
@@ -105,11 +111,62 @@ export function DetectSection({
                   className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
                 >
                   <option value="">Default</option>
-                  <option value="scholarly">{t('toneScholarly')}</option>
-                  <option value="explanatory">{t('toneExplanatory')}</option>
-                  <option value="conversational">{t('toneConversational')}</option>
-                  <option value="technical">{t('toneTechnical')}</option>
+                  {annotationType === 'comment' && (
+                    <>
+                      <option value="scholarly">{t('toneScholarly')}</option>
+                      <option value="explanatory">{t('toneExplanatory')}</option>
+                      <option value="conversational">{t('toneConversational')}</option>
+                      <option value="technical">{t('toneTechnical')}</option>
+                    </>
+                  )}
+                  {annotationType === 'assessment' && (
+                    <>
+                      <option value="analytical">{t('toneAnalytical')}</option>
+                      <option value="critical">{t('toneCritical')}</option>
+                      <option value="balanced">{t('toneBalanced')}</option>
+                      <option value="constructive">{t('toneConstructive')}</option>
+                    </>
+                  )}
                 </select>
+              </div>
+            )}
+
+            {/* Density selector - for comments, assessments, and highlights */}
+            {(annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && (
+              <div className="mb-4">
+                {/* Header with toggle */}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={useDensity}
+                      onChange={(e) => setUseDensity(e.target.checked)}
+                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 dark:border-gray-600"
+                    />
+                    <span>{t('densityLabel')}</span>
+                  </label>
+                  {useDensity && (
+                    <span className="text-xs text-gray-500">{density} per 2000 words</span>
+                  )}
+                </div>
+
+                {/* Slider - only shown when enabled */}
+                {useDensity && (
+                  <>
+                    <input
+                      type="range"
+                      min={annotationType === 'comment' ? '2' : '1'}
+                      max={annotationType === 'comment' ? '12' : annotationType === 'assessment' ? '10' : '15'}
+                      value={density}
+                      onChange={(e) => setDensity(Number(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>{t('densitySparse')}</span>
+                      <span>{t('densityDense')}</span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
