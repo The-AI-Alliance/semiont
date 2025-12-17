@@ -232,7 +232,8 @@ describe('ReferencesPanel Component', () => {
       await userEvent.click(screen.getByText('Person'));
 
       // Check the "Include descriptive references" checkbox
-      const checkbox = screen.getByRole('checkbox', { name: /include descriptive references/i });
+      const checkboxLabel = screen.getByText('Include descriptive references');
+      const checkbox = checkboxLabel.previousElementSibling as HTMLInputElement;
       await userEvent.click(checkbox);
 
       const startButton = screen.getByTitle('Start Detection');
