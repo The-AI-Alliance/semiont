@@ -73,20 +73,9 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
             <span className="font-medium">
               {t('current', { entityType: progress.currentEntityType })}
             </span>
-          ) : (
-            <span className="font-medium">
-              {t('progress', { processed: progress.processedEntityTypes, total: progress.totalEntityTypes })}
-            </span>
-          )}
+          ) : null}
         </p>
       </div>
-
-      {/* Info text */}
-      {progress.status !== 'error' && progress.status !== 'complete' && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 italic">
-          {t('infoText')}
-        </p>
-      )}
     </div>
   );
 }
