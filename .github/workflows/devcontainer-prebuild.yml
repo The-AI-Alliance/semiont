@@ -1,0 +1,43 @@
+name: Pre-build Dev Container
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.devcontainer/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/devcontainer-prebuild.yml'
+  workflow_dispatch:
+  schedule:
+    # Rebuild weekly on Sunday at midnight UTC
+    - cron: '0 0 * * 0'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pre-build dev container image
+        uses: devcontainers/ci@v0.3
+        with:
+          imageName: ghcr.io/${{ github.repository }}/devcontainer
+          cacheFrom: ghcr.io/${{ github.repository }}/devcontainer
+          push: always
+          runCmd: |
+            echo "Dev container pre-built successfully!"
+            node --version
+            npm --version
