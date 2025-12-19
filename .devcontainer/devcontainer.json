@@ -5,6 +5,7 @@
   "image": "ghcr.io/the-ai-alliance/semiont/devcontainer:latest",
 
   "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
 
   // Start PostgreSQL before running setup
   "onCreateCommand": "sudo /usr/local/bin/start-postgres.sh",
@@ -27,6 +28,9 @@
   // Use 'postCreateCommand' to run commands after the container is created
   // Note: Output is buffered by Codespaces - use Cmd/Ctrl+Shift+P -> "View Creation Log" to see progress
   // "postCreateCommand": "bash .devcontainer/make-meaning.sh",
+
+  // Show setup instructions and offer to run setup when VS Code attaches
+  "postAttachCommand": "bash /workspace/.devcontainer/prompt-setup.sh",
 
   // Configure tool-specific properties
   "customizations": {
