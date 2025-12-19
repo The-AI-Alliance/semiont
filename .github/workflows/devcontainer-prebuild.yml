@@ -38,7 +38,6 @@ jobs:
       - name: Pre-build dev container image
         uses: devcontainers/ci@v0.3
         with:
-          configFile: .devcontainer/devcontainer.build.json
           imageName: ghcr.io/${{ steps.repo.outputs.name }}/devcontainer
           cacheFrom: ghcr.io/${{ steps.repo.outputs.name }}/devcontainer
           push: always
