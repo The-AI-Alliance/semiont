@@ -2,12 +2,7 @@
   "name": "Semiont Development",
 
   // Use pre-built image with PostgreSQL and all features
-  // Falls back to building from Dockerfile if image not available
   "image": "ghcr.io/the-ai-alliance/semiont/devcontainer:latest",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": "."
-  },
 
   "workspaceFolder": "/workspace",
 
