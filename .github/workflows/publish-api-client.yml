@@ -1,0 +1,83 @@
+name: Publish @semiont/api-client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/api-client/**'
+      - 'specs/**'
+      - '.github/workflows/publish-api-client.yml'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build but do not publish)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@semiont'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build @semiont/api-client
+        working-directory: ./packages/api-client
+        run: npm run build
+
+      - name: Determine version
+        id: version
+        working-directory: ./packages/api-client
+        run: |
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          PUBLISH_VERSION="${BASE_VERSION}-build.${{ github.run_number }}"
+          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "publish=$PUBLISH_VERSION" >> $GITHUB_OUTPUT
+          echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION)"
+
+      - name: Update package version
+        working-directory: ./packages/api-client
+        run: |
+          npm version ${{ steps.version.outputs.publish }} --no-git-tag-version
+
+      - name: Publish to GitHub Packages
+        if: github.event.inputs.dry_run != 'true'
+        working-directory: ./packages/api-client
+        run: npm publish --tag dev
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## Published @semiont/api-client@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Base version:** ${{ steps.version.outputs.base }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Build number:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Published version:** ${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dist tag:** dev" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Install with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "npm config set @semiont:registry https://npm.pkg.github.com" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @semiont/api-client@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Or install latest dev build:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @semiont/api-client@dev" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
