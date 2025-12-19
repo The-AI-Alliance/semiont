@@ -11,16 +11,6 @@
 
   "workspaceFolder": "/workspace",
 
-  // Features to add to the dev container (used during build)
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "22"
-    },
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
-  },
-
   // Start PostgreSQL before running setup
   "onCreateCommand": "sudo /usr/local/bin/start-postgres.sh",
 
