@@ -1,6 +1,12 @@
 #!/bin/bash
 # Prompt user to run make-meaning.sh setup
 
+# Skip interactive prompt in CI environments
+if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
+    echo "Running in CI - skipping interactive setup prompt"
+    exit 0
+fi
+
 clear
 cat /workspace/.devcontainer/setup-instructions.txt
 
