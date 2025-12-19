@@ -34,10 +34,15 @@ jobs:
       - name: Pre-build dev container image
         uses: devcontainers/ci@v0.3
         with:
+          configFile: .devcontainer/devcontainer.build.json
           imageName: ghcr.io/${{ github.repository }}/devcontainer
           cacheFrom: ghcr.io/${{ github.repository }}/devcontainer
           push: always
           runCmd: |
             echo "Dev container pre-built successfully!"
-            node --version
-            npm --version
+            echo "Node version: $(node --version)"
+            echo "npm version: $(npm --version)"
+            echo "PostgreSQL version: $(psql --version)"
+            echo "Git version: $(git --version)"
+            echo "GitHub CLI version: $(gh --version | head -n1)"
+            echo "Docker version: $(docker --version)"

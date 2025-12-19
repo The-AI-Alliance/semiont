@@ -2,12 +2,7 @@ version: '3.8'
 
 services:
   app:
-    # Use pre-built image from GHCR if available, otherwise fall back to base image
-    image: ${DEVCONTAINER_IMAGE:-ghcr.io/The-AI-Alliance/semiont/devcontainer:latest}
-    # Fallback base image if pre-built not available
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm
     volumes:
       - ..:/workspace:cached
     command: sleep infinity
