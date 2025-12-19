@@ -16,6 +16,20 @@
       "require": "./dist/utils/index.js"
     }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "@semiont:registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/api-client"
+  },
   "scripts": {
     "bundle-spec": "cd ../.. && npm run openapi:bundle",
     "copy-spec": "cp ../../specs/openapi.json openapi.json",
