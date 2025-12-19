@@ -54,8 +54,6 @@ jobs:
             echo "npm version: $(npm --version)"
             echo "PostgreSQL version: $(psql --version)"
             echo "Git version: $(git --version)"
-            echo "GitHub CLI version: $(gh --version | head -n1)"
-            echo "Docker version: $(docker --version)"
             echo ""
             if [ -d "/opt/semiont-prebuild/node_modules" ]; then
               echo "Pre-installed node_modules: ✓ ($(du -sh /opt/semiont-prebuild/node_modules | cut -f1))"
