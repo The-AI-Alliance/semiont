@@ -122,12 +122,25 @@ print_success "Node $(node --version), npm $(npm --version)"
 # Build and install everything
 cd /workspace || exit 1
 
-print_status "Installing dependencies (this takes 2-4 minutes)..."
-npm install >> $LOG_FILE 2>&1 || {
-    print_error "npm install failed - check $LOG_FILE for details"
-    exit 1
-}
-print_success "Dependencies installed"
+# Check if we can use pre-installed node_modules from the image
+if [ -d "/opt/semiont-prebuild/node_modules" ] && [ ! -d "/workspace/node_modules" ]; then
+    print_status "Using pre-installed dependencies from image..."
+    cp -r /opt/semiont-prebuild/node_modules /workspace/node_modules >> $LOG_FILE 2>&1 || {
+        print_warning "Failed to copy pre-installed node_modules, will run npm install instead"
+        rm -rf /workspace/node_modules
+    }
+fi
+
+if [ -d "/workspace/node_modules" ]; then
+    print_success "Dependencies ready (using pre-installed modules)"
+else
+    print_status "Installing dependencies (this takes 2-4 minutes)..."
+    npm install >> $LOG_FILE 2>&1 || {
+        print_error "npm install failed - check $LOG_FILE for details"
+        exit 1
+    }
+    print_success "Dependencies installed"
+fi
 
 print_status "Building shared packages..."
 # Build only the shared packages, not the apps yet

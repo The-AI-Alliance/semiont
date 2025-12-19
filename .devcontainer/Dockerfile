@@ -63,6 +63,13 @@ RUN apt-get update && \
     apt-get install -y build-essential python3 python3-pip && \
     rm -rf /var/lib/apt/lists/*
 
+# Pre-install node_modules to speed up setup
+# Copy package files and install dependencies at build time
+COPY --chown=node:node package.json package-lock.json /opt/semiont-prebuild/
+RUN cd /opt/semiont-prebuild && \
+    npm ci && \
+    chown -R node:node /opt/semiont-prebuild
+
 # Set working directory
 WORKDIR /workspace
 
