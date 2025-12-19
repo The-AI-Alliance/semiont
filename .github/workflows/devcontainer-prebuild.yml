@@ -46,7 +46,8 @@ jobs:
         with:
           imageName: ghcr.io/${{ steps.repo.outputs.name }}/devcontainer
           cacheFrom: ghcr.io/${{ steps.repo.outputs.name }}/devcontainer
-          push: ${{ github.event_name != 'pull_request' }}
+          push: filter
+          eventFilterForPush: push,workflow_dispatch,schedule
           runCmd: |
             echo "Dev container pre-built successfully!"
             echo "Node version: $(node --version)"
