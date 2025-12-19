@@ -21,6 +21,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -58,7 +59,7 @@ jobs:
       - name: Publish to GitHub Packages
         if: github.event.inputs.dry_run != 'true'
         working-directory: ./packages/api-client
-        run: npm publish --tag dev
+        run: npm publish --tag dev --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
