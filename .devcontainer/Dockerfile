@@ -69,11 +69,15 @@ WORKDIR /workspace
 # Pre-install node_modules to speed up setup
 # Copy package files and install dependencies at build time
 COPY --chown=node:node package.json package-lock.json /opt/semiont-prebuild/
-RUN ls -la /opt/semiont-prebuild/ && \
-    echo "Files copied successfully" || \
-    (echo "ERROR: package.json not found after COPY" && exit 1)
+RUN echo "=== After COPY ===" && \
+    ls -la /opt/semiont-prebuild/ && \
+    cat /opt/semiont-prebuild/package.json | head -5
 USER node
-RUN cd /opt/semiont-prebuild && npm ci
+RUN echo "=== Running npm ci as node user ===" && \
+    cd /opt/semiont-prebuild && \
+    npm ci && \
+    echo "=== npm ci completed ===" && \
+    ls -la /opt/semiont-prebuild/node_modules | head -20
 USER root
 
 # Switch to node user for development
