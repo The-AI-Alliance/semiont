@@ -68,8 +68,10 @@ WORKDIR /workspace
 
 # Pre-install node_modules to speed up setup
 # Copy package files and install dependencies at build time
-# The devcontainers/ci build context should be the repo root
 COPY --chown=node:node package.json package-lock.json /opt/semiont-prebuild/
+RUN ls -la /opt/semiont-prebuild/ && \
+    echo "Files copied successfully" || \
+    (echo "ERROR: package.json not found after COPY" && exit 1)
 USER node
 RUN cd /opt/semiont-prebuild && npm ci
 USER root
