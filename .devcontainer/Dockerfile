@@ -5,7 +5,15 @@ FROM mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm
 USER root
 
 # Install PostgreSQL 16
+# Add PostgreSQL APT repository for version 16
 RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        gnupg \
+        wget && \
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
     apt-get install -y postgresql-16 postgresql-contrib-16 && \
     rm -rf /var/lib/apt/lists/*
 
