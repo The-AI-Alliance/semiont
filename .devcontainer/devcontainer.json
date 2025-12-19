@@ -1,18 +1,18 @@
 {
   "name": "Semiont Development",
-  "dockerComposeFile": "docker-compose.yml",
-  "service": "app",
+
+  // Use pre-built image with PostgreSQL and all features
+  // Falls back to building from Dockerfile if image not available
+  "image": "ghcr.io/The-AI-Alliance/semiont/devcontainer:latest",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+
   "workspaceFolder": "/workspace",
 
-  // Features to add to the dev container
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "22"
-    },
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
-  },
+  // Start PostgreSQL before running setup
+  "onCreateCommand": "sudo /usr/local/bin/start-postgres.sh",
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally
   "forwardPorts": [3000, 4000],
