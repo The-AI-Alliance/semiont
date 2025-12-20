@@ -148,6 +148,16 @@ npm install @semiont/core
 
 **Note:** Use **@semiont/api-client** for external integrations. The **@semiont/core** package is for backend internal use only.
 
+### [@semiont/cli](apps/cli/) [![npm](https://img.shields.io/npm/v/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli)
+
+Command-line tool for managing Semiont environments and deployments:
+
+```bash
+npm install -g @semiont/cli
+```
+
+Provides unified environment management across local development, containerized, and cloud (AWS) platforms.
+
 **Documentation:**
 
 - [API Client README](packages/api-client/README.md) - SDK usage and utilities

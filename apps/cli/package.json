@@ -1,12 +1,35 @@
 {
-  "name": "semiont-cli",
-  "version": "0.0.2",
+  "name": "@semiont/cli",
+  "version": "0.1.0",
   "description": "Semiont CLI - Unified environment management tool",
   "_comment": "AWS SDK dependencies (@aws-sdk/*) are only used by platforms/aws",
   "type": "module",
   "bin": {
     "semiont": "./dist/cli.mjs"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "apps/cli"
+  },
+  "keywords": [
+    "semiont",
+    "cli",
+    "environment-management",
+    "devops",
+    "deployment",
+    "infrastructure"
+  ],
+  "author": "Semiont Team",
+  "license": "Apache-2.0",
   "scripts": {
     "build": "npm run typecheck && node build.mjs",
     "build:only": "node build.mjs",
