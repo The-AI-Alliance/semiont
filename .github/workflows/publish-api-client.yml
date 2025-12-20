@@ -20,7 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
       id-token: write
 
     steps:
@@ -31,8 +30,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@semiont'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm install
@@ -56,12 +54,10 @@ jobs:
         run: |
           npm version ${{ steps.version.outputs.publish }} --no-git-tag-version
 
-      - name: Publish to GitHub Packages
+      - name: Publish to npm
         if: github.event.inputs.dry_run != 'true'
         working-directory: ./packages/api-client
         run: npm publish --tag dev --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         run: |
@@ -74,7 +70,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Install with:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "npm config set @semiont:registry https://npm.pkg.github.com" >> $GITHUB_STEP_SUMMARY
           echo "npm install @semiont/api-client@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
