@@ -1,5 +1,9 @@
 # @semiont/core
 
+[![npm version](https://img.shields.io/npm/v/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core)
+[![License](https://img.shields.io/npm/l/@semiont/core.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+
 Backend domain logic for the Semiont semantic knowledge platform. This package provides **internal backend utilities** for event sourcing, cryptography, DID generation, and type guards.
 
 > ⚠️ **Not for External Use**: If you're building applications that consume the Semiont API, use [`@semiont/api-client`](../api-client/README.md) instead. This package is for **backend internal use only**.
@@ -19,8 +23,16 @@ Backend domain logic for the Semiont semantic knowledge platform. This package p
 
 ## Installation
 
+Install the latest stable release from npm:
+
 ```bash
 npm install @semiont/core
+```
+
+Or install the latest development build:
+
+```bash
+npm install @semiont/core@dev
 ```
 
 ## What's Included

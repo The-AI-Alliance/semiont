@@ -2,6 +2,18 @@
 
 Comprehensive examples for common operations with the Semiont API Client.
 
+## Installation
+
+Install from npm:
+
+```bash
+# Latest stable release
+npm install @semiont/api-client
+
+# Or latest development build
+npm install @semiont/api-client@dev
+```
+
 ## Table of Contents
 
 - [Authentication](#authentication)

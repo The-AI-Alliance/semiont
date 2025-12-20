@@ -1,5 +1,9 @@
 # @semiont/api-client
 
+[![npm version](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
+[![License](https://img.shields.io/npm/l/@semiont/api-client.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+
 TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) - a knowledge management system for semantic annotations, AI-powered entity detection, and collaborative document analysis.
 
 ## What is Semiont?
@@ -17,8 +21,16 @@ Semiont lets you:
 
 ## Installation
 
+Install the latest stable release from npm:
+
 ```bash
 npm install @semiont/api-client
+```
+
+Or install the latest development build:
+
+```bash
+npm install @semiont/api-client@dev
 ```
 
 **Prerequisites**: Semiont backend running. See [Running the Backend](../../apps/backend/README.md#quick-start) for setup.

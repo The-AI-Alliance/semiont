@@ -102,9 +102,17 @@ Deploy Semiont to AWS for production use with auto-scaling and managed services.
 
 See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for AWS deployment instructions.
 
-## 📦 API Client
+## 📦 Published Packages
 
-The **[@semiont/api-client](packages/api-client/)** provides a generated OpenAPI client for external applications:
+Semiont provides published npm packages for building applications:
+
+### [@semiont/api-client](packages/api-client/) [![npm](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
+
+TypeScript SDK for external applications - use this for most integrations:
+
+```bash
+npm install @semiont/api-client
+```
 
 ```typescript
 import { SemiontApiClient } from '@semiont/api-client';
@@ -130,7 +138,15 @@ const resource = await client.createResource({
 - 🔄 Spec-first development: Types generated from canonical [OpenAPI specification](specs/src/)
 - 🛠️ W3C annotation utilities (selectors, entity types, locales)
 
-**Note:** For external integrations, use **@semiont/api-client**. The **[@semiont/core](packages/core/)** package is for backend internal domain logic only (event sourcing, crypto, DID utilities).
+### [@semiont/core](packages/core/) [![npm](https://img.shields.io/npm/v/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core)
+
+Backend domain logic for internal use only (event sourcing, crypto, DID utilities):
+
+```bash
+npm install @semiont/core
+```
+
+**Note:** Use **@semiont/api-client** for external integrations. The **@semiont/core** package is for backend internal use only.
 
 **Documentation:**
 
