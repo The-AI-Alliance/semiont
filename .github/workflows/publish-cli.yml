@@ -37,6 +37,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Build @semiont/api-client
+        working-directory: ./packages/api-client
+        run: npm run build
+
+      - name: Build @semiont/core
+        working-directory: ./packages/core
+        run: npm run build
+
       - name: Build @semiont/cli
         working-directory: ./apps/cli
         run: npm run build
