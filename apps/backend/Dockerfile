@@ -16,6 +16,7 @@ RUN npm ci
 COPY apps/backend ./apps/backend
 COPY packages/core ./packages/core
 COPY packages/api-client ./packages/api-client
+COPY specs ./specs
 COPY tsconfig.json ./
 
 # Build packages and application
