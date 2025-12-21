@@ -1,6 +1,6 @@
 ---
-layout: default  
-title: Semiont
+layout: default
+title: Semiont - Your Sovereign AI Knowledge Platform
 ---
 
 ## Semiont
@@ -9,35 +9,82 @@ title: Semiont
 
 Semiont is a standards-compliant multimedia resource management system built on the **W3C Web Annotation** model. It transforms unstructured content into interconnected semantic networks through collaborative markup, linking, and AI-powered knowledge extraction—all stored as standard, interoperable annotations.
 
-**AI-Native Enhancements:**
+### Why Semiont?
 
-- **Entity Detection** - Automatically identify people, places, concepts, and other entities
-- **Entity Resolution** - Link detected entities to specific resources or external knowledge bases
-- **Context Retrieval** - Extract semantic context from the knowledge graph for LLM consumption
-- **Contextualized Generation** - Create new resources aligned with your existing knowledge
+- **Standards-Based** - Built on W3C Web Annotation for long-term interoperability and data portability
+- **AI-Native** - Designed from the ground up to work seamlessly with large language models and intelligent agents
+- **Self-Sovereign** - Run on your infrastructure with your data — no cloud dependencies, no vendor lock-in
+- **Future-Proof** - Open standards ensure your knowledge remains accessible regardless of technology changes
 
-Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructure with your data for true **sovereign AI**.
+## AI-Powered Knowledge Management
 
-## Get Started
+### [Annotation Detection](https://github.com/The-AI-Alliance/semiont/blob/main/docs/ai/DETECTION.md)
 
-### Try Now in GitHub Codespaces
+Automatically detect and create semantic annotations including highlights, assessments, comments, tags, and entity references — turning raw content into structured knowledge.
 
-Launch a fully-configured development environment in seconds:
+### Entity Resolution
+
+Link detected entities to specific resources or external knowledge bases, building a rich semantic network that connects related concepts across your entire knowledge system.
+
+### Context Retrieval
+
+Extract precise semantic context from your knowledge graph for LLM consumption, enabling AI assistants to reason over your specific domain knowledge.
+
+### Contextualized Generation
+
+Create new resources aligned with your existing knowledge, maintaining consistency and coherence across all AI-generated content.
+
+## Use Cases
+
+- **Research & Analysis** - Annotate papers, extract citations, track provenance of ideas
+- **Documentation** - Build interconnected knowledge bases with semantic linking
+- **Legal & Compliance** - Review contracts, track references, manage regulatory content
+- **Content Curation** - Organize multimedia resources with rich semantic metadata
+- **Collaborative Knowledge** - Teams working together to build shared understanding
+
+## Get Started Today
+
+### Try in the Cloud
+
+Launch a fully-configured development environment in seconds — no installation required:
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
 
-No setup required — start building your semantic knowledge system immediately with all dependencies pre-installed and ready to go.
+Perfect for exploring Semiont's capabilities without any local setup. All dependencies pre-installed and ready to go.
 
-### Explore the Repository
+### Deploy to Production
 
-View the source code, documentation, and contribute on [GitHub](https://github.com/The-AI-Alliance/semiont)
+Ready for production use? Choose your deployment:
+
+- **Container Deployment** - Run with Docker on any infrastructure
+- **AWS Deployment** - Auto-scaling production deployment with managed services
+- **Local Development** - Full control for development and testing
+
+[View deployment options →](https://github.com/The-AI-Alliance/semiont/blob/main/docs/DEPLOYMENT.md)
+
+### Integrate with Your App
+
+Use Semiont's TypeScript SDK to add semantic annotation capabilities to your application:
+
+```bash
+npm install @semiont/api-client
+```
+
+[SDK documentation →](https://github.com/The-AI-Alliance/semiont/blob/main/packages/api-client/README.md)
+
+## Open Source & Community
 
 [![Continuous Integration](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![Security Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml?query=branch%3Amain)
 [![License](https://img.shields.io/github/license/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/tree/main?tab=Apache-2.0-1-ov-file#readme)
-[![Issues](https://img.shields.io/github/issues/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/issues)
 [![GitHub stars](https://img.shields.io/github/stars/The-AI-Alliance/semiont?style=social)](https://github.com/The-AI-Alliance/semiont/stargazers)
 
-## More
+Semiont is Apache 2.0 licensed and developed in the open. We welcome contributions from the community.
 
-Come back soon
+- **[View on GitHub](https://github.com/The-AI-Alliance/semiont)** - Explore the source code and documentation
+- **[Report Issues](https://github.com/The-AI-Alliance/semiont/issues)** - Found a bug or have a feature request?
+- **[Contributing Guide](https://github.com/The-AI-Alliance/semiont/blob/main/CONTRIBUTING.md)** - Learn how to contribute to the project
+
+---
+
+**Part of the [AI Alliance](https://thealliance.ai/) — building open, safe, and beneficial AI for everyone.**
