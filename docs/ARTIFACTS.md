@@ -275,56 +275,57 @@ npm run version:set semiont-backend 0.2.1
 npm run version:sync
 ```
 
-### Version Bump Workflow
+### Release Workflow
 
-#### For Development Builds (automatic)
+#### Stable Releases (Automated)
 
-1. **Bump version in version.json:**
-   ```bash
-   npm run version:bump minor
-   ```
+**Use the release script for a complete, automated release:**
 
-2. **Sync all package.json files:**
-   ```bash
-   npm run version:sync
-   ```
+```bash
+# Interactive mode (prompts for version bump type)
+npm run release:stable
 
-3. **Commit and push:**
-   ```bash
-   git add version.json packages/*/package.json apps/*/package.json
-   git commit -m "bump version to 0.3.0"
-   git push
-   ```
+# Specify version bump type
+npm run release:stable patch   # 0.2.0 → 0.2.1
+npm run release:stable minor   # 0.2.0 → 0.3.0
+npm run release:stable major   # 0.2.0 → 1.0.0
 
-4. **CI automatically publishes** new versions with `-build.N` suffix
+# Dry run to preview
+npm run release:stable -- --dry-run
+```
 
-#### For Stable Releases (manual)
+**The release script automatically:**
+1. Verifies all versions are in sync
+2. Publishes current version as stable release (all 5 artifacts)
+3. Waits for all workflows to complete successfully
+4. Bumps version for next development cycle
+5. Commits and pushes changes to main
 
-1. **Ensure version.json has the desired version** (e.g., `0.2.0`)
+**Manual workflow triggers** (if needed):
+```bash
+# Publish individual artifacts as stable releases
+gh workflow run publish-api-client.yml --field stable_release=true
+gh workflow run publish-core.yml --field stable_release=true
+gh workflow run publish-cli.yml --field stable_release=true
+gh workflow run publish-backend.yml --field stable_release=true
+gh workflow run publish-frontend.yml --field stable_release=true
+```
 
-2. **Manually trigger workflows** with `stable_release` option:
-   ```bash
-   # Publish npm packages as stable releases
-   gh workflow run publish-api-client.yml --field stable_release=true
-   gh workflow run publish-core.yml --field stable_release=true
-   gh workflow run publish-cli.yml --field stable_release=true
+#### Development Builds (Automatic)
 
-   # Publish container images as stable releases
-   gh workflow run publish-backend.yml --field stable_release=true
-   gh workflow run publish-frontend.yml --field stable_release=true
+Development builds are published automatically on every push to `main`:
+- Format: `{VERSION}-build.{RUN_NUMBER}`
+- Tags: `dev` (npm), `dev` (containers)
+- No manual action required
 
-   # Or via GitHub Actions UI:
-   # Actions → Select workflow → Run workflow → Check "Stable release"
-   ```
-
-3. **Artifacts will be published** as:
-   - **NPM packages:**
-     - Version: `0.2.0` (no `-build.N` suffix)
-     - npm tag: `latest` (instead of `dev`)
-   - **Container images:**
-     - Version: `0.2.0` (no `-build.N` suffix)
-     - Tag: `latest` (instead of `dev`)
-     - Also tagged: `sha-{commit}` (commit-specific tag)
+To change the base version for development builds:
+```bash
+npm run version:bump minor  # or patch/major
+npm run version:sync
+git add version.json packages/*/package.json apps/*/package.json
+git commit -m "bump version to 0.3.0"
+git push
+```
 
 ### Current Versions
 

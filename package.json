@@ -28,6 +28,7 @@
     "version:sync": "node scripts/version.mjs sync",
     "version:bump": "node scripts/version.mjs bump",
     "version:set": "node scripts/version.mjs set",
+    "release:stable": "node scripts/release.mjs",
     "install:deps": "npm install",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
     "container:build": "node scripts/build-images.js",
