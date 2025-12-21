@@ -29,6 +29,7 @@ vi.mock('../db', () => ({
     setClient: vi.fn(),
     reset: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn().mockResolvedValue(undefined),
+    checkHealth: vi.fn().mockResolvedValue(true),
   },
   getDatabase: () => mockPrismaClient,
   // Keep prisma export for any legacy tests
