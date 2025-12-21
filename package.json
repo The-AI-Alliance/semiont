@@ -13,7 +13,7 @@
     "dev": "npm run dev --workspaces",
     "build": "npm run build:packages && npm run build:apps",
     "build:packages": "node scripts/build-packages.js",
-    "build:apps": "npm run build -w semiont-backend && npm run build -w semiont-frontend && npm run build -w semiont-cli",
+    "build:apps": "npm run build -w semiont-backend && npm run build -w semiont-frontend && npm run build -w @semiont/cli",
     "build:all": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
