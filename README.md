@@ -102,87 +102,27 @@ Deploy Semiont to AWS for production use with auto-scaling and managed services.
 
 See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for AWS deployment instructions.
 
-## 📦 Published Packages
+## 📦 Published Artifacts
 
-Semiont provides published npm packages for building applications:
+Semiont publishes npm packages and container images for easy integration and deployment.
 
-### [@semiont/api-client](packages/api-client/) [![npm](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
+**📚 [Complete Artifacts Documentation →](docs/ARTIFACTS.md)**
 
-TypeScript SDK for external applications - use this for most integrations:
+### NPM Packages
 
-```bash
-npm install @semiont/api-client
-```
+- **[@semiont/api-client](packages/api-client/)** [![npm](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client) - TypeScript SDK with complete types from OpenAPI spec. [Documentation →](packages/api-client/README.md)
 
-```typescript
-import { SemiontApiClient } from '@semiont/api-client';
+- **[@semiont/core](packages/core/)** [![npm](https://img.shields.io/npm/v/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core) - Core domain types and utilities for internal use. [Documentation →](packages/core/README.md)
 
-const client = new SemiontApiClient({
-  baseUrl: 'http://localhost:4000'
-});
+- **[@semiont/cli](apps/cli/)** [![npm](https://img.shields.io/npm/v/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli) - Command-line tool for environment management. [Documentation →](apps/cli/README.md)
 
-await client.authenticateLocal('user@example.com', '123456');
-const resource = await client.createResource({
-  name: 'My Resource',
-  content: 'Hello World',
-  format: 'text/plain',
-  entityTypes: ['example']
-});
-```
+### Container Images
 
-**Features:**
+- **[semiont-backend](apps/backend/)** [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-backend) - Backend API server with multi-platform support. [Documentation →](apps/backend/README.md#-container-image)
 
-- 🎯 Complete TypeScript types generated from [OpenAPI specification](specs/README.md)
-- 🔌 High-level API client with authentication and error handling
-- ✅ Type-safe request/response handling
-- 🔄 Spec-first development: Types generated from canonical [OpenAPI specification](specs/src/)
-- 🛠️ W3C annotation utilities (selectors, entity types, locales)
+- **[semiont-frontend](apps/frontend/)** [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-frontend) - Next.js frontend application with multi-platform support. [Documentation →](apps/frontend/README.md#-container-image)
 
-### [@semiont/core](packages/core/) [![npm](https://img.shields.io/npm/v/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core)
-
-Backend domain logic for internal use only (event sourcing, crypto, DID utilities):
-
-```bash
-npm install @semiont/core
-```
-
-**Note:** Use **@semiont/api-client** for external integrations. The **@semiont/core** package is for backend internal use only.
-
-### [@semiont/cli](apps/cli/) [![npm](https://img.shields.io/npm/v/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli)
-
-Command-line tool for managing Semiont environments and deployments:
-
-```bash
-npm install -g @semiont/cli
-```
-
-Provides unified environment management across local development, containerized, and cloud (AWS) platforms.
-
-### [Backend Container Image](apps/backend/) [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-backend)
-
-Production-ready backend container with multi-platform support (amd64, arm64):
-
-```bash
-docker pull ghcr.io/the-ai-alliance/semiont-backend:dev
-```
-
-See [Backend README](apps/backend/README.md#-container-image) and [Container Documentation](apps/backend/docs/CONTAINER.md) for configuration details.
-
-### [Frontend Container Image](apps/frontend/) [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-frontend)
-
-Production-ready frontend container with multi-platform support (amd64, arm64):
-
-```bash
-docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
-```
-
-See [Frontend README](apps/frontend/README.md#-container-image) and [ARTIFACTS.md](ARTIFACTS.md#using-frontend-container-image) for configuration details and Docker Compose examples.
-
-**Documentation:**
-
-- [API Client README](packages/api-client/README.md) - SDK usage and utilities
-- [API Reference](specs/docs/API.md) - Complete HTTP API endpoint documentation
-- [OpenAPI Specification](specs/README.md) - Machine-readable API contract (source in [specs/src/](specs/src/))
+**See [docs/ARTIFACTS.md](docs/ARTIFACTS.md) for complete documentation on all published packages, container images, and versioning.**
 
 ## 📖 Documentation
 

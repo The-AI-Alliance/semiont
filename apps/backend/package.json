@@ -1,6 +1,6 @@
 {
   "name": "semiont-backend",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "tsc --watch --preserveWatchOutput & node --watch dist/index.js",
