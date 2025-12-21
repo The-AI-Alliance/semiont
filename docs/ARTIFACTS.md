@@ -279,25 +279,44 @@ npm run version:sync
 
 #### Stable Releases (Automated)
 
-**Use the release script for a complete, automated release:**
+**Three-step release process** (recommended for long-running workflows):
+
+```bash
+# Step 1: Verify version sync and trigger stable release workflows
+npm run release:step1 patch   # or minor/major
+
+# Output: Command to run step 2 with workflow run IDs
+
+# Step 2: Monitor workflows until completion
+npm run release:step2 <runIds> patch
+
+# Output: Command to run step 3
+
+# Step 3: Bump version and commit
+npm run release:step3 patch
+```
+
+**Each step is resumable** - if you close your laptop or lose connection during step 2, you can re-run it with the same parameters. Each step outputs the exact command needed for the next step.
+
+**Single-command release** (for short workflows or when you can monitor):
 
 ```bash
 # Interactive mode (prompts for version bump type)
 npm run release:stable
 
 # Specify version bump type
-npm run release:stable patch   # 0.2.0 → 0.2.1
-npm run release:stable minor   # 0.2.0 → 0.3.0
-npm run release:stable major   # 0.2.0 → 1.0.0
+npm run release:stable patch   # 0.2.1 → 0.2.2
+npm run release:stable minor   # 0.2.1 → 0.3.0
+npm run release:stable major   # 0.2.1 → 1.0.0
 
 # Dry run to preview
 npm run release:stable -- --dry-run
 ```
 
-**The release script automatically:**
+**The release process:**
 1. Verifies all versions are in sync
 2. Publishes current version as stable release (all 5 artifacts)
-3. Waits for all workflows to complete successfully
+3. Waits for all workflows to complete (10-20 minutes for container builds)
 4. Bumps version for next development cycle
 5. Commits and pushes changes to main
 
