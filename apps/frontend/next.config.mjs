@@ -76,7 +76,7 @@ const securityHeaders = [
 ];
 
 const baseConfig = {
-  // Enable standalone output for Docker optimization
+  // Enable standalone output for container deployment
   output: 'standalone',
 
   // Security headers
