@@ -158,6 +158,16 @@ npm install -g @semiont/cli
 
 Provides unified environment management across local development, containerized, and cloud (AWS) platforms.
 
+### [Backend Container Image](apps/backend/) [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-backend)
+
+Production-ready backend container with multi-platform support (amd64, arm64):
+
+```bash
+docker pull ghcr.io/the-ai-alliance/semiont-backend:dev
+```
+
+See [Backend README](apps/backend/README.md#-container-image) and [Container Documentation](apps/backend/docs/CONTAINER.md) for configuration details.
+
 **Documentation:**
 
 - [API Client README](packages/api-client/README.md) - SDK usage and utilities

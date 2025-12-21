@@ -53,6 +53,36 @@ npx prisma db push
 npm run dev
 ```
 
+## 🐳 Container Image
+
+[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-backend)
+
+Pull and run the published backend container image:
+
+```bash
+# Pull latest development build
+docker pull ghcr.io/the-ai-alliance/semiont-backend:dev
+
+# Run with configuration
+docker run -d \
+  -p 4000:4000 \
+  -v $(pwd):/app/config \
+  -e SEMIONT_ROOT=/app/config \
+  -e SEMIONT_ENV=production \
+  --name semiont-backend \
+  ghcr.io/the-ai-alliance/semiont-backend:dev
+```
+
+**Configuration Requirements:**
+- `SEMIONT_ROOT` - Path to directory containing `semiont.json` and `environments/` subdirectory
+- `SEMIONT_ENV` - Environment name (e.g., `production`, `staging`, `development`)
+
+All other configuration (database, secrets, AI keys) comes from JSON files in `SEMIONT_ROOT/environments/{SEMIONT_ENV}.json`.
+
+**Multi-platform Support:** linux/amd64, linux/arm64
+
+See [Container Documentation](./docs/CONTAINER.md) for advanced usage, Docker Compose, and Kubernetes deployment.
+
 ## Technology Stack
 
 - **Architecture**: Public REST API (browser-accessible)
