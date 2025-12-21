@@ -277,6 +277,8 @@ npm run version:sync
 
 ### Version Bump Workflow
 
+#### For Development Builds (automatic)
+
 1. **Bump version in version.json:**
    ```bash
    npm run version:bump minor
@@ -295,6 +297,34 @@ npm run version:sync
    ```
 
 4. **CI automatically publishes** new versions with `-build.N` suffix
+
+#### For Stable Releases (manual)
+
+1. **Ensure version.json has the desired version** (e.g., `0.2.0`)
+
+2. **Manually trigger workflows** with `stable_release` option:
+   ```bash
+   # Publish npm packages as stable releases
+   gh workflow run publish-api-client.yml --field stable_release=true
+   gh workflow run publish-core.yml --field stable_release=true
+   gh workflow run publish-cli.yml --field stable_release=true
+
+   # Publish container images as stable releases
+   gh workflow run publish-backend.yml --field stable_release=true
+   gh workflow run publish-frontend.yml --field stable_release=true
+
+   # Or via GitHub Actions UI:
+   # Actions → Select workflow → Run workflow → Check "Stable release"
+   ```
+
+3. **Artifacts will be published** as:
+   - **NPM packages:**
+     - Version: `0.2.0` (no `-build.N` suffix)
+     - npm tag: `latest` (instead of `dev`)
+   - **Container images:**
+     - Version: `0.2.0` (no `-build.N` suffix)
+     - Tag: `latest` (instead of `dev`)
+     - Also tagged: `sha-{commit}` (commit-specific tag)
 
 ### Current Versions
 

@@ -14,6 +14,11 @@ on:
         required: false
         type: boolean
         default: false
+      stable_release:
+        description: 'Stable release (publish without -build.N suffix)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   publish:
@@ -41,12 +46,19 @@ jobs:
         id: version
         run: |
           BASE_VERSION=$(node -p "require('./apps/frontend/package.json').version")
-          PUBLISH_VERSION="${BASE_VERSION}-build.${{ github.run_number }}"
           COMMIT_SHA=$(git rev-parse --short HEAD)
+          if [ "${{ github.event.inputs.stable_release }}" = "true" ]; then
+            PUBLISH_VERSION="$BASE_VERSION"
+            DIST_TAG="latest"
+          else
+            PUBLISH_VERSION="${BASE_VERSION}-build.${{ github.run_number }}"
+            DIST_TAG="dev"
+          fi
           echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
           echo "publish=$PUBLISH_VERSION" >> $GITHUB_OUTPUT
           echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
-          echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION)"
+          echo "tag=$DIST_TAG" >> $GITHUB_OUTPUT
+          echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION, tag: $DIST_TAG)"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -56,7 +68,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event.inputs.dry_run != 'true' }}
           tags: |
-            ghcr.io/the-ai-alliance/semiont-frontend:dev
+            ghcr.io/the-ai-alliance/semiont-frontend:${{ steps.version.outputs.tag }}
             ghcr.io/the-ai-alliance/semiont-frontend:${{ steps.version.outputs.publish }}
             ghcr.io/the-ai-alliance/semiont-frontend:sha-${{ steps.version.outputs.sha }}
           cache-from: type=gha
@@ -67,16 +79,11 @@ jobs:
           echo "## Published Frontend Container Image" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Base version:** ${{ steps.version.outputs.base }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Build number:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "**Published version:** ${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit SHA:** ${{ steps.version.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Pull with:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/the-ai-alliance/semiont-frontend:${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Or pull latest dev build:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/the-ai-alliance/semiont-frontend:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
