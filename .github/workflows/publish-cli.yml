@@ -73,30 +73,15 @@ jobs:
       - name: Update package version
         working-directory: ./apps/cli
         run: |
-          BASE_VERSION=$(node -p "require('./package.json').version")
-          if [ "${{ github.event.inputs.stable_release }}" = "true" ]; then
-            PUBLISH_VERSION="$BASE_VERSION"
-            DIST_TAG="latest"
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          TARGET_VERSION="${{ steps.version.outputs.publish }}"
+          if [ "$CURRENT_VERSION" != "$TARGET_VERSION" ]; then
+            npm version $TARGET_VERSION --no-git-tag-version
           else
-            PUBLISH_VERSION="${BASE_VERSION}-build.${{ github.run_number }}"
-            DIST_TAG="dev"
+            echo "Version already set to $TARGET_VERSION, skipping"
           fi
-          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
-          echo "publish=$PUBLISH_VERSION" >> $GITHUB_OUTPUT
-          echo "tag=$DIST_TAG" >> $GITHUB_OUTPUT
-          echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION, tag: $DIST_TAG)"
+
       - name: Publish to npm
+        if: github.event.inputs.dry_run != 'true'
         working-directory: ./apps/cli
-        run: |
-          BASE_VERSION=$(node -p "require('./package.json').version")
-          if [ "${{ github.event.inputs.stable_release }}" = "true" ]; then
-            PUBLISH_VERSION="$BASE_VERSION"
-            DIST_TAG="latest"
-          else
-            PUBLISH_VERSION="${BASE_VERSION}-build.${{ github.run_number }}"
-            DIST_TAG="dev"
-          fi
-          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
-          echo "publish=$PUBLISH_VERSION" >> $GITHUB_OUTPUT
-          echo "tag=$DIST_TAG" >> $GITHUB_OUTPUT
-          echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION, tag: $DIST_TAG)"
+        run: npm publish --tag ${{ steps.version.outputs.tag }} --access public

@@ -67,7 +67,13 @@ jobs:
       - name: Update package version
         working-directory: ./packages/api-client
         run: |
-          npm version ${{ steps.version.outputs.publish }} --no-git-tag-version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          TARGET_VERSION="${{ steps.version.outputs.publish }}"
+          if [ "$CURRENT_VERSION" != "$TARGET_VERSION" ]; then
+            npm version $TARGET_VERSION --no-git-tag-version
+          else
+            echo "Version already set to $TARGET_VERSION, skipping"
+          fi
 
       - name: Publish to npm
         if: github.event.inputs.dry_run != 'true'
