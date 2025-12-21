@@ -46,6 +46,41 @@ npm run dev:mock
 
 **See**: [Development Guide](./docs/DEVELOPMENT.md) for complete setup and workflows.
 
+## 🐳 Container Image
+
+[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-frontend)
+
+Pull and run the published frontend container image:
+
+```bash
+# Pull latest development build
+docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
+
+# Run frontend container
+docker run -d \
+  -p 3000:3000 \
+  -e NEXT_PUBLIC_API_URL=http://localhost:4000 \
+  -e NEXTAUTH_URL=http://localhost:3000 \
+  -e NEXTAUTH_SECRET=your-secret-min-32-chars \
+  --name semiont-frontend \
+  ghcr.io/the-ai-alliance/semiont-frontend:dev
+```
+
+**Required Environment Variables:**
+- `NEXT_PUBLIC_API_URL` - Backend API URL (e.g., `http://localhost:4000`)
+- `NEXTAUTH_URL` - Frontend URL for NextAuth callbacks (e.g., `http://localhost:3000`)
+- `NEXTAUTH_SECRET` - Secret for NextAuth session encryption (min 32 characters)
+- `NEXT_PUBLIC_SITE_NAME` - Site name displayed in UI (default: "Semiont")
+
+**Optional Environment Variables:**
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` - Google OAuth client ID for authentication
+- `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` - Comma-separated list of allowed email domains
+- `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` - Enable password-based authentication (default: false)
+
+**Multi-platform Support:** linux/amd64, linux/arm64
+
+**Docker Compose Example:** See [ARTIFACTS.md](../../ARTIFACTS.md#using-frontend-container-image) for complete setup with backend and database.
+
 ## Technology Stack
 
 - **Framework**: [Next.js 14](https://nextjs.org/) with App Router

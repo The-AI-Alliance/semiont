@@ -168,6 +168,16 @@ docker pull ghcr.io/the-ai-alliance/semiont-backend:dev
 
 See [Backend README](apps/backend/README.md#-container-image) and [Container Documentation](apps/backend/docs/CONTAINER.md) for configuration details.
 
+### [Frontend Container Image](apps/frontend/) [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-frontend)
+
+Production-ready frontend container with multi-platform support (amd64, arm64):
+
+```bash
+docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
+```
+
+See [Frontend README](apps/frontend/README.md#-container-image) and [ARTIFACTS.md](ARTIFACTS.md#using-frontend-container-image) for configuration details and Docker Compose examples.
+
 **Documentation:**
 
 - [API Client README](packages/api-client/README.md) - SDK usage and utilities

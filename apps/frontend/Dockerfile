@@ -22,6 +22,22 @@ RUN npm run build -w packages/api-client
 
 # Build frontend (this creates the .next directory with standalone output)
 WORKDIR /app/apps/frontend
+
+# Set build-time environment variables
+# These are required for Next.js build and get baked into the bundle
+# They can be overridden at runtime for NEXT_PUBLIC_* vars via window.__ENV
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+ARG NEXT_PUBLIC_SITE_NAME=Semiont
+ARG NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=example.com
+ARG NEXTAUTH_URL=http://localhost:3000
+ARG NEXTAUTH_SECRET=build-time-secret-min-32-chars
+
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SITE_NAME=$NEXT_PUBLIC_SITE_NAME
+ENV NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=$NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS
+ENV NEXTAUTH_URL=$NEXTAUTH_URL
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
+
 RUN npm run build
 
 # Production stage
