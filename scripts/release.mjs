@@ -193,7 +193,7 @@ async function main() {
     console.log('\n⚠️  DRY RUN MODE - No changes will be made\n');
   }
 
-  // Phase 1: Get current version and determine bump type
+  // Get current version and determine bump type
   const currentVersion = getCurrentVersion();
   console.log(`\nCurrent version: ${currentVersion}`);
 
@@ -216,14 +216,14 @@ async function main() {
     process.exit(0);
   }
 
-  // Phase 2: Verify version sync
+  // Phase 1: Verify version sync
   console.log('\n' + '='.repeat(70));
   console.log('PHASE 1: VERIFY VERSION SYNC');
   console.log('='.repeat(70));
 
   execInteractive('npm run version:show', 'Checking version sync status');
 
-  // Phase 3: Publish stable releases
+  // Phase 2: Publish stable releases
   console.log('\n' + '='.repeat(70));
   console.log('PHASE 2: PUBLISH STABLE RELEASES');
   console.log('='.repeat(70));
@@ -258,7 +258,7 @@ async function main() {
   console.log('\nMonitor progress at:');
   console.log('  https://github.com/The-AI-Alliance/semiont/actions');
 
-  // Phase 4: Wait for workflows to complete
+  // Phase 3: Wait for workflows to complete
   console.log('\n' + '='.repeat(70));
   console.log('PHASE 3: WAITING FOR WORKFLOWS TO COMPLETE');
   console.log('='.repeat(70));
@@ -267,7 +267,7 @@ async function main() {
 
   console.log('\n✓ All workflows completed successfully!');
 
-  // Phase 5: Bump version
+  // Phase 4: Bump version
   console.log('\n' + '='.repeat(70));
   console.log('PHASE 4: BUMP VERSION FOR NEXT DEVELOPMENT CYCLE');
   console.log('='.repeat(70));
@@ -278,7 +278,7 @@ async function main() {
   execInteractive('npm run version:sync', 'Syncing all package.json files');
   execInteractive('npm run version:show', 'Verifying version sync');
 
-  // Phase 6: Commit and push
+  // Phase 5: Commit and push
   console.log('\n' + '='.repeat(70));
   console.log('PHASE 5: COMMIT AND PUSH');
   console.log('='.repeat(70));

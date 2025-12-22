@@ -45,62 +45,37 @@ semiont/
 │   ├── core/             # Backend domain logic (events, crypto, type guards)
 │   ├── mcp-server/       # Model Context Protocol server for AI integration
 │   └── test-utils/       # Testing utilities and mock factories
-├── demo/                 # Example scripts and demonstrations
 ├── docs/                 # System documentation
 └── scripts/              # Build and utility scripts
 ```
 
-## 🚀 Quick Start
+## 🚀 Getting Started
 
-Choose how to get started with Semiont:
+### For Development & Contributing
 
-### 1. GitHub Codespaces
-
-Launch a fully configured cloud development environment in seconds:
+**GitHub Codespaces** (Recommended for quick setup):
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
 
-See [.devcontainer/README.md](.devcontainer/README.md) for setup instructions and secret configuration.
+See [.devcontainer/README.md](.devcontainer/README.md) for setup details.
 
-### 2. Local Development
-
-Set up Semiont on your local machine with full control over the environment.
+**Local Development**:
 
 See [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for installation, configuration, and running locally.
 
-## 🎭 Demo
+### For Demos & Examples
 
-The **[demo/](demo/)** directory contains example scripts showing how to use the SDK:
+**Semiont Agents Demo** - Interactive examples showing Semiont SDK usage:
 
-- **Prometheus Bound** - Ancient Greek drama demonstrating text chunking and table of contents
-- **Family History** - Genealogical documents with mixed media (text and images)
-- **Legal Counsel** - Contract review workflow with legal documents
-- **ArXiv Paper** - Research paper extraction from arXiv.org
-- **Hiking Notes** - Simple text annotation example
-- **Citizens United** - Supreme Court case with citation detection
+[![Open Semiont Agents Demo](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-agents)
 
-Run demos interactively or via CLI:
+The [Semiont Agents Demo](https://github.com/The-AI-Alliance/semiont-agents) repository provides ready-to-run examples including:
+- Document processing workflows (chunking, table of contents)
+- Annotation detection (legal citations, highlights, tags)
+- Interactive terminal UI for running demos
+- Various datasets (Supreme Court cases, research papers, genealogical records)
 
-```bash
-cd demo
-cp .env.example .env
-
-# Interactive terminal UI
-npm run demo:interactive
-
-# Or run specific commands
-npx tsx demo.ts citizens_united download
-npx tsx demo.ts citizens_united load
-npx tsx demo.ts citizens_united annotate
-```
-
-[→ Read the demo documentation](demo/README.md)
-
-## 🌐 Cloud Deployment
-
-Deploy Semiont to AWS for production use with auto-scaling and managed services.
-
-See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for AWS deployment instructions.
+[→ Visit Semiont Agents Demo Repository](https://github.com/The-AI-Alliance/semiont-agents)
 
 ## 📦 Published Artifacts
 
@@ -153,7 +128,7 @@ Semiont publishes npm packages and container images for easy integration and dep
 
 | Document | Description |
 |----------|-------------|
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Complete deployment guide with validation steps |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | AWS cloud deployment guide with validation steps |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design decisions |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration management and environment setup |
 | [Services](docs/services/README.md) | All service documentation and 4-layer data architecture |

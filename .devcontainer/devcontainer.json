@@ -36,8 +36,7 @@
   "customizations": {
     "codespaces": {
       "openFiles": [
-        "README.md",
-        "demo/README.md"
+        "README.md"
       ],
       "settings": {
         "workbench.sideBar.visible": true,

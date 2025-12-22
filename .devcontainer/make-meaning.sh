@@ -364,42 +364,6 @@ semiont useradd --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --admin >> $
 }
 print_success "Admin user created: $ADMIN_EMAIL"
 
-# Demo .env
-print_status "Creating demo .env file..."
-cd /workspace/demo || {
-    print_error "Failed to change to demo directory"
-    exit 1
-}
-
-# Backup existing .env if it exists
-if [ -f .env ]; then
-    BACKUP_FILE=".env.backup.$(date +%Y%m%d-%H%M%S)"
-    mv .env "$BACKUP_FILE"
-    print_success "Backed up existing .env to $BACKUP_FILE"
-fi
-
-# Use Codespaces URLs if available, otherwise localhost
-DEMO_BACKEND_URL="${BACKEND_URL:-http://localhost:4000}"
-DEMO_FRONTEND_URL="${FRONTEND_URL:-http://localhost:3000}"
-
-# Create new .env file
-cat > .env << EOF
-# Semiont API
-BACKEND_URL="$DEMO_BACKEND_URL"
-FRONTEND_URL="$DEMO_FRONTEND_URL"
-AUTH_EMAIL="$ADMIN_EMAIL"
-AUTH_PASSWORD="$ADMIN_PASSWORD"
-EOF
-print_success "Demo .env created with generated credentials"
-
-cd $SEMIONT_ROOT || {
-    print_error "Failed to return to SEMIONT_ROOT"
-    exit 1
-}
-
-# Don't show verbose welcome - user ran this manually
-echo ""
-
 # Check if required secrets are set
 print_status "Checking secrets..."
 

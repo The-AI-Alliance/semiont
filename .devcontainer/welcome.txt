@@ -9,7 +9,6 @@ Your Codespace is ready with:
   • PostgreSQL database running
   • Backend and frontend services started
   • Admin user created: dev@example.com
-  • Demo environment prepared
 
 📂 Project Structure:
   • Repository: /workspace
@@ -29,8 +28,8 @@ Your Codespace is ready with:
   • semiont stop         - Stop all services
   • semiont restart      - Restart services
 
-💻 Demo Application:
-  • cd demo && npm run demo:interactive
+💻 Demo & Examples:
+  • See: https://github.com/The-AI-Alliance/semiont-agents
 
 📚 Documentation:
   • API Docs: http://localhost:4000/docs
