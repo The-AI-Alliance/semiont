@@ -5,6 +5,7 @@
   "service": "demo-workspace",
   "workspaceFolder": "/workspaces/semiont/demo",
 
+  "initializeCommand": "bash demo/.devcontainer/init-env.sh",
   "postCreateCommand": "bash .devcontainer/setup-demo.sh",
 
   "forwardPorts": [3000, 4000, 5432],

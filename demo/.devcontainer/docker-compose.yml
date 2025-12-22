@@ -38,12 +38,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ../project:/workspace/project:cached
+      - backend_data:/workspace/data
     environment:
+      # Semiont configuration
+      SEMIONT_ROOT: /workspace/project
+      SEMIONT_ENV: demo
+      # Database
       DATABASE_URL: postgresql://semiont:${POSTGRES_PASSWORD:-semiont}@postgres:5432/semiont_demo
+      # JWT
       JWT_SECRET: ${JWT_SECRET:-demo-jwt-secret-minimum-32-characters-long}
+      # Server
       PORT: 4000
       NODE_ENV: production
-      CORS_ORIGIN: http://localhost:3000
+      # Auth
       ENABLE_LOCAL_AUTH: "true"
       # Optional AI services
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -67,11 +76,11 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:4000
-      NEXTAUTH_URL: http://localhost:3000
+      # NextAuth secret (not in .env for security)
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-demo-nextauth-secret-minimum-32-characters-long}
-      NEXT_PUBLIC_SITE_NAME: Semiont Demo
     ports:
       - "3000:3000"
     healthcheck:
@@ -83,3 +92,4 @@ services:
 
 volumes:
   postgres_data:
+  backend_data:
