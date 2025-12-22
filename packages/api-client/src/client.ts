@@ -26,7 +26,7 @@ import type {
   SearchQuery,
   UserDID
 } from './branded-types';
-import { SSEClient } from './sse';
+import { SSEClient } from './sse/index';
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }

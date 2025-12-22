@@ -74,3 +74,13 @@ packages/api-client/src/client/
 
 # Generated OpenAPI bundle (source is specs/src/)
 specs/openapi.json
+
+# Compiled scripts (should use tsx, not tsc)
+packages/*/scripts/*.js
+packages/*/scripts/*.js.map
+packages/*/scripts/*.d.ts
+packages/*/scripts/*.d.ts.map
+apps/*/scripts/*.js
+apps/*/scripts/*.js.map
+apps/*/scripts/*.d.ts
+apps/*/scripts/*.d.ts.map

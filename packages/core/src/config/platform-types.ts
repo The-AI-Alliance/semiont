@@ -5,7 +5,7 @@
  * Platforms represent WHERE services run (infrastructure targets).
  */
 
-import { PlatformType as SchemaPlatformType } from './config.types.js';
+import { PlatformType as SchemaPlatformType } from './config.types';
 
 /**
  * Platform type literals from JSON Schema
