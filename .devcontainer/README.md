@@ -150,13 +150,9 @@ npm run db:push                   # Push schema changes
 # Development
 npm run test                      # Run all tests
 npm run build                     # Build all packages
-
-# Demo Scripts
-cd demo
-npm run demo:interactive          # Interactive demo menu
 ```
 
-See [demo/README.md](../demo/README.md) for more demo options and documentation.
+For demos and examples, see the [Semiont Agents Demo](https://github.com/The-AI-Alliance/semiont-agents) repository.
 
 ## 🐛 Troubleshooting
 
