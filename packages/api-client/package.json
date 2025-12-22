@@ -2,19 +2,21 @@
   "name": "@semiont/api-client",
   "version": "0.2.2",
   "description": "Semiont API SDK - types, client, and utilities",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.js"
+      "import": "./dist/index.js"
     },
     "./utils": {
       "types": "./dist/utils/index.d.ts",
-      "import": "./dist/utils/index.js",
-      "require": "./dist/utils/index.js"
+      "import": "./dist/utils/index.js"
     }
+  },
+  "engines": {
+    "node": ">=20.18.1"
   },
   "files": [
     "dist",
@@ -33,10 +35,10 @@
     "bundle-spec": "cd ../.. && npm run openapi:bundle",
     "copy-spec": "cp ../../specs/openapi.json openapi.json",
     "generate": "npm run bundle-spec && npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
-    "build": "tsc && npm run copy-types",
-    "copy-types": "cp src/types.ts dist/types.d.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && tsup",
     "prebuild": "npm run generate",
-    "watch": "tsc --watch",
+    "watch": "tsup --watch",
     "clean": "rm -rf dist src/types.ts openapi.json",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -47,6 +49,7 @@
   "devDependencies": {
     "openapi-typescript": "^7.10.1",
     "orval": "^6.31.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.6.3",
     "vitest": "^3.2.4"
   },

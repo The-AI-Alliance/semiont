@@ -7,7 +7,7 @@
 
 import Ajv, { type ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
-import configSchema from './config.schema.json';
+import configSchema from './config.schema.json' with { type: 'json' };
 
 // Initialize Ajv with config-compatible settings
 const ajv = new Ajv({

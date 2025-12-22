@@ -2,8 +2,18 @@
   "name": "@semiont/core",
   "version": "0.2.2",
   "description": "Core domain types for Semiont - Document, Annotation, and Graph models",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=20.18.1"
+  },
   "files": [
     "dist",
     "README.md",
@@ -20,11 +30,10 @@
   "scripts": {
     "generate:types": "tsx scripts/generate-types.ts",
     "prebuild": "npm run generate:types",
-    "build": "tsc",
-    "build:clean": "rm -rf dist *.tsbuildinfo && tsc",
-    "watch": "tsc --watch",
-    "clean": "rm -rf dist *.tsbuildinfo",
-    "type-check": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && tsup",
+    "watch": "tsup --watch",
+    "clean": "rm -rf dist *.tsbuildinfo"
   },
   "keywords": [
     "types",
@@ -37,9 +46,10 @@
   "author": "Semiont Team",
   "license": "Apache-2.0",
   "devDependencies": {
-    "typescript": "^5.6.3",
     "json-schema-to-typescript": "^15.0.2",
-    "tsx": "^4.19.2"
+    "tsup": "^8.5.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
   },
   "dependencies": {
     "@semiont/api-client": "*",

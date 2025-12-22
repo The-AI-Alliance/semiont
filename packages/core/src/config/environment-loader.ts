@@ -11,7 +11,7 @@ import { ConfigurationError } from './configuration-error';
 import { findProjectRoot } from './project-discovery';
 import { PlatformType } from './platform-types';
 import { isObject } from '../index';
-import { validateEnvironmentConfig } from './config-validator.js';
+import { validateEnvironmentConfig } from './config-validator';
 import type {
   EnvironmentConfig,
   SiteConfig,
@@ -25,7 +25,7 @@ import type {
   FilesystemServiceConfig,
   InferenceServiceConfig,
   ServicePlatformConfig
-} from './config.types.js';
+} from './config.types';
 
 /**
  * Re-export generated types from JSON Schema

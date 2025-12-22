@@ -46,15 +46,15 @@ export type {
   ResourceEvent,
   SSEStream
 } from './sse/types';
-export { SSEClient } from './sse';
+export { SSEClient } from './sse/index';
 export type {
   DetectAnnotationsStreamRequest,
   GenerateResourceStreamRequest,
   SSEClientConfig
-} from './sse';
+} from './sse/index';
 
 // Handwritten utilities
-export * from './utils';
+export * from './utils/index';
 export {
   getExtensionForMimeType,
   isImageMimeType,
