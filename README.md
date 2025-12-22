@@ -77,12 +77,6 @@ The [Semiont Agents Demo](https://github.com/The-AI-Alliance/semiont-agents) rep
 
 [→ Visit Semiont Agents Demo Repository](https://github.com/The-AI-Alliance/semiont-agents)
 
-## 🌐 Cloud Deployment
-
-Deploy Semiont to AWS for production use with auto-scaling and managed services.
-
-See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for AWS deployment instructions.
-
 ## 📦 Published Artifacts
 
 Semiont publishes npm packages and container images for easy integration and deployment.
@@ -134,7 +128,7 @@ Semiont publishes npm packages and container images for easy integration and dep
 
 | Document | Description |
 |----------|-------------|
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Complete deployment guide with validation steps |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | AWS cloud deployment guide with validation steps |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design decisions |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration management and environment setup |
 | [Services](docs/services/README.md) | All service documentation and 4-layer data architecture |
