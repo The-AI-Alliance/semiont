@@ -2,6 +2,21 @@
 
 Configuration-driven demonstration of Semiont SDK features: document processing, chunking, annotations, and validation.
 
+## Try in Codespaces
+
+Launch a complete demo environment with one click (no installation required):
+
+[![Open Demo in Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont?devcontainer_path=demo%2F.devcontainer%2Fdevcontainer.json)
+
+Includes:
+
+- Semiont frontend, backend, and database (all pre-configured)
+- Demo account with sample data
+- Interactive terminal UI
+- Ready to run in ~2 minutes
+
+See [.devcontainer/README.md](.devcontainer/README.md) for details.
+
 ## Quick Start
 
 ```bash
