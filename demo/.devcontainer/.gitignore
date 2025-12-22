@@ -1,5 +1,0 @@
-# Environment files with secrets
-.env
-
-# Logs
-*.log
