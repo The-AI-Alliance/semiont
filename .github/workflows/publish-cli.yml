@@ -70,16 +70,35 @@ jobs:
           echo "publish=$PUBLISH_VERSION" >> $GITHUB_OUTPUT
           echo "tag=$DIST_TAG" >> $GITHUB_OUTPUT
           echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION, tag: $DIST_TAG)"
-      - name: Update package version
+      - name: Update package version and dependencies
         working-directory: ./apps/cli
         run: |
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           TARGET_VERSION="${{ steps.version.outputs.publish }}"
+
+          # Update package version
           if [ "$CURRENT_VERSION" != "$TARGET_VERSION" ]; then
             npm version $TARGET_VERSION --no-git-tag-version
           else
             echo "Version already set to $TARGET_VERSION, skipping"
           fi
+
+          # Update workspace dependencies to match build version
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
+            const targetVersion = '$TARGET_VERSION';
+
+            if (pkg.dependencies['@semiont/api-client']) {
+              pkg.dependencies['@semiont/api-client'] = targetVersion;
+            }
+            if (pkg.dependencies['@semiont/core']) {
+              pkg.dependencies['@semiont/core'] = targetVersion;
+            }
+
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('Updated dependencies to version ' + targetVersion);
+          "
 
       - name: Publish to npm
         if: github.event.inputs.dry_run != 'true'
