@@ -124,7 +124,16 @@ const baseConfig = {
   experimental: {
     // Enable if needed for future features
     // optimizeCss: true, // Disabled due to critters dependency issue
-    optimizePackageImports: ['@tanstack/react-query', 'next-auth'],
+    optimizePackageImports: [
+      '@tanstack/react-query',
+      'next-auth',
+      '@heroicons/react',
+      '@headlessui/react',
+      '@codemirror/lang-json',
+      '@codemirror/lang-markdown',
+      '@codemirror/view',
+      'react-markdown',
+    ],
   },
 
   // Bundle optimization
