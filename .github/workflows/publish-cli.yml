@@ -81,26 +81,6 @@ jobs:
             echo "Version already set to $TARGET_VERSION, skipping"
           fi
 
-      - name: Update peer dependencies
-        working-directory: ./apps/cli
-        run: |
-          PUBLISH_VERSION="${{ steps.version.outputs.publish }}"
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            if (pkg.peerDependencies) {
-              if (pkg.peerDependencies['@semiont/api-client']) {
-                console.log('Updating @semiont/api-client peer dependency to ' + '$PUBLISH_VERSION');
-                pkg.peerDependencies['@semiont/api-client'] = '$PUBLISH_VERSION';
-              }
-              if (pkg.peerDependencies['@semiont/core']) {
-                console.log('Updating @semiont/core peer dependency to ' + '$PUBLISH_VERSION');
-                pkg.peerDependencies['@semiont/core'] = '$PUBLISH_VERSION';
-              }
-              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-            }
-          "
-
       - name: Publish to npm
         if: github.event.inputs.dry_run != 'true'
         working-directory: ./apps/cli

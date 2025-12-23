@@ -109,21 +109,21 @@ function syncVersions() {
       console.log(`  ${pkg}: already at ${version}`);
     }
 
-    // Sync peer dependencies for CLI (always check, even if version unchanged)
-    if (pkg === '@semiont/cli' && pkgJson.peerDependencies) {
-      const apiClientPeer = pkgJson.peerDependencies['@semiont/api-client'];
-      const corePeer = pkgJson.peerDependencies['@semiont/core'];
+    // Sync workspace dependencies for CLI (always check, even if version unchanged)
+    if (pkg === '@semiont/cli' && pkgJson.dependencies) {
+      const apiClientDep = pkgJson.dependencies['@semiont/api-client'];
+      const coreDep = pkgJson.dependencies['@semiont/core'];
       const expectedApiClient = `^${version}`;
       const expectedCore = `^${version}`;
 
-      if (apiClientPeer && apiClientPeer !== expectedApiClient) {
-        console.log(`    └─ Syncing peerDependency @semiont/api-client: ${apiClientPeer} → ${expectedApiClient}`);
-        pkgJson.peerDependencies['@semiont/api-client'] = expectedApiClient;
+      if (apiClientDep && apiClientDep !== expectedApiClient) {
+        console.log(`    └─ Syncing dependency @semiont/api-client: ${apiClientDep} → ${expectedApiClient}`);
+        pkgJson.dependencies['@semiont/api-client'] = expectedApiClient;
         updated = true;
       }
-      if (corePeer && corePeer !== expectedCore) {
-        console.log(`    └─ Syncing peerDependency @semiont/core: ${corePeer} → ${expectedCore}`);
-        pkgJson.peerDependencies['@semiont/core'] = expectedCore;
+      if (coreDep && coreDep !== expectedCore) {
+        console.log(`    └─ Syncing dependency @semiont/core: ${coreDep} → ${expectedCore}`);
+        pkgJson.dependencies['@semiont/core'] = expectedCore;
         updated = true;
       }
     }

@@ -275,7 +275,7 @@ npm run version:set semiont-backend 0.2.1
 npm run version:sync
 ```
 
-This command syncs all `package.json` files to match `version.json`, and automatically updates peer dependencies in `@semiont/cli` to prevent version conflicts during publishing.
+This command syncs all `package.json` files to match `version.json`, and automatically updates `@semiont/api-client` and `@semiont/core` dependency versions in `@semiont/cli` to prevent version conflicts during publishing.
 
 ### Release Workflow
 
