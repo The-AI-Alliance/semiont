@@ -1,6 +1,6 @@
 {
   "name": "@semiont/cli",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Semiont CLI - Unified environment management tool",
   "_comment": "AWS SDK dependencies (@aws-sdk/*) are only used by platforms/aws",
   "type": "module",
