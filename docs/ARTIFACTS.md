@@ -4,10 +4,10 @@ This document describes all published artifacts from the Semiont project, includ
 
 ## Overview
 
-Semiont publishes **6 artifacts** across two registries:
+Semiont publishes **5 artifacts** across two registries:
 
 - **3 npm packages** on npmjs.org
-- **3 container images** on GitHub Container Registry (ghcr.io)
+- **2 container images** on GitHub Container Registry (ghcr.io)
 
 All artifacts follow a unified versioning scheme managed through [`version.json`](../version.json).
 
@@ -37,7 +37,7 @@ npm install @semiont/api-client@dev
 
 **Source:** [packages/api-client/](../packages/api-client/)
 
-**Workflow:** [.github/workflows/publish-api-client.yml](../.github/workflows/publish-api-client.yml)
+**Workflow:** [.github/workflows/publish-npm-packages.yml](../.github/workflows/publish-npm-packages.yml)
 
 ---
 
@@ -61,7 +61,7 @@ npm install @semiont/core@dev
 
 **Source:** [packages/core/](../packages/core/)
 
-**Workflow:** [.github/workflows/publish-core.yml](../.github/workflows/publish-core.yml)
+**Workflow:** [.github/workflows/publish-npm-packages.yml](../.github/workflows/publish-npm-packages.yml)
 
 ---
 
@@ -85,7 +85,7 @@ npm install -g @semiont/cli@dev
 
 **Source:** [apps/cli/](../apps/cli/)
 
-**Workflow:** [.github/workflows/publish-cli.yml](../.github/workflows/publish-cli.yml)
+**Workflow:** [.github/workflows/publish-npm-packages.yml](../.github/workflows/publish-npm-packages.yml)
 
 ---
 
@@ -284,50 +284,33 @@ This command syncs all `package.json` files to match `version.json`, and automat
 **Three-step release process** (recommended for long-running workflows):
 
 ```bash
-# Step 1: Verify version sync and trigger stable release workflows
-npm run release:step1 patch   # or minor/major
+# Publish: Verify version sync and trigger stable release workflows
+npm run release:publish
 
-# Output: Command to run step 2 with workflow run IDs
+# Output: Command to await workflows with run IDs
 
-# Step 2: Monitor workflows until completion
-npm run release:step2 <runIds> patch
+# Await: Monitor workflows until completion
+npm run release:await <runIds>
 
-# Output: Command to run step 3
+# Output: Command to bump version
 
-# Step 3: Bump version and commit
-npm run release:step3 patch
+# Bump: Bump version and commit
+npm run release:bump patch   # or minor/major
 ```
 
-**Each step is resumable** - if you close your laptop or lose connection during step 2, you can re-run it with the same parameters. Each step outputs the exact command needed for the next step.
-
-**Single-command release** (for short workflows or when you can monitor):
-
-```bash
-# Interactive mode (prompts for version bump type)
-npm run release:stable
-
-# Specify version bump type
-npm run release:stable patch   # 0.2.1 → 0.2.2
-npm run release:stable minor   # 0.2.1 → 0.3.0
-npm run release:stable major   # 0.2.1 → 1.0.0
-
-# Dry run to preview
-npm run release:stable -- --dry-run
-```
+**Each step is resumable** - if you close your laptop or lose connection during await, you can re-run it with the same parameters. Each step outputs the exact command needed for the next step.
 
 **The release process:**
 1. Verifies all versions are in sync
-2. Publishes current version as stable release (all 5 artifacts)
+2. Publishes current version as stable release (all 5 artifacts: 3 npm + 2 containers)
 3. Waits for all workflows to complete (10-20 minutes for container builds)
 4. Bumps version for next development cycle
 5. Commits and pushes changes to main
 
 **Manual workflow triggers** (if needed):
 ```bash
-# Publish individual artifacts as stable releases
-gh workflow run publish-api-client.yml --field stable_release=true
-gh workflow run publish-core.yml --field stable_release=true
-gh workflow run publish-cli.yml --field stable_release=true
+# Publish artifacts as stable releases
+gh workflow run publish-npm-packages.yml --field stable_release=true
 gh workflow run publish-backend.yml --field stable_release=true
 gh workflow run publish-frontend.yml --field stable_release=true
 ```
@@ -396,7 +379,7 @@ All workflows support manual triggering via workflow dispatch with optional dry-
 
 ```bash
 # Trigger via GitHub CLI
-gh workflow run publish-api-client.yml
+gh workflow run publish-npm-packages.yml
 gh workflow run publish-backend.yml --field dry_run=true
 ```
 
