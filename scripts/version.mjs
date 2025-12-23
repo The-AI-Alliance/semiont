@@ -102,6 +102,19 @@ function syncVersions() {
     if (pkgJson.version !== version) {
       console.log(`  Updating ${pkg}: ${pkgJson.version} → ${version}`);
       pkgJson.version = version;
+
+      // Sync peer dependencies for CLI
+      if (pkg === '@semiont/cli' && pkgJson.peerDependencies) {
+        if (pkgJson.peerDependencies['@semiont/api-client']) {
+          console.log(`    └─ Syncing peerDependency @semiont/api-client → ^${version}`);
+          pkgJson.peerDependencies['@semiont/api-client'] = `^${version}`;
+        }
+        if (pkgJson.peerDependencies['@semiont/core']) {
+          console.log(`    └─ Syncing peerDependency @semiont/core → ^${version}`);
+          pkgJson.peerDependencies['@semiont/core'] = `^${version}`;
+        }
+      }
+
       writeJSON(pkgPath, pkgJson);
     } else {
       console.log(`  ${pkg}: already at ${version}`);

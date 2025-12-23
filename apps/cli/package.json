@@ -85,8 +85,8 @@
     "zod": "^3.23.8"
   },
   "peerDependencies": {
-    "@semiont/api-client": "^0.2.8",
-    "@semiont/core": "^0.2.8"
+    "@semiont/api-client": "^0.2.9",
+    "@semiont/core": "^0.2.9"
   },
   "devDependencies": {
     "@types/express": "^4.17.17",
