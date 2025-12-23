@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsc --watch --preserveWatchOutput & node --watch dist/index.js",
+    "dev": "tsup --watch & node --watch dist/index.js",
     "build": "npm run build:app",
-    "build:app": "prisma generate && npm run typecheck && tsc",
-    "build:clean": "npm run clean && prisma generate && npm run typecheck && tsc",
-    "build:fast": "prisma generate && tsc --noEmit false",
+    "build:app": "prisma generate && npm run typecheck && tsup",
+    "build:clean": "npm run clean && prisma generate && npm run typecheck && tsup",
+    "build:fast": "prisma generate && npm run typecheck && tsup",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist *.tsbuildinfo",
     "start": "node dist/index.js",
@@ -62,6 +62,7 @@
     "prisma": "^6.14.0",
     "supertest": "^7.1.4",
     "testcontainers": "^11.5.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vitest": "^3.2.4"
