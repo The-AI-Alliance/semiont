@@ -1,0 +1,157 @@
+name: Publish npm packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/api-client/**'
+      - 'packages/core/**'
+      - 'apps/cli/**'
+      - 'specs/**'
+      - '.github/workflows/publish-npm-packages.yml'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build but do not publish)'
+        required: false
+        type: boolean
+        default: false
+      stable_release:
+        description: 'Stable release (publish without -build.N suffix)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Update npm for OIDC support
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build @semiont/api-client
+        working-directory: ./packages/api-client
+        run: npm run build
+
+      - name: Build @semiont/core
+        working-directory: ./packages/core
+        run: npm run build
+
+      - name: Build @semiont/cli
+        working-directory: ./apps/cli
+        run: npm run build
+
+      - name: Determine version
+        id: version
+        run: |
+          BASE_VERSION=$(node -p "require('./version.json').version")
+          if [ "${{ github.event.inputs.stable_release }}" = "true" ]; then
+            PUBLISH_VERSION="$BASE_VERSION"
+            DIST_TAG="latest"
+          else
+            PUBLISH_VERSION="${BASE_VERSION}-build.${{ github.run_number }}"
+            DIST_TAG="dev"
+          fi
+          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "publish=$PUBLISH_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$DIST_TAG" >> $GITHUB_OUTPUT
+          echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION, tag: $DIST_TAG)"
+
+      - name: Update package versions
+        run: |
+          TARGET_VERSION="${{ steps.version.outputs.publish }}"
+
+          echo "Updating all packages to version $TARGET_VERSION"
+
+          # Update @semiont/api-client
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('packages/api-client/package.json', 'utf-8'));
+            pkg.version = '$TARGET_VERSION';
+            fs.writeFileSync('packages/api-client/package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('✓ Updated @semiont/api-client to $TARGET_VERSION');
+          "
+
+          # Update @semiont/core
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('packages/core/package.json', 'utf-8'));
+            pkg.version = '$TARGET_VERSION';
+            fs.writeFileSync('packages/core/package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('✓ Updated @semiont/core to $TARGET_VERSION');
+          "
+
+          # Update @semiont/cli (version + dependencies)
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('apps/cli/package.json', 'utf-8'));
+            const targetVersion = '$TARGET_VERSION';
+
+            pkg.version = targetVersion;
+
+            if (pkg.dependencies['@semiont/api-client']) {
+              pkg.dependencies['@semiont/api-client'] = targetVersion;
+            }
+            if (pkg.dependencies['@semiont/core']) {
+              pkg.dependencies['@semiont/core'] = targetVersion;
+            }
+
+            fs.writeFileSync('apps/cli/package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('✓ Updated @semiont/cli to $TARGET_VERSION (with dependencies)');
+          "
+
+      - name: Publish @semiont/api-client
+        if: github.event.inputs.dry_run != 'true'
+        working-directory: ./packages/api-client
+        run: |
+          echo "Publishing @semiont/api-client@${{ steps.version.outputs.publish }}"
+          npm publish --tag ${{ steps.version.outputs.tag }} --access public
+
+      - name: Publish @semiont/core
+        if: github.event.inputs.dry_run != 'true'
+        working-directory: ./packages/core
+        run: |
+          echo "Publishing @semiont/core@${{ steps.version.outputs.publish }}"
+          npm publish --tag ${{ steps.version.outputs.tag }} --access public
+
+      - name: Publish @semiont/cli
+        if: github.event.inputs.dry_run != 'true'
+        working-directory: ./apps/cli
+        run: |
+          echo "Publishing @semiont/cli@${{ steps.version.outputs.publish }}"
+          npm publish --tag ${{ steps.version.outputs.tag }} --access public
+
+      - name: Summary
+        run: |
+          echo "## Published npm packages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dist tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Packages published:" >> $GITHUB_STEP_SUMMARY
+          echo "- @semiont/api-client@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "- @semiont/core@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "- @semiont/cli@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Install with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @semiont/api-client@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @semiont/core@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install -g @semiont/cli@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
