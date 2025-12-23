@@ -1,6 +1,6 @@
 {
   "name": "@semiont/api-client",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "description": "Semiont API SDK - types, client, and utilities",
   "type": "module",
   "main": "dist/index.js",
