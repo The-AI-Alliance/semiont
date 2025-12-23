@@ -65,17 +65,18 @@ function getTemplatesDir(): string {
   if (process.env.SEMIONT_TEMPLATES_DIR) {
     return process.env.SEMIONT_TEMPLATES_DIR;
   }
-  
+
   // Check if we're running from source (tests) or dist (production)
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  
+
   // If we're in src/core/commands, go up to find templates
   if (__dirname.includes(path.sep + 'src' + path.sep)) {
     // Running from source: go up 3 levels to project root, then to templates
     return path.join(__dirname, '..', '..', '..', 'templates');
   } else {
-    // Production path: templates are at ../templates relative to the command
-    return path.join(__dirname, '..', 'templates');
+    // Production: build.mjs copies templates to dist/templates
+    // When bundled, __dirname is the dist directory where the bundle runs
+    return path.join(__dirname, 'templates');
   }
 }
 
