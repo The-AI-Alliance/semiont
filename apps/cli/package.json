@@ -15,6 +15,7 @@
     "README.md",
     "LICENSE"
   ],
+  "bundledDependencies": false,
   "publishConfig": {
     "access": "public"
   },
