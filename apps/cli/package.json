@@ -1,6 +1,6 @@
 {
   "name": "@semiont/cli",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "Semiont CLI - Unified environment management tool",
   "_comment": "AWS SDK dependencies (@aws-sdk/*) are only used by platforms/aws",
   "type": "module",
@@ -85,8 +85,8 @@
     "zod": "^3.23.8"
   },
   "peerDependencies": {
-    "@semiont/api-client": "^0.2.9",
-    "@semiont/core": "^0.2.9"
+    "@semiont/api-client": "^0.2.10",
+    "@semiont/core": "^0.2.10"
   },
   "devDependencies": {
     "@types/express": "^4.17.17",
