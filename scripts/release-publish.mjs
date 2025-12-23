@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * Release Script - Step 1: Verify and Publish
+ * Release Script - Publish: Verify and Trigger Workflows
  *
  * This step:
  * 1. Verifies version sync
  * 2. Triggers stable release workflows
- * 3. Outputs the command to run step 2
+ * 3. Outputs the command to await workflow completion
  *
  * Usage:
- *   npm run release:step1
- *   npm run release:step1 patch   # Specify bump type for step 3
- *   npm run release:step1 -- --dry-run
+ *   npm run release:publish
+ *   npm run release:publish -- --dry-run
  */
 
 import { execSync } from 'child_process';
@@ -20,7 +19,6 @@ import { resolve } from 'path';
 import * as readline from 'readline';
 
 const DRY_RUN = process.argv.includes('--dry-run');
-let bumpType = process.argv.find(arg => ['patch', 'minor', 'major'].includes(arg));
 
 function exec(command, description) {
   console.log(`\n→ ${description}`);
@@ -59,50 +57,6 @@ function getCurrentVersion() {
   return versionJson.version;
 }
 
-function bumpVersion(version, type) {
-  const [major, minor, patch] = version.split('.').map(Number);
-  switch (type) {
-    case 'major':
-      return `${major + 1}.0.0`;
-    case 'minor':
-      return `${major}.${minor + 1}.0`;
-    case 'patch':
-      return `${major}.${minor}.${patch + 1}`;
-    default:
-      throw new Error(`Invalid bump type: ${type}`);
-  }
-}
-
-async function askBumpType() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-
-  return new Promise((resolve) => {
-    console.log('\nWhat type of version bump for the next development cycle?');
-    console.log('  1) patch (0.2.1 → 0.2.2) - Bug fixes and minor updates');
-    console.log('  2) minor (0.2.1 → 0.3.0) - New features, backward compatible');
-    console.log('  3) major (0.2.1 → 1.0.0) - Breaking changes');
-
-    rl.question('\nEnter choice (1/2/3) or type (patch/minor/major): ', (answer) => {
-      rl.close();
-
-      const normalized = answer.trim().toLowerCase();
-      if (normalized === '1' || normalized === 'patch') {
-        resolve('patch');
-      } else if (normalized === '2' || normalized === 'minor') {
-        resolve('minor');
-      } else if (normalized === '3' || normalized === 'major') {
-        resolve('major');
-      } else {
-        console.error('Invalid choice. Defaulting to patch.');
-        resolve('patch');
-      }
-    });
-  });
-}
-
 async function confirmAction(message) {
   if (DRY_RUN) {
     return true;
@@ -123,29 +77,22 @@ async function confirmAction(message) {
 
 async function main() {
   console.log('╔════════════════════════════════════════════════════════════════╗');
-  console.log('║         Semiont Release - Step 1: Verify & Publish            ║');
+  console.log('║         Semiont Release - Publish: Trigger Workflows          ║');
   console.log('╚════════════════════════════════════════════════════════════════╝');
 
   if (DRY_RUN) {
     console.log('\n⚠️  DRY RUN MODE - No changes will be made\n');
   }
 
-  // Get current version and determine bump type
+  // Get current version
   const currentVersion = getCurrentVersion();
   console.log(`\nCurrent version: ${currentVersion}`);
 
-  if (!bumpType) {
-    bumpType = await askBumpType();
-  }
-
-  const nextVersion = bumpVersion(currentVersion, bumpType);
-
   // Confirm with user
-  console.log('\n⚠️  This step will:');
+  console.log('\n⚠️  This will:');
   console.log(`   1. Verify version sync across all packages`);
   console.log(`   2. Trigger stable release workflows for ${currentVersion}`);
-  console.log(`   3. Provide command to monitor workflows (step 2)`);
-  console.log(`\nAfter workflows complete, you will bump to ${nextVersion} (${bumpType})`);
+  console.log(`   3. Provide command to await workflow completion`);
 
   const confirmed = await confirmAction('\nDo you want to proceed?');
   if (!confirmed) {
@@ -168,17 +115,13 @@ async function main() {
   console.log(`\n📦 Publishing ${currentVersion} as stable release...\n`);
 
   const workflows = [
-    'publish-api-client.yml',
-    'publish-core.yml',
-    'publish-cli.yml',
+    'publish-npm-packages.yml',
     'publish-backend.yml',
     'publish-frontend.yml',
   ];
 
   const workflowNames = {
-    'publish-api-client.yml': '@semiont/api-client (npm)',
-    'publish-core.yml': '@semiont/core (npm)',
-    'publish-cli.yml': '@semiont/cli (npm)',
+    'publish-npm-packages.yml': 'npm packages (api-client, core, cli)',
     'publish-backend.yml': 'semiont-backend (container)',
     'publish-frontend.yml': 'semiont-frontend (container)',
   };
@@ -222,24 +165,22 @@ async function main() {
 
   // Output next step command
   console.log('\n' + '='.repeat(70));
-  console.log('✅ STEP 1 COMPLETE');
+  console.log('✅ PUBLISH COMPLETE');
   console.log('='.repeat(70));
 
   console.log('\n📋 Summary:');
   console.log(`   • Version to publish: ${currentVersion}`);
   console.log(`   • Workflows triggered: ${workflows.length}`);
-  console.log(`   • Next bump type: ${bumpType}`);
-  console.log(`   • Next version: ${nextVersion}`);
 
   console.log('\n🔗 Monitor progress:');
   console.log('   https://github.com/The-AI-Alliance/semiont/actions');
 
   console.log('\n📝 NEXT STEP:');
-  console.log('   Run this command to monitor workflows and continue when ready:\n');
+  console.log('   Run this command to await workflows and continue when ready:\n');
   if (runIds.length > 0) {
-    console.log(`   npm run release:step2 ${runIds.join(' ')} ${bumpType}\n`);
+    console.log(`   npm run release:await ${runIds.join(' ')}\n`);
   } else {
-    console.log(`   npm run release:step2 ${bumpType}\n`);
+    console.log(`   npm run release:await\n`);
     console.log('   (Run IDs will be auto-detected)');
   }
 
@@ -249,6 +190,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('\n❌ Step 1 failed:', error.message);
+  console.error('\n❌ Publish failed:', error.message);
   process.exit(1);
 });

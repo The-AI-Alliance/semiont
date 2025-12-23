@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * Release Script - Step 3: Bump Version and Commit
+ * Release Script - Bump: Version and Commit
  *
  * This step bumps the version for the next development cycle,
  * syncs all package.json files, and commits/pushes to main.
  *
  * Usage:
- *   npm run release:step3 patch
- *   npm run release:step3 minor
- *   npm run release:step3 major
- *   npm run release:step3        # Interactive prompt
+ *   npm run release:bump patch
+ *   npm run release:bump minor
+ *   npm run release:bump major
+ *   npm run release:bump        # Interactive prompt
  */
 
 import { execSync } from 'child_process';
@@ -107,7 +107,7 @@ async function confirmAction(message) {
 
 async function main() {
   console.log('╔════════════════════════════════════════════════════════════════╗');
-  console.log('║         Semiont Release - Step 3: Bump & Commit               ║');
+  console.log('║         Semiont Release - Bump: Version & Commit              ║');
   console.log('╚════════════════════════════════════════════════════════════════╝');
 
   const currentVersion = getCurrentVersion();
@@ -130,7 +130,7 @@ async function main() {
 
   const confirmed = await confirmAction('\nDo you want to proceed?');
   if (!confirmed) {
-    console.log('\n❌ Step 3 cancelled by user');
+    console.log('\n❌ Bump cancelled by user');
     process.exit(0);
   }
 
@@ -196,6 +196,6 @@ Version bump type: ${bumpType}
 }
 
 main().catch((error) => {
-  console.error('\n❌ Step 3 failed:', error.message);
+  console.error('\n❌ Bump failed:', error.message);
   process.exit(1);
 });
