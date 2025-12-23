@@ -2,13 +2,14 @@
   "name": "@semiont/core",
   "version": "0.2.4",
   "description": "Core domain types for Semiont - Document, Annotation, and Graph models",
-  "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     }
   },
   "engines": {
