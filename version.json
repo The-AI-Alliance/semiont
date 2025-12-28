@@ -1,10 +1,10 @@
 {
-  "version": "0.2.15",
+  "version": "0.2.16",
   "packages": {
-    "@semiont/api-client": "0.2.15",
-    "@semiont/core": "0.2.15",
-    "@semiont/cli": "0.2.15",
-    "semiont-backend": "0.2.15",
-    "semiont-frontend": "0.2.15"
+    "@semiont/api-client": "0.2.16",
+    "@semiont/core": "0.2.16",
+    "@semiont/cli": "0.2.16",
+    "semiont-backend": "0.2.16",
+    "semiont-frontend": "0.2.16"
   }
 }
