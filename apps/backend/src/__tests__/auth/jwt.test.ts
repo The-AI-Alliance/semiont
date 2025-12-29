@@ -11,26 +11,36 @@ import { email } from '@semiont/api-client';
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import * as jwt from 'jsonwebtoken';
 import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
 
-// Mock jsonwebtoken
-vi.mock('jsonwebtoken', () => ({
-  sign: vi.fn(),
-  verify: vi.fn(),
-  JsonWebTokenError: class JsonWebTokenError extends Error {},
-  TokenExpiredError: class TokenExpiredError extends Error {
-    constructor(message: string, public expiredAt: Date) {
-      super(message);
-    }
-  },
-  NotBeforeError: class NotBeforeError extends Error {
-    constructor(message: string, public date: Date) {
-      super(message);
-    }
-  },
-}));
+// Mock jsonwebtoken - must be defined inline in the factory due to hoisting
+vi.mock('jsonwebtoken', () => {
+  const mockSign = vi.fn();
+  const mockVerify = vi.fn();
+  const mockJwt = {
+    sign: mockSign,
+    verify: mockVerify,
+    JsonWebTokenError: class JsonWebTokenError extends Error {},
+    TokenExpiredError: class TokenExpiredError extends Error {
+      constructor(message: string, public expiredAt: Date) {
+        super(message);
+      }
+    },
+    NotBeforeError: class NotBeforeError extends Error {
+      constructor(message: string, public date: Date) {
+        super(message);
+      }
+    },
+  };
+  return {
+    default: mockJwt,
+    ...mockJwt,
+  };
+});
+
+// Import the mocked module to access the mock functions
+import jwt from 'jsonwebtoken';
 
 // Mock validation schemas - not needed anymore since JWT uses direct imports
 vi.mock('../../validation/schemas', () => ({
@@ -81,7 +91,7 @@ describe('JWT Service', () => {
   describe('generateToken', () => {
     it('should generate JWT token with correct payload', () => {
       const expectedToken = 'generated.jwt.token';
-      vi.mocked(vi.mocked(jwt.sign)).mockReturnValue(expectedToken as any);
+      vi.mocked(jwt.sign).mockReturnValue(expectedToken as any);
 
       const result = JWTService.generateToken({
         userId: userId(mockUser.id),
@@ -112,7 +122,7 @@ describe('JWT Service', () => {
 
     it('should generate token for admin user', () => {
       const expectedToken = 'admin.jwt.token';
-      vi.mocked(vi.mocked(jwt.sign)).mockReturnValue(expectedToken as any);
+      vi.mocked(jwt.sign).mockReturnValue(expectedToken as any);
 
       const result = JWTService.generateToken({
         userId: userId(mockUser.id),
