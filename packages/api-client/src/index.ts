@@ -35,6 +35,9 @@ export * from './client';
 export type { components } from './types';
 import type { components } from './types';
 
+// Logger interface for observability
+export type { Logger } from './logger';
+
 // Export specific types for generation context
 export type GenerationContext = components['schemas']['GenerationContext'];
 export type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];

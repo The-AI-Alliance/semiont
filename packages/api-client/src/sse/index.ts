@@ -19,6 +19,7 @@ import type {
 import type { ResourceUri, AnnotationUri } from '../branded-types';
 import type { AccessToken, BaseUrl, EntityType } from '../branded-types';
 import type { components } from '../types';
+import type { Logger } from '../logger';
 
 /**
  * Request body for detection stream
@@ -69,6 +70,7 @@ export interface DetectTagsStreamRequest {
 export interface SSEClientConfig {
   baseUrl: BaseUrl;
   accessToken?: AccessToken;
+  logger?: Logger;
 }
 
 /**
@@ -97,11 +99,13 @@ export interface SSEClientConfig {
 export class SSEClient {
   private baseUrl: BaseUrl;
   private accessToken: AccessToken | null = null;
+  private logger?: Logger;
 
   constructor(config: SSEClientConfig) {
     // Remove trailing slash for consistent URL construction
     this.baseUrl = (config.baseUrl.endsWith('/') ? config.baseUrl.slice(0, -1) : config.baseUrl) as BaseUrl;
     this.accessToken = config.accessToken || null;
+    this.logger = config.logger;
   }
 
   /**
@@ -196,7 +200,8 @@ export class SSEClient {
         progressEvents: ['detection-started', 'detection-progress'],
         completeEvent: 'detection-complete',
         errorEvent: 'detection-error'
-      }
+      },
+      this.logger
     );
   }
 
@@ -255,7 +260,8 @@ export class SSEClient {
         progressEvents: ['generation-started', 'generation-progress'],
         completeEvent: 'generation-complete',
         errorEvent: 'generation-error'
-      }
+      },
+      this.logger
     );
   }
 
@@ -310,7 +316,8 @@ export class SSEClient {
         progressEvents: ['highlight-detection-started', 'highlight-detection-progress'],
         completeEvent: 'highlight-detection-complete',
         errorEvent: 'highlight-detection-error'
-      }
+      },
+      this.logger
     );
   }
 
@@ -365,7 +372,8 @@ export class SSEClient {
         progressEvents: ['assessment-detection-started', 'assessment-detection-progress'],
         completeEvent: 'assessment-detection-complete',
         errorEvent: 'assessment-detection-error'
-      }
+      },
+      this.logger
     );
   }
 
@@ -421,7 +429,8 @@ export class SSEClient {
         progressEvents: ['comment-detection-started', 'comment-detection-progress'],
         completeEvent: 'comment-detection-complete',
         errorEvent: 'comment-detection-error'
-      }
+      },
+      this.logger
     );
   }
 
@@ -478,7 +487,8 @@ export class SSEClient {
         progressEvents: ['tag-detection-started', 'tag-detection-progress'],
         completeEvent: 'tag-detection-complete',
         errorEvent: 'tag-detection-error'
-      }
+      },
+      this.logger
     );
   }
 
@@ -527,7 +537,8 @@ export class SSEClient {
         completeEvent: null, // Long-lived stream - no completion
         errorEvent: 'error', // Generic error event
         customEventHandler: true // Use custom event handling
-      }
+      },
+      this.logger
     );
   }
 }
