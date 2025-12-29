@@ -11,7 +11,7 @@ import { email } from '@semiont/api-client';
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import * as jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
 
