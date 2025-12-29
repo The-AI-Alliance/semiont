@@ -1,6 +1,6 @@
 {
   "name": "@semiont/core",
-  "version": "0.2.22",
+  "version": "0.2.23",
   "description": "Core domain types for Semiont - Document, Annotation, and Graph models",
   "type": "module",
   "main": "dist/index.js",
