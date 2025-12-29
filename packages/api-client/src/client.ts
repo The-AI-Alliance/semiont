@@ -27,6 +27,7 @@ import type {
   UserDID
 } from './branded-types';
 import { SSEClient } from './sse/index';
+import type { Logger } from './logger';
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
@@ -55,6 +56,7 @@ export interface SemiontApiClientConfig {
   accessToken?: AccessToken;
   timeout?: number;
   retry?: number;
+  logger?: Logger;
 }
 
 /**
@@ -66,6 +68,7 @@ export class SemiontApiClient {
   private http: KyInstance;
   private baseUrl: BaseUrl;
   private accessToken: AccessToken | null = null;
+  private logger?: Logger;
 
   /**
    * SSE streaming client for real-time operations
@@ -88,9 +91,11 @@ export class SemiontApiClient {
   public readonly sse: SSEClient;
 
   constructor(config: SemiontApiClientConfig) {
-    const { baseUrl, accessToken, timeout = 30000, retry = 2 } = config;
+    const { baseUrl, accessToken, timeout = 30000, retry = 2, logger } = config;
 
-    // Store baseUrl for constructing full URLs
+    // Store logger and baseUrl for constructing full URLs
+    this.logger = logger;
+
     // Remove trailing slash for consistent URL construction
     this.baseUrl = (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) as BaseUrl;
 
@@ -101,16 +106,56 @@ export class SemiontApiClient {
       hooks: {
         beforeRequest: [
           (request) => {
+            // Add auth header
             if (this.accessToken) {
               request.headers.set('Authorization', `Bearer ${this.accessToken}`);
             }
+
+            // Log HTTP request
+            if (this.logger) {
+              this.logger.debug('HTTP Request', {
+                type: 'http_request',
+                url: request.url,
+                method: request.method,
+                timestamp: Date.now(),
+                hasAuth: !!this.accessToken
+              });
+            }
           },
+        ],
+        afterResponse: [
+          (request, _options, response) => {
+            // Log HTTP response
+            if (this.logger) {
+              this.logger.debug('HTTP Response', {
+                type: 'http_response',
+                url: request.url,
+                method: request.method,
+                status: response.status,
+                statusText: response.statusText
+              });
+            }
+            return response;
+          }
         ],
         beforeError: [
           async (error) => {
-            const { response } = error;
+            const { response, request } = error;
             if (response) {
               const body = await response.json().catch(() => ({})) as any;
+
+              // Log HTTP error
+              if (this.logger) {
+                this.logger.error('HTTP Request Failed', {
+                  type: 'http_error',
+                  url: request.url,
+                  method: request.method,
+                  status: response.status,
+                  statusText: response.statusText,
+                  error: body.message || `HTTP ${response.status}: ${response.statusText}`
+                });
+              }
+
               throw new APIError(
                 body.message || `HTTP ${response.status}: ${response.statusText}`,
                 response.status,
@@ -131,7 +176,8 @@ export class SemiontApiClient {
     // Initialize SSE client (uses native fetch, not ky)
     this.sse = new SSEClient({
       baseUrl: this.baseUrl,
-      accessToken: this.accessToken || undefined
+      accessToken: this.accessToken || undefined,
+      logger: this.logger
     });
   }
 

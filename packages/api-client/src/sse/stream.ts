@@ -6,6 +6,7 @@
  */
 
 import type { SSEStream } from './types';
+import type { Logger } from '../logger';
 
 /**
  * Configuration for SSE stream event handling
@@ -59,7 +60,8 @@ interface SSEConfig {
 export function createSSEStream<TProgress, TComplete>(
   url: string,
   fetchOptions: RequestInit,
-  config: SSEConfig
+  config: SSEConfig,
+  logger?: Logger
 ): SSEStream<TProgress, TComplete> {
   const abortController = new AbortController();
   let progressCallback: ((data: TProgress) => void) | null = null;
@@ -73,6 +75,14 @@ export function createSSEStream<TProgress, TComplete>(
    */
   const connect = async () => {
     try {
+      // Log stream request
+      logger?.debug('SSE Stream Request', {
+        type: 'sse_request',
+        url,
+        method: fetchOptions.method || 'GET',
+        timestamp: Date.now()
+      });
+
       const response = await fetch(url, {
         ...fetchOptions,
         signal: abortController.signal,
@@ -84,12 +94,40 @@ export function createSSEStream<TProgress, TComplete>(
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({})) as { message?: string };
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+
+        // Log connection error
+        logger?.error('SSE Stream Error', {
+          type: 'sse_error',
+          url,
+          error: error.message,
+          status: response.status,
+          phase: 'connect'
+        });
+
+        throw error;
       }
 
       if (!response.body) {
-        throw new Error('Response body is null - server did not return a stream');
+        const error = new Error('Response body is null - server did not return a stream');
+
+        logger?.error('SSE Stream Error', {
+          type: 'sse_error',
+          url,
+          error: error.message,
+          phase: 'connect'
+        });
+
+        throw error;
       }
+
+      // Log successful connection
+      logger?.info('SSE Stream Connected', {
+        type: 'sse_connected',
+        url,
+        status: response.status,
+        contentType: response.headers.get('content-type') || 'unknown'
+      });
 
       // Parse SSE stream
       const reader = response.body.getReader();
@@ -133,10 +171,30 @@ export function createSSEStream<TProgress, TComplete>(
 
         if (closed) break; // Exit outer loop if closed
       }
+
+      // Log stream close
+      logger?.info('SSE Stream Closed', {
+        type: 'sse_closed',
+        url,
+        reason: 'complete'
+      });
     } catch (error) {
       // Don't report AbortError (normal cleanup)
       if (error instanceof Error && error.name !== 'AbortError') {
+        logger?.error('SSE Stream Error', {
+          type: 'sse_error',
+          url,
+          error: error.message,
+          phase: 'stream'
+        });
         errorCallback?.(error);
+      } else if (error instanceof Error && error.name === 'AbortError') {
+        // Log normal close (abort)
+        logger?.info('SSE Stream Closed', {
+          type: 'sse_closed',
+          url,
+          reason: 'abort'
+        });
       }
     }
   };
@@ -152,6 +210,14 @@ export function createSSEStream<TProgress, TComplete>(
 
     try {
       const parsed = JSON.parse(data);
+
+      // Log SSE event (debug level - can be verbose)
+      logger?.debug('SSE Event Received', {
+        type: 'sse_event',
+        url,
+        event: eventType || 'message',
+        hasData: !!data
+      });
 
       // Custom event handler (for resourceEvents which handles all events)
       if (config.customEventHandler) {

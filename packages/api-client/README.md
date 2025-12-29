@@ -70,6 +70,34 @@ const annotations = await client.getResourceAnnotations(resourceUri(resource['@i
 console.log('Annotations:', annotations.annotations.length);
 ```
 
+## Logging
+
+Enable logging to debug requests and monitor API usage:
+
+```typescript
+import { SemiontApiClient, Logger, baseUrl } from '@semiont/api-client';
+import winston from 'winston';
+
+const logger = winston.createLogger({
+  level: 'debug',
+  format: winston.format.json(),
+  transports: [new winston.transports.Console()]
+});
+
+const client = new SemiontApiClient({
+  baseUrl: baseUrl('http://localhost:4000'),
+  logger
+});
+
+// Now all HTTP requests and SSE streams will be logged
+```
+
+**What gets logged**: HTTP requests/responses, SSE stream lifecycle, individual events, and errors
+
+**Security**: Authorization headers are never logged to prevent token leaks
+
+📘 **[Complete Logging Guide](./docs/LOGGING.md)** - Logger setup, integration examples, structured metadata, troubleshooting
+
 ## Documentation
 
 📚 **[Usage Guide](./docs/Usage.md)** - Authentication, resources, annotations, SSE streaming

@@ -41,6 +41,7 @@ npm install @semiont/api-client@dev
 - [LLM Context](#llm-context)
   - [Get Resource LLM Context](#get-resource-llm-context)
   - [Get Annotation LLM Context](#get-annotation-llm-context)
+- [Logging and Observability](#logging-and-observability)
 - [Error Handling](#error-handling)
 - [System Status](#system-status)
 
@@ -945,6 +946,37 @@ console.log('Before:', contextWithWindow.sourceContext?.before);
 console.log('Selected:', contextWithWindow.sourceContext?.selected);
 console.log('After:', contextWithWindow.sourceContext?.after);
 ```
+
+## Logging and Observability
+
+Enable logging to debug requests, monitor API usage, and troubleshoot issues:
+
+```typescript
+import { SemiontApiClient, Logger, baseUrl } from '@semiont/api-client';
+import winston from 'winston';
+
+const logger = winston.createLogger({
+  level: 'debug',
+  format: winston.format.json(),
+  transports: [new winston.transports.Console()]
+});
+
+const client = new SemiontApiClient({
+  baseUrl: baseUrl('http://localhost:4000'),
+  logger  // All HTTP requests and SSE streams will be logged
+});
+```
+
+**What gets logged**:
+
+- HTTP requests and responses (debug level)
+- SSE stream lifecycle events (info level)
+- Individual SSE events (debug level)
+- Errors with full context (error level)
+
+**Security**: Authorization headers are never logged to prevent token leaks.
+
+📘 **[Complete Logging Guide](./LOGGING.md)** - Detailed documentation on logger setup, integration examples (winston, pino, DataDog, Splunk), structured metadata, log levels, filtering, and troubleshooting.
 
 ## Error Handling
 
