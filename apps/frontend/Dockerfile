@@ -1,6 +1,10 @@
 # Build stage
 FROM node:22-alpine AS builder
 
+# Build args to bust cache when version changes
+ARG BUILD_VERSION
+ARG BUILD_SHA
+
 WORKDIR /app
 
 # Copy package files

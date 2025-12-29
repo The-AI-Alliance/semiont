@@ -102,6 +102,9 @@ jobs:
             ghcr.io/the-ai-alliance/semiont-backend:${{ steps.version.outputs.tag }}
             ghcr.io/the-ai-alliance/semiont-backend:${{ steps.version.outputs.publish }}
             ghcr.io/the-ai-alliance/semiont-backend:sha-${{ steps.version.outputs.sha }}
+          build-args: |
+            BUILD_VERSION=${{ steps.version.outputs.publish }}
+            BUILD_SHA=${{ steps.version.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
