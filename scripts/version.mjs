@@ -157,17 +157,28 @@ function setVersion(packageName, newVersion) {
     for (const pkg of Object.keys(versionData.packages)) {
       versionData.packages[pkg] = newVersion;
     }
+
+    writeJSON(VERSION_FILE, versionData);
+    console.log('✅ version.json updated!');
+
+    // Automatically sync root package.json when setting all versions
+    const rootPkgJson = readJSON('package.json');
+    if (rootPkgJson.version !== newVersion) {
+      console.log(`\n🔄 Syncing root package.json: ${rootPkgJson.version} → ${newVersion}`);
+      rootPkgJson.version = newVersion;
+      writeJSON('package.json', rootPkgJson);
+    }
   } else if (PACKAGE_PATHS[packageName]) {
     // Set specific package
     console.log(`\n🔄 Setting ${packageName} to version ${newVersion}...\n`);
     versionData.packages[packageName] = newVersion;
+    writeJSON(VERSION_FILE, versionData);
+    console.log('✅ version.json updated!');
   } else {
     throw new Error(`Unknown package: ${packageName}. Valid packages: ${Object.keys(PACKAGE_PATHS).join(', ')}, all`);
   }
 
-  writeJSON(VERSION_FILE, versionData);
-  console.log('✅ version.json updated!\n');
-  console.log('Run `npm run version:sync` to update package.json files.\n');
+  console.log('\nRun `npm run version:sync` to update package.json files.\n');
 }
 
 function bumpAllVersions(type) {
@@ -186,8 +197,17 @@ function bumpAllVersions(type) {
   }
 
   writeJSON(VERSION_FILE, versionData);
-  console.log('\n✅ version.json updated!\n');
-  console.log('Run `npm run version:sync` to update package.json files.\n');
+  console.log('\n✅ version.json updated!');
+
+  // Automatically sync root package.json
+  const rootPkgJson = readJSON('package.json');
+  if (rootPkgJson.version !== newVersion) {
+    console.log(`\n🔄 Syncing root package.json: ${rootPkgJson.version} → ${newVersion}`);
+    rootPkgJson.version = newVersion;
+    writeJSON('package.json', rootPkgJson);
+  }
+
+  console.log('\nRun `npm run version:sync` to update package.json files.\n');
 }
 
 // Main CLI
