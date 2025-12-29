@@ -163,7 +163,7 @@ Version bump type: ${bumpType}
 🤖 Generated with release script`;
 
   exec(
-    `git add version.json packages/*/package.json apps/*/package.json`,
+    `git add package.json version.json packages/*/package.json apps/*/package.json`,
     'Staging version files'
   );
 
