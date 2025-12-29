@@ -92,8 +92,19 @@ function showVersions() {
 
 function syncVersions() {
   const versionData = readJSON(VERSION_FILE);
+  const globalVersion = versionData.version;
 
   console.log('\n🔄 Syncing package.json files to version.json...\n');
+
+  // Sync root package.json first
+  const rootPkgJson = readJSON('package.json');
+  if (rootPkgJson.version !== globalVersion) {
+    console.log(`  Updating root package.json: ${rootPkgJson.version} → ${globalVersion}`);
+    rootPkgJson.version = globalVersion;
+    writeJSON('package.json', rootPkgJson);
+  } else {
+    console.log(`  Root package.json: already at ${globalVersion}`);
+  }
 
   for (const [pkg, version] of Object.entries(versionData.packages)) {
     const pkgPath = PACKAGE_PATHS[pkg];
