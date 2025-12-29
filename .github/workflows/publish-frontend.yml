@@ -1,5 +1,7 @@
 name: Publish Frontend Container Image
 
+run-name: "Frontend: ${{ github.event.inputs.stable_release == 'true' && 'stable' || 'dev' }} v${{ github.run_number }} ${{ github.event_name == 'workflow_dispatch' && '(manual)' || format('({0})', github.event.head_commit.message) }}"
+
 on:
   push:
     branches: [main]
