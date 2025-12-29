@@ -1,6 +1,6 @@
 {
   "name": "@semiont/cli",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "description": "Semiont CLI - Unified environment management tool",
   "_comment": "AWS SDK dependencies (@aws-sdk/*) are only used by platforms/aws",
   "type": "module",
@@ -65,8 +65,8 @@
     "@aws-sdk/client-sts": "^3.859.0",
     "@aws-sdk/client-wafv2": "^3.859.0",
     "@prisma/client": "^6.13.0",
-    "@semiont/api-client": "^0.2.18",
-    "@semiont/core": "^0.2.18",
+    "@semiont/api-client": "^0.2.19",
+    "@semiont/core": "^0.2.19",
     "@testcontainers/postgresql": "^11.5.1",
     "arg": "^5.0.2",
     "bcrypt": "^5.1.1",
