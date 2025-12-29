@@ -14,7 +14,7 @@ import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { JWTService } from '../auth/jwt';
 import { OAuthService } from '../auth/oauth';
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcrypt';
 import type { User } from '@prisma/client';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 import type { components } from '@semiont/api-client';
