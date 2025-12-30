@@ -104,7 +104,9 @@ Only these endpoints are accessible without authentication:
 
 - `GET /api/health` - Health check for monitoring
 - `GET /api` - API documentation
-- `POST /api/auth/google` - OAuth login initiation
+- `POST /api/tokens/google` - Google OAuth authentication
+- `POST /api/tokens/password` - Password authentication
+- `POST /api/tokens/refresh` - Refresh token exchange
 
 ### Protected Endpoints
 
@@ -242,8 +244,11 @@ const response = await fetch('https://api.semiont.com/api/documents', {
 **Access Token Payload**:
 ```json
 {
-  "sub": "user-123",
+  "userId": "user-123",
   "email": "user@example.com",
+  "name": "User Name",
+  "domain": "example.com",
+  "provider": "google",
   "isAdmin": false,
   "iat": 1698765432,
   "exp": 1699370232
@@ -253,7 +258,11 @@ const response = await fetch('https://api.semiont.com/api/documents', {
 **Refresh Token Payload**:
 ```json
 {
-  "sub": "user-123",
+  "userId": "user-123",
+  "email": "user@example.com",
+  "domain": "example.com",
+  "provider": "google",
+  "isAdmin": false,
   "type": "refresh",
   "iat": 1698765432,
   "exp": 1701357432
@@ -292,25 +301,51 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 **JWT Validation** (`apps/backend/src/middleware/auth.ts`):
 ```typescript
-import { verify } from 'jsonwebtoken';
+import { Context, Next } from 'hono';
+import { OAuthService } from '../auth/oauth';
+import { accessToken } from '@semiont/api-client';
 
-export const authMiddleware = async (c, next) => {
+export const authMiddleware = async (c: Context, next: Next): Promise<Response | void> => {
+  const logger = c.get('logger');
   const authHeader = c.req.header('Authorization');
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    logger.warn('Authentication failed: Missing Authorization header', {
+      type: 'auth_failed',
+      reason: 'missing_header',
+      path: c.req.path,
+      method: c.req.method
+    });
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const token = authHeader.substring(7);
+  const tokenStr = authHeader.substring(7).trim();
+
+  if (!tokenStr) {
+    logger.warn('Authentication failed: Empty token', {
+      type: 'auth_failed',
+      reason: 'empty_token'
+    });
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
 
   try {
-    const payload = verify(token, process.env.JWT_SECRET);
+    const user = await OAuthService.getUserFromToken(accessToken(tokenStr));
+    c.set('user', user);
 
-    // Attach user to context
-    c.set('user', payload);
+    logger.debug('Authentication successful', {
+      type: 'auth_success',
+      userId: user.id,
+      email: user.email
+    });
 
     await next();
   } catch (error) {
+    logger.warn('Authentication failed: Invalid token', {
+      type: 'auth_failed',
+      reason: 'invalid_token',
+      error: error instanceof Error ? error.message : String(error)
+    });
     return c.json({ error: 'Invalid token' }, 401);
   }
 };
@@ -318,28 +353,39 @@ export const authMiddleware = async (c, next) => {
 
 ### Route Protection
 
-**Applying Middleware** (`apps/backend/src/routes/documents.ts`):
+**Applying Middleware** (`apps/backend/src/routes/auth.ts`):
 ```typescript
 import { authMiddleware } from '../middleware/auth';
+import { Hono } from 'hono';
+import type { User } from '@prisma/client';
 
-// Protected route
-app.get('/api/documents', authMiddleware, async (c) => {
+export const authRouter = new Hono<{ Variables: { user: User } }>();
+
+// Protected route - requires authentication
+authRouter.get('/api/users/me', authMiddleware, async (c) => {
   const user = c.get('user');
-  // user.sub, user.email, user.isAdmin available
+  // user.id, user.email, user.isAdmin available
 
-  const documents = await getDocumentsForUser(user.sub);
-  return c.json(documents);
+  return c.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    domain: user.domain,
+    provider: user.provider,
+    isAdmin: user.isAdmin
+  });
 });
 
 // Admin-only route
-app.delete('/api/documents/:id', authMiddleware, async (c) => {
+authRouter.patch('/api/admin/users/:id', authMiddleware, async (c) => {
   const user = c.get('user');
 
   if (!user.isAdmin) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 
-  await deleteDocument(c.req.param('id'));
+  const userId = c.req.param('id');
+  // Update user logic here
   return c.json({ success: true });
 });
 ```
