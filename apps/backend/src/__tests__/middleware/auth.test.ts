@@ -27,11 +27,26 @@ const mockOAuthService = OAuthService as Mocked<typeof OAuthService>;
 function createMockContext(headers: Record<string, string> = {}): Context {
   const mockJson = vi.fn().mockReturnValue(new Response());
   const mockSet = vi.fn();
-  const mockGet = vi.fn();
+
+  // Mock logger that the auth middleware expects
+  const mockLogger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  };
+
+  const mockGet = vi.fn((key: string) => {
+    if (key === 'logger') return mockLogger;
+    if (key === 'requestId') return 'test-request-id';
+    return undefined;
+  });
 
   const context = {
     req: {
       header: vi.fn((name: string) => headers[name]),
+      path: '/test',
+      method: 'GET',
     },
     json: mockJson,
     set: mockSet,

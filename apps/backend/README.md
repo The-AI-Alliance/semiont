@@ -8,6 +8,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, manual setup
 - **[API Reference](../../specs/docs/API.md)** - API endpoints, request/response formats
 - **[Authentication](./docs/AUTHENTICATION.md)** - JWT tokens, OAuth, MCP authentication
+- **[Logging](./docs/LOGGING.md)** - Winston logging, log levels, debugging 401s
 - **[Testing Guide](./docs/TESTING.md)** - Running tests, writing tests, coverage
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
 - **[Contributing Guide](./docs/CONTRIBUTING.md)** - Code style, development patterns, PR requirements
@@ -352,6 +353,7 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 - [Development Guide](./docs/DEVELOPMENT.md) - Complete local development setup
 - [API Reference](./docs/API.md) - All API endpoints and examples
 - [Authentication](./docs/AUTHENTICATION.md) - JWT, OAuth, MCP implementation
+- [Logging](./docs/LOGGING.md) - Winston logging, log levels, debugging
 - [Testing](./docs/TESTING.md) - Testing philosophy and patterns
 - [Deployment](./docs/DEPLOYMENT.md) - Production deployment guide
 - [Contributing](./docs/CONTRIBUTING.md) - How to contribute

@@ -45,6 +45,7 @@
     "jsonwebtoken": "^9.0.2",
     "neo4j-driver": "^5.28.2",
     "uuid": "^9.0.1",
+    "winston": "^3.19.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
