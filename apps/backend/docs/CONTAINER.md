@@ -194,6 +194,8 @@ services:
     environment:
       SEMIONT_ROOT: /app/config
       SEMIONT_ENV: production
+      LOG_LEVEL: info        # error|warn|info|http|debug
+      LOG_FORMAT: json       # json|simple
     depends_on:
       database:
         condition: service_healthy
@@ -237,6 +239,8 @@ services:
     environment:
       SEMIONT_ROOT: /app/config
       SEMIONT_ENV: production
+      LOG_LEVEL: info        # error|warn|info|http|debug
+      LOG_FORMAT: json       # json|simple
     depends_on:
       database:
         condition: service_healthy
@@ -350,6 +354,10 @@ spec:
               value: /app/config
             - name: SEMIONT_ENV
               value: production
+            - name: LOG_LEVEL
+              value: info
+            - name: LOG_FORMAT
+              value: json
           volumeMounts:
             - name: config
               mountPath: /app/config/semiont.json
