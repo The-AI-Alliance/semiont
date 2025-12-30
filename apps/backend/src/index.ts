@@ -69,11 +69,19 @@ import { getGraphDatabase } from './graph/factory';
 import { getInferenceClient } from './inference/factory';
 // Import security headers middleware
 import { securityHeaders } from './middleware/security-headers';
+// Import logging middleware
+import { initializeLogger } from './logger';
+import { requestIdMiddleware } from './middleware/request-id';
+import { requestLoggerMiddleware } from './middleware/request-logger';
+import { errorLoggerMiddleware } from './middleware/error-logger';
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
 };
+
+// Initialize Winston logger
+initializeLogger();
 
 // Create Hono app with proper typing
 const app = new Hono<{ Variables: Variables }>();
@@ -87,35 +95,15 @@ app.use('*', cors({
 // Add security headers middleware (after CORS, before other middleware)
 app.use('*', securityHeaders());
 
+// Add logging middleware (order matters!)
+app.use('*', requestIdMiddleware);       // Generate request ID first
+app.use('*', errorLoggerMiddleware);     // Catch errors second
+app.use('*', requestLoggerMiddleware);   // Log requests third
+
 // Inject config into context for all routes
 app.use('*', async (c, next) => {
   c.set('config', config);
   await next();
-});
-
-// Add request/response logging middleware
-app.use('*', async (c, next) => {
-  const start = Date.now();
-  const method = c.req.method;
-  const url = c.req.url;
-  
-  console.log(`[${new Date().toISOString()}] --> ${method} ${url}`);
-  
-  // Log request body for POST/PUT requests
-  if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-    try {
-      const body = await c.req.raw.clone().json();
-      console.log(`    Request body:`, JSON.stringify(body, null, 2));
-    } catch (e) {
-      // Body might not be JSON or might be empty
-    }
-  }
-  
-  await next();
-  
-  const duration = Date.now() - start;
-  const status = c.res.status;
-  console.log(`[${new Date().toISOString()}] <-- ${method} ${url} ${status} (${duration}ms)`);
 });
 
 // Mount route routers

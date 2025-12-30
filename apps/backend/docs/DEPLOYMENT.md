@@ -183,9 +183,12 @@ semiont watch logs --service backend --follow
 # View last 10 minutes
 semiont watch logs --service backend --since 10m
 
-# Filter by pattern
+# Filter by pattern (Winston structured logs)
 semiont watch logs --service backend --filter "ERROR"
+semiont watch logs --service backend --filter "auth_failed"
 ```
+
+**Log Configuration**: Set `LOG_LEVEL` environment variable to control verbosity (error/warn/info/http/debug). See [Logging Guide](./LOGGING.md) for details on log levels, structured metadata, and debugging.
 
 ### Application Metrics
 

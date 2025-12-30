@@ -379,8 +379,18 @@ Add to `.vscode/launch.json`:
 
 **2. Enable Debug Logging**
 
+```bash
+# Winston logging (recommended)
+LOG_LEVEL=debug npm start
+
+# See all HTTP requests, auth attempts, and errors
+# For complete logging guide, see docs/LOGGING.md
+```
+
+**Alternative: Framework-specific debug**
+
 ```env
-# In .env
+# In .env (legacy)
 DEBUG=hono:*
 PRISMA_LOG=query,info,warn,error
 ```

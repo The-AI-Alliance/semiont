@@ -40,6 +40,30 @@ The backend container requires exactly two environment variables:
 - **`SEMIONT_ROOT`** - Path to directory containing configuration files
 - **`SEMIONT_ENV`** - Environment name (e.g., `production`, `staging`, `development`)
 
+### Optional Environment Variables
+
+Additional runtime configuration via environment variables:
+
+- **`LOG_LEVEL`** - Logging verbosity: `error`, `warn`, `info` (default), `http`, `debug`
+- **`LOG_FORMAT`** - Log output format: `json` (default), `simple`
+- **`NODE_ENV`** - Node.js environment: `production`, `development`, `test`
+
+**Example with logging:**
+
+```bash
+docker run -d \
+  -p 4000:4000 \
+  -v $(pwd):/app/config \
+  -e SEMIONT_ROOT=/app/config \
+  -e SEMIONT_ENV=production \
+  -e LOG_LEVEL=info \
+  -e LOG_FORMAT=json \
+  --name semiont-backend \
+  ghcr.io/the-ai-alliance/semiont-backend:dev
+```
+
+For complete logging documentation, see [Logging Guide](./LOGGING.md).
+
 ### Configuration File Structure
 
 Your `SEMIONT_ROOT` directory must contain:
