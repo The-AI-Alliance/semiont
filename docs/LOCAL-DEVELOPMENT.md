@@ -111,7 +111,7 @@ The frontend syncs configuration from Semiont environment files at provision-tim
 
 Key environment variables:
 
-- `NEXT_PUBLIC_API_URL` - Backend API URL (from `services.backend.publicURL`)
+- `SERVER_API_URL` - Backend API URL (from `services.backend.publicURL`)
 - `NEXT_PUBLIC_SITE_NAME` - Site name (from `services.frontend.siteName`)
 - `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` - Allowed OAuth domains (from `site.oauthAllowedDomains`)
 

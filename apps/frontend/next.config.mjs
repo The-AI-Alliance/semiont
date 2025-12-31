@@ -21,7 +21,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https: blob:",
-      // Allow connections to self (Envoy routes to backend), Google OAuth
+      // Allow connections to self (routing layer routes to backend), Google OAuth
       "connect-src 'self' https://accounts.google.com https://www.googleapis.com",
       "frame-src 'self' https://accounts.google.com",
       "form-action 'self'",

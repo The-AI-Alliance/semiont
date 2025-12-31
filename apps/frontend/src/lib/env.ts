@@ -4,7 +4,7 @@
 // API Configuration
 // SERVER_API_URL: Server-side API URL (runtime, used by Next.js server for auth, etc.)
 // In Codespaces/Docker: Set to internal service name (e.g., http://backend:4000)
-// Client-side API calls use relative URLs - Envoy proxy handles routing
+// Client-side API calls use relative URLs - routing layer handles path-based routing
 if (!process.env.SERVER_API_URL) {
   throw new Error('SERVER_API_URL environment variable is required');
 }

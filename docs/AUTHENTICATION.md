@@ -92,7 +92,7 @@ Browser → Backend (with JWT from session) → Validate & Respond
 
 **Key Architecture Points**:
 - **Frontend Server** only handles OAuth callback (not a proxy for API calls)
-- **Browser** calls Backend API directly using `NEXT_PUBLIC_API_URL`
+- **Browser** calls Backend API directly using `SERVER_API_URL`
 - **JWT token** stored in NextAuth session cookie, included in API requests
 - **Backend** is public-facing (accessible from browser)
 

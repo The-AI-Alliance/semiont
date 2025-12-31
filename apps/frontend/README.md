@@ -59,7 +59,7 @@ docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
 # Run frontend container
 docker run -d \
   -p 3000:3000 \
-  -e NEXT_PUBLIC_API_URL=http://localhost:4000 \
+  -e SERVER_API_URL=http://localhost:4000 \
   -e NEXTAUTH_URL=http://localhost:3000 \
   -e NEXTAUTH_SECRET=your-secret-min-32-chars \
   --name semiont-frontend \
@@ -67,7 +67,7 @@ docker run -d \
 ```
 
 **Required Environment Variables:**
-- `NEXT_PUBLIC_API_URL` - Backend API URL (e.g., `http://localhost:4000`)
+- `SERVER_API_URL` - Backend API URL (e.g., `http://localhost:4000`)
 - `NEXTAUTH_URL` - Frontend URL for NextAuth callbacks (e.g., `http://localhost:3000`)
 - `NEXTAUTH_SECRET` - Secret for NextAuth session encryption (min 32 characters)
 - `NEXT_PUBLIC_SITE_NAME` - Site name displayed in UI (default: "Semiont")

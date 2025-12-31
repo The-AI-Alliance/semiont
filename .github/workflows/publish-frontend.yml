@@ -107,7 +107,7 @@ jobs:
           # NOTE: Only build-time variables (NEXT_PUBLIC_*) should be in build-args
           # Runtime variables like SERVER_API_URL, NEXTAUTH_SECRET, etc. are set
           # via -e flag when running the container (see apps/frontend/docs/CONTAINER.md)
-          # API routing is handled by Envoy proxy at runtime - no NEXT_PUBLIC_API_URL needed
+          # API routing is handled by reverse proxy at runtime - no build-time API URL needed
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

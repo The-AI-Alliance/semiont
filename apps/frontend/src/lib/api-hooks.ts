@@ -36,7 +36,7 @@ import { QUERY_KEYS } from './query-keys';
  * IMPORTANT: Memoized to return stable reference - only recreates when token changes
  *
  * Uses relative URLs (empty string) for browser API calls.
- * Envoy proxy routes /resources/*, /annotations/*, etc. to backend:4000
+ * Routing layer (Envoy/ALB/nginx/etc.) routes /resources/*, /annotations/*, etc. to backend
  */
 export function useApiClient(): SemiontApiClient | null {
   const { data: session } = useSession();
@@ -47,7 +47,7 @@ export function useApiClient(): SemiontApiClient | null {
     }
 
     return new SemiontApiClient({
-      baseUrl: baseUrl(''), // Empty string = relative URLs, Envoy handles routing
+      baseUrl: baseUrl(''), // Empty string = relative URLs, routing layer handles routing
       accessToken: accessToken(session.backendToken),
       // Use no timeout in test environment to avoid AbortController issues with ky + vitest
       ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
