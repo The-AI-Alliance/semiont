@@ -27,7 +27,6 @@ import {
   entityType,
   userDID
 } from '@semiont/api-client';
-import { NEXT_PUBLIC_API_URL } from './env';
 import { QUERY_KEYS } from './query-keys';
 
 /**
@@ -35,6 +34,9 @@ import { QUERY_KEYS } from './query-keys';
  * Returns null if not authenticated
  *
  * IMPORTANT: Memoized to return stable reference - only recreates when token changes
+ *
+ * Uses relative URLs (empty string) for browser API calls.
+ * Envoy proxy routes /resources/*, /annotations/*, etc. to backend:4000
  */
 export function useApiClient(): SemiontApiClient | null {
   const { data: session } = useSession();
@@ -45,7 +47,7 @@ export function useApiClient(): SemiontApiClient | null {
     }
 
     return new SemiontApiClient({
-      baseUrl: baseUrl(NEXT_PUBLIC_API_URL),
+      baseUrl: baseUrl(''), // Empty string = relative URLs, Envoy handles routing
       accessToken: accessToken(session.backendToken),
       // Use no timeout in test environment to avoid AbortController issues with ky + vitest
       ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
