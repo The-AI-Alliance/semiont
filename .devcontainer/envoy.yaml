@@ -1,0 +1,152 @@
+# Envoy proxy configuration for devcontainer
+# Routes traffic between frontend (Next.js on port 3000) and backend (Hono API on port 4000)
+#
+# Routing rules (order matters - first match wins):
+# 1. /api/auth/*      → frontend (NextAuth)
+# 2. /api/cookies/*   → frontend (cookie consent/export)
+# 3. /api/resources/* → frontend (authenticated proxy for images/files)
+# 4. /resources/*     → backend (main API)
+# 5. /annotations/*   → backend (main API)
+# 6. /admin/*         → backend (main API)
+# 7. /api/*           → backend (OpenAPI docs, spec)
+# 8. /*               → frontend (Next.js pages)
+
+static_resources:
+  listeners:
+  - name: listener_0
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 80
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          access_log:
+          - name: envoy.access_loggers.stdout
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: local_service
+              domains: ["*"]
+              routes:
+              # Frontend Next.js API routes (must come before backend /api/*)
+              - match:
+                  prefix: "/api/auth/"
+                route:
+                  cluster: frontend
+                  timeout: 30s
+              - match:
+                  prefix: "/api/cookies/"
+                route:
+                  cluster: frontend
+                  timeout: 30s
+              - match:
+                  prefix: "/api/resources/"
+                route:
+                  cluster: frontend
+                  timeout: 30s
+
+              # Backend API routes (without /api prefix)
+              - match:
+                  prefix: "/resources/"
+                route:
+                  cluster: backend
+                  timeout: 30s
+              - match:
+                  prefix: "/annotations/"
+                route:
+                  cluster: backend
+                  timeout: 30s
+              - match:
+                  prefix: "/admin/"
+                route:
+                  cluster: backend
+                  timeout: 30s
+              - match:
+                  prefix: "/entity-types/"
+                route:
+                  cluster: backend
+                  timeout: 30s
+              - match:
+                  prefix: "/jobs/"
+                route:
+                  cluster: backend
+                  timeout: 30s
+              - match:
+                  prefix: "/users/"
+                route:
+                  cluster: backend
+                  timeout: 30s
+              - match:
+                  prefix: "/tokens/"
+                route:
+                  cluster: backend
+                  timeout: 30s
+              - match:
+                  prefix: "/health"
+                route:
+                  cluster: backend
+                  timeout: 30s
+              - match:
+                  prefix: "/status"
+                route:
+                  cluster: backend
+                  timeout: 30s
+
+              # Backend OpenAPI documentation routes
+              - match:
+                  prefix: "/api/"
+                route:
+                  cluster: backend
+                  timeout: 30s
+
+              # Everything else goes to frontend (Next.js pages)
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: frontend
+                  timeout: 30s
+
+  clusters:
+  - name: backend
+    connect_timeout: 5s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: backend
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: localhost
+                port_value: 4000
+
+  - name: frontend
+    connect_timeout: 5s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: frontend
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: localhost
+                port_value: 3000
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
