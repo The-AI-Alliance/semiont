@@ -63,10 +63,9 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   const config = service.config as FrontendServiceConfig;
   const frontendUrl = config.url;
   const port = config.port;
-  const semiontEnv = service.environment;
   const siteName = config.siteName;
 
-  // Get backend publicURL from environment config
+  // Get backend service from environment config
   const backendService = service.environmentConfig.services['backend'];
   if (!backendService) {
     return {
@@ -75,14 +74,18 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
       metadata: { serviceType: 'frontend' }
     };
   }
-  const backendUrl = backendService.publicURL;
-  if (!backendUrl) {
+
+  // For POSIX platform, use localhost URL for server-side API calls
+  // (publicURL may be Codespaces public URL which requires external auth)
+  // This matches the approach in backend-check.ts:101
+  if (!backendService.port) {
     return {
       success: false,
-      error: 'Backend publicURL not configured',
+      error: 'Backend port not configured',
       metadata: { serviceType: 'frontend' }
     };
   }
+  const backendUrl = `http://localhost:${backendService.port}`;
   if (!siteName) {
     return {
       success: false,
@@ -101,7 +104,6 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     'PORT': port.toString(),
     'NEXTAUTH_URL': frontendUrl,
     'NEXTAUTH_SECRET': nextAuthSecret,
-    'SEMIONT_ENV': semiontEnv,
     'SERVER_API_URL': backendUrl,
     'NEXT_PUBLIC_SITE_NAME': siteName,
     'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS': oauthAllowedDomains.join(',')
@@ -145,10 +147,7 @@ PORT=${port}
 NEXTAUTH_URL=${frontendUrl}
 NEXTAUTH_SECRET=${nextAuthSecret}
 
-# Semiont Configuration System
-SEMIONT_ENV=${semiontEnv}
-
-# Backend API URL for server-side calls (from backend.publicURL in environment config)
+# Backend API URL for server-side calls (uses localhost for POSIX platform)
 SERVER_API_URL=${backendUrl}
 
 # Site name (from frontend.siteName in environment config)
@@ -260,7 +259,7 @@ This directory contains runtime files for the frontend service.
 ## Configuration
 
 Edit \`.env.local\` to configure:
-- Server API URL (SERVER_API_URL)
+- Server API URL (SERVER_API_URL) - set to localhost for POSIX platform
 - Port (PORT)
 - Other environment-specific settings
 
