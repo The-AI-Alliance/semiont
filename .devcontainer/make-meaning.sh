@@ -441,7 +441,7 @@ sleep 2
 
 # Verify Envoy is running
 if ps -p $ENVOY_PID > /dev/null; then
-    print_success "Envoy proxy started (PID: $ENVOY_PID, listening on port 80)"
+    print_success "Envoy proxy started (PID: $ENVOY_PID, listening on port 8080)"
 else
     print_error "Envoy failed to start - check $LOG_FILE"
     exit 1
@@ -468,15 +468,15 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 if [ -n "$CODESPACE_NAME" ]; then
-    ENVOY_URL="https://${CODESPACE_NAME}-80.app.github.dev"
+    ENVOY_URL="https://${CODESPACE_NAME}-8080.app.github.dev"
     FRONTEND_URL="https://${CODESPACE_NAME}-3000.app.github.dev"
     BACKEND_HEALTH_URL="https://${CODESPACE_NAME}-4000.app.github.dev/api/health"
 
     echo "📋 SETUP STEPS (Codespaces):"
     echo ""
-    echo "1. Make port 80 public (Envoy proxy - main entry point):"
+    echo "1. Make port 8080 public (Envoy proxy - main entry point):"
     echo "   • Open the 'Ports' panel (View → Ports)"
-    echo "   • Right-click port 80 → Port Visibility → Public"
+    echo "   • Right-click port 8080 → Port Visibility → Public"
     echo ""
     echo "2. Open the application via Envoy (recommended):"
     echo "   $ENVOY_URL"
@@ -499,7 +499,7 @@ if [ -n "$CODESPACE_NAME" ]; then
 else
     echo "🚀 Ready to start! Open the application:"
     echo ""
-    echo "   http://localhost (Envoy proxy - recommended)"
+    echo "   http://localhost:8080 (Envoy proxy - recommended)"
     echo "   http://localhost:3000 (Frontend direct)"
     echo "   http://localhost:4000/api/health (Backend health check)"
     echo ""
