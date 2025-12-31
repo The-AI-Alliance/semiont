@@ -362,17 +362,17 @@ export class SemiontAppStack extends cdk.Stack {
         PORT: '3000',
         HOSTNAME: '0.0.0.0',
         // Public environment variables (available to browser)
-        NEXT_PUBLIC_API_URL: `https://${domainName}`,
         NEXT_PUBLIC_SITE_NAME: siteName,
         NEXT_PUBLIC_DOMAIN: domainName,
         // OAuth domains for server-side NextAuth validation
         OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
         // NextAuth configuration
         NEXTAUTH_URL: `https://${domainName}`,
-        // Backend URL for server-side authentication calls (Service Connect DNS)
-        // Used by frontend's NextAuth to communicate with backend container-to-container
+        // Backend URL for server-side API calls (Service Connect DNS)
+        // Used by frontend's NextAuth and API routes for container-to-container communication
         // This is NOT the public URL - it's the internal AWS Service Connect address
-        BACKEND_INTERNAL_URL: 'http://backend:4000',
+        // Client-side browser calls use relative URLs - ALB routes to backend
+        SERVER_API_URL: 'http://backend:4000',
       },
       secrets: {
         NEXTAUTH_SECRET: ecs.Secret.fromSecretsManager(appSecrets, 'nextAuthSecret'),

@@ -137,7 +137,7 @@ vi.mock('next-intl/navigation', async () => {
 
 // Set test environment variables
 process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
-process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
+process.env.SERVER_API_URL = 'http://localhost:3001';
 process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
 
 // Polyfill fetch to handle relative URLs

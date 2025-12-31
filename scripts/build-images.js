@@ -128,18 +128,17 @@ async function buildBackend(runtime) {
 
 async function buildFrontend(runtime) {
   log('yellow', 'Building frontend...');
-  
+
   // Use environment variables or defaults
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  // Note: NEXT_PUBLIC_API_URL removed - Envoy handles routing at runtime
   const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Semiont';
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0';
-  
+
   const buildArgs = [
-    '--build-arg', `NEXT_PUBLIC_API_URL=${apiUrl}`,
     '--build-arg', `NEXT_PUBLIC_APP_NAME=${appName}`,
     '--build-arg', `NEXT_PUBLIC_APP_VERSION=${appVersion}`
   ];
-  
+
   await buildImage('frontend', 'apps/frontend/Dockerfile', '.', buildArgs, runtime);
 }
 

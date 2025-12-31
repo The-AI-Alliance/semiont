@@ -8,7 +8,7 @@ import type { Session } from 'next-auth';
 // Type augmentations don't need explicit import in test files
 
 // Use environment variable for backend URL
-const getBackendUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const getBackendUrl = () => process.env.SERVER_API_URL || 'http://localhost:3001';
 
 
 // Mock the validation modules
@@ -48,7 +48,7 @@ describe('Auth Configuration', () => {
     process.env.GOOGLE_CLIENT_ID = 'test-client-id';
     process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
     process.env.OAUTH_ALLOWED_DOMAINS = 'example.com,test.org';
-    process.env.NEXT_PUBLIC_API_URL = getBackendUrl();
+    process.env.SERVER_API_URL = getBackendUrl();
     
     // Import after setting environment variables
     const authModule = await import('../auth');
@@ -67,7 +67,7 @@ describe('Auth Configuration', () => {
     process.env.GOOGLE_CLIENT_ID = 'test-client-id';
     process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
     process.env.OAUTH_ALLOWED_DOMAINS = 'example.com,test.org';
-    process.env.NEXT_PUBLIC_API_URL = getBackendUrl();
+    process.env.SERVER_API_URL = getBackendUrl();
 
     mockUser = {
       id: 'google-user-123',
@@ -630,15 +630,15 @@ describe('Auth Configuration', () => {
       // The environment variable deletion doesn't affect the already-imported module
       // but we can test that the structure exists to handle such scenarios
       
-      const originalUrl = process.env.NEXT_PUBLIC_API_URL;
-      delete process.env.NEXT_PUBLIC_API_URL;
+      const originalUrl = process.env.SERVER_API_URL;
+      delete process.env.SERVER_API_URL;
       
       // Test that environment variable operations work
-      expect(process.env.NEXT_PUBLIC_API_URL).toBeUndefined();
+      expect(process.env.SERVER_API_URL).toBeUndefined();
       
       // Restore for other tests
       if (originalUrl) {
-        process.env.NEXT_PUBLIC_API_URL = originalUrl;
+        process.env.SERVER_API_URL = originalUrl;
       }
       
       // The callback exists and can handle various URL scenarios

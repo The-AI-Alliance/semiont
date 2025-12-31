@@ -3,14 +3,12 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { validateData, JWTTokenSchema } from '@semiont/api-client';
 import { OAuthUserSchema } from '@/lib/validation';
 import {
-  NEXT_PUBLIC_API_URL,
   SERVER_API_URL,
   getAllowedDomains
 } from '@/lib/env';
 import type { NextAuthOptions } from 'next-auth';
 
 console.log('[Frontend Auth] Config loaded:', {
-  clientApiUrl: NEXT_PUBLIC_API_URL,
   serverApiUrl: SERVER_API_URL,
   allowedDomains: getAllowedDomains()
 });

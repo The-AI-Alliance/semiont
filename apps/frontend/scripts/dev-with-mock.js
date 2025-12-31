@@ -43,7 +43,7 @@ mockServer.listen(4000, () => {
   const nextDev = spawn('npm', ['run', 'dev'], {
     stdio: 'inherit',
     shell: true,
-    env: { ...process.env, NEXT_PUBLIC_API_URL: 'http://localhost:4000' }
+    env: { ...process.env, SERVER_API_URL: 'http://localhost:4000' }
   });
 
   // Handle exit

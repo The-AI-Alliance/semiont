@@ -99,13 +99,12 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
   // For frontend, set build-time environment variables
   if (service.name === 'frontend') {
     // Use domain from environment config or fall back to defaults
-    const domain = envConfig.site.domain || 
-                  service.config?.domain || 
+    const domain = envConfig.site.domain ||
+                  service.config?.domain ||
                   (service.environment === 'production' ? 'semiont.com' : `${service.environment}.semiont.com`);
-    const apiUrl = `https://${domain}`;
-    
+
     // Set all NEXT_PUBLIC_ variables that frontend needs
-    buildEnv.NEXT_PUBLIC_API_URL = apiUrl;
+    // Note: NEXT_PUBLIC_API_URL removed - ALB handles routing at runtime
     buildEnv.NEXT_PUBLIC_APP_NAME = envConfig.site.siteName || 'Semiont';
     buildEnv.NEXT_PUBLIC_SITE_NAME = envConfig.site.siteName || 'Semiont';
     buildEnv.NEXT_PUBLIC_DOMAIN = domain;

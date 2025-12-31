@@ -30,20 +30,18 @@ WORKDIR /app/apps/frontend
 # Set build-time environment variables
 # NEXT_PUBLIC_* variables are embedded in the JavaScript bundle at build time
 # and cannot be changed after the container is built (used by browser)
-ARG NEXT_PUBLIC_API_URL=http://localhost:4000
 ARG NEXT_PUBLIC_SITE_NAME=Semiont
 ARG NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=example.com
 
 # Runtime-only variables (not embedded in bundle, read by Next.js server)
 # These SHOULD NOT be set as build ARGs - they are set via -e when running the container
-# - SERVER_API_URL: Internal API URL for server-side calls (defaults to NEXT_PUBLIC_API_URL)
+# - SERVER_API_URL: Internal API URL for server-side calls
 # - NEXTAUTH_URL: Frontend URL for OAuth callbacks
 # - NEXTAUTH_SECRET: Session encryption secret
 # - GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET: OAuth credentials
 ARG NEXTAUTH_URL=http://localhost:3000
 ARG NEXTAUTH_SECRET=build-time-secret-min-32-chars
 
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_SITE_NAME=$NEXT_PUBLIC_SITE_NAME
 ENV NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=$NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS
 ENV NEXTAUTH_URL=$NEXTAUTH_URL

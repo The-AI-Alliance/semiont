@@ -102,7 +102,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     'NEXTAUTH_URL': frontendUrl,
     'NEXTAUTH_SECRET': nextAuthSecret,
     'SEMIONT_ENV': semiontEnv,
-    'NEXT_PUBLIC_API_URL': backendUrl,
+    'SERVER_API_URL': backendUrl,
     'NEXT_PUBLIC_SITE_NAME': siteName,
     'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS': oauthAllowedDomains.join(',')
   };
@@ -148,8 +148,8 @@ NEXTAUTH_SECRET=${nextAuthSecret}
 # Semiont Configuration System
 SEMIONT_ENV=${semiontEnv}
 
-# Backend API URL (from backend.publicURL in environment config)
-NEXT_PUBLIC_API_URL=${backendUrl}
+# Backend API URL for server-side calls (from backend.publicURL in environment config)
+SERVER_API_URL=${backendUrl}
 
 # Site name (from frontend.siteName in environment config)
 NEXT_PUBLIC_SITE_NAME=${siteName}
@@ -260,7 +260,7 @@ This directory contains runtime files for the frontend service.
 ## Configuration
 
 Edit \`.env.local\` to configure:
-- API URL (NEXT_PUBLIC_API_URL)
+- Server API URL (SERVER_API_URL)
 - Port (PORT)
 - Other environment-specific settings
 

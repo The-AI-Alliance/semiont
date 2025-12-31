@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { SERVER_API_URL } from '@/lib/env';
 import { SemiontApiClient, resourceUri, type ResourceUri, type AccessToken, type BaseUrl, type ContentFormat } from '@semiont/api-client';
 
 export async function GET(
@@ -24,11 +25,7 @@ export async function GET(
   }
 
   const { id } = params;
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL;
-
-  if (!backendUrl) {
-    return new NextResponse('Backend URL not configured', { status: 500 });
-  }
+  const backendUrl = SERVER_API_URL;
 
   // Get Accept header and strip JSON-LD/JSON values
   // This proxy is for raw representations only - JSON metadata should use the API client directly
