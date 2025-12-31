@@ -433,8 +433,10 @@ print_success "Frontend service started"
 
 # Start Envoy proxy for path-based routing
 print_status "Starting Envoy proxy..."
-envoy -c /workspace/.devcontainer/envoy.yaml >> $LOG_FILE 2>&1 &
+# Use nohup to prevent SIGHUP and disown to detach from shell
+nohup envoy -c /workspace/.devcontainer/envoy.yaml >> $LOG_FILE 2>&1 &
 ENVOY_PID=$!
+disown
 
 # Give Envoy a moment to start
 sleep 2
