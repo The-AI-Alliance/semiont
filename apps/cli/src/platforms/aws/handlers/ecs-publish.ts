@@ -122,9 +122,9 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
     
     if (!service.quiet && service.verbose) {
       printInfo(`Frontend build configuration:`);
-      printInfo(`  API URL: ${apiUrl}`);
       printInfo(`  Domain: ${domain}`);
       printInfo(`  Site Name: ${buildEnv.NEXT_PUBLIC_SITE_NAME}`);
+      printInfo(`  API Routing: ALB routes /resources/*, /annotations/*, etc. to backend (runtime)`);
       printInfo(`  OAuth Domains: ${envConfig.site.oauthAllowedDomains?.join(', ') || '(none)'} (set at runtime)`);
     }
   }
