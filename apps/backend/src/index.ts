@@ -62,6 +62,11 @@ import { jobsRouter } from './routes/jobs/index';
 // Import static OpenAPI spec
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+// ESM equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Import graph database for initialization
 import { getGraphDatabase } from './graph/factory';
