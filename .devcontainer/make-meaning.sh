@@ -433,10 +433,10 @@ print_success "Frontend service started"
 
 # Start Envoy proxy for path-based routing
 print_status "Starting Envoy proxy..."
-# Use setsid to create new session, making Envoy immune to parent shell signals
+# Double-fork wrapper script daemonizes Envoy (reparents to init/PID 1)
 ENVOY_LOG="/tmp/envoy.log"
 chmod +x /workspace/.devcontainer/start-envoy.sh
-setsid /workspace/.devcontainer/start-envoy.sh &
+/workspace/.devcontainer/start-envoy.sh
 
 # Give Envoy a moment to start
 sleep 3
