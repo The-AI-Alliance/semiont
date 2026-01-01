@@ -128,7 +128,7 @@ static_resources:
         - endpoint:
             address:
               socket_address:
-                address: localhost
+                address: 127.0.0.1
                 port_value: 4000
 
   - name: frontend
@@ -142,7 +142,7 @@ static_resources:
         - endpoint:
             address:
               socket_address:
-                address: localhost
+                address: 127.0.0.1
                 port_value: 3000
 
 admin:
