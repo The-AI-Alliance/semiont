@@ -433,19 +433,17 @@ print_success "Frontend service started"
 
 # Start Envoy proxy for path-based routing
 print_status "Starting Envoy proxy..."
-# Use nohup to prevent SIGHUP and disown to detach from shell
-# Redirect to dedicated log file that won't be closed when script exits
+# Use setsid to create new session, making Envoy immune to parent shell signals
 ENVOY_LOG="/tmp/envoy.log"
-nohup envoy -c /workspace/.devcontainer/envoy.yaml > $ENVOY_LOG 2>&1 </dev/null &
-ENVOY_PID=$!
-disown
+chmod +x /workspace/.devcontainer/start-envoy.sh
+setsid /workspace/.devcontainer/start-envoy.sh &
 
 # Give Envoy a moment to start
-sleep 2
+sleep 3
 
-# Verify Envoy is running
-if ps -p $ENVOY_PID > /dev/null; then
-    print_success "Envoy proxy started (PID: $ENVOY_PID, listening on port 8080)"
+# Verify Envoy is listening on port 8080
+if netstat -tln | grep -q ':8080.*LISTEN'; then
+    print_success "Envoy proxy started and listening on port 8080"
     print_info "Envoy logs: $ENVOY_LOG"
 else
     print_error "Envoy failed to start - check $ENVOY_LOG"
