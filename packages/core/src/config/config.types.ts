@@ -180,6 +180,8 @@ export interface FrontendServiceConfig {
   env?: {
     [k: string]: string;
   };
+  publicURL?: string;
+  allowedOrigins?: string[];
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema

@@ -140,7 +140,7 @@ Image tagging strategy is controlled by `deployment.imageTagStrategy` in environ
       "url": "https://app.semiont.ai",
       "port": 3000,
       "env": {
-        "NEXT_PUBLIC_API_URL": "https://api.semiont.ai",
+        "SERVER_API_URL": "http://backend-internal:4000",
         "NEXTAUTH_URL": "https://app.semiont.ai",
         "NEXTAUTH_SECRET": "{{secrets.NEXTAUTH_SECRET}}"
       }
@@ -157,9 +157,12 @@ Image tagging strategy is controlled by `deployment.imageTagStrategy` in environ
 ### Required Environment Variables
 
 **Frontend-specific**:
-- `NEXT_PUBLIC_API_URL` - Backend API URL (must be publicly accessible)
+- `SERVER_API_URL` - Backend API URL for browser (embedded at build time)
+- `SERVER_API_URL` - Backend API URL for server-side calls (runtime, optional - not needed - Envoy handles routing)
 - `NEXTAUTH_URL` - Frontend URL (for OAuth callbacks)
 - `NEXTAUTH_SECRET` - Session encryption secret (32+ characters)
+
+**Important**: See [Container Guide](./CONTAINER.md) for details on build-time vs runtime environment variables.
 
 **Google OAuth** (if using OAuth):
 - `GOOGLE_CLIENT_ID` - Google OAuth client ID

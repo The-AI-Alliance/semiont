@@ -148,7 +148,7 @@ docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
 ```bash
 docker run -d \
   -p 3000:3000 \
-  -e NEXT_PUBLIC_API_URL=http://localhost:4000 \
+  -e SERVER_API_URL=http://localhost:4000 \
   -e NEXTAUTH_URL=http://localhost:3000 \
   -e NEXTAUTH_SECRET=your-secret-min-32-chars \
   --name semiont-frontend \
@@ -156,7 +156,7 @@ docker run -d \
 ```
 
 **Required Environment Variables:**
-- `NEXT_PUBLIC_API_URL` - Backend API URL
+- `SERVER_API_URL` - Backend API URL
 - `NEXTAUTH_URL` - Frontend URL for NextAuth callbacks
 - `NEXTAUTH_SECRET` - Secret for NextAuth session encryption (min 32 characters)
 
@@ -197,7 +197,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:4000
+      SERVER_API_URL: http://localhost:4000
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: your-secret-minimum-32-characters-long
       NEXT_PUBLIC_SITE_NAME: Semiont
@@ -277,35 +277,192 @@ npm run version:sync
 
 This command syncs all `package.json` files to match `version.json`, and automatically updates `@semiont/api-client` and `@semiont/core` dependency versions in `@semiont/cli` to prevent version conflicts during publishing.
 
-### Release Workflow
+## Development Workflow
 
-#### Stable Releases (Automated)
+This section describes the typical development workflow from feature branch to deployment.
 
-**Three-step release process** (recommended for long-running workflows):
+### Happy Path: Feature Development
+
+#### 1. Create Feature Branch
 
 ```bash
-# Publish: Verify version sync and trigger stable release workflows
+# Pull latest main
+git checkout main
+git pull origin main
+
+# Create feature branch
+git checkout -b feature/my-feature
+```
+
+#### 2. Development
+
+Make changes to code, tests, and documentation:
+
+```bash
+# Run tests locally
+npm test
+
+# Run type checking
+npm run typecheck
+
+# Build packages
+npm run build:packages
+```
+
+#### 3. Commit Changes
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```bash
+git add .
+git commit -m "feat: add new annotation filter"
+# or
+git commit -m "fix: resolve memory leak in resource loader"
+# or
+git commit -m "docs: update deployment guide"
+```
+
+#### 4. Push and Create PR
+
+```bash
+# Push feature branch
+git push origin feature/my-feature
+
+# Create pull request
+gh pr create --title "Add new annotation filter" --body "Description of changes"
+```
+
+#### 5. CI Checks
+
+GitHub Actions automatically runs:
+
+- **Type checking** - TypeScript compilation
+- **Linting** - ESLint validation
+- **Tests** - Unit and integration tests
+- **Security scans** - CodeQL analysis
+- **Build verification** - Ensures all packages build
+
+#### 6. Review and Merge
+
+Once CI passes and reviewers approve:
+
+```bash
+# Merge via GitHub UI (squash and merge recommended)
+# OR via CLI:
+gh pr merge --squash
+```
+
+#### 7. Automatic Development Builds
+
+After merge to `main`, GitHub Actions automatically:
+
+- Publishes npm packages with `dev` tag: `{VERSION}-build.{RUN_NUMBER}`
+- Builds and publishes container images with `dev` tag
+- Updates package registries
+
+#### 8. Verify Deployment
+
+Check that development builds were published:
+
+```bash
+# Check npm packages
+npm view @semiont/api-client dist-tags
+
+# Check container images
+gh run list --workflow=publish-frontend.yml --limit 1
+```
+
+#### 9. Bump Version (When Needed)
+
+When you want to change the base version for future development builds:
+
+```bash
+# Bump version (choose one: patch, minor, major)
+npm run version:bump patch   # 0.2.26 → 0.2.27
+# or
+npm run version:bump minor   # 0.2.26 → 0.3.0
+# or
+npm run version:bump major   # 0.2.26 → 1.0.0
+
+# This updates version.json and syncs all package.json files
+# Commit and push the version bump
+git add version.json packages/*/package.json apps/*/package.json
+git commit -m "chore: bump version to X.Y.Z"
+git push
+```
+
+**When to bump:**
+
+- After a significant feature merge or milestone
+- Before starting work on a new major version
+- As part of the release process (see below)
+
+Future development builds will use the new version: `X.Y.Z-build.N`
+
+### Release Workflow
+
+#### When to Cut a Stable Release
+
+Cut a stable release when:
+
+- Current development builds (`X.Y.Z-build.N`) are stable and tested
+- You want to publish version `X.Y.Z` as a production-ready release
+- Example: You've been publishing `0.2.26-build.123`, `0.2.26-build.124`, etc., and want to release `0.2.26` as stable
+
+#### Stable Release Timeline
+
+```text
+Before release:  0.2.26-build.123 → 0.2.26-build.124 → ... (dev builds)
+                                                           ↓
+Release publish: 0.2.26 (stable, latest tag) ← RELEASE IS CUT HERE
+                                                           ↓
+After bump:      0.2.27-build.1 → 0.2.27-build.2 → ... (next dev cycle)
+```
+
+**The stable release is cut when you run `npm run release:publish`** - this publishes the current version (e.g., `0.2.26`) as stable with the `latest` tag.
+
+**The bump happens AFTER the release** to prepare for the next development cycle (e.g., `0.2.27-build.N`).
+
+#### Three-Step Release Process
+
+**Each step is resumable** - if you close your laptop or lose connection, you can re-run with the same parameters:
+
+```bash
+# Step 1: Publish - Verify version sync and trigger stable release workflows
 npm run release:publish
 
 # Output: Command to await workflows with run IDs
+# This publishes X.Y.Z as stable (THE RELEASE IS CUT HERE)
 
-# Await: Monitor workflows until completion
+# Step 2: Await - Monitor workflows until completion
 npm run release:await <runIds>
 
 # Output: Command to bump version
+# Waits for all 5 artifacts to publish (10-20 minutes for containers)
 
-# Bump: Bump version and commit
+# Step 3: Bump - Bump version for next development cycle
 npm run release:bump patch   # or minor/major
+
+# This prepares for the NEXT release cycle
+# Future dev builds will be X.Y.(Z+1)-build.N
 ```
 
-**Each step is resumable** - if you close your laptop or lose connection during await, you can re-run it with the same parameters. Each step outputs the exact command needed for the next step.
+**What each step does:**
 
-**The release process:**
-1. Verifies all versions are in sync
-2. Publishes current version as stable release (all 5 artifacts: 3 npm + 2 containers)
-3. Waits for all workflows to complete (10-20 minutes for container builds)
-4. Bumps version for next development cycle
-5. Commits and pushes changes to main
+1. **Publish** - Publishes current version as stable release
+   - Example: Publishes `0.2.26` (without `-build.N`) as stable
+   - Tags with `latest` on npm and container registries
+   - Triggers GitHub Actions workflows
+
+2. **Await** - Waits for all workflows to complete
+   - Monitors 3 workflows (npm packages, backend, frontend)
+   - Can be resumed if interrupted
+   - Verifies all artifacts published successfully
+
+3. **Bump** - Prepares for next development cycle
+   - Example: Bumps `0.2.26` → `0.2.27`
+   - Future development builds become `0.2.27-build.1`, `0.2.27-build.2`, etc.
+   - Commits and pushes version change to main
 
 **Manual workflow triggers** (if needed):
 ```bash
@@ -314,6 +471,255 @@ gh workflow run publish-npm-packages.yml --field stable_release=true
 gh workflow run publish-backend.yml --field stable_release=true
 gh workflow run publish-frontend.yml --field stable_release=true
 ```
+
+### Unhappy Paths: Common Issues
+
+#### CI Failures
+
+**Problem:** Tests fail in CI but pass locally
+
+**Common causes:**
+
+- Environment variable differences
+- Stale local build cache
+- Missing dependencies in CI config
+
+**Resolution:**
+```bash
+# Clean and rebuild locally
+npm run clean
+npm install
+npm run build:packages
+npm test
+
+# If tests pass locally, check CI logs:
+gh run view --log-failed
+
+# Fix issues and push:
+git add .
+git commit -m "fix: resolve CI test failures"
+git push
+```
+
+#### Type Errors After Dependency Updates
+
+**Problem:** TypeScript errors after updating `@semiont/api-client` or `@semiont/core`
+
+**Resolution:**
+```bash
+# Regenerate types from OpenAPI spec
+npm run openapi:bundle
+cd packages/api-client && npm run generate
+
+# Rebuild all packages
+npm run build:packages
+
+# Update calling code to match new types
+# Then commit changes
+```
+
+#### Version Sync Issues
+
+**Problem:** CI fails with "Version mismatch" error
+
+**Resolution:**
+```bash
+# Check version status
+npm run version:show
+
+# Sync all package.json files to version.json
+npm run version:sync
+
+# Commit synchronized versions
+git add version.json packages/*/package.json apps/*/package.json
+git commit -m "chore: sync package versions"
+git push
+```
+
+#### Failed Container Builds
+
+**Problem:** Container image build fails in CI
+
+**Common causes:**
+
+- Missing environment variables in Dockerfile
+- Build context issues
+- Dependency conflicts
+
+**Resolution:**
+```bash
+# Test build locally
+npm run build:images
+
+# Check build logs:
+gh run view --log-failed
+
+# Common fixes:
+# 1. Update Dockerfile dependencies
+# 2. Clear Docker build cache
+# 3. Fix package.json scripts
+
+# Push fix:
+git add .
+git commit -m "fix: resolve container build failure"
+git push
+```
+
+#### Merge Conflicts
+
+**Problem:** PR has conflicts with main branch
+
+**Resolution:**
+```bash
+# Update feature branch with latest main
+git checkout main
+git pull origin main
+git checkout feature/my-feature
+git merge main
+
+# Resolve conflicts in your editor
+# Then:
+git add .
+git commit -m "chore: resolve merge conflicts with main"
+git push
+```
+
+#### Failed Stable Release
+
+**Problem:** `npm run release:publish` fails or workflows fail during release
+
+**Resolution:**
+
+**If publish step fails:**
+```bash
+# Check what went wrong
+npm run release:publish
+
+# Common issues:
+# 1. Version not synced - run: npm run version:sync
+# 2. Uncommitted changes - commit or stash them
+# 3. Not on main branch - checkout main first
+```
+
+**If workflows fail during await:**
+```bash
+# Check workflow status
+gh run list --workflow=publish-npm-packages.yml --limit 1
+gh run list --workflow=publish-backend.yml --limit 1
+gh run list --workflow=publish-frontend.yml --limit 1
+
+# View failed logs
+gh run view <run-id> --log-failed
+
+# Fix the issue, then manually re-trigger failed workflow:
+gh workflow run publish-backend.yml --field stable_release=true
+
+# Resume await with new run ID:
+npm run release:await <npm-run-id>,<new-backend-run-id>,<frontend-run-id>
+```
+
+**If version bump fails:**
+```bash
+# Bump was interrupted - check current state
+npm run version:show
+
+# If version was bumped but not committed:
+git status
+git add version.json packages/*/package.json apps/*/package.json
+git commit -m "chore: bump version to X.Y.Z"
+git push
+
+# If version was not bumped, retry:
+npm run release:bump patch
+```
+
+#### Forgot to Bump After Release
+
+**Problem:** Published stable release but forgot to run `npm run release:bump`
+
+**What happens:**
+
+Development builds continue with same base version:
+```text
+Before release: 0.2.26-build.123 → 0.2.26-build.124
+Release:        0.2.26 (stable, latest)
+Forgot bump:    0.2.26-build.125 → 0.2.26-build.126 (wrong!)
+Should be:      0.2.27-build.1 → 0.2.27-build.2
+```
+
+**Impact:**
+
+- **Technical**: No conflicts, builds publish successfully
+- **Semantic**: Confusing version numbers - `0.2.26-build.125` appears to lead up to `0.2.26`, but `0.2.26` stable already exists
+- **User confusion**: Development builds look older than stable release
+
+**Resolution:**
+
+Simply run the bump when you notice:
+
+```bash
+npm run version:bump patch
+# Updates version.json to 0.2.27
+# Commits and pushes
+
+# Future dev builds become 0.2.27-build.N
+```
+
+**Note:** This can be done at any time - there's no harm in running it late, you'll just have some confusingly numbered development builds in the registry.
+
+#### Reverting a Release
+
+**Problem:** Need to revert a published stable release
+
+**NPM packages - use deprecation:**
+```bash
+# Deprecate broken version
+npm deprecate @semiont/api-client@0.2.5 "Broken release, use 0.2.4 or 0.2.6"
+npm deprecate @semiont/core@0.2.5 "Broken release, use 0.2.4 or 0.2.6"
+npm deprecate @semiont/cli@0.2.5 "Broken release, use 0.2.4 or 0.2.6"
+
+# Release fixed version
+npm run version:bump patch
+npm run release:publish
+```
+
+**Container images - retag:**
+```bash
+# Cannot delete published images from ghcr.io
+# Instead, update 'latest' tag to point to previous good version:
+# (This requires manual intervention via GitHub Packages UI or API)
+
+# Then publish new fixed version
+npm run release:publish
+```
+
+### Best Practices
+
+**Before creating a PR:**
+
+- Run `npm test` locally
+- Run `npm run typecheck` to catch type errors
+- Run `npm run build:packages` to verify builds
+- Review your own changes first
+
+**During PR review:**
+
+- Respond to review comments promptly
+- Keep PR scope focused (one feature/fix per PR)
+- Ensure CI passes before requesting review
+
+**Before merging:**
+
+- Squash commits into logical units
+- Write clear commit messages following Conventional Commits
+- Ensure all CI checks pass
+- Get at least one approval (if team size permits)
+
+**After merging:**
+
+- Verify development builds published successfully
+- Delete feature branch: `git branch -d feature/my-feature`
+- Pull latest main: `git checkout main && git pull`
 
 #### Development Builds (Automatic)
 

@@ -256,7 +256,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://backend:4000
+      SERVER_API_URL: http://backend:4000
     depends_on:
       backend:
         condition: service_healthy

@@ -413,7 +413,7 @@ Environment variables are configured automatically based on your environment con
 **2. Access in code** via validation schema in `src/lib/env.ts`:
 ```typescript
 const envSchema = z.object({
-  NEXT_PUBLIC_API_URL: z.string().url(),
+  SERVER_API_URL: z.string().url(),
   NEXTAUTH_URL: z.string().url(),
 });
 ```
@@ -458,7 +458,7 @@ const envSchema = z.object({
 **Symptoms**: 404 or network errors when making API requests
 
 **Solutions**:
-- Verify `NEXT_PUBLIC_API_URL` is set correctly
+- Verify `SERVER_API_URL` is set correctly
 - Check network tab for CORS issues
 - Ensure backend is running and accessible
 - Verify API endpoint path is correct

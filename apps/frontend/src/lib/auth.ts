@@ -3,13 +3,13 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { validateData, JWTTokenSchema } from '@semiont/api-client';
 import { OAuthUserSchema } from '@/lib/validation';
 import {
-  NEXT_PUBLIC_API_URL,
+  SERVER_API_URL,
   getAllowedDomains
 } from '@/lib/env';
 import type { NextAuthOptions } from 'next-auth';
 
 console.log('[Frontend Auth] Config loaded:', {
-  backendUrl: NEXT_PUBLIC_API_URL,
+  serverApiUrl: SERVER_API_URL,
   allowedDomains: getAllowedDomains()
 });
 
@@ -46,7 +46,7 @@ providers.push(
         return null;
       }
 
-      const apiUrl = NEXT_PUBLIC_API_URL;
+      const apiUrl = SERVER_API_URL;
 
       try {
         console.log('[Frontend Auth] Calling backend for password auth:', {
@@ -141,7 +141,7 @@ export const authOptions: NextAuthOptions = {
 
         // Backend authentication for security validation and token generation
         try {
-          const apiUrl = NEXT_PUBLIC_API_URL;
+          const apiUrl = SERVER_API_URL;
           console.log(`Calling backend at: ${apiUrl}/api/tokens/google`);
           const response = await fetch(`${apiUrl}/api/tokens/google`, {
             method: 'POST',

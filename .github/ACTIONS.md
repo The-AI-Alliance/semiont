@@ -120,7 +120,7 @@ Both frontend and backend security tests use:
 ### Test Environment Variables
 ```bash
 # Frontend
-NEXT_PUBLIC_API_URL=http://localhost:3001
+SERVER_API_URL=http://localhost:3001
 NEXT_PUBLIC_SITE_NAME=Semiont Test
 NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=example.com
 

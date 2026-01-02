@@ -331,7 +331,7 @@ GITLAB_CLIENT_ID=your-gitlab-client-id
 GITLAB_CLIENT_SECRET=your-gitlab-client-secret
 
 # Backend API
-NEXT_PUBLIC_API_URL=http://localhost:4000
+SERVER_API_URL=http://localhost:4000
 ```
 
 ### Session Configuration

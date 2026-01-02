@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { NEXT_PUBLIC_API_URL } from '@/lib/env';
 import { useParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
@@ -82,9 +81,9 @@ export default function KnowledgeResourcePage() {
 
   // URI construction strategy:
   // 1. Browser URLs use clean IDs: /know/resource/{uuid}
-  // 2. API calls require full URIs: http://localhost:4000/resources/{uuid}
+  // 2. API calls require full URIs with window.location.origin (Envoy routes to backend)
   // 3. Construct initial URI from URL param to fetch the resource
-  const initialUri = resourceUri(`${NEXT_PUBLIC_API_URL}/resources/${params?.id}`);
+  const initialUri = resourceUri(`${typeof window !== 'undefined' ? window.location.origin : 'http://localhost'}/resources/${params?.id}`);
 
   // API hooks
   const resources = useResources();
@@ -512,7 +511,7 @@ function ResourceView({
 
       // Construct the nested URI format required by the API
       const resourceIdSegment = rUri.split('/').pop() || '';
-      const nestedUri = `${NEXT_PUBLIC_API_URL}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
+      const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
 
       // Check if we're clearing the body (unlinking)
       // updates.body will be an empty array [] when unlinking
@@ -1020,7 +1019,7 @@ function ResourceView({
 
               // Construct the nested URI format required by the API
               const resourceIdSegment = rUri.split('/').pop() || '';
-              const nestedUri = `${NEXT_PUBLIC_API_URL}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
+              const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
 
               await updateAnnotationBodyMutation.mutateAsync({
                 annotationUri: resourceAnnotationUri(nestedUri),

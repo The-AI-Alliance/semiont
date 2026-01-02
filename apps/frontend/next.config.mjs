@@ -21,8 +21,8 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https: blob:",
-      // Allow backend API URL
-      `connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL || ''} https://accounts.google.com https://www.googleapis.com`,
+      // Allow connections to self (routing layer routes to backend), Google OAuth
+      "connect-src 'self' https://accounts.google.com https://www.googleapis.com",
       "frame-src 'self' https://accounts.google.com",
       "form-action 'self'",
       "base-uri 'self'",
@@ -134,6 +134,11 @@ const baseConfig = {
       '@codemirror/view',
       'react-markdown',
     ],
+    serverActions: {
+      // Allow Server Actions from forwarded hosts (proxy, load balancer, etc.)
+      // NEXT_PUBLIC_ALLOWED_ORIGINS: comma-separated list of allowed origin patterns
+      allowedOrigins: process.env.NEXT_PUBLIC_ALLOWED_ORIGINS?.split(',').map(s => s.trim()) || [],
+    },
   },
 
   // Bundle optimization

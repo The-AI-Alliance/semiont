@@ -19,8 +19,8 @@
       },
       "devMode": false,
       "port": 4000,
-      "publicURL": "http://localhost:4000",
-      "corsOrigin": "http://localhost:3000"
+      "publicURL": "http://localhost:8080",
+      "corsOrigin": "http://localhost:8080"
     },
     "frontend": {
       "platform": {
@@ -29,7 +29,9 @@
       "devMode": false,
       "port": 3000,
       "url": "http://localhost:3000",
-      "siteName": "Semiont"
+      "publicURL": "http://localhost:8080",
+      "siteName": "Semiont",
+      "allowedOrigins": ["localhost:3000", "localhost:8080"]
     },
     "database": {
       "platform": {

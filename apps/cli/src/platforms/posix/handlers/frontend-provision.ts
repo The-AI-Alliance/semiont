@@ -61,12 +61,10 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   // Get values from service config (already validated by schema)
   // Type narrowing: we know this is a frontend service
   const config = service.config as FrontendServiceConfig;
-  const frontendUrl = config.url;
   const port = config.port;
-  const semiontEnv = service.environment;
   const siteName = config.siteName;
 
-  // Get backend publicURL from environment config
+  // Get backend service from environment config
   const backendService = service.environmentConfig.services['backend'];
   if (!backendService) {
     return {
@@ -75,14 +73,18 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
       metadata: { serviceType: 'frontend' }
     };
   }
-  const backendUrl = backendService.publicURL;
-  if (!backendUrl) {
+
+  // For POSIX platform, use localhost URL for server-side API calls
+  // (publicURL may be Codespaces public URL which requires external auth)
+  // This matches the approach in backend-check.ts:101
+  if (!backendService.port) {
     return {
       success: false,
-      error: 'Backend publicURL not configured',
+      error: 'Backend port not configured',
       metadata: { serviceType: 'frontend' }
     };
   }
+  const backendUrl = `http://localhost:${backendService.port}`;
   if (!siteName) {
     return {
       success: false,
@@ -94,6 +96,38 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   // Get OAuth allowed domains from environment config
   const oauthAllowedDomains = service.environmentConfig.site?.oauthAllowedDomains || [];
 
+  // Get frontend service config to access publicURL and allowedOrigins
+  const frontendService = service.environmentConfig.services['frontend'];
+  if (!frontendService) {
+    return {
+      success: false,
+      error: 'Frontend service not found in environment configuration',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+
+  // Require publicURL for NEXTAUTH_URL
+  if (!frontendService.publicURL) {
+    return {
+      success: false,
+      error: 'Frontend publicURL not configured - required for NextAuth',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+  const frontendUrl = frontendService.publicURL;
+
+  // Build allowed origins for Server Actions (when behind proxy/load balancer)
+  const allowedOrigins: string[] = [];
+
+  // Add any configured allowed origins from environment config
+  if (frontendService.allowedOrigins && Array.isArray(frontendService.allowedOrigins)) {
+    allowedOrigins.push(...frontendService.allowedOrigins);
+  }
+
+  // Add public URL host (e.g., Codespaces URL)
+  const publicUrl = new URL(frontendService.publicURL);
+  allowedOrigins.push(publicUrl.host);
+
   // Always create/overwrite .env.local with minimal configuration
   // Most config now comes from the semiont config system
   const envUpdates: Record<string, string> = {
@@ -101,10 +135,10 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     'PORT': port.toString(),
     'NEXTAUTH_URL': frontendUrl,
     'NEXTAUTH_SECRET': nextAuthSecret,
-    'SEMIONT_ENV': semiontEnv,
-    'NEXT_PUBLIC_API_URL': backendUrl,
+    'SERVER_API_URL': backendUrl,
     'NEXT_PUBLIC_SITE_NAME': siteName,
-    'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS': oauthAllowedDomains.join(',')
+    'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS': oauthAllowedDomains.join(','),
+    'NEXT_PUBLIC_ALLOWED_ORIGINS': allowedOrigins.join(',')
   };
   
   if (fs.existsSync(envExamplePath)) {
@@ -145,11 +179,8 @@ PORT=${port}
 NEXTAUTH_URL=${frontendUrl}
 NEXTAUTH_SECRET=${nextAuthSecret}
 
-# Semiont Configuration System
-SEMIONT_ENV=${semiontEnv}
-
-# Backend API URL (from backend.publicURL in environment config)
-NEXT_PUBLIC_API_URL=${backendUrl}
+# Backend API URL for server-side calls (uses localhost for POSIX platform)
+SERVER_API_URL=${backendUrl}
 
 # Site name (from frontend.siteName in environment config)
 NEXT_PUBLIC_SITE_NAME=${siteName}
@@ -260,7 +291,7 @@ This directory contains runtime files for the frontend service.
 ## Configuration
 
 Edit \`.env.local\` to configure:
-- API URL (NEXT_PUBLIC_API_URL)
+- Server API URL (SERVER_API_URL) - set to localhost for POSIX platform
 - Port (PORT)
 - Other environment-specific settings
 

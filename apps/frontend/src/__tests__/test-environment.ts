@@ -102,7 +102,7 @@ export class FrontendTestEnvironment {
   private setEnvironmentVariables() {
     Object.assign(process.env, {
       NEXT_PUBLIC_SITE_NAME: 'Test Semiont',
-      NEXT_PUBLIC_API_URL: 'http://localhost:3001',
+      SERVER_API_URL: 'http://localhost:3001',
       NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: 'example.com,test.com',
       NODE_ENV: 'test',
     });

@@ -176,7 +176,9 @@
           }
         },
         "environment": { "type": "object", "additionalProperties": { "type": "string" } },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+        "env": { "type": "object", "additionalProperties": { "type": "string" } },
+        "publicURL": { "type": "string" },
+        "allowedOrigins": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["platform", "port", "url", "siteName"],
       "additionalProperties": false

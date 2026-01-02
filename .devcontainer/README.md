@@ -185,7 +185,7 @@ semiont provision --service frontend --force
 ### Authentication not working
 
 - Verify backend is running on port 4000
-- Check frontend can reach backend via `NEXT_PUBLIC_API_URL` in `apps/frontend/.env.local`
+- Check frontend can reach backend via `SERVER_API_URL` in `apps/frontend/.env.local`
 - Clear browser cookies and retry
 
 ## 📚 Resources

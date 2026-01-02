@@ -58,7 +58,7 @@ vi.mock('@/lib/api-hooks', () => ({
 
 // Mock environment
 vi.mock('@/lib/env', () => ({
-  NEXT_PUBLIC_API_URL: 'http://localhost:4000'
+  SERVER_API_URL: 'http://localhost:4000'
 }));
 
 describe('useGenerationProgress', () => {

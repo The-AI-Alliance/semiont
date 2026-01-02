@@ -11,16 +11,24 @@
   "onCreateCommand": "sudo /usr/local/bin/start-postgres.sh",
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally
-  "forwardPorts": [3000, 4000],
+  "forwardPorts": [8080, 3000, 4000, 9901],
 
   // Port labels for better UX
   "portsAttributes": {
-    "3000": {
-      "label": "Frontend UI",
+    "8080": {
+      "label": "Envoy Proxy (Main Entry Point)",
       "onAutoForward": "notify"
     },
+    "3000": {
+      "label": "Frontend (Direct)",
+      "onAutoForward": "silent"
+    },
     "4000": {
-      "label": "Backend API",
+      "label": "Backend (Direct)",
+      "onAutoForward": "silent"
+    },
+    "9901": {
+      "label": "Envoy Admin",
       "onAutoForward": "silent"
     }
   },

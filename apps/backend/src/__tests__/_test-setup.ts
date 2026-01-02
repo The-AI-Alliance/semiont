@@ -9,8 +9,11 @@
 
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
-import { join, resolve } from 'path';
+import { join, resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { loadEnvironmentConfig, type EnvironmentConfig } from '@semiont/core';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export interface TestEnvironmentConfig {
   config: EnvironmentConfig;

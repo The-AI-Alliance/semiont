@@ -29,11 +29,12 @@ echo "📋 Setup Steps:"
 echo "  • Install dependencies"
 echo "  • Build shared packages"
 echo "  • Build & install CLI"
+echo "  • Install Envoy proxy"
 echo "  • Initialize project"
 echo "  • Provision services"
 echo "  • Build applications"
 echo "  • Setup database"
-echo "  • Start services"
+echo "  • Start services (backend, frontend, Envoy)"
 echo ""
 echo "⏱️  Estimated time: 5-7 minutes"
 echo "------------------------------------------"
@@ -118,6 +119,26 @@ print_success "Environment ready (SEMIONT_REPO=$SEMIONT_REPO, SEMIONT_ENV=$SEMIO
 # Check Node.js and npm versions
 print_status "Checking tools..."
 print_success "Node $(node --version), npm $(npm --version)"
+
+# Install Envoy if not already installed
+print_status "Installing Envoy proxy..."
+if ! command -v envoy &> /dev/null; then
+    # Download and install Envoy binary for Linux x86_64
+    ENVOY_VERSION="1.28.0"
+    ENVOY_URL="https://github.com/envoyproxy/envoy/releases/download/v${ENVOY_VERSION}/envoy-${ENVOY_VERSION}-linux-x86_64"
+
+    curl -L -o /tmp/envoy "$ENVOY_URL" >> $LOG_FILE 2>&1 || {
+        print_error "Failed to download Envoy - check $LOG_FILE"
+        exit 1
+    }
+
+    chmod +x /tmp/envoy
+    sudo mv /tmp/envoy /usr/local/bin/envoy
+
+    print_success "Envoy installed: $(envoy --version 2>&1 | head -n 1)"
+else
+    print_success "Envoy already installed: $(envoy --version 2>&1 | head -n 1)"
+fi
 
 # Build and install everything
 cd /workspace || exit 1
@@ -263,7 +284,7 @@ if [ -n "$CODESPACE_NAME" ]; then
 
     # GitHub Codespaces URL format: https://$CODESPACE_NAME-$PORT.app.github.dev
     FRONTEND_URL="https://${CODESPACE_NAME}-3000.app.github.dev"
-    BACKEND_URL="https://${CODESPACE_NAME}-4000.app.github.dev"
+    ENVOY_URL="https://${CODESPACE_NAME}-8080.app.github.dev"
 
     # Update both environment configs with Codespaces URLs
     node -e "
@@ -272,7 +293,7 @@ if [ -n "$CODESPACE_NAME" ]; then
     if (!baseConfig.site) {
       throw new Error('semiont.json must have site configuration');
     }
-    const siteDomain = '${CODESPACE_NAME}-3000.app.github.dev';
+    const siteDomain = '${CODESPACE_NAME}-8080.app.github.dev';
 
     // Update both local and local-production environment files
     ['local', 'local-production'].forEach(env => {
@@ -281,8 +302,9 @@ if [ -n "$CODESPACE_NAME" ]; then
       config.site.domain = siteDomain;
       config.site.oauthAllowedDomains = [siteDomain, ...baseConfig.site.oauthAllowedDomains];
       config.services.frontend.url = '${FRONTEND_URL}';
-      config.services.backend.publicURL = '${BACKEND_URL}';
-      config.services.backend.corsOrigin = '${FRONTEND_URL}';
+      config.services.frontend.publicURL = '${ENVOY_URL}';
+      config.services.backend.publicURL = '${ENVOY_URL}';
+      config.services.backend.corsOrigin = '${ENVOY_URL}';
       fs.writeFileSync(envFile, JSON.stringify(config, null, 2));
     });
     "
@@ -410,6 +432,25 @@ semiont start --service frontend >> $LOG_FILE 2>&1 || {
 }
 print_success "Frontend service started"
 
+# Start Envoy proxy for path-based routing
+print_status "Starting Envoy proxy..."
+# Double-fork wrapper script daemonizes Envoy (reparents to init/PID 1)
+ENVOY_LOG="/tmp/envoy.log"
+chmod +x /workspace/.devcontainer/start-envoy.sh
+/workspace/.devcontainer/start-envoy.sh
+
+# Give Envoy a moment to start
+sleep 3
+
+# Verify Envoy is listening on port 8080
+if netstat -tln | grep -q ':8080.*LISTEN'; then
+    print_success "Envoy proxy started and listening on port 8080"
+    print_info "Envoy logs: $ENVOY_LOG"
+else
+    print_error "Envoy failed to start - check $ENVOY_LOG"
+    exit 1
+fi
+
 # Check service status (non-fatal)
 print_status "Checking service status..."
 if semiont check >> $LOG_FILE 2>&1; then
@@ -431,21 +472,22 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 if [ -n "$CODESPACE_NAME" ]; then
-    BACKEND_HEALTH_URL="https://${CODESPACE_NAME}-4000.app.github.dev/api/health"
+    ENVOY_URL="https://${CODESPACE_NAME}-8080.app.github.dev"
     FRONTEND_URL="https://${CODESPACE_NAME}-3000.app.github.dev"
+    BACKEND_HEALTH_URL="https://${CODESPACE_NAME}-4000.app.github.dev/api/health"
 
     echo "📋 SETUP STEPS (Codespaces):"
     echo ""
-    echo "1. Make port 4000 public:"
+    echo "1. Make port 8080 public (Envoy proxy - main entry point):"
     echo "   • Open the 'Ports' panel (View → Ports)"
-    echo "   • Right-click port 4000 → Port Visibility → Public"
+    echo "   • Right-click port 8080 → Port Visibility → Public"
     echo ""
-    echo "2. Verify backend API is accessible:"
-    echo "   $BACKEND_HEALTH_URL"
+    echo "2. Open the application via Envoy (recommended):"
+    echo "   $ENVOY_URL"
     echo ""
-    echo "3. Open the application:"
-    echo "   $FRONTEND_URL"
-    echo "   (Or use: http://localhost:3000)"
+    echo "3. Alternative: Direct access to services"
+    echo "   • Frontend: $FRONTEND_URL"
+    echo "   • Backend health: $BACKEND_HEALTH_URL"
     echo ""
     echo "4. Sign in with your admin credentials:"
     echo ""
@@ -453,15 +495,27 @@ if [ -n "$CODESPACE_NAME" ]; then
     echo "   Password: $ADMIN_PASSWORD"
     echo ""
     echo "   (These credentials are unique to this Codespace)"
+    echo ""
+    echo "📌 Note: Path-based routing via Envoy:"
+    echo "   • /resources/*, /annotations/*, etc. → Backend"
+    echo "   • /api/auth/*, /api/cookies/* → Frontend"
+    echo "   • /* → Frontend pages"
 else
     echo "🚀 Ready to start! Open the application:"
     echo ""
-    echo "   http://localhost:3000"
+    echo "   http://localhost:8080 (Envoy proxy - recommended)"
+    echo "   http://localhost:3000 (Frontend direct)"
+    echo "   http://localhost:4000/api/health (Backend health check)"
     echo ""
     echo "   Sign in with your admin credentials:"
     echo ""
     echo "   Email:    $ADMIN_EMAIL"
     echo "   Password: $ADMIN_PASSWORD"
+    echo ""
+    echo "📌 Note: Path-based routing via Envoy:"
+    echo "   • /resources/*, /annotations/*, etc. → Backend (port 4000)"
+    echo "   • /api/auth/*, /api/cookies/* → Frontend (port 3000)"
+    echo "   • /* → Frontend pages"
 fi
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

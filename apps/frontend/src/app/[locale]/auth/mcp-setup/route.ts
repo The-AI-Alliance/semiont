@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { NEXT_PUBLIC_API_URL } from '@/lib/env';
+import { SERVER_API_URL } from '@/lib/env';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const callback = searchParams.get('callback');
-  
+
   if (!callback) {
     return NextResponse.json({ error: 'Callback URL required' }, { status: 400 });
   }
@@ -25,14 +25,14 @@ export async function GET(request: NextRequest) {
   // In production, only allow localhost callbacks
   // In development, you might want to allow other patterns
   const isAllowedCallback = allowedCallbackPatterns.some(pattern => pattern.test(callback));
-  
+
   if (!isAllowedCallback) {
     return NextResponse.json({ error: 'Invalid callback URL. Must be a localhost URL for CLI authentication.' }, { status: 400 });
   }
 
   // Get the user's session
   const session = await getServerSession(authOptions);
-  
+
   if (!session || !session.backendToken) {
     // Not authenticated - redirect to sign in
     const host = request.headers.get('host') || 'wiki.pingel.org';
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   try {
     // Create api-client with user's token
     const client = new SemiontApiClient({
-      baseUrl: baseUrl(NEXT_PUBLIC_API_URL),
+      baseUrl: baseUrl(SERVER_API_URL),
       accessToken: accessToken(session.backendToken)
     });
 
