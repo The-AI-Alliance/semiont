@@ -19,8 +19,8 @@
       },
       "devMode": false,
       "port": 4000,
-      "publicURL": "http://localhost:4000",
-      "corsOrigin": "http://localhost:3000"
+      "publicURL": "http://localhost:8080",
+      "corsOrigin": "http://localhost:8080"
     },
     "frontend": {
       "platform": {
