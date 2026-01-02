@@ -29,7 +29,8 @@
       "devMode": false,
       "port": 3000,
       "url": "http://localhost:3000",
-      "siteName": "Semiont"
+      "siteName": "Semiont",
+      "allowedOrigins": ["localhost:3000", "localhost:8080"]
     },
     "database": {
       "platform": {

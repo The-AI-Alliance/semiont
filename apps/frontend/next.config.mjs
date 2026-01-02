@@ -134,6 +134,11 @@ const baseConfig = {
       '@codemirror/view',
       'react-markdown',
     ],
+    serverActions: {
+      // Allow Server Actions from forwarded hosts (proxy, load balancer, etc.)
+      // NEXT_PUBLIC_ALLOWED_ORIGINS: comma-separated list of allowed origin patterns
+      allowedOrigins: process.env.NEXT_PUBLIC_ALLOWED_ORIGINS?.split(',').map(s => s.trim()) || [],
+    },
   },
 
   // Bundle optimization

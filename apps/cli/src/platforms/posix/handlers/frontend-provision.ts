@@ -97,6 +97,22 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   // Get OAuth allowed domains from environment config
   const oauthAllowedDomains = service.environmentConfig.site?.oauthAllowedDomains || [];
 
+  // Build allowed origins for Server Actions (when behind proxy/load balancer)
+  // Get from environment config's allowedOrigins if specified
+  const allowedOrigins: string[] = [];
+  const frontendService = service.environmentConfig.services['frontend'];
+
+  // Add any configured allowed origins from environment config
+  if (frontendService?.allowedOrigins && Array.isArray(frontendService.allowedOrigins)) {
+    allowedOrigins.push(...frontendService.allowedOrigins);
+  }
+
+  // Add public URL host if available (e.g., Codespaces URL)
+  if (frontendService?.publicURL) {
+    const publicUrl = new URL(frontendService.publicURL);
+    allowedOrigins.push(publicUrl.host);
+  }
+
   // Always create/overwrite .env.local with minimal configuration
   // Most config now comes from the semiont config system
   const envUpdates: Record<string, string> = {
@@ -106,7 +122,8 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     'NEXTAUTH_SECRET': nextAuthSecret,
     'SERVER_API_URL': backendUrl,
     'NEXT_PUBLIC_SITE_NAME': siteName,
-    'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS': oauthAllowedDomains.join(',')
+    'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS': oauthAllowedDomains.join(','),
+    'NEXT_PUBLIC_ALLOWED_ORIGINS': allowedOrigins.join(',')
   };
   
   if (fs.existsSync(envExamplePath)) {
