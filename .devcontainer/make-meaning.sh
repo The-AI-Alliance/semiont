@@ -285,7 +285,6 @@ if [ -n "$CODESPACE_NAME" ]; then
     # GitHub Codespaces URL format: https://$CODESPACE_NAME-$PORT.app.github.dev
     FRONTEND_URL="https://${CODESPACE_NAME}-3000.app.github.dev"
     ENVOY_URL="https://${CODESPACE_NAME}-8080.app.github.dev"
-    BACKEND_URL="https://${CODESPACE_NAME}-4000.app.github.dev"
 
     # Update both environment configs with Codespaces URLs
     node -e "
@@ -304,7 +303,7 @@ if [ -n "$CODESPACE_NAME" ]; then
       config.site.oauthAllowedDomains = [siteDomain, ...baseConfig.site.oauthAllowedDomains];
       config.services.frontend.url = '${FRONTEND_URL}';
       config.services.frontend.publicURL = '${ENVOY_URL}';
-      config.services.backend.publicURL = '${BACKEND_URL}';
+      config.services.backend.publicURL = '${ENVOY_URL}';
       config.services.backend.corsOrigin = '${ENVOY_URL}';
       fs.writeFileSync(envFile, JSON.stringify(config, null, 2));
     });
