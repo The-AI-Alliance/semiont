@@ -34,16 +34,19 @@ ARG NEXT_PUBLIC_SITE_NAME=Semiont
 ARG NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=example.com
 
 # Runtime-only variables (not embedded in bundle, read by Next.js server)
-# These SHOULD NOT be set as build ARGs - they are set via -e when running the container
+# These are set as build ARGs with placeholder values to satisfy build-time validation,
+# but MUST be overridden via -e when running the container
 # - SERVER_API_URL: Internal API URL for server-side calls
 # - NEXTAUTH_URL: Frontend URL for OAuth callbacks
 # - NEXTAUTH_SECRET: Session encryption secret
 # - GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET: OAuth credentials
+ARG SERVER_API_URL=http://placeholder:4000
 ARG NEXTAUTH_URL=http://localhost:3000
 ARG NEXTAUTH_SECRET=build-time-secret-min-32-chars
 
 ENV NEXT_PUBLIC_SITE_NAME=$NEXT_PUBLIC_SITE_NAME
 ENV NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=$NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS
+ENV SERVER_API_URL=$SERVER_API_URL
 ENV NEXTAUTH_URL=$NEXTAUTH_URL
 ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 
