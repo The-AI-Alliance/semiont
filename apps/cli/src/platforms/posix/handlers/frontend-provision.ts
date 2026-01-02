@@ -61,7 +61,6 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   // Get values from service config (already validated by schema)
   // Type narrowing: we know this is a frontend service
   const config = service.config as FrontendServiceConfig;
-  const frontendUrl = config.url;
   const port = config.port;
   const siteName = config.siteName;
 
@@ -97,21 +96,37 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   // Get OAuth allowed domains from environment config
   const oauthAllowedDomains = service.environmentConfig.site?.oauthAllowedDomains || [];
 
-  // Build allowed origins for Server Actions (when behind proxy/load balancer)
-  // Get from environment config's allowedOrigins if specified
-  const allowedOrigins: string[] = [];
+  // Get frontend service config to access publicURL and allowedOrigins
   const frontendService = service.environmentConfig.services['frontend'];
+  if (!frontendService) {
+    return {
+      success: false,
+      error: 'Frontend service not found in environment configuration',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+
+  // Require publicURL for NEXTAUTH_URL
+  if (!frontendService.publicURL) {
+    return {
+      success: false,
+      error: 'Frontend publicURL not configured - required for NextAuth',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+  const frontendUrl = frontendService.publicURL;
+
+  // Build allowed origins for Server Actions (when behind proxy/load balancer)
+  const allowedOrigins: string[] = [];
 
   // Add any configured allowed origins from environment config
-  if (frontendService?.allowedOrigins && Array.isArray(frontendService.allowedOrigins)) {
+  if (frontendService.allowedOrigins && Array.isArray(frontendService.allowedOrigins)) {
     allowedOrigins.push(...frontendService.allowedOrigins);
   }
 
-  // Add public URL host if available (e.g., Codespaces URL)
-  if (frontendService?.publicURL) {
-    const publicUrl = new URL(frontendService.publicURL);
-    allowedOrigins.push(publicUrl.host);
-  }
+  // Add public URL host (e.g., Codespaces URL)
+  const publicUrl = new URL(frontendService.publicURL);
+  allowedOrigins.push(publicUrl.host);
 
   // Always create/overwrite .env.local with minimal configuration
   // Most config now comes from the semiont config system

@@ -284,6 +284,7 @@ if [ -n "$CODESPACE_NAME" ]; then
 
     # GitHub Codespaces URL format: https://$CODESPACE_NAME-$PORT.app.github.dev
     FRONTEND_URL="https://${CODESPACE_NAME}-3000.app.github.dev"
+    ENVOY_URL="https://${CODESPACE_NAME}-8080.app.github.dev"
     BACKEND_URL="https://${CODESPACE_NAME}-4000.app.github.dev"
 
     # Update both environment configs with Codespaces URLs
@@ -293,7 +294,7 @@ if [ -n "$CODESPACE_NAME" ]; then
     if (!baseConfig.site) {
       throw new Error('semiont.json must have site configuration');
     }
-    const siteDomain = '${CODESPACE_NAME}-3000.app.github.dev';
+    const siteDomain = '${CODESPACE_NAME}-8080.app.github.dev';
 
     // Update both local and local-production environment files
     ['local', 'local-production'].forEach(env => {
@@ -302,8 +303,9 @@ if [ -n "$CODESPACE_NAME" ]; then
       config.site.domain = siteDomain;
       config.site.oauthAllowedDomains = [siteDomain, ...baseConfig.site.oauthAllowedDomains];
       config.services.frontend.url = '${FRONTEND_URL}';
+      config.services.frontend.publicURL = '${ENVOY_URL}';
       config.services.backend.publicURL = '${BACKEND_URL}';
-      config.services.backend.corsOrigin = '${FRONTEND_URL}';
+      config.services.backend.corsOrigin = '${ENVOY_URL}';
       fs.writeFileSync(envFile, JSON.stringify(config, null, 2));
     });
     "
