@@ -2,12 +2,12 @@
 # Routes traffic between frontend (Next.js on port 3000) and backend (Hono API on port 4000)
 #
 # Routing rules (order matters - first match wins):
-# 1. /api/auth/*      → frontend (NextAuth)
-# 2. /api/cookies/*   → frontend (cookie consent/export)
-# 3. /api/resources/* → frontend (authenticated proxy for images/files)
-# 4. /resources/*     → backend (main API)
-# 5. /annotations/*   → backend (main API)
-# 6. /admin/*         → backend (main API)
+# 1. /api/auth*       → frontend (NextAuth)
+# 2. /api/cookies*    → frontend (cookie consent/export)
+# 3. /api/resources*  → frontend (authenticated proxy for images/files)
+# 4. /resources*      → backend (main API)
+# 5. /annotations*    → backend (main API)
+# 6. /admin*          → backend (main API)
 # 7. /api/*           → backend (OpenAPI docs, spec)
 # 8. /*               → frontend (Next.js pages)
 
@@ -40,54 +40,54 @@ static_resources:
               routes:
               # Frontend Next.js API routes (must come before backend /api/*)
               - match:
-                  prefix: "/api/auth/"
+                  prefix: "/api/auth"
                 route:
                   cluster: frontend
                   timeout: 30s
               - match:
-                  prefix: "/api/cookies/"
+                  prefix: "/api/cookies"
                 route:
                   cluster: frontend
                   timeout: 30s
               - match:
-                  prefix: "/api/resources/"
+                  prefix: "/api/resources"
                 route:
                   cluster: frontend
                   timeout: 30s
 
               # Backend API routes (without /api prefix)
               - match:
-                  prefix: "/resources/"
+                  prefix: "/resources"
                 route:
                   cluster: backend
                   timeout: 30s
               - match:
-                  prefix: "/annotations/"
+                  prefix: "/annotations"
                 route:
                   cluster: backend
                   timeout: 30s
               - match:
-                  prefix: "/admin/"
+                  prefix: "/admin"
                 route:
                   cluster: backend
                   timeout: 30s
               - match:
-                  prefix: "/entity-types/"
+                  prefix: "/entity-types"
                 route:
                   cluster: backend
                   timeout: 30s
               - match:
-                  prefix: "/jobs/"
+                  prefix: "/jobs"
                 route:
                   cluster: backend
                   timeout: 30s
               - match:
-                  prefix: "/users/"
+                  prefix: "/users"
                 route:
                   cluster: backend
                   timeout: 30s
               - match:
-                  prefix: "/tokens/"
+                  prefix: "/tokens"
                 route:
                   cluster: backend
                   timeout: 30s
