@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { useRouter } from '@/i18n/routing';
+import { useRouting } from '../../../contexts/RoutingContext';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getEntityTypes } from '@semiont/api-client';
-import { buttonStyles } from '../lib/button-styles';
-import { getResourceIcon } from '../lib/resource-utils';
+import { buttonStyles } from '../../../lib/button-styles';
+import { getResourceIcon } from '../../../lib/resource-utils';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -34,7 +34,7 @@ export function ReferenceEntry({
   annotateMode = true,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
-  const router = useRouter();
+  const { routes } = useRouting();
   const referenceRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent
@@ -66,13 +66,13 @@ export function ReferenceEntry({
     if (resolvedResourceUri) {
       const resourceId = resolvedResourceUri.split('/resources/')[1];
       if (resourceId) {
-        router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
+        window.location.href = routes.resourceDetail(resourceId);
       }
     }
   };
 
   const handleComposeDocument = () => {
-    router.push(`/know/compose?title=${encodeURIComponent(selectedText)}`);
+    window.location.href = `/know/compose?title=${encodeURIComponent(selectedText)}`;
   };
 
   const handleUnlink = () => {

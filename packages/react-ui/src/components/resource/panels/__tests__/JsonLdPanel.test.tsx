@@ -54,7 +54,7 @@ vi.mock('@/hooks/useLineNumbers', () => ({
 }));
 
 import { EditorView } from '@codemirror/view';
-import { useLineNumbers } from '../hooks/useLineNumbers';
+import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import type { MockedFunction } from 'vitest';
 
 const mockUseLineNumbers = useLineNumbers as MockedFunction<typeof useLineNumbers>;

@@ -3,13 +3,14 @@
 import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SessionProvider } from 'next-auth/react';
-import { ToastProvider } from '@semiont/react-ui';
+import { ToastProvider, RoutingProvider } from '@semiont/react-ui';
 import { SessionProvider as CustomSessionProvider } from '@semiont/react-ui';
-import { KeyboardShortcutsProvider } from '@semiont/react-ui';
 import { LiveRegionProvider } from '@semiont/react-ui';
+import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
-import { dispatch401Error, dispatch403Error } from '@/lib/auth-events';
+import { dispatch401Error, dispatch403Error } from '@semiont/react-ui';
 import { APIError } from '@semiont/api-client';
+import { Link, routes } from '@/lib/routing';
 
 // Create a minimal QueryClient with error handlers and retry logic
 // Authentication is handled by @semiont/api-client via lib/api-hooks
@@ -72,13 +73,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <AuthErrorBoundary>
         <CustomSessionProvider>
           <QueryClientProvider client={queryClient}>
-            <ToastProvider>
-              <LiveRegionProvider>
-                <KeyboardShortcutsProvider>
-                  {children}
-                </KeyboardShortcutsProvider>
-              </LiveRegionProvider>
-            </ToastProvider>
+            <RoutingProvider value={{ Link, routes }}>
+              <ToastProvider>
+                <LiveRegionProvider>
+                  <KeyboardShortcutsProvider>
+                    {children}
+                  </KeyboardShortcutsProvider>
+                </LiveRegionProvider>
+              </ToastProvider>
+            </RoutingProvider>
           </QueryClientProvider>
         </CustomSessionProvider>
       </AuthErrorBoundary>

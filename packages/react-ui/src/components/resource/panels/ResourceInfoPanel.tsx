@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 import { formatLocaleDisplay } from '@semiont/api-client';
-import { buttonStyles } from '../lib/button-styles';
+import { buttonStyles } from '../../../lib/button-styles';
 
 interface Props {
   documentEntityTypes: string[];

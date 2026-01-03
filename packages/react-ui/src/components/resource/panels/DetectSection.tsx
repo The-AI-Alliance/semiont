@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ANNOTATORS } from '../lib/annotation-registry';
+import { ANNOTATORS } from '../../../lib/annotation-registry';
 
 interface DetectSectionProps {
   annotationType: 'highlight' | 'assessment' | 'comment';

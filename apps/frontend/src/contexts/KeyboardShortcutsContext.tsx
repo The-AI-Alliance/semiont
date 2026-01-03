@@ -2,9 +2,9 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useRouter } from '@/i18n/routing';
-import { useKeyboardShortcuts, useDoubleKeyPress } from '../hooks/useKeyboardShortcuts';
+import { useKeyboardShortcuts, useDoubleKeyPress } from '@semiont/react-ui';
 import { GlobalSearchModal } from '../components/modals/GlobalSearchModal';
-import { KeyboardShortcutsHelpModal } from '../components/modals/KeyboardShortcutsHelpModal';
+import { KeyboardShortcutsHelpModal } from '@semiont/react-ui';
 
 interface KeyboardShortcutsContextType {
   openGlobalSearch: () => void;

@@ -2,7 +2,7 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { useResources } from '../lib/api-hooks';
+import { useResources } from '../../lib/api-hooks';
 import { type StoredEvent, type ResourceUri, getAnnotationUriFromEvent } from '@semiont/api-client';
 import { HistoryEvent } from './HistoryEvent';
 

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { ANNOTATORS } from '../lib/annotation-registry';
+import { ANNOTATORS } from '../../lib/annotation-registry';
 
 export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'tagging';
 export type ClickAction = 'detail' | 'follow' | 'jsonld' | 'deleting';

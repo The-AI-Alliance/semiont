@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Footer } from "@/components/Footer";
 import { SemiontBranding } from "@/components/SemiontBranding";
-import { buttonStyles } from "@/lib/button-styles";
+import { buttonStyles } from "@semiont/react-ui";
 
 export default function Home() {
   const { data: session, status } = useSession();

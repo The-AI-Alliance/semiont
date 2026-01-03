@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getTagCategory, getTagSchemaId } from '@semiont/api-client';
-import { getTagSchema } from '../lib/tag-schemas';
+import { getTagSchema } from '../../../lib/tag-schemas';
 
 type Annotation = components['schemas']['Annotation'];
 

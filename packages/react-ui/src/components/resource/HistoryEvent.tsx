@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useCallback } from 'react';
-import { Link } from '@/i18n/routing';
+import { useRouting } from '../../contexts/RoutingContext';
 import {
   type StoredEvent,
   type ResourceEventType,
@@ -37,6 +37,7 @@ export function HistoryEvent({
   onEventClick,
   onEventHover
 }: Props) {
+  const { Link, routes } = useRouting();
   const displayContent = getEventDisplayContent(event, annotations, allEvents);
   const annotationUri = getAnnotationUriFromEvent(event);
   const creationDetails = getResourceCreationDetails(event);
@@ -146,9 +147,9 @@ export function HistoryEvent({
           <span className="mr-2">
             {t('method')}: <span className="uppercase">{creationDetails.method}</span>
           </span>
-          {creationDetails.type === 'cloned' && (
+          {creationDetails.type === 'cloned' && creationDetails.sourceDocId && (
             <Link
-              href={`/know/resource/${encodeURIComponent(creationDetails.sourceDocId || "")}`}
+              href={routes.resourceDetail(creationDetails.sourceDocId)}
               className="text-blue-600 dark:text-blue-400 hover:underline"
               onClick={(e) => e.stopPropagation()}
             >

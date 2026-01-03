@@ -13,7 +13,7 @@ import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
 import { getPrimaryMediaType, getResourceId, isImageMimeType, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat, LOCALES } from '@semiont/api-client';
 import { Toolbar } from '@semiont/react-ui';
-import { ToolbarPanels } from '@semiont/react-ui';
+import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@semiont/react-ui';
 import { decodeWithCharset } from '@semiont/api-client';
 

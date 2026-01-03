@@ -7,18 +7,17 @@ import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { PageLayout } from '@/components/PageLayout';
-import { useToast } from '@semiont/react-ui';
-import { useAuth } from '@semiont/react-ui';
+import { useToast, useAuthApi } from '@semiont/react-ui';
 
 export default function Welcome() {
   const t = useTranslations('AuthWelcome');
   const { data: session, status } = useSession();
   const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const { showError } = useToast();
+  const toast = useToast();
 
   // API hooks
-  const authAPI = useAuth();
+  const authAPI = useAuthApi();
 
   // Query user data to check if terms already accepted
   const { data: userData } = authAPI.me.useQuery();
@@ -65,7 +64,7 @@ export default function Welcome() {
       }, 1000);
     } catch (error) {
       console.error('Terms acceptance error:', error);
-      showError(t('errorAcceptingTerms'));
+      toast.showError(t('errorAcceptingTerms'));
     }
   };
 

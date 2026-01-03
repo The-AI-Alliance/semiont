@@ -1,17 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useRouter } from '@/i18n/routing';
+// useRouter removed - using window.location for navigation
 import { useTranslations } from 'next-intl';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
 import { BrowseView } from './BrowseView';
-import { PopupContainer } from '../components/annotation-popups/SharedPopupElements';
-import { JsonLdView } from '../components/annotation-popups/JsonLdView';
+import { PopupContainer } from '../annotation-popups/SharedPopupElements';
+import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
-import { useResourceAnnotations } from '../contexts/ResourceAnnotationsContext';
-import { getAnnotator } from '../lib/annotation-registry';
-import type { AnnotationsCollection } from '@/types/annotation-props';
+import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
+import { getAnnotator } from '../../lib/annotation-registry';
+import type { AnnotationsCollection } from '../../types/annotation-props';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -68,7 +68,6 @@ export function ResourceViewer({
   onAssessmentClick,
   onTagClick
 }: Props) {
-  const router = useRouter();
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
@@ -230,7 +229,7 @@ export function ResourceViewer({
         // Navigate to the linked resource
         const resourceId = bodySource.split('/resources/')[1];
         if (resourceId) {
-          router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
+          window.location.href = `/know/resource/${resourceId}`;
         }
       }
       return;
@@ -256,10 +255,10 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [router, annotateMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, onTagClick, selectedClick, handleDeleteAnnotation]);
+  }, [annotateMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, onTagClick, selectedClick, handleDeleteAnnotation]);
 
   // Unified annotation creation handler - works for both text and images
-  const handleAnnotationCreate = useCallback(async (params: import('@/types/annotation-props').CreateAnnotationParams) => {
+  const handleAnnotationCreate = useCallback(async (params: import('../../types/annotation-props').CreateAnnotationParams) => {
     const { motivation, selector, position } = params;
 
     try {
@@ -428,7 +427,7 @@ export function ResourceViewer({
           }}
           enableWidgets={true}
           onEntityTypeClick={(entityType) => {
-            router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
+            window.location.href = `/know?entityType=${encodeURIComponent(entityType)}`;
           }}
           onUnresolvedReferenceClick={handleAnnotationClick}
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}

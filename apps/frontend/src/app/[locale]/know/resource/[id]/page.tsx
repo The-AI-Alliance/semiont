@@ -35,7 +35,7 @@ import { useResourceEvents } from '@semiont/react-ui';
 import { useDebouncedCallback } from '@semiont/react-ui';
 import { UnifiedAnnotationsPanel } from '@semiont/react-ui';
 import { ResourceInfoPanel } from '@semiont/react-ui';
-import { ToolbarPanels } from '@semiont/react-ui';
+import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@semiont/react-ui';
 import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';

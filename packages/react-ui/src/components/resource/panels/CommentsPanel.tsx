@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { CommentEntry } from './CommentEntry';
-import { useAnnotationPanel } from '../hooks/useAnnotationPanel';
+import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { DetectSection } from './DetectSection';
 import { PanelHeader } from './PanelHeader';
 

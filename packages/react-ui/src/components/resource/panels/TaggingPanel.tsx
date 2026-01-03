@@ -4,9 +4,9 @@ import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { TagEntry } from './TagEntry';
-import { useAnnotationPanel } from '../hooks/useAnnotationPanel';
+import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
-import { getAllTagSchemas, type TagSchema } from '../lib/tag-schemas';
+import { getAllTagSchemas, type TagSchema } from '../../../lib/tag-schemas';
 
 type Annotation = components['schemas']['Annotation'];
 

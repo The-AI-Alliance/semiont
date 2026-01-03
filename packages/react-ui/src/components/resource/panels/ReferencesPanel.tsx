@@ -2,13 +2,13 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Link } from '@/i18n/routing';
-import { DetectionProgressWidget } from '../components/DetectionProgressWidget';
+import { useRouting } from '../../../contexts/RoutingContext';
+import { DetectionProgressWidget } from '../../DetectionProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths } from '@semiont/api-client';
-import { useAnnotationPanel } from '../hooks/useAnnotationPanel';
+import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
-import { supportsDetection } from '../lib/resource-utils';
+import { supportsDetection } from '../../../lib/resource-utils';
 
 type Annotation = components['schemas']['Annotation'];
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
@@ -72,6 +72,7 @@ export function ReferencesPanel({
   referencedByLoading = false,
   pendingSelection,
 }: Props) {
+  const { Link, routes } = useRouting();
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
@@ -337,7 +338,7 @@ export function ReferencesPanel({
                         {ref.resourceName || tRef('untitledResource')}
                       </span>
                       <Link
-                        href={`/know/resource/${resourceId}`}
+                        href={routes.resourceDetail(resourceId)}
                         className="text-lg hover:opacity-70 transition-opacity flex-shrink-0"
                         title={tRef('open')}
                       >

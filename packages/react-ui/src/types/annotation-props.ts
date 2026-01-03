@@ -44,7 +44,7 @@ export interface AnnotationHandlers {
  */
 export interface CreateAnnotationParams {
   /** The motivation for creating this annotation */
-  motivation: import('@/components/annotation/AnnotateToolbar').SelectionMotivation;
+  motivation: import('@semiont/react-ui').SelectionMotivation;
 
   /** Selector information - either text or SVG */
   selector: {
@@ -93,13 +93,13 @@ export interface AnnotationCreationHandler {
  */
 export interface AnnotationUIState {
   /** Currently selected annotation motivation (linking, highlighting, etc.) */
-  selectedMotivation: import('@/components/annotation/AnnotateToolbar').SelectionMotivation | null;
+  selectedMotivation: import('@semiont/react-ui').SelectionMotivation | null;
 
   /** Currently selected click mode (detail, follow, delete, jsonld) */
-  selectedClick: import('@/components/annotation/AnnotateToolbar').ClickAction;
+  selectedClick: import('@semiont/react-ui').ClickAction;
 
   /** Currently selected shape for image annotations */
-  selectedShape: import('@/components/annotation/AnnotateToolbar').ShapeType;
+  selectedShape: import('@semiont/react-ui').ShapeType;
 
   /** ID of currently hovered annotation (optional - only set when hovering) */
   hoveredAnnotationId?: string | null;

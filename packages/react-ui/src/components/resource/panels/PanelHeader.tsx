@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ANNOTATORS } from '../lib/annotation-registry';
+import { ANNOTATORS } from '../../../lib/annotation-registry';
 
 interface PanelHeaderProps {
   annotationType: keyof typeof ANNOTATORS;

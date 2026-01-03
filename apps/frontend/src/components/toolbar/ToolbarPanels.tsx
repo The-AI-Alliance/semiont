@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { SettingsPanel } from '../components/SettingsPanel';
-import { UserPanel } from '../components/UserPanel';
-import type { ToolbarPanelType } from '../hooks/useToolbar';
+import { SettingsPanel } from '../SettingsPanel';
+import { UserPanel } from '../UserPanel';
+import type { ToolbarPanelType } from '@semiont/react-ui';
 
 interface ToolbarPanelsProps {
   activePanel: ToolbarPanelType | null;

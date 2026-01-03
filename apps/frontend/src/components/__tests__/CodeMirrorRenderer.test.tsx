@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { TextSegment } from '../CodeMirrorRenderer';
+import type { TextSegment } from '@semiont/react-ui';
 
 /**
  * Convert positions from CRLF character space to LF character space.

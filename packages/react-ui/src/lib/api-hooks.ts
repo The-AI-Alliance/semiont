@@ -389,9 +389,9 @@ export function useAdmin() {
 }
 
 /**
- * Authentication and user operations
+ * Authentication and user operations via API
  */
-export function useAuth() {
+export function useAuthApi() {
   const client = useApiClient();
   const queryClient = useQueryClient();
 

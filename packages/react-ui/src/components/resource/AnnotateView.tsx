@@ -4,17 +4,17 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, resourceUri as toResourceUri } from '@semiont/api-client';
-import { getAnnotator } from '../lib/annotation-registry';
-import { ImageViewer } from '../components/viewers';
-import { SvgDrawingCanvas, type DrawingMode } from '../components/image-annotation/SvgDrawingCanvas';
-import { useResourceAnnotations } from '../contexts/ResourceAnnotationsContext';
+import { getAnnotator } from '../../lib/annotation-registry';
+import { ImageViewer } from '../viewers';
+import { SvgDrawingCanvas, type DrawingMode } from '../image-annotation/SvgDrawingCanvas';
+import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { findTextWithContext } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
-import { CodeMirrorRenderer } from '../components/CodeMirrorRenderer';
-import type { TextSegment } from '../components/CodeMirrorRenderer';
-import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../components/annotation/AnnotateToolbar';
-import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState, CreateAnnotationParams } from '@/types/annotation-props';
+import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
+import type { TextSegment } from '../CodeMirrorRenderer';
+import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
+import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState, CreateAnnotationParams } from '../../types/annotation-props';
 import '@/styles/animations.css';
 
 // Re-export for convenience

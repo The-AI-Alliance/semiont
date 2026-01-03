@@ -16,7 +16,7 @@ import { Toolbar } from '@semiont/react-ui';
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
 type OAuthProvider = ResponseContent<paths['/api/admin/oauth/config']['get']>['providers'][number];
 type OAuthConfigResponse = ResponseContent<paths['/api/admin/oauth/config']['get']>;
-import { ToolbarPanels } from '@semiont/react-ui';
+import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme } from '@semiont/react-ui';
 import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';

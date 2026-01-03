@@ -10,7 +10,7 @@ import { Providers } from "../providers";
 import { NEXT_PUBLIC_SITE_NAME } from "@/lib/env";
 import { CookieBanner } from "@/components/CookieBanner";
 import { SessionExpiryBanner } from "@/components/SessionExpiryBanner";
-import { SessionExpiredModal } from "@/components/modals/SessionExpiredModal";
+import { SessionExpiredModal } from "@semiont/react-ui";
 import { PermissionDeniedModal } from "@/components/modals/PermissionDeniedModal";
 import { SkipLinks } from "@/components/SkipLinks";
 import { routing } from "@/i18n/routing";

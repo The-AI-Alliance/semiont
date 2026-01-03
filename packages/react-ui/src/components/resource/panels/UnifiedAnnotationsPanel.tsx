@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
-import { groupAnnotationsByType, type Annotator, ANNOTATORS } from '../lib/annotation-registry';
+import { groupAnnotationsByType, type Annotator, ANNOTATORS } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
 import { ReferencesPanel } from './ReferencesPanel';

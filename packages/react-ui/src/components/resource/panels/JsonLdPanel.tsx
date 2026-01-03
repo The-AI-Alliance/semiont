@@ -6,8 +6,8 @@ import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting } from '@codemirror/language';
-import { jsonLightTheme, jsonLightHighlightStyle } from '../lib/codemirror-json-theme';
-import { useLineNumbers } from '../hooks/useLineNumbers';
+import { jsonLightTheme, jsonLightHighlightStyle } from '../../../lib/codemirror-json-theme';
+import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import type { components } from '@semiont/api-client';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];

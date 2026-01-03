@@ -3,17 +3,17 @@
 import React, { useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { remarkAnnotations, type PreparedAnnotation } from '../lib/remark-annotations';
-import { rehypeRenderAnnotations } from '../lib/rehype-render-annotations';
+import { remarkAnnotations, type PreparedAnnotation } from '../../lib/remark-annotations';
+import { rehypeRenderAnnotations } from '../../lib/rehype-render-annotations';
 import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource, getMimeCategory, type MimeCategory } from '@semiont/api-client';
-import { getAnnotationInternalType, getAnnotator } from '../lib/annotation-registry';
-import { ImageViewer } from '../components/viewers';
-import { AnnotateToolbar, type ClickAction } from '../components/annotation/AnnotateToolbar';
-import type { AnnotationsCollection, AnnotationHandlers } from '@/types/annotation-props';
+import { getAnnotationInternalType, getAnnotator } from '../../lib/annotation-registry';
+import { ImageViewer } from '../viewers';
+import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
+import type { AnnotationsCollection, AnnotationHandlers } from '../../types/annotation-props';
 
 type Annotation = components['schemas']['Annotation'];
-import { useResourceAnnotations } from '../contexts/ResourceAnnotationsContext';
+import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import '@/styles/animations.css';
 
 interface Props {

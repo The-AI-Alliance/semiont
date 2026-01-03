@@ -4,7 +4,7 @@ import {
   ImageURLSchema,
   OAuthUserSchema,
   sanitizeImageURL,
-} from '../validation';
+} from '@semiont/react-ui';
 
 // Use environment variables for URLs
 const getFrontendUrl = () => 'http://localhost:3000';
