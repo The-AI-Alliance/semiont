@@ -102,3 +102,22 @@ export * from './components/resource/panels/UnifiedAnnotationsPanel';
 
 // Components - Viewers
 export * from './components/viewers';
+
+// Components - Navigation
+export * from './components/navigation/Footer';
+export * from './components/navigation/NavigationMenu';
+
+// Components - Layout
+export * from './components/SkipLinks';
+export * from './components/StatusDisplay';
+
+// Components - Session
+export * from './components/SessionTimer';
+export * from './components/SessionExpiryBanner';
+export * from './components/UserMenuSkeleton';
+
+// Components - Branding & Layout
+export * from './components/branding/SemiontBranding';
+export * from './components/layout/UnifiedHeader';
+export * from './components/layout/LeftSidebar';
+export * from './components/layout/PageLayout';

@@ -1,17 +1,30 @@
-"use client";
+'use client';
 
-import React, { useState, useContext } from 'react';
-import Link from 'next/link';
-import { useTranslations } from 'next-intl';
-import { CookiePreferences } from '@/components/CookiePreferences';
-import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import React, { useState } from 'react';
+import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 
-export function Footer() {
+type TranslateFn = (key: string, params?: Record<string, any>) => string;
+
+interface FooterProps {
+  Link: React.ComponentType<LinkComponentProps>;
+  routes: RouteBuilder;
+  t: TranslateFn;
+  CookiePreferences?: React.ComponentType<{ isOpen: boolean; onClose: () => void }>;
+  onOpenKeyboardHelp?: () => void;
+  apiDocsUrl?: string;
+  sourceCodeUrl?: string;
+}
+
+export function Footer({
+  Link,
+  routes,
+  t,
+  CookiePreferences,
+  onOpenKeyboardHelp,
+  apiDocsUrl = '/api/docs',
+  sourceCodeUrl = 'https://github.com/The-AI-Alliance/semiont'
+}: FooterProps) {
   const [showCookiePreferences, setShowCookiePreferences] = useState(false);
-  const t = useTranslations('Footer');
-
-  // Get keyboard shortcuts context if available (may not be available in all contexts)
-  const keyboardContext = useContext(KeyboardShortcutsContext);
 
   return (
     <>
@@ -24,26 +37,28 @@ export function Footer() {
 
             <div className="flex space-x-6 text-sm">
               <Link
-                href="/about"
+                href={routes.about?.() || '/about'}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 {t('about')}
               </Link>
               <Link
-                href="/privacy"
+                href={routes.privacy?.() || '/privacy'}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 {t('privacyPolicy')}
               </Link>
-              <button
-                onClick={() => setShowCookiePreferences(true)}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                {t('cookiePreferences')}
-              </button>
-              {keyboardContext && (
+              {CookiePreferences && (
                 <button
-                  onClick={() => keyboardContext.openKeyboardHelp()}
+                  onClick={() => setShowCookiePreferences(true)}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  {t('cookiePreferences')}
+                </button>
+              )}
+              {onOpenKeyboardHelp && (
+                <button
+                  onClick={onOpenKeyboardHelp}
                   className="text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-1"
                 >
                   {t('keyboardShortcuts')}
@@ -53,13 +68,13 @@ export function Footer() {
                 </button>
               )}
               <Link
-                href="/terms"
+                href={routes.terms?.() || '/terms'}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 {t('termsOfService')}
               </Link>
               <a
-                href="/api/docs"
+                href={apiDocsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
@@ -67,7 +82,7 @@ export function Footer() {
                 {t('apiDocs')}
               </a>
               <a
-                href="https://github.com/The-AI-Alliance/semiont"
+                href={sourceCodeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
@@ -79,12 +94,12 @@ export function Footer() {
         </div>
       </footer>
 
-      <CookiePreferences 
-        isOpen={showCookiePreferences}
-        onClose={() => setShowCookiePreferences(false)}
-      />
+      {CookiePreferences && (
+        <CookiePreferences
+          isOpen={showCookiePreferences}
+          onClose={() => setShowCookiePreferences(false)}
+        />
+      )}
     </>
   );
 }
-
-export default Footer;

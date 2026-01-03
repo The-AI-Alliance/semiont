@@ -1,13 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SemiontBranding } from '../SemiontBranding';
-import { NavigationMenu } from './NavigationMenu';
-import { useAuth } from '@semiont/react-ui';
-import { useDropdown } from '@semiont/react-ui';
-import { ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
+import { NavigationMenu } from '../navigation/NavigationMenu';
+import { SemiontBranding } from '../branding/SemiontBranding';
+import { useAuth } from '../../hooks/useAuth';
+import { useDropdown } from '../../hooks/useUI';
+import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
+import type { TranslateFn } from '../../types/translation';
 
 interface LeftSidebarProps {
+  Link: React.ComponentType<LinkComponentProps>;
+  routes: RouteBuilder;
+  t: TranslateFn;
+  tHome: TranslateFn;
   children: React.ReactNode | ((isCollapsed: boolean, toggleCollapsed: () => void) => React.ReactNode);
   brandingLink?: string;
   collapsible?: boolean;
@@ -15,12 +20,16 @@ interface LeftSidebarProps {
 }
 
 export function LeftSidebar({
+  Link,
+  routes,
+  t,
+  tHome,
   children,
   brandingLink = '/',
   collapsible = false,
   storageKey = 'leftSidebarCollapsed'
 }: LeftSidebarProps) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin, isModerator } = useAuth();
   const { isOpen, toggle, close, dropdownRef } = useDropdown();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -65,6 +74,7 @@ export function LeftSidebar({
           ) : (
             // Expanded: Show branding without tagline, no extra padding
             <SemiontBranding
+              t={tHome}
               size="sm"
               showTagline={false}
               animated={false}
@@ -82,7 +92,15 @@ export function LeftSidebar({
             aria-orientation="vertical"
             aria-labelledby="sidebar-nav-button"
           >
-            <NavigationMenu brandingLink={brandingLink} onItemClick={close} />
+            <NavigationMenu
+              Link={Link}
+              routes={routes}
+              t={t}
+              isAdmin={isAdmin}
+              isModerator={isModerator}
+              brandingLink={brandingLink}
+              onItemClick={close}
+            />
           </div>
         )}
       </div>

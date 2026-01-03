@@ -2,22 +2,25 @@
 
 import React from 'react';
 import { signIn } from 'next-auth/react';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useContext } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { Footer } from '@/components/Footer';
-import { SemiontBranding } from '@/components/SemiontBranding';
-import { buttonStyles } from '@semiont/react-ui';
+import { Footer, SemiontBranding, buttonStyles } from '@semiont/react-ui';
+import { CookiePreferences } from '@/components/CookiePreferences';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { Link as RoutingLink, routes } from '@/lib/routing';
 
 function SignInContent() {
   const t = useTranslations('AuthSignIn');
+  const tFooter = useTranslations('Footer');
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showLocalAuth, setShowLocalAuth] = useState(false);
   const callbackUrl = searchParams?.get('callbackUrl') || '/know';
+  const keyboardContext = useContext(KeyboardShortcutsContext);
 
   useEffect(() => {
     // Check if credentials provider is available
@@ -97,6 +100,7 @@ function SignInContent() {
             <section aria-labelledby="signin-heading" className="py-8">
               <h1 id="signin-heading" className="sr-only">{t('pageTitle')}</h1>
               <SemiontBranding
+                t={t}
                 size="xl"
                 animated={true}
                 className="mb-8"
@@ -214,8 +218,14 @@ function SignInContent() {
           </div>
         </div>
       </main>
-      
-      <Footer />
+
+      <Footer
+        Link={RoutingLink}
+        routes={routes}
+        t={tFooter}
+        CookiePreferences={CookiePreferences}
+        {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+      />
     </div>
   );
 }

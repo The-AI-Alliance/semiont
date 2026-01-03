@@ -46,4 +46,40 @@ export const routes: RouteBuilder = {
    * @returns Path to home page
    */
   home: () => '/',
+
+  /**
+   * About page
+   * @returns Path to about page
+   */
+  about: () => '/about',
+
+  /**
+   * Privacy policy page
+   * @returns Path to privacy page
+   */
+  privacy: () => '/privacy',
+
+  /**
+   * Terms of service page
+   * @returns Path to terms page
+   */
+  terms: () => '/terms',
+
+  /**
+   * Knowledge base page
+   * @returns Path to knowledge page
+   */
+  knowledge: () => '/know',
+
+  /**
+   * Moderation dashboard
+   * @returns Path to moderation page
+   */
+  moderate: () => '/moderate',
+
+  /**
+   * Admin dashboard
+   * @returns Path to admin page
+   */
+  admin: () => '/admin',
 };

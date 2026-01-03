@@ -1,17 +1,23 @@
 'use client';
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { signIn } from 'next-auth/react';
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { PageLayout } from '@/components/PageLayout';
-import { buttonStyles } from '@semiont/react-ui';
+import { PageLayout, buttonStyles } from '@semiont/react-ui';
+import { CookiePreferences } from '@/components/CookiePreferences';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { Link as RoutingLink, routes } from '@/lib/routing';
 
 function SignUpContent() {
   const t = useTranslations('AuthSignUp');
+  const tFooter = useTranslations('Footer');
+  const tNav = useTranslations('Navigation');
+  const tHome = useTranslations('Home');
   const searchParams = useSearchParams();
+  const keyboardContext = useContext(KeyboardShortcutsContext);
   const [isLoading, setIsLoading] = useState(false);
   const callbackUrl = searchParams?.get('callbackUrl') || '/auth/welcome';
 
@@ -29,7 +35,17 @@ function SignUpContent() {
   };
 
   return (
-    <PageLayout className="bg-gray-50 dark:bg-gray-900" showAuthLinks={false}>
+    <PageLayout
+      Link={RoutingLink}
+      routes={routes}
+      t={tFooter}
+      tNav={tNav}
+      tHome={tHome}
+      CookiePreferences={CookiePreferences}
+      {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+      className="bg-gray-50 dark:bg-gray-900"
+      showAuthLinks={false}
+    >
       <div className="flex items-center justify-center py-12 font-sans">
         <div className="max-w-md w-full space-y-8">
           <div>

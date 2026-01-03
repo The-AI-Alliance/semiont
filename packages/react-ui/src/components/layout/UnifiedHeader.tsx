@@ -1,12 +1,18 @@
 'use client';
 
 import React from 'react';
-import { SemiontBranding } from '../SemiontBranding';
-import { NavigationMenu } from './NavigationMenu';
-import { useAuth } from '@semiont/react-ui';
-import { useDropdown } from '@semiont/react-ui';
+import { SemiontBranding } from '../branding/SemiontBranding';
+import { NavigationMenu } from '../navigation/NavigationMenu';
+import { useAuth } from '../../hooks/useAuth';
+import { useDropdown } from '../../hooks/useUI';
+import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
+import type { TranslateFn } from '../../types/translation';
 
 interface UnifiedHeaderProps {
+  Link: React.ComponentType<LinkComponentProps>;
+  routes: RouteBuilder;
+  t: TranslateFn;
+  tHome: TranslateFn;
   showBranding?: boolean;
   showAuthLinks?: boolean;
   brandingLink?: string;
@@ -14,12 +20,16 @@ interface UnifiedHeaderProps {
 }
 
 export function UnifiedHeader({
+  Link,
+  routes,
+  t,
+  tHome,
   showBranding = true,
   showAuthLinks = true,
   brandingLink = '/',
   variant = 'standalone'
 }: UnifiedHeaderProps) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin, isModerator } = useAuth();
   const { isOpen, toggle, close, dropdownRef } = useDropdown();
 
   // Floating variant - just the logo button, positioned in the sidebar
@@ -36,6 +46,7 @@ export function UnifiedHeader({
           id="nav-menu-button-1"
         >
           <SemiontBranding
+            t={tHome}
             size="sm"
             showTagline={true}
             animated={false}
@@ -53,7 +64,15 @@ export function UnifiedHeader({
             aria-orientation="vertical"
             aria-labelledby="nav-menu-button-1"
           >
-            <NavigationMenu brandingLink={brandingLink} onItemClick={close} />
+            <NavigationMenu
+              Link={Link}
+              routes={routes}
+              t={t}
+              isAdmin={isAdmin}
+              isModerator={isModerator}
+              brandingLink={brandingLink}
+              onItemClick={close}
+            />
           </div>
         )}
       </div>
@@ -74,6 +93,7 @@ export function UnifiedHeader({
             id="nav-menu-button-2"
           >
             <SemiontBranding
+              t={tHome}
               size="sm"
               showTagline={true}
               animated={false}
@@ -91,7 +111,15 @@ export function UnifiedHeader({
               aria-orientation="vertical"
               aria-labelledby="nav-menu-button-2"
             >
-              <NavigationMenu brandingLink={brandingLink} onItemClick={close} />
+              <NavigationMenu
+              Link={Link}
+              routes={routes}
+              t={t}
+              isAdmin={isAdmin}
+              isModerator={isModerator}
+              brandingLink={brandingLink}
+              onItemClick={close}
+            />
             </div>
           )}
         </div>

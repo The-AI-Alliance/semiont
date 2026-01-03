@@ -1,24 +1,31 @@
 'use client';
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
-import { Link } from '@/i18n/routing';
-import { useAuth } from '@semiont/react-ui';
+import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
+
+type TranslateFn = (key: string, params?: Record<string, any>) => string;
 
 interface NavigationMenuProps {
+  Link: React.ComponentType<LinkComponentProps>;
+  routes: RouteBuilder;
+  t: TranslateFn;
+  isAdmin?: boolean;
+  isModerator?: boolean;
   brandingLink?: string;
   onItemClick?: () => void;
   className?: string;
 }
 
 export function NavigationMenu({
+  Link,
+  routes,
+  t,
+  isAdmin = false,
+  isModerator = false,
   brandingLink = '/',
   onItemClick,
   className = "p-3"
 }: NavigationMenuProps) {
-  const t = useTranslations('Navigation');
-  const { isAdmin, isModerator } = useAuth();
-
   const linkClassName = "w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block";
   const dividerClassName = "my-2 border-gray-200 dark:border-gray-600";
 
@@ -26,7 +33,7 @@ export function NavigationMenu({
     <div className={className}>
       <Link
         href={brandingLink}
-        onClick={onItemClick}
+        {...(onItemClick && { onClick: onItemClick })}
         className={linkClassName}
         role="menuitem"
         tabIndex={0}
@@ -37,8 +44,8 @@ export function NavigationMenu({
       <hr className={dividerClassName} />
 
       <Link
-        href="/know"
-        onClick={onItemClick}
+        href={routes.knowledge?.() || '/know'}
+        {...(onItemClick && { onClick: onItemClick })}
         className={linkClassName}
         role="menuitem"
         tabIndex={0}
@@ -51,8 +58,8 @@ export function NavigationMenu({
       {(isModerator || isAdmin) && (
         <>
           <Link
-            href="/moderate"
-            onClick={onItemClick}
+            href={routes.moderate?.() || '/moderate'}
+            {...(onItemClick && { onClick: onItemClick })}
             className={linkClassName}
             role="menuitem"
             tabIndex={0}
@@ -66,8 +73,8 @@ export function NavigationMenu({
 
       {isAdmin && (
         <Link
-          href="/admin"
-          onClick={onItemClick}
+          href={routes.admin?.() || '/admin'}
+          {...(onItemClick && { onClick: onItemClick })}
           className={linkClassName}
           role="menuitem"
           tabIndex={0}

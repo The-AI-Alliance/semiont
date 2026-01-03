@@ -1,9 +1,11 @@
 "use client";
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
+
+type TranslateFn = (key: string) => string;
 
 interface SemiontBrandingProps {
+  t: TranslateFn;
   className?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showTagline?: boolean;
@@ -12,13 +14,13 @@ interface SemiontBrandingProps {
 }
 
 export function SemiontBranding({
+  t,
   className = "",
   size = 'lg',
   showTagline = true,
   animated = true,
   compactTagline = false
 }: SemiontBrandingProps) {
-  const t = useTranslations('Home');
   const sizeClasses = {
     sm: 'text-2xl sm:text-3xl md:text-4xl',
     md: 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl',

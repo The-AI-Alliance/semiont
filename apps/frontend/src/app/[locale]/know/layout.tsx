@@ -1,14 +1,21 @@
-import React from 'react';
+'use client';
+
+import React, { useContext } from 'react';
+import { useTranslations } from 'next-intl';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
-import { Footer } from '@/components/Footer';
-import { OpenResourcesProvider } from '@semiont/react-ui';
-import { ResourceAnnotationsProvider } from '@semiont/react-ui';
+import { Footer, OpenResourcesProvider, ResourceAnnotationsProvider } from '@semiont/react-ui';
+import { CookiePreferences } from '@/components/CookiePreferences';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { Link, routes } from '@/lib/routing';
 
 export default function KnowledgeLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const t = useTranslations('Footer');
+  const keyboardContext = useContext(KeyboardShortcutsContext);
+
   return (
     <OpenResourcesProvider>
       <ResourceAnnotationsProvider>
@@ -21,7 +28,13 @@ export default function KnowledgeLayout({
               </div>
             </main>
           </div>
-          <Footer />
+          <Footer
+            Link={Link}
+            routes={routes}
+            t={t}
+            CookiePreferences={CookiePreferences}
+            {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+          />
         </div>
       </ResourceAnnotationsProvider>
     </OpenResourcesProvider>
