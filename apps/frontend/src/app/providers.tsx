@@ -3,13 +3,12 @@
 import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SessionProvider } from 'next-auth/react';
-import { ToastProvider } from '@semiont/react-ui';
-import { SessionProvider as CustomSessionProvider } from '@semiont/react-ui';
-import { LiveRegionProvider } from '@semiont/react-ui';
+import { ToastProvider, SessionProvider as CustomSessionProvider, LiveRegionProvider } from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { dispatch401Error, dispatch403Error } from '@semiont/react-ui';
 import { APIError } from '@semiont/api-client';
+import { useSessionManager } from '@/hooks/useSessionManager';
 
 // Create a minimal QueryClient with error handlers and retry logic
 // Authentication is handled by @semiont/api-client via lib/api-hooks
@@ -66,11 +65,12 @@ function createQueryClient() {
 export function Providers({ children }: { children: React.ReactNode }) {
   // Create QueryClient once per app instance
   const [queryClient] = useState(() => createQueryClient());
+  const sessionManager = useSessionManager();
 
   return (
     <SessionProvider>
       <AuthErrorBoundary>
-        <CustomSessionProvider>
+        <CustomSessionProvider sessionManager={sessionManager}>
           <QueryClientProvider client={queryClient}>
             <ToastProvider>
               <LiveRegionProvider>

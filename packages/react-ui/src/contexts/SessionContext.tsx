@@ -1,60 +1,45 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import { useSession } from 'next-auth/react';
+import { createContext, useContext, ReactNode } from 'react';
+import type { SessionManager } from '../types/SessionManager';
 
-interface SessionState {
-  isAuthenticated: boolean;
-  expiresAt: Date | null;
-  timeUntilExpiry: number | null;
-  isExpiringSoon: boolean;
-}
+const SessionContext = createContext<SessionManager | null>(null);
 
-const SessionContext = createContext<SessionState | null>(null);
-
-export function SessionProvider({ children }: { children: ReactNode }) {
-  const { data: session } = useSession();
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
-
-  // Parse JWT token safely to extract expiration
-  useEffect(() => {
-    if (session?.backendToken) {
-      try {
-        const parts = session.backendToken.split('.');
-        if (parts.length === 3 && parts[1]) {
-          const payload = JSON.parse(atob(parts[1]));
-          if (payload.exp) {
-            setExpiresAt(new Date(payload.exp * 1000));
-          }
-        }
-      } catch (error) {
-        console.error('Failed to parse token expiration:', error);
-        setExpiresAt(null);
-      }
-    } else {
-      setExpiresAt(null);
-    }
-  }, [session]);
-
-  const value = useMemo(() => {
-    const now = Date.now();
-    const timeUntilExpiry = expiresAt ? expiresAt.getTime() - now : null;
-
-    return {
-      isAuthenticated: !!session?.backendToken,
-      expiresAt,
-      timeUntilExpiry,
-      isExpiringSoon: timeUntilExpiry !== null && timeUntilExpiry < 5 * 60 * 1000 && timeUntilExpiry > 0
-    };
-  }, [session, expiresAt]);
-
+/**
+ * Provider Pattern: Accepts SessionManager implementation as prop
+ * and makes it available to child components via Context.
+ *
+ * Apps provide their own implementation (next-auth, custom auth, etc.)
+ * and pass it to this provider at the root level.
+ *
+ * @example
+ * ```tsx
+ * // In app root
+ * const sessionManager = useSessionManager(); // App's implementation
+ *
+ * <SessionProvider sessionManager={sessionManager}>
+ *   <App />
+ * </SessionProvider>
+ * ```
+ */
+export function SessionProvider({
+  sessionManager,
+  children
+}: {
+  sessionManager: SessionManager;
+  children: ReactNode;
+}) {
   return (
-    <SessionContext.Provider value={value}>
+    <SessionContext.Provider value={sessionManager}>
       {children}
     </SessionContext.Provider>
   );
 }
 
+/**
+ * Hook to access SessionManager from Context
+ * Components use this hook to access session state and expiry information
+ */
 export function useSessionContext() {
   const context = useContext(SessionContext);
   if (!context) {
