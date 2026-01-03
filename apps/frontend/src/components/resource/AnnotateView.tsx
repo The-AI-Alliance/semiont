@@ -8,7 +8,7 @@ import { getAnnotator } from '@/lib/annotation-registry';
 import { ImageViewer } from '@/components/viewers';
 import { SvgDrawingCanvas, type DrawingMode } from '@/components/image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '@/contexts/ResourceAnnotationsContext';
-import { findTextWithContext } from '@/lib/fuzzy-anchor';
+import { findTextWithContext } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';

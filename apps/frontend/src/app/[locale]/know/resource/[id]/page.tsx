@@ -18,7 +18,7 @@ import { groupAnnotationsByType, withHandlers, createDetectionHandler, createCan
 import { supportsDetection } from '@/lib/resource-utils';
 
 type Motivation = components['schemas']['Motivation'];
-import { decodeWithCharset } from '@/lib/text-encoding';
+import { decodeWithCharset } from '@semiont/api-client';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 import { useOpenResources } from '@/contexts/OpenResourcesContext';

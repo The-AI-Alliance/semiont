@@ -15,7 +15,7 @@ import { getPrimaryMediaType, getResourceId, isImageMimeType, resourceUri, resou
 import { Toolbar } from '@/components/Toolbar';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
-import { decodeWithCharset } from '@/lib/text-encoding';
+import { decodeWithCharset } from '@semiont/api-client';
 
 function ComposeResourceContent() {
   const t = useTranslations('Compose');
