@@ -3,7 +3,7 @@
 import React from 'react';
 import type { components } from '@semiont/api-client';
 import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isBodyResolved } from '@semiont/api-client';
-import { parseSvgSelector } from '@/lib/svg-utils';
+import { parseSvgSelector } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
