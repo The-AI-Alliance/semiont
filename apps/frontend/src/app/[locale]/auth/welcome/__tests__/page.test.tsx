@@ -4,7 +4,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from '@/i18n/routing';
-import { useAuth } from '@semiont/react-ui';
+import { useAuthApi } from '@semiont/react-ui';
 import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 import Welcome from '../page';
@@ -45,10 +45,14 @@ vi.mock('@/i18n/routing', () => ({
   Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
-// Mock the useAuth hook to avoid ky HTTP client issues in vitest
-vi.mock('@/lib/api-hooks', () => ({
-  useAuth: vi.fn(),
-}));
+// Mock react-ui to provide useAuthApi
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    useAuthApi: vi.fn(),
+  };
+});
 
 describe('Welcome Page', () => {
   const mockRouter = {
@@ -72,8 +76,8 @@ describe('Welcome Page', () => {
       status: 'authenticated',
     });
 
-    // Mock useAuth to return React Query hooks
-    (useAuth as Mock).mockReturnValue({
+    // Mock useAuthApi to return React Query hooks
+    (useAuthApi as Mock).mockReturnValue({
       me: {
         useQuery: () => ({
           data: { termsAcceptedAt: null },
@@ -129,8 +133,8 @@ describe('Welcome Page', () => {
     });
 
     it('redirects to home if terms already accepted', async () => {
-      // Mock useAuth to return user with accepted terms
-      (useAuth as Mock).mockReturnValue({
+      // Mock useAuthApi to return user with accepted terms
+      (useAuthApi as Mock).mockReturnValue({
         me: {
           useQuery: () => ({
             data: {
@@ -265,7 +269,7 @@ describe('Welcome Page', () => {
     it('calls API to record terms acceptance using MSW', async () => {
       const mockMutateAsync = vi.fn().mockResolvedValue({ success: true });
 
-      (useAuth as Mock).mockReturnValue({
+      (useAuthApi as Mock).mockReturnValue({
         me: {
           useQuery: () => ({
             data: { termsAcceptedAt: null },
@@ -293,7 +297,7 @@ describe('Welcome Page', () => {
     it('shows success state after accepting', async () => {
       const mockMutateAsync = vi.fn().mockResolvedValue({ success: true });
 
-      (useAuth as Mock).mockReturnValue({
+      (useAuthApi as Mock).mockReturnValue({
         me: {
           useQuery: () => ({
             data: { termsAcceptedAt: null },
@@ -322,7 +326,7 @@ describe('Welcome Page', () => {
     it('redirects to home after acceptance (with real timers)', async () => {
       const mockMutateAsync = vi.fn().mockResolvedValue({ success: true });
 
-      (useAuth as Mock).mockReturnValue({
+      (useAuthApi as Mock).mockReturnValue({
         me: {
           useQuery: () => ({
             data: { termsAcceptedAt: null },
@@ -373,7 +377,7 @@ describe('Welcome Page', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       const mockMutateAsync = vi.fn().mockRejectedValue(new Error('API Error'));
 
-      (useAuth as Mock).mockReturnValue({
+      (useAuthApi as Mock).mockReturnValue({
         me: {
           useQuery: () => ({
             data: { termsAcceptedAt: null },

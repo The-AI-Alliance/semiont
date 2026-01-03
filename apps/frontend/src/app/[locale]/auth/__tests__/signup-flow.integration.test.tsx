@@ -6,7 +6,7 @@ import '@testing-library/jest-dom';
 import { signIn, useSession, signOut } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
-import { useAuth } from '@semiont/react-ui';
+import { useAuthApi } from '@semiont/react-ui';
 import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 
@@ -58,10 +58,14 @@ vi.mock('@/i18n/routing', () => ({
   Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
-// Mock the useAuth hook to avoid ky HTTP client issues in vitest
-vi.mock('@/lib/api-hooks', () => ({
-  useAuth: vi.fn(),
-}));
+// Mock the useAuthApi hook to avoid ky HTTP client issues in vitest
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    useAuthApi: vi.fn(),
+  };
+});
 
 describe('Sign-Up Flow Integration Tests', () => {
   const mockRouter = {
@@ -79,8 +83,8 @@ describe('Sign-Up Flow Integration Tests', () => {
     (useSearchParams as Mock).mockReturnValue(mockSearchParams);
     mockSearchParams.get.mockReturnValue(null);
 
-    // Mock useAuth to avoid ky HTTP client issues in vitest
-    (useAuth as Mock).mockReturnValue({
+    // Mock useAuthApi to avoid ky HTTP client issues in vitest
+    (useAuthApi as Mock).mockReturnValue({
       me: {
         useQuery: () => ({
           data: { termsAcceptedAt: null },
@@ -232,8 +236,8 @@ describe('Sign-Up Flow Integration Tests', () => {
         status: 'authenticated',
       });
 
-      // Override useAuth mock to return user with accepted terms
-      (useAuth as Mock).mockReturnValue({
+      // Override useAuthApi mock to return user with accepted terms
+      (useAuthApi as Mock).mockReturnValue({
         me: {
           useQuery: () => ({
             data: {
@@ -312,9 +316,9 @@ describe('Sign-Up Flow Integration Tests', () => {
 
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      // Override useAuth mock to make the mutation fail
+      // Override useAuthApi mock to make the mutation fail
       const mockMutateAsync = vi.fn().mockRejectedValue(new Error('API Error'));
-      (useAuth as Mock).mockReturnValue({
+      (useAuthApi as Mock).mockReturnValue({
         me: {
           useQuery: () => ({
             data: { termsAcceptedAt: null },
