@@ -21,8 +21,7 @@ type Motivation = components['schemas']['Motivation'];
 import { decodeWithCharset } from '@semiont/api-client';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
-import { useOpenResources } from '@semiont/react-ui';
-import { useResourceAnnotations } from '@semiont/react-ui';
+import { useOpenResources, useResourceAnnotations } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { useToast } from '@semiont/react-ui';
 import { DetectionProgressWidget } from '@semiont/react-ui';

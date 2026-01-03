@@ -3,17 +3,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { useResources, useEntityTypes } from '@semiont/react-ui';
+import { useResources, useEntityTypes, useOpenResources, useRovingTabIndex, useTheme, useToolbar, useLineNumbers, Toolbar } from '@semiont/react-ui';
 import type { components } from '@semiont/api-client';
 import { getResourceId } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-import { useOpenResources } from '@semiont/react-ui';
-import { useRovingTabIndex } from '@semiont/react-ui';
-import { useTheme } from '@semiont/react-ui';
-import { useToolbar } from '@semiont/react-ui';
-import { useLineNumbers } from '@semiont/react-ui';
-import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 // Extract resource card as a component
 const ResourceCard = React.memo(({

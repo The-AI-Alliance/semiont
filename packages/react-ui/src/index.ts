@@ -6,6 +6,7 @@
 
 // Types
 export * from './types/annotation-props';
+export * from './types/OpenResourcesManager';
 
 // Lib utilities
 export * from './lib/annotation-registry';
