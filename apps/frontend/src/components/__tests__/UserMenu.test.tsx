@@ -50,7 +50,11 @@ vi.mock('@semiont/react-ui', async () => {
     useAuth: vi.fn(),
     useDropdown: vi.fn(),
     sanitizeImageURL: vi.fn(),
-    UserMenuSkeleton: () => <div data-testid="user-menu-skeleton">Loading...</div>
+    UserMenuSkeleton: () => (
+      <div data-testid="user-menu-skeleton" role="status" aria-label="Loading user menu" className="animate-pulse">
+        Loading...
+      </div>
+    )
   };
 });
 
