@@ -42,6 +42,7 @@ import { Toolbar } from '@semiont/react-ui';
 import { annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
+import { Link, routes } from '@/lib/routing';
 
 // Loading state component
 function ResourceLoadingState() {
@@ -948,6 +949,8 @@ function ResourceView({
                   referencedBy={referencedBy}
                   referencedByLoading={referencedByLoading}
                   resourceId={rUri.split('/').pop() || ''}
+                  Link={Link}
+                  routes={routes}
                 />
               );
             })()}
@@ -959,6 +962,8 @@ function ResourceView({
                 hoveredAnnotationId={hoveredAnnotationId}
                 onEventHover={handleEventHover}
                 onEventClick={handleEventClick}
+                Link={Link}
+                routes={routes}
               />
             )}
 

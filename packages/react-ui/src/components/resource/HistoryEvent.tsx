@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useCallback } from 'react';
-import { useRouting } from '../../contexts/RoutingContext';
+import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import {
   type StoredEvent,
   type ResourceEventType,
@@ -22,6 +22,8 @@ interface Props {
   allEvents: StoredEvent[];
   isRelated: boolean;
   t: TranslateFn;
+  Link: React.ComponentType<LinkComponentProps>;
+  routes: RouteBuilder;
   onEventRef?: (annotationId: string | null, element: HTMLElement | null) => void;
   onEventClick?: (annotationId: string | null) => void;
   onEventHover?: (annotationId: string | null) => void;
@@ -33,11 +35,12 @@ export function HistoryEvent({
   allEvents,
   isRelated,
   t,
+  Link,
+  routes,
   onEventRef,
   onEventClick,
   onEventHover
 }: Props) {
-  const { Link, routes } = useRouting();
   const displayContent = getEventDisplayContent(event, annotations, allEvents);
   const annotationUri = getAnnotationUriFromEvent(event);
   const creationDetails = getResourceCreationDetails(event);

@@ -2,6 +2,7 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
+import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import { useResources } from '../../lib/api-hooks';
 import { type StoredEvent, type ResourceUri, getAnnotationUriFromEvent } from '@semiont/api-client';
 import { HistoryEvent } from './HistoryEvent';
@@ -11,9 +12,11 @@ interface Props {
   hoveredAnnotationId?: string | null;
   onEventHover?: (annotationId: string | null) => void;
   onEventClick?: (annotationId: string | null) => void;
+  Link: React.ComponentType<LinkComponentProps>;
+  routes: RouteBuilder;
 }
 
-export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onEventClick }: Props) {
+export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onEventClick, Link, routes }: Props) {
   const t = useTranslations('AnnotationHistory');
 
   // API hooks
@@ -117,6 +120,8 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
               allEvents={events}
               isRelated={isRelated}
               t={t}
+              Link={Link}
+              routes={routes}
               onEventRef={(annotationId, el) => {
                 if (el && annotationId) {
                   eventRefs.current.set(annotationId, el);

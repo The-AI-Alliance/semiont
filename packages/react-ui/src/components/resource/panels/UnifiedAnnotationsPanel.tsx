@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
+import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { groupAnnotationsByType, type Annotator, ANNOTATORS } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
@@ -102,6 +103,10 @@ interface UnifiedAnnotationsPanelProps {
   // Resource context
   resourceId?: string;
   initialTab?: TabKey;
+
+  // Routing
+  Link: React.ComponentType<LinkComponentProps>;
+  routes: RouteBuilder;
 }
 
 export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
@@ -281,6 +286,8 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 mediaType={props.mediaType}
                 referencedBy={props.referencedBy}
                 referencedByLoading={props.referencedByLoading}
+                Link={props.Link}
+                routes={props.routes}
               />
             );
           }

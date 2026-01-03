@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { useRouting } from '../../../contexts/RoutingContext';
+import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getEntityTypes } from '@semiont/api-client';
@@ -14,6 +14,7 @@ interface ReferenceEntryProps {
   reference: Annotation;
   isFocused: boolean;
   onClick: () => void;
+  routes: RouteBuilder;
   onReferenceRef: (referenceId: string, el: HTMLElement | null) => void;
   onReferenceHover?: (referenceId: string | null) => void;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
@@ -26,6 +27,7 @@ export function ReferenceEntry({
   reference,
   isFocused,
   onClick,
+  routes,
   onReferenceRef,
   onReferenceHover,
   onGenerateDocument,
@@ -34,7 +36,6 @@ export function ReferenceEntry({
   annotateMode = true,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
-  const { routes } = useRouting();
   const referenceRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent

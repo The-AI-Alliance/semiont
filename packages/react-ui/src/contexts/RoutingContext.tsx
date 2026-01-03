@@ -1,8 +1,11 @@
-import React, { createContext, useContext } from 'react';
+import React from 'react';
 
 /**
  * Standard Link component interface
  * Compatible with Next.js Link, React Router Link, etc.
+ *
+ * Components accept Link as a prop to remain framework-agnostic.
+ * Apps provide their framework-specific Link component (Next.js, React Router, etc.)
  */
 export interface LinkComponentProps {
   href: string;
@@ -16,6 +19,22 @@ export interface LinkComponentProps {
 /**
  * Route builder interface
  * Apps provide concrete implementations for their routing scheme
+ *
+ * Components accept routes as a prop to build URLs without framework dependencies.
+ *
+ * @example
+ * ```tsx
+ * // In app (e.g., frontend/src/lib/routing.ts)
+ * export const routes: RouteBuilder = {
+ *   resourceDetail: (id) => `/know/resource/${id}`,
+ *   userProfile: (id) => `/users/${id}`,
+ *   search: (query) => `/search?q=${query}`,
+ *   home: () => '/',
+ * };
+ *
+ * // Pass to components as props
+ * <MyComponent Link={Link} routes={routes} />
+ * ```
  */
 export interface RouteBuilder {
   /** Resource detail page */
@@ -29,82 +48,4 @@ export interface RouteBuilder {
 
   /** Home/root page */
   home: () => string;
-}
-
-/**
- * Routing context type
- */
-export interface RoutingContextType {
-  /** Link component (Next.js Link, React Router Link, etc.) */
-  Link: React.ComponentType<LinkComponentProps>;
-
-  /** Route builder for generating URLs */
-  routes: RouteBuilder;
-}
-
-const RoutingContext = createContext<RoutingContextType | null>(null);
-
-/**
- * Provider for routing configuration
- *
- * @example
- * ```tsx
- * import { Link } from 'next/link';
- * import { RoutingProvider } from '@semiont/react-ui';
- *
- * const routes = {
- *   resourceDetail: (id) => `/know/resource/${id}`,
- *   userProfile: (id) => `/users/${id}`,
- *   search: (query) => `/search?q=${query}`,
- *   home: () => '/',
- * };
- *
- * <RoutingProvider value={{ Link, routes }}>
- *   <App />
- * </RoutingProvider>
- * ```
- */
-export function RoutingProvider({
-  children,
-  value
-}: {
-  children: React.ReactNode;
-  value: RoutingContextType;
-}) {
-  return (
-    <RoutingContext.Provider value={value}>
-      {children}
-    </RoutingContext.Provider>
-  );
-}
-
-/**
- * Hook to access routing configuration
- *
- * @throws {Error} If used outside RoutingProvider
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const { Link, routes } = useRouting();
- *
- *   return (
- *     <Link href={routes.resourceDetail('123')}>
- *       View Resource
- *     </Link>
- *   );
- * }
- * ```
- */
-export function useRouting(): RoutingContextType {
-  const context = useContext(RoutingContext);
-
-  if (!context) {
-    throw new Error(
-      'useRouting must be used within a RoutingProvider. ' +
-      'Wrap your app with <RoutingProvider> to provide routing configuration.'
-    );
-  }
-
-  return context;
 }

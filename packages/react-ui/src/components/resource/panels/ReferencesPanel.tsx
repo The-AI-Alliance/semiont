@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useRouting } from '../../../contexts/RoutingContext';
+import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { DetectionProgressWidget } from '../../DetectionProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths } from '@semiont/api-client';
@@ -31,6 +31,8 @@ interface Props {
   isDetecting: boolean;
   detectionProgress: any; // TODO: type this properly
   annotateMode?: boolean;
+  Link: React.ComponentType<LinkComponentProps>;
+  routes: RouteBuilder;
 
   // Reference-specific props
   allEntityTypes: string[];
@@ -62,6 +64,8 @@ export function ReferencesPanel({
   isDetecting,
   detectionProgress,
   annotateMode = true,
+  Link,
+  routes,
   allEntityTypes,
   onCancelDetection,
   onSearchDocuments,
@@ -72,7 +76,6 @@ export function ReferencesPanel({
   referencedByLoading = false,
   pendingSelection,
 }: Props) {
-  const { Link, routes } = useRouting();
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
@@ -302,6 +305,7 @@ export function ReferencesPanel({
                   reference={reference}
                   isFocused={reference.id === focusedAnnotationId}
                   onClick={() => onAnnotationClick?.(reference)}
+                  routes={routes}
                   onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}
                   {...(onAnnotationHover && { onReferenceHover: onAnnotationHover })}
