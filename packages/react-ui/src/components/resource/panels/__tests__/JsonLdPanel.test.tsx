@@ -15,8 +15,9 @@ vi.mock('@codemirror/view', () => {
     constructor(config: any) {
       // Store config if needed for assertions
     }
+    static editable = { of: vi.fn() };
+    static theme = vi.fn(() => ({}));
   }
-  (MockEditorView as any).editable = { of: vi.fn() };
 
   return {
     EditorView: MockEditorView,
@@ -41,23 +42,21 @@ vi.mock('@codemirror/theme-one-dark', () => ({
 
 vi.mock('@codemirror/language', () => ({
   syntaxHighlighting: vi.fn(),
+  HighlightStyle: {
+    define: vi.fn(() => ({})),
+  },
 }));
 
-vi.mock('@/lib/codemirror-json-theme', () => ({
+vi.mock('../../../lib/codemirror-json-theme', () => ({
   jsonLightTheme: {},
   jsonLightHighlightStyle: {},
 }));
 
-// Mock useLineNumbers hook
-vi.mock('@/hooks/useLineNumbers', () => ({
-  useLineNumbers: vi.fn(() => ({ showLineNumbers: true, toggleLineNumbers: vi.fn() })),
-}));
+// Mock useLineNumbers hook (must be before import)
+vi.mock('@/hooks/useLineNumbers');
 
 import { EditorView } from '@codemirror/view';
-import { useLineNumbers } from '../../../hooks/useLineNumbers';
-import type { MockedFunction } from 'vitest';
-
-const mockUseLineNumbers = useLineNumbers as MockedFunction<typeof useLineNumbers>;
+import { useLineNumbers } from '@/hooks/useLineNumbers';
 
 // Test data fixtures
 const createMockResource = (overrides?: Partial<SemiontResource>): SemiontResource => ({
@@ -101,7 +100,11 @@ describe('JsonLdPanel Component', () => {
       configurable: true,
     });
 
-    mockUseLineNumbers.mockReturnValue({ showLineNumbers: true, toggleLineNumbers: vi.fn() });
+    // Mock useLineNumbers hook implementation
+    vi.mocked(useLineNumbers).mockReturnValue({
+      showLineNumbers: true,
+      toggleLineNumbers: vi.fn()
+    });
   });
 
   afterEach(() => {
@@ -167,7 +170,7 @@ describe('JsonLdPanel Component', () => {
     });
 
     it('should include line numbers when enabled', () => {
-      mockUseLineNumbers.mockReturnValue({ showLineNumbers: true, toggleLineNumbers: vi.fn() });
+      vi.mocked(useLineNumbers).mockReturnValue({ showLineNumbers: true, toggleLineNumbers: vi.fn() });
 
       const resource = createMockResource();
       const { container } = render(<JsonLdPanel resource={resource} />);
@@ -177,7 +180,7 @@ describe('JsonLdPanel Component', () => {
     });
 
     it('should not include line numbers when disabled', () => {
-      mockUseLineNumbers.mockReturnValue({ showLineNumbers: false, toggleLineNumbers: vi.fn() });
+      vi.mocked(useLineNumbers).mockReturnValue({ showLineNumbers: false, toggleLineNumbers: vi.fn() });
 
       const resource = createMockResource();
       const { container } = render(<JsonLdPanel resource={resource} />);
@@ -299,12 +302,12 @@ describe('JsonLdPanel Component', () => {
     });
 
     it('should reinitialize editor when line numbers setting changes', () => {
-      mockUseLineNumbers.mockReturnValue({ showLineNumbers: true, toggleLineNumbers: vi.fn() });
+      vi.mocked(useLineNumbers).mockReturnValue({ showLineNumbers: true, toggleLineNumbers: vi.fn() });
 
       const resource = createMockResource();
       const { rerender } = render(<JsonLdPanel resource={resource} />);
 
-      mockUseLineNumbers.mockReturnValue({ showLineNumbers: false, toggleLineNumbers: vi.fn() });
+      vi.mocked(useLineNumbers).mockReturnValue({ showLineNumbers: false, toggleLineNumbers: vi.fn() });
 
       // Should rerender without errors
       expect(() => rerender(<JsonLdPanel resource={resource} />)).not.toThrow();
