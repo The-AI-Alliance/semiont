@@ -1,5 +1,7 @@
 'use client';
 
+'use client';
+
 import { useCallback, useRef, useEffect } from 'react';
 
 /**

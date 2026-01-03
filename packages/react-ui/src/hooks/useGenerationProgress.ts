@@ -1,5 +1,7 @@
 'use client';
 
+'use client';
+
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { AnnotationUri, ResourceUri, GenerationProgress as ApiGenerationProgress, SSEStream, GenerationContext } from '@semiont/api-client';
 import { useApiClient } from '../lib/api-hooks';

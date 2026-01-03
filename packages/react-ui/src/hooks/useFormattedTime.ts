@@ -1,5 +1,7 @@
 'use client';
 
+'use client';
+
 import { useMemo } from 'react';
 
 export function useFormattedTime(milliseconds: number | null) {

@@ -17,16 +17,20 @@ vi.mock('next/navigation', () => ({
 }));
 
 // Mock auth events
-vi.mock('@/lib/auth-events', () => ({
-  AUTH_EVENTS: {
-    UNAUTHORIZED: 'auth:unauthorized',
-    SESSION_EXPIRED: 'auth:session-expired'
-  },
-  onAuthEvent: vi.fn((event, callback) => {
-    // Return cleanup function
-    return () => {};
-  })
-}));
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    AUTH_EVENTS: {
+      UNAUTHORIZED: 'auth:unauthorized',
+      SESSION_EXPIRED: 'auth:session-expired'
+    },
+    onAuthEvent: vi.fn((event, callback) => {
+      // Return cleanup function
+      return () => {};
+    })
+  };
+});
 
 // Mock SessionContext
 vi.mock('@/contexts/SessionContext', () => ({
@@ -62,7 +66,7 @@ describe('SessionExpiredModal', () => {
       render(<SessionExpiredModal />);
 
       // Trigger the modal to show by simulating auth event
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
 
       act(() => {
@@ -83,7 +87,7 @@ describe('SessionExpiredModal', () => {
       render(<SessionExpiredModal />);
 
       // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
 
       act(() => {
@@ -108,7 +112,7 @@ describe('SessionExpiredModal', () => {
       render(<SessionExpiredModal />);
 
       // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
 
       act(() => {
@@ -132,7 +136,7 @@ describe('SessionExpiredModal', () => {
     it('should only show one modal instance', async () => {
       render(<SessionExpiredModal />);
 
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
 
       // Trigger multiple times
@@ -151,7 +155,7 @@ describe('SessionExpiredModal', () => {
       render(<SessionExpiredModal />);
 
       // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
 
       act(() => {
@@ -179,7 +183,7 @@ describe('SessionExpiredModal', () => {
       render(<SessionExpiredModal />);
 
       // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
 
       act(() => {
@@ -202,7 +206,7 @@ describe('SessionExpiredModal', () => {
   describe('Event Listener Cleanup', () => {
     it('should cleanup event listeners on unmount', async () => {
       const { unmount } = render(<SessionExpiredModal />);
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
 
       // Should have registered event listener for unauthorized events
       expect(onAuthEvent).toHaveBeenCalledWith('auth:unauthorized', expect.any(Function));

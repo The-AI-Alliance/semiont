@@ -1,3 +1,5 @@
+'use client';
+
 import { useMemo, useRef, useEffect, useCallback } from 'react';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
