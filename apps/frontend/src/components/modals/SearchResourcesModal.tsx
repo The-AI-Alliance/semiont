@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
-import { useResources } from '@/lib/api-hooks';
+import { useResources } from '@semiont/react-ui';
 
 interface SearchResourcesModalProps {
   isOpen: boolean;

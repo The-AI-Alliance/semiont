@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { SemiontBranding } from '../SemiontBranding';
 import { NavigationMenu } from './NavigationMenu';
-import { useAuth } from '@/hooks/useAuth';
-import { useDropdown } from '@/hooks/useUI';
+import { useAuth } from '@semiont/react-ui';
+import { useDropdown } from '@semiont/react-ui';
 import { ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
 
 interface LeftSidebarProps {

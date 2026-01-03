@@ -3,10 +3,10 @@
 import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SessionProvider } from 'next-auth/react';
-import { ToastProvider } from '@/components/Toast';
-import { SessionProvider as CustomSessionProvider } from '@/contexts/SessionContext';
-import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
-import { LiveRegionProvider } from '@/components/LiveRegion';
+import { ToastProvider } from '@semiont/react-ui';
+import { SessionProvider as CustomSessionProvider } from '@semiont/react-ui';
+import { KeyboardShortcutsProvider } from '@semiont/react-ui';
+import { LiveRegionProvider } from '@semiont/react-ui';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { dispatch401Error, dispatch403Error } from '@/lib/auth-events';
 import { APIError } from '@semiont/api-client';

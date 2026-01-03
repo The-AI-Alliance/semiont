@@ -9,17 +9,17 @@ import {
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 import { useSession } from 'next-auth/react';
-import { useAdmin } from '@/lib/api-hooks';
+import { useAdmin } from '@semiont/react-ui';
 import type { components, paths } from '@semiont/api-client';
-import { Toolbar } from '@/components/Toolbar';
+import { Toolbar } from '@semiont/react-ui';
 
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
 type OAuthProvider = ResponseContent<paths['/api/admin/oauth/config']['get']>['providers'][number];
 type OAuthConfigResponse = ResponseContent<paths['/api/admin/oauth/config']['get']>;
-import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme } from '@/hooks/useTheme';
-import { useToolbar } from '@/hooks/useToolbar';
-import { useLineNumbers } from '@/hooks/useLineNumbers';
+import { ToolbarPanels } from '@semiont/react-ui';
+import { useTheme } from '@semiont/react-ui';
+import { useToolbar } from '@semiont/react-ui';
+import { useLineNumbers } from '@semiont/react-ui';
 
 export default function AdminSecurity() {
   const t = useTranslations('AdminSecurity');

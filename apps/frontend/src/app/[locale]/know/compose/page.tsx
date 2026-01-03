@@ -5,16 +5,16 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useResources, useAnnotations, useEntityTypes, useApiClient } from '@/lib/api-hooks';
-import { buttonStyles } from '@/lib/button-styles';
-import { useToast } from '@/components/Toast';
-import { useTheme } from '@/hooks/useTheme';
-import { useToolbar } from '@/hooks/useToolbar';
-import { useLineNumbers } from '@/hooks/useLineNumbers';
+import { useResources, useAnnotations, useEntityTypes, useApiClient } from '@semiont/react-ui';
+import { buttonStyles } from '@semiont/react-ui';
+import { useToast } from '@semiont/react-ui';
+import { useTheme } from '@semiont/react-ui';
+import { useToolbar } from '@semiont/react-ui';
+import { useLineNumbers } from '@semiont/react-ui';
 import { getPrimaryMediaType, getResourceId, isImageMimeType, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat, LOCALES } from '@semiont/api-client';
-import { Toolbar } from '@/components/Toolbar';
-import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
+import { Toolbar } from '@semiont/react-ui';
+import { ToolbarPanels } from '@semiont/react-ui';
+import { CodeMirrorRenderer } from '@semiont/react-ui';
 import { decodeWithCharset } from '@semiont/api-client';
 
 function ComposeResourceContent() {

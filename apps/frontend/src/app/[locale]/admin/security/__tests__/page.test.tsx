@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '@testing-library/jest-dom'
 import AdminSecurity from '../client'
-import { useAdmin } from '@/lib/api-hooks'
+import { useAdmin } from '@semiont/react-ui'
 
 // Mock the API hooks
 vi.mock('@/lib/api-hooks', () => ({

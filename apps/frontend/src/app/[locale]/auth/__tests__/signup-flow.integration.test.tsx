@@ -6,14 +6,14 @@ import '@testing-library/jest-dom';
 import { signIn, useSession, signOut } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
-import { useAuth } from '@/lib/api-hooks';
+import { useAuth } from '@semiont/react-ui';
 import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 
 // Test components
 import SignUp from '../signup/page';
 import Welcome from '../welcome/page';
-import { ToastProvider } from '@/components/Toast';
+import { ToastProvider } from '@semiont/react-ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Helper to create test query client

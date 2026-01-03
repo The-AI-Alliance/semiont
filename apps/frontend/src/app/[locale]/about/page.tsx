@@ -3,7 +3,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 import { PageLayout } from '@/components/PageLayout';
-import { buttonStyles } from '@/lib/button-styles';
+import { buttonStyles } from '@semiont/react-ui';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 

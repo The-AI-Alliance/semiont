@@ -4,7 +4,7 @@ import React, { useState, useContext } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { CookiePreferences } from '@/components/CookiePreferences';
-import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { KeyboardShortcutsContext } from '@semiont/react-ui';
 
 export function Footer() {
   const [showCookiePreferences, setShowCookiePreferences] = useState(false);

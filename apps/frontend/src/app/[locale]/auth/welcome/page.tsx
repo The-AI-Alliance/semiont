@@ -7,8 +7,8 @@ import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { PageLayout } from '@/components/PageLayout';
-import { useToast } from '@/components/Toast';
-import { useAuth } from '@/lib/api-hooks';
+import { useToast } from '@semiont/react-ui';
+import { useAuth } from '@semiont/react-ui';
 
 export default function Welcome() {
   const t = useTranslations('AuthWelcome');

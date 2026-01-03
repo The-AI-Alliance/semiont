@@ -10,12 +10,12 @@ import {
   ScaleIcon,
   LightBulbIcon
 } from '@heroicons/react/24/outline';
-import { Toolbar } from '@/components/Toolbar';
-import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme } from '@/hooks/useTheme';
-import { useToolbar } from '@/hooks/useToolbar';
-import { useLineNumbers } from '@/hooks/useLineNumbers';
-import { getAllTagSchemas, type TagSchema } from '@/lib/tag-schemas';
+import { Toolbar } from '@semiont/react-ui';
+import { ToolbarPanels } from '@semiont/react-ui';
+import { useTheme } from '@semiont/react-ui';
+import { useToolbar } from '@semiont/react-ui';
+import { useLineNumbers } from '@semiont/react-ui';
+import { getAllTagSchemas, type TagSchema } from '@semiont/react-ui';
 
 const domainIcons = {
   legal: ScaleIcon,

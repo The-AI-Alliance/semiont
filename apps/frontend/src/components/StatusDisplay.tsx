@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { useHealth } from '@/lib/api-hooks';
+import { useAuth } from '@semiont/react-ui';
+import { useHealth } from '@semiont/react-ui';
 
 export function StatusDisplay() {
   const { isFullyAuthenticated, isAuthenticated, hasValidBackendToken } = useAuth();

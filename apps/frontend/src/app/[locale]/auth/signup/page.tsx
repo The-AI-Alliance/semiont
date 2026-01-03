@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { PageLayout } from '@/components/PageLayout';
-import { buttonStyles } from '@/lib/button-styles';
+import { buttonStyles } from '@semiont/react-ui';
 
 function SignUpContent() {
   const t = useTranslations('AuthSignUp');

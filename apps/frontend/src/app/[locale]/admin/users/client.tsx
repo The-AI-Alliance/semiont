@@ -13,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { useAdmin } from '@/lib/api-hooks';
+import { useAdmin } from '@semiont/react-ui';
 import type { paths } from '@semiont/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -21,12 +21,12 @@ type ResponseContent<T> = T extends { responses: { 200: { content: { 'applicatio
 type AdminUser = ResponseContent<paths['/api/admin/users']['get']>['users'][number];
 type AdminUsersResponse = ResponseContent<paths['/api/admin/users']['get']>;
 type AdminUserStatsResponse = ResponseContent<paths['/api/admin/users/stats']['get']>;
-import { buttonStyles } from '@/lib/button-styles';
-import { Toolbar } from '@/components/Toolbar';
-import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme } from '@/hooks/useTheme';
-import { useToolbar } from '@/hooks/useToolbar';
-import { useLineNumbers } from '@/hooks/useLineNumbers';
+import { buttonStyles } from '@semiont/react-ui';
+import { Toolbar } from '@semiont/react-ui';
+import { ToolbarPanels } from '@semiont/react-ui';
+import { useTheme } from '@semiont/react-ui';
+import { useToolbar } from '@semiont/react-ui';
+import { useLineNumbers } from '@semiont/react-ui';
 function UserTableRow({
   user,
   onUpdate,

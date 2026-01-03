@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { Footer } from '@/components/Footer';
 import { SemiontBranding } from '@/components/SemiontBranding';
-import { buttonStyles } from '@/lib/button-styles';
+import { buttonStyles } from '@semiont/react-ui';
 
 function SignInContent() {
   const t = useTranslations('AuthSignIn');

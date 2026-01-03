@@ -9,13 +9,13 @@ import {
   PlusIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
-import { useEntityTypes } from '@/lib/api-hooks';
+import { useEntityTypes } from '@semiont/react-ui';
 import { useQueryClient } from '@tanstack/react-query';
-import { Toolbar } from '@/components/Toolbar';
-import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme } from '@/hooks/useTheme';
-import { useToolbar } from '@/hooks/useToolbar';
-import { useLineNumbers } from '@/hooks/useLineNumbers';
+import { Toolbar } from '@semiont/react-ui';
+import { ToolbarPanels } from '@semiont/react-ui';
+import { useTheme } from '@semiont/react-ui';
+import { useToolbar } from '@semiont/react-ui';
+import { useLineNumbers } from '@semiont/react-ui';
 
 export default function EntityTagsPage() {
   const t = useTranslations('ModerateEntityTags');

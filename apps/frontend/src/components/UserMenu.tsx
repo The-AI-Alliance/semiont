@@ -4,9 +4,9 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { signOut } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { sanitizeImageURL } from '@/lib/validation';
-import { useAuth } from '@/hooks/useAuth';
-import { useDropdown } from '@/hooks/useUI';
+import { sanitizeImageURL } from '@semiont/react-ui';
+import { useAuth } from '@semiont/react-ui';
+import { useDropdown } from '@semiont/react-ui';
 import { useState } from 'react';
 import { UserMenuSkeleton } from './UserMenuSkeleton';
 

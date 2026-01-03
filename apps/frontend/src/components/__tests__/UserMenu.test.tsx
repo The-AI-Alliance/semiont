@@ -58,9 +58,9 @@ vi.mock('@/lib/validation', () => ({
 
 // Import mocked functions
 import { signIn, signOut } from 'next-auth/react';
-import { useAuth } from '@/hooks/useAuth';
-import { useDropdown } from '@/hooks/useUI';
-import { sanitizeImageURL } from '@/lib/validation';
+import { useAuth } from '@semiont/react-ui';
+import { useDropdown } from '@semiont/react-ui';
+import { sanitizeImageURL } from '@semiont/react-ui';
 
 // Type the mocked functions
 const mockSignIn = signIn as MockedFunction<typeof signIn>;

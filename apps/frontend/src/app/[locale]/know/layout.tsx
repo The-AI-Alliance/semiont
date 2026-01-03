@@ -1,8 +1,8 @@
 import React from 'react';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
 import { Footer } from '@/components/Footer';
-import { OpenResourcesProvider } from '@/contexts/OpenResourcesContext';
-import { ResourceAnnotationsProvider } from '@/contexts/ResourceAnnotationsContext';
+import { OpenResourcesProvider } from '@semiont/react-ui';
+import { ResourceAnnotationsProvider } from '@semiont/react-ui';
 
 export default function KnowledgeLayout({
   children,

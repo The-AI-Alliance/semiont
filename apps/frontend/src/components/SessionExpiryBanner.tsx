@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useSessionExpiry } from '@/hooks/useSessionExpiry';
-import { useFormattedTime } from '@/hooks/useFormattedTime';
+import { useSessionExpiry } from '@semiont/react-ui';
+import { useFormattedTime } from '@semiont/react-ui';
 
 export function SessionExpiryBanner() {
   const { timeRemaining, isExpiringSoon } = useSessionExpiry();
