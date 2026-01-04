@@ -24,7 +24,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { jobId, resourceUri } from '@semiont/api-client';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
-import { getTagSchema } from '../../../lib/tag-schemas';
+import { getTagSchema } from '@semiont/api-client';
 
 type DetectTagsStreamRequest = components['schemas']['DetectTagsStreamRequest'];
 

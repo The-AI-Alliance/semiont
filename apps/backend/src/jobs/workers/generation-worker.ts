@@ -13,7 +13,7 @@ import { FilesystemRepresentationStore } from '../../storage/representation/repr
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { generateResourceFromTopic } from '../../inference/factory';
-import { getTargetSelector } from '../../lib/annotation-utils';
+import { getTargetSelector } from '@semiont/api-client';
 import {
   CREATION_METHODS,
   generateUuid,

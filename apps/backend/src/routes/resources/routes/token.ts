@@ -24,7 +24,7 @@ import { userToAgent } from '../../../utils/id-generator';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
-import { getPrimaryRepresentation, getResourceId, getEntityTypes } from '../../../utils/resource-helpers';
+import { getPrimaryRepresentation, getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 
 type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
 type CreateResourceFromTokenRequest = components['schemas']['CreateResourceFromTokenRequest'];
@@ -130,7 +130,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         '@context': 'https://schema.org/',
         '@id': `http://localhost:4000/resources/${resourceId}`,
         name: body.name,
-        entityTypes: getEntityTypes(sourceDoc),
+        entityTypes: getResourceEntityTypes(sourceDoc),
         representations: [{
           mediaType: format,
           checksum: storedRep.checksum,

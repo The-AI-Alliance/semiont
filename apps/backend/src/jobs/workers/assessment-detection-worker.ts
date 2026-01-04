@@ -10,11 +10,11 @@ import type { Job, AssessmentDetectionJob } from '../types';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
-import { resourceIdToURI } from '../../lib/uri-utils';
+import { resourceIdToURI } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
 import { generateText } from '../../inference/factory';
-import { validateAndCorrectOffsets } from '../../lib/text-context';
+import { validateAndCorrectOffsets } from '@semiont/api-client';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 

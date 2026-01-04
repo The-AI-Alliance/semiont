@@ -14,7 +14,7 @@ import { resourceId, userId, annotationId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { getPrimaryRepresentation } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation } from '@semiont/api-client';
 
 describe('ViewMaterializer', () => {
   let testDir: string;

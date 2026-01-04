@@ -8,7 +8,7 @@
 
 import { FilesystemViewStorage } from '../storage/view-storage';
 import { getGraphDatabase } from '../graph/factory';
-import { resourceIdToURI } from '../lib/uri-utils';
+import { resourceIdToURI } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import type {
   ResourceAnnotations,

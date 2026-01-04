@@ -14,8 +14,8 @@ import type { AnnotationsRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { ResourceQueryService } from '../../../services/resource-queries';
-import { getBodySource } from '../../../lib/annotation-utils';
-import { uriToResourceId } from '../../../lib/uri-utils';
+import { getBodySource } from '@semiont/api-client';
+import { uriToResourceId } from '@semiont/api-client';
 import { prefersHtml, getFrontendUrl } from '../../../middleware/content-negotiation';
 import { resourceId as makeResourceId } from '@semiont/core';
 

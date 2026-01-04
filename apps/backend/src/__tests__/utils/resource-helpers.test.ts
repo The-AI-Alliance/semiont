@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getNodeEncoding, decodeRepresentation } from '../../utils/resource-helpers';
+import { getNodeEncoding, decodeRepresentation } from '@semiont/api-client';
 
 describe('Resource Helpers - Charset Handling', () => {
   describe('getNodeEncoding', () => {

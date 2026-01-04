@@ -13,7 +13,7 @@ import type { components } from '@semiont/api-client';
 import type { ResourceEvent, StoredEvent, EnvironmentConfig, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, findBodyItem } from '@semiont/core';
 import { resourceUri } from '@semiont/api-client';
-import { resourceIdToURI, annotationIdToURI } from '../../lib/uri-utils';
+import { resourceIdToURI, annotationIdToURI } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

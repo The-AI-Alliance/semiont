@@ -13,7 +13,7 @@ import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { ResourceQueryService } from '../../../services/resource-queries';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
-import { getPrimaryRepresentation, getEntityTypes, decodeRepresentation } from '../../../utils/resource-helpers';
+import { getPrimaryRepresentation, getResourceEntityTypes, decodeRepresentation } from '@semiont/api-client';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

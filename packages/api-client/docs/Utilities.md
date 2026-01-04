@@ -5,8 +5,10 @@ Framework-agnostic utilities for working with W3C annotations, events, and resou
 ## Table of Contents
 
 - [Text Encoding](#text-encoding)
+- [Text Context Extraction](#text-context-extraction)
 - [Fuzzy Anchoring](#fuzzy-anchoring)
 - [SVG Utilities](#svg-utilities)
+- [Tag Schemas](#tag-schemas)
 - [Annotation Utilities](#annotation-utilities)
 - [Event Utilities](#event-utilities)
 - [Resource Utilities](#resource-utilities)
@@ -79,6 +81,65 @@ const position = findTextWithContext(rightText, 'café', ...);
 - `windows-1252`, `windows-1251`, etc.
 - `ascii`, `us-ascii`
 - `utf-16le`, `utf-16be`
+
+## Text Context Extraction
+
+Utilities for extracting prefix/suffix context around text selections and validating AI-generated annotation offsets.
+
+### Extract Context
+
+Extract prefix and suffix context for W3C TextQuoteSelector:
+
+```typescript
+import { extractContext } from '@semiont/api-client';
+
+const content = "The United States Congress passed the bill.";
+const start = 4;   // "United"
+const end = 17;    // "States"
+
+const { prefix, suffix } = extractContext(content, start, end);
+// prefix: "The "
+// suffix: " Congress passed the bill."
+```
+
+**Features:**
+- Extracts up to 64 characters before and after
+- Extends to word boundaries (avoids cutting words)
+- Returns `undefined` for prefix/suffix at document boundaries
+
+### Validate and Correct AI Offsets
+
+Validate AI-provided annotation offsets with fuzzy matching tolerance:
+
+```typescript
+import { validateAndCorrectOffsets } from '@semiont/api-client';
+
+const content = "The quick brown fox jumps over the lazy dog.";
+
+// AI said start=0, end=9, exact="The quick"
+const result = validateAndCorrectOffsets(content, 0, 9, "The quick");
+
+if (result.corrected) {
+  console.log(`AI offset was wrong. Corrected to ${result.start}-${result.end}`);
+  console.log(`Match quality: ${result.matchQuality}`); // 'exact' | 'case-insensitive' | 'fuzzy'
+}
+
+console.log({
+  start: result.start,
+  end: result.end,
+  exact: result.exact,
+  prefix: result.prefix,
+  suffix: result.suffix
+});
+```
+
+**Multi-Strategy Matching:**
+1. Check if AI's offsets are exactly correct
+2. Try exact case-sensitive search
+3. Try case-insensitive search
+4. Try fuzzy matching with Levenshtein distance (5% tolerance)
+
+**Use Case:** AI models sometimes return offsets that don't match the actual text position, or provide text with minor variations (case differences, whitespace, typos). This function ensures maximum tolerance while maintaining annotation quality.
 
 ## Fuzzy Anchoring
 
@@ -265,6 +326,83 @@ console.log(nativeSvg);
 
 Image annotations must be stored using **native image coordinates**, not display coordinates. Otherwise, annotations will break when the image is displayed at different sizes.
 
+## Tag Schemas
+
+Structural analysis frameworks for document classification. Tag schemas define categories that passages can be classified into based on their structural role.
+
+### Available Schemas
+
+```typescript
+import {
+  getAllTagSchemas,
+  getTagSchema,
+  getTagSchemasByDomain,
+  getSchemaCategory,
+  isValidCategory
+} from '@semiont/api-client';
+
+// Get all available schemas
+const schemas = getAllTagSchemas();
+// Returns: [{ id: 'legal-irac', name: 'Legal Analysis (IRAC)', ... }, ...]
+
+// Get schemas by domain
+const legalSchemas = getTagSchemasByDomain('legal');
+const scientificSchemas = getTagSchemasByDomain('scientific');
+const generalSchemas = getTagSchemasByDomain('general');
+```
+
+### Built-in Schemas
+
+**Legal Domain:**
+- **IRAC** (`legal-irac`) - Issue, Rule, Application, Conclusion
+
+**Scientific Domain:**
+- **IMRAD** (`scientific-imrad`) - Introduction, Methods, Results, Discussion
+
+**General Domain:**
+- **Toulmin** (`argument-toulmin`) - Claim, Evidence, Warrant, Counterargument, Rebuttal
+
+### Working with Schemas
+
+```typescript
+import { getTagSchema, getSchemaCategory, isValidCategory } from '@semiont/api-client';
+
+// Get a specific schema
+const schema = getTagSchema('legal-irac');
+console.log(schema?.name); // "Legal Analysis (IRAC)"
+console.log(schema?.tags); // [{ name: 'Issue', description: '...', examples: [...] }, ...]
+
+// Get a specific category from a schema
+const category = getSchemaCategory('legal-irac', 'Rule');
+console.log(category?.description); // "The relevant law, statute, or legal principle"
+console.log(category?.examples); // ["What law applies?", "What is the legal standard?", ...]
+
+// Validate category name
+if (isValidCategory('legal-irac', 'Rule')) {
+  console.log('Valid category!');
+}
+```
+
+### Tag Schema Structure
+
+```typescript
+interface TagSchema {
+  id: string;
+  name: string;
+  description: string;
+  domain: 'legal' | 'scientific' | 'general';
+  tags: TagCategory[];
+}
+
+interface TagCategory {
+  name: string;
+  description: string;
+  examples: string[];
+}
+```
+
+**Use Case:** Tag schemas enable AI-powered structural analysis of documents. For example, detecting which passages in a legal brief serve as "Issue", "Rule", "Application", or "Conclusion" sections.
+
 ## Annotation Utilities
 
 See [API-Reference.md](./API-Reference.md#annotation-utilities) for annotation manipulation functions.
@@ -275,7 +413,71 @@ See [API-Reference.md](./API-Reference.md#event-utilities) for event filtering a
 
 ## Resource Utilities
 
-See [API-Reference.md](./API-Reference.md#resource-utilities) for resource helper functions.
+Helper functions for working with W3C ResourceDescriptor objects.
+
+### Get Resource Properties
+
+```typescript
+import {
+  getResourceId,
+  getPrimaryRepresentation,
+  getPrimaryMediaType,
+  getLanguage,
+  getChecksum,
+  getStorageUri,
+  getCreator,
+  getDerivedFrom,
+  isArchived,
+  getResourceEntityTypes,
+  isDraft
+} from '@semiont/api-client';
+
+const resource: ResourceDescriptor = /* ... */;
+
+// Extract ID from full URI
+const id = getResourceId(resource);
+// "doc-abc123" from "http://localhost:4000/resources/doc-abc123"
+
+// Get primary representation
+const rep = getPrimaryRepresentation(resource);
+console.log(rep?.mediaType); // "text/plain"
+console.log(rep?.checksum); // "sha256:..."
+
+// Get metadata
+const mediaType = getPrimaryMediaType(resource);
+const language = getLanguage(resource);
+const checksum = getChecksum(resource);
+const storageUri = getStorageUri(resource);
+
+// Get provenance
+const creator = getCreator(resource); // Agent who created it
+const derivedFrom = getDerivedFrom(resource); // Source resource URI
+
+// Get application-specific fields
+const archived = isArchived(resource);
+const entityTypes = getResourceEntityTypes(resource); // ["legal", "contract"]
+const draft = isDraft(resource);
+```
+
+### Decode Resource Content
+
+Decode representation buffer using correct charset:
+
+```typescript
+import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
+
+const resource: ResourceDescriptor = /* ... */;
+const buffer: Buffer = /* raw bytes from storage */;
+
+// Get media type with charset
+const mediaType = getPrimaryMediaType(resource) || 'text/plain';
+
+// Decode using correct charset
+const content = decodeRepresentation(buffer, mediaType);
+// Handles UTF-8, ISO-8859-1, Windows-1252, etc.
+```
+
+See also [API-Reference.md](./API-Reference.md#resource-utilities) for complete documentation.
 
 ## Validation Utilities
 

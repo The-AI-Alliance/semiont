@@ -24,10 +24,10 @@ import type {
   BodyOperation,
 } from '@semiont/core';
 import { resourceId, annotationId, userId } from '@semiont/core';
-import { getTargetSource } from '../../lib/annotation-utils';
+import { getTargetSource } from '@semiont/api-client';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
-import { uriToResourceId } from '../../lib/uri-utils';
+import { uriToResourceId } from '@semiont/api-client';
 import { validateRequestBody } from '../../middleware/validate-openapi';
 
 type Annotation = components['schemas']['Annotation'];

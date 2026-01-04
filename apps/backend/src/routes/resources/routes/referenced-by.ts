@@ -10,12 +10,12 @@
 
 import { getGraphDatabase } from '../../../graph/factory';
 import { getExactText } from '@semiont/api-client';
-import { getTargetSource, getTargetSelector } from '../../../lib/annotation-utils';
+import { getTargetSource, getTargetSelector } from '@semiont/api-client';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { resourceUri as makeResourceUri } from '@semiont/api-client';
-import { resourceIdToURI } from '../../../lib/uri-utils';
+import { resourceIdToURI } from '@semiont/api-client';
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
