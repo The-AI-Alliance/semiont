@@ -14,7 +14,7 @@ import { generateResourceSummary, generateReferenceSuggestions } from '../../../
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
-import { getResourceId, getPrimaryRepresentation, getEntityTypes, decodeRepresentation } from '@semiont/api-client';
+import { getResourceId, getPrimaryRepresentation, getResourceEntityTypes, decodeRepresentation } from '@semiont/api-client';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { resourceUri } from '@semiont/api-client';
 
@@ -84,10 +84,12 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     if (includeContent) {
       await Promise.all(limitedRelatedDocs.map(async (doc) => {
         try {
+          const docId = getResourceId(doc);
+          if (!docId) return;
           const primaryRep = getPrimaryRepresentation(doc);
           if (primaryRep?.checksum && primaryRep?.mediaType) {
             const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-            relatedResourcesContent[getResourceId(doc)] = decodeRepresentation(buffer, primaryRep.mediaType);
+            relatedResourcesContent[docId] = decodeRepresentation(buffer, primaryRep.mediaType);
           }
         } catch {
           // Skip resources where content can't be loaded
@@ -105,26 +107,26 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
         id: getResourceId(mainDoc),
         type: 'resource',
         label: mainDoc.name,
-        metadata: { entityTypes: getEntityTypes(mainDoc) },
+        metadata: { entityTypes: getResourceEntityTypes(mainDoc) },
       },
       ...limitedRelatedDocs.map(doc => ({
         id: getResourceId(doc),
         type: 'resource',
         label: doc.name,
-        metadata: { entityTypes: getEntityTypes(doc) },
+        metadata: { entityTypes: getResourceEntityTypes(doc) },
       })),
-    ];
+    ].filter(node => node.id !== undefined) as Array<{ id: string; type: string; label: string; metadata: { entityTypes: string[] } }>;
 
     const edges = connections.map(conn => ({
       source: id,
       target: getResourceId(conn.targetResource),
       type: conn.relationshipType || 'link',
       metadata: {},
-    }));
+    })).filter(edge => edge.target !== undefined) as Array<{ source: string; target: string; type: string; metadata: Record<string, unknown> }>;
 
     // Generate summary if requested
     const summary = includeSummary && mainContent ?
-      await generateResourceSummary(mainDoc.name, mainContent, getEntityTypes(mainDoc), config) : undefined;
+      await generateResourceSummary(mainDoc.name, mainContent, getResourceEntityTypes(mainDoc), config) : undefined;
 
     // Generate reference suggestions if we have content
     const suggestedReferences = mainContent ?

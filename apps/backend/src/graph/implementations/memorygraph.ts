@@ -2,7 +2,7 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
-import { getEntityTypes } from '@semiont/api-client';
+import { getEntityTypes, getResourceEntityTypes } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import type {
   AnnotationCategory,
@@ -20,7 +20,7 @@ import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { resourceUri } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource } from '@semiont/api-client';
-import { getResourceId, getEntityTypes as getResourceEntityTypes, getPrimaryRepresentation } from '@semiont/api-client';
+import { getResourceId, getPrimaryRepresentation } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -57,6 +57,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
 
   async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
     const id = getResourceId(resource);
+    if (!id) {
+      throw new Error('Resource must have an id');
+    }
 
     // Simply add to in-memory map
     // await this.client.submit(`
@@ -206,7 +209,11 @@ export class MemoryGraphDatabase implements GraphDatabase {
     let results = Array.from(this.annotations.values());
 
     if (filter.resourceId) {
-      results = results.filter(a => getTargetSource(a.target) === filter.resourceId);
+      const resourceIdStr = String(filter.resourceId);
+      results = results.filter(a => {
+        const targetSource = getTargetSource(a.target);
+        return targetSource === resourceIdStr || targetSource === resourceUri(resourceIdStr);
+      });
     }
 
     // Only SpecificResource supported, use motivation to distinguish
@@ -220,8 +227,12 @@ export class MemoryGraphDatabase implements GraphDatabase {
   
   
   async getHighlights(resourceId: ResourceId): Promise<Annotation[]> {
+    const resourceIdStr = String(resourceId);
     const highlights = Array.from(this.annotations.values())
-      .filter(sel => getTargetSource(sel.target) === resourceId && sel.motivation === 'highlighting');
+      .filter(sel => {
+        const targetSource = getTargetSource(sel.target);
+        return (targetSource === resourceIdStr || targetSource === resourceUri(resourceIdStr)) && sel.motivation === 'highlighting';
+      });
     console.log(`Memory: getHighlights for ${resourceId} found ${highlights.length} highlights`);
     return highlights;
   }
@@ -245,8 +256,12 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
 
   async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
+    const resourceIdStr = String(resourceId);
     const references = Array.from(this.annotations.values())
-      .filter(sel => getTargetSource(sel.target) === resourceId && sel.motivation === 'linking');
+      .filter(sel => {
+        const targetSource = getTargetSource(sel.target);
+        return (targetSource === resourceIdStr || targetSource === resourceUri(resourceIdStr)) && sel.motivation === 'linking';
+      });
     console.log(`Memory: getReferences for ${resourceId} found ${references.length} references`);
     references.forEach(ref => {
       console.log('  Reference:', {
@@ -260,10 +275,12 @@ export class MemoryGraphDatabase implements GraphDatabase {
 
   async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
     // TODO Extract entity types from body
+    const resourceIdStr = String(resourceId);
     let refs = Array.from(this.annotations.values())
       .filter(sel => {
         const selEntityTypes = getEntityTypes(sel);
-        return getTargetSource(sel.target) === resourceId && selEntityTypes.length > 0;
+        const targetSource = getTargetSource(sel.target);
+        return (targetSource === resourceIdStr || targetSource === resourceUri(resourceIdStr)) && selEntityTypes.length > 0;
       });
 
     if (entityTypes && entityTypes.length > 0) {
@@ -277,8 +294,12 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
 
   async getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]> {
+    const resourceIdStr = String(resourceId);
     return Array.from(this.annotations.values())
-      .filter(sel => getTargetSource(sel.target) === resourceId);
+      .filter(sel => {
+        const targetSource = getTargetSource(sel.target);
+        return targetSource === resourceIdStr || targetSource === resourceUri(resourceIdStr);
+      });
   }
 
   async getResourceReferencedBy(resourceUri: ResourceUri, _motivation?: string): Promise<Annotation[]> {
@@ -304,7 +325,11 @@ export class MemoryGraphDatabase implements GraphDatabase {
         const targetDoc = await this.getResource(resourceUri(bodySource));
         if (targetDoc) {
           const reverseRefs = await this.getReferences(makeResourceId(bodySource));
-          const bidirectional = reverseRefs.some(r => getBodySource(r.body) === resourceId);
+          const resourceIdStr = String(resourceId);
+          const bidirectional = reverseRefs.some(r => {
+            const reverseBodySource = getBodySource(r.body);
+            return reverseBodySource === resourceIdStr || reverseBodySource === resourceUri(resourceIdStr);
+          });
 
           connections.push({
             targetResource: targetDoc,
@@ -355,7 +380,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
 
       for (const conn of connections) {
         const targetId = getResourceId(conn.targetResource);
-        if (!visited.has(targetId)) {
+        if (targetId && !visited.has(targetId)) {
           visited.add(targetId);
           queue.push({
             docId: targetId,

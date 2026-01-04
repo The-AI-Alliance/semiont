@@ -14,9 +14,9 @@
 import { generateResourceSummary } from '../inference/factory';
 import { getBodySource, getTargetSource, getTargetSelector } from '@semiont/api-client';
 import type { components, AnnotationUri, GenerationContext } from '@semiont/api-client';
-import { getEntityTypes } from '@semiont/api-client';
+import { getEntityTypes, getResourceEntityTypes } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../storage/representation/representation-store';
-import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes, decodeRepresentation } from '@semiont/api-client';
+import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { resourceId as createResourceId } from '@semiont/core';

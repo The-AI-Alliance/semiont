@@ -930,6 +930,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         if (targetDocResult.value) {
           const targetDoc = vertexToResource(targetDocResult.value);
           const targetDocId = getResourceId(targetDoc);
+          if (!targetDocId) continue;
           const existing = connectionsMap.get(targetDocId);
           if (existing) {
             existing.annotations.push(annotation);

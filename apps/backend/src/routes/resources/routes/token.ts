@@ -162,7 +162,11 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       cloneTokens.delete(token);
 
       // Get annotations
-      const result = await graphDb.listAnnotations({ resourceId: makeResourceId(getResourceId(savedDoc)) });
+      const savedDocId = getResourceId(savedDoc);
+      if (!savedDocId) {
+        return c.json({ error: 'Resource must have an id' }, 500);
+      }
+      const result = await graphDb.listAnnotations({ resourceId: makeResourceId(savedDocId) });
 
       const response: CreateResourceFromTokenResponse = {
         resource: savedDoc,
