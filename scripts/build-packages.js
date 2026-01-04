@@ -6,9 +6,10 @@
  * Build order (SPEC-FIRST ARCHITECTURE):
  * 1. @semiont/api-client - Generates types from openapi.json (spec-first) - NO DEPENDENCIES
  * 2. @semiont/core - Depends on @semiont/api-client for types
- * 3. Backend - Consumes types from @semiont/api-client and @semiont/core
- * 4. @semiont/test-utils - Testing utilities
- * 5. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
+ * 3. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
+ * 4. Backend - Consumes types from @semiont/api-client, @semiont/core, and @semiont/event-sourcing
+ * 5. @semiont/test-utils - Testing utilities
+ * 6. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
  */
 
 const { execSync } = require('child_process');
@@ -43,6 +44,11 @@ const buildSteps = [
     name: '@semiont/core',
     type: 'package',
     description: 'Core SDK package (depends on @semiont/api-client for types)'
+  },
+  {
+    name: '@semiont/event-sourcing',
+    type: 'package',
+    description: 'Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)'
   },
   {
     name: 'semiont-backend',
