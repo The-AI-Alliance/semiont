@@ -6,7 +6,9 @@
 
 // Types
 export * from './types/annotation-props';
+export * from './types/AnnotationManager';
 export * from './types/ApiClientManager';
+export * from './types/CacheManager';
 export * from './types/OpenResourcesManager';
 export * from './types/SessionManager';
 export * from './types/TranslationManager';
@@ -45,7 +47,10 @@ export * from './hooks/useToolbar';
 export { useDropdown, useLoadingState, useLocalStorage } from './hooks/useUI';
 
 // Contexts
+export * from './contexts/AnnotationContext';
+export * from './contexts/AnnotationUIContext';
 export * from './contexts/ApiClientContext';
+export * from './contexts/CacheContext';
 export * from './contexts/OpenResourcesContext';
 export * from './contexts/ResourceAnnotationsContext';
 export * from './contexts/RoutingContext';

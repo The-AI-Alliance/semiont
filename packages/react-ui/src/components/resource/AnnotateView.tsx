@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations } from '../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, resourceUri as toResourceUri } from '@semiont/api-client';
 import { getAnnotator } from '../../lib/annotation-registry';
@@ -15,7 +15,6 @@ import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { TextSegment } from '../CodeMirrorRenderer';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
 import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState, CreateAnnotationParams } from '../../types/annotation-props';
-import '@/styles/animations.css';
 
 // Re-export for convenience
 export type { SelectionMotivation, ClickAction, ShapeType };

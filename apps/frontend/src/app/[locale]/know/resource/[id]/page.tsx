@@ -42,6 +42,8 @@ import { annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
 import { Link, routes } from '@/lib/routing';
+import { useAnnotationManager } from '@/hooks/useAnnotationManager';
+import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Loading state component
 function ResourceLoadingState() {
@@ -176,10 +178,11 @@ function ResourceView({
   const { data: session } = useSession();
   const locale = useLocale();
   const { addResource } = useOpenResources();
-  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight, deleteAnnotation, addComment, createAnnotation } = useResourceAnnotations();
+  const { triggerSparkleAnimation, clearNewAnnotationId, deleteAnnotation, createAnnotation } = useResourceAnnotations();
   const { showError, showSuccess } = useToast();
   const client = useApiClient();
   const queryClient = useQueryClient();
+  const cacheManager = useCacheManager();
 
   // Fetch document content separately
   const [content, setContent] = useState<string>('');
@@ -440,8 +443,7 @@ function ResourceView({
     setDetectingMotivation,
     setMotivationDetectionProgress,
     detectionStreamRef,
-    refetchAnnotations,
-    queryClient,
+    cacheManager,
     showSuccess,
     showError
   };
@@ -910,7 +912,22 @@ function ResourceView({
                   },
                   onCreate: async (commentText: string) => {
                     if (pendingCommentSelection) {
-                      await addComment(rUri, pendingCommentSelection, commentText);
+                      await createAnnotation(rUri, 'commenting', [
+                        {
+                          type: 'TextPositionSelector',
+                          start: pendingCommentSelection.start,
+                          end: pendingCommentSelection.end,
+                        },
+                        {
+                          type: 'TextQuoteSelector',
+                          exact: pendingCommentSelection.exact,
+                        }
+                      ], {
+                        type: 'TextualBody',
+                        value: commentText,
+                        format: 'text/plain',
+                        purpose: 'commenting',
+                      });
                       setPendingCommentSelection(null);
                     }
                   },

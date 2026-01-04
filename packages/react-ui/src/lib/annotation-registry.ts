@@ -15,6 +15,7 @@
 import type { MutableRefObject } from 'react';
 import type { components } from '@semiont/api-client';
 import { isHighlight, isComment, isReference, isTag, entityType } from '@semiont/api-client';
+import type { CacheManager } from '../types/CacheManager';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation']; // Already defined in api-client with all 13 W3C motivations!
@@ -340,8 +341,7 @@ export function createDetectionHandler(
     setDetectingMotivation: (motivation: Motivation | null) => void;
     setMotivationDetectionProgress: (progress: any) => void;
     detectionStreamRef: MutableRefObject<any>;
-    refetchAnnotations: () => void;
-    queryClient?: any;
+    cacheManager: CacheManager;
     showSuccess: (message: string) => void;
     showError: (message: string) => void;
   }
@@ -458,10 +458,8 @@ export function createDetectionHandler(
         });
         context.setDetectingMotivation(null);
         context.detectionStreamRef.current = null;
-        context.refetchAnnotations();
-        if (context.queryClient) {
-          context.queryClient.invalidateQueries({ queryKey: ['documents', 'events', context.rUri] });
-        }
+        context.cacheManager.invalidateAnnotations(context.rUri);
+        context.cacheManager.invalidateEvents(context.rUri);
         context.showSuccess(`Created ${count} ${count === 1 ? detection.displayNameSingular : detection.displayNamePlural}`);
       });
 

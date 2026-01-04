@@ -14,7 +14,6 @@ import type { AnnotationsCollection, AnnotationHandlers } from '../../types/anno
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
-import '@/styles/animations.css';
 
 interface Props {
   content: string;
