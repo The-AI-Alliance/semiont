@@ -507,28 +507,6 @@ See test files for comprehensive examples:
 
 ---
 
-## Migration from Legacy API
-
-### Before (Dead Code - Removed)
-
-```typescript
-// ❌ These functions were removed (never called in production)
-const { addHighlight, addReference, addAssessment, addComment } = useResourceAnnotations();
-const { convertHighlightToReference, convertReferenceToHighlight } = useResourceAnnotations();
-```
-
-### After (Generic API)
-
-```typescript
-// ✅ Use generic createAnnotation for all types
-const { createAnnotation, deleteAnnotation } = useResourceAnnotations();
-
-// All annotation types use the same pattern
-await createAnnotation(rUri, motivation, selector, body);
-```
-
----
-
 ## Performance Considerations
 
 ### Cache Invalidation
