@@ -1,7 +1,5 @@
 'use client';
 
-'use client';
-
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ResourceUri, ResourceEvent as ApiResourceEvent, SSEStream } from '@semiont/api-client';
 import { useApiClient } from '../contexts/ApiClientContext';

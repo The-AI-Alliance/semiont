@@ -1,7 +1,5 @@
 'use client';
 
-'use client';
-
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ResourceUri, DetectionProgress as ApiDetectionProgress, SSEStream } from '@semiont/api-client';
 import { entityType } from '@semiont/api-client';
