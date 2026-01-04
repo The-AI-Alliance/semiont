@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
-import type { DetectionJob } from '../../jobs/types';
+import type { DetectionJob } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';

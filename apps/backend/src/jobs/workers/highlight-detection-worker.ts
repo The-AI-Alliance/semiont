@@ -5,8 +5,8 @@
  * that should be highlighted and creates highlight annotations.
  */
 
-import { JobWorker } from './job-worker';
-import type { Job, HighlightDetectionJob } from '../types';
+import { JobWorker } from '@semiont/jobs';
+import type { Job, HighlightDetectionJob } from '@semiont/jobs';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';

@@ -7,9 +7,10 @@
  * 1. @semiont/api-client - Generates types from openapi.json (spec-first) - NO DEPENDENCIES
  * 2. @semiont/core - Depends on @semiont/api-client for types
  * 3. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
- * 4. Backend - Consumes types from @semiont/api-client, @semiont/core, and @semiont/event-sourcing
- * 5. @semiont/test-utils - Testing utilities
- * 6. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
+ * 4. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)
+ * 5. Backend - Consumes types from @semiont/api-client, @semiont/core, @semiont/event-sourcing, and @semiont/jobs
+ * 6. @semiont/test-utils - Testing utilities
+ * 7. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
  */
 
 const { execSync } = require('child_process');
@@ -49,6 +50,11 @@ const buildSteps = [
     name: '@semiont/event-sourcing',
     type: 'package',
     description: 'Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)'
+  },
+  {
+    name: '@semiont/jobs',
+    type: 'package',
+    description: 'Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)'
   },
   {
     name: 'semiont-backend',

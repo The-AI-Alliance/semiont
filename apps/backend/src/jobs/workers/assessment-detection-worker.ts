@@ -5,8 +5,8 @@
  * passages in the text and creates assessment annotations.
  */
 
-import { JobWorker } from './job-worker';
-import type { Job, AssessmentDetectionJob } from '../types';
+import { JobWorker } from '@semiont/jobs';
+import type { Job, AssessmentDetectionJob } from '@semiont/jobs';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';

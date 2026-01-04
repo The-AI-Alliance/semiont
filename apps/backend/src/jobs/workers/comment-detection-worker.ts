@@ -5,8 +5,8 @@
  * that would benefit from explanatory comments and creates comment annotations.
  */
 
-import { JobWorker } from './job-worker';
-import type { Job, CommentDetectionJob } from '../types';
+import { JobWorker } from '@semiont/jobs';
+import type { Job, CommentDetectionJob } from '@semiont/jobs';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';

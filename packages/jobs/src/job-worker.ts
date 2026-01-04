@@ -5,8 +5,8 @@
  * Subclasses implement specific job processing logic.
  */
 
-import type { Job } from '../types';
-import { getJobQueue } from '../job-queue';
+import type { Job } from './types';
+import { getJobQueue } from './job-queue';
 
 export abstract class JobWorker {
   private running = false;

@@ -7,8 +7,8 @@
  * This worker is INDEPENDENT of HTTP clients - it just processes jobs and emits events.
  */
 
-import { JobWorker } from './job-worker';
-import type { Job, DetectionJob } from '../types';
+import { JobWorker } from '@semiont/jobs';
+import type { Job, DetectionJob } from '@semiont/jobs';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';

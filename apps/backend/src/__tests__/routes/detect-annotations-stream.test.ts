@@ -12,7 +12,7 @@ import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
-import { initializeJobQueue } from '../../jobs/job-queue';
+import { initializeJobQueue } from '@semiont/jobs';
 import { EventStore } from '@semiont/event-sourcing';
 import type { IdentifierConfig } from '../../services/identifier-service';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';

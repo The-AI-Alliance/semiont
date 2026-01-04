@@ -6,8 +6,8 @@
  * creates tag annotations with dual-body structure.
  */
 
-import { JobWorker } from './job-worker';
-import type { Job, TagDetectionJob } from '../types';
+import { JobWorker } from '@semiont/jobs';
+import type { Job, TagDetectionJob } from '@semiont/jobs';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';

@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../jobs/workers/generation-worker';
-import type { GenerationJob } from '../../jobs/types';
+import type { GenerationJob } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
@@ -153,7 +153,7 @@ describe('GenerationWorker - Event Emission', () => {
     testEnv = await setupTestEnvironment();
 
     // Initialize JobQueue to prevent "JobQueue not initialized" errors
-    const { initializeJobQueue } = await import('../../jobs/job-queue');
+    const { initializeJobQueue } = await import('@semiont/jobs');
     await initializeJobQueue({
       dataDir: testEnv.config.services.filesystem!.path
     });

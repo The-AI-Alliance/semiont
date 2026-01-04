@@ -1,0 +1,28 @@
+{
+  "name": "@semiont/jobs",
+  "version": "0.2.28",
+  "type": "module",
+  "description": "Filesystem-based job queue and worker infrastructure",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "npm run typecheck && tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@semiont/api-client": "*",
+    "@semiont/core": "*"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

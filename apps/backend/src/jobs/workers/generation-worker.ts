@@ -7,8 +7,8 @@
  * This worker is INDEPENDENT of HTTP clients - it just processes jobs and emits events.
  */
 
-import { JobWorker } from './job-worker';
-import type { Job, GenerationJob } from '../types';
+import { JobWorker } from '@semiont/jobs';
+import type { Job, GenerationJob } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { ResourceQueryService } from '../../services/resource-queries';

@@ -279,7 +279,7 @@ if (nodeEnv !== 'test') {
     // Initialize Job Queue
     try {
       console.log('💼 Initializing job queue...');
-      const { initializeJobQueue } = await import('./jobs/job-queue');
+      const { initializeJobQueue } = await import('@semiont/jobs');
       const dataDir = config.services?.filesystem?.path || process.env.DATA_DIR || './data';
       if (!dataDir) {
         throw new Error('services.filesystem.path is required in environment config for job queue initialization');
