@@ -2,28 +2,27 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import '@testing-library/jest-dom'
 import AdminSecurity from '../client'
 import { useAdmin } from '@semiont/react-ui'
 
 // Mock the API hooks
-vi.mock('@/lib/api-hooks', () => ({
-  useAdmin: vi.fn()
-}))
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    useAdmin: vi.fn(),
+    useTheme: () => ({
+      theme: 'system',
+      setTheme: vi.fn()
+    })
+  };
+});
 
 // Mock NextAuth useSession
 vi.mock('next-auth/react', () => ({
   useSession: () => ({
     data: { backendToken: 'mock-token' },
     status: 'authenticated'
-  })
-}))
-
-// Mock the useTheme hook
-vi.mock('@/hooks/useTheme', () => ({
-  useTheme: () => ({
-    theme: 'system',
-    setTheme: vi.fn()
   })
 }))
 
@@ -35,6 +34,11 @@ vi.mock('@/components/Toolbar', () => ({
 // Mock the SettingsPanel component
 vi.mock('@/components/SettingsPanel', () => ({
   SettingsPanel: () => null
+}))
+
+// Mock the ToolbarPanels component
+vi.mock('@/components/toolbar/ToolbarPanels', () => ({
+  ToolbarPanels: () => null
 }))
 
 // Test wrapper with React Query client

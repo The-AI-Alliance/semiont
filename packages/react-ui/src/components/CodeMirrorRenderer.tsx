@@ -8,7 +8,6 @@ import { getAnnotationClassName } from '../lib/annotation-registry';
 import { ReferenceResolutionWidget } from '../lib/codemirror-widgets';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
-import '@/styles/animations.css';
 
 type Annotation = components['schemas']['Annotation'];
 
