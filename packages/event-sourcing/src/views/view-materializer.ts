@@ -11,7 +11,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { didToAgent } from '../../utils/id-generator';
+import { didToAgent } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 
 type Representation = components['schemas']['Representation'];
@@ -23,7 +23,7 @@ import type {
   ResourceId,
 } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
-import type { ViewStorage, ResourceView } from '../../storage/view-storage';
+import type { ViewStorage, ResourceView } from '../storage/view-storage';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 

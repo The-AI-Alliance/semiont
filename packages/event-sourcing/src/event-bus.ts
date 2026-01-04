@@ -12,7 +12,7 @@
  */
 
 import { type StoredEvent, type ResourceId, isResourceEvent, isSystemEvent } from '@semiont/core';
-import { toResourceUri, type IdentifierConfig } from '../services/identifier-service';
+import { toResourceUri, type IdentifierConfig } from './identifier-utils';
 import { getEventSubscriptions, type EventSubscriptions, type EventCallback, type EventSubscription } from './subscriptions/event-subscriptions';
 
 export interface EventBusConfig {

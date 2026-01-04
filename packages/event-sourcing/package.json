@@ -1,0 +1,55 @@
+{
+  "name": "@semiont/event-sourcing",
+  "version": "0.2.28",
+  "description": "Event sourcing infrastructure for Semiont - EventLog, EventBus, and ViewManager",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=20.18.1"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/event-sourcing"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && tsup",
+    "watch": "tsup --watch",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "keywords": [
+    "event-sourcing",
+    "event-store",
+    "event-log",
+    "event-bus",
+    "view-manager",
+    "cqrs",
+    "semiont"
+  ],
+  "author": "Semiont Team",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@semiont/api-client": "*",
+    "@semiont/core": "*"
+  }
+}

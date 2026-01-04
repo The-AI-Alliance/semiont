@@ -17,7 +17,7 @@ import * as readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
 import type { StoredEvent, ResourceEvent, EventMetadata, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
-import { jumpConsistentHash, sha256 } from '../../storage/shard-utils';
+import { jumpConsistentHash, sha256 } from './shard-utils';
 
 export interface EventStorageConfig {
   basePath: string;              // Base path (e.g., /data/uploads)

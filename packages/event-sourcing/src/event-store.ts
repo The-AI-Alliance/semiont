@@ -16,8 +16,8 @@ import type {
   StoredEvent,
   ResourceId,
 } from '@semiont/core';
-import type { ViewStorage } from '../storage/view-storage';
-import type { IdentifierConfig } from '../services/identifier-service';
+import type { ViewStorage } from './storage/view-storage';
+import type { IdentifierConfig } from './identifier-utils';
 
 // Import focused components
 import { EventLog, type EventLogConfig } from './event-log';

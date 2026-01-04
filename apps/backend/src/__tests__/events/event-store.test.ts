@@ -3,10 +3,10 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { EventStore } from '../../events/event-store';
-import { EventQuery } from '../../events/query/event-query';
-import { EventValidator } from '../../events/validation/event-validator';
-import { FilesystemViewStorage } from '../../storage/view-storage';
+import { EventStore } from '@semiont/event-sourcing';
+import { EventQuery } from '@semiont/event-sourcing';
+import { EventValidator } from '@semiont/event-sourcing';
+import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { CREATION_METHODS } from '@semiont/core';
 import { resourceId, userId } from '@semiont/core';
 import type { IdentifierConfig } from '../../services/identifier-service';

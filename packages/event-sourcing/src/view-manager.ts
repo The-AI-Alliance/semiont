@@ -13,7 +13,7 @@
 
 import { type ResourceId, type ResourceEvent, type StoredEvent } from '@semiont/core';
 import { ViewMaterializer, type ViewMaterializerConfig } from './views/view-materializer';
-import type { ViewStorage, ResourceView } from '../storage/view-storage';
+import type { ViewStorage, ResourceView } from './storage/view-storage';
 
 export interface ViewManagerConfig {
   basePath: string;

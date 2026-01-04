@@ -3,9 +3,9 @@
 
 import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
-import { getEntityTypes, getBodySource } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
-import { getPrimaryRepresentation, getResourceId } from '@semiont/api-client';
+import { getEntityTypes, getBodySource } from '../lib/uri-utils';
+import type { components } from '../lib/uri-utils';
+import { getPrimaryRepresentation, getResourceId } from '../lib/uri-utils';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -18,10 +18,10 @@ import type {
   AnnotationId,
   EnvironmentConfig,
 } from '@semiont/core';
-import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
-import { resourceUri } from '@semiont/api-client';
-import { annotationIdToURI } from '@semiont/api-client';
-import { getExactText } from '@semiont/api-client';
+import type { ResourceUri, AnnotationUri } from '../lib/uri-utils';
+import { resourceUri } from '../lib/uri-utils';
+import { annotationIdToURI } from '../lib/uri-utils';
+import { getExactText } from '../lib/uri-utils';
 import { v4 as uuidv4 } from 'uuid';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

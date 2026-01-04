@@ -17,7 +17,7 @@ import type { components, AnnotationUri, GenerationContext } from '@semiont/api-
 import { getEntityTypes } from '@semiont/api-client';
 import { FilesystemRepresentationStore } from '../storage/representation/representation-store';
 import { getPrimaryRepresentation, getEntityTypes as getResourceEntityTypes, decodeRepresentation } from '@semiont/api-client';
-import { FilesystemViewStorage } from '../storage/view-storage';
+import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { resourceId as createResourceId } from '@semiont/core';
 

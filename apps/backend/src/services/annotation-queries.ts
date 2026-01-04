@@ -6,10 +6,10 @@
  * - Graph queries use graph database
  */
 
-import { FilesystemViewStorage } from '../storage/view-storage';
+import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { getGraphDatabase } from '../graph/factory';
-import { resourceIdToURI } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
+import { resourceIdToURI } from '../lib/uri-utils';
+import type { components } from '../lib/uri-utils';
 import type {
   ResourceAnnotations,
   ResourceId,

@@ -7,12 +7,12 @@
 
 import * as path from 'path';
 import type { EnvironmentConfig } from '@semiont/core';
-import { EventStore } from '../events/event-store';
-import type { EventStorageConfig } from '../events/storage/event-storage';
+import { EventStore } from '@semiont/event-sourcing';
+import type { EventStorageConfig } from '@semiont/event-sourcing';
 import type { IdentifierConfig } from './identifier-service';
-import { EventQuery } from '../events/query/event-query';
-import { EventValidator } from '../events/validation/event-validator';
-import { FilesystemViewStorage } from '../storage/view-storage';
+import { EventQuery } from '@semiont/event-sourcing';
+import { EventValidator } from '@semiont/event-sourcing';
+import { FilesystemViewStorage } from '@semiont/event-sourcing';
 
 /**
  * Create and initialize an EventStore instance

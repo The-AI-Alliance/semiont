@@ -5,7 +5,7 @@
  * Does NOT touch the graph - graph is only for traversals
  */
 
-import { FilesystemViewStorage } from '../storage/view-storage';
+import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import type { components } from '@semiont/api-client';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 

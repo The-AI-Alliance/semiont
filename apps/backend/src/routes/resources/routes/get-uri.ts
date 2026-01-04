@@ -12,7 +12,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createEventStore } from '../../../services/event-store-service';
-import { EventQuery } from '../../../events/query/event-query';
+import { EventQuery } from '@semiont/event-sourcing';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getResourceEntityTypes as getEntityTypes } from '@semiont/api-client';
