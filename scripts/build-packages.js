@@ -8,9 +8,10 @@
  * 2. @semiont/core - Depends on @semiont/api-client for types
  * 3. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
  * 4. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)
- * 5. Backend - Consumes types from @semiont/api-client, @semiont/core, @semiont/event-sourcing, and @semiont/jobs
- * 6. @semiont/test-utils - Testing utilities
- * 7. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
+ * 5. @semiont/graph - Graph database abstraction (depends on @semiont/core and @semiont/api-client)
+ * 6. Backend - Consumes types from @semiont/api-client, @semiont/core, @semiont/event-sourcing, @semiont/jobs, and @semiont/graph
+ * 7. @semiont/test-utils - Testing utilities
+ * 8. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
  */
 
 const { execSync } = require('child_process');
@@ -55,6 +56,11 @@ const buildSteps = [
     name: '@semiont/jobs',
     type: 'package',
     description: 'Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)'
+  },
+  {
+    name: '@semiont/graph',
+    type: 'package',
+    description: 'Graph database abstraction (depends on @semiont/core and @semiont/api-client)'
   },
   {
     name: 'semiont-backend',

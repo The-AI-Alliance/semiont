@@ -14,7 +14,7 @@ import {
   type AnnotationUri,
   resourceUri,
 } from '@semiont/api-client';
-import { annotationIdToURI } from '../../lib/uri-utils';
+import { annotationIdToURI } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -879,7 +879,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     }
 
     // Load defaults
-    const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
+    const { DEFAULT_ENTITY_TYPES } = await import('../constants');
 
     // Merge with defaults
     this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);

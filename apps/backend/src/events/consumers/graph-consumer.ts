@@ -6,9 +6,9 @@
  */
 
 import { createEventStore, createEventQuery } from '../../services/event-store-service';
-import { getGraphDatabase } from '../../graph/factory';
+import { getGraphDatabase } from '@semiont/graph';
 import { didToAgent } from '@semiont/core';
-import type { GraphDatabase } from '../../graph/interface';
+import type { GraphDatabase } from '@semiont/graph';
 import type { components } from '@semiont/api-client';
 import type { ResourceEvent, StoredEvent, EnvironmentConfig, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, findBodyItem } from '@semiont/core';

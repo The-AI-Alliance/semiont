@@ -8,7 +8,7 @@
  * - OpenAPI spec is the source of truth
  */
 
-import { getGraphDatabase } from '../../../graph/factory';
+import { getGraphDatabase } from '@semiont/graph';
 import {
   getExactText,
   getTargetSource,
@@ -18,7 +18,7 @@ import {
 } from '@semiont/api-client';
 import type { ResourcesRouterType } from '../shared';
 import { resourceId as makeResourceId } from '@semiont/core';
-import { resourceIdToURI } from '../../../lib/uri-utils';
+import { resourceIdToURI } from '@semiont/core';
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 

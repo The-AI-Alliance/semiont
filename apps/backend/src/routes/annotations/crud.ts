@@ -29,7 +29,7 @@ import type {
 import { resourceId, annotationId, userId } from '@semiont/core';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
-import { uriToResourceId } from '../../lib/uri-utils';
+import { uriToResourceId } from '@semiont/core';
 import { validateRequestBody } from '../../middleware/validate-openapi';
 
 type Annotation = components['schemas']['Annotation'];

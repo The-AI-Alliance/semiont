@@ -1246,7 +1246,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
     // Initialize with defaults if not present
     if (this.entityTypesCollection === null) {
-      const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
+      const { DEFAULT_ENTITY_TYPES } = await import('../constants');
       this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
       // Persist defaults to Neptune
       try {

@@ -20,7 +20,7 @@ import {
   decodeRepresentation,
   getEntityTypes,
 } from '@semiont/api-client';
-import { uriToResourceId } from '../../lib/uri-utils';
+import { uriToResourceId } from '@semiont/core';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import {
   annotationId,

@@ -1047,7 +1047,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       }
 
       // Load defaults
-      const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
+      const { DEFAULT_ENTITY_TYPES } = await import('../constants');
 
       // Merge with defaults
       this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);

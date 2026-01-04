@@ -9,7 +9,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
+import { getGraphDatabase } from '@semiont/graph';
 import {
   CREATION_METHODS,
   generateUuid,

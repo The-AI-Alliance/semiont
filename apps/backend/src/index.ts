@@ -69,7 +69,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Import graph database for initialization
-import { getGraphDatabase } from './graph/factory';
+import { getGraphDatabase } from '@semiont/graph';
 // Import inference client for initialization
 import { getInferenceClient } from './inference/factory';
 // Import security headers middleware

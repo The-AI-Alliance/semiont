@@ -5,7 +5,7 @@
  * Full URIs are required by W3C Web Annotation Data Model.
  */
 
-import { resourceId, annotationId, type ResourceId, type AnnotationId } from '@semiont/core';
+import { resourceId, annotationId, type ResourceId, type AnnotationId } from './identifiers';
 import { resourceUri, annotationUri, type ResourceUri, type AnnotationUri } from '@semiont/api-client';
 
 /**

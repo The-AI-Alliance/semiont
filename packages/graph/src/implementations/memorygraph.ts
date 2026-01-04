@@ -524,7 +524,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
 
     // For now, initialize with defaults if not present
     if (this.entityTypesCollection === null) {
-      const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
+      const { DEFAULT_ENTITY_TYPES } = await import('../constants');
       this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
     }
   }

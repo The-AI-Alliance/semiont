@@ -9,7 +9,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
+import { getGraphDatabase } from '@semiont/graph';
 import { generateResourceSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';

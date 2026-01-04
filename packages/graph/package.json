@@ -1,0 +1,65 @@
+{
+  "name": "@semiont/graph",
+  "version": "0.2.28",
+  "type": "module",
+  "description": "Graph database abstraction with Neo4j, Neptune, JanusGraph, and in-memory implementations",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "npm run typecheck && tsup",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@semiont/api-client": "*",
+    "@semiont/core": "*",
+    "uuid": "^9.0.1"
+  },
+  "peerDependencies": {
+    "neo4j-driver": "^5.28.2",
+    "gremlin": "^3.7.4",
+    "@aws-sdk/client-neptune": "^3.600.0"
+  },
+  "peerDependenciesMeta": {
+    "neo4j-driver": {
+      "optional": true
+    },
+    "gremlin": {
+      "optional": true
+    },
+    "@aws-sdk/client-neptune": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.8",
+    "tsup": "^8.0.1",
+    "typescript": "^5.6.3"
+  },
+  "keywords": [
+    "graph-database",
+    "neo4j",
+    "neptune",
+    "janusgraph",
+    "gremlin",
+    "knowledge-graph",
+    "semantic-web"
+  ],
+  "author": "The AI Alliance",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/graph"
+  }
+}
