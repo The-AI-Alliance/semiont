@@ -51,6 +51,12 @@
         "POSTGRES_PASSWORD": "testpass"
       }
     },
+    "graph": {
+      "platform": {
+        "type": "posix"
+      },
+      "type": "memory"
+    },
     "mcp": {
       "platform": {
         "type": "posix"

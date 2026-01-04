@@ -10,6 +10,75 @@ export type PlatformType = 'posix' | 'container' | 'aws' | 'external';
  * via the `definition` "GraphDatabaseType".
  */
 export type GraphDatabaseType = 'neo4j' | 'janusgraph' | 'neptune' | 'memory';
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "GraphServiceConfig".
+ */
+export type GraphServiceConfig = {
+  [k: string]: unknown;
+} & {
+  platform: ServicePlatformConfig;
+  type: GraphDatabaseType;
+  name?: string;
+  uri?: string;
+  url?: string;
+  username?: string;
+  password?: string;
+  database?: string;
+  host?: string;
+  port?: number;
+  storage?: string;
+  index?: string;
+  endpoint?: string;
+  region?: string;
+  command?: string;
+  image?: string;
+  janusgraphVersion?: string;
+  javaOptions?: string;
+  heapSize?: string;
+  pageCacheSize?: string;
+  noAuth?: boolean;
+  dataPath?: string;
+  timeout?: number;
+  wait?: number;
+  logsEndpoint?: string;
+  tag?: string;
+  resources?: ResourceRequirements;
+  security?: SecurityRequirements;
+  build?: boolean | BuildRequirements;
+  dockerfile?: string;
+  buildContext?: string;
+  buildArgs?: {
+    [k: string]: string;
+  };
+  buildTarget?: string;
+  prebuilt?: boolean;
+  noCache?: boolean;
+  secrets?: string[];
+  labels?: {
+    [k: string]: string;
+  };
+  annotations?: {
+    [k: string]: string;
+  };
+  dependencies?: string[];
+  externalDependencies?: (
+    | string
+    | {
+        name?: string;
+        url?: string;
+        required?: boolean;
+        healthCheck?: string;
+        [k: string]: unknown;
+      }
+  )[];
+  environment?: {
+    [k: string]: string;
+  };
+  env?: {
+    [k: string]: string;
+  };
+};
 
 export interface HttpsSemiontOrgSchemasConfigJson {
   [k: string]: unknown;
@@ -240,73 +309,6 @@ export interface DatabaseServiceConfig {
         [k: string]: unknown;
       }
   )[];
-}
-/**
- * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
- * via the `definition` "GraphServiceConfig".
- */
-export interface GraphServiceConfig {
-  platform: ServicePlatformConfig;
-  type: GraphDatabaseType;
-  name?: string;
-  uri: string;
-  url?: string;
-  username: string;
-  password: string;
-  database: string;
-  host?: string;
-  port?: number;
-  storage?: string;
-  index?: string;
-  endpoint?: string;
-  region?: string;
-  command?: string;
-  image?: string;
-  janusgraphVersion?: string;
-  javaOptions?: string;
-  heapSize?: string;
-  pageCacheSize?: string;
-  noAuth?: boolean;
-  dataPath?: string;
-  timeout?: number;
-  wait?: number;
-  logsEndpoint?: string;
-  tag?: string;
-  resources?: ResourceRequirements;
-  security?: SecurityRequirements;
-  build?: boolean | BuildRequirements;
-  dockerfile?: string;
-  buildContext?: string;
-  buildArgs?: {
-    [k: string]: string;
-  };
-  buildTarget?: string;
-  prebuilt?: boolean;
-  noCache?: boolean;
-  secrets?: string[];
-  labels?: {
-    [k: string]: string;
-  };
-  annotations?: {
-    [k: string]: string;
-  };
-  dependencies?: string[];
-  externalDependencies?: (
-    | string
-    | {
-        name?: string;
-        url?: string;
-        required?: boolean;
-        healthCheck?: string;
-        [k: string]: unknown;
-      }
-  )[];
-  environment?: {
-    [k: string]: string;
-  };
-  env?: {
-    [k: string]: string;
-  };
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
