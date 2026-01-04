@@ -5,7 +5,7 @@
  * Each hook returns an object with useQuery and/or useMutation methods.
  *
  * Pattern:
- * - useApiClient() provides authenticated client instance
+ * - useApiClient() provides authenticated client instance from ApiClientContext
  * - useResources() provides resource operations
  * - useAnnotations() provides annotation operations
  * - useEntityTypes() provides entity type operations
@@ -13,46 +13,27 @@
  */
 
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
-import { useSession } from 'next-auth/react';
-import { useMemo } from 'react';
 import {
   SemiontApiClient,
   type ResourceUri,
   type AnnotationUri,
   type ResourceAnnotationUri,
-  baseUrl,
-  accessToken,
   searchQuery,
   cloneToken,
   entityType,
   userDID
 } from '@semiont/api-client';
 import { QUERY_KEYS } from './query-keys';
+import { useApiClient as useApiClientContext } from '../contexts/ApiClientContext';
 
 /**
  * Get authenticated API client instance
  * Returns null if not authenticated
  *
- * IMPORTANT: Memoized to return stable reference - only recreates when token changes
- *
- * Uses relative URLs (empty string) for browser API calls.
- * Routing layer (Envoy/ALB/nginx/etc.) routes /resources/*, /annotations/*, etc. to backend
+ * IMPORTANT: Uses ApiClientContext to get client provided by app
  */
 export function useApiClient(): SemiontApiClient | null {
-  const { data: session } = useSession();
-
-  return useMemo(() => {
-    if (!session?.backendToken) {
-      return null;
-    }
-
-    return new SemiontApiClient({
-      baseUrl: baseUrl(''), // Empty string = relative URLs, routing layer handles routing
-      accessToken: accessToken(session.backendToken),
-      // Use no timeout in test environment to avoid AbortController issues with ky + vitest
-      ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
-    });
-  }, [session?.backendToken]);
+  return useApiClientContext();
 }
 
 /**

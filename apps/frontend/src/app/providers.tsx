@@ -3,12 +3,14 @@
 import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SessionProvider } from 'next-auth/react';
-import { ToastProvider, SessionProvider as CustomSessionProvider, LiveRegionProvider } from '@semiont/react-ui';
+import { ToastProvider, SessionProvider as CustomSessionProvider, LiveRegionProvider, TranslationProvider, ApiClientProvider } from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { dispatch401Error, dispatch403Error } from '@semiont/react-ui';
 import { APIError } from '@semiont/api-client';
 import { useSessionManager } from '@/hooks/useSessionManager';
+import { useTranslationManager } from '@/hooks/useTranslationManager';
+import { useApiClientManager } from '@/hooks/useApiClientManager';
 
 // Create a minimal QueryClient with error handlers and retry logic
 // Authentication is handled by @semiont/api-client via lib/api-hooks
@@ -66,20 +68,26 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // Create QueryClient once per app instance
   const [queryClient] = useState(() => createQueryClient());
   const sessionManager = useSessionManager();
+  const translationManager = useTranslationManager();
+  const apiClientManager = useApiClientManager();
 
   return (
     <SessionProvider>
       <AuthErrorBoundary>
         <CustomSessionProvider sessionManager={sessionManager}>
-          <QueryClientProvider client={queryClient}>
-            <ToastProvider>
-              <LiveRegionProvider>
-                <KeyboardShortcutsProvider>
-                  {children}
-                </KeyboardShortcutsProvider>
-              </LiveRegionProvider>
-            </ToastProvider>
-          </QueryClientProvider>
+          <TranslationProvider translationManager={translationManager}>
+            <ApiClientProvider apiClientManager={apiClientManager}>
+              <QueryClientProvider client={queryClient}>
+                <ToastProvider>
+                  <LiveRegionProvider>
+                    <KeyboardShortcutsProvider>
+                      {children}
+                    </KeyboardShortcutsProvider>
+                  </LiveRegionProvider>
+                </ToastProvider>
+              </QueryClientProvider>
+            </ApiClientProvider>
+          </TranslationProvider>
         </CustomSessionProvider>
       </AuthErrorBoundary>
     </SessionProvider>

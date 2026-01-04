@@ -3,6 +3,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { SessionExpiredModal } from '../SessionExpiredModal';
 import { SessionProvider } from '../../../contexts/SessionContext';
+import type { SessionManager } from '../../../types/SessionManager';
 
 // Mock next-auth (must use factory function for hoisting)
 vi.mock('next-auth/react', () => ({
@@ -29,8 +30,15 @@ Object.defineProperty(window, 'location', {
 
 // Helper to render with SessionProvider
 const renderWithSession = (isAuthenticated = false) => {
+  const mockSessionManager: SessionManager = {
+    isAuthenticated,
+    expiresAt: null,
+    timeUntilExpiry: null,
+    isExpiringSoon: false,
+  };
+
   return render(
-    <SessionProvider isAuthenticated={isAuthenticated}>
+    <SessionProvider sessionManager={mockSessionManager}>
       <SessionExpiredModal />
     </SessionProvider>
   );
