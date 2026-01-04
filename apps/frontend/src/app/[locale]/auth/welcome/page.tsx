@@ -1,24 +1,29 @@
 'use client';
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
-import { PageLayout } from '@/components/PageLayout';
-import { useToast } from '@/components/Toast';
-import { useAuth } from '@/lib/api-hooks';
+import { PageLayout, useToast, useAuthApi } from '@semiont/react-ui';
+import { CookiePreferences } from '@/components/CookiePreferences';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { Link as RoutingLink, routes } from '@/lib/routing';
 
 export default function Welcome() {
   const t = useTranslations('AuthWelcome');
+  const tFooter = useTranslations('Footer');
+  const tNav = useTranslations('Navigation');
+  const tHome = useTranslations('Home');
+  const keyboardContext = useContext(KeyboardShortcutsContext);
   const { data: session, status } = useSession();
   const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const { showError } = useToast();
+  const toast = useToast();
 
   // API hooks
-  const authAPI = useAuth();
+  const authAPI = useAuthApi();
 
   // Query user data to check if terms already accepted
   const { data: userData } = authAPI.me.useQuery();
@@ -65,14 +70,23 @@ export default function Welcome() {
       }, 1000);
     } catch (error) {
       console.error('Terms acceptance error:', error);
-      showError(t('errorAcceptingTerms'));
+      toast.showError(t('errorAcceptingTerms'));
     }
   };
 
   // Show loading while session is being fetched
   if (status === 'loading') {
     return (
-      <PageLayout className="bg-gray-50 dark:bg-gray-900">
+      <PageLayout
+        Link={RoutingLink}
+        routes={routes}
+        t={tFooter}
+        tNav={tNav}
+        tHome={tHome}
+        CookiePreferences={CookiePreferences}
+        {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+        className="bg-gray-50 dark:bg-gray-900"
+      >
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
             <div className="w-8 h-8 mx-auto animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
@@ -86,7 +100,16 @@ export default function Welcome() {
   // Show terms accepted confirmation
   if (termsAccepted) {
     return (
-      <PageLayout className="bg-gray-50 dark:bg-gray-900">
+      <PageLayout
+        Link={RoutingLink}
+        routes={routes}
+        t={tFooter}
+        tNav={tNav}
+        tHome={tHome}
+        CookiePreferences={CookiePreferences}
+        {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+        className="bg-gray-50 dark:bg-gray-900"
+      >
         <div className="flex items-center justify-center py-20">
           <div className="max-w-md w-full text-center space-y-6">
             <div className="w-16 h-16 mx-auto bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
@@ -108,7 +131,16 @@ export default function Welcome() {
 
   // Show terms acceptance form
   return (
-    <PageLayout className="bg-gray-50 dark:bg-gray-900">
+    <PageLayout
+      Link={RoutingLink}
+      routes={routes}
+      t={tFooter}
+      tNav={tNav}
+      tHome={tHome}
+      CookiePreferences={CookiePreferences}
+      {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+      className="bg-gray-50 dark:bg-gray-900"
+    >
       <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-8">
           <div className="text-center mb-8">

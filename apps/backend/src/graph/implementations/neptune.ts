@@ -18,8 +18,8 @@ import type {
 import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
-import { getTargetSource, getTargetSelector } from '../../lib/annotation-utils';
-import { getPrimaryRepresentation, getResourceId } from '../../utils/resource-helpers';
+import { getTargetSource, getTargetSelector } from '@semiont/api-client';
+import { getPrimaryRepresentation, getResourceId } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];

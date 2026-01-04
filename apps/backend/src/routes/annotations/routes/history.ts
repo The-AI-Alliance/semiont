@@ -12,7 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-import { getTargetSource } from '../../../lib/annotation-utils';
+import { getTargetSource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 

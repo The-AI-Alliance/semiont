@@ -23,7 +23,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
-import { getTargetSelector } from '../../../lib/annotation-utils';
+import { getTargetSelector } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/api-client';
 import { jobId, entityType, resourceUri } from '@semiont/api-client';
 import { userId, resourceId, annotationId as makeAnnotationId } from '@semiont/core';

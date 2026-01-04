@@ -16,23 +16,23 @@ vi.mock('next-auth/react', () => ({
 }));
 
 // Mock custom contexts
-vi.mock('@/contexts/SessionContext', () => ({
-  SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useCustomSession: () => ({ isFullyAuthenticated: true })
-}));
-
 vi.mock('@/contexts/KeyboardShortcutsContext', () => ({
   KeyboardShortcutsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }));
 
-vi.mock('@/components/Toast', () => ({
-  ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useToast: () => ({ showError: vi.fn(), showSuccess: vi.fn() })
-}));
-
-vi.mock('@/components/LiveRegion', () => ({
-  LiveRegionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
-}));
+// Mock @semiont/react-ui components
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    LiveRegionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    useToast: () => ({ showError: vi.fn(), showSuccess: vi.fn() }),
+    dispatch401Error: vi.fn(),
+    dispatch403Error: vi.fn(),
+  };
+});
 
 vi.mock('@/components/AuthErrorBoundary', () => ({
   AuthErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>

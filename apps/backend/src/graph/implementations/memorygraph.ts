@@ -19,8 +19,8 @@ import { resourceId as makeResourceId } from '@semiont/core';
 import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { resourceUri } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
-import { getBodySource, getTargetSource } from '../../lib/annotation-utils';
-import { getResourceId, getEntityTypes as getResourceEntityTypes, getPrimaryRepresentation } from '../../utils/resource-helpers';
+import { getBodySource, getTargetSource } from '@semiont/api-client';
+import { getResourceId, getEntityTypes as getResourceEntityTypes, getPrimaryRepresentation } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];

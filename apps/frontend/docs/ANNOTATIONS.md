@@ -86,7 +86,9 @@ For complete architecture details on how annotations flow through the backend da
 
 ### Purpose
 
-The Annotation Registry ([src/lib/annotation-registry.ts](../src/lib/annotation-registry.ts)) is a centralized system that provides a **single source of truth** for all annotation type metadata. This eliminates hard-coded lists scattered across the codebase and makes it trivial to add new W3C annotation motivations.
+The Annotation Registry is provided by `@semiont/react-ui` and is a centralized system that provides a **single source of truth** for all annotation type metadata. This eliminates hard-coded lists scattered across the codebase and makes it trivial to add new W3C annotation motivations.
+
+**Implementation**: [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts)
 
 ### Design Philosophy
 
@@ -297,15 +299,14 @@ const announceAnnotationCreated = (annotation: Annotation) => {
 
 ### Adding New Annotation Types
 
-To add a new W3C motivation (e.g., `tagging`), edit **only** [src/lib/annotation-registry.ts](../src/lib/annotation-registry.ts):
+To add a new W3C motivation (e.g., `tagging`), edit **only** [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts):
 
 ```typescript
-export const ANNOTATION_TYPES: Record<string, AnnotationTypeMetadata> = {
+export const ANNOTATORS: Record<string, Annotator> = {
   // ... existing types ...
 
   tag: {
     motivation: 'tagging',
-    internalType: 'tag',
     displayName: 'Tag',
     description: 'Add semantic tags to content',
     className: 'rounded px-0.5 cursor-pointer transition-all duration-200 bg-green-200 hover:bg-green-300 text-gray-900 dark:bg-green-900/50',
@@ -313,8 +314,7 @@ export const ANNOTATION_TYPES: Record<string, AnnotationTypeMetadata> = {
     isClickable: true,
     hasHoverInteraction: true,
     hasSidePanel: true,  // If tags have a side panel
-    matchesAnnotation: (ann) => ann.motivation === 'tagging',
-    announceOnCreate: 'Tag created'
+    matchesAnnotation: (ann) => ann.motivation === 'tagging'
   }
 };
 ```
@@ -323,15 +323,16 @@ That's it! All styling, filtering, hover behavior, click handling, and accessibi
 
 ### Files Using the Registry
 
-The registry is imported and used throughout the frontend:
+The registry is imported and used in `@semiont/react-ui` components:
 
-- [src/lib/rehype-render-annotations.ts](../src/lib/rehype-render-annotations.ts) - Markdown rendering
-- [src/components/CodeMirrorRenderer.tsx](../src/components/CodeMirrorRenderer.tsx) - Code editor rendering
-- [src/components/resource/BrowseView.tsx](../src/components/resource/BrowseView.tsx) - Browse mode rendering
-- [src/components/resource/AnnotateView.tsx](../src/components/resource/AnnotateView.tsx) - Annotate mode rendering
-- [src/components/resource/ResourceViewer.tsx](../src/components/resource/ResourceViewer.tsx) - Click handlers
-- [src/app/[locale]/know/resource/[id]/page.tsx](../src/app/%5Blocale%5D/know/resource/%5Bid%5D/page.tsx) - Annotation filtering
-- [src/components/LiveRegion.tsx](../src/components/LiveRegion.tsx) - Accessibility announcements
+- [`@semiont/react-ui/src/lib/rehype-render-annotations.ts`](../../../packages/react-ui/src/lib/rehype-render-annotations.ts) - Markdown rendering
+- [`@semiont/react-ui/src/components/CodeMirrorRenderer.tsx`](../../../packages/react-ui/src/components/CodeMirrorRenderer.tsx) - Code editor rendering
+- [`@semiont/react-ui/src/components/resource/BrowseView.tsx`](../../../packages/react-ui/src/components/resource/BrowseView.tsx) - Browse mode rendering
+- [`@semiont/react-ui/src/components/resource/AnnotateView.tsx`](../../../packages/react-ui/src/components/resource/AnnotateView.tsx) - Annotate mode rendering
+- [`@semiont/react-ui/src/components/resource/ResourceViewer.tsx`](../../../packages/react-ui/src/components/resource/ResourceViewer.tsx) - Click handlers
+
+And in the frontend app:
+- [src/app/[locale]/know/resource/[id]/page.tsx](../src/app/%5Blocale%5D/know/resource/%5Bid%5D/page.tsx) - Annotation filtering and detection handlers
 
 ### Benefits
 
@@ -639,8 +640,9 @@ The modular architecture ensures maintainability and extensibility, while the pr
 
 ## Related Documentation
 
-### Annotation System
-- [src/lib/annotation-registry.ts](../src/lib/annotation-registry.ts) - Source code for the Annotation Registry
+### React UI Library
+- [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Complete annotation system documentation with Provider Pattern architecture
+- [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts) - Source code for the Annotation Registry
 
 ### W3C Web Annotation Implementation
 - [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all components (UI, API, Event Store, Graph)

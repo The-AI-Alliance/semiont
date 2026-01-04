@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
-import { useOpenResources } from '@/contexts/OpenResourcesContext';
+import { useOpenResources } from '@semiont/react-ui';
 import {
   DndContext,
   closestCenter,

@@ -1,7 +1,7 @@
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { validateData, JWTTokenSchema } from '@semiont/api-client';
-import { OAuthUserSchema } from '@/lib/validation';
+import { OAuthUserSchema } from '@semiont/react-ui';
 import {
   SERVER_API_URL,
   getAllowedDomains

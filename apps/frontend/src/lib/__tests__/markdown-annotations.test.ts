@@ -3,8 +3,8 @@ import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkRehype from 'remark-rehype';
 import rehypeStringify from 'rehype-stringify';
-import { remarkAnnotations } from '../remark-annotations';
-import { rehypeRenderAnnotations } from '../rehype-render-annotations';
+import { remarkAnnotations } from '@semiont/react-ui';
+import { rehypeRenderAnnotations } from '@semiont/react-ui';
 
 describe('Markdown Annotations', () => {
   describe('Basic annotation rendering', () => {

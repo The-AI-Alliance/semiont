@@ -1089,7 +1089,9 @@ console.log('Cloned resource:', cloned.resource.id);
 
 ## See Also
 
-- [README.md](../README.md) - Package overview and API reference
-- [Utilities Guide](./Utilities.md) - W3C annotation and event utilities
+- [README.md](../README.md) - Package overview and quick start
+- [API Reference](./API-Reference.md) - Complete method documentation
+- [Utilities Guide](./Utilities.md) - W3C annotation utilities (text encoding, fuzzy anchoring, SVG)
+- [Logging Guide](./LOGGING.md) - Logging configuration and best practices
 - [OpenAPI Specification](../../../specs/README.md) - Complete API schema (source in [../../../specs/src/](../../../specs/src/))
 - [Demo Scripts](../../../demo/) - Complete working examples

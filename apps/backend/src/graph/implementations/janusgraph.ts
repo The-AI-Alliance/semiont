@@ -5,7 +5,7 @@ import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
 import { getEntityTypes, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
-import { getPrimaryRepresentation, getResourceId } from '../../utils/resource-helpers';
+import { getPrimaryRepresentation, getResourceId } from '@semiont/api-client';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -20,7 +20,7 @@ import type {
 } from '@semiont/core';
 import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { resourceUri } from '@semiont/api-client';
-import { annotationIdToURI } from '../../lib/uri-utils';
+import { annotationIdToURI } from '@semiont/api-client';
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 
