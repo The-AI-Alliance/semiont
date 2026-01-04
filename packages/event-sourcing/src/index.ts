@@ -31,7 +31,7 @@ export { getShardPath, sha256, jumpConsistentHash } from './storage/shard-utils'
 export {
   type EventCallback,
   type EventSubscription,
-  type EventSubscriptions,
+  EventSubscriptions,
   getEventSubscriptions,
 } from './subscriptions/event-subscriptions';
 
