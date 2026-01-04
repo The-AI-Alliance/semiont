@@ -7,9 +7,17 @@ import AdminUsers from '../client';
 import { useAdmin } from '@semiont/react-ui';
 
 // Mock the API hooks
-vi.mock('@/lib/api-hooks', () => ({
-  useAdmin: vi.fn()
-}));
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    useAdmin: vi.fn(),
+    useTheme: () => ({
+      theme: 'system',
+      setTheme: vi.fn()
+    })
+  };
+});
 
 // Mock window functions
 Object.defineProperty(window, 'confirm', {
@@ -21,14 +29,6 @@ Object.defineProperty(window, 'alert', {
   writable: true,
   value: vi.fn()
 });
-
-// Mock the useTheme hook
-vi.mock('@/hooks/useTheme', () => ({
-  useTheme: () => ({
-    theme: 'system',
-    setTheme: vi.fn()
-  })
-}));
 
 // Mock the Toolbar component
 vi.mock('@/components/Toolbar', () => ({

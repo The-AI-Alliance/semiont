@@ -5,20 +5,21 @@ import AdminLayout from '../layout';
 
 // Mock the admin components
 // Note: AdminAuthWrapper was removed - auth is now handled by middleware
-vi.mock('@/components/shared/LeftSidebar', () => ({
-  LeftSidebar: ({ children }: { children: React.ReactNode | ((isCollapsed: boolean, toggleCollapsed: () => void) => React.ReactNode) }) => (
-    <aside data-testid="admin-sidebar">
-      {typeof children === 'function' ? children(false, () => {}) : children}
-    </aside>
-  ),
-}));
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    LeftSidebar: ({ children }: { children: React.ReactNode }) => (
+      <aside data-testid="admin-sidebar">
+        {children}
+      </aside>
+    ),
+    Footer: () => <footer data-testid="admin-footer">Footer</footer>,
+  };
+});
 
 vi.mock('@/components/admin/AdminNavigation', () => ({
   AdminNavigation: () => <nav data-testid="admin-navigation">Admin Navigation</nav>,
-}));
-
-vi.mock('@/components/Footer', () => ({
-  Footer: () => <footer data-testid="admin-footer">Footer</footer>,
 }));
 
 vi.mock('@/lib/env', () => ({
