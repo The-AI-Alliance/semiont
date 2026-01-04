@@ -94,9 +94,6 @@ export function ResourceViewer({
   // Use prop directly instead of internal state
   const activeView = annotateMode ? 'annotate' : 'browse';
   const {
-    addHighlight,
-    addReference,
-    addAssessment,
     deleteAnnotation,
     createAnnotation
   } = useResourceAnnotations();
@@ -258,44 +255,43 @@ export function ResourceViewer({
   }, [annotateMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, onTagClick, selectedClick, handleDeleteAnnotation]);
 
   // Unified annotation creation handler - works for both text and images
-  const handleAnnotationCreate = useCallback(async (params: import('../../types/annotation-props').CreateAnnotationParams) => {
+  const handleAnnotationCreate = useCallback(async (params: import('../../types/annotation-props').UICreateAnnotationParams) => {
     const { motivation, selector, position } = params;
 
     try {
       switch (motivation) {
         case 'highlighting':
         case 'assessing':
-          // Create highlight/assessment immediately
+          // Create highlight/assessment immediately using generic createAnnotation
           if (selector.type === 'TextQuoteSelector' && selector.exact) {
-            // Text annotations use specialized helpers
-            let newAnnotationId: string | undefined;
-            if (motivation === 'highlighting') {
-              newAnnotationId = await addHighlight(
-                rUri,
-                selector.exact,
-                { start: selector.start || 0, end: selector.end || 0 },
-                {
-                  ...(selector.prefix && { prefix: selector.prefix }),
-                  ...(selector.suffix && { suffix: selector.suffix })
-                }
-              );
-              // Focus the new highlight to trigger panel tab switch
-              if (newAnnotationId && onHighlightClick) {
-                onHighlightClick(newAnnotationId);
+            // Build selectors array for text annotation
+            const selectors: any[] = [
+              {
+                type: 'TextQuoteSelector',
+                exact: selector.exact,
+                ...(selector.prefix && { prefix: selector.prefix }),
+                ...(selector.suffix && { suffix: selector.suffix })
+              },
+              {
+                type: 'TextPositionSelector',
+                start: selector.start || 0,
+                end: selector.end || 0
               }
-            } else {
-              newAnnotationId = await addAssessment(
-                rUri,
-                selector.exact,
-                { start: selector.start || 0, end: selector.end || 0 },
-                {
-                  ...(selector.prefix && { prefix: selector.prefix }),
-                  ...(selector.suffix && { suffix: selector.suffix })
-                }
-              );
-              // Focus the new assessment to trigger panel tab switch
-              if (newAnnotationId && onAssessmentClick) {
-                onAssessmentClick(newAnnotationId);
+            ];
+
+            const annotation = await createAnnotation(
+              rUri,
+              motivation,
+              selectors,
+              []
+            );
+
+            // Focus the new annotation to trigger panel tab switch
+            if (annotation) {
+              if (motivation === 'highlighting' && onHighlightClick) {
+                onHighlightClick(annotation.id);
+              } else if (motivation === 'assessing' && onAssessmentClick) {
+                onAssessmentClick(annotation.id);
               }
             }
             onRefetchAnnotations?.();
@@ -388,7 +384,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create annotation:', err);
     }
-  }, [rUri, addHighlight, addAssessment, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onTagCreationRequested, onReferenceCreationRequested, onCommentClick, onTagClick]);
+  }, [rUri, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onTagCreationRequested, onReferenceCreationRequested, onCommentClick, onTagClick, onHighlightClick, onAssessmentClick]);
 
   // Quick action: Delete annotation from widget
   const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {

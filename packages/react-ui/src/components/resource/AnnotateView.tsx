@@ -14,7 +14,7 @@ type Annotation = components['schemas']['Annotation'];
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { TextSegment } from '../CodeMirrorRenderer';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
-import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState, CreateAnnotationParams } from '../../types/annotation-props';
+import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState, UICreateAnnotationParams } from '../../types/annotation-props';
 
 // Re-export for convenience
 export type { SelectionMotivation, ClickAction, ShapeType };

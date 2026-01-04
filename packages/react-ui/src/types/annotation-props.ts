@@ -39,10 +39,11 @@ export interface AnnotationHandlers {
 }
 
 /**
- * Parameters for unified annotation creation.
+ * UI-level parameters for annotation creation.
  * Works for both text selections and image shapes.
+ * Used by annotation UI components before converting to AnnotationManager params.
  */
-export interface CreateAnnotationParams {
+export interface UICreateAnnotationParams {
   /** The motivation for creating this annotation */
   motivation: import('@semiont/react-ui').SelectionMotivation;
 
@@ -84,7 +85,7 @@ export interface CreateAnnotationParams {
  * - linking: Shows Quick Reference popup FIRST, creates when user confirms
  */
 export interface AnnotationCreationHandler {
-  onCreate?: (params: CreateAnnotationParams) => void | Promise<void> | Promise<Annotation | undefined>;
+  onCreate?: (params: UICreateAnnotationParams) => void | Promise<void> | Promise<Annotation | undefined>;
 }
 
 /**

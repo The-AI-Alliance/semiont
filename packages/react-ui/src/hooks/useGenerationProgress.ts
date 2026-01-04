@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { AnnotationUri, ResourceUri, GenerationProgress as ApiGenerationProgress, SSEStream, GenerationContext } from '@semiont/api-client';
-import { useApiClient } from '../lib/api-hooks';
+import { useApiClient } from '../contexts/ApiClientContext';
 
 // Use API type directly (no extensions needed)
 export type GenerationProgress = ApiGenerationProgress;

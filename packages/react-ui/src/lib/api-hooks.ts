@@ -24,17 +24,7 @@ import {
   userDID
 } from '@semiont/api-client';
 import { QUERY_KEYS } from './query-keys';
-import { useApiClient as useApiClientContext } from '../contexts/ApiClientContext';
-
-/**
- * Get authenticated API client instance
- * Returns null if not authenticated
- *
- * IMPORTANT: Uses ApiClientContext to get client provided by app
- */
-export function useApiClient(): SemiontApiClient | null {
-  return useApiClientContext();
-}
+import { useApiClient } from '../contexts/ApiClientContext';
 
 /**
  * Resource operations

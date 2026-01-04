@@ -922,12 +922,12 @@ function ResourceView({
                           type: 'TextQuoteSelector',
                           exact: pendingCommentSelection.exact,
                         }
-                      ], {
+                      ], [{
                         type: 'TextualBody',
                         value: commentText,
                         format: 'text/plain',
                         purpose: 'commenting',
-                      });
+                      }]);
                       setPendingCommentSelection(null);
                     }
                   },

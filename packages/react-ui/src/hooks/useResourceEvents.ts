@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ResourceUri, ResourceEvent as ApiResourceEvent, SSEStream } from '@semiont/api-client';
-import { useApiClient } from '../lib/api-hooks';
+import { useApiClient } from '../contexts/ApiClientContext';
 
 /**
  * Resource event structure from the event store

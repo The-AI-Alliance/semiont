@@ -5,7 +5,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ResourceUri, DetectionProgress as ApiDetectionProgress, SSEStream } from '@semiont/api-client';
 import { entityType } from '@semiont/api-client';
-import { useApiClient } from '../lib/api-hooks';
+import { useApiClient } from '../contexts/ApiClientContext';
 
 // Extend API type with frontend-specific fields
 export interface DetectionProgress extends ApiDetectionProgress {
