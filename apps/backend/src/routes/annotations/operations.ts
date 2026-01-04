@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { generateText } from '../../inference/factory';
+import { generateText } from '@semiont/inference';
 import {
   getTargetSource,
   getTargetSelector,

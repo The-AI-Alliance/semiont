@@ -37,6 +37,7 @@
     "@semiont/core": "*",
     "@semiont/event-sourcing": "*",
     "@semiont/graph": "*",
+    "@semiont/inference": "*",
     "@semiont/jobs": "*",
     "ajv": "^8.17.1",
     "ajv-formats": "^2.1.1",

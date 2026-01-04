@@ -12,7 +12,7 @@ import type { Job, GenerationJob } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { ResourceQueryService } from '../../services/resource-queries';
-import { generateResourceFromTopic } from '../../inference/factory';
+import { generateResourceFromTopic } from '@semiont/inference';
 import {
   getTargetSelector,
   getExactText,

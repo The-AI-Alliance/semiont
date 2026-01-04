@@ -28,7 +28,7 @@ const mockGenerationContext: GenerationContext = {
 };
 
 // Mock AI generation to avoid external API calls
-vi.mock('../../inference/factory', () => ({
+vi.mock('@semiont/inference', () => ({
   generateResourceFromTopic: vi.fn().mockResolvedValue({
     content: '# Test Resource\n\nGenerated content about test topic.',
     metadata: { format: 'text/markdown' }

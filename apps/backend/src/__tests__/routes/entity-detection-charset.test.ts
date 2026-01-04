@@ -17,7 +17,7 @@ import { join } from 'path';
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 // Mock the AI entity extractor to just find known entity strings
-vi.mock('../../inference/entity-extractor', () => ({
+vi.mock('@semiont/inference', () => ({
   extractEntities: vi.fn(async (text: string, entityTypes: string[]) => {
     // Simple mock: find entity type names in the text
     const entities: any[] = [];
@@ -308,7 +308,7 @@ describe('Entity Detection - Charset Handling', () => {
     };
 
     // Mock entity extractor to find "café"
-    const { extractEntities } = await import('../../inference/entity-extractor');
+    const { extractEntities } = await import('@semiont/inference');
     (extractEntities as any).mockImplementationOnce(async (text: string) => {
       const index = text.indexOf('café');
       if (index === -1) return [];

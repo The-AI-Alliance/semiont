@@ -71,7 +71,7 @@ const __dirname = path.dirname(__filename);
 // Import graph database for initialization
 import { getGraphDatabase } from '@semiont/graph';
 // Import inference client for initialization
-import { getInferenceClient } from './inference/factory';
+import { getInferenceClient } from '@semiont/inference';
 // Import security headers middleware
 import { securityHeaders } from './middleware/security-headers';
 // Import logging middleware

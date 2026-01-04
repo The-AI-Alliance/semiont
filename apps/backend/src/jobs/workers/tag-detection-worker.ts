@@ -20,7 +20,7 @@ import {
   getSchemaCategory,
   validateAndCorrectOffsets,
 } from '@semiont/api-client';
-import { generateText } from '../../inference/factory';
+import { generateText } from '@semiont/inference';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 

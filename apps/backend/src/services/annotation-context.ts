@@ -11,7 +11,7 @@
  * - Generation worker: Pre-fetched context included in job payload
  */
 
-import { generateResourceSummary } from '../inference/factory';
+import { generateResourceSummary } from '@semiont/inference';
 import { getBodySource, getTargetSource, getTargetSelector } from '@semiont/api-client';
 import type { components, AnnotationUri, GenerationContext } from '@semiont/api-client';
 import { getEntityTypes, getResourceEntityTypes } from '@semiont/api-client';
