@@ -43,8 +43,8 @@ const eventStoreCache = new Map();
 // Mock createEventStore to avoid requiring project config
 vi.mock('../../services/event-store-service', async (importOriginal) => {
   const actual = await importOriginal() as any;
-  const { EventStore } = await import('../../events/event-store');
-  const { FilesystemViewStorage } = await import('../../storage/view-storage');
+  const { EventStore } = await import('@semiont/event-sourcing');
+  const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
 
   return {
     ...actual,

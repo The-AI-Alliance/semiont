@@ -13,7 +13,13 @@ import { FilesystemRepresentationStore } from '../../storage/representation/repr
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { generateResourceFromTopic } from '../../inference/factory';
-import { getTargetSelector } from '../../lib/uri-utils';
+import {
+  getTargetSelector,
+  getExactText,
+  resourceUri,
+  annotationUri,
+  getEntityTypes,
+} from '@semiont/api-client';
 import {
   CREATION_METHODS,
   generateUuid,
@@ -21,10 +27,7 @@ import {
   resourceId,
   annotationId,
 } from '@semiont/core';
-import { getExactText, resourceUri, annotationUri } from '../../lib/uri-utils';
 import { createEventStore } from '../../services/event-store-service';
-
-import { getEntityTypes } from '../../lib/uri-utils';
 import type { EnvironmentConfig } from '@semiont/core';
 
 export class GenerationWorker extends JobWorker {

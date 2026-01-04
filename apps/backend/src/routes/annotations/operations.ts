@@ -11,12 +11,17 @@
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { generateText } from '../../inference/factory';
-import { getTargetSource, getTargetSelector } from '../../lib/uri-utils';
+import {
+  getTargetSource,
+  getTargetSelector,
+  type components,
+  getTextPositionSelector,
+  getPrimaryRepresentation,
+  decodeRepresentation,
+  getEntityTypes,
+} from '@semiont/api-client';
 import { uriToResourceId } from '../../lib/uri-utils';
-import type { components } from '../../lib/uri-utils';
-import { getTextPositionSelector } from '../../lib/uri-utils';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { getPrimaryRepresentation, decodeRepresentation } from '../../lib/uri-utils';
 import {
   annotationId,
   resourceId as makeResourceId,
@@ -24,7 +29,6 @@ import {
 
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { ResourceQueryService } from '../../services/resource-queries';
-import { getEntityTypes } from '../../lib/uri-utils';
 
 type Annotation = components['schemas']['Annotation'];
 

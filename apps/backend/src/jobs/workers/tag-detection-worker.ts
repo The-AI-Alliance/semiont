@@ -13,10 +13,14 @@ import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { resourceIdToURI } from '../../lib/uri-utils';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { getPrimaryRepresentation, decodeRepresentation } from '../../lib/uri-utils';
+import {
+  getPrimaryRepresentation,
+  decodeRepresentation,
+  getTagSchema,
+  getSchemaCategory,
+  validateAndCorrectOffsets,
+} from '@semiont/api-client';
 import { generateText } from '../../inference/factory';
-import { getTagSchema, getSchemaCategory } from '../../lib/uri-utils';
-import { validateAndCorrectOffsets } from '../../lib/uri-utils';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 

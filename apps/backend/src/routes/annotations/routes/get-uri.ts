@@ -11,11 +11,10 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
-import type { components } from '../../lib/uri-utils';
+import { type components, getBodySource } from '@semiont/api-client';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { ResourceQueryService } from '../../../services/resource-queries';
-import { getBodySource } from '../../lib/uri-utils';
-import { uriToResourceId } from '../../lib/uri-utils';
+import { uriToResourceId } from '../../../lib/uri-utils';
 import { prefersHtml, getFrontendUrl } from '../../../middleware/content-negotiation';
 import { resourceId as makeResourceId } from '@semiont/core';
 

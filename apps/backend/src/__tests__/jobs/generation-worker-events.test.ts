@@ -74,8 +74,8 @@ const eventStoreCache = new Map();
 // Mock createEventStore to avoid requiring project config
 vi.mock('../../services/event-store-service', async (importOriginal) => {
   const actual = await importOriginal() as any;
-  const { EventStore } = await import('../../events/event-store');
-  const { FilesystemViewStorage } = await import('../../storage/view-storage');
+  const { EventStore } = await import('@semiont/event-sourcing');
+  const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
 
   return {
     ...actual,
@@ -114,7 +114,7 @@ describe('GenerationWorker - Event Emission', () => {
 
   // Helper to create view for a source resource
   async function createSourceView(sourceResourceId: string) {
-    const { FilesystemViewStorage } = await import('../../storage/view-storage');
+    const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
     const viewStorage = new FilesystemViewStorage(testEnv.config.services.filesystem!.path);
 
     const view = {

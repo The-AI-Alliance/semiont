@@ -17,14 +17,16 @@
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { createEventStore } from '../../services/event-store-service';
-import type { components } from '../../lib/uri-utils';
-import { getTextPositionSelector } from '../../lib/uri-utils';
+import {
+  type components,
+  getTextPositionSelector,
+  getTargetSource,
+} from '@semiont/api-client';
 import type {
   AnnotationAddedEvent,
   BodyOperation,
 } from '@semiont/core';
 import { resourceId, annotationId, userId } from '@semiont/core';
-import { getTargetSource } from '../../lib/uri-utils';
 import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { uriToResourceId } from '../../lib/uri-utils';

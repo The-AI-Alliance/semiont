@@ -9,7 +9,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { getShardPath } from '../shard-utils';
+import { getShardPath } from '@semiont/event-sourcing';
 import { type ResourceId, resourceId as makeResourceId } from '@semiont/core';
 
 export interface PathBuilderConfig {

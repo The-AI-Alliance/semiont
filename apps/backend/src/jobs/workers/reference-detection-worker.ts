@@ -14,11 +14,14 @@ import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { resourceIdToURI } from '../../lib/uri-utils';
 import type { EnvironmentConfig } from '@semiont/core';
-import type { components } from '../../lib/uri-utils';
+import {
+  type components,
+  getPrimaryRepresentation,
+  decodeRepresentation,
+  validateAndCorrectOffsets,
+} from '@semiont/api-client';
 import { extractEntities } from '../../inference/entity-extractor';
 import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { getPrimaryRepresentation, decodeRepresentation } from '../../lib/uri-utils';
-import { validateAndCorrectOffsets } from '../../lib/uri-utils';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
