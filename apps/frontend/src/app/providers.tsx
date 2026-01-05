@@ -3,17 +3,26 @@
 import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SessionProvider } from 'next-auth/react';
-import { ToastProvider, SessionProvider as CustomSessionProvider, LiveRegionProvider, TranslationProvider, ApiClientProvider } from '@semiont/react-ui';
+import {
+  ToastProvider,
+  SessionProvider as CustomSessionProvider,
+  LiveRegionProvider,
+  TranslationProvider,
+  ApiClientProvider,
+  dispatch401Error,
+  dispatch403Error,
+} from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
-import { dispatch401Error, dispatch403Error } from '@semiont/react-ui';
 import { APIError } from '@semiont/api-client';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { useTranslationManager } from '@/hooks/useTranslationManager';
 import { useApiClientManager } from '@/hooks/useApiClientManager';
 
-// Create a minimal QueryClient with error handlers and retry logic
-// Authentication is handled by @semiont/api-client via lib/api-hooks
+/**
+ * Create a minimal QueryClient with error handlers and retry logic
+ * Authentication is handled by @semiont/api-client via lib/api-hooks
+ */
 function createQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
@@ -40,7 +49,6 @@ function createQueryClient() {
     }),
     defaultOptions: {
       queries: {
-        // No default queryFn - each query uses @semiont/api-client via lib/api-hooks
         retry: (failureCount, error) => {
           // Don't retry on client errors (4xx) - these won't fix themselves
           if (error instanceof APIError) {
@@ -64,9 +72,30 @@ function createQueryClient() {
   });
 }
 
+/**
+ * Root Provider Composition for Semiont Frontend
+ *
+ * Wires up GLOBAL contexts used across all routes.
+ * Feature-specific providers (OpenResourcesProvider, CacheProvider, etc.) are added
+ * in route-specific layouts (e.g., apps/frontend/src/app/[locale]/know/layout.tsx)
+ *
+ * Provider order matters - dependencies flow from outer to inner:
+ *
+ * 1. SessionProvider (NextAuth) - Authentication foundation
+ * 2. AuthErrorBoundary - Error boundary for auth failures
+ * 3. CustomSessionProvider - Session management and expiry tracking
+ * 4. TranslationProvider - i18n translation management
+ * 5. ApiClientProvider - API client configuration
+ * 6. QueryClientProvider - React Query for data fetching
+ * 7. ToastProvider - Toast notifications
+ * 8. LiveRegionProvider - A11y live region announcements
+ * 9. KeyboardShortcutsProvider - App-specific keyboard shortcuts
+ */
 export function Providers({ children }: { children: React.ReactNode }) {
   // Create QueryClient once per app instance
   const [queryClient] = useState(() => createQueryClient());
+
+  // Manager hooks - these provide app-specific implementations to @semiont/react-ui contexts
   const sessionManager = useSessionManager();
   const translationManager = useTranslationManager();
   const apiClientManager = useApiClientManager();
