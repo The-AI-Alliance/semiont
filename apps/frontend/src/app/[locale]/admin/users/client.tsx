@@ -30,6 +30,10 @@ export default function AdminUsers() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  const handlePanelToggle = (panel: string | null) => {
+    if (panel) togglePanel(panel as any);
+  };
+
   // API hooks
   const adminAPI = useAdmin();
   const { data: usersResponse, isLoading: usersLoading } = adminAPI.users.list.useQuery();
@@ -77,7 +81,7 @@ export default function AdminUsers() {
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={togglePanel}
+      onPanelToggle={handlePanelToggle}
       translations={{
         title: t('title'),
         subtitle: t('subtitle'),

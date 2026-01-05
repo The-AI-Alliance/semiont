@@ -33,12 +33,12 @@ export interface TagSchemasPageProps {
   isLoading: boolean;
 
   // UI state
-  theme: 'light' | 'dark';
-  onThemeChange: (theme: 'light' | 'dark') => void;
+  theme: 'light' | 'dark' | 'system';
+  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   showLineNumbers: boolean;
   onLineNumbersToggle: () => void;
   activePanel: string | null;
-  onPanelToggle: (panel: string) => void;
+  onPanelToggle: (panel: string | null) => void;
 
   // Translations
   translations: {
@@ -113,7 +113,7 @@ export function TagSchemasPage({
         {/* Schemas Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {schemas.map((schema) => {
-            const Icon = domainIcons[schema.domain];
+            const Icon = domainIcons[schema.domain] || LightBulbIcon;
             const colors = domainColors[schema.domain];
 
             return (
@@ -124,7 +124,7 @@ export function TagSchemasPage({
                 {/* Schema Header */}
                 <div className="flex items-start mb-4">
                   <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${colors.bg} mr-3`}>
-                    <Icon className={`w-6 h-6 ${colors.text}`} />
+                    {Icon && <Icon className={`w-6 h-6 ${colors.text}`} />}
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{schema.name}</h3>

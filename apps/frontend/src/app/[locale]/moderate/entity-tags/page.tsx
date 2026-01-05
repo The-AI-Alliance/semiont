@@ -29,6 +29,10 @@ export default function EntityTagsPageWrapper() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  const handlePanelToggle = (panel: string | null) => {
+    if (panel) togglePanel(panel as any);
+  };
+
   // API hooks
   const entityTypesAPI = useEntityTypes();
 
@@ -95,7 +99,7 @@ export default function EntityTagsPageWrapper() {
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={togglePanel}
+      onPanelToggle={handlePanelToggle}
       translations={{
         pageTitle: t('pageTitle'),
         pageDescription: t('pageDescription'),

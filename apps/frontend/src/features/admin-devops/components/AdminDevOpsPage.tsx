@@ -15,7 +15,7 @@ import {
 export interface DevOpsFeature {
   title: string;
   description: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<any>;
   available: string;
 }
 
@@ -24,12 +24,12 @@ export interface AdminDevOpsPageProps {
   suggestedFeatures: DevOpsFeature[];
 
   // UI state
-  theme: 'light' | 'dark';
-  onThemeChange: (theme: 'light' | 'dark') => void;
+  theme: 'light' | 'dark' | 'system';
+  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   showLineNumbers: boolean;
   onLineNumbersToggle: () => void;
   activePanel: string | null;
-  onPanelToggle: (panel: string) => void;
+  onPanelToggle: (panel: string | null) => void;
 
   // Translations
   translations: {

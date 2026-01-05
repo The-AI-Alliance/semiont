@@ -21,6 +21,10 @@ export default function TagSchemasPageWrapper() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  const handlePanelToggle = (panel: string | null) => {
+    if (panel) togglePanel(panel as any);
+  };
+
   // Get all tag schemas
   const schemas = getAllTagSchemas();
 
@@ -58,7 +62,7 @@ export default function TagSchemasPageWrapper() {
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={togglePanel}
+      onPanelToggle={handlePanelToggle}
       translations={{
         pageTitle: t('pageTitle'),
         pageDescription: t('pageDescription'),

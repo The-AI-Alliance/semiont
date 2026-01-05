@@ -140,7 +140,9 @@ describe('TagSchemasPage', () => {
     });
 
     it('handles single schema', () => {
-      const props = createMockProps({ schemas: [mockSchemas[0]] });
+      const schema = mockSchemas[0];
+      if (!schema) throw new Error('Schema not found');
+      const props = createMockProps({ schemas: [schema] });
       render(<TagSchemasPage {...props} />);
 
       expect(screen.getByText('Legal Analysis (IRAC)')).toBeInTheDocument();

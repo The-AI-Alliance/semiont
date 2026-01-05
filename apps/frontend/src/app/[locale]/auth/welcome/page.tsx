@@ -79,9 +79,9 @@ export default function Welcome() {
 
   return (
     <WelcomePage
-      userName={session?.user?.name?.split(' ')[0]}
-      termsAcceptedAt={userData?.termsAcceptedAt}
-      isNewUser={session?.isNewUser}
+      userName={session?.user?.name?.split(' ')[0] ?? ''}
+      termsAcceptedAt={userData?.termsAcceptedAt ?? null}
+      isNewUser={session?.isNewUser ?? false}
       status={pageStatus}
       isProcessing={acceptTermsMutation.isPending}
       onAccept={() => handleTermsAcceptance(true)}

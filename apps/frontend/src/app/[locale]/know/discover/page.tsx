@@ -26,6 +26,15 @@ export default function DiscoverPage() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  const handlePanelToggle = (panel: string | null) => {
+    if (panel) togglePanel(panel as any);
+  };
+
+  // Convert theme to actual applied theme (system -> light or dark)
+  const appliedTheme: 'light' | 'dark' = theme === 'system'
+    ? (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : theme;
+
   // API hooks
   const resources = useResources();
   const entityTypesAPI = useEntityTypes();
@@ -57,12 +66,12 @@ export default function DiscoverPage() {
       entityTypes={entityTypes}
       isLoadingRecent={isLoadingRecent}
       isSearching={isSearching}
-      theme={theme}
+      theme={appliedTheme}
       onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={togglePanel}
+      onPanelToggle={handlePanelToggle}
       onNavigateToResource={(resourceId) => {
         router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
       }}

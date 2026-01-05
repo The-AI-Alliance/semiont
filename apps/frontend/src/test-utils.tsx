@@ -30,11 +30,15 @@ import type {
   OpenResourcesManager,
 } from '@semiont/react-ui';
 
-export interface FrontendTestOptions extends TestProvidersOptions {
+export interface FrontendTestOptions extends Omit<TestProvidersOptions, 'queryClient'> {
   /**
    * Mock next-auth session data
    */
   nextAuthSession?: any;
+  /**
+   * Optional QueryClient instance for testing
+   */
+  queryClient?: QueryClient;
 }
 
 /**
@@ -64,14 +68,16 @@ export function renderWithProviders(
     apiClientManager = defaultMocks.apiClientManager,
     sessionManager = defaultMocks.sessionManager,
     openResourcesManager = defaultMocks.openResourcesManager,
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    }),
+    queryClient: providedQueryClient,
     ...renderOptions
   } = options || {};
+
+  const testQueryClient = providedQueryClient || new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
@@ -79,7 +85,7 @@ export function renderWithProviders(
         <ApiClientProvider apiClientManager={apiClientManager}>
           <ReactUiSessionProvider sessionManager={sessionManager}>
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-              <QueryClientProvider client={queryClient}>
+              <QueryClientProvider client={testQueryClient}>
                 <ToastProvider>
                   <SessionProvider session={nextAuthSession}>
                     {children}

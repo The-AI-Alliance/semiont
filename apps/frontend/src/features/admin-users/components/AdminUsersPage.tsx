@@ -150,12 +150,12 @@ export interface AdminUsersPageProps {
   onExportUsers: () => void;
 
   // UI state
-  theme: 'light' | 'dark';
-  onThemeChange: (theme: 'light' | 'dark') => void;
+  theme: 'light' | 'dark' | 'system';
+  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   showLineNumbers: boolean;
   onLineNumbersToggle: () => void;
   activePanel: string | null;
-  onPanelToggle: (panel: string) => void;
+  onPanelToggle: (panel: string | null) => void;
 
   // Translations
   translations: {

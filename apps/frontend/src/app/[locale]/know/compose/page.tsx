@@ -58,6 +58,15 @@ function ComposeResourceContent() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  const handlePanelToggle = (panel: string | null) => {
+    if (panel) togglePanel(panel as any);
+  };
+
+  // Convert theme to actual applied theme (system -> light or dark)
+  const appliedTheme: 'light' | 'dark' = theme === 'system'
+    ? (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : theme;
+
   // API hooks
   const resources = useResources();
   const annotations = useAnnotations();
@@ -158,12 +167,12 @@ function ComposeResourceContent() {
 
         if (params.file) {
           fileToUpload = params.file;
-          mimeType = params.format!;
+          mimeType = params.format ?? 'application/octet-stream';
         } else {
-          const blob = new Blob([params.content || ''], { type: params.format });
+          const blob = new Blob([params.content || ''], { type: params.format ?? 'application/octet-stream' });
           const extension = params.format === 'text/plain' ? '.txt' : params.format === 'text/html' ? '.html' : '.md';
-          fileToUpload = new File([blob], params.name + extension, { type: params.format });
-          mimeType = params.format!;
+          fileToUpload = new File([blob], params.name + extension, { type: params.format ?? 'application/octet-stream' });
+          mimeType = params.format ?? 'application/octet-stream';
         }
 
         const format = params.charset && !params.file ? `${mimeType}; charset=${params.charset}` : mimeType;
@@ -244,12 +253,12 @@ function ComposeResourceContent() {
       referenceData={referenceData}
       availableEntityTypes={availableEntityTypes}
       initialLocale={locale}
-      theme={theme}
+      theme={appliedTheme}
       onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={togglePanel}
+      onPanelToggle={handlePanelToggle}
       onSaveResource={handleSaveResource}
       onCancel={() => router.push('/know/discover')}
       translations={{

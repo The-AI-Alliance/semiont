@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { Mock } from 'vitest'
 import React from 'react';
-import { renderWithProviders, screen, fireEvent, waitFor, cleanup } from '@/test-utils';
+import { renderWithProviders, render, screen, fireEvent, waitFor, cleanup } from '@/test-utils';
 import '@testing-library/jest-dom';
 import { signIn, useSession, signOut } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';

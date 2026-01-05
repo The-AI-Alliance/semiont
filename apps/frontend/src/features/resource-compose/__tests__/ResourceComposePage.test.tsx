@@ -434,7 +434,7 @@ describe('ResourceComposePage', () => {
     });
 
     it('disables form during submission', async () => {
-      const onSaveResource = vi.fn(() => new Promise(resolve => setTimeout(resolve, 100)));
+      const onSaveResource = vi.fn(() => new Promise<void>(resolve => setTimeout(resolve, 100)));
       const props = createMockProps({ onSaveResource });
       render(<ResourceComposePage {...props} />);
 

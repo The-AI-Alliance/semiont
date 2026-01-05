@@ -20,6 +20,10 @@ export default function RecentDocumentsPageWrapper() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  const handlePanelToggle = (panel: string | null) => {
+    if (panel) togglePanel(panel as any);
+  };
+
   // Check authentication and moderator/admin status
   useEffect(() => {
     if (status === 'loading') return;
@@ -54,7 +58,7 @@ export default function RecentDocumentsPageWrapper() {
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={togglePanel}
+      onPanelToggle={handlePanelToggle}
       translations={{
         pageTitle: t('pageTitle'),
         pageDescription: t('pageDescription'),

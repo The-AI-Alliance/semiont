@@ -205,19 +205,32 @@ export function ResourceComposePage({
 
     setIsCreating(true);
     try {
-      await onSaveResource({
+      const params: SaveResourceParams = {
         mode,
         name: newResourceName,
         content: newResourceContent,
-        file: uploadedFile || undefined,
         format: uploadedFile ? fileMimeType : selectedFormat,
-        charset: selectedCharset || undefined,
         entityTypes: selectedEntityTypes,
         language: selectedLanguage,
-        archiveOriginal: mode === 'clone' ? archiveOriginal : undefined,
-        referenceId: referenceData?.referenceId,
-        sourceDocumentId: referenceData?.sourceDocumentId,
-      });
+      };
+
+      if (uploadedFile) {
+        params.file = uploadedFile;
+      }
+      if (selectedCharset) {
+        params.charset = selectedCharset;
+      }
+      if (mode === 'clone') {
+        params.archiveOriginal = archiveOriginal;
+      }
+      if (referenceData?.referenceId) {
+        params.referenceId = referenceData.referenceId;
+      }
+      if (referenceData?.sourceDocumentId) {
+        params.sourceDocumentId = referenceData.sourceDocumentId;
+      }
+
+      await onSaveResource(params);
     } finally {
       setIsCreating(false);
     }

@@ -27,6 +27,10 @@ export default function AdminSecurity() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  const handlePanelToggle = (panel: string | null) => {
+    if (panel) togglePanel(panel as any);
+  };
+
   // Get OAuth configuration from API
   const adminAPI = useAdmin();
   const { data: oauthConfig, isLoading: oauthLoading } = adminAPI.oauth.config.useQuery();
@@ -44,7 +48,7 @@ export default function AdminSecurity() {
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={togglePanel}
+      onPanelToggle={handlePanelToggle}
       translations={{
         title: t('title'),
         subtitle: t('subtitle'),
