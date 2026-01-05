@@ -14,7 +14,7 @@ import type { EnvironmentConfig } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import { initializeJobQueue } from '@semiont/jobs';
 import { EventStore } from '@semiont/event-sourcing';
-import type { IdentifierConfig } from '../../services/identifier-service';
+import type { IdentifierConfig } from '@semiont/event-sourcing';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { promises as fs } from 'fs';

@@ -7,7 +7,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FilesystemStorage } from '../../storage/filesystem';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { EventStore } from '@semiont/event-sourcing';
-import type { IdentifierConfig } from '../../services/identifier-service';
+import type { IdentifierConfig } from '@semiont/event-sourcing';
 import { EventQuery } from '@semiont/event-sourcing';
 import { CREATION_METHODS } from '@semiont/core';
 import { resourceId, userId } from '@semiont/core';
