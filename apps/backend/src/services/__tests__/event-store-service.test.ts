@@ -105,17 +105,19 @@ describe('EventStoreService', () => {
       );
     });
 
-    it('should pass custom config options to EventStore', async () => {
+    it('should always override sharding config to use 65536 shards', async () => {
       vi.mocked(FilesystemViewStorage).mockImplementation(() => ({} as any));
       vi.mocked(EventStore).mockImplementation(() => ({} as any));
 
       await createEventStore(mockConfig, {
-        enableSharding: false,
+        enableSharding: false, // This will be overridden
+        numShards: 100, // This will be overridden
       });
 
       expect(EventStore).toHaveBeenCalledWith(
         expect.objectContaining({
-          enableSharding: false,
+          enableSharding: true, // Always true
+          numShards: 65536, // Always 65536
         }),
         expect.any(Object),
         expect.any(Object)
