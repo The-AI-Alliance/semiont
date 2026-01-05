@@ -17,7 +17,7 @@ import type {
   EnvironmentConfig,
   ResourceId,
 } from '@semiont/core';
-import { annotationId, userId, uriToResourceId } from '@semiont/core';
+import { annotationId, userId, uriToResourceId, uriToAnnotationId } from '@semiont/core';
 import { generateAnnotationId, userToAgent } from '../utils/id-generator';
 import { AnnotationContext } from '@semiont/make-meaning';
 import type { User } from '@prisma/client';
@@ -221,7 +221,7 @@ export class AnnotationCrudService {
       userId: userId(user.id),
       version: 1,
       payload: {
-        annotationId: annotationId(id),
+        annotationId: uriToAnnotationId(id),
       },
     });
     console.log('[DeleteAnnotation] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
