@@ -10,21 +10,11 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import {
-  CREATION_METHODS,
-  type CreationMethod,
-  generateUuid,
-  userId,
-  resourceId,
-} from '@semiont/core';
+import type { CreationMethod } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
-import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
-import { userToAgent } from '../../../utils/id-generator';
-import { FilesystemRepresentationStore } from '@semiont/content';
+import { ResourceOperations } from '../../../services/resource-operations';
 
-type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type ContentFormat = components['schemas']['ContentFormat'];
 
 export function registerCreateResource(router: ResourcesRouterType) {
@@ -71,86 +61,19 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const arrayBuffer = await file.arrayBuffer();
     const contentBuffer = Buffer.from(arrayBuffer);
 
-    // Store representation (content storage)
-    const basePath = config.services.filesystem!.path;
-    const projectRoot = config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
-
-    const rId = resourceId(generateUuid());
-
-    const storedRep = await repStore.store(contentBuffer, {
-      mediaType: format,
-      language: language || undefined,
-      rel: 'original',
-    });
-
-    // Subscribe GraphDB consumer to new resource BEFORE emitting event
-    // This ensures the consumer receives the resource.created event
-    try {
-      const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
-      const consumer = await getGraphConsumer(config);
-      await consumer.subscribeToResource(rId);
-    } catch (error) {
-      console.error('[CreateResource] Failed to subscribe GraphDB consumer:', error);
-      // Don't fail the request - consumer can catch up later
-    }
-
-    // Validate and use creationMethod from form data, or default to API
-    const validCreationMethods = Object.values(CREATION_METHODS) as string[];
-    const validatedCreationMethod: CreationMethod = creationMethod && validCreationMethods.includes(creationMethod)
-      ? creationMethod as CreationMethod
-      : CREATION_METHODS.API;
-
-    // Emit resource.created event (consumer will update GraphDB)
-    const eventStore = await createEventStore(config);
-    await eventStore.appendEvent({
-      type: 'resource.created',
-      resourceId: rId,
-      userId: userId(user.id),
-      version: 1,
-      payload: {
+    // Delegate to service for resource creation
+    const response = await ResourceOperations.createResource(
+      {
         name,
+        content: contentBuffer,
         format,
-        contentChecksum: storedRep.checksum,
-        contentByteSize: storedRep.byteSize,
-        creationMethod: validatedCreationMethod,
+        language: language || undefined,
         entityTypes,
-        language: language || undefined,
-        isDraft: false,
-        generatedFrom: undefined,
-        generationPrompt: undefined,
+        creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
       },
-    });
-
-    // Return optimistic response with W3C-compliant HTTP URI
-    const backendUrl = config.services.backend?.publicURL;
-    if (!backendUrl) {
-      throw new HTTPException(500, { message: 'Backend publicURL not configured' });
-    }
-    const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
-
-    const resourceMetadata: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': `${normalizedBase}/resources/${rId}`,
-      name,
-      archived: false,
-      entityTypes: entityTypes || [],
-      creationMethod: validatedCreationMethod,
-      dateCreated: new Date().toISOString(),
-      wasAttributedTo: userToAgent(user),
-      representations: [{
-        mediaType: format,
-        checksum: storedRep.checksum,
-        byteSize: storedRep.byteSize,
-        rel: 'original',
-        language: language || undefined,
-      }],
-    };
-
-    const response: CreateResourceResponse = {
-      resource: resourceMetadata,
-      annotations: [],
-    };
+      user,
+      config
+    );
 
     return c.json(response, 201);
   });

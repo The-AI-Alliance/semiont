@@ -9,16 +9,8 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '@semiont/graph';
-import { generateResourceSummary, generateReferenceSuggestions } from '@semiont/inference';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/api-client';
-import { FilesystemRepresentationStore } from '@semiont/content';
-import { getResourceId, getPrimaryRepresentation, getResourceEntityTypes, decodeRepresentation } from '@semiont/api-client';
-import { resourceId as makeResourceId } from '@semiont/core';
-import { resourceUri } from '@semiont/api-client';
-
-type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
+import { LLMContextService } from '../../../services/llm-context-service';
 
 export function registerGetResourceLLMContext(router: ResourcesRouterType) {
   /**
@@ -37,7 +29,6 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     const { id } = c.req.param();
     const query = c.req.query();
     const config = c.get('config');
-    const basePath = config.services.filesystem!.path;
 
     // Parse and validate query parameters
     const depth = query.depth ? Number(query.depth) : 2;
@@ -55,94 +46,25 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "maxResources" must be between 1 and 20' });
     }
 
-    const graphDb = await getGraphDatabase(config);
-    const projectRoot = config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
+    // Delegate to service for LLM context building
+    try {
+      const response = await LLMContextService.getResourceLLMContext(
+        id,
+        {
+          depth,
+          maxResources,
+          includeContent,
+          includeSummary,
+        },
+        config
+      );
 
-    const mainDoc = await graphDb.getResource(resourceUri(id));
-    if (!mainDoc) {
-      throw new HTTPException(404, { message: 'Resource not found' });
-    }
-
-    // Get content for main resource
-    let mainContent: string | undefined;
-    if (includeContent) {
-      const primaryRep = getPrimaryRepresentation(mainDoc);
-      if (primaryRep?.checksum && primaryRep?.mediaType) {
-        const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-        mainContent = decodeRepresentation(buffer, primaryRep.mediaType);
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Resource not found') {
+        throw new HTTPException(404, { message: 'Resource not found' });
       }
+      throw error;
     }
-
-    // Get related resources through graph connections
-    const connections = await graphDb.getResourceConnections(makeResourceId(id));
-    const relatedDocs = connections.map(conn => conn.targetResource);
-    const limitedRelatedDocs = relatedDocs.slice(0, maxResources - 1);
-
-    // Get content for related resources if requested
-    const relatedResourcesContent: { [id: string]: string } = {};
-    if (includeContent) {
-      await Promise.all(limitedRelatedDocs.map(async (doc) => {
-        try {
-          const docId = getResourceId(doc);
-          if (!docId) return;
-          const primaryRep = getPrimaryRepresentation(doc);
-          if (primaryRep?.checksum && primaryRep?.mediaType) {
-            const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-            relatedResourcesContent[docId] = decodeRepresentation(buffer, primaryRep.mediaType);
-          }
-        } catch {
-          // Skip resources where content can't be loaded
-        }
-      }));
-    }
-
-    // Get all annotations for the main resource
-    const result = await graphDb.listAnnotations({ resourceId: makeResourceId(id) });
-    const annotations = result.annotations;
-
-    // Build graph representation
-    const nodes = [
-      {
-        id: getResourceId(mainDoc),
-        type: 'resource',
-        label: mainDoc.name,
-        metadata: { entityTypes: getResourceEntityTypes(mainDoc) },
-      },
-      ...limitedRelatedDocs.map(doc => ({
-        id: getResourceId(doc),
-        type: 'resource',
-        label: doc.name,
-        metadata: { entityTypes: getResourceEntityTypes(doc) },
-      })),
-    ].filter(node => node.id !== undefined) as Array<{ id: string; type: string; label: string; metadata: { entityTypes: string[] } }>;
-
-    const edges = connections.map(conn => ({
-      source: id,
-      target: getResourceId(conn.targetResource),
-      type: conn.relationshipType || 'link',
-      metadata: {},
-    })).filter(edge => edge.target !== undefined) as Array<{ source: string; target: string; type: string; metadata: Record<string, unknown> }>;
-
-    // Generate summary if requested
-    const summary = includeSummary && mainContent ?
-      await generateResourceSummary(mainDoc.name, mainContent, getResourceEntityTypes(mainDoc), config) : undefined;
-
-    // Generate reference suggestions if we have content
-    const suggestedReferences = mainContent ?
-      await generateReferenceSuggestions(mainContent, config) : undefined;
-
-    const response: ResourceLLMContextResponse = {
-      mainResource: mainDoc,
-      relatedResources: limitedRelatedDocs,
-      annotations,
-      graph: { nodes, edges },
-      ...(mainContent ? { mainResourceContent: mainContent } : {}),
-      ...(Object.keys(relatedResourcesContent).length > 0 ? { relatedResourcesContent } : {}),
-      ...(summary ? { summary } : {}),
-      ...(suggestedReferences ? { suggestedReferences } : {}),
-    };
-
-    return c.json(response);
   });
 }

@@ -10,60 +10,8 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { generateText } from '@semiont/inference';
-import {
-  getTargetSource,
-  getTargetSelector,
-  type components,
-  getTextPositionSelector,
-  getPrimaryRepresentation,
-  decodeRepresentation,
-} from '@semiont/api-client';
-import { getEntityTypes } from '@semiont/ontology';
-import { uriToResourceId } from '@semiont/core';
-import { FilesystemRepresentationStore } from '@semiont/content';
-import {
-  annotationId,
-  resourceId as makeResourceId,
-} from '@semiont/core';
-
-import { AnnotationQueryService } from '../../services/annotation-queries';
-import { ResourceQueryService } from '../../services/resource-queries';
-
-type Annotation = components['schemas']['Annotation'];
-
-type AnnotationContextResponse = components['schemas']['AnnotationContextResponse'];
-type ContextualSummaryResponse = components['schemas']['ContextualSummaryResponse'];
-
-// Helper: Extract annotation context from resource content
-interface AnnotationContext {
-  before: string;
-  selected: string;
-  after: string;
-}
-
-function getAnnotationContext(
-  annotation: Annotation,
-  contentStr: string,
-  contextBefore: number,
-  contextAfter: number
-): AnnotationContext {
-  const targetSelector = getTargetSelector(annotation.target);
-  const posSelector = targetSelector ? getTextPositionSelector(targetSelector) : null;
-  if (!posSelector) {
-    throw new HTTPException(400, { message: 'TextPositionSelector required for context' });
-  }
-  const selStart = posSelector.start;
-  const selEnd = posSelector.end;
-  const start = Math.max(0, selStart - contextBefore);
-  const end = Math.min(contentStr.length, selEnd + contextAfter);
-
-  return {
-    before: contentStr.substring(start, selStart),
-    selected: contentStr.substring(selStart, selEnd),
-    after: contentStr.substring(selEnd, end),
-  };
-}
+import { annotationId, resourceId as makeResourceId } from '@semiont/core';
+import { AnnotationOperations } from '../../services/annotation-operations';
 
 // Create router with auth middleware
 export const operationsRouter: AnnotationsRouterType = createAnnotationRouter();
@@ -101,54 +49,32 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
     throw new HTTPException(400, { message: 'Query parameter "contextAfter" must be between 0 and 5000' });
   }
 
-  const basePath = config.services.filesystem!.path;
-  const projectRoot = config._metadata?.projectRoot;
-  const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
+  // Delegate to service for annotation context extraction
+  try {
+    const response = await AnnotationOperations.getAnnotationContext(
+      annotationId(id),
+      makeResourceId(resourceId),
+      contextBefore,
+      contextAfter,
+      config
+    );
 
-  // Get annotation from view storage
-  const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(resourceId), config);
-  if (!annotation) {
-    throw new HTTPException(404, { message: 'Annotation not found' });
+    return c.json(response);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Annotation not found') {
+      throw new HTTPException(404, { message: 'Annotation not found' });
+    }
+    if (error instanceof Error && error.message === 'Resource not found') {
+      throw new HTTPException(404, { message: 'Resource not found' });
+    }
+    if (error instanceof Error && error.message === 'Resource content not found') {
+      throw new HTTPException(404, { message: 'Resource content not found' });
+    }
+    if (error instanceof Error && error.message === 'TextPositionSelector required for context') {
+      throw new HTTPException(400, { message: 'TextPositionSelector required for context' });
+    }
+    throw error;
   }
-
-  // Get resource metadata from view storage
-  const resource = await ResourceQueryService.getResourceMetadata(uriToResourceId(getTargetSource(annotation.target)), config);
-  if (!resource) {
-    throw new HTTPException(404, { message: 'Resource not found' });
-  }
-
-  // Get content from representation store
-  const primaryRep = getPrimaryRepresentation(resource);
-  if (!primaryRep?.checksum || !primaryRep?.mediaType) {
-    throw new HTTPException(404, { message: 'Resource content not found' });
-  }
-  const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-  const contentStr = decodeRepresentation(content, primaryRep.mediaType);
-
-  // Extract context based on annotation position
-  const { before, selected, after } = getAnnotationContext(annotation, contentStr, contextBefore, contextAfter);
-
-  const response: AnnotationContextResponse = {
-    annotation: annotation,  // Return full W3C annotation
-    context: {
-      before,
-      selected,
-      after,
-    },
-    resource: {
-      '@context': resource['@context'],
-      '@id': resource['@id'],
-      name: resource.name,
-      entityTypes: resource.entityTypes,
-      representations: resource.representations,
-      archived: resource.archived,
-      creationMethod: resource.creationMethod,
-      wasAttributedTo: resource.wasAttributedTo,
-      dateCreated: resource.dateCreated,
-    },
-  };
-
-  return c.json(response);
 });
 
 /**
@@ -161,9 +87,6 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
   const config = c.get('config');
-  const basePath = config.services.filesystem!.path;
-  const projectRoot = config._metadata?.projectRoot;
-  const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
   // Require resourceId query parameter
   const resourceId = query.resourceId;
@@ -171,58 +94,25 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
     throw new HTTPException(400, { message: 'resourceId query parameter is required' });
   }
 
-  // Get annotation from view storage
-  const annotation = await AnnotationQueryService.getAnnotation(annotationId(id), makeResourceId(resourceId), config);
-  if (!annotation) {
-    throw new HTTPException(404, { message: 'Annotation not found' });
+  // Delegate to service for annotation summary generation
+  try {
+    const response = await AnnotationOperations.generateAnnotationSummary(
+      annotationId(id),
+      makeResourceId(resourceId),
+      config
+    );
+
+    return c.json(response);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Annotation not found') {
+      throw new HTTPException(404, { message: 'Annotation not found' });
+    }
+    if (error instanceof Error && error.message === 'Resource not found') {
+      throw new HTTPException(404, { message: 'Resource not found' });
+    }
+    if (error instanceof Error && error.message === 'Resource content not found') {
+      throw new HTTPException(404, { message: 'Resource content not found' });
+    }
+    throw error;
   }
-
-  // Get resource from view storage
-  const resource = await ResourceQueryService.getResourceMetadata(uriToResourceId(getTargetSource(annotation.target)), config);
-  if (!resource) {
-    throw new HTTPException(404, { message: 'Resource not found' });
-  }
-
-  // Get content from representation store
-  const primaryRep = getPrimaryRepresentation(resource);
-  if (!primaryRep?.checksum || !primaryRep?.mediaType) {
-    throw new HTTPException(404, { message: 'Resource content not found' });
-  }
-  const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-  const contentStr = decodeRepresentation(content, primaryRep.mediaType);
-
-  // Extract annotation text with context
-  const contextSize = 500; // Fixed context for summary
-  const { before, selected, after } = getAnnotationContext(annotation, contentStr, contextSize, contextSize);
-
-  // Extract entity types from annotation body
-  const annotationEntityTypes = getEntityTypes(annotation);
-
-  // Generate summary using the proper inference function
-  const summaryPrompt = `Summarize this text in context:
-
-Context before: "${before.substring(Math.max(0, before.length - 200))}"
-Selected exact: "${selected}"
-Context after: "${after.substring(0, 200)}"
-
-Resource: ${resource.name}
-Entity types: ${annotationEntityTypes.join(', ')}`;
-
-  const summary = await generateText(summaryPrompt, config, 500, 0.5);
-
-  const response: ContextualSummaryResponse = {
-    summary,
-    relevantFields: {
-      resourceId: resource.id,
-      resourceName: resource.name,
-      entityTypes: annotationEntityTypes,
-    },
-    context: {
-      before: before.substring(Math.max(0, before.length - 200)), // Last 200 chars
-      selected,
-      after: after.substring(0, 200), // First 200 chars
-    },
-  };
-
-  return c.json(response);
 });

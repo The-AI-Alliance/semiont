@@ -6,6 +6,8 @@
  */
 
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
+import { FilesystemRepresentationStore } from '@semiont/content';
+import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 
@@ -72,5 +74,34 @@ export class ResourceQueryService {
     });
 
     return resources;
+  }
+
+  /**
+   * Add content previews to resources (for search results)
+   * Retrieves and decodes the first 200 characters of each resource's primary representation
+   */
+  static async addContentPreviews(
+    resources: ResourceDescriptor[],
+    config: EnvironmentConfig
+  ): Promise<Array<ResourceDescriptor & { content: string }>> {
+    const basePath = config.services.filesystem!.path;
+    const projectRoot = config._metadata?.projectRoot;
+    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
+
+    return await Promise.all(
+      resources.map(async (doc) => {
+        try {
+          const primaryRep = getPrimaryRepresentation(doc);
+          if (primaryRep?.checksum && primaryRep?.mediaType) {
+            const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+            const contentPreview = decodeRepresentation(contentBuffer, primaryRep.mediaType).slice(0, 200);
+            return { ...doc, content: contentPreview };
+          }
+          return { ...doc, content: '' };
+        } catch {
+          return { ...doc, content: '' };
+        }
+      })
+    );
   }
 }
