@@ -141,7 +141,7 @@ describe('AdminSecurityPage', () => {
   describe('Provider Display Details', () => {
     it('displays provider without client ID', () => {
       const props = createMockProps({
-        providers: [createMockProvider({ name: 'github' })],
+        providers: [{ name: 'github' }],
       });
       render(<AdminSecurityPage {...props} />);
 
