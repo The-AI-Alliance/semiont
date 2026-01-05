@@ -18,7 +18,9 @@
   "scripts": {
     "build": "npm run typecheck && tsup",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@semiont/core": "*",
@@ -31,7 +33,8 @@
   },
   "devDependencies": {
     "tsup": "^8.0.1",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
   },
   "keywords": [
     "semantic-annotation",
