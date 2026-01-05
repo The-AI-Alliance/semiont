@@ -13,7 +13,7 @@ import { getGraphDatabase } from '@semiont/graph';
 import { generateResourceSummary, generateReferenceSuggestions } from '@semiont/inference';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 import { getResourceId, getPrimaryRepresentation, getResourceEntityTypes, decodeRepresentation } from '@semiont/api-client';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { resourceUri } from '@semiont/api-client';

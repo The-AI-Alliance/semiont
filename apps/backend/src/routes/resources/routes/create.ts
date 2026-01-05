@@ -21,7 +21,7 @@ import type { ResourcesRouterType } from '../shared';
 import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
-import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 
 type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

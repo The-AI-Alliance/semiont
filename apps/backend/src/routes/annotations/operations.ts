@@ -18,10 +18,10 @@ import {
   getTextPositionSelector,
   getPrimaryRepresentation,
   decodeRepresentation,
-  getEntityTypes,
 } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/ontology';
 import { uriToResourceId } from '@semiont/core';
-import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 import {
   annotationId,
   resourceId as makeResourceId,

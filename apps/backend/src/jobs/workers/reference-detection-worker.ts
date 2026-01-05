@@ -21,7 +21,7 @@ import {
   validateAndCorrectOffsets,
 } from '@semiont/api-client';
 import { extractEntities } from '@semiont/inference';
-import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 

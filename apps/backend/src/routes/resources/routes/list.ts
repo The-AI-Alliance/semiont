@@ -12,7 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { ResourceQueryService } from '../../../services/resource-queries';
-import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, getResourceEntityTypes, decodeRepresentation } from '@semiont/api-client';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];

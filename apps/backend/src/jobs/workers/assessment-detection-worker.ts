@@ -11,7 +11,7 @@ import { ResourceQueryService } from '../../services/resource-queries';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { resourceIdToURI } from '@semiont/core';
-import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, decodeRepresentation, validateAndCorrectOffsets } from '@semiont/api-client';
 import { generateText } from '@semiont/inference';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';

@@ -7,13 +7,14 @@
  * 1. @semiont/api-client - Generates types from openapi.json (spec-first) - NO DEPENDENCIES
  * 2. @semiont/ontology - Entity types, tag schemas, vocabularies (depends on @semiont/api-client only)
  * 3. @semiont/core - Depends on @semiont/api-client and @semiont/ontology for types
- * 4. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
- * 5. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)
- * 6. @semiont/graph - Graph database abstraction (depends on @semiont/core, @semiont/api-client, and @semiont/ontology)
- * 7. @semiont/inference - AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)
- * 8. Backend - Consumes types from @semiont/api-client, @semiont/core, @semiont/ontology, @semiont/event-sourcing, @semiont/jobs, @semiont/graph, and @semiont/inference
- * 9. @semiont/test-utils - Testing utilities
- * 10. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
+ * 4. @semiont/content - Content-addressed storage (depends on @semiont/core only)
+ * 5. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
+ * 6. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)
+ * 7. @semiont/graph - Graph database abstraction (depends on @semiont/core, @semiont/api-client, and @semiont/ontology)
+ * 8. @semiont/inference - AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)
+ * 9. Backend - Consumes types from @semiont/api-client, @semiont/core, @semiont/ontology, @semiont/content, @semiont/event-sourcing, @semiont/jobs, @semiont/graph, and @semiont/inference
+ * 10. @semiont/test-utils - Testing utilities
+ * 11. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
  */
 
 const { execSync } = require('child_process');
@@ -53,6 +54,11 @@ const buildSteps = [
     name: '@semiont/core',
     type: 'package',
     description: 'Core SDK package (depends on @semiont/api-client and @semiont/ontology)'
+  },
+  {
+    name: '@semiont/content',
+    type: 'package',
+    description: 'Content-addressed storage for representations (depends on @semiont/core)'
   },
   {
     name: '@semiont/event-sourcing',

@@ -24,9 +24,9 @@ import { getJobQueue } from '@semiont/jobs';
 import type { GenerationJob } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { getTargetSelector } from '@semiont/api-client';
-import { getEntityTypes } from '@semiont/api-client';
 import { jobId, entityType, resourceUri } from '@semiont/api-client';
 import { userId, resourceId, annotationId as makeAnnotationId } from '@semiont/core';
+import { getEntityTypes } from '@semiont/ontology';
 
 type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
 

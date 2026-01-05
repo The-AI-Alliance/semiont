@@ -12,14 +12,14 @@
  */
 
 import { generateResourceSummary } from '@semiont/inference';
-import { getBodySource, getTargetSource, getTargetSelector } from '@semiont/api-client';
+import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes } from '@semiont/api-client';
 import type { components, AnnotationUri, GenerationContext } from '@semiont/api-client';
-import { getEntityTypes, getResourceEntityTypes } from '@semiont/api-client';
-import { FilesystemRepresentationStore } from '../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { resourceId as createResourceId } from '@semiont/core';
+import { getEntityTypes } from '@semiont/ontology';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];

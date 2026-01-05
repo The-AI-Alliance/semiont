@@ -23,7 +23,7 @@ import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 
 type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];

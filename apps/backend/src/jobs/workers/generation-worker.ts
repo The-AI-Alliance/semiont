@@ -9,7 +9,7 @@
 
 import { JobWorker } from '@semiont/jobs';
 import type { Job, GenerationJob } from '@semiont/jobs';
-import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { ResourceQueryService } from '../../services/resource-queries';
 import { generateResourceFromTopic } from '@semiont/inference';
@@ -18,8 +18,8 @@ import {
   getExactText,
   resourceUri,
   annotationUri,
-  getEntityTypes,
 } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/ontology';
 import {
   CREATION_METHODS,
   generateUuid,

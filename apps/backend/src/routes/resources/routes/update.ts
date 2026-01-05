@@ -15,8 +15,8 @@ import { ResourceQueryService } from '../../../services/resource-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
-import { getEntityTypes } from '@semiont/api-client';
 import { userId, resourceId } from '@semiont/core';
+import { getEntityTypes } from '@semiont/ontology';
 
 type UpdateResourceRequest = components['schemas']['UpdateResourceRequest'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];

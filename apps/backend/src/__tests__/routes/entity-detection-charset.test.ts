@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
-import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 import type { components } from '@semiont/api-client';
 import type { EnvironmentConfig } from '@semiont/core';
 import { promises as fs } from 'fs';

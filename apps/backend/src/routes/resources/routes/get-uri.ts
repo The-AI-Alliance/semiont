@@ -15,12 +15,12 @@ import { createEventStore } from '../../../services/event-store-service';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { getEntityTypes } from '@semiont/api-client';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
-import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, getPrimaryMediaType, decodeRepresentation } from '@semiont/api-client';
 import { ResourceQueryService } from '../../../services/resource-queries';
 import { resourceId } from '@semiont/core';
+import { getEntityTypes } from '@semiont/ontology';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type Annotation = components['schemas']['Annotation'];

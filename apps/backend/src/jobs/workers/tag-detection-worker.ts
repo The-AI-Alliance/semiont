@@ -12,14 +12,13 @@ import { ResourceQueryService } from '../../services/resource-queries';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { resourceIdToURI } from '@semiont/core';
-import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
+import { FilesystemRepresentationStore } from '@semiont/content';
 import {
   getPrimaryRepresentation,
   decodeRepresentation,
-  getTagSchema,
-  getSchemaCategory,
   validateAndCorrectOffsets,
 } from '@semiont/api-client';
+import { getTagSchema, getSchemaCategory } from '@semiont/ontology';
 import { generateText } from '@semiont/inference';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
