@@ -18,6 +18,19 @@ vi.mock('next-auth/react', () => ({
   SessionProvider: ({ children }: any) => children,
 }));
 
+// Mock @semiont/react-ui useAuth
+vi.mock('@semiont/react-ui', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    useAuth: vi.fn(() => ({
+      isAuthenticated: false,
+      isAdmin: false,
+      isModerator: false,
+    })),
+  };
+});
+
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   useSearchParams: vi.fn(),

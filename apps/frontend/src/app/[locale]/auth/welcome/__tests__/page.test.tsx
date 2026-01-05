@@ -45,12 +45,17 @@ vi.mock('@/i18n/routing', () => ({
   Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
-// Mock react-ui to provide useAuthApi
+// Mock react-ui to provide useAuthApi and useAuth
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
     ...actual,
     useAuthApi: vi.fn(),
+    useAuth: vi.fn(() => ({
+      isAuthenticated: false,
+      isAdmin: false,
+      isModerator: false,
+    })),
   };
 });
 
