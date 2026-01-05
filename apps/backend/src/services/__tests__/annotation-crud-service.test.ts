@@ -67,7 +67,6 @@ describe('AnnotationCrudService', () => {
     const validRequest: CreateAnnotationRequest = {
       motivation: 'commenting',
       target: {
-        type: 'SpecificResource',
         source: 'http://localhost:4000/resources/res-123',
         selector: {
           type: 'TextPositionSelector',
@@ -201,7 +200,6 @@ describe('AnnotationCrudService', () => {
       id: 'http://localhost:4000/annotations/anno-123',
       motivation: 'commenting',
       target: {
-        type: 'SpecificResource',
         source: 'http://localhost:4000/resources/res-123',
         selector: {
           type: 'TextPositionSelector',
@@ -212,7 +210,7 @@ describe('AnnotationCrudService', () => {
       body: [
         { type: 'TextualBody' as const, value: 'Comment 1', format: 'text/plain' as const },
       ],
-      creator: { type: 'Person' as const, id: 'http://localhost:4000/users/user-123' },
+      creator: { type: 'Person' as const, id: 'http://localhost:4000/users/user-123', name: 'Test User' },
       created: '2024-01-01T00:00:00Z',
       modified: '2024-01-01T00:00:00Z',
     };

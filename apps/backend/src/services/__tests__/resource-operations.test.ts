@@ -29,18 +29,22 @@ describe('ResourceOperations', () => {
   let mockUser: User;
   let mockEventStore: any;
   let mockRepStore: any;
-  let mockGraphConsumer: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     mockConfig = {
       services: {
-        backend: { publicURL: 'http://localhost:4000' },
+        backend: {
+          publicURL: 'http://localhost:4000',
+          platform: 'node' as const,
+          port: 4000,
+          corsOrigin: '*',
+        },
         filesystem: { path: '/test/data' },
       },
       _metadata: { projectRoot: '/test/project' },
-    } as EnvironmentConfig;
+    } as unknown as EnvironmentConfig;
 
     mockUser = {
       id: 'user-123',
@@ -58,10 +62,6 @@ describe('ResourceOperations', () => {
         byteSize: 100,
         mediaType: 'text/plain',
       }),
-    };
-
-    mockGraphConsumer = {
-      subscribeToResource: vi.fn().mockResolvedValue(undefined),
     };
 
     vi.mocked(createEventStore).mockResolvedValue(mockEventStore);
@@ -141,14 +141,17 @@ describe('ResourceOperations', () => {
     it('should include representation metadata in response', async () => {
       const result = await ResourceOperations.createResource(validInput, mockUser, mockConfig);
 
-      expect(result.resource.representations).toHaveLength(1);
-      expect(result.resource.representations[0]).toEqual({
-        mediaType: 'text/plain',
-        checksum: 'abc123',
-        byteSize: 100,
-        rel: 'original',
-        language: 'en',
-      });
+      expect(Array.isArray(result.resource.representations)).toBe(true);
+      if (Array.isArray(result.resource.representations)) {
+        expect(result.resource.representations).toHaveLength(1);
+        expect(result.resource.representations[0]).toEqual({
+          mediaType: 'text/plain',
+          checksum: 'abc123',
+          byteSize: 100,
+          rel: 'original',
+          language: 'en',
+        });
+      }
     });
 
     it('should set wasAttributedTo with user agent', async () => {
@@ -266,7 +269,6 @@ describe('ResourceOperations', () => {
 
     it('should handle graph consumer subscription failure gracefully', async () => {
       // Mock dynamic import to throw error
-      const originalImport = await import('../../events/consumers/graph-consumer');
       vi.doMock('../../events/consumers/graph-consumer', () => ({
         getGraphConsumer: vi.fn().mockRejectedValue(new Error('Graph consumer not available')),
       }));
@@ -282,9 +284,14 @@ describe('ResourceOperations', () => {
         ...mockConfig,
         services: {
           ...mockConfig.services,
-          backend: { publicURL: 'http://localhost:4000/' },
+          backend: {
+            publicURL: 'http://localhost:4000/',
+            platform: 'node' as const,
+            port: 4000,
+            corsOrigin: '*',
+          },
         },
-      };
+      } as unknown as EnvironmentConfig;
 
       const result = await ResourceOperations.createResource(
         validInput,

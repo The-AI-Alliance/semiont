@@ -15,6 +15,7 @@ import { ResourceContext } from '@semiont/make-meaning';
 import { getResourceEntityTypes } from '@semiont/api-client';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export function registerListResources(router: ResourcesRouterType) {
   /**
@@ -52,7 +53,7 @@ export function registerListResources(router: ResourcesRouterType) {
 
     // Additional filter by entity type (view storage already handles search and archived)
     if (entityType) {
-      filteredDocs = filteredDocs.filter(doc => getResourceEntityTypes(doc).includes(entityType));
+      filteredDocs = filteredDocs.filter((doc: ResourceDescriptor) => getResourceEntityTypes(doc).includes(entityType));
     }
 
     // Paginate

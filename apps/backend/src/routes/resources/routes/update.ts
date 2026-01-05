@@ -18,6 +18,8 @@ import type { components } from '@semiont/api-client';
 import { userId, resourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 
+type Annotation = components['schemas']['Annotation'];
+
 type UpdateResourceRequest = components['schemas']['UpdateResourceRequest'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
@@ -99,7 +101,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
 
       // Read annotations from view storage
       const annotations = await AnnotationContext.getAllAnnotations(resourceId(id), config);
-      const entityReferences = annotations.filter(a => {
+      const entityReferences = annotations.filter((a: Annotation) => {
         if (a.motivation !== 'linking') return false;
         const entityTypes = getEntityTypes({ body: a.body });
         return entityTypes.length > 0;

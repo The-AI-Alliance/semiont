@@ -10,6 +10,7 @@ import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
+type AnnotationBody = components['schemas']['AnnotationBody'];
 import { createEventStore } from '../../services/event-store-service';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
@@ -169,12 +170,12 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
         // Verify all are TextualBody with purpose: "tagging"
         const tagBodies = retrieved.body.filter(
-          b => b.type === 'TextualBody' && 'purpose' in b && b.purpose === 'tagging'
+          (b: AnnotationBody) => b.type === 'TextualBody' && 'purpose' in b && b.purpose === 'tagging'
         );
         expect(tagBodies.length).toBe(3);
 
         // Verify entity type values
-        const values = tagBodies.map(b => ('value' in b ? b.value : '')).filter(Boolean);
+        const values = tagBodies.map((b: AnnotationBody) => ('value' in b ? b.value : '')).filter(Boolean);
         expect(values).toContain('Person');
         expect(values).toContain('Scientist');
         expect(values).toContain('Physicist');
@@ -262,7 +263,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
         // Verify TextualBody entity tag is preserved
         const tagBodies = resolved.body.filter(
-          b => b.type === 'TextualBody' && 'purpose' in b && b.purpose === 'tagging'
+          (b: AnnotationBody) => b.type === 'TextualBody' && 'purpose' in b && b.purpose === 'tagging'
         );
         expect(tagBodies.length).toBe(1);
         const tagBody = tagBodies[0];
@@ -271,7 +272,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
         }
 
         // Verify SpecificResource was added
-        const specificResources = resolved.body.filter(b => b.type === 'SpecificResource');
+        const specificResources = resolved.body.filter((b: AnnotationBody) => b.type === 'SpecificResource');
         expect(specificResources.length).toBe(1);
         const sr = specificResources[0];
         if (sr && 'source' in sr) {
