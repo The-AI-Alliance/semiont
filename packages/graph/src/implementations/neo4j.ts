@@ -19,7 +19,7 @@ import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getTargetSelector } from '@semiont/api-client';
-import { getEntityTypes } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/ontology';
 import { getPrimaryRepresentation } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -1047,7 +1047,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       }
 
       // Load defaults
-      const { DEFAULT_ENTITY_TYPES } = await import('../constants');
+      const { DEFAULT_ENTITY_TYPES } = await import('@semiont/ontology');
 
       // Merge with defaults
       this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);

@@ -2,7 +2,8 @@
 // Uses Gremlin for graph traversal
 
 import { GraphDatabase } from '../interface';
-import { getEntityTypes, getBodySource } from '@semiont/api-client';
+import { getBodySource } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/ontology';
 import type { components } from '@semiont/api-client';
 import type {
   AnnotationCategory,
@@ -1246,7 +1247,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
     // Initialize with defaults if not present
     if (this.entityTypesCollection === null) {
-      const { DEFAULT_ENTITY_TYPES } = await import('../constants');
+      const { DEFAULT_ENTITY_TYPES } = await import('@semiont/ontology');
       this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
       // Persist defaults to Neptune
       try {

@@ -201,7 +201,7 @@ export function isValidCategory(schemaId: string, categoryName: string): boolean
 /**
  * Get a specific category from a schema
  */
-export function getTagCategory(schemaId: string, categoryName: string): TagCategory | null {
+export function getSchemaCategory(schemaId: string, categoryName: string): TagCategory | null {
   const schema = getTagSchema(schemaId);
   if (!schema) return null;
   return schema.tags.find(tag => tag.name === categoryName) || null;

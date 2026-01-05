@@ -2,7 +2,8 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
-import { getEntityTypes, getResourceEntityTypes } from '@semiont/api-client';
+import { getResourceEntityTypes } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/ontology';
 import type { components } from '@semiont/api-client';
 import type {
   AnnotationCategory,
@@ -524,7 +525,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
 
     // For now, initialize with defaults if not present
     if (this.entityTypesCollection === null) {
-      const { DEFAULT_ENTITY_TYPES } = await import('../constants');
+      const { DEFAULT_ENTITY_TYPES } = await import('@semiont/ontology');
       this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
     }
   }

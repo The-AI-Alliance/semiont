@@ -4,7 +4,6 @@
 import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
 import {
-  getEntityTypes,
   getBodySource,
   getPrimaryRepresentation,
   getResourceId,
@@ -14,6 +13,7 @@ import {
   type AnnotationUri,
   resourceUri,
 } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/ontology';
 import { annotationIdToURI } from '@semiont/core';
 import type {
   AnnotationCategory,
@@ -879,7 +879,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     }
 
     // Load defaults
-    const { DEFAULT_ENTITY_TYPES } = await import('../constants');
+    const { DEFAULT_ENTITY_TYPES } = await import('@semiont/ontology');
 
     // Merge with defaults
     this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);

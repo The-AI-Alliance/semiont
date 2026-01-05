@@ -3,7 +3,8 @@
 import React, { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import type { components } from '@semiont/api-client';
-import { isBodyResolved, getEntityTypes } from '@semiont/api-client';
+import { isBodyResolved } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/ontology';
 
 type Annotation = components['schemas']['Annotation'];
 
