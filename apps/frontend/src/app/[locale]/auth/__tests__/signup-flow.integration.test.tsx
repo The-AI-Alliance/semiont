@@ -48,8 +48,8 @@ vi.mock('next-auth/react', () => ({
 }));
 
 // Mock @semiont/react-ui useAuth
-vi.mock('@semiont/react-ui', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui') as any;
   return {
     ...actual,
     useAuth: vi.fn(() => ({
