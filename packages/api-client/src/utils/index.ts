@@ -11,7 +11,6 @@ export * from './fuzzy-anchor';
 export * from './locales';
 export * from './resources';
 export * from './svg-utils';
-export * from './tag-schemas';
 export * from './text-context';
 export * from './text-encoding';
 export * from './validation';

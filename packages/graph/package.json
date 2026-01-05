@@ -23,6 +23,7 @@
   "dependencies": {
     "@semiont/api-client": "*",
     "@semiont/core": "*",
+    "@semiont/ontology": "*",
     "uuid": "^9.0.1"
   },
   "peerDependencies": {
