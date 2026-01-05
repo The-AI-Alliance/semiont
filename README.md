@@ -28,26 +28,36 @@ Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructur
 
 ```text
 semiont/
-├── specs/                # API specifications (spec-first architecture)
-│   ├── src/              # OpenAPI source files (tracked in git)
-│   │   ├── openapi.json  # Root spec with $ref to all paths/schemas
-│   │   ├── paths/        # Individual endpoint definitions (37 files)
+├── specs/                      # API specifications (spec-first architecture)
+│   ├── src/                    # OpenAPI source files (tracked in git)
+│   │   ├── openapi.json        # Root spec with $ref to all paths/schemas
+│   │   ├── paths/              # Individual endpoint definitions (37 files)
 │   │   └── components/
-│   │       └── schemas/  # Schema definitions (79 files)
-│   ├── openapi.json      # Generated bundle (gitignored, built by Redocly)
-│   └── docs/             # API and W3C annotation documentation
-├── apps/                 # Application packages
-│   ├── frontend/         # Next.js 14 frontend application
-│   ├── backend/          # Hono backend API server
-│   └── cli/              # Semiont management CLI
-├── packages/             # Shared workspace packages
-│   ├── api-client/       # Primary TypeScript SDK (generated from OpenAPI spec)
-│   ├── core/             # Backend domain logic (events, crypto, type guards)
-│   ├── mcp-server/       # Model Context Protocol server for AI integration
-│   └── test-utils/       # Testing utilities and mock factories
-├── docs/                 # System documentation
-└── scripts/              # Build and utility scripts
+│   │       └── schemas/        # Schema definitions (79 files)
+│   ├── openapi.json            # Generated bundle (gitignored, built by Redocly)
+│   └── docs/                   # API and W3C annotation documentation
+├── apps/                       # Application packages
+│   ├── frontend/               # Next.js 14 frontend application
+│   ├── backend/                # Hono backend API server
+│   └── cli/                    # Semiont management CLI
+├── packages/                   # Shared workspace packages (see packages/README.md)
+│   ├── api-client/             # OpenAPI-generated TypeScript SDK
+│   ├── core/                   # Core types and utilities
+│   ├── event-sourcing/         # Event store and view storage
+│   ├── content/                # Content-addressed storage
+│   ├── graph/                  # Graph database abstraction
+│   ├── ontology/               # Entity types and tag schemas
+│   ├── inference/              # AI prompts, parsers, and text generation
+│   ├── make-meaning/           # Context assembly, detection, reasoning
+│   ├── jobs/                   # Job queue and worker infrastructure
+│   ├── react-ui/               # React components and hooks
+│   ├── mcp-server/             # Model Context Protocol server
+│   └── test-utils/             # Testing utilities and mock factories
+├── docs/                       # System documentation
+└── scripts/                    # Build and utility scripts
 ```
+
+**See [packages/README.md](packages/README.md) for detailed package documentation, architecture overview, and dependency graph.**
 
 ## 🚀 Getting Started
 
