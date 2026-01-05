@@ -1,22 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { Mock, MockedFunction } from 'vitest'
+import type { Mock } from 'vitest'
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { renderWithProviders as render, screen } from '@/test-utils';
 import { useSearchParams } from 'next/navigation';
 import AuthError from '../page';
-
-// Mock @semiont/react-ui useAuth
-vi.mock('@semiont/react-ui', async () => {
-  const actual = await vi.importActual('@semiont/react-ui') as any;
-  return {
-    ...actual,
-    useAuth: vi.fn(() => ({
-      isAuthenticated: false,
-      isAdmin: false,
-      isModerator: false,
-    })),
-  };
-});
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({

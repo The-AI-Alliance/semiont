@@ -1,33 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithProviders as render, screen, fireEvent, waitFor } from '@/test-utils';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import SignIn from '../page';
 
 // Mock next-auth
-vi.mock('next-auth/react', () => ({
-  signIn: vi.fn(),
-  getSession: vi.fn(),
-  signOut: vi.fn(),
-  useSession: vi.fn(() => ({
-    data: null,
-    status: 'unauthenticated',
-  })),
-  SessionProvider: ({ children }: any) => children,
-}));
-
-// Mock @semiont/react-ui useAuth
-vi.mock('@semiont/react-ui', async () => {
-  const actual = await vi.importActual('@semiont/react-ui') as any;
+vi.mock('next-auth/react', async () => {
+  const actual = await vi.importActual('next-auth/react');
   return {
     ...actual,
-    useAuth: vi.fn(() => ({
-      isAuthenticated: false,
-      isAdmin: false,
-      isModerator: false,
-    })),
+    signIn: vi.fn(),
   };
 });
 

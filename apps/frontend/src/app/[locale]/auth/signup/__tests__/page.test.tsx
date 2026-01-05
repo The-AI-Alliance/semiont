@@ -1,33 +1,20 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import type { Mock, MockedFunction } from 'vitest'
+import type { Mock } from 'vitest'
 import React from 'react';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { renderWithProviders, screen, fireEvent, waitFor, cleanup } from '@/test-utils';
 import '@testing-library/jest-dom';
-import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import SignUp from '../page';
 
-// Mock next-auth
-vi.mock('next-auth/react', () => ({
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-  useSession: vi.fn(() => ({
-    data: null,
-    status: 'unauthenticated',
-  })),
-  SessionProvider: ({ children }: any) => children,
-}));
+// Create mock for signIn
+const mockSignIn = vi.fn();
 
-// Mock @semiont/react-ui useAuth
-vi.mock('@semiont/react-ui', async () => {
-  const actual = await vi.importActual('@semiont/react-ui') as any;
+// Mock next-auth/react but preserve SessionProvider
+vi.mock('next-auth/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next-auth/react')>();
   return {
     ...actual,
-    useAuth: vi.fn(() => ({
-      isAuthenticated: false,
-      isAdmin: false,
-      isModerator: false,
-    })),
+    signIn: mockSignIn,
   };
 });
 
@@ -49,7 +36,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     vi.clearAllMocks();
     mockConsoleError.mockClear();
     (useSearchParams as Mock).mockReturnValue(mockSearchParams);
-    (signIn as Mock).mockResolvedValue(undefined);
+    (mockSignIn as Mock).mockResolvedValue(undefined);
     mockSearchParams.get.mockReturnValue(null);
   });
 
@@ -59,7 +46,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
   describe('Component Rendering & UI', () => {
     it('renders signup form immediately', () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       expect(screen.getByText('Create your Semiont account')).toBeInTheDocument();
       expect(screen.getByText('Sign up with your Google account to get started')).toBeInTheDocument();
@@ -67,7 +54,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('shows Google icon in button', () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const googleIcon = document.querySelector('svg');
       expect(googleIcon).toBeInTheDocument();
@@ -75,9 +62,9 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('displays loading spinner when loading', async () => {
-      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (mockSignIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -88,7 +75,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('has proper button accessibility attributes', () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByRole('button', { name: /Sign Up with Google/ });
       expect(signUpButton).toBeInTheDocument();
@@ -97,7 +84,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('applies dark mode styling classes', () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       // PageLayout wraps the content, check for the bg-gray-50 class
       const container = document.querySelector('.bg-gray-50');
@@ -108,7 +95,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('uses responsive layout classes', () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const mainContainer = document.querySelector('.max-w-md.w-full.space-y-8');
       expect(mainContainer).toBeInTheDocument();
@@ -118,7 +105,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('shows terms acceptance disclaimer', () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       // Check for the disclaimer text using regex to handle potential text splitting
       expect(screen.getByText(/Only users with approved email domains can create accounts/)).toBeInTheDocument();
@@ -126,7 +113,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('displays sign-in link with proper styling', () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signInLink = screen.getByRole('link', { name: /Already have an account/ });
       expect(signInLink).toHaveAttribute('href', '/auth/signin');
@@ -136,22 +123,22 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
   describe('Authentication Flow', () => {
     it('initiates Google OAuth with default callback URL', async () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalledWith('google', { 
+        expect(mockSignIn).toHaveBeenCalledWith('google', { 
           callbackUrl: '/auth/welcome'
         });
       });
     });
 
     it('handles loading state during OAuth initiation', async () => {
-      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (mockSignIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -164,13 +151,13 @@ describe('SignUp Page - Comprehensive Tests', () => {
     it('uses custom callback URL from search params', async () => {
       mockSearchParams.get.mockReturnValue('/dashboard');
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalledWith('google', { 
+        expect(mockSignIn).toHaveBeenCalledWith('google', { 
           callbackUrl: '/dashboard'
         });
       });
@@ -178,9 +165,9 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('handles OAuth initialization errors', async () => {
       const signInError = new Error('OAuth failed');
-      (signIn as Mock).mockRejectedValue(signInError);
+      (mockSignIn as Mock).mockRejectedValue(signInError);
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -196,9 +183,9 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('handles network errors during OAuth', async () => {
       const networkError = new Error('Network error');
-      (signIn as Mock).mockRejectedValue(networkError);
+      (mockSignIn as Mock).mockRejectedValue(networkError);
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -212,9 +199,9 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('prevents multiple rapid clicks during loading', async () => {
-      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (mockSignIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       
@@ -224,35 +211,35 @@ describe('SignUp Page - Comprehensive Tests', () => {
       fireEvent.click(signUpButton);
       
       // Should only call signIn once
-      expect(signIn).toHaveBeenCalledTimes(1);
+      expect(mockSignIn).toHaveBeenCalledTimes(1);
       expect(signUpButton).toBeDisabled();
     });
 
     it('handles undefined signIn response', async () => {
-      (signIn as Mock).mockResolvedValue(undefined);
+      (mockSignIn as Mock).mockResolvedValue(undefined);
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalled();
+        expect(mockSignIn).toHaveBeenCalled();
       });
       
       // In real usage, signIn with undefined would redirect the user away
       // In test, the loading state remains because there's no redirect
       // So we check that signIn was called successfully
-      expect(signIn).toHaveBeenCalledWith('google', { 
+      expect(mockSignIn).toHaveBeenCalledWith('google', { 
         callbackUrl: '/auth/welcome'
       });
     });
 
     it('handles timeout scenarios gracefully', async () => {
       const timeoutError = new Error('Request timeout');
-      (signIn as Mock).mockRejectedValue(timeoutError);
+      (mockSignIn as Mock).mockRejectedValue(timeoutError);
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -267,9 +254,9 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('handles OAuth provider unavailable', async () => {
       const providerError = new Error('Provider temporarily unavailable');
-      (signIn as Mock).mockRejectedValue(providerError);
+      (mockSignIn as Mock).mockRejectedValue(providerError);
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -287,12 +274,12 @@ describe('SignUp Page - Comprehensive Tests', () => {
     it('uses default callback when no URL params', () => {
       mockSearchParams.get.mockReturnValue(null);
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
       
-      expect(signIn).toHaveBeenCalledWith('google', { 
+      expect(mockSignIn).toHaveBeenCalledWith('google', { 
         callbackUrl: '/auth/welcome'
       });
     });
@@ -300,13 +287,13 @@ describe('SignUp Page - Comprehensive Tests', () => {
     it('extracts valid callback URL from search params', async () => {
       mockSearchParams.get.mockReturnValue('/admin/dashboard');
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalledWith('google', { 
+        expect(mockSignIn).toHaveBeenCalledWith('google', { 
           callbackUrl: '/admin/dashboard'
         });
       });
@@ -315,13 +302,13 @@ describe('SignUp Page - Comprehensive Tests', () => {
     it('handles malformed callback URLs safely', async () => {
       mockSearchParams.get.mockReturnValue('javascript:alert(1)');
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalledWith('google', { 
+        expect(mockSignIn).toHaveBeenCalledWith('google', { 
           callbackUrl: 'javascript:alert(1)' // Note: NextAuth handles URL validation
         });
       });
@@ -330,13 +317,13 @@ describe('SignUp Page - Comprehensive Tests', () => {
     it('handles empty callback URL', async () => {
       mockSearchParams.get.mockReturnValue('');
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalledWith('google', { 
+        expect(mockSignIn).toHaveBeenCalledWith('google', { 
           callbackUrl: '/auth/welcome' // Empty string is falsy, should use default
         });
       });
@@ -346,13 +333,13 @@ describe('SignUp Page - Comprehensive Tests', () => {
       const longUrl = '/very/long/path' + '/segment'.repeat(100);
       mockSearchParams.get.mockReturnValue(longUrl);
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalledWith('google', { 
+        expect(mockSignIn).toHaveBeenCalledWith('google', { 
           callbackUrl: longUrl
         });
       });
@@ -362,13 +349,13 @@ describe('SignUp Page - Comprehensive Tests', () => {
       const specialUrl = '/path?param=value&other=test#section';
       mockSearchParams.get.mockReturnValue(specialUrl);
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalledWith('google', { 
+        expect(mockSignIn).toHaveBeenCalledWith('google', { 
           callbackUrl: specialUrl
         });
       });
@@ -377,9 +364,9 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
   describe('Loading States & UX', () => {
     it('disables button during loading', async () => {
-      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (mockSignIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -389,9 +376,9 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('changes button text during loading', async () => {
-      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (mockSignIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -401,9 +388,9 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('shows loading spinner visibility', async () => {
-      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (mockSignIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -414,15 +401,15 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('resets loading state after successful OAuth', async () => {
-      (signIn as Mock).mockResolvedValue(undefined);
+      (mockSignIn as Mock).mockResolvedValue(undefined);
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalled();
+        expect(mockSignIn).toHaveBeenCalled();
       });
       
       // Note: In real implementation, user would be redirected, so button state doesn't reset
@@ -431,11 +418,11 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('manages multiple loading state changes', async () => {
       let resolveSignIn: (value?: any) => void;
-      (signIn as Mock).mockImplementation(() => new Promise(resolve => {
+      (mockSignIn as Mock).mockImplementation(() => new Promise(resolve => {
         resolveSignIn = resolve;
       }));
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       
@@ -446,7 +433,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
       // Complete loading
       resolveSignIn!();
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalled();
+        expect(mockSignIn).toHaveBeenCalled();
       });
     });
   });
@@ -458,9 +445,9 @@ describe('SignUp Page - Comprehensive Tests', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       const testError = new Error('Test error');
-      (signIn as Mock).mockRejectedValue(testError);
+      (mockSignIn as Mock).mockRejectedValue(testError);
       
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -474,11 +461,11 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('handles component unmounting during OAuth', async () => {
       let resolveSignIn: (value?: any) => void;
-      (signIn as Mock).mockImplementation(() => new Promise(resolve => {
+      (mockSignIn as Mock).mockImplementation(() => new Promise(resolve => {
         resolveSignIn = resolve;
       }));
       
-      const { unmount } = render(<SignUp />);
+      const { unmount } = renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByText('Sign Up with Google');
       fireEvent.click(signUpButton);
@@ -493,7 +480,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('handles Suspense fallback behavior', () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       // The component uses Suspense with a fallback
       // In test environment, this should render immediately
@@ -506,13 +493,13 @@ describe('SignUp Page - Comprehensive Tests', () => {
       });
       
       // Should not crash
-      expect(() => render(<SignUp />)).not.toThrow();
+      expect(() => renderWithProviders(<SignUp />)).not.toThrow();
     });
   });
 
   describe('Accessibility', () => {
     it('supports keyboard navigation', () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       const signUpButton = screen.getByRole('button', { name: /Sign Up with Google/ });
       const signInLink = screen.getByRole('link', { name: /Already have an account/ });
@@ -529,7 +516,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('provides screen reader compatibility', () => {
-      render(<SignUp />);
+      renderWithProviders(<SignUp />);
       
       // Check for proper heading hierarchy - may have multiple headings from PageLayout
       const headings = screen.getAllByRole('heading', { level: 2 });

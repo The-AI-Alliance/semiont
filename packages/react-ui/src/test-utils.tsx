@@ -13,6 +13,7 @@ import { TranslationProvider } from './contexts/TranslationContext';
 import { ApiClientProvider } from './contexts/ApiClientContext';
 import { SessionProvider } from './contexts/SessionContext';
 import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
+import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
 import type { ApiClientManager } from './types/ApiClientManager';
 import type { SessionManager } from './types/SessionManager';
@@ -101,7 +102,9 @@ export function renderWithProviders(
         <ApiClientProvider apiClientManager={apiClientManager}>
           <SessionProvider sessionManager={sessionManager}>
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-              <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+              <QueryClientProvider client={queryClient}>
+                <ToastProvider>{children}</ToastProvider>
+              </QueryClientProvider>
             </OpenResourcesProvider>
           </SessionProvider>
         </ApiClientProvider>

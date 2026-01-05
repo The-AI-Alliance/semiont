@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import type { Mock, MockedFunction } from 'vitest'
+import type { Mock } from 'vitest'
 import React from 'react';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { renderWithProviders, screen, fireEvent, waitFor, cleanup } from '@/test-utils';
 import '@testing-library/jest-dom';
 import { signIn, useSession, signOut } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
@@ -13,59 +13,27 @@ import { http, HttpResponse } from 'msw';
 // Test components
 import SignUp from '../signup/page';
 import Welcome from '../welcome/page';
-import { ToastProvider } from '@semiont/react-ui';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Helper to create test query client
-const createTestQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: { retry: false },
-    mutations: { retry: false },
-  },
-});
-
-// Helper function to render with providers
-const renderWithProviders = (component: React.ReactElement) => {
-  const queryClient = createTestQueryClient();
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        {component}
-      </ToastProvider>
-    </QueryClientProvider>
-  );
-};
-
-// Mock next-auth
-vi.mock('next-auth/react', () => ({
-  signIn: vi.fn(),
-  useSession: vi.fn(() => ({
-    data: null,
-    status: 'unauthenticated',
-  })),
-  signOut: vi.fn(),
-  SessionProvider: ({ children }: any) => children,
-}));
-
-// Mock @semiont/react-ui useAuth
-vi.mock('@semiont/react-ui', async () => {
-  const actual = await vi.importActual('@semiont/react-ui') as any;
+// Mock next-auth functions (keep SessionProvider from test-utils)
+vi.mock('next-auth/react', async () => {
+  const actual = await vi.importActual('next-auth/react');
   return {
     ...actual,
-    useAuth: vi.fn(() => ({
-      isAuthenticated: false,
-      isAdmin: false,
-      isModerator: false,
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    useSession: vi.fn(() => ({
+      data: null,
+      status: 'unauthenticated',
     })),
   };
 });
 
-// Mock next/navigation (only useSearchParams)
+// Mock next/navigation
 vi.mock('next/navigation', () => ({
   useSearchParams: vi.fn(),
 }));
 
-// Mock @/i18n/routing (for useRouter)
+// Mock @/i18n/routing
 vi.mock('@/i18n/routing', () => ({
   useRouter: vi.fn(),
   Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,

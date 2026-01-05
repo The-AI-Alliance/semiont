@@ -1,43 +1,23 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithProviders, screen, fireEvent, waitFor } from '@/test-utils';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from '@/i18n/routing';
 import { useAuthApi } from '@semiont/react-ui';
 import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 import Welcome from '../page';
-import { ToastProvider } from '@semiont/react-ui';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-// Helper to create test query client
-const createTestQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: { retry: false },
-    mutations: { retry: false },
-  },
-});
-
-// Helper function to render with providers
-const renderWithProviders = (component: React.ReactElement) => {
-  const queryClient = createTestQueryClient();
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        {component}
-      </ToastProvider>
-    </QueryClientProvider>
-  );
-};
 
 // Mock next-auth
-vi.mock('next-auth/react', () => ({
-  useSession: vi.fn(),
-  signOut: vi.fn(),
-  signIn: vi.fn(),
-  SessionProvider: ({ children }: any) => children,
-}));
+vi.mock('next-auth/react', async () => {
+  const actual = await vi.importActual('next-auth/react');
+  return {
+    ...actual,
+    useSession: vi.fn(),
+    signOut: vi.fn(),
+  };
+});
 
 // Mock @/i18n/routing
 vi.mock('@/i18n/routing', () => ({
@@ -45,17 +25,12 @@ vi.mock('@/i18n/routing', () => ({
   Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
-// Mock react-ui to provide useAuthApi and useAuth
+// Mock react-ui to provide useAuthApi
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
     ...actual,
     useAuthApi: vi.fn(),
-    useAuth: vi.fn(() => ({
-      isAuthenticated: false,
-      isAdmin: false,
-      isModerator: false,
-    })),
   };
 });
 
