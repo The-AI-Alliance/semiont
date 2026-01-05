@@ -26,16 +26,25 @@ vi.mock('../../inference/detect-annotations', () => ({
   ])
 }));
 
-// Mock resource queries
-vi.mock('../../services/resource-queries', () => ({
-  ResourceQueryService: {
-    getResourceMetadata: vi.fn().mockResolvedValue({
-      id: 'test-resource',
-      name: 'Test Resource',
-      format: 'text/plain'
-    })
-  }
-}));
+// Mock ResourceContext from @semiont/make-meaning
+vi.mock('@semiont/make-meaning', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    ResourceContext: {
+      getResourceMetadata: vi.fn().mockResolvedValue({
+        id: 'test-resource',
+        name: 'Test Resource',
+        format: 'text/plain',
+        content: 'Test content',
+        representations: [{
+          mediaType: 'text/plain',
+          rel: 'original'
+        }]
+      })
+    }
+  };
+});
 
 // Cache EventStore instances per basePath to ensure consistency
 const eventStoreCache = new Map();

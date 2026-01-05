@@ -61,6 +61,7 @@ describe('ResourceOperations', () => {
         checksum: 'abc123',
         byteSize: 100,
         mediaType: 'text/plain',
+        language: 'en',
       }),
     };
 
@@ -189,7 +190,7 @@ describe('ResourceOperations', () => {
     });
 
     it('should accept valid creationMethods', async () => {
-      const methods = ['api', 'upload', 'generation', 'clone', 'import'];
+      const methods = ['api', 'upload', 'generated', 'clone', 'ui', 'reference'];
 
       for (const method of methods) {
         const input = { ...validInput, creationMethod: method as any };

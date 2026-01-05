@@ -12,10 +12,9 @@ import {
   getResourceId,
   getPrimaryRepresentation,
   getResourceEntityTypes,
-  decodeRepresentation,
-  resourceUri
+  decodeRepresentation
 } from '@semiont/api-client';
-import { resourceId as makeResourceId, type EnvironmentConfig } from '@semiont/core';
+import { resourceId as makeResourceId, resourceIdToURI, type EnvironmentConfig } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -60,7 +59,7 @@ export class LLMContextService {
     const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     // Get main resource from graph
-    const mainDoc = await this.getMainResource(resourceId, graphDb);
+    const mainDoc = await this.getMainResource(resourceId, graphDb, config);
 
     // Get content for main resource
     const mainContent = options.includeContent
@@ -112,7 +111,7 @@ export class LLMContextService {
       annotations,
       graph,
       ...(mainContent ? { mainResourceContent: mainContent } : {}),
-      ...(Object.keys(relatedResourcesContent).length > 0 ? { relatedResourcesContent } : {}),
+      ...(options.includeContent ? { relatedResourcesContent } : {}),
       ...(summary ? { summary } : {}),
       ...(suggestedReferences ? { suggestedReferences } : {}),
     };
@@ -123,9 +122,13 @@ export class LLMContextService {
    */
   private static async getMainResource(
     resourceId: string,
-    graphDb: Awaited<ReturnType<typeof getGraphDatabase>>
+    graphDb: Awaited<ReturnType<typeof getGraphDatabase>>,
+    config: EnvironmentConfig
   ): Promise<ResourceDescriptor> {
-    const mainDoc = await graphDb.getResource(resourceUri(resourceId));
+    const publicURL = config.services.backend!.publicURL;
+    const rId = makeResourceId(resourceId);
+    const rUri = resourceIdToURI(rId, publicURL);
+    const mainDoc = await graphDb.getResource(rUri);
     if (!mainDoc) {
       throw new Error('Resource not found');
     }
