@@ -11,7 +11,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { annotationId, resourceId as makeResourceId } from '@semiont/core';
-import { AnnotationOperations } from '../../services/annotation-operations';
+import { AnnotationContext } from '@semiont/make-meaning';
 
 // Create router with auth middleware
 export const operationsRouter: AnnotationsRouterType = createAnnotationRouter();
@@ -51,7 +51,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
 
   // Delegate to service for annotation context extraction
   try {
-    const response = await AnnotationOperations.getAnnotationContext(
+    const response = await AnnotationContext.getAnnotationContext(
       annotationId(id),
       makeResourceId(resourceId),
       contextBefore,
@@ -96,7 +96,7 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
 
   // Delegate to service for annotation summary generation
   try {
-    const response = await AnnotationOperations.generateAnnotationSummary(
+    const response = await AnnotationContext.generateAnnotationSummary(
       annotationId(id),
       makeResourceId(resourceId),
       config

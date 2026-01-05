@@ -11,8 +11,8 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { createEventStore } from '../../../services/event-store-service';
-import { ResourceQueryService } from '../../../services/resource-queries';
-import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { ResourceContext } from '@semiont/make-meaning';
+import { AnnotationContext } from '@semiont/make-meaning';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userId, resourceId } from '@semiont/core';
@@ -38,7 +38,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       const config = c.get('config');
 
       // Check resource exists using view storage
-      const doc = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
+      const doc = await ResourceContext.getResourceMetadata(resourceId(id), config);
       if (!doc) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
@@ -98,7 +98,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       }
 
       // Read annotations from view storage
-      const annotations = await AnnotationQueryService.getAllAnnotations(resourceId(id), config);
+      const annotations = await AnnotationContext.getAllAnnotations(resourceId(id), config);
       const entityReferences = annotations.filter(a => {
         if (a.motivation !== 'linking') return false;
         const entityTypes = getEntityTypes({ body: a.body });

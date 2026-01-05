@@ -1,8 +1,8 @@
 /**
- * Resource Query Service
+ * Resource Context
  *
- * Reads resource metadata from view storage
- * Does NOT touch the graph - graph is only for traversals
+ * Assembles resource context from view storage and content store
+ * Does NOT touch the graph - graph queries go through GraphContext
  */
 
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
@@ -18,7 +18,7 @@ export interface ListResourcesFilters {
   archived?: boolean;
 }
 
-export class ResourceQueryService {
+export class ResourceContext {
   /**
    * Get resource metadata from view storage
    */

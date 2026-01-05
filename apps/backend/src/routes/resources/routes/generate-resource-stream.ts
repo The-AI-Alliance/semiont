@@ -19,7 +19,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { getExactText } from '@semiont/api-client';
-import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { AnnotationContext } from '@semiont/make-meaning';
 import { getJobQueue } from '@semiont/jobs';
 import type { GenerationJob } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
@@ -74,7 +74,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
       console.log(`[GenerateResource] Locale from request:`, body.language);
 
       // Validate annotation exists using view storage
-      const projection = await AnnotationQueryService.getResourceAnnotations(resourceId(resourceIdParam), config);
+      const projection = await AnnotationContext.getResourceAnnotations(resourceId(resourceIdParam), config);
 
       // Debug: log what annotations exist
       const linkingAnnotations = projection.annotations.filter((a: any) => a.motivation === 'linking');

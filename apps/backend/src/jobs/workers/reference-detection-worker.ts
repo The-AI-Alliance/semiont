@@ -9,7 +9,7 @@
 
 import { JobWorker } from '@semiont/jobs';
 import type { Job, DetectionJob } from '@semiont/jobs';
-import { ResourceQueryService } from '../../services/resource-queries';
+import { ResourceContext } from '@semiont/make-meaning';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { resourceIdToURI } from '@semiont/core';
@@ -133,7 +133,7 @@ export class ReferenceDetectionWorker extends JobWorker {
     console.log(`[ReferenceDetectionWorker] 🔍 Entity types: ${job.entityTypes.join(', ')}`);
 
     // Fetch resource content
-    const resource = await ResourceQueryService.getResourceMetadata(job.resourceId, this.config);
+    const resource = await ResourceContext.getResourceMetadata(job.resourceId, this.config);
 
     if (!resource) {
       throw new Error(`Resource ${job.resourceId} not found`);

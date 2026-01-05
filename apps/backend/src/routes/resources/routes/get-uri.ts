@@ -18,7 +18,7 @@ import type { components } from '@semiont/api-client';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, getPrimaryMediaType, decodeRepresentation } from '@semiont/api-client';
-import { ResourceQueryService } from '../../../services/resource-queries';
+import { ResourceContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 
@@ -57,7 +57,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
       // Get resource metadata from view storage
-      const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }

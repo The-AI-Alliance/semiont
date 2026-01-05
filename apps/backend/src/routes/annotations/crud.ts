@@ -20,7 +20,7 @@ import { type components } from '@semiont/api-client';
 import { resourceId } from '@semiont/core';
 import { validateRequestBody } from '../../middleware/validate-openapi';
 import { AnnotationCrudService } from '../../services/annotation-crud-service';
-import { AnnotationQueryService } from '../../services/annotation-queries';
+import { AnnotationContext } from '@semiont/make-meaning';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
@@ -106,7 +106,7 @@ crudRouter.get('/api/annotations', async (c) => {
   }
 
   // O(1) lookup in view storage using resource ID
-  const projection = await AnnotationQueryService.getResourceAnnotations(resourceId(resourceIdParam), config);
+  const projection = await AnnotationContext.getResourceAnnotations(resourceId(resourceIdParam), config);
 
   // Apply pagination to all annotations
   const paginatedAnnotations = projection.annotations.slice(offset, offset + limit);

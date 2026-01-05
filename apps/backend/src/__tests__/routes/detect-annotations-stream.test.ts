@@ -295,8 +295,8 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
 
   it('should handle resource not found', async () => {
     // Mock ResourceQueryService to return null
-    const { ResourceQueryService } = await import('../../services/resource-queries');
-    vi.mocked(ResourceQueryService.getResourceMetadata).mockResolvedValueOnce(null);
+    const { ResourceContext } = await import('@semiont/make-meaning');
+    vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
 
     const response = await app.request('/resources/nonexistent-resource/detect-annotations-stream', {
       method: 'POST',

@@ -19,7 +19,7 @@ import type {
 } from '@semiont/core';
 import { annotationId, userId, uriToResourceId } from '@semiont/core';
 import { generateAnnotationId, userToAgent } from '../utils/id-generator';
-import { AnnotationQueryService } from './annotation-queries';
+import { AnnotationContext } from '@semiont/make-meaning';
 import type { User } from '@prisma/client';
 
 type Annotation = components['schemas']['Annotation'];
@@ -69,7 +69,7 @@ export class AnnotationCrudService {
     config: EnvironmentConfig
   ): Promise<UpdateAnnotationBodyResponse> {
     // Get annotation from view storage
-    const annotation = await AnnotationQueryService.getAnnotation(
+    const annotation = await AnnotationContext.getAnnotation(
       annotationId(id),
       uriToResourceId(request.resourceId) as ResourceId,
       config
@@ -105,7 +105,7 @@ export class AnnotationCrudService {
     const resourceId = uriToResourceId(resourceIdUri);
 
     // Verify annotation exists
-    const projection = await AnnotationQueryService.getResourceAnnotations(resourceId, config);
+    const projection = await AnnotationContext.getResourceAnnotations(resourceId, config);
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
 
     if (!annotation) {

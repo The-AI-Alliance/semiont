@@ -11,7 +11,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { ResourceQueryService } from '../../../services/resource-queries';
+import { ResourceContext } from '@semiont/make-meaning';
 import { getResourceEntityTypes } from '@semiont/api-client';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
@@ -45,7 +45,7 @@ export function registerListResources(router: ResourcesRouterType) {
     const q = query.q;
 
     // Read from view storage projection storage
-    let filteredDocs = await ResourceQueryService.listResources({
+    let filteredDocs = await ResourceContext.listResources({
       search: q,
       archived,
     }, config);
@@ -60,7 +60,7 @@ export function registerListResources(router: ResourcesRouterType) {
 
     // Add content previews for search results (delegate to service)
     const formattedDocs = q
-      ? await ResourceQueryService.addContentPreviews(paginatedDocs, config)
+      ? await ResourceContext.addContentPreviews(paginatedDocs, config)
       : paginatedDocs;
 
     const response: ListResourcesResponse = {

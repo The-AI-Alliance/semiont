@@ -10,8 +10,7 @@
 import { JobWorker } from '@semiont/jobs';
 import type { Job, GenerationJob } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
-import { AnnotationQueryService } from '../../services/annotation-queries';
-import { ResourceQueryService } from '../../services/resource-queries';
+import { ResourceContext } from '@semiont/make-meaning';
 import { generateResourceFromTopic } from '@semiont/inference';
 import {
   getTargetSelector,
@@ -68,7 +67,14 @@ export class GenerationWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Fetch annotation from view storage
-    const projection = await AnnotationQueryService.getResourceAnnotations(job.sourceResourceId, this.config);
+    // TODO: Once AnnotationContext is consolidated, use it here
+    const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
+    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
+    const view = await viewStorage.get(job.sourceResourceId);
+    if (!view) {
+      throw new Error(`Resource ${job.sourceResourceId} not found`);
+    }
+    const projection = view.annotations;
 
     // Construct full annotation URI for comparison
     const expectedAnnotationUri = `${this.config.services.backend!.publicURL}/annotations/${job.referenceId}`;
@@ -80,7 +86,7 @@ export class GenerationWorker extends JobWorker {
       throw new Error(`Annotation ${job.referenceId} not found in resource ${job.sourceResourceId}`);
     }
 
-    const sourceResource = await ResourceQueryService.getResourceMetadata(job.sourceResourceId, this.config);
+    const sourceResource = await ResourceContext.getResourceMetadata(job.sourceResourceId, this.config);
     if (!sourceResource) {
       throw new Error(`Source resource ${job.sourceResourceId} not found`);
     }
