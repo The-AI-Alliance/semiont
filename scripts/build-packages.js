@@ -12,9 +12,11 @@
  * 6. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)
  * 7. @semiont/graph - Graph database abstraction (depends on @semiont/core, @semiont/api-client, and @semiont/ontology)
  * 8. @semiont/inference - AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)
- * 9. Backend - Consumes types from @semiont/api-client, @semiont/core, @semiont/ontology, @semiont/content, @semiont/event-sourcing, @semiont/jobs, @semiont/graph, and @semiont/inference
- * 10. @semiont/test-utils - Testing utilities
- * 11. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
+ * 9. @semiont/make-meaning - Context assembly, pattern detection, and relationship reasoning (depends on @semiont/inference, @semiont/graph, @semiont/ontology)
+ * 10. @semiont/react-ui - React components and hooks for Semiont applications (depends on @semiont/api-client, @semiont/ontology)
+ * 11. Backend - Consumes types from @semiont/api-client, @semiont/core, @semiont/ontology, @semiont/content, @semiont/event-sourcing, @semiont/jobs, @semiont/graph, @semiont/inference, and @semiont/make-meaning
+ * 12. @semiont/test-utils - Testing utilities
+ * 13. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
  */
 
 const { execSync } = require('child_process');
@@ -79,6 +81,16 @@ const buildSteps = [
     name: '@semiont/inference',
     type: 'package',
     description: 'AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)'
+  },
+  {
+    name: '@semiont/make-meaning',
+    type: 'package',
+    description: 'Context assembly, pattern detection, and relationship reasoning (depends on @semiont/inference, @semiont/graph, @semiont/ontology)'
+  },
+  {
+    name: '@semiont/react-ui',
+    type: 'package',
+    description: 'React components and hooks for Semiont applications (depends on @semiont/api-client, @semiont/ontology)'
   },
   {
     name: 'semiont-backend',

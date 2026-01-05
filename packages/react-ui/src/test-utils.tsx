@@ -6,7 +6,7 @@
  */
 
 import React, { ReactElement } from 'react';
-import { render, RenderOptions } from '@testing-library/react';
+import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TranslationProvider } from './contexts/TranslationContext';
@@ -80,7 +80,7 @@ export interface TestProvidersOptions {
 export function renderWithProviders(
   ui: ReactElement,
   options?: TestProvidersOptions & Omit<RenderOptions, 'wrapper'>
-) {
+): RenderResult {
   const {
     translationManager = defaultMocks.translationManager,
     apiClientManager = defaultMocks.apiClientManager,
