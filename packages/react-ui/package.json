@@ -30,20 +30,22 @@
     "test:a11y:watch": "vitest --testPathPattern=a11y"
   },
   "peerDependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0",
+    "@semiont/api-client": "*",
     "@tanstack/react-query": "^5.0.0",
-    "@semiont/api-client": "*"
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
   },
   "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "@vitest/coverage-v8": "^3.0.0",
+    "axe-core": "^4.11.0",
     "jsdom": "^23.0.1",
     "tsup": "^8.0.1",
     "typescript": "^5.6.3",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "vitest-axe": "^0.1.0"
   }
 }
