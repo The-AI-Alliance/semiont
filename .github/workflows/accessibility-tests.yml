@@ -40,7 +40,7 @@ jobs:
       - name: Install axe-core testing packages
         run: |
           cd packages/react-ui
-          npm install --save-dev vitest-axe axe-core @axe-core/cli
+          npm install --save-dev jest-axe axe-core @axe-core/cli
 
       - name: Run accessibility tests
         id: a11y-tests
@@ -103,7 +103,7 @@ jobs:
       - name: Install axe-core testing packages
         run: |
           cd apps/frontend
-          npm install --save-dev vitest-axe axe-core @axe-core/cli
+          npm install --save-dev jest-axe axe-core @axe-core/cli
 
       - name: Run accessibility tests
         id: a11y-tests

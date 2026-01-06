@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { axe, toHaveNoViolations } from 'vitest-axe';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import { SignInForm } from '../components/SignInForm';
 
 // Extend expect with accessibility matchers

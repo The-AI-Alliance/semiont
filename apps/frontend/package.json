@@ -20,8 +20,8 @@
     "test:security:admin": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=verbose src/app/admin/__tests__/page.test.tsx src/app/admin/__tests__/auth-wrapper.security.test.tsx src/app/admin/security/__tests__/page.test.tsx src/app/admin/__tests__/layout.test.tsx src/components/admin/__tests__/AdminAuthWrapper.test.tsx src/app/admin/users/__tests__/page.test.tsx",
     "test:security:other": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=verbose src/app/privacy/__tests__/page.test.tsx src/app/api/auth/\\[...nextauth\\]/__tests__/route.test.ts src/lib/__tests__/validation.test.ts",
     "test:security": "npm run test:security:admin && npm run test:security:other",
-    "test:a11y": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --testPathPattern=a11y",
-    "test:a11y:watch": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest --testPathPattern=a11y",
+    "test:a11y": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run -t \"Accessibility\"",
+    "test:a11y:watch": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest -t \"Accessibility\"",
     "test:typecheck": "vitest typecheck",
     "type-check": "tsc --noEmit",
     "type-check:test": "tsc --noEmit -p tsconfig.test.json",
@@ -87,6 +87,7 @@
     "axe-core": "^4.11.0",
     "cross-env": "^7.0.3",
     "fast-check": "^4.3.0",
+    "jest-axe": "^10.0.0",
     "jsdom": "^26.1.0",
     "msw": "^2.10.4",
     "postcss": "^8",
@@ -94,7 +95,6 @@
     "undici": "^7.13.0",
     "use-sync-external-store": "^1.5.0",
     "vitest": "^3.2.4",
-    "vitest-axe": "^0.1.0",
     "webpack-bundle-analyzer": "^4.9.0"
   },
   "msw": {
