@@ -1,5 +1,3 @@
-import GoogleProvider from 'next-auth/providers/google';
-import CredentialsProvider from 'next-auth/providers/credentials';
 import { validateData, JWTTokenSchema } from '@semiont/api-client';
 import { OAuthUserSchema } from '@semiont/react-ui';
 import {
@@ -7,95 +5,12 @@ import {
   getAllowedDomains
 } from '@/lib/env';
 import type { NextAuthOptions } from 'next-auth';
+import { providers } from './providers';
 
 console.log('[Frontend Auth] Config loaded:', {
   serverApiUrl: SERVER_API_URL,
   allowedDomains: getAllowedDomains()
 });
-
-// Build providers array based on environment
-const providers: NextAuthOptions['providers'] = [];
-
-console.log('[Frontend Auth] Environment check:', {
-  NODE_ENV: process.env.NODE_ENV,
-  hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID
-});
-
-// Add Google provider if credentials are configured
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-  console.log('[Frontend Auth] Adding Google provider');
-  providers.push(
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    })
-  );
-}
-
-// Always add password/credentials provider - it will only be shown if configured
-console.log('[Frontend Auth] Adding password credentials provider');
-providers.push(
-  CredentialsProvider({
-    name: 'Password',
-    credentials: {
-      email: { label: "Email", type: "email", placeholder: "admin@example.com" },
-      password: { label: "Password", type: "password" }
-    },
-    async authorize(credentials) {
-      if (!credentials?.email || !credentials?.password) {
-        return null;
-      }
-
-      const apiUrl = SERVER_API_URL;
-
-      try {
-        console.log('[Frontend Auth] Calling backend for password auth:', {
-          apiUrl,
-          endpoint: `${apiUrl}/api/tokens/password`,
-          email: credentials.email
-        });
-
-        const response = await fetch(`${apiUrl}/api/tokens/password`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: credentials.email,
-            password: credentials.password,
-          }),
-        });
-
-        console.log('[Frontend Auth] Backend response:', {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[Frontend Auth] Password authentication failed:', errorText);
-          return null;
-        }
-
-        const data = await response.json();
-
-        // Return user object with backend token
-        return {
-          id: data.user.id,
-          email: data.user.email,
-          name: data.user.name || 'User',
-          image: data.user.image,
-          backendToken: data.token,
-          backendUser: data.user,
-        };
-      } catch (error) {
-        console.error('Password authentication error:', error);
-        return null;
-      }
-    }
-  })
-);
 
 export const authOptions: NextAuthOptions = {
   providers,
@@ -160,21 +75,21 @@ export const authOptions: NextAuthOptions = {
           }
 
           const data = await response.json();
-          
+
           // Validate backend token
           const tokenValidation = validateData(JWTTokenSchema, data.token);
           if (!tokenValidation.success) {
             console.error('Invalid backend token received:', tokenValidation.error);
             return false;
           }
-          
+
           // Validate user data
           const userValidation = validateData(OAuthUserSchema, data.user);
           if (!userValidation.success) {
             console.error('Invalid user data received:', userValidation.error);
             return false;
           }
-          
+
           // Store our validated backend token and user in the user object
           user.backendToken = tokenValidation.data;
           // Convert null to undefined for name and image to match expected types
@@ -194,17 +109,17 @@ export const authOptions: NextAuthOptions = {
               configurable: true
             });
           }
-          
+
           return true;
         } catch (error) {
           console.error('Authentication error:', error);
           return false;
         }
       }
-      
+
       return true;
     },
-    
+
     async jwt({ token, user }) {
       // Pass backend token to JWT
       if (user?.backendToken) {
@@ -222,7 +137,7 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
-    
+
     async session({ session, token }) {
       // Pass backend token to session
       if (token.backendToken && token.backendUser) {
@@ -247,7 +162,7 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    
+
   },
   pages: {
     signIn: '/auth/signin',
