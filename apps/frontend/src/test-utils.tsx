@@ -76,7 +76,7 @@ export function renderWithProviders(
     ...renderOptions
   } = options || {};
 
-  const testQueryClient = providedQueryClient ?? new QueryClient({
+  const testQueryClient: QueryClient = providedQueryClient ?? new QueryClient({
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false },
