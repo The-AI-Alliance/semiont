@@ -52,7 +52,7 @@ const mockApiClient = {
   },
 };
 
-vi.mock('@/lib/api-hooks', () => ({
+vi.mock('../../contexts/ApiClientContext', () => ({
   useApiClient: () => mockApiClient,
 }));
 
