@@ -1,7 +1,7 @@
 /**
  * SignInForm - Pure React component for authentication
  *
- * Supports both Google OAuth and local credentials.
+ * Supports both Google OAuth and email/password credentials.
  * No Next.js dependencies - all data via props.
  */
 
@@ -15,9 +15,9 @@ export interface SignInFormProps {
   onGoogleSignIn: () => Promise<void>;
 
   /**
-   * Callback when user submits local credentials
+   * Callback when user submits email/password credentials
    */
-  onLocalSignIn?: ((email: string, password: string) => Promise<void>) | undefined;
+  onCredentialsSignIn?: ((email: string, password: string) => Promise<void>) | undefined;
 
   /**
    * Error message to display (if any)
@@ -25,9 +25,9 @@ export interface SignInFormProps {
   error?: string | null;
 
   /**
-   * Whether to show local auth form
+   * Whether to show email/password auth form
    */
-  showLocalAuth?: boolean;
+  showCredentialsAuth?: boolean;
 
   /**
    * Link component for routing - passed from parent
@@ -46,9 +46,9 @@ export interface SignInFormProps {
     emailPlaceholder: string;
     passwordLabel: string;
     passwordPlaceholder: string;
-    signInLocal: string;
+    signInWithCredentials: string;
     or: string;
-    localAuthEnabled: string;
+    credentialsAuthEnabled: string;
     approvedDomainsOnly: string;
     backToHome: string;
     learnMore: string;
@@ -85,9 +85,9 @@ function GoogleIcon() {
 }
 
 /**
- * LocalAuthForm - Email/password form component
+ * CredentialsAuthForm - Email/password form component
  */
-function LocalAuthForm({
+function CredentialsAuthForm({
   onSubmit,
   translations: t,
 }: {
@@ -152,7 +152,7 @@ function LocalAuthForm({
           />
         </div>
         <button type="submit" className={`${buttonStyles.primary.base} w-full justify-center`}>
-          {t.signInLocal}
+          {t.signInWithCredentials}
         </button>
       </form>
 
@@ -173,9 +173,9 @@ function LocalAuthForm({
  */
 export function SignInForm({
   onGoogleSignIn,
-  onLocalSignIn,
+  onCredentialsSignIn,
   error,
-  showLocalAuth = false,
+  showCredentialsAuth = false,
   Link,
   translations: t,
 }: SignInFormProps) {
@@ -208,7 +208,7 @@ export function SignInForm({
 
           {/* Sign In Forms */}
           <div className="max-w-md mx-auto space-y-6">
-            {showLocalAuth && onLocalSignIn && <LocalAuthForm onSubmit={onLocalSignIn} translations={t} />}
+            {showCredentialsAuth && onCredentialsSignIn && <CredentialsAuthForm onSubmit={onCredentialsSignIn} translations={t} />}
 
             <button onClick={onGoogleSignIn} className={`${buttonStyles.primary.base} w-full justify-center`}>
               <GoogleIcon />
@@ -216,7 +216,7 @@ export function SignInForm({
             </button>
 
             <div className="text-xs text-center text-gray-500 dark:text-gray-400">
-              {showLocalAuth ? t.localAuthEnabled : t.approvedDomainsOnly}
+              {showCredentialsAuth ? t.credentialsAuthEnabled : t.approvedDomainsOnly}
             </div>
           </div>
 

@@ -9,11 +9,13 @@ Framework-agnostic React component library for building Semiont knowledge manage
 ## Key Features
 
 - **Framework Independence** - Zero dependencies on Next.js, next-auth, or next-intl
+- **Component Composition** - Components accept framework-specific implementations (Link, routing) as props
 - **Provider Pattern** - Consistent approach for session, translations, API client, and routing
 - **Type-Safe API Hooks** - React Query wrappers for all Semiont API operations
+- **Authentication Components** - Sign-in, sign-up, and error display components
 - **Accessibility First** - WCAG compliant with keyboard navigation, screen reader support
 - **Comprehensive Testing** - 800+ tests with extensive coverage
-- **Annotation System** - Rich annotation and tagging capabilities (documentation coming soon)
+- **Annotation System** - Rich annotation and tagging capabilities
 
 ## Installation
 

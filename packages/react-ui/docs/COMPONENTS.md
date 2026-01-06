@@ -6,12 +6,15 @@ Component library reference for `@semiont/react-ui`.
 
 The library provides components organized by functionality:
 
+- **Authentication Components** - Sign-in, sign-up, and error displays
 - **Resource Viewers** - Display and interact with resources
 - **Layout Components** - Page structure and navigation
 - **Annotation Components** - Semantic markup and collaboration
 - **Modals & Overlays** - Dialogs and pop-ups
 - **UI Elements** - Toolbars, toasts, and widgets
 - **Accessibility** - Screen reader and keyboard navigation support
+
+All components are framework-agnostic. Components that need routing accept a `Link` component as a prop, allowing you to use Next.js Link, React Router Link, or any other router.
 
 ## Resource Components
 
@@ -68,6 +71,116 @@ Display annotation history and events.
 import { AnnotationHistory } from '@semiont/react-ui';
 
 <AnnotationHistory resourceUri={rUri} />
+```
+
+---
+
+## Authentication Components
+
+### SignInForm
+
+Sign-in form with Google OAuth and optional credentials-based authentication.
+
+```tsx
+import { SignInForm } from '@semiont/react-ui';
+import Link from 'next/link'; // Or your router's Link
+
+<SignInForm
+  onGoogleSignIn={async () => signIn('google')}
+  onCredentialsSignIn={async (email, password) => signIn('credentials', { email, password })}
+  showCredentialsAuth={true}
+  error={errorMessage}
+  Link={Link}
+  translations={{
+    pageTitle: 'Sign In',
+    welcomeBack: 'Welcome back to Semiont',
+    // ... other translation keys
+  }}
+/>
+```
+
+**Props:**
+- `onGoogleSignIn` - Callback for Google OAuth sign-in
+- `onCredentialsSignIn?` - Optional callback for email/password sign-in
+- `showCredentialsAuth?` - Whether to show credentials auth form (default: false)
+- `error?` - Error message to display
+- `Link` - Link component from your router
+- `translations` - Translation strings for all UI text
+
+### SignUpForm
+
+Google OAuth sign-up form.
+
+```tsx
+import { SignUpForm } from '@semiont/react-ui';
+import Link from 'next/link';
+
+<SignUpForm
+  onSignUp={async () => signIn('google', { callbackUrl: '/welcome' })}
+  Link={Link}
+  translations={{
+    pageTitle: 'Join Semiont',
+    signUpPrompt: 'Create your account',
+    // ... other translation keys
+  }}
+/>
+```
+
+**Props:**
+- `onSignUp` - Callback when user initiates sign-up
+- `Link` - Link component from your router
+- `translations` - Translation strings
+
+**Features:**
+- Loading state during OAuth flow
+- Error handling with user feedback
+- Accessible form controls
+
+### AuthErrorDisplay
+
+Display authentication error messages.
+
+```tsx
+import { AuthErrorDisplay } from '@semiont/react-ui';
+import Link from 'next/link';
+
+<AuthErrorDisplay
+  errorType="AccessDenied" // or "Configuration", "Verification", etc.
+  Link={Link}
+  translations={{
+    pageTitle: 'Authentication Error',
+    tryAgain: 'Try signing in again',
+    // ... error message translations
+  }}
+/>
+```
+
+**Props:**
+- `errorType` - Type of authentication error
+- `Link` - Link component from your router
+- `translations` - Translation strings including error messages
+
+**Supported Error Types:**
+- `Configuration` - Server configuration issues
+- `AccessDenied` - User not authorized
+- `Verification` - Email verification failed
+- Other types show generic error message
+
+### WelcomePage
+
+Welcome page for new users after sign-up.
+
+```tsx
+import { WelcomePage } from '@semiont/react-ui';
+import Link from 'next/link';
+
+<WelcomePage
+  userName={user.name}
+  Link={Link}
+  translations={{
+    // ... translation keys
+  }}
+/>
 ```
 
 ---

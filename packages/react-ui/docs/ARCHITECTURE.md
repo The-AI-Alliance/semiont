@@ -146,6 +146,53 @@ data.name; // Type-safe access
 
 ---
 
+### Component Composition for Framework Independence
+
+**Principle:** Components receive framework-specific implementations as props.
+
+**Why:**
+- Allows same component to work with any router (Next.js Link, React Router Link, etc.)
+- No framework coupling in component code
+- Apps provide their specific implementations
+
+**How:**
+- Components accept `Link` component as a prop
+- Apps pass their router's Link component
+- Type as `React.ComponentType<any>` for flexibility
+
+**Example:**
+
+```tsx
+// ❌ WRONG - Couples to Next.js
+import Link from 'next/link';
+
+export function SignInForm() {
+  return <Link href="/signup">Sign Up</Link>;
+}
+
+// ✅ CORRECT - Framework-agnostic
+export interface SignInFormProps {
+  Link: React.ComponentType<any>;
+  // ... other props
+}
+
+export function SignInForm({ Link, ...props }: SignInFormProps) {
+  return <Link href="/signup">Sign Up</Link>;
+}
+
+// Apps provide their Link
+import { SignInForm } from '@semiont/react-ui';
+import Link from 'next/link'; // or from 'react-router-dom', etc.
+
+<SignInForm Link={Link} ... />
+```
+
+**Applies to:**
+- Routing components (Link)
+- Any framework-specific functionality needed by components
+
+---
+
 ### Provider Pattern over Dependency Injection
 
 **Principle:** Use React's Context API, not DI frameworks.
@@ -201,8 +248,18 @@ packages/react-ui/
 │   │   ├── TranslationContext.tsx
 │   │   ├── SessionContext.tsx
 │   │   └── __tests__/     # Context tests
-│   ├── components/         # React components
-│   │   ├── resource/      # Resource-related
+│   ├── features/          # Feature-based components
+│   │   ├── auth/          # Authentication components
+│   │   │   ├── components/
+│   │   │   │   ├── SignInForm.tsx
+│   │   │   │   ├── SignUpForm.tsx
+│   │   │   │   └── AuthErrorDisplay.tsx
+│   │   │   └── __tests__/
+│   │   ├── resource-viewer/
+│   │   ├── resource-discovery/
+│   │   ├── admin-users/
+│   │   └── ...
+│   ├── components/         # Shared components
 │   │   ├── navigation/    # Navigation
 │   │   ├── modals/        # Dialogs
 │   │   └── __tests__/     # Component tests
@@ -221,7 +278,8 @@ packages/react-ui/
 │   ├── PROVIDERS.md
 │   ├── API-INTEGRATION.md
 │   ├── TESTING.md
-│   └── ...
+│   ├── COMPONENTS.md
+│   └── ARCHITECTURE.md
 ├── package.json
 ├── tsconfig.json
 ├── vitest.config.ts

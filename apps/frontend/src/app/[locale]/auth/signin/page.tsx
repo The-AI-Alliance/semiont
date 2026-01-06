@@ -26,7 +26,7 @@ function SignInContent() {
   const keyboardContext = useContext(KeyboardShortcutsContext);
 
   const [error, setError] = useState<string | null>(null);
-  const [showLocalAuth, setShowLocalAuth] = useState(false);
+  const [showCredentialsAuth, setShowCredentialsAuth] = useState(false);
 
   const callbackUrl = searchParams?.get('callbackUrl') || '/know';
 
@@ -36,7 +36,7 @@ function SignInContent() {
       .then((res) => res.json())
       .then((providers) => {
         if (providers.credentials) {
-          setShowLocalAuth(true);
+          setShowCredentialsAuth(true);
         }
       })
       .catch(() => {});
@@ -71,7 +71,7 @@ function SignInContent() {
     }
   };
 
-  const handleLocalSignIn = async (email: string, password: string) => {
+  const handleCredentialsSignIn = async (email: string, password: string) => {
     try {
       const result = await signIn('credentials', {
         email,
@@ -99,9 +99,9 @@ function SignInContent() {
     emailPlaceholder: t('emailPlaceholder'),
     passwordLabel: t('passwordLabel'),
     passwordPlaceholder: t('passwordPlaceholder'),
-    signInLocal: t('signInLocal'),
+    signInWithCredentials: t('signInWithCredentials'),
     or: t('or'),
-    localAuthEnabled: t('localAuthEnabled'),
+    credentialsAuthEnabled: t('credentialsAuthEnabled'),
     approvedDomainsOnly: t('approvedDomainsOnly'),
     backToHome: t('backToHome'),
     learnMore: t('learnMore'),
@@ -114,9 +114,9 @@ function SignInContent() {
     <div className="flex flex-col min-h-screen">
       <SignInForm
         onGoogleSignIn={handleGoogleSignIn}
-        onLocalSignIn={showLocalAuth ? handleLocalSignIn : undefined}
+        onCredentialsSignIn={showCredentialsAuth ? handleCredentialsSignIn : undefined}
         error={error}
-        showLocalAuth={showLocalAuth}
+        showCredentialsAuth={showCredentialsAuth}
         Link={Link}
         translations={translations}
       />
