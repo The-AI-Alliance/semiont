@@ -43,8 +43,47 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build dependencies
-        run: npm run build:packages
+      - name: Build package dependencies only
+        run: |
+          # Only build packages that this package actually depends on at test-time
+          # Most packages only need @semiont/api-client and @semiont/core built
+          case "${{ matrix.package }}" in
+            api-client)
+              npm run openapi:bundle
+              ;;
+            ontology)
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/api-client
+              ;;
+            core)
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/ontology
+              ;;
+            content|event-sourcing|jobs|graph|inference)
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/ontology
+              npm run build --workspace=@semiont/core
+              ;;
+            make-meaning)
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/ontology
+              npm run build --workspace=@semiont/core
+              npm run build --workspace=@semiont/inference
+              npm run build --workspace=@semiont/graph
+              ;;
+            react-ui)
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/ontology
+              ;;
+            test-utils|mcp-server)
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/api-client
+              ;;
+          esac
 
       - name: Check if package has tests
         id: check-tests
