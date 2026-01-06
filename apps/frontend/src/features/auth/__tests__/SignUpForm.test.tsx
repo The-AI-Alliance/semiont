@@ -55,7 +55,7 @@ describe('SignUpForm', () => {
     });
 
     it('shows loading state while signing up', async () => {
-      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise((resolve) => setTimeout(resolve, 100)));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>((resolve) => setTimeout(resolve, 100)));
       render(<SignUpForm onSignUp={onSignUp} translations={mockTranslations} />);
 
       const button = screen.getByRole('button');
@@ -75,7 +75,7 @@ describe('SignUpForm', () => {
     });
 
     it('disables button during loading', async () => {
-      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise((resolve) => setTimeout(resolve, 100)));
+      const onSignUp = vi.fn<() => Promise<void>>(() => new Promise<void>((resolve) => setTimeout(resolve, 100)));
       render(<SignUpForm onSignUp={onSignUp} translations={mockTranslations} />);
 
       const button = screen.getByRole('button');

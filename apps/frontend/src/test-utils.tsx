@@ -36,6 +36,10 @@ export interface FrontendTestOptions extends Omit<TestProvidersOptions, 'queryCl
    */
   nextAuthSession?: any;
   /**
+   * Mock next-auth session status (loading, authenticated, unauthenticated)
+   */
+  sessionStatus?: 'loading' | 'authenticated' | 'unauthenticated';
+  /**
    * Optional QueryClient instance for testing
    */
   queryClient?: QueryClient;
@@ -72,7 +76,7 @@ export function renderWithProviders(
     ...renderOptions
   } = options || {};
 
-  const testQueryClient = providedQueryClient || new QueryClient({
+  const testQueryClient = providedQueryClient ?? new QueryClient({
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false },
