@@ -1,6 +1,6 @@
 # Frontend Testing Guide
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2026-01-05
 
 Comprehensive guide to testing the Semiont frontend, including test philosophy, structure, and examples.
 
@@ -392,7 +392,7 @@ The project uses native ES modules throughout, ensuring compatibility with moder
 
 ## Current Test Coverage
 
-- **100% test success rate** with all tests passing
+- **42 test files** with **903 tests** - 100% passing
 - Comprehensive coverage of cookie consent system, authentication, and UI components
 - Key areas with excellent coverage:
   - Cookie management (`cookies.ts`) - 87.57% coverage
@@ -412,6 +412,150 @@ curl http://localhost:3000/api/auth/csrf
 # Performance testing
 npm run perf
 ```
+
+## Pure Component Testing Pattern
+
+### Overview
+
+The codebase follows the **Humble Object Pattern** for React components, separating framework-dependent code from testable business logic.
+
+### Component Architecture
+
+**Pure Component** (in `features/`):
+- Contains business logic and UI structure
+- All data passed as props
+- No framework hooks (except React state hooks like `useState`, `useMemo`)
+- Easy to test without mocking
+
+**Page Wrapper** (in `app/`):
+- Calls Next.js hooks (`useRouter`, `useSearchParams`, etc.)
+- Calls data-fetching hooks (`useQuery`, etc.)
+- Passes data to pure component as props
+- So thin it rarely needs testing
+
+### Example Structure
+
+```typescript
+// ✅ Pure Component (features/admin-security/components/AdminSecurityPage.tsx)
+export interface AdminSecurityPageProps {
+  providers: OAuthProvider[];
+  allowedDomains: string[];
+  isLoading: boolean;
+  theme: 'light' | 'dark';
+  onThemeChange: (theme: 'light' | 'dark') => void;
+  translations: {
+    title: string;
+    subtitle: string;
+    // ... more translation keys
+  };
+  Toolbar: React.ComponentType<ToolbarProps>;
+  ToolbarPanels: React.ComponentType<ToolbarPanelsProps>;
+}
+
+export function AdminSecurityPage(props: AdminSecurityPageProps) {
+  // Pure component - all data from props, no framework hooks
+  return (
+    <div>
+      <h1>{props.translations.title}</h1>
+      {/* ... rest of UI */}
+    </div>
+  );
+}
+
+// ✅ Page Wrapper (app/[locale]/admin/security/page.tsx)
+export default function AdminSecurityWrapperPage() {
+  // Calls all the hooks
+  const { data: providers, isLoading } = useOAuthProvidersQuery();
+  const allowedDomains = useAllowedDomains();
+  const { theme, setTheme } = useTheme();
+  const t = useTranslations('AdminSecurity');
+
+  // Passes everything as props
+  return (
+    <AdminSecurityPage
+      providers={providers || []}
+      allowedDomains={allowedDomains}
+      isLoading={isLoading}
+      theme={theme}
+      onThemeChange={setTheme}
+      translations={{
+        title: t('title'),
+        subtitle: t('subtitle'),
+        // ... map all translation keys
+      }}
+      Toolbar={Toolbar}
+      ToolbarPanels={ToolbarPanels}
+    />
+  );
+}
+```
+
+### Testing Pattern
+
+**Test the pure component** (contains all business logic):
+
+```typescript
+// ✅ Good: Test pure component
+import { render, screen } from '@testing-library/react';
+import { AdminSecurityPage } from '../components/AdminSecurityPage';
+
+it('renders page title', () => {
+  const props = {
+    providers: [],
+    allowedDomains: [],
+    isLoading: false,
+    theme: 'light' as const,
+    onThemeChange: vi.fn(),
+    translations: {
+      title: 'Security Settings',
+      subtitle: 'Configure authentication',
+      // ... rest of translations
+    },
+    Toolbar: () => <div>Toolbar</div>,
+    ToolbarPanels: () => <div>Panels</div>,
+  };
+
+  render(<AdminSecurityPage {...props} />);
+
+  expect(screen.getByText('Security Settings')).toBeInTheDocument();
+});
+```
+
+**Skip the page wrapper** (too thin to test):
+
+```typescript
+// ❌ Bad: Testing page wrapper requires mocking everything
+import Page from '../page'; // The wrapper
+
+it('renders page', () => {
+  // Need to mock: useQuery, useTheme, useTranslations, etc.
+  vi.mock('...'); // Many mocks needed!
+  renderWithProviders(<Page />); // Complex test setup
+});
+```
+
+### Benefits
+
+1. **No mocking needed** - Pure components test in isolation
+2. **Faster tests** - No framework overhead
+3. **More reliable** - Tests actual component logic, not mocks
+4. **Better design** - Forces separation of concerns
+5. **Easier refactoring** - Change hooks without breaking tests
+
+### Current Status
+
+**~25-30 feature tests already follow this pattern:**
+- Auth tests: `SignUpForm`, `AuthErrorDisplay`, `WelcomePage`
+- Admin tests: `AdminSecurityPage`, `AdminDevOpsPage`, `AdminUsersPage`
+- Moderation tests: `TagSchemasPage`, `EntityTagsPage`, `RecentDocumentsPage`
+- Resource tests: `ResourceDiscoveryPage`, `ResourceComposePage`, `ResourceViewerPage`
+
+### Reference Examples
+
+See these tests as examples:
+- `src/features/auth/__tests__/SignUpForm.test.tsx`
+- `src/features/admin-security/__tests__/AdminSecurityPage.test.tsx`
+- `src/app/[locale]/auth/__tests__/signup-flow.integration.test.tsx`
 
 ## Future Testing Enhancements
 
@@ -444,4 +588,4 @@ Planned improvements for higher test coverage:
 
 **Test Runner**: Vitest
 **Coverage Tool**: V8
-**Last Updated**: 2025-10-25
+**Last Updated**: 2026-01-05
