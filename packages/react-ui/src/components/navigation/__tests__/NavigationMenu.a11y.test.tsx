@@ -14,9 +14,9 @@ import { NavigationMenu } from '../NavigationMenu';
 expect.extend(toHaveNoViolations);
 
 describe('NavigationMenu - Accessibility', () => {
-  const mockLink = vi.fn(({ href, children, className }: any) => (
-    <a href={href} className={className}>
-      {children}
+  const mockLink = vi.fn((props: any) => (
+    <a {...props}>
+      {props.children}
     </a>
   ));
 
@@ -317,7 +317,7 @@ describe('NavigationMenu - Accessibility', () => {
         />
       );
 
-      const homeLink = screen.getByText('Home');
+      const homeLink = screen.getByRole('link', { name: 'Home' });
       homeLink.click();
 
       // Callback should be triggered

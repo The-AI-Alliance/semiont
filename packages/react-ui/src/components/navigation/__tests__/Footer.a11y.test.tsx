@@ -224,7 +224,8 @@ describe('Footer - Accessibility', () => {
         />
       );
 
-      expect(screen.getByRole('button')).toHaveTextContent(/Keyboard Shortcuts/i);
+      const keyboardButton = screen.getByRole('button', { name: /Keyboard Shortcuts/i });
+      expect(keyboardButton).toHaveTextContent(/Keyboard Shortcuts/i);
     });
   });
 
@@ -354,7 +355,8 @@ describe('Footer - Accessibility', () => {
         />
       );
 
-      expect(screen.getByText(/© 2024 Semiont. All rights reserved./i)).toBeInTheDocument();
+      // Check for copyright with current year (component uses new Date().getFullYear())
+      expect(screen.getByText(/© \d{4} Semiont\. All rights reserved\./i)).toBeInTheDocument();
     });
   });
 
