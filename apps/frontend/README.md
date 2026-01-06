@@ -75,7 +75,7 @@ docker run -d \
 **Optional Environment Variables:**
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` - Google OAuth client ID for authentication
 - `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` - Comma-separated list of allowed email domains
-- `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` - Enable password-based authentication (default: false)
+- `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` - Enable email/password credentials authentication (default: false)
 
 **Multi-platform Support:** linux/amd64, linux/arm64
 
@@ -93,6 +93,20 @@ docker run -d \
 - **Performance**: Bundle analysis, Lighthouse CI
 
 **Full stack details**: [Frontend Architecture](./docs/ARCHITECTURE.md)
+
+### Component Library
+
+The frontend uses **[@semiont/react-ui](../../packages/react-ui)** - a framework-agnostic React component library providing:
+
+- **Authentication Components**: SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage
+- **Layout Components**: PageLayout, UnifiedHeader, LeftSidebar, Footer
+- **Resource Components**: ResourceViewer, BrowseView, AnnotateView
+- **Annotation Components**: Annotation panels, toolbars, and widgets
+- **React Query Hooks**: Type-safe API integration hooks
+
+The library is framework-independent, accepting framework-specific implementations (like Link components) as props. This allows the same components to work with Next.js, Vite, or any React framework.
+
+**See**: [@semiont/react-ui documentation](../../packages/react-ui/README.md)
 
 ## Project Structure
 

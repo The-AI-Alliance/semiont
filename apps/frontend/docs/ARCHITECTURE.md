@@ -177,7 +177,7 @@ await updateMutation.mutateAsync({ id, title, content });
 
 UI-only state and framework-agnostic providers:
 
-**Provider Pattern Contexts** (from `@semiont/react-ui`):
+**Framework-Agnostic Providers** (from `@semiont/react-ui`):
 - `AnnotationProvider` - Injects `AnnotationManager` for annotation mutations
 - `CacheProvider` - Injects `CacheManager` for cache invalidation
 - `AnnotationUIProvider` - UI-only state for sparkle animations (`newAnnotationIds`)
@@ -186,7 +186,9 @@ UI-only state and framework-agnostic providers:
 - `SessionProvider` - Injects `SessionManager` for session state
 - `OpenResourcesProvider` - Injects `OpenResourcesManager` for routing
 
-**App-Specific Contexts:**
+These providers are framework-independent and can work with Next.js, Vite, or any React framework. The app provides framework-specific manager implementations.
+
+**Next.js-Specific Contexts:**
 - `KeyboardShortcutsProvider` - Keyboard shortcut registration and handling
 - `ToastProvider` - Toast notification queue
 - `LiveRegionProvider` - ARIA live region for screen reader announcements
@@ -428,7 +430,18 @@ apps/frontend/src/
 └── types/                 # TypeScript type definitions
 
 packages/react-ui/src/      # Reusable React components library
-├── components/            # Framework-agnostic UI components
+├── features/              # Feature-based components
+│   ├── auth/              # Authentication components
+│   │   ├── components/
+│   │   │   ├── SignInForm.tsx         # Framework-agnostic sign-in
+│   │   │   ├── SignUpForm.tsx         # Framework-agnostic sign-up
+│   │   │   ├── AuthErrorDisplay.tsx   # Error display
+│   │   │   └── WelcomePage.tsx        # Welcome page
+│   │   └── __tests__/     # Component tests
+│   ├── resource-viewer/   # Resource viewing components
+│   ├── resource-discovery/ # Discovery components
+│   └── ...                # Other feature modules
+├── components/            # Shared UI components
 │   ├── resource/          # Resource viewer components
 │   │   ├── AnnotateView.tsx      # Curation mode
 │   │   ├── BrowseView.tsx        # Browse mode
@@ -456,8 +469,10 @@ packages/react-ui/src/      # Reusable React components library
 ```
 
 **Key Separation:**
-- `apps/frontend/src` - App-specific code and implementations
-- `packages/react-ui/src` - Reusable, framework-agnostic components and interfaces
+- `apps/frontend/src` - Next.js-specific pages and implementations
+- `packages/react-ui/src` - Framework-agnostic components and interfaces
+
+**Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage) are framework-agnostic and live in `packages/react-ui/src/features/auth/`. The frontend provides Next.js-specific wrappers that handle routing, translations, and authentication callbacks.
 
 See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentation on the reusable component library.
 

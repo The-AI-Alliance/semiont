@@ -553,9 +553,12 @@ it('renders page', () => {
 ### Reference Examples
 
 See these tests as examples:
-- `src/features/auth/__tests__/SignUpForm.test.tsx`
+- `packages/react-ui/src/features/auth/__tests__/SignUpForm.test.tsx` (in react-ui library)
+- `packages/react-ui/src/features/auth/__tests__/AuthErrorDisplay.test.tsx` (in react-ui library)
 - `src/features/admin-security/__tests__/AdminSecurityPage.test.tsx`
 - `src/app/[locale]/auth/__tests__/signup-flow.integration.test.tsx`
+
+**Note**: Authentication components (SignUpForm, AuthErrorDisplay, WelcomePage) are tested in `packages/react-ui/src/features/auth/__tests__/` since they're framework-agnostic components. Frontend integration tests verify Next.js-specific wrappers and flows.
 
 ## Future Testing Enhancements
 
