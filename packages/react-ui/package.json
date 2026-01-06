@@ -25,7 +25,9 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:a11y": "vitest run --testPathPattern=a11y",
+    "test:a11y:watch": "vitest --testPathPattern=a11y"
   },
   "peerDependencies": {
     "react": "^18.0.0",

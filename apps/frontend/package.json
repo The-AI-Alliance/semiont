@@ -20,6 +20,8 @@
     "test:security:admin": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=verbose src/app/admin/__tests__/page.test.tsx src/app/admin/__tests__/auth-wrapper.security.test.tsx src/app/admin/security/__tests__/page.test.tsx src/app/admin/__tests__/layout.test.tsx src/components/admin/__tests__/AdminAuthWrapper.test.tsx src/app/admin/users/__tests__/page.test.tsx",
     "test:security:other": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=verbose src/app/privacy/__tests__/page.test.tsx src/app/api/auth/\\[...nextauth\\]/__tests__/route.test.ts src/lib/__tests__/validation.test.ts",
     "test:security": "npm run test:security:admin && npm run test:security:other",
+    "test:a11y": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --testPathPattern=a11y",
+    "test:a11y:watch": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest --testPathPattern=a11y",
     "test:typecheck": "vitest typecheck",
     "type-check": "tsc --noEmit",
     "type-check:test": "tsc --noEmit -p tsconfig.test.json",
