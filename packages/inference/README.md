@@ -1,5 +1,7 @@
 # @semiont/inference
 
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml)
+
 AI inference for entity extraction, text generation, and resource creation.
 
 ## Philosophy

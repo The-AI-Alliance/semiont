@@ -1,5 +1,7 @@
 # @semiont/ontology
 
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml)
+
 Entity types, tag schemas, and tag extraction utilities for the Semiont annotation system.
 
 ## Overview

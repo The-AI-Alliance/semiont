@@ -1,5 +1,7 @@
 # @semiont/make-meaning
 
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml)
+
 **Making meaning from resources through context assembly, pattern detection, and relationship reasoning.**
 
 This package transforms raw resources into meaningful, interconnected knowledge. It provides the core capabilities for:

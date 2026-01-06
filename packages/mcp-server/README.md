@@ -1,5 +1,7 @@
 # Semiont MCP Server
 
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml)
+
 This Model Context Protocol (MCP) server provides AI applications with access to the Semiont API using the common `@semiont/api-client`.
 
 ## Features

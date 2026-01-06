@@ -1,5 +1,7 @@
 # Semiont Test Utils
 
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml)
+
 Shared testing utilities and mock factories for the Semiont platform.
 
 ## Overview

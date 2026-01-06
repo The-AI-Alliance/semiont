@@ -1,5 +1,7 @@
 # @semiont/content
 
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml)
+
 Content-addressed storage for resource representations with automatic deduplication.
 
 ## Installation
