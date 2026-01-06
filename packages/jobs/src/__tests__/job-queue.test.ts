@@ -2,13 +2,14 @@
  * Unit tests for JobQueue class
  */
 
-import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { JobQueue } from '../job-queue';
 import type { Job, JobStatus, DetectionJob, GenerationJob } from '../types';
-import type { JobId, UserId, ResourceId, AnnotationId } from '@semiont/api-client';
+import { entityType, jobId } from '@semiont/api-client';
+import { userId, resourceId, annotationId } from '@semiont/core';
 
 describe('JobQueue', () => {
   let tempDir: string;
@@ -46,12 +47,12 @@ describe('JobQueue', () => {
   describe('createJob()', () => {
     test('should create a detection job in pending status', async () => {
       const job: DetectionJob = {
-        id: 'job-123' as JobId,
+        id: jobId('job-123'),
         type: 'detection',
         status: 'pending',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person', 'Organization'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person'), entityType('Organization')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
@@ -68,12 +69,12 @@ describe('JobQueue', () => {
 
     test('should create a generation job in pending status', async () => {
       const job: GenerationJob = {
-        id: 'job-456' as JobId,
+        id: jobId('job-456'),
         type: 'generation',
         status: 'pending',
-        userId: 'user-1' as UserId,
-        referenceId: 'ann-1' as AnnotationId,
-        sourceResourceId: 'res-1' as ResourceId,
+        userId: userId('user-1'),
+        referenceId: annotationId('ann-1'),
+        sourceResourceId: resourceId('res-1'),
         prompt: 'Generate a summary',
         created: new Date().toISOString(),
         retryCount: 0,
@@ -89,12 +90,12 @@ describe('JobQueue', () => {
 
     test('should create job in correct status directory', async () => {
       const job: DetectionJob = {
-        id: 'job-running' as JobId,
+        id: jobId('job-running'),
         type: 'detection',
         status: 'running',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
@@ -111,78 +112,78 @@ describe('JobQueue', () => {
   describe('getJob()', () => {
     test('should find job in pending status', async () => {
       const job: DetectionJob = {
-        id: 'job-123' as JobId,
+        id: jobId('job-123'),
         type: 'detection',
         status: 'pending',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
       };
 
       await jobQueue.createJob(job);
-      const foundJob = await jobQueue.getJob('job-123' as JobId);
+      const foundJob = await jobQueue.getJob(jobId('job-123'));
 
       expect(foundJob).toEqual(job);
     });
 
     test('should find job in running status', async () => {
       const job: DetectionJob = {
-        id: 'job-456' as JobId,
+        id: jobId('job-456'),
         type: 'detection',
         status: 'running',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
       };
 
       await jobQueue.createJob(job);
-      const foundJob = await jobQueue.getJob('job-456' as JobId);
+      const foundJob = await jobQueue.getJob(jobId('job-456'));
 
       expect(foundJob).toEqual(job);
     });
 
     test('should return null for non-existent job', async () => {
-      const foundJob = await jobQueue.getJob('nonexistent' as JobId);
+      const foundJob = await jobQueue.getJob(jobId('nonexistent'));
       expect(foundJob).toBeNull();
     });
 
     test('should search across all status directories', async () => {
       const jobs: DetectionJob[] = [
         {
-          id: 'job-pending' as JobId,
+          id: jobId('job-pending'),
           type: 'detection',
           status: 'pending',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-1' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-1'),
+          entityTypes: [entityType('Person')],
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 3,
         },
         {
-          id: 'job-running' as JobId,
+          id: jobId('job-running'),
           type: 'detection',
           status: 'running',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-1' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-1'),
+          entityTypes: [entityType('Person')],
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 3,
         },
         {
-          id: 'job-complete' as JobId,
+          id: jobId('job-complete'),
           type: 'detection',
           status: 'complete',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-1' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-1'),
+          entityTypes: [entityType('Person')],
           created: new Date().toISOString(),
           completedAt: new Date().toISOString(),
           retryCount: 0,
@@ -204,12 +205,12 @@ describe('JobQueue', () => {
   describe('updateJob()', () => {
     test('should update job in same status directory', async () => {
       const job: DetectionJob = {
-        id: 'job-123' as JobId,
+        id: jobId('job-123'),
         type: 'detection',
         status: 'pending',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
@@ -227,18 +228,18 @@ describe('JobQueue', () => {
 
       await jobQueue.updateJob(job, 'pending');
 
-      const updatedJob = await jobQueue.getJob('job-123' as JobId);
+      const updatedJob = await jobQueue.getJob(jobId('job-123'));
       expect(updatedJob?.progress).toEqual(job.progress);
     });
 
     test('should move job between status directories atomically', async () => {
       const job: DetectionJob = {
-        id: 'job-123' as JobId,
+        id: jobId('job-123'),
         type: 'detection',
         status: 'pending',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
@@ -263,19 +264,19 @@ describe('JobQueue', () => {
       expect(pendingExists).toBe(false);
 
       // Verify updated job can be retrieved
-      const updatedJob = await jobQueue.getJob('job-123' as JobId);
+      const updatedJob = await jobQueue.getJob(jobId('job-123'));
       expect(updatedJob?.status).toBe('running');
       expect(updatedJob?.startedAt).toBeDefined();
     });
 
     test('should move job from running to complete', async () => {
       const job: DetectionJob = {
-        id: 'job-456' as JobId,
+        id: jobId('job-456'),
         type: 'detection',
         status: 'running',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
@@ -294,19 +295,19 @@ describe('JobQueue', () => {
 
       await jobQueue.updateJob(job, 'running');
 
-      const completedJob = await jobQueue.getJob('job-456' as JobId);
+      const completedJob = await jobQueue.getJob(jobId('job-456'));
       expect(completedJob?.status).toBe('complete');
       expect(completedJob?.result).toEqual(job.result);
     });
 
     test('should move job from running to failed', async () => {
       const job: DetectionJob = {
-        id: 'job-789' as JobId,
+        id: jobId('job-789'),
         type: 'detection',
         status: 'running',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
@@ -321,7 +322,7 @@ describe('JobQueue', () => {
 
       await jobQueue.updateJob(job, 'running');
 
-      const failedJob = await jobQueue.getJob('job-789' as JobId);
+      const failedJob = await jobQueue.getJob(jobId('job-789'));
       expect(failedJob?.status).toBe('failed');
       expect(failedJob?.error).toBe('Connection timeout');
     });
@@ -331,36 +332,36 @@ describe('JobQueue', () => {
     test('should return oldest pending job (FIFO)', async () => {
       // Create jobs with different timestamps
       const job1: DetectionJob = {
-        id: 'job-001' as JobId,
+        id: jobId('job-001'),
         type: 'detection',
         status: 'pending',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: '2024-01-01T00:00:00Z',
         retryCount: 0,
         maxRetries: 3,
       };
 
       const job2: DetectionJob = {
-        id: 'job-002' as JobId,
+        id: jobId('job-002'),
         type: 'detection',
         status: 'pending',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-2' as ResourceId,
-        entityTypes: ['Organization'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-2'),
+        entityTypes: [entityType('Organization')],
         created: '2024-01-01T00:01:00Z',
         retryCount: 0,
         maxRetries: 3,
       };
 
       const job3: DetectionJob = {
-        id: 'job-003' as JobId,
+        id: jobId('job-003'),
         type: 'detection',
         status: 'pending',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-3' as ResourceId,
-        entityTypes: ['Location'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-3'),
+        entityTypes: [entityType('Location')],
         created: '2024-01-01T00:02:00Z',
         retryCount: 0,
         maxRetries: 3,
@@ -382,12 +383,12 @@ describe('JobQueue', () => {
 
     test('should not return running jobs', async () => {
       const runningJob: DetectionJob = {
-        id: 'job-running' as JobId,
+        id: jobId('job-running'),
         type: 'detection',
         status: 'running',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
@@ -405,45 +406,45 @@ describe('JobQueue', () => {
       // Create multiple jobs in different states
       const jobs: Job[] = [
         {
-          id: 'job-pending-1' as JobId,
+          id: jobId('job-pending-1'),
           type: 'detection',
           status: 'pending',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-1' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-1'),
+          entityTypes: [entityType('Person')],
           created: '2024-01-01T00:00:00Z',
           retryCount: 0,
           maxRetries: 3,
         },
         {
-          id: 'job-pending-2' as JobId,
+          id: jobId('job-pending-2'),
           type: 'generation',
           status: 'pending',
-          userId: 'user-2' as UserId,
-          referenceId: 'ann-1' as AnnotationId,
-          sourceResourceId: 'res-2' as ResourceId,
+          userId: userId('user-2'),
+          referenceId: annotationId('ann-1'),
+          sourceResourceId: resourceId('res-2'),
           created: '2024-01-01T00:01:00Z',
           retryCount: 0,
           maxRetries: 3,
         },
         {
-          id: 'job-running-1' as JobId,
+          id: jobId('job-running-1'),
           type: 'detection',
           status: 'running',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-3' as ResourceId,
-          entityTypes: ['Organization'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-3'),
+          entityTypes: [entityType('Organization')],
           created: '2024-01-01T00:02:00Z',
           retryCount: 0,
           maxRetries: 3,
         },
         {
-          id: 'job-complete-1' as JobId,
+          id: jobId('job-complete-1'),
           type: 'detection',
           status: 'complete',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-4' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-4'),
+          entityTypes: [entityType('Person')],
           created: '2024-01-01T00:03:00Z',
           completedAt: '2024-01-01T00:04:00Z',
           retryCount: 0,
@@ -482,11 +483,11 @@ describe('JobQueue', () => {
     });
 
     test('should filter by userId', async () => {
-      const user1Jobs = await jobQueue.listJobs({ userId: 'user-1' as UserId });
+      const user1Jobs = await jobQueue.listJobs({ userId: userId('user-1') });
       expect(user1Jobs.length).toBe(3);
       expect(user1Jobs.every(j => j.userId === 'user-1')).toBe(true);
 
-      const user2Jobs = await jobQueue.listJobs({ userId: 'user-2' as UserId });
+      const user2Jobs = await jobQueue.listJobs({ userId: userId('user-2') });
       expect(user2Jobs.length).toBe(1);
       expect(user2Jobs[0]?.id).toBe('job-pending-2');
     });
@@ -495,7 +496,7 @@ describe('JobQueue', () => {
       const filteredJobs = await jobQueue.listJobs({
         status: 'pending',
         type: 'detection',
-        userId: 'user-1' as UserId,
+        userId: userId('user-1'),
       });
 
       expect(filteredJobs.length).toBe(1);
@@ -531,57 +532,57 @@ describe('JobQueue', () => {
   describe('cancelJob()', () => {
     test('should cancel pending job', async () => {
       const job: DetectionJob = {
-        id: 'job-123' as JobId,
+        id: jobId('job-123'),
         type: 'detection',
         status: 'pending',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
       };
 
       await jobQueue.createJob(job);
-      const cancelled = await jobQueue.cancelJob('job-123' as JobId);
+      const cancelled = await jobQueue.cancelJob(jobId('job-123'));
 
       expect(cancelled).toBe(true);
 
-      const cancelledJob = await jobQueue.getJob('job-123' as JobId);
+      const cancelledJob = await jobQueue.getJob(jobId('job-123'));
       expect(cancelledJob?.status).toBe('cancelled');
       expect(cancelledJob?.completedAt).toBeDefined();
     });
 
     test('should cancel running job', async () => {
       const job: DetectionJob = {
-        id: 'job-456' as JobId,
+        id: jobId('job-456'),
         type: 'detection',
         status: 'running',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,
       };
 
       await jobQueue.createJob(job);
-      const cancelled = await jobQueue.cancelJob('job-456' as JobId);
+      const cancelled = await jobQueue.cancelJob(jobId('job-456'));
 
       expect(cancelled).toBe(true);
 
-      const cancelledJob = await jobQueue.getJob('job-456' as JobId);
+      const cancelledJob = await jobQueue.getJob(jobId('job-456'));
       expect(cancelledJob?.status).toBe('cancelled');
     });
 
     test('should not cancel completed job', async () => {
       const job: DetectionJob = {
-        id: 'job-789' as JobId,
+        id: jobId('job-789'),
         type: 'detection',
         status: 'complete',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: new Date().toISOString(),
         completedAt: new Date().toISOString(),
         retryCount: 0,
@@ -589,16 +590,16 @@ describe('JobQueue', () => {
       };
 
       await jobQueue.createJob(job);
-      const cancelled = await jobQueue.cancelJob('job-789' as JobId);
+      const cancelled = await jobQueue.cancelJob(jobId('job-789'));
 
       expect(cancelled).toBe(false);
 
-      const unchangedJob = await jobQueue.getJob('job-789' as JobId);
+      const unchangedJob = await jobQueue.getJob(jobId('job-789'));
       expect(unchangedJob?.status).toBe('complete');
     });
 
     test('should return false for non-existent job', async () => {
-      const cancelled = await jobQueue.cancelJob('nonexistent' as JobId);
+      const cancelled = await jobQueue.cancelJob(jobId('nonexistent'));
       expect(cancelled).toBe(false);
     });
   });
@@ -608,12 +609,12 @@ describe('JobQueue', () => {
       const oldDate = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(); // 48 hours ago
 
       const oldJob: DetectionJob = {
-        id: 'job-old' as JobId,
+        id: jobId('job-old'),
         type: 'detection',
         status: 'complete',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: oldDate,
         completedAt: oldDate,
         retryCount: 0,
@@ -625,7 +626,7 @@ describe('JobQueue', () => {
       const deletedCount = await jobQueue.cleanupOldJobs(24); // 24 hour retention
       expect(deletedCount).toBe(1);
 
-      const foundJob = await jobQueue.getJob('job-old' as JobId);
+      const foundJob = await jobQueue.getJob(jobId('job-old'));
       expect(foundJob).toBeNull();
     });
 
@@ -633,12 +634,12 @@ describe('JobQueue', () => {
       const recentDate = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(); // 1 hour ago
 
       const recentJob: DetectionJob = {
-        id: 'job-recent' as JobId,
+        id: jobId('job-recent'),
         type: 'detection',
         status: 'complete',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: recentDate,
         completedAt: recentDate,
         retryCount: 0,
@@ -650,7 +651,7 @@ describe('JobQueue', () => {
       const deletedCount = await jobQueue.cleanupOldJobs(24);
       expect(deletedCount).toBe(0);
 
-      const foundJob = await jobQueue.getJob('job-recent' as JobId);
+      const foundJob = await jobQueue.getJob(jobId('job-recent'));
       expect(foundJob).not.toBeNull();
     });
 
@@ -658,12 +659,12 @@ describe('JobQueue', () => {
       const oldDate = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
       const pendingJob: DetectionJob = {
-        id: 'job-pending' as JobId,
+        id: jobId('job-pending'),
         type: 'detection',
         status: 'pending',
-        userId: 'user-1' as UserId,
-        resourceId: 'res-1' as ResourceId,
-        entityTypes: ['Person'],
+        userId: userId('user-1'),
+        resourceId: resourceId('res-1'),
+        entityTypes: [entityType('Person')],
         created: oldDate,
         retryCount: 0,
         maxRetries: 3,
@@ -674,7 +675,7 @@ describe('JobQueue', () => {
       const deletedCount = await jobQueue.cleanupOldJobs(24);
       expect(deletedCount).toBe(0);
 
-      const foundJob = await jobQueue.getJob('job-pending' as JobId);
+      const foundJob = await jobQueue.getJob(jobId('job-pending'));
       expect(foundJob).not.toBeNull();
     });
   });
@@ -683,69 +684,69 @@ describe('JobQueue', () => {
     test('should return stats for all job statuses', async () => {
       const jobs: Job[] = [
         {
-          id: 'job-1' as JobId,
+          id: jobId('job-1'),
           type: 'detection',
           status: 'pending',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-1' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-1'),
+          entityTypes: [entityType('Person')],
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 3,
         },
         {
-          id: 'job-2' as JobId,
+          id: jobId('job-2'),
           type: 'detection',
           status: 'pending',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-2' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-2'),
+          entityTypes: [entityType('Person')],
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 3,
         },
         {
-          id: 'job-3' as JobId,
+          id: jobId('job-3'),
           type: 'detection',
           status: 'running',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-3' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-3'),
+          entityTypes: [entityType('Person')],
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 3,
         },
         {
-          id: 'job-4' as JobId,
+          id: jobId('job-4'),
           type: 'detection',
           status: 'complete',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-4' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-4'),
+          entityTypes: [entityType('Person')],
           created: new Date().toISOString(),
           completedAt: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 3,
         },
         {
-          id: 'job-5' as JobId,
+          id: jobId('job-5'),
           type: 'detection',
           status: 'complete',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-5' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-5'),
+          entityTypes: [entityType('Person')],
           created: new Date().toISOString(),
           completedAt: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 3,
         },
         {
-          id: 'job-6' as JobId,
+          id: jobId('job-6'),
           type: 'detection',
           status: 'failed',
-          userId: 'user-1' as UserId,
-          resourceId: 'res-6' as ResourceId,
-          entityTypes: ['Person'],
+          userId: userId('user-1'),
+          resourceId: resourceId('res-6'),
+          entityTypes: [entityType('Person')],
           created: new Date().toISOString(),
           completedAt: new Date().toISOString(),
           error: 'Test error',
