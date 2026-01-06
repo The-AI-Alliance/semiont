@@ -30,7 +30,7 @@ export function NavigationMenu({
   const dividerClassName = "my-2 border-gray-200 dark:border-gray-600";
 
   return (
-    <div className={className}>
+    <nav className={className} role="menu" aria-label="Main navigation">
       <Link
         href={brandingLink}
         {...(onItemClick && { onClick: onItemClick })}
@@ -83,6 +83,6 @@ export function NavigationMenu({
           {t('administer')}
         </Link>
       )}
-    </div>
+    </nav>
   );
 }
