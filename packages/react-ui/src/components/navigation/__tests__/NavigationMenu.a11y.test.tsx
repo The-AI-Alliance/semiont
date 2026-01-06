@@ -66,7 +66,7 @@ describe('NavigationMenu - Accessibility', () => {
   });
 
   describe('WCAG 1.3.1 - Info and Relationships (Semantic HTML)', () => {
-    it('should render navigation container', () => {
+    it('should render navigation container with menu role', () => {
       const { container} = render(
         <NavigationMenu
           Link={mockLink}
@@ -75,8 +75,9 @@ describe('NavigationMenu - Accessibility', () => {
         />
       );
 
-      const div = container.querySelector('div');
-      expect(div).toBeInTheDocument();
+      const nav = container.querySelector('nav[role="menu"]');
+      expect(nav).toBeInTheDocument();
+      expect(nav).toHaveAttribute('aria-label', 'Main navigation');
     });
 
     it('should have proper ARIA role for menu items', () => {
@@ -146,11 +147,11 @@ describe('NavigationMenu - Accessibility', () => {
         />
       );
 
-      const links = screen.getAllByRole('link');
+      const menuItems = screen.getAllByRole('menuitem');
 
-      // All links should have accessible names from text content
-      links.forEach(link => {
-        expect(link).toHaveAccessibleName();
+      // All menu items should have accessible names from aria-label
+      menuItems.forEach(item => {
+        expect(item).toHaveAccessibleName();
       });
     });
 
@@ -209,10 +210,10 @@ describe('NavigationMenu - Accessibility', () => {
         />
       );
 
-      const homeLink = screen.getByRole('link', { name: 'Home' });
+      const homeLink = screen.getByRole('menuitem', { name: /home/i });
       expect(homeLink).toHaveTextContent('Home');
 
-      const knowLink = screen.getByRole('link', { name: 'Knowledge' });
+      const knowLink = screen.getByRole('menuitem', { name: /knowledge/i });
       expect(knowLink).toHaveTextContent('Knowledge');
     });
   });
@@ -317,7 +318,7 @@ describe('NavigationMenu - Accessibility', () => {
         />
       );
 
-      const homeLink = screen.getByRole('link', { name: 'Home' });
+      const homeLink = screen.getByRole('menuitem', { name: /home/i });
       homeLink.click();
 
       // Callback should be triggered

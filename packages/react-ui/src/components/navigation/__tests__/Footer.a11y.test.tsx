@@ -262,10 +262,10 @@ describe('Footer - Accessibility', () => {
         />
       );
 
-      const aboutLink = screen.getByRole('link', { name: 'About' });
+      const aboutLink = screen.getByRole('link', { name: /about/i });
       expect(aboutLink).toHaveTextContent('About');
 
-      const privacyLink = screen.getByRole('link', { name: 'Privacy Policy' });
+      const privacyLink = screen.getByRole('link', { name: /privacy/i });
       expect(privacyLink).toHaveTextContent('Privacy Policy');
     });
   });
@@ -379,7 +379,7 @@ describe('Footer - Accessibility', () => {
   });
 
   describe('Cookie Preferences Component', () => {
-    it('should render Cookie Preferences component', () => {
+    it('should render Cookie Preferences button', () => {
       render(
         <Footer
           Link={mockLink}
@@ -389,7 +389,8 @@ describe('Footer - Accessibility', () => {
         />
       );
 
-      expect(screen.getByText('Cookie Preferences')).toBeInTheDocument();
+      const button = screen.getByRole('button', { name: /Cookie Preferences/i });
+      expect(button).toBeInTheDocument();
     });
   });
 
