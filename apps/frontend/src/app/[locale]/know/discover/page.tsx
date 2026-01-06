@@ -12,7 +12,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useResources, useEntityTypes, useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { ResourceDiscoveryPage } from '@/features/resource-discovery/components/ResourceDiscoveryPage';
+import { ResourceDiscoveryPage } from '@semiont/react-ui';
 
 /**
  * Main page component - handles Next.js hooks and data loading

@@ -27,10 +27,11 @@ import { Link, routes } from '@/lib/routing';
 import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Feature components
-import { ResourceLoadingState } from '@/features/resource-viewer/components/ResourceLoadingState';
-import { ResourceErrorState } from '@/features/resource-viewer/components/ResourceErrorState';
-import { ResourceViewerPage } from '@/features/resource-viewer/components/ResourceViewerPage';
-import type { SemiontResource, Motivation } from '@/features/resource-viewer/types';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
+import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
+import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
+import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
+import type { SemiontResource, Motivation } from '@semiont/react-ui';
 
 /**
  * Main page component - handles data loading only
@@ -409,6 +410,9 @@ function ResourceViewWrapper({
       client={client}
       Link={Link}
       routes={routes}
+      ToolbarPanels={ToolbarPanels}
+      SearchResourcesModal={SearchResourcesModal}
+      GenerationConfigModal={GenerationConfigModal}
     />
   );
 }

@@ -13,8 +13,8 @@ import { useAdmin, Toolbar } from '@semiont/react-ui';
 import type { paths } from '@semiont/api-client';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
-import { AdminSecurityPage } from '@/features/admin-security/components/AdminSecurityPage';
-import type { OAuthProvider } from '@/features/admin-security/components/AdminSecurityPage';
+import { AdminSecurityPage } from '@semiont/react-ui';
+import type { OAuthProvider } from '@semiont/react-ui';
 
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
 type OAuthConfigResponse = ResponseContent<paths['/api/admin/oauth/config']['get']>;

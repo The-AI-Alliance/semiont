@@ -4,11 +4,11 @@ import React, { useContext, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { PageLayout } from '@semiont/react-ui';
+import { PageLayout, SignUpForm } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
-import { SignUpForm } from '@/features/auth/components/SignUpForm';
+import Link from 'next/link';
 
 /**
  * SignUpContent - Thin Next.js wrapper for SignUpForm
@@ -56,7 +56,7 @@ function SignUpContent() {
       className="bg-gray-50 dark:bg-gray-900"
       showAuthLinks={false}
     >
-      <SignUpForm onSignUp={handleSignUp} translations={translations} />
+      <SignUpForm onSignUp={handleSignUp} Link={Link} translations={translations} />
     </PageLayout>
   );
 }

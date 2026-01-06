@@ -15,7 +15,7 @@ import { useEntityTypes, Toolbar } from '@semiont/react-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
-import { EntityTagsPage } from '@/features/moderate-entity-tags/components/EntityTagsPage';
+import { EntityTagsPage } from '@semiont/react-ui';
 
 export default function EntityTagsPageWrapper() {
   const t = useTranslations('ModerateEntityTags');

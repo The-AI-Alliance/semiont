@@ -4,11 +4,11 @@ import React, { useEffect, useState, Suspense, useContext } from 'react';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Footer } from '@semiont/react-ui';
+import { Footer, SignInForm } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
-import { SignInForm } from '@/features/auth/components/SignInForm';
+import Link from 'next/link';
 
 /**
  * SignInContent - Thin Next.js wrapper for SignInForm
@@ -117,6 +117,7 @@ function SignInContent() {
         onLocalSignIn={showLocalAuth ? handleLocalSignIn : undefined}
         error={error}
         showLocalAuth={showLocalAuth}
+        Link={Link}
         translations={translations}
       />
 

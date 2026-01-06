@@ -13,7 +13,7 @@ import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { PageLayout, useToast, useAuthApi } from '@semiont/react-ui';
-import { WelcomePage } from '@/features/auth-welcome/components/WelcomePage';
+import { WelcomePage } from '@semiont/react-ui';
 
 export default function Welcome() {
   const t = useTranslations('AuthWelcome');

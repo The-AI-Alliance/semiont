@@ -5,8 +5,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import '@testing-library/jest-dom';
 
 // Test components - pure React components
-import { SignUpForm } from '@/features/auth/components/SignUpForm';
-import { WelcomePage } from '@/features/auth-welcome/components/WelcomePage';
+import { SignUpForm, WelcomePage } from '@semiont/react-ui';
 
 describe('Sign-Up Flow Integration Tests', () => {
   // Mock components for testing
@@ -92,6 +91,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
       const { unmount: unmountSignup } = render(
         <SignUpForm
+          Link={MockLink}
           onSignUp={mockOnSignUp}
           translations={mockSignUpTranslations}
         />
@@ -169,6 +169,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
       render(
         <SignUpForm
+          Link={MockLink}
           onSignUp={mockOnSignUp}
           translations={mockSignUpTranslations}
         />
@@ -242,6 +243,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
       render(
         <SignUpForm
+          Link={MockLink}
           onSignUp={mockOnSignUp}
           translations={mockSignUpTranslations}
         />
@@ -303,6 +305,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
       render(
         <SignUpForm
+          Link={MockLink}
           onSignUp={mockOnSignUp}
           translations={mockSignUpTranslations}
         />
@@ -422,6 +425,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
       render(
         <SignUpForm
+          Link={MockLink}
           onSignUp={mockOnSignUp}
           translations={mockSignUpTranslations}
         />
@@ -446,6 +450,7 @@ describe('Sign-Up Flow Integration Tests', () => {
       for (let i = 0; i < 5; i++) {
         const { unmount } = render(
           <SignUpForm
+          Link={MockLink}
             onSignUp={mockOnSignUp}
             translations={mockSignUpTranslations}
           />
@@ -466,6 +471,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
       const { unmount } = render(
         <SignUpForm
+          Link={MockLink}
           onSignUp={mockOnSignUp}
           translations={mockSignUpTranslations}
         />
@@ -496,6 +502,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
       render(
         <SignUpForm
+          Link={MockLink}
           onSignUp={mockOnSignUp}
           translations={mockSignUpTranslations}
         />
@@ -524,6 +531,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
       render(
         <SignUpForm
+          Link={MockLink}
           onSignUp={mockOnSignUp}
           translations={mockSignUpTranslations}
         />
@@ -545,6 +553,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
       render(
         <SignUpForm
+          Link={MockLink}
           onSignUp={mockOnSignUp}
           translations={mockSignUpTranslations}
         />

@@ -21,9 +21,9 @@ import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { getPrimaryMediaType, getResourceId, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat } from '@semiont/api-client';
 import { decodeWithCharset } from '@semiont/api-client';
-import { ComposeLoadingState } from '@/features/resource-compose/components/ComposeLoadingState';
-import { ResourceComposePage } from '@/features/resource-compose/components/ResourceComposePage';
-import type { SaveResourceParams } from '@/features/resource-compose/components/ResourceComposePage';
+import { ComposeLoadingState } from '@semiont/react-ui';
+import { ResourceComposePage } from '@semiont/react-ui';
+import type { SaveResourceParams } from '@semiont/react-ui';
 
 function ComposeResourceContent() {
   const t = useTranslations('Compose');

@@ -3,11 +3,11 @@
 import React, { useContext, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { PageLayout } from '@semiont/react-ui';
+import { PageLayout, AuthErrorDisplay } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
-import { AuthErrorDisplay } from '@/features/auth/components/AuthErrorDisplay';
+import Link from 'next/link';
 
 /**
  * AuthErrorContent - Thin Next.js wrapper for AuthErrorDisplay
@@ -44,7 +44,7 @@ function AuthErrorContent() {
       {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
       className="bg-gray-50 dark:bg-gray-900"
     >
-      <AuthErrorDisplay errorType={errorType} translations={translations} />
+      <AuthErrorDisplay errorType={errorType} Link={Link} translations={translations} />
     </PageLayout>
   );
 }

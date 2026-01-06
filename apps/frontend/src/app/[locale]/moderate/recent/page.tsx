@@ -9,7 +9,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme } from '@semiont/react-ui';
 import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
-import { RecentDocumentsPage } from '@/features/moderate-recent/components/RecentDocumentsPage';
+import { RecentDocumentsPage } from '@semiont/react-ui';
 
 export default function RecentDocumentsPageWrapper() {
   const t = useTranslations('ModerateRecent');

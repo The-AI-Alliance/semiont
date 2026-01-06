@@ -10,7 +10,7 @@ import { useTheme } from '@semiont/react-ui';
 import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
 import { getAllTagSchemas } from '@semiont/ontology';
-import { TagSchemasPage } from '@/features/moderate-tag-schemas/components/TagSchemasPage';
+import { TagSchemasPage } from '@semiont/react-ui';
 
 export default function TagSchemasPageWrapper() {
   const t = useTranslations('ModerateTagSchemas');

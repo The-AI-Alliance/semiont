@@ -27,7 +27,8 @@ import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
-import type { SemiontResource, Annotation, Motivation, TextSelection, DetectionProgress } from '../types';
+import type { SemiontResource, Annotation, Motivation, TextSelection, GenerationOptions } from '@semiont/react-ui';
+import type { DetectionProgress } from '@semiont/react-ui';
 
 export interface ResourceViewerPageProps {
   /**

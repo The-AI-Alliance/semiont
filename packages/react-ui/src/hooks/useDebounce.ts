@@ -1,8 +1,6 @@
 'use client';
 
-'use client';
-
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 
 /**
  * Creates a debounced version of a callback function
@@ -52,4 +50,33 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
     },
     [delay]
   );
+}
+
+/**
+ * useDebounce Hook
+ *
+ * Custom hook for debouncing values (e.g., search input).
+ * Returns a debounced value that updates after the specified delay.
+ *
+ * @param value - The value to debounce
+ * @param delay - Debounce delay in milliseconds
+ * @returns Debounced value
+ *
+ * @example
+ * const debouncedQuery = useDebounce(searchQuery, 500);
+ */
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
 }

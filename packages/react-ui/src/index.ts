@@ -12,6 +12,7 @@ export * from './types/CacheManager';
 export * from './types/OpenResourcesManager';
 export * from './types/SessionManager';
 export * from './types/TranslationManager';
+export * from './types/resource-viewer';
 
 // Lib utilities
 export * from './lib/annotation-registry';
@@ -132,3 +133,32 @@ export * from './components/branding/SemiontBranding';
 export * from './components/layout/UnifiedHeader';
 export * from './components/layout/LeftSidebar';
 export * from './components/layout/PageLayout';
+
+// Components - Loading States
+export * from './components/loading-states/ComposeLoadingState';
+export * from './components/loading-states/ResourceLoadingState';
+
+// Components - Error States
+export * from './components/error-states/ResourceErrorState';
+
+// Features - Admin
+export * from './features/admin-devops/components/AdminDevOpsPage';
+export * from './features/admin-security/components/AdminSecurityPage';
+export * from './features/admin-users/components/AdminUsersPage';
+
+// Features - Auth
+export * from './features/auth/components/SignInForm';
+export * from './features/auth/components/SignUpForm';
+export * from './features/auth/components/AuthErrorDisplay';
+export * from './features/auth-welcome/components/WelcomePage';
+
+// Features - Moderation
+export * from './features/moderate-entity-tags/components/EntityTagsPage';
+export * from './features/moderate-recent/components/RecentDocumentsPage';
+export * from './features/moderate-tag-schemas/components/TagSchemasPage';
+
+// Features - Resources
+export * from './features/resource-compose/components/ResourceComposePage';
+export * from './features/resource-discovery/components/ResourceDiscoveryPage';
+export * from './features/resource-discovery/components/ResourceCard';
+export * from './features/resource-viewer/components/ResourceViewerPage';

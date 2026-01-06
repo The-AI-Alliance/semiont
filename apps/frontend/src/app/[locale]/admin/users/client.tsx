@@ -14,8 +14,8 @@ import type { paths } from '@semiont/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
-import { AdminUsersPage } from '@/features/admin-users/components/AdminUsersPage';
-import type { AdminUser, AdminUserStats } from '@/features/admin-users/components/AdminUsersPage';
+import { AdminUsersPage } from '@semiont/react-ui';
+import type { AdminUser, AdminUserStats } from '@semiont/react-ui';
 
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
 type AdminUsersResponse = ResponseContent<paths['/api/admin/users']['get']>;
