@@ -447,6 +447,11 @@ describe('ResourceComposePage', () => {
       // Button should show loading state
       expect(screen.getByRole('button', { name: 'Creating...' })).toBeInTheDocument();
       expect(nameInput).toBeDisabled();
+
+      // Wait for the async operation to complete
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Create Resource' })).toBeInTheDocument();
+      });
     });
 
     it('calls onCancel when cancel button clicked', () => {
