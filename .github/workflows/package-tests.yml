@@ -27,7 +27,6 @@ jobs:
           - mcp-server
           - ontology
           - react-ui
-          - test-utils
 
     steps:
       - name: Checkout code
@@ -81,7 +80,7 @@ jobs:
               npm run build --workspace=@semiont/api-client
               npm run build --workspace=@semiont/ontology
               ;;
-            test-utils|mcp-server)
+            mcp-server)
               npm run openapi:bundle
               npm run build --workspace=@semiont/api-client
               ;;
