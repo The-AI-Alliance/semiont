@@ -37,6 +37,7 @@ jobs:
           npm install
           npm run openapi:bundle
           npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/ontology
 
       - name: Install axe-core testing packages
         run: |
@@ -101,6 +102,7 @@ jobs:
           npm install
           npm run openapi:bundle
           npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 
       - name: Install axe-core testing packages
@@ -173,6 +175,7 @@ jobs:
           npm install
           npm run openapi:bundle
           npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 
       - name: Build frontend

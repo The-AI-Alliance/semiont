@@ -28,6 +28,7 @@ jobs:
           npm install
           npm run openapi:bundle
           npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 
       - name: Build CLI
