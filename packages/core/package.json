@@ -51,7 +51,8 @@
     "json-schema-to-typescript": "^15.0.2",
     "tsup": "^8.5.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@semiont/api-client": "*",

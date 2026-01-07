@@ -48,7 +48,8 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "tsup": "^8.5.1",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@semiont/api-client": "*",
