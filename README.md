@@ -95,11 +95,18 @@ Semiont publishes npm packages and container images for easy integration and dep
 
 ### NPM Packages
 
-- **[@semiont/api-client](packages/api-client/)** [![npm](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client) - TypeScript SDK with complete types from OpenAPI spec. [Documentation →](packages/api-client/README.md)
+- **[@semiont/api-client](packages/api-client/)** [![npm](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client) - TypeScript SDK with complete types from OpenAPI spec
+- **[@semiont/core](packages/core/)** [![npm](https://img.shields.io/npm/v/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core) - Core domain types and utilities
+- **[@semiont/ontology](packages/ontology/)** [![npm](https://img.shields.io/npm/v/@semiont/ontology)](https://www.npmjs.com/package/@semiont/ontology) - Entity types, tag schemas, and vocabularies
+- **[@semiont/event-sourcing](packages/event-sourcing/)** [![npm](https://img.shields.io/npm/v/@semiont/event-sourcing.svg)](https://www.npmjs.com/package/@semiont/event-sourcing) - Event store and view storage
+- **[@semiont/graph](packages/graph/)** [![npm](https://img.shields.io/npm/v/@semiont/graph)](https://www.npmjs.com/package/@semiont/graph) - Graph database abstraction
+- **[@semiont/inference](packages/inference/)** [![npm](https://img.shields.io/npm/v/@semiont/inference)](https://www.npmjs.com/package/@semiont/inference) - AI prompts, parsers, and text generation
+- **[@semiont/jobs](packages/jobs/)** [![npm](https://img.shields.io/npm/v/@semiont/jobs.svg)](https://www.npmjs.com/package/@semiont/jobs) - Job queue and worker infrastructure
+- **[@semiont/make-meaning](packages/make-meaning/)** [![npm](https://img.shields.io/npm/v/@semiont/make-meaning)](https://www.npmjs.com/package/@semiont/make-meaning) - Context assembly, pattern detection, reasoning
+- **[@semiont/react-ui](packages/react-ui/)** [![npm](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui) - React components and hooks
+- **[@semiont/cli](apps/cli/)** [![npm](https://img.shields.io/npm/v/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli) - Command-line tool for environment management
 
-- **[@semiont/core](packages/core/)** [![npm](https://img.shields.io/npm/v/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core) - Core domain types and utilities for internal use. [Documentation →](packages/core/README.md)
-
-- **[@semiont/cli](apps/cli/)** [![npm](https://img.shields.io/npm/v/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli) - Command-line tool for environment management. [Documentation →](apps/cli/README.md)
+**See [packages/README.md](packages/README.md) for complete package documentation.**
 
 ### Container Images
 
