@@ -1,7 +1,6 @@
 {
   "name": "@semiont/react-ui",
   "version": "0.2.28",
-  "private": true,
   "description": "React components and hooks for Semiont",
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
@@ -47,5 +46,15 @@
     "tsup": "^8.0.1",
     "typescript": "^5.6.3",
     "vitest": "^3.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "The AI Alliance",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/react-ui"
   }
 }

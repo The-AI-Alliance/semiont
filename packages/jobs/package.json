@@ -11,6 +11,10 @@
       "import": "./dist/index.js"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "npm run typecheck && tsup",
     "typecheck": "tsc --noEmit",
@@ -24,5 +28,22 @@
     "tsup": "^8.0.1",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "job-queue",
+    "worker",
+    "task-queue",
+    "filesystem",
+    "background-jobs"
+  ],
+  "author": "The AI Alliance",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/jobs"
   }
 }
