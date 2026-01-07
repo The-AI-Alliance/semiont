@@ -13,6 +13,7 @@ on:
       - 'packages/graph/**'
       - 'packages/inference/**'
       - 'packages/jobs/**'
+      - 'packages/make-meaning/**'
       - 'packages/react-ui/**'
       - 'apps/cli/**'
       - 'specs/**'
@@ -63,6 +64,7 @@ jobs:
           npm run build --workspace=@semiont/graph
           npm run build --workspace=@semiont/inference
           npm run build --workspace=@semiont/jobs
+          npm run build --workspace=@semiont/make-meaning
           npm run build --workspace=@semiont/react-ui
 
       - name: Build @semiont/cli
@@ -154,6 +156,15 @@ jobs:
             console.log('✓ Updated @semiont/jobs to $TARGET_VERSION');
           "
 
+          # Update @semiont/make-meaning
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('packages/make-meaning/package.json', 'utf-8'));
+            pkg.version = '$TARGET_VERSION';
+            fs.writeFileSync('packages/make-meaning/package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('✓ Updated @semiont/make-meaning to $TARGET_VERSION');
+          "
+
           # Update @semiont/react-ui
           node -e "
             const fs = require('fs');
@@ -231,6 +242,13 @@ jobs:
           echo "Publishing @semiont/jobs@${{ steps.version.outputs.publish }}"
           npm publish --tag ${{ steps.version.outputs.tag }} --access public
 
+      - name: Publish @semiont/make-meaning
+        if: github.event.inputs.dry_run != 'true'
+        working-directory: ./packages/make-meaning
+        run: |
+          echo "Publishing @semiont/make-meaning@${{ steps.version.outputs.publish }}"
+          npm publish --tag ${{ steps.version.outputs.tag }} --access public
+
       - name: Publish @semiont/react-ui
         if: github.event.inputs.dry_run != 'true'
         working-directory: ./packages/react-ui
@@ -260,6 +278,7 @@ jobs:
           echo "- @semiont/graph@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "- @semiont/inference@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "- @semiont/jobs@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "- @semiont/make-meaning@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "- @semiont/react-ui@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "- @semiont/cli@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -272,6 +291,7 @@ jobs:
           echo "npm install @semiont/graph@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install @semiont/inference@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install @semiont/jobs@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @semiont/make-meaning@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install @semiont/react-ui@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install -g @semiont/cli@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
