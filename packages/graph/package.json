@@ -18,7 +18,9 @@
   "scripts": {
     "build": "npm run typecheck && tsup",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@semiont/api-client": "*",
@@ -27,9 +29,9 @@
     "uuid": "^9.0.1"
   },
   "peerDependencies": {
-    "neo4j-driver": "^5.28.2",
+    "@aws-sdk/client-neptune": "^3.600.0",
     "gremlin": "^3.7.4",
-    "@aws-sdk/client-neptune": "^3.600.0"
+    "neo4j-driver": "^5.28.2"
   },
   "peerDependenciesMeta": {
     "neo4j-driver": {

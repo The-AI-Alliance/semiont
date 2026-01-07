@@ -33,7 +33,9 @@
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && tsup",
     "watch": "tsup --watch",
-    "clean": "rm -rf dist *.tsbuildinfo"
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "types",
