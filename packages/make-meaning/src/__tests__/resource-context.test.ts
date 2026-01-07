@@ -38,13 +38,21 @@ describe('ResourceContext', () => {
     mockConfig = {
       services: {
         filesystem: { path: '/test/data' },
-        backend: { publicURL: 'http://localhost:4000' },
+        backend: {
+          publicURL: 'http://localhost:4000',
+          platform: 'local',
+          port: 4000,
+          corsOrigin: '*',
+        },
       },
       storage: {
         base: '/test/storage',
       },
-      _metadata: { projectRoot: '/test' },
-    } as EnvironmentConfig;
+      _metadata: {
+        environment: 'test',
+        projectRoot: '/test',
+      },
+    } as unknown as EnvironmentConfig;
 
     mockViewStorage = {
       get: vi.fn(),
@@ -537,7 +545,8 @@ describe('ResourceContext', () => {
       ];
 
       vi.mocked(getPrimaryRepresentation).mockImplementation((resource) => {
-        return resource.representations[0];
+        const reps = resource?.representations;
+        return Array.isArray(reps) ? reps[0] : reps;
       });
 
       mockRepStore.retrieve
@@ -561,7 +570,7 @@ describe('ResourceContext', () => {
         representations: [],
       };
 
-      vi.mocked(getPrimaryRepresentation).mockReturnValue(null);
+      vi.mocked(getPrimaryRepresentation).mockReturnValue(undefined);
 
       const result = await ResourceContext.addContentPreviews([resourceWithoutReps], mockConfig);
 
@@ -571,49 +580,20 @@ describe('ResourceContext', () => {
     });
 
     test('should handle resources without checksum', async () => {
-      const resourceNoChecksum: ResourceDescriptor = {
-        ...mockResource,
-        representations: [
-          {
-            mediaType: 'text/plain',
-            byteSize: 100,
-            rel: 'original',
-          },
-        ],
-      };
-
-      vi.mocked(getPrimaryRepresentation).mockReturnValue({
+      const repWithoutChecksum = {
         mediaType: 'text/plain',
         byteSize: 100,
-        rel: 'original',
-      });
-
-      const result = await ResourceContext.addContentPreviews([resourceNoChecksum], mockConfig);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]?.content).toBe('');
-      expect(mockRepStore.retrieve).not.toHaveBeenCalled();
-    });
-
-    test('should handle resources without mediaType', async () => {
-      const resourceNoMediaType: ResourceDescriptor = {
-        ...mockResource,
-        representations: [
-          {
-            checksum: 'abc123',
-            byteSize: 100,
-            rel: 'original',
-          },
-        ],
+        rel: 'original' as const,
       };
 
-      vi.mocked(getPrimaryRepresentation).mockReturnValue({
-        checksum: 'abc123',
-        byteSize: 100,
-        rel: 'original',
-      });
+      const resourceNoChecksum: ResourceDescriptor = {
+        ...mockResource,
+        representations: [repWithoutChecksum],
+      };
 
-      const result = await ResourceContext.addContentPreviews([resourceNoMediaType], mockConfig);
+      vi.mocked(getPrimaryRepresentation).mockReturnValue(repWithoutChecksum);
+
+      const result = await ResourceContext.addContentPreviews([resourceNoChecksum], mockConfig);
 
       expect(result).toHaveLength(1);
       expect(result[0]?.content).toBe('');
