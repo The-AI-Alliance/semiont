@@ -85,18 +85,14 @@ jobs:
               ;;
           esac
 
-      - name: Check if package has tests
-        id: check-tests
+      - name: Build the package itself
         run: |
           cd packages/${{ matrix.package }}
-          if [ -f "package.json" ] && grep -q '"test"' package.json; then
-            echo "has_tests=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_tests=false" >> $GITHUB_OUTPUT
+          if grep -q '"build"' package.json; then
+            npm run build
           fi
 
       - name: Run type check
-        if: steps.check-tests.outputs.has_tests == 'true'
         run: |
           cd packages/${{ matrix.package }}
           if grep -q '"typecheck"' package.json; then
@@ -104,21 +100,17 @@ jobs:
           else
             echo "No typecheck script found, skipping"
           fi
-        continue-on-error: false
         env:
           CI: true
 
       - name: Run tests
-        if: steps.check-tests.outputs.has_tests == 'true'
         run: |
           cd packages/${{ matrix.package }}
           npm test
-        continue-on-error: false
         env:
           CI: true
 
       - name: Run tests with coverage
-        if: steps.check-tests.outputs.has_tests == 'true'
         run: |
           cd packages/${{ matrix.package }}
           npm run test:coverage || npm test -- --coverage || echo "No coverage available"
@@ -127,7 +119,6 @@ jobs:
           CI: true
 
       - name: Upload coverage reports
-        if: steps.check-tests.outputs.has_tests == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.package }}
