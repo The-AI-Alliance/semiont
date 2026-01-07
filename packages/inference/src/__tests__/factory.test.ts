@@ -1,38 +1,42 @@
 import { describe, it, expect } from 'vitest';
-import { createInferenceClient } from '../factory.js';
+import { getInferenceModel } from '../factory.js';
 
 describe('@semiont/inference - factory', () => {
-  describe('createInferenceClient', () => {
-    it('should create an inference client with Anthropic provider', () => {
-      const client = createInferenceClient({
-        provider: 'anthropic',
-        apiKey: 'test-key',
-      });
+  describe('getInferenceModel', () => {
+    it('should return the configured model', () => {
+      const config: any = {
+        services: {
+          inference: {
+            type: 'anthropic',
+            model: 'claude-3-5-sonnet-20241022',
+            apiKey: 'test-key'
+          }
+        }
+      };
 
-      expect(client).toBeDefined();
-      expect(client).toHaveProperty('generateText');
-      expect(client).toHaveProperty('extractEntities');
+      const model = getInferenceModel(config);
+      expect(model).toBe('claude-3-5-sonnet-20241022');
     });
 
-    it('should create an inference client with OpenAI provider', () => {
-      const client = createInferenceClient({
-        provider: 'openai',
-        apiKey: 'test-key',
-      });
+    it('should throw error if model is not configured', () => {
+      const config: any = {
+        services: {
+          inference: {
+            type: 'anthropic',
+            apiKey: 'test-key'
+          }
+        }
+      };
 
-      expect(client).toBeDefined();
-      expect(client).toHaveProperty('generateText');
-      expect(client).toHaveProperty('extractEntities');
+      expect(() => getInferenceModel(config)).toThrow('Inference model not configured');
     });
 
-    it('should throw error for missing API key', () => {
-      expect(() => {
-        createInferenceClient({
-          provider: 'anthropic',
-          // @ts-expect-error - testing missing apiKey
-          apiKey: undefined,
-        });
-      }).toThrow();
+    it('should throw error if inference config is missing', () => {
+      const config: any = {
+        services: {}
+      };
+
+      expect(() => getInferenceModel(config)).toThrow();
     });
   });
 });

@@ -1,43 +1,35 @@
 import { describe, it, expect } from 'vitest';
-import { extractEntityId, extractEventNumber, formatEventId } from '../identifier-utils.js';
+import { toResourceUri, toAnnotationUri } from '../identifier-utils.js';
+import { resourceId, annotationId } from '@semiont/core';
 
 describe('@semiont/event-sourcing - identifier-utils', () => {
-  describe('formatEventId', () => {
-    it('should format an event ID correctly', () => {
-      const entityId = 'resource-123';
-      const eventNumber = 5;
-      const eventId = formatEventId(entityId, eventNumber);
+  const config = { baseUrl: 'http://localhost:4000' };
 
-      expect(eventId).toBeDefined();
-      expect(typeof eventId).toBe('string');
-      expect(eventId).toContain(entityId);
+  describe('toResourceUri', () => {
+    it('should convert resource ID to URI', () => {
+      const id = resourceId('test-resource-123');
+      const uri = toResourceUri(config, id);
+
+      expect(uri).toBe('http://localhost:4000/resources/test-resource-123');
     });
 
-    it('should handle different entity IDs', () => {
-      const id1 = formatEventId('entity-1', 1);
-      const id2 = formatEventId('entity-2', 1);
-
-      expect(id1).not.toBe(id2);
+    it('should throw error if baseUrl is missing', () => {
+      const id = resourceId('test-resource-123');
+      expect(() => toResourceUri({} as any, id)).toThrow('baseUrl is required');
     });
   });
 
-  describe('extractEntityId', () => {
-    it('should extract entity ID from event ID', () => {
-      const entityId = 'resource-123';
-      const eventId = formatEventId(entityId, 1);
-      const extracted = extractEntityId(eventId);
+  describe('toAnnotationUri', () => {
+    it('should convert annotation ID to URI', () => {
+      const id = annotationId('test-annotation-456');
+      const uri = toAnnotationUri(config, id);
 
-      expect(extracted).toBe(entityId);
+      expect(uri).toBe('http://localhost:4000/annotations/test-annotation-456');
     });
-  });
 
-  describe('extractEventNumber', () => {
-    it('should extract event number from event ID', () => {
-      const eventNumber = 42;
-      const eventId = formatEventId('resource-123', eventNumber);
-      const extracted = extractEventNumber(eventId);
-
-      expect(extracted).toBe(eventNumber);
+    it('should throw error if baseUrl is missing', () => {
+      const id = annotationId('test-annotation-456');
+      expect(() => toAnnotationUri({} as any, id)).toThrow('baseUrl is required');
     });
   });
 });
