@@ -32,10 +32,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
+      - name: Build dependencies
         run: |
           npm install
-          npm run build:packages
+          npm run openapi:bundle
+          npm run build --workspace=@semiont/api-client
 
       - name: Install axe-core testing packages
         run: |
@@ -95,10 +96,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
+      - name: Build dependencies
         run: |
           npm install
-          npm run build:packages
+          npm run openapi:bundle
+          npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/react-ui
 
       - name: Install axe-core testing packages
         run: |
@@ -165,10 +168,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
+      - name: Build dependencies
         run: |
           npm install
-          npm run build:packages
+          npm run openapi:bundle
+          npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/react-ui
 
       - name: Build frontend
         run: |
