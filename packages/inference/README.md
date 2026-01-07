@@ -1,5 +1,6 @@
 # @semiont/inference
 
+[![npm version](https://img.shields.io/npm/v/@semiont/inference)](https://www.npmjs.com/package/@semiont/inference)
 [![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+inference%22)
 
 AI inference for entity extraction, text generation, and resource creation.
