@@ -4,16 +4,16 @@ Modular packages for the Semiont platform, organized in a layered architecture f
 
 ## Published Packages
 
-[![npm version](https://img.shields.io/npm/v/@semiont/api-client)](https://www.npmjs.com/package/@semiont/api-client)
-[![npm version](https://img.shields.io/npm/v/@semiont/core)](https://www.npmjs.com/package/@semiont/core)
-[![npm version](https://img.shields.io/npm/v/@semiont/ontology)](https://www.npmjs.com/package/@semiont/ontology)
-[![npm version](https://img.shields.io/npm/v/@semiont/event-sourcing)](https://www.npmjs.com/package/@semiont/event-sourcing)
-[![npm version](https://img.shields.io/npm/v/@semiont/graph)](https://www.npmjs.com/package/@semiont/graph)
-[![npm version](https://img.shields.io/npm/v/@semiont/inference)](https://www.npmjs.com/package/@semiont/inference)
-[![npm version](https://img.shields.io/npm/v/@semiont/jobs)](https://www.npmjs.com/package/@semiont/jobs)
-[![npm version](https://img.shields.io/npm/v/@semiont/make-meaning)](https://www.npmjs.com/package/@semiont/make-meaning)
-[![npm version](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui)
-[![npm version](https://img.shields.io/npm/v/@semiont/cli)](https://www.npmjs.com/package/@semiont/cli)
+- **[@semiont/api-client](https://www.npmjs.com/package/@semiont/api-client)** [![npm](https://img.shields.io/npm/v/@semiont/api-client)](https://www.npmjs.com/package/@semiont/api-client)
+- **[@semiont/core](https://www.npmjs.com/package/@semiont/core)** [![npm](https://img.shields.io/npm/v/@semiont/core)](https://www.npmjs.com/package/@semiont/core)
+- **[@semiont/ontology](https://www.npmjs.com/package/@semiont/ontology)** [![npm](https://img.shields.io/npm/v/@semiont/ontology)](https://www.npmjs.com/package/@semiont/ontology)
+- **[@semiont/event-sourcing](https://www.npmjs.com/package/@semiont/event-sourcing)** [![npm](https://img.shields.io/npm/v/@semiont/event-sourcing)](https://www.npmjs.com/package/@semiont/event-sourcing)
+- **[@semiont/graph](https://www.npmjs.com/package/@semiont/graph)** [![npm](https://img.shields.io/npm/v/@semiont/graph)](https://www.npmjs.com/package/@semiont/graph)
+- **[@semiont/inference](https://www.npmjs.com/package/@semiont/inference)** [![npm](https://img.shields.io/npm/v/@semiont/inference)](https://www.npmjs.com/package/@semiont/inference)
+- **[@semiont/jobs](https://www.npmjs.com/package/@semiont/jobs)** [![npm](https://img.shields.io/npm/v/@semiont/jobs)](https://www.npmjs.com/package/@semiont/jobs)
+- **[@semiont/make-meaning](https://www.npmjs.com/package/@semiont/make-meaning)** [![npm](https://img.shields.io/npm/v/@semiont/make-meaning)](https://www.npmjs.com/package/@semiont/make-meaning)
+- **[@semiont/react-ui](https://www.npmjs.com/package/@semiont/react-ui)** [![npm](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui)
+- **[@semiont/cli](https://www.npmjs.com/package/@semiont/cli)** [![npm](https://img.shields.io/npm/v/@semiont/cli)](https://www.npmjs.com/package/@semiont/cli)
 
 ## Architecture
 
