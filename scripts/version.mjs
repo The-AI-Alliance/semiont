@@ -21,6 +21,13 @@ const VERSION_FILE = resolve(rootDir, 'version.json');
 const PACKAGE_PATHS = {
   '@semiont/api-client': 'packages/api-client/package.json',
   '@semiont/core': 'packages/core/package.json',
+  '@semiont/ontology': 'packages/ontology/package.json',
+  '@semiont/event-sourcing': 'packages/event-sourcing/package.json',
+  '@semiont/graph': 'packages/graph/package.json',
+  '@semiont/inference': 'packages/inference/package.json',
+  '@semiont/jobs': 'packages/jobs/package.json',
+  '@semiont/make-meaning': 'packages/make-meaning/package.json',
+  '@semiont/react-ui': 'packages/react-ui/package.json',
   '@semiont/cli': 'apps/cli/package.json',
   'semiont-backend': 'apps/backend/package.json',
   'semiont-frontend': 'apps/frontend/package.json',
