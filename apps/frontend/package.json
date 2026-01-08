@@ -3,7 +3,7 @@
   "version": "0.2.28",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev",
     "dev:mock": "node scripts/dev-with-mock.js",
     "dev:fast": "next dev --turbo",
     "build": "npm run typecheck && NODE_OPTIONS='--max-old-space-size=4096' next build --turbo",

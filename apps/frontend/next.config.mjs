@@ -122,6 +122,8 @@ const baseConfig = {
   poweredByHeader: false,
 
   experimental: {
+    // Disable turbopack to avoid next-auth compatibility issues
+    turbo: false,
     // Enable if needed for future features
     // optimizeCss: true, // Disabled due to critters dependency issue
     optimizePackageImports: [
