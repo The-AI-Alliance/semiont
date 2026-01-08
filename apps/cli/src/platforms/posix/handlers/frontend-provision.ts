@@ -239,7 +239,35 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
       metadata: { serviceType: 'frontend', frontendSourceDir }
     };
   }
-  
+
+  // Build workspace packages that frontend depends on
+  if (!service.quiet) {
+    printInfo('Building workspace dependencies...');
+  }
+
+  try {
+    const monorepoRoot = path.dirname(path.dirname(frontendSourceDir));
+    const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
+
+    if (fs.existsSync(rootPackageJsonPath)) {
+      const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
+      if (rootPackageJson.workspaces) {
+        // Build @semiont/react-ui package which frontend depends on
+        execSync('npm run build --workspace=@semiont/react-ui --if-present', {
+          cwd: monorepoRoot,
+          stdio: service.verbose ? 'inherit' : 'pipe'
+        });
+
+        if (!service.quiet) {
+          printSuccess('Workspace dependencies built successfully');
+        }
+      }
+    }
+  } catch (error) {
+    printWarning(`Failed to build workspace dependencies: ${error}`);
+    printInfo('You may need to build manually: npm run build --workspace=@semiont/react-ui');
+  }
+
   // Build frontend if in production mode
   if (service.environment === 'prod') {
     if (!service.quiet) {
