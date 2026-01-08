@@ -7,12 +7,12 @@ import { useKeyboardShortcuts, useDoubleKeyPress } from '@semiont/react-ui';
 
 // Dynamically import modals to avoid SSR issues with React Query and next-intl
 const GlobalSearchModal = dynamic(
-  () => import('../components/modals/GlobalSearchModal').then(mod => ({ default: mod.GlobalSearchModal })),
+  () => import('../components/modals/GlobalSearchModal').then(mod => mod.GlobalSearchModal),
   { ssr: false }
 );
 
 const KeyboardShortcutsHelpModal = dynamic(
-  () => import('@semiont/react-ui').then(mod => ({ default: mod.KeyboardShortcutsHelpModal })),
+  () => import('@semiont/react-ui').then(mod => mod.KeyboardShortcutsHelpModal),
   { ssr: false }
 );
 
