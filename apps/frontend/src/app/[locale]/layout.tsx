@@ -4,14 +4,30 @@ import { Inter, Orbitron } from "next/font/google";
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import "../globals.css";
 import "@/styles/animations.css";
 import { Providers } from "../providers";
 import { NEXT_PUBLIC_SITE_NAME } from "@/lib/env";
 import { CookieBanner } from "@/components/CookieBanner";
-import { SessionExpiredModal, SessionExpiryBanner, SkipLinks } from "@semiont/react-ui";
-import { PermissionDeniedModal } from "@/components/modals/PermissionDeniedModal";
+import { SkipLinks } from "@semiont/react-ui";
 import { routing } from "@/i18n/routing";
+
+// Dynamically import modals and banners to avoid SSR issues with context hooks
+const SessionExpiryBanner = dynamic(
+  () => import('@semiont/react-ui').then(mod => ({ default: mod.SessionExpiryBanner })),
+  { ssr: false }
+);
+
+const SessionExpiredModal = dynamic(
+  () => import('@semiont/react-ui').then(mod => ({ default: mod.SessionExpiredModal })),
+  { ssr: false }
+);
+
+const PermissionDeniedModal = dynamic(
+  () => import('@/components/modals/PermissionDeniedModal').then(mod => ({ default: mod.PermissionDeniedModal })),
+  { ssr: false }
+);
 
 const inter = Inter({ subsets: ["latin"] });
 const orbitron = Orbitron({
