@@ -91,34 +91,48 @@ function createQueryClient() {
  * 8. LiveRegionProvider - A11y live region announcements
  * 9. KeyboardShortcutsProvider - App-specific keyboard shortcuts
  */
-export function Providers({ children }: { children: React.ReactNode }) {
-  // Create QueryClient once per app instance
-  const [queryClient] = useState(() => createQueryClient());
 
+/**
+ * Inner providers that depend on SessionProvider being initialized
+ * These hooks use next-auth's useSession internally, so they must be wrapped
+ */
+function InnerProviders({ children, queryClient }: { children: React.ReactNode; queryClient: QueryClient }) {
   // Manager hooks - these provide app-specific implementations to @semiont/react-ui contexts
+  // These are called INSIDE SessionProvider because they use useSession()
   const sessionManager = useSessionManager();
   const translationManager = useTranslationManager();
   const apiClientManager = useApiClientManager();
 
   return (
+    <AuthErrorBoundary>
+      <CustomSessionProvider sessionManager={sessionManager}>
+        <TranslationProvider translationManager={translationManager}>
+          <ApiClientProvider apiClientManager={apiClientManager}>
+            <QueryClientProvider client={queryClient}>
+              <ToastProvider>
+                <LiveRegionProvider>
+                  <KeyboardShortcutsProvider>
+                    {children}
+                  </KeyboardShortcutsProvider>
+                </LiveRegionProvider>
+              </ToastProvider>
+            </QueryClientProvider>
+          </ApiClientProvider>
+        </TranslationProvider>
+      </CustomSessionProvider>
+    </AuthErrorBoundary>
+  );
+}
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  // Create QueryClient once per app instance
+  const [queryClient] = useState(() => createQueryClient());
+
+  return (
     <SessionProvider>
-      <AuthErrorBoundary>
-        <CustomSessionProvider sessionManager={sessionManager}>
-          <TranslationProvider translationManager={translationManager}>
-            <ApiClientProvider apiClientManager={apiClientManager}>
-              <QueryClientProvider client={queryClient}>
-                <ToastProvider>
-                  <LiveRegionProvider>
-                    <KeyboardShortcutsProvider>
-                      {children}
-                    </KeyboardShortcutsProvider>
-                  </LiveRegionProvider>
-                </ToastProvider>
-              </QueryClientProvider>
-            </ApiClientProvider>
-          </TranslationProvider>
-        </CustomSessionProvider>
-      </AuthErrorBoundary>
+      <InnerProviders queryClient={queryClient}>
+        {children}
+      </InnerProviders>
     </SessionProvider>
   );
 }
