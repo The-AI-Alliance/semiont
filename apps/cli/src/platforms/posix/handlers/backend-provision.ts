@@ -83,7 +83,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     throw new Error('Database port not configured');
   }
 
-  const dbHost = 'localhost';
+  // Use database host from config if available, fallback to localhost
+  const dbHost = dbConfig.host || 'localhost';
   const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
 
   if (!service.quiet) {
@@ -150,6 +151,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const envUpdates: Record<string, string> = {
     'NODE_ENV': nodeEnv,
     'PORT': port.toString(),
+    'HOST': '0.0.0.0',  // Bind to all interfaces for Codespaces compatibility
     'DATABASE_URL': databaseUrl,
     'LOG_DIR': logsDir,
     'TMP_DIR': tmpDir,
