@@ -35,10 +35,7 @@ export interface LoggerConfig {
  * - NODE_ENV: development | production | test
  */
 export function getLoggerConfig(logLevel?: LogLevel): LoggerConfig {
-  console.log('DEBUG in getLoggerConfig: logLevel param =', logLevel);
-  console.log('DEBUG in getLoggerConfig: process.env.LOG_LEVEL =', process.env.LOG_LEVEL);
   const level = logLevel || (process.env.LOG_LEVEL as LogLevel) || 'info';
-  console.log('DEBUG in getLoggerConfig: final level =', level);
   const format = (process.env.LOG_FORMAT || 'json') as 'json' | 'simple';
   const nodeEnv = process.env.NODE_ENV || 'development';
 
@@ -124,9 +121,7 @@ let loggerInstance: winston.Logger | null = null;
  * @param logLevel - Optional log level from environment config
  */
 export function initializeLogger(logLevel?: LogLevel): winston.Logger {
-  console.log('DEBUG in initializeLogger: logLevel param =', logLevel);
   const config = getLoggerConfig(logLevel);
-  console.log('DEBUG in initializeLogger: config.level =', config.level);
 
   loggerInstance = winston.createLogger({
     level: config.level,
