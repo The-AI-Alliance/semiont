@@ -10,6 +10,7 @@
   "env": {
     "NODE_ENV": "test"
   },
+  "logLevel": "error",
   "services": {
     "backend": {
       "platform": {

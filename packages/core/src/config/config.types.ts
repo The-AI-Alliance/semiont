@@ -579,6 +579,10 @@ export interface EnvironmentConfig {
     NODE_ENV?: 'development' | 'production' | 'test';
     [k: string]: unknown;
   };
+  /**
+   * Logging verbosity level
+   */
+  logLevel?: 'error' | 'warn' | 'info' | 'http' | 'debug';
   deployment?: {
     imageTagStrategy?: 'mutable' | 'immutable' | 'git-hash';
     [k: string]: unknown;

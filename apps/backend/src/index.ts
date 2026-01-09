@@ -86,8 +86,8 @@ type Variables = {
   config: EnvironmentConfig;
 };
 
-// Initialize Winston logger
-initializeLogger();
+// Initialize Winston logger with log level from environment config
+initializeLogger(config.logLevel);
 
 // Create Hono app with proper typing
 const app = new Hono<{ Variables: Variables }>();
