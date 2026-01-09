@@ -4,48 +4,64 @@ FROM node:22-alpine AS builder
 # Build args to bust cache when version changes
 ARG BUILD_VERSION
 ARG BUILD_SHA
+# Version of @semiont packages to install from npm
+ARG SEMIONT_VERSION=latest
 
 WORKDIR /app
 
-# Copy package files
+# Copy only root package.json and backend package.json
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
-COPY packages/core/package.json ./packages/core/
-COPY packages/api-client/package.json ./packages/api-client/
 
-# Install all dependencies
+# Install semiont packages from npm at specified version
+# This replaces workspace dependencies with published packages
+RUN npm install \
+  @semiont/core@${SEMIONT_VERSION} \
+  @semiont/event-sourcing@${SEMIONT_VERSION} \
+  @semiont/graph@${SEMIONT_VERSION} \
+  @semiont/inference@${SEMIONT_VERSION} \
+  @semiont/jobs@${SEMIONT_VERSION} \
+  @semiont/make-meaning@${SEMIONT_VERSION} \
+  --workspace=apps/backend
+
+# Install all other dependencies
 RUN npm ci
 
-# Copy source files
+# Copy backend source only
 COPY apps/backend ./apps/backend
-COPY packages/core ./packages/core
-COPY packages/api-client ./packages/api-client
-COPY specs ./specs
 COPY tsconfig.json ./
 
-# Build packages and application
-RUN npm run build -w packages/api-client
-RUN npm run build -w packages/core
-RUN npm run build -w apps/backend
+# Build backend application
+WORKDIR /app/apps/backend
+RUN npm run build
 
 # Production stage
 FROM node:22-alpine
 
+# Version of @semiont packages to install from npm
+ARG SEMIONT_VERSION=latest
+
 WORKDIR /app
 
 # Copy package files
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
-COPY packages/core/package.json ./packages/core/
-COPY packages/api-client/package.json ./packages/api-client/
+
+# Install semiont packages from npm at specified version
+RUN npm install \
+  @semiont/core@${SEMIONT_VERSION} \
+  @semiont/event-sourcing@${SEMIONT_VERSION} \
+  @semiont/graph@${SEMIONT_VERSION} \
+  @semiont/inference@${SEMIONT_VERSION} \
+  @semiont/jobs@${SEMIONT_VERSION} \
+  @semiont/make-meaning@${SEMIONT_VERSION} \
+  --workspace=apps/backend
 
 # Install production dependencies only
 RUN npm ci --omit=dev
 
 # Copy built artifacts from builder
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
-COPY --from=builder /app/packages/core/dist ./packages/core/dist
-COPY --from=builder /app/packages/api-client/dist ./packages/api-client/dist
 
 # Copy Prisma schema and generate client
 COPY --from=builder /app/apps/backend/prisma ./apps/backend/prisma

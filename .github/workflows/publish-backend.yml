@@ -7,8 +7,6 @@ on:
     branches: [main]
     paths:
       - 'apps/backend/**'
-      - 'packages/core/**'
-      - 'packages/api-client/**'
       - '.github/workflows/publish-backend.yml'
   workflow_dispatch:
     inputs:
@@ -66,10 +64,16 @@ jobs:
       - name: Verify image version
         run: |
           EXPECTED_VERSION="${{ steps.version.outputs.base }}"
-          echo "Expected version: $EXPECTED_VERSION"
+          SEMIONT_VERSION="${{ steps.version.outputs.tag }}"
+          echo "Expected backend version: $EXPECTED_VERSION"
+          echo "Semiont packages version: $SEMIONT_VERSION"
 
-          # Build image locally to verify
-          docker build -t semiont-backend-verify -f ./apps/backend/Dockerfile .
+          # Build image locally to verify (with SEMIONT_VERSION)
+          docker build \
+            -t semiont-backend-verify \
+            -f ./apps/backend/Dockerfile \
+            --build-arg SEMIONT_VERSION=$SEMIONT_VERSION \
+            .
 
           # Extract version from built image
           ACTUAL_VERSION=$(docker run --rm semiont-backend-verify node -e "console.log(require('/app/apps/backend/package.json').version)")
@@ -105,6 +109,8 @@ jobs:
           build-args: |
             BUILD_VERSION=${{ steps.version.outputs.publish }}
             BUILD_SHA=${{ steps.version.outputs.sha }}
+            SEMIONT_VERSION=${{ steps.version.outputs.tag }}
+          # SEMIONT_VERSION installs all @semiont packages from npm
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
