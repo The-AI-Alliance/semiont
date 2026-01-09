@@ -147,11 +147,15 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const jwtSecret = service.environmentConfig.app?.security?.jwtSecret ??
     crypto.randomBytes(32).toString('base64');
 
+  // Set appropriate log level based on environment
+  const logLevel = nodeEnv === 'development' ? 'debug' : 'info';
+
   const envUpdates: Record<string, string> = {
     'NODE_ENV': nodeEnv,
     'PORT': port.toString(),
     'DATABASE_URL': databaseUrl,
     'LOG_DIR': logsDir,
+    'LOG_LEVEL': logLevel,
     'TMP_DIR': tmpDir,
     'JWT_SECRET': jwtSecret,
     'FRONTEND_URL': frontendUrl,

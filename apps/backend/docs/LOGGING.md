@@ -18,7 +18,19 @@ Comprehensive Winston-based logging with configurable log levels, structured met
 
 ### Set Log Level
 
-Control logging verbosity with the `LOG_LEVEL` environment variable:
+Control logging verbosity with the `LOG_LEVEL` environment variable.
+
+**Option 1: Edit .env file** (recommended for persistent changes):
+
+```bash
+# Edit apps/backend/.env
+LOG_LEVEL=debug  # or http, info, warn, error
+
+# Then start normally
+npm start
+```
+
+**Option 2: Override on command line** (temporary for this run):
 
 ```bash
 # Debug mode - see everything (HTTP requests, auth, errors, debug messages)
@@ -27,12 +39,16 @@ LOG_LEVEL=debug npm start
 # HTTP mode - see HTTP requests + info/warn/error
 LOG_LEVEL=http npm start
 
-# Info mode (default) - see info/warn/error only
+# Info mode - see info/warn/error only
 LOG_LEVEL=info npm start
 
 # Error mode - see errors only
 LOG_LEVEL=error npm start
 ```
+
+**Default levels:**
+- Development environments: `debug` (set by `semiont provision`)
+- Production environments: `info` (set by `semiont provision`)
 
 ### View Logs
 
@@ -53,6 +69,10 @@ LOG_LEVEL=error npm start
 When you get 401 errors, set `LOG_LEVEL=debug` to see exactly why:
 
 ```bash
+# Edit .env file
+LOG_LEVEL=debug
+
+# Or override temporarily
 LOG_LEVEL=debug npm start
 
 # Now you'll see detailed auth logs:
@@ -61,15 +81,24 @@ LOG_LEVEL=debug npm start
 # - "Authentication failed: Invalid token" → Token verification failed (expired, wrong secret, etc.)
 ```
 
+**Note:** Development environments provisioned with `semiont provision` already have `LOG_LEVEL=debug` in `.env`.
+
 ## Configuration
 
 ### Environment Variables
 
+The backend loads environment variables from the `.env` file in the backend directory. This file is automatically created by `semiont provision` with appropriate defaults for your environment.
+
 | Variable | Values | Default | Description |
 |----------|--------|---------|-------------|
-| `LOG_LEVEL` | `error`, `warn`, `info`, `http`, `debug` | `info` | Minimum log level to output |
+| `LOG_LEVEL` | `error`, `warn`, `info`, `http`, `debug` | `debug` (dev)<br/>`info` (prod) | Minimum log level to output |
 | `LOG_FORMAT` | `json`, `simple` | `json` | Log output format |
 | `NODE_ENV` | `development`, `production`, `test` | `development` | Environment (affects log defaults) |
+
+**Environment variable precedence:**
+1. Command-line override (e.g., `LOG_LEVEL=debug npm start`)
+2. `.env` file in backend directory
+3. Default values
 
 ### Log Formats
 
