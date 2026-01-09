@@ -1,27 +1,11 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-
-// Dynamically import modals and banners to avoid SSR issues with context hooks
-// Using standard Next.js pattern for named exports with ssr: false
-const SessionExpiryBanner = dynamic(
-  () => import('@semiont/react-ui').then(mod => mod.SessionExpiryBanner),
-  { ssr: false }
-);
-
-const SessionExpiredModal = dynamic(
-  () => import('@semiont/react-ui').then(mod => mod.SessionExpiredModal),
-  { ssr: false }
-);
-
-const PermissionDeniedModal = dynamic(
-  () => import('@/components/modals/PermissionDeniedModal').then(mod => mod.PermissionDeniedModal),
-  { ssr: false }
-);
+import { SessionExpiryBanner, SessionExpiredModal } from '@semiont/react-ui';
+import { PermissionDeniedModal } from '@/components/modals/PermissionDeniedModal';
 
 /**
  * Client Component wrapper for modals and banners that use context hooks
- * This component is marked as 'use client' so it can use dynamic imports with ssr: false
+ * This component is marked as 'use client' so static imports work without SSR
  */
 export function ClientModals() {
   return (
