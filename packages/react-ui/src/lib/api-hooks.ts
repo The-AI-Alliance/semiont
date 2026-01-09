@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * React Query hooks for Semiont API
  *
