@@ -87,7 +87,7 @@ LOG_LEVEL=debug npm start
 
 ### Environment Variables
 
-The backend loads environment variables from the `.env` file in the backend directory. This file is automatically created by `semiont provision` with appropriate defaults for your environment.
+The backend loads environment variables from the `.env` file using Node's built-in `--env-file` flag. This file is automatically created by `semiont provision` with appropriate defaults for your environment.
 
 | Variable | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -97,8 +97,10 @@ The backend loads environment variables from the `.env` file in the backend dire
 
 **Environment variable precedence:**
 1. Command-line override (e.g., `LOG_LEVEL=debug npm start`)
-2. `.env` file in backend directory
+2. `.env` file in backend directory (loaded via `node --env-file=.env`)
 3. Default values
+
+**Note:** The `--env-file` flag is available in Node.js 20.6+ and loads `.env` before any JavaScript code executes, ensuring environment variables are available during module initialization.
 
 ### Log Formats
 

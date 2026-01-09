@@ -1,8 +1,4 @@
-// Load environment variables from .env file
-// MUST be done before any environment variable access!
-import { config as dotenvConfig } from 'dotenv';
-dotenvConfig();
-
+// Environment variables are loaded via Node's --env-file flag (see package.json)
 // Construct DATABASE_URL from components if not already set
 // MUST be done before any Prisma imports!
 if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
