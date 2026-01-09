@@ -3,6 +3,7 @@
 import React, { useEffect, useState, Suspense, useContext } from 'react';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { Footer, SignInForm } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
@@ -23,6 +24,7 @@ function SignInContent() {
   const t = useTranslations('AuthSignIn');
   const tFooter = useTranslations('Footer');
   const searchParams = useSearchParams();
+  const router = useRouter();
   const keyboardContext = useContext(KeyboardShortcutsContext);
 
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +85,9 @@ function SignInContent() {
       if (result?.error) {
         setError(t('errorInvalidCredentials'));
       } else if (result?.ok) {
-        window.location.href = callbackUrl;
+        // Use Next.js router for client-side navigation
+        // This preserves the React context and providers
+        router.push(callbackUrl);
       }
     } catch (error) {
       setError(t('errorSignInFailed'));
