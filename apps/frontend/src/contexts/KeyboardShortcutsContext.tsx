@@ -104,14 +104,18 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
   return (
     <KeyboardShortcutsContext.Provider value={contextValue}>
       {children}
-      <GlobalSearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-      />
-      <KeyboardShortcutsHelpModal
-        isOpen={isHelpOpen}
-        onClose={() => setIsHelpOpen(false)}
-      />
+      {isSearchOpen && (
+        <GlobalSearchModal
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+        />
+      )}
+      {isHelpOpen && (
+        <KeyboardShortcutsHelpModal
+          isOpen={isHelpOpen}
+          onClose={() => setIsHelpOpen(false)}
+        />
+      )}
     </KeyboardShortcutsContext.Provider>
   );
 }
