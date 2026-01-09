@@ -74,8 +74,9 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     };
   }
 
-  // For POSIX platform, use localhost URL for server-side API calls
+  // For POSIX platform, use 127.0.0.1 URL for server-side API calls
   // (publicURL may be Codespaces public URL which requires external auth)
+  // Use 127.0.0.1 instead of localhost to avoid ECONNREFUSED in Node.js
   // This matches the approach in backend-check.ts:101
   if (!backendService.port) {
     return {
@@ -84,7 +85,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
       metadata: { serviceType: 'frontend' }
     };
   }
-  const backendUrl = `http://localhost:${backendService.port}`;
+  const backendUrl = `http://127.0.0.1:${backendService.port}`;
   if (!siteName) {
     return {
       success: false,
