@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationMenu } from '../navigation/NavigationMenu';
 import { SemiontBranding } from '../branding/SemiontBranding';
-import { useAuth } from '../../hooks/useAuth';
 import { useDropdown } from '../../hooks/useUI';
 import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
 import type { TranslateFn } from '../../types/translation';
@@ -17,6 +16,9 @@ interface LeftSidebarProps {
   brandingLink?: string;
   collapsible?: boolean;
   storageKey?: string;
+  isAuthenticated?: boolean;
+  isAdmin?: boolean;
+  isModerator?: boolean;
 }
 
 export function LeftSidebar({
@@ -27,9 +29,11 @@ export function LeftSidebar({
   children,
   brandingLink = '/',
   collapsible = false,
-  storageKey = 'leftSidebarCollapsed'
+  storageKey = 'leftSidebarCollapsed',
+  isAuthenticated = false,
+  isAdmin = false,
+  isModerator = false
 }: LeftSidebarProps) {
-  const { isAuthenticated, isAdmin, isModerator } = useAuth();
   const { isOpen, toggle, close, dropdownRef } = useDropdown();
   const [isCollapsed, setIsCollapsed] = useState(false);
 

@@ -3,7 +3,6 @@
 import React from 'react';
 import { SemiontBranding } from '../branding/SemiontBranding';
 import { NavigationMenu } from '../navigation/NavigationMenu';
-import { useAuth } from '../../hooks/useAuth';
 import { useDropdown } from '../../hooks/useUI';
 import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
 import type { TranslateFn } from '../../types/translation';
@@ -17,6 +16,9 @@ interface UnifiedHeaderProps {
   showAuthLinks?: boolean;
   brandingLink?: string;
   variant?: 'standalone' | 'embedded' | 'floating';
+  isAuthenticated?: boolean;
+  isAdmin?: boolean;
+  isModerator?: boolean;
 }
 
 export function UnifiedHeader({
@@ -27,9 +29,11 @@ export function UnifiedHeader({
   showBranding = true,
   showAuthLinks = true,
   brandingLink = '/',
-  variant = 'standalone'
+  variant = 'standalone',
+  isAuthenticated = false,
+  isAdmin = false,
+  isModerator = false
 }: UnifiedHeaderProps) {
-  const { isAuthenticated, isAdmin, isModerator } = useAuth();
   const { isOpen, toggle, close, dropdownRef } = useDropdown();
 
   // Floating variant - just the logo button, positioned in the sidebar

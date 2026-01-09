@@ -4,7 +4,8 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { signOut } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { sanitizeImageURL, useAuth, useDropdown, UserMenuSkeleton } from '@semiont/react-ui';
+import { sanitizeImageURL, useDropdown, UserMenuSkeleton } from '@semiont/react-ui';
+import { useAuth } from '@/hooks/useAuth';
 import { useState } from 'react';
 
 // Fallback avatar when image fails to load or is invalid

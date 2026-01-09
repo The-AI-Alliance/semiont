@@ -3,8 +3,8 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
 import { signIn } from 'next-auth/react';
-import { useSessionContext } from '../../contexts/SessionContext';
-import { AUTH_EVENTS, onAuthEvent } from '../../lib/auth-events';
+import { useSessionContext } from '@semiont/react-ui';
+import { AUTH_EVENTS, onAuthEvent } from '@semiont/react-ui';
 
 export function SessionExpiredModal() {
   const { isAuthenticated } = useSessionContext();

@@ -1,6 +1,7 @@
 'use client';
 
-import { SessionExpiryBanner, SessionExpiredModal } from '@semiont/react-ui';
+import { SessionExpiryBanner } from '@semiont/react-ui';
+import { SessionExpiredModal } from '@/components/modals/SessionExpiredModal';
 import { PermissionDeniedModal } from '@/components/modals/PermissionDeniedModal';
 
 /**

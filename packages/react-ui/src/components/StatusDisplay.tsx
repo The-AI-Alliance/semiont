@@ -1,11 +1,19 @@
 'use client';
 
 import React from 'react';
-import { useAuth } from '@semiont/react-ui';
-import { useHealth } from '@semiont/react-ui';
+import { useHealth } from '../lib/api-hooks';
 
-export function StatusDisplay() {
-  const { isFullyAuthenticated, isAuthenticated, hasValidBackendToken } = useAuth();
+interface StatusDisplayProps {
+  isFullyAuthenticated?: boolean;
+  isAuthenticated?: boolean;
+  hasValidBackendToken?: boolean;
+}
+
+export function StatusDisplay({
+  isFullyAuthenticated = false,
+  isAuthenticated = false,
+  hasValidBackendToken = false
+}: StatusDisplayProps) {
   const health = useHealth();
   const status = health.status.useQuery(30000); // Poll every 30 seconds
 

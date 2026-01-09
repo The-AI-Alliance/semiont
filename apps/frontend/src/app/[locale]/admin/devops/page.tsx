@@ -17,6 +17,19 @@ import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
+import { useAuth } from '@/hooks/useAuth';
+
+// Wrapper component that provides auth props to StatusDisplay
+function StatusDisplayWithAuth() {
+  const { isFullyAuthenticated, isAuthenticated, hasValidBackendToken } = useAuth();
+  return (
+    <StatusDisplay
+      isFullyAuthenticated={isFullyAuthenticated}
+      isAuthenticated={isAuthenticated}
+      hasValidBackendToken={hasValidBackendToken}
+    />
+  );
+}
 
 export default function DevOpsPage() {
   const t = useTranslations('AdminDevOps');
@@ -69,7 +82,7 @@ export default function DevOpsPage() {
         cliTitle: t('cliTitle'),
         cliDescription: t('cliDescription'),
       }}
-      StatusDisplay={StatusDisplay}
+      StatusDisplay={StatusDisplayWithAuth}
       ToolbarPanels={ToolbarPanels}
       Toolbar={Toolbar}
     />

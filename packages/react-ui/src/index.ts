@@ -30,7 +30,6 @@ export * from './lib/validation';
 
 // Hooks
 export * from './hooks/useAnnotationPanel';
-export * from './hooks/useAuth';
 export * from './hooks/useDebounce';
 export * from './hooks/useDetectionProgress';
 export * from './hooks/useFormattedTime';
@@ -81,7 +80,6 @@ export * from './components/image-annotation/SvgDrawingCanvas';
 // Components - Modals
 export * from './components/modals/KeyboardShortcutsHelpModal';
 export * from './components/modals/ProposeEntitiesModal';
-export * from './components/modals/SessionExpiredModal';
 
 // Components - Resource
 export * from './components/resource/AnnotateView';
