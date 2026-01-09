@@ -50,6 +50,11 @@ if (!config.services?.frontend?.url) {
 
 const backendService = config.services.backend;
 
+// Debug: Log the actual config to see if logLevel is present
+console.log('DEBUG: Config logLevel:', config.logLevel);
+console.log('DEBUG: Config has logLevel property?', 'logLevel' in config);
+console.log('DEBUG: Config keys:', Object.keys(config));
+
 // Import route definitions
 import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
