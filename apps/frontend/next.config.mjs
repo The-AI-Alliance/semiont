@@ -79,9 +79,6 @@ const baseConfig = {
   // Enable standalone output for container deployment
   output: 'standalone',
 
-  // Transpile workspace packages for proper ESM handling with dynamic imports
-  transpilePackages: ['@semiont/react-ui'],
-
   // Security headers
   async headers() {
     return [
