@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { SessionExpiredModal } from '../SessionExpiredModal';
-import { SessionProvider } from '../../../contexts/SessionContext';
-import type { SessionManager } from '../../../types/SessionManager';
+import { SessionProvider } from '@semiont/react-ui';
+import type { SessionManager } from '@semiont/react-ui';
 
 // Mock next-auth (must use factory function for hoisting)
 vi.mock('next-auth/react', () => ({
