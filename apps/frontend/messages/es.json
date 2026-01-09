@@ -171,6 +171,7 @@
     "errorGeneric": "Ocurrió un error de autenticación. Por favor, inténtelo de nuevo.",
     "errorGoogleSignIn": "No se pudo iniciar el inicio de sesión de Google. Por favor, inténtelo de nuevo.",
     "errorEmailRequired": "Por favor, ingrese su dirección de correo electrónico",
+    "errorPasswordRequired": "Por favor, ingrese su contraseña",
     "errorSignInFailed": "No se pudo iniciar sesión. Por favor, inténtelo de nuevo.",
     "errorInvalidCredentials": "Correo electrónico o contraseña no válidos. Por favor, inténtelo de nuevo."
   },

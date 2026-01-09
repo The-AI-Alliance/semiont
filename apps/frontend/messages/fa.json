@@ -171,6 +171,7 @@
     "errorGeneric": "An authentication error occurred. Please try again.",
     "errorGoogleSignIn": "Failed to initiate Google sign-in. Please try again.",
     "errorEmailRequired": "Please enter your email address",
+    "errorPasswordRequired": "Please enter your password",
     "errorSignInFailed": "Failed to sign in. Please try again.",
     "errorInvalidCredentials": "Invalid email or password. Please try again."
   },
