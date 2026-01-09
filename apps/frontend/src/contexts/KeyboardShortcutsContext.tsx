@@ -1,20 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import dynamic from 'next/dynamic';
 import { useRouter } from '@/i18n/routing';
-import { useKeyboardShortcuts, useDoubleKeyPress } from '@semiont/react-ui';
-
-// Dynamically import modals to avoid SSR issues with React Query and next-intl
-const GlobalSearchModal = dynamic(
-  () => import('../components/modals/GlobalSearchModal').then(mod => mod.GlobalSearchModal),
-  { ssr: false }
-);
-
-const KeyboardShortcutsHelpModal = dynamic(
-  () => import('@semiont/react-ui').then(mod => mod.KeyboardShortcutsHelpModal),
-  { ssr: false }
-);
+import { useKeyboardShortcuts, useDoubleKeyPress, KeyboardShortcutsHelpModal } from '@semiont/react-ui';
+import { GlobalSearchModal } from '../components/modals/GlobalSearchModal';
 
 interface KeyboardShortcutsContextType {
   openGlobalSearch: () => void;
