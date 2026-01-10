@@ -9,6 +9,7 @@ import { UserPanel } from '../UserPanel';
 const mockSignOut = vi.fn();
 vi.mock('next-auth/react', () => ({
   signOut: (...args: any[]) => mockSignOut(...args),
+  useSession: vi.fn(() => ({ data: null, status: 'unauthenticated' })),
 }));
 
 // Mock next/image
@@ -33,8 +34,13 @@ vi.mock('next-intl', () => ({
   useTranslations: () => mockUseTranslations,
 }));
 
-// Mock react-ui hooks and utilities
+// Mock useAuth hook
 const mockUseAuth = vi.fn();
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
+// Mock react-ui hooks and utilities
 const mockUseSessionExpiry = vi.fn();
 const mockUseFormattedTime = vi.fn();
 const mockSanitizeImageURL = vi.fn();
@@ -43,7 +49,6 @@ vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
     ...actual,
-    useAuth: () => mockUseAuth(),
     useSessionExpiry: () => mockUseSessionExpiry(),
     useFormattedTime: (time: number) => mockUseFormattedTime(time),
     sanitizeImageURL: (url: string) => mockSanitizeImageURL(url),

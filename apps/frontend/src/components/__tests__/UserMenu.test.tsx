@@ -10,7 +10,8 @@ import { UserMenu } from '../UserMenu';
 // Mock next-auth/react
 vi.mock('next-auth/react', () => ({
   signIn: vi.fn(),
-  signOut: vi.fn()
+  signOut: vi.fn(),
+  useSession: vi.fn(() => ({ data: null, status: 'unauthenticated' }))
 }));
 
 // Mock Next.js components
@@ -42,12 +43,16 @@ vi.mock('next/link', () => ({
   )
 }));
 
+// Mock useAuth hook
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: vi.fn()
+}));
+
 // Mock react-ui hooks
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
     ...actual,
-    useAuth: vi.fn(),
     useDropdown: vi.fn(),
     sanitizeImageURL: vi.fn(),
     UserMenuSkeleton: () => (
