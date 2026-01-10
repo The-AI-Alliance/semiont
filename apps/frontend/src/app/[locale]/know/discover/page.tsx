@@ -19,6 +19,7 @@ import { ResourceDiscoveryPage } from '@semiont/react-ui';
  */
 export default function DiscoverPage() {
   const t = useTranslations('Discover');
+  const tToolbar = useTranslations('Toolbar');
   const router = useRouter();
 
   // Toolbar and settings state
@@ -97,6 +98,7 @@ export default function DiscoverPage() {
         loadingKnowledgeBase: t('loadingKnowledgeBase'),
       }}
       ToolbarPanels={ToolbarPanels}
+      tToolbar={tToolbar}
     />
   );
 }
