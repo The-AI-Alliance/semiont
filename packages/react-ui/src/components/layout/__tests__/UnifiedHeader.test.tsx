@@ -274,6 +274,7 @@ describe('UnifiedHeader Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+                  isAuthenticated={true}
         />
       );
 
@@ -294,6 +295,7 @@ describe('UnifiedHeader Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+                  isAuthenticated={false}
         />
       );
 
@@ -314,6 +316,7 @@ describe('UnifiedHeader Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+                  isAuthenticated={true}
         />
       );
 
@@ -335,6 +338,7 @@ describe('UnifiedHeader Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+                  isAuthenticated={true}
         />
       );
 
@@ -348,7 +352,7 @@ describe('UnifiedHeader Component', () => {
   describe('Props Handling', () => {
     it('should use custom branding link', () => {
       vi.mocked(useDropdown).mockReturnValue({
-        isOpen: true,
+        isOpen: false,
         toggle: vi.fn(),
         close: vi.fn(),
         dropdownRef: { current: null },
@@ -364,7 +368,8 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.getByTestId('navigation-menu')).toBeInTheDocument();
+      // Should render branding with custom link
+      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
     });
 
     it('should default branding link to /', () => {
@@ -394,6 +399,8 @@ describe('UnifiedHeader Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+                  isAuthenticated={true}
+          isAdmin={true}
         />
       );
 
@@ -414,6 +421,8 @@ describe('UnifiedHeader Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+                  isAuthenticated={true}
+          isModerator={true}
         />
       );
 
@@ -493,6 +502,7 @@ describe('UnifiedHeader Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+                  isAuthenticated={true}
         />
       );
 

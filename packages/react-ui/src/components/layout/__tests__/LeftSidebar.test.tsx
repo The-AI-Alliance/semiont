@@ -310,6 +310,7 @@ describe('LeftSidebar Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+          isAuthenticated={true}
         >
           <div>Content</div>
         </LeftSidebar>
@@ -332,6 +333,7 @@ describe('LeftSidebar Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+          isAuthenticated={false}
         >
           <div>Content</div>
         </LeftSidebar>
@@ -355,6 +357,7 @@ describe('LeftSidebar Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+          isAuthenticated={true}
         >
           <div>Content</div>
         </LeftSidebar>
@@ -485,6 +488,7 @@ describe('LeftSidebar Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+          isAuthenticated={true}
         >
           <div>Content</div>
         </LeftSidebar>
