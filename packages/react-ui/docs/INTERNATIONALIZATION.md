@@ -6,10 +6,11 @@
 
 The library provides:
 
-1. **Built-in translations** - English and Spanish translations included
+1. **Built-in translations** - English and Spanish translations included (with dynamic loading for non-English locales)
 2. **TranslationManager interface** - Contract for custom implementations
 3. **TranslationProvider** - Optional React Context for configuration
 4. **useTranslations hook** - Access translations in components
+5. **Dynamic loading** - Non-English translations are loaded on-demand to optimize bundle size
 
 ## Three Usage Modes
 
@@ -80,6 +81,7 @@ This approach allows apps to:
 - ✅ Choose their own translation file format (JSON, YAML, TypeScript, API)
 - ✅ Support any set of languages
 - ✅ Implement custom translation logic (pluralization, interpolation, etc.)
+- ✅ Optimized bundle size with dynamic loading for non-English locales
 
 ## Implementation Guide
 
@@ -508,6 +510,68 @@ export type TranslationNamespaces = {
   Navigation: 'home' | 'know' | 'moderate' | 'administer';
   // ... etc
 };
+```
+
+## Performance & Dynamic Loading
+
+### Bundle Size Optimization
+
+The library uses dynamic imports for non-English translations to optimize bundle size:
+
+- **English**: Always included in the bundle (as fallback)
+- **Other locales**: Loaded on-demand when requested
+- **Caching**: Loaded translations are cached for the session
+
+### Adding New Locales
+
+To add support for a new locale (e.g., French):
+
+1. Add the translation file: `translations/fr.json`
+2. Update the `AVAILABLE_LOCALES` constant in `TranslationContext.tsx`
+3. The locale will be dynamically loaded when used
+
+```tsx
+// TranslationContext.tsx
+export const AVAILABLE_LOCALES = ['en', 'es', 'fr'] as const; // Add 'fr'
+```
+
+### Preloading Translations
+
+Use the `usePreloadTranslations` hook to preload translations before they're needed:
+
+```tsx
+import { usePreloadTranslations } from '@semiont/react-ui';
+
+function LanguageSwitcher() {
+  const { preload, isLoaded } = usePreloadTranslations();
+
+  // Preload on hover for instant switching
+  const handleHover = (locale: string) => {
+    if (!isLoaded(locale)) {
+      preload(locale);
+    }
+  };
+
+  return (
+    <select>
+      <option value="en" onMouseEnter={() => handleHover('en')}>English</option>
+      <option value="es" onMouseEnter={() => handleHover('es')}>Español</option>
+    </select>
+  );
+}
+```
+
+### Loading State
+
+When using dynamic locale loading, you can provide a loading component:
+
+```tsx
+<TranslationProvider
+  locale="es"
+  loadingComponent={<div>Loading translations...</div>}
+>
+  <App />
+</TranslationProvider>
 ```
 
 ## See Also

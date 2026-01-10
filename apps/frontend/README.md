@@ -105,8 +105,23 @@ The frontend uses **[@semiont/react-ui](../../packages/react-ui)** - a framework
 - **Resource Components**: ResourceViewer, BrowseView, AnnotateView
 - **Annotation Components**: Annotation panels, toolbars, and widgets
 - **React Query Hooks**: Type-safe API integration hooks
+- **Built-in Translations**: English and Spanish included with dynamic loading
 
 The library is framework-independent, accepting framework-specific implementations (like Link components) as props. This allows the same components to work with Next.js, Vite, or any React framework.
+
+### Internationalization
+
+The frontend supports multiple languages through a hybrid approach:
+
+- **Frontend-specific translations**: Managed via `next-intl` in `messages/*.json`
+- **Component translations**: Provided by `@semiont/react-ui` with English and Spanish built-in
+- **Dynamic loading**: Non-English locales are loaded on-demand for optimal bundle size
+- **Unified translation manager**: Bridges next-intl with react-ui translations
+
+Current supported languages:
+- English (en)
+- Spanish (es)
+- 27+ additional languages (partial coverage)
 
 **See**: [@semiont/react-ui documentation](../../packages/react-ui/README.md)
 

@@ -19,8 +19,10 @@ Framework-agnostic React component library for building Semiont knowledge manage
 - **Type-Safe API Hooks** - React Query wrappers for all Semiont API operations
 - **Authentication Components** - Sign-in, sign-up, and error display components
 - **Accessibility First** - WCAG compliant with keyboard navigation, screen reader support
-- **Comprehensive Testing** - 800+ tests with extensive coverage
+- **Comprehensive Testing** - 1250+ tests with extensive coverage
 - **Annotation System** - Rich annotation and tagging capabilities
+- **Built-in Translations** - English and Spanish included, with dynamic loading for optimal bundle size
+- **Flexible i18n** - Three modes: default English, built-in locales, or custom translation system
 
 ## Installation
 
@@ -91,11 +93,33 @@ function MyComponent() {
 ```tsx
 import { useTranslations } from '@semiont/react-ui';
 
+// Option 1: Default English (no provider needed)
 function Toolbar() {
   const t = useTranslations('Toolbar');
+  return <button>{t('save')}</button>;
+}
 
+// Option 2: Built-in locales
+import { TranslationProvider } from '@semiont/react-ui';
+
+function App() {
   return (
-    <button>{t('save')}</button>
+    <TranslationProvider locale="es">
+      <Toolbar />
+    </TranslationProvider>
+  );
+}
+
+// Option 3: Custom translation system
+const myTranslationManager = {
+  t: (namespace, key, params) => myI18n.translate(`${namespace}.${key}`, params)
+};
+
+function App() {
+  return (
+    <TranslationProvider translationManager={myTranslationManager}>
+      <Toolbar />
+    </TranslationProvider>
   );
 }
 ```
