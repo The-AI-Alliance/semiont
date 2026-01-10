@@ -40,7 +40,6 @@ vi.mock('@/hooks/useUI', () => ({
   })),
 }));
 
-import { useAuth } from '@/hooks/useAuth';
 import { useDropdown } from '@/hooks/useUI';
 
 // Mock Link component
@@ -80,12 +79,6 @@ describe('LeftSidebar Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.clear();
-    vi.mocked(useAuth).mockReturnValue({
-      isAuthenticated: true,
-      isAdmin: false,
-      isModerator: false,
-      user: null,
-    });
     vi.mocked(useDropdown).mockReturnValue({
       isOpen: false,
       toggle: vi.fn(),
@@ -304,12 +297,6 @@ describe('LeftSidebar Component', () => {
     });
 
     it('should show dropdown menu when open and authenticated', () => {
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: true,
-        isAdmin: false,
-        isModerator: false,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
@@ -332,12 +319,6 @@ describe('LeftSidebar Component', () => {
     });
 
     it('should not show dropdown menu when not authenticated', () => {
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: false,
-        isAdmin: false,
-        isModerator: false,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
@@ -361,12 +342,6 @@ describe('LeftSidebar Component', () => {
 
     it('should close dropdown when menu item clicked', () => {
       const mockClose = vi.fn();
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: true,
-        isAdmin: false,
-        isModerator: false,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
@@ -497,12 +472,6 @@ describe('LeftSidebar Component', () => {
     });
 
     it('should have proper menu role attributes', () => {
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: true,
-        isAdmin: false,
-        isModerator: false,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),

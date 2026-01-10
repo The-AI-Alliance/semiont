@@ -39,7 +39,6 @@ vi.mock('@/hooks/useUI', () => ({
   })),
 }));
 
-import { useAuth } from '@/hooks/useAuth';
 import { useDropdown } from '@/hooks/useUI';
 
 // Mock Link component
@@ -60,12 +59,6 @@ const mockTHome = (key: string) => `home.${key}`;
 describe('UnifiedHeader Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useAuth).mockReturnValue({
-      isAuthenticated: true,
-      isAdmin: false,
-      isModerator: false,
-      user: null,
-    });
     vi.mocked(useDropdown).mockReturnValue({
       isOpen: false,
       toggle: vi.fn(),
@@ -268,12 +261,6 @@ describe('UnifiedHeader Component', () => {
     });
 
     it('should show dropdown menu when open and authenticated', () => {
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: true,
-        isAdmin: false,
-        isModerator: false,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
@@ -294,12 +281,6 @@ describe('UnifiedHeader Component', () => {
     });
 
     it('should not show dropdown menu when not authenticated', () => {
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: false,
-        isAdmin: false,
-        isModerator: false,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
@@ -320,12 +301,6 @@ describe('UnifiedHeader Component', () => {
     });
 
     it('should not show dropdown menu when closed', () => {
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: true,
-        isAdmin: false,
-        isModerator: false,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: false,
         toggle: vi.fn(),
@@ -347,12 +322,6 @@ describe('UnifiedHeader Component', () => {
 
     it('should close dropdown when menu item clicked', () => {
       const mockClose = vi.fn();
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: true,
-        isAdmin: false,
-        isModerator: false,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
@@ -412,12 +381,6 @@ describe('UnifiedHeader Component', () => {
     });
 
     it('should pass admin status to NavigationMenu', () => {
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: true,
-        isAdmin: true,
-        isModerator: false,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
@@ -438,12 +401,6 @@ describe('UnifiedHeader Component', () => {
     });
 
     it('should pass moderator status to NavigationMenu', () => {
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: true,
-        isAdmin: false,
-        isModerator: true,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
@@ -523,12 +480,6 @@ describe('UnifiedHeader Component', () => {
     });
 
     it('should have proper menu role attributes', () => {
-      vi.mocked(useAuth).mockReturnValue({
-        isAuthenticated: true,
-        isAdmin: false,
-        isModerator: false,
-        user: null,
-      });
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
         toggle: vi.fn(),
