@@ -4,6 +4,8 @@
 [![API Stability](https://img.shields.io/badge/API-unstable-red.svg)](https://github.com/The-AI-Alliance/semiont)
 [![Continuous Integration](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![Security Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml?query=branch%3Amain)
+[![Accessibility Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml?query=branch%3Amain)
+[![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-blue.svg)](apps/frontend/docs/ACCESSIBILITY.md)
 [![License](https://img.shields.io/github/license/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/tree/main?tab=Apache-2.0-1-ov-file#readme)
 [![Issues](https://img.shields.io/github/issues/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/issues)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -161,6 +163,15 @@ Semiont publishes npm packages and container images for easy integration and dep
 | [SCALING.md](docs/SCALING.md) | Performance scaling and cost optimization |
 | [MAINTENANCE.md](docs/MAINTENANCE.md) | Operational maintenance procedures |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and diagnostic commands |
+
+### Accessibility
+
+| Document | Description |
+|----------|-------------|
+| [Frontend Accessibility](apps/frontend/docs/ACCESSIBILITY.md) | Frontend-specific accessibility features and testing |
+| [React UI Accessibility](packages/react-ui/docs/ACCESSIBILITY.md) | Component library accessibility architecture |
+| [Keyboard Navigation](apps/frontend/docs/KEYBOARD-NAV.md) | Comprehensive keyboard navigation guide |
+| [Accessibility Improvements](ACCESSIBILITY-IMPROVEMENTS.md) | Roadmap for accessibility enhancements |
 
 ## 📜 License
 
