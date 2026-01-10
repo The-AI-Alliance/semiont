@@ -1,15 +1,16 @@
 'use client';
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
 
 type ToolbarPanel = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
 type ToolbarContext = 'document' | 'simple';
+type TranslateFn = (key: string) => string;
 
 interface Props<T extends string = string> {
   context: ToolbarContext;
   activePanel: T | null;
   onPanelToggle: (panel: T) => void;
+  t: TranslateFn;
 
   // Document context specific
   isArchived?: boolean;
@@ -19,9 +20,9 @@ export function Toolbar<T extends string = string>({
   context,
   activePanel,
   onPanelToggle,
+  t,
   isArchived = false
 }: Props<T>) {
-  const t = useTranslations('Toolbar');
 
   const buttonClass = (panel: string) =>
     `p-2 rounded-md transition-colors relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${

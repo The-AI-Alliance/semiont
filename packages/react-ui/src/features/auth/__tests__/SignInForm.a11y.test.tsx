@@ -42,6 +42,7 @@ const mockTranslations = {
   signUpInstead: 'Sign Up Instead',
   errorEmailRequired: 'Email is required',
   errorPasswordRequired: 'Password is required',
+  tagline: 'make meaning',
 };
 
 describe('SignInForm - Accessibility', () => {

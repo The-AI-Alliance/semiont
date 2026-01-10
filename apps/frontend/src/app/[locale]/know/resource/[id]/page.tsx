@@ -9,7 +9,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { useResources, useEntityTypes, useApiClient, useAnnotations } from '@semiont/react-ui';
@@ -131,6 +131,7 @@ function ResourceViewWrapper({
 }) {
   const { data: session } = useSession();
   const locale = useLocale();
+  const tToolbar = useTranslations('Toolbar');
   const { addResource } = useOpenResources();
   const { triggerSparkleAnimation, clearNewAnnotationId, deleteAnnotation, createAnnotation } = useResourceAnnotations();
   const { showError, showSuccess } = useToast();
@@ -378,6 +379,7 @@ function ResourceViewWrapper({
       activePanel={activePanel}
       onPanelToggle={togglePanel}
       setActivePanel={setActivePanel}
+      tToolbar={tToolbar}
       onUpdateDocumentTags={handleUpdateDocumentTags}
       onArchive={handleArchive}
       onUnarchive={handleUnarchive}

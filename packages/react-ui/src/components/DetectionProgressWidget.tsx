@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations } from '../contexts/TranslationContext';
 import type { DetectionProgress } from '../hooks/useDetectionProgress';
 
 interface DetectionProgressWidgetProps {

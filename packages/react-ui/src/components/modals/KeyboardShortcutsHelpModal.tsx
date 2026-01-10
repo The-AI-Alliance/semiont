@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Fragment } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations } from '../../contexts/TranslationContext';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 
 interface KeyboardShortcutsHelpModalProps {

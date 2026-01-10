@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations } from '../../../contexts/TranslationContext';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
 
 interface DetectSectionProps {

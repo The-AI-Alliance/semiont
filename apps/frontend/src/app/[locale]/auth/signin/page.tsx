@@ -22,6 +22,7 @@ import Link from 'next/link';
  */
 function SignInContent() {
   const t = useTranslations('AuthSignIn');
+  const tHome = useTranslations('Home');
   const tFooter = useTranslations('Footer');
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -112,6 +113,7 @@ function SignInContent() {
     signUpInstead: t('signUpInstead'),
     errorEmailRequired: t('errorEmailRequired'),
     errorPasswordRequired: t('errorPasswordRequired'),
+    tagline: tHome('tagline'),
   };
 
   return (

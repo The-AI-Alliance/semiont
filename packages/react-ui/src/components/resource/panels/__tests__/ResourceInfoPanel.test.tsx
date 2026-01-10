@@ -4,8 +4,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 
-// Mock next-intl
-vi.mock('next-intl', () => ({
+// Mock TranslationContext
+vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string) => {
     const translations: Record<string, string> = {
       locale: 'Locale',

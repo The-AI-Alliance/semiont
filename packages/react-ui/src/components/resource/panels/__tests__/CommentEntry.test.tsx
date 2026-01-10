@@ -8,8 +8,8 @@ import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
-// Mock next-intl
-vi.mock('next-intl', () => ({
+// Mock TranslationContext
+vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string) => {
     const translations: Record<string, string> = {
       edit: 'Edit',

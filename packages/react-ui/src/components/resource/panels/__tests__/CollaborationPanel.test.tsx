@@ -4,8 +4,8 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { CollaborationPanel } from '../CollaborationPanel';
 
-// Mock next-intl
-vi.mock('next-intl', () => ({
+// Mock TranslationContext
+vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
     const translations: Record<string, string> = {
       connectionStatus: 'Connection Status',

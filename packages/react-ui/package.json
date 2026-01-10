@@ -12,10 +12,12 @@
     "./test-utils": {
       "types": "./dist/test-utils.d.mts",
       "import": "./dist/test-utils.mjs"
-    }
+    },
+    "./translations/*": "./translations/*.json"
   },
   "files": [
     "dist",
+    "translations",
     "README.md"
   ],
   "scripts": {

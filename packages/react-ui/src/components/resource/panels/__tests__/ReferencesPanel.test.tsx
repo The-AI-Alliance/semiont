@@ -5,8 +5,8 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
 
-// Mock next-intl
-vi.mock('next-intl', () => ({
+// Mock TranslationContext
+vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
     const translations: Record<string, string> = {
       title: 'Detect Entities',

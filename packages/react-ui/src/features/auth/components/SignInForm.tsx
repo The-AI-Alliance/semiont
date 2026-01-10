@@ -55,6 +55,7 @@ export interface SignInFormProps {
     signUpInstead: string;
     errorEmailRequired: string;
     errorPasswordRequired: string;
+    tagline: string;
   };
 }
 

@@ -24,7 +24,16 @@ import type { OpenResourcesManager } from './types/OpenResourcesManager';
  */
 export const defaultMocks = {
   translationManager: {
-    t: (namespace: string, key: string) => `${namespace}.${key}`,
+    t: (namespace: string, key: string, params?: Record<string, any>) => {
+      let result = `${namespace}.${key}`;
+      if (params) {
+        // Simple parameter replacement for testing
+        Object.entries(params).forEach(([k, v]) => {
+          result = result.replace(`{${k}}`, String(v));
+        });
+      }
+      return result;
+    },
   } as TranslationManager,
 
   apiClientManager: {

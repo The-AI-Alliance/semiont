@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useEffect, useRef } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations } from '../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import { useResources } from '../../lib/api-hooks';
 import { type StoredEvent, type ResourceUri, getAnnotationUriFromEvent } from '@semiont/api-client';

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations } from '../../../contexts/TranslationContext';
 import { formatLocaleDisplay } from '@semiont/api-client';
 import { buttonStyles } from '../../../lib/button-styles';
 

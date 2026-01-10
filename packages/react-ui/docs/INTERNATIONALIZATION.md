@@ -1,17 +1,82 @@
 # Internationalization (i18n)
 
-`@semiont/react-ui` provides a framework-agnostic approach to internationalization. Apps can use **any i18n library** (next-intl, react-i18next, custom) or even hardcoded strings.
+`@semiont/react-ui` provides flexible internationalization support with three usage modes, making it suitable for any React application.
 
 ## Overview
 
-The library does **not** include translations. Instead, it provides:
+The library provides:
 
-1. **TranslationManager interface** - Contract that apps implement
-2. **TranslationProvider** - React Context to make translations available
-3. **useTranslations hook** - Access translations in components
+1. **Built-in translations** - English and Spanish translations included
+2. **TranslationManager interface** - Contract for custom implementations
+3. **TranslationProvider** - Optional React Context for configuration
+4. **useTranslations hook** - Access translations in components
+
+## Three Usage Modes
+
+### 1. Default English (No Configuration Required)
+
+Components work out-of-the-box with English translations - no provider needed:
+
+```tsx
+import { Toolbar } from '@semiont/react-ui';
+
+// Components use default English translations
+function App() {
+  return <Toolbar context="simple" />;
+}
+```
+
+### 2. Built-in Locale Support (English & Spanish)
+
+Use the `TranslationProvider` with a `locale` prop to use built-in translations:
+
+```tsx
+import { TranslationProvider, Toolbar } from '@semiont/react-ui';
+
+function App() {
+  return (
+    <TranslationProvider locale="es">
+      <Toolbar context="simple" />
+    </TranslationProvider>
+  );
+}
+```
+
+Available locales:
+- `en` - English (default)
+- `es` - Spanish
+
+### 3. Custom Translation Implementation
+
+Provide your own translation system via `TranslationManager`:
+
+```tsx
+import { TranslationProvider, Toolbar } from '@semiont/react-ui';
+import type { TranslationManager } from '@semiont/react-ui';
+
+const myTranslationManager: TranslationManager = {
+  t: (namespace: string, key: string, params?: Record<string, any>) => {
+    // Your custom translation logic here
+    // Could integrate with react-i18next, react-intl, etc.
+    return myTranslations[namespace]?.[key] || `${namespace}.${key}`;
+  },
+};
+
+function App() {
+  return (
+    <TranslationProvider translationManager={myTranslationManager}>
+      <Toolbar context="simple" />
+    </TranslationProvider>
+  );
+}
+```
+
+## Benefits
 
 This approach allows apps to:
-- ✅ Use any i18n library (next-intl, react-i18next, FormatJS, custom)
+- ✅ Work immediately with zero configuration
+- ✅ Use built-in translations for rapid prototyping
+- ✅ Integrate with any i18n library (next-intl, react-i18next, FormatJS, custom)
 - ✅ Choose their own translation file format (JSON, YAML, TypeScript, API)
 - ✅ Support any set of languages
 - ✅ Implement custom translation logic (pluralization, interpolation, etc.)
