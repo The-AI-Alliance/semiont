@@ -21,7 +21,7 @@ describe('TranslationContext', () => {
   describe('TranslationProvider', () => {
     it('should provide translation manager to child components', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => `${namespace}.${key}`,
+        t: (namespace: string, key: string, params?: Record<string, any>) => `${namespace}.${key}`,
       };
 
       render(
@@ -37,7 +37,7 @@ describe('TranslationContext', () => {
 
     it('should support multiple namespaces', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => `Translated: ${namespace}/${key}`,
+        t: (namespace: string, key: string, params?: Record<string, any>) => `Translated: ${namespace}/${key}`,
       };
 
       function MultiNamespaceConsumer() {
@@ -64,7 +64,7 @@ describe('TranslationContext', () => {
 
     it('should handle actual translations', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => {
+        t: (namespace: string, key: string, params?: Record<string, any>) => {
           const translations: Record<string, Record<string, string>> = {
             Common: {
               save: 'Save',
@@ -106,7 +106,7 @@ describe('TranslationContext', () => {
 
     it('should handle missing translations gracefully', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => {
+        t: (namespace: string, key: string, params?: Record<string, any>) => {
           const translations: Record<string, Record<string, string>> = {
             Common: { save: 'Save' },
           };
@@ -140,7 +140,7 @@ describe('TranslationContext', () => {
 
     it('should render children', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => `${namespace}.${key}`,
+        t: (namespace: string, key: string, params?: Record<string, any>) => `${namespace}.${key}`,
       };
 
       render(
@@ -154,7 +154,7 @@ describe('TranslationContext', () => {
 
     it('should update when manager changes', () => {
       const mockManager1: TranslationManager = {
-        t: (namespace: string, key: string) => `EN: ${namespace}.${key}`,
+        t: (namespace: string, key: string, params?: Record<string, any>) => `EN: ${namespace}.${key}`,
       };
 
       const { rerender } = render(
@@ -166,7 +166,7 @@ describe('TranslationContext', () => {
       expect(screen.getByTestId('translation-1')).toHaveTextContent('EN: Toolbar.key1');
 
       const mockManager2: TranslationManager = {
-        t: (namespace: string, key: string) => `FR: ${namespace}.${key}`,
+        t: (namespace: string, key: string, params?: Record<string, any>) => `FR: ${namespace}.${key}`,
       };
 
       rerender(
@@ -179,7 +179,7 @@ describe('TranslationContext', () => {
     });
 
     it('should call translation manager for each key', () => {
-      const tMock = vi.fn((namespace: string, key: string) => `${namespace}.${key}`);
+      const tMock = vi.fn((namespace: string, key: string, params?: Record<string, any>) => `${namespace}.${key}`);
       const mockManager: TranslationManager = { t: tMock };
 
       render(
@@ -188,28 +188,31 @@ describe('TranslationContext', () => {
         </TranslationProvider>
       );
 
-      expect(tMock).toHaveBeenCalledWith('Toolbar', 'key1');
-      expect(tMock).toHaveBeenCalledWith('Toolbar', 'key2');
-      expect(tMock).toHaveBeenCalledWith('Toolbar', 'missingKey');
+      expect(tMock).toHaveBeenCalledWith('Toolbar', 'key1', undefined);
+      expect(tMock).toHaveBeenCalledWith('Toolbar', 'key2', undefined);
+      expect(tMock).toHaveBeenCalledWith('Toolbar', 'missingKey', undefined);
     });
   });
 
   describe('useTranslations', () => {
-    it('should throw error when used outside provider', () => {
-      // Suppress console.error for this test
-      const consoleError = console.error;
-      console.error = () => {};
+    it('should use default English translations when used outside provider', () => {
+      // Suppress console.warn for this test since we'll get warnings about missing translations
+      const consoleWarn = console.warn;
+      console.warn = () => {};
 
-      expect(() => {
-        render(<TestConsumer namespace="Toolbar" />);
-      }).toThrow('useTranslations must be used within a TranslationProvider');
+      render(<TestConsumer namespace="Toolbar" />);
 
-      console.error = consoleError;
+      // Without a provider, it should return namespace.key format as fallback
+      expect(screen.getByTestId('translation-1')).toHaveTextContent('Toolbar.key1');
+      expect(screen.getByTestId('translation-2')).toHaveTextContent('Toolbar.key2');
+      expect(screen.getByTestId('translation-missing')).toHaveTextContent('Toolbar.missingKey');
+
+      console.warn = consoleWarn;
     });
 
     it('should return translation function scoped to namespace', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => `${namespace}/${key}`,
+        t: (namespace: string, key: string, params?: Record<string, any>) => `${namespace}/${key}`,
       };
 
       function ScopedConsumer() {
@@ -241,7 +244,7 @@ describe('TranslationContext', () => {
       class CustomTranslationManager implements TranslationManager {
         private locale = 'es';
 
-        t(namespace: string, key: string): string {
+        t(namespace: string, key: string, params?: Record<string, any>): string {
           // Simulated Spanish translations
           return `[${this.locale}] ${namespace}.${key}`;
         }
@@ -260,11 +263,11 @@ describe('TranslationContext', () => {
 
     it('should work with nested providers', () => {
       const outerManager: TranslationManager = {
-        t: (namespace: string, key: string) => `OUTER: ${namespace}.${key}`,
+        t: (namespace: string, key: string, params?: Record<string, any>) => `OUTER: ${namespace}.${key}`,
       };
 
       const innerManager: TranslationManager = {
-        t: (namespace: string, key: string) => `INNER: ${namespace}.${key}`,
+        t: (namespace: string, key: string, params?: Record<string, any>) => `INNER: ${namespace}.${key}`,
       };
 
       function InnerConsumer() {
@@ -298,7 +301,7 @@ describe('TranslationContext', () => {
   describe('Edge Cases', () => {
     it('should handle empty namespace', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => {
+        t: (namespace: string, key: string, params?: Record<string, any>) => {
           if (!namespace) return `NO_NAMESPACE: ${key}`;
           return `${namespace}.${key}`;
         },
@@ -320,7 +323,7 @@ describe('TranslationContext', () => {
 
     it('should handle empty key', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => {
+        t: (namespace: string, key: string, params?: Record<string, any>) => {
           if (!key) return `${namespace}: NO_KEY`;
           return `${namespace}.${key}`;
         },
@@ -342,7 +345,7 @@ describe('TranslationContext', () => {
 
     it('should handle special characters in namespace and key', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => `${namespace}::${key}`,
+        t: (namespace: string, key: string, params?: Record<string, any>) => `${namespace}::${key}`,
       };
 
       function SpecialCharsConsumer() {
@@ -362,7 +365,7 @@ describe('TranslationContext', () => {
     it('should handle very long translation strings', () => {
       const longTranslation = 'A'.repeat(1000);
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => {
+        t: (namespace: string, key: string, params?: Record<string, any>) => {
           if (key === 'long') return longTranslation;
           return `${namespace}.${key}`;
         },
@@ -384,7 +387,7 @@ describe('TranslationContext', () => {
 
     it('should handle translations with HTML-like content', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => {
+        t: (namespace: string, key: string, params?: Record<string, any>) => {
           if (key === 'html') return '<strong>Bold</strong> & "quoted"';
           return `${namespace}.${key}`;
         },
@@ -407,7 +410,7 @@ describe('TranslationContext', () => {
 
     it('should handle manager that returns numbers', () => {
       const mockManager: TranslationManager = {
-        t: (namespace: string, key: string) => {
+        t: (namespace: string, key: string, params?: Record<string, any>) => {
           // TypeScript expects string, but testing runtime behavior
           return '42' as string;
         },
@@ -428,7 +431,7 @@ describe('TranslationContext', () => {
     });
 
     it('should handle same namespace used multiple times', () => {
-      const tMock = vi.fn((namespace: string, key: string) => `${namespace}.${key}`);
+      const tMock = vi.fn((namespace: string, key: string, params?: Record<string, any>) => `${namespace}.${key}`);
       const mockManager: TranslationManager = { t: tMock };
 
       function MultipleCallsConsumer() {
@@ -451,8 +454,8 @@ describe('TranslationContext', () => {
 
       expect(screen.getByTestId('first')).toHaveTextContent('Common.save');
       expect(screen.getByTestId('second')).toHaveTextContent('Common.cancel');
-      expect(tMock).toHaveBeenCalledWith('Common', 'save');
-      expect(tMock).toHaveBeenCalledWith('Common', 'cancel');
+      expect(tMock).toHaveBeenCalledWith('Common', 'save', undefined);
+      expect(tMock).toHaveBeenCalledWith('Common', 'cancel', undefined);
     });
   });
 });
