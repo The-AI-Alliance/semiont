@@ -1,5 +1,6 @@
 # @semiont/api-client
 
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+api-client%22)
 [![npm version](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
 [![License](https://img.shields.io/npm/l/@semiont/api-client.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
@@ -104,12 +105,15 @@ const client = new SemiontApiClient({
 
 📖 **[API Reference](./docs/API-Reference.md)** - Complete method documentation
 
+🛠️ **[Utilities Guide](./docs/Utilities.md)** - Text encoding, fuzzy anchoring, SVG utilities
+
 ## Key Features
 
 - **Type-safe** - Generated from OpenAPI spec with branded types
-- **W3C compliant** - Web Annotation standard
+- **W3C compliant** - Web Annotation standard with fuzzy text matching
 - **Real-time** - SSE streaming for long operations
-- **Framework-agnostic** - Works everywhere JavaScript runs
+- **Framework-agnostic** - Pure TypeScript utilities work everywhere
+- **Character encoding** - Proper UTF-8, ISO-8859-1, Windows-1252 support
 
 ## Use Cases
 

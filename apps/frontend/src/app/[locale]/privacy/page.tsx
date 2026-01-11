@@ -1,14 +1,30 @@
 'use client';
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { useTranslations } from 'next-intl';
-import { PageLayout } from '@/components/PageLayout';
+import { PageLayout } from '@semiont/react-ui';
+import { CookiePreferences } from '@/components/CookiePreferences';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { Link as RoutingLink, routes } from '@/lib/routing';
 
 export default function PrivacyPolicyPage() {
   const t = useTranslations('Privacy');
+  const tFooter = useTranslations('Footer');
+  const tNav = useTranslations('Navigation');
+  const tHome = useTranslations('Home');
+  const keyboardContext = useContext(KeyboardShortcutsContext);
 
   return (
-    <PageLayout className="bg-gray-50">
+    <PageLayout
+      Link={RoutingLink}
+      routes={routes}
+      t={tFooter}
+      tNav={tNav}
+      tHome={tHome}
+      CookiePreferences={CookiePreferences}
+      {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+      className="bg-gray-50"
+    >
       <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">{t('pageTitle')}</h1>

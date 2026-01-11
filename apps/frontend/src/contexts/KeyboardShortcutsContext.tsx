@@ -2,9 +2,8 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useRouter } from '@/i18n/routing';
-import { useKeyboardShortcuts, useDoubleKeyPress } from '@/hooks/useKeyboardShortcuts';
-import { GlobalSearchModal } from '@/components/modals/GlobalSearchModal';
-import { KeyboardShortcutsHelpModal } from '@/components/modals/KeyboardShortcutsHelpModal';
+import { useKeyboardShortcuts, useDoubleKeyPress, KeyboardShortcutsHelpModal } from '@semiont/react-ui';
+import { GlobalSearchModal } from '../components/modals/GlobalSearchModal';
 
 interface KeyboardShortcutsContextType {
   openGlobalSearch: () => void;
@@ -105,14 +104,18 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
   return (
     <KeyboardShortcutsContext.Provider value={contextValue}>
       {children}
-      <GlobalSearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-      />
-      <KeyboardShortcutsHelpModal
-        isOpen={isHelpOpen}
-        onClose={() => setIsHelpOpen(false)}
-      />
+      {isSearchOpen && (
+        <GlobalSearchModal
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+        />
+      )}
+      {isHelpOpen && (
+        <KeyboardShortcutsHelpModal
+          isOpen={isHelpOpen}
+          onClose={() => setIsHelpOpen(false)}
+        />
+      )}
     </KeyboardShortcutsContext.Provider>
   );
 }

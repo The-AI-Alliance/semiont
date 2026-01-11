@@ -340,7 +340,8 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
           body: JSON.stringify({
             title: 'Custom Title',
             language: 'es',
-            prompt: 'Custom prompt'
+            prompt: 'Custom prompt',
+            context: mockGenerationContext
           })
         })
       );

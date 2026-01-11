@@ -1,0 +1,27 @@
+// @semiont/make-meaning - Making meaning from resources
+// Transforms raw resources into meaningful, interconnected knowledge
+
+// Context assembly exports
+export { ResourceContext } from './resource-context';
+export type { ListResourcesFilters } from './resource-context';
+export { AnnotationContext } from './annotation-context';
+export type { BuildContextOptions } from './annotation-context';
+export { GraphContext } from './graph-context';
+
+// Detection exports
+export { AnnotationDetection } from './annotation-detection';
+
+// Re-export match types from @semiont/inference for convenience
+export type {
+  CommentMatch,
+  HighlightMatch,
+  AssessmentMatch,
+  TagMatch,
+} from '@semiont/inference';
+
+// Reasoning exports (future)
+// export { ResourceReasoning } from './resource-reasoning';
+
+// Placeholder for initial build
+export const PACKAGE_NAME = '@semiont/make-meaning';
+export const VERSION = '0.1.0';

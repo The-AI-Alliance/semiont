@@ -12,15 +12,15 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createEventStore } from '../../../services/event-store-service';
-import { EventQuery } from '../../../events/query/event-query';
+import { EventQuery } from '@semiont/event-sourcing';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { getEntityTypes } from '@semiont/api-client';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
-import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
-import { getPrimaryRepresentation, getPrimaryMediaType, decodeRepresentation } from '../../../utils/resource-helpers';
-import { ResourceQueryService } from '../../../services/resource-queries';
+import { FilesystemRepresentationStore } from '@semiont/content';
+import { getPrimaryRepresentation, getPrimaryMediaType, decodeRepresentation } from '@semiont/api-client';
+import { ResourceContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
+import { getEntityTypes } from '@semiont/ontology';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type Annotation = components['schemas']['Annotation'];
@@ -57,7 +57,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
       // Get resource metadata from view storage
-      const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }

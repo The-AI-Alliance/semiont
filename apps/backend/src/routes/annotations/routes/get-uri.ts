@@ -11,11 +11,10 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
-import type { components } from '@semiont/api-client';
-import { AnnotationQueryService } from '../../../services/annotation-queries';
-import { ResourceQueryService } from '../../../services/resource-queries';
-import { getBodySource } from '../../../lib/annotation-utils';
-import { uriToResourceId } from '../../../lib/uri-utils';
+import { type components, getBodySource } from '@semiont/api-client';
+import { AnnotationContext } from '@semiont/make-meaning';
+import { ResourceContext } from '@semiont/make-meaning';
+import { uriToResourceId } from '@semiont/core';
 import { prefersHtml, getFrontendUrl } from '../../../middleware/content-negotiation';
 import { resourceId as makeResourceId } from '@semiont/core';
 
@@ -63,7 +62,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
 
     // Otherwise, return JSON-LD representation
     // O(1) lookup in view storage using resource ID
-    const projection = await AnnotationQueryService.getResourceAnnotations(makeResourceId(extractedResourceId), config);
+    const projection = await AnnotationContext.getResourceAnnotations(makeResourceId(extractedResourceId), config);
 
     // Find the annotation
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
@@ -73,7 +72,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     }
 
     // Get resource metadata
-    const resource = await ResourceQueryService.getResourceMetadata(makeResourceId(extractedResourceId), config);
+    const resource = await ResourceContext.getResourceMetadata(makeResourceId(extractedResourceId), config);
 
     // If it's a linking annotation with a resolved source, get resolved resource
     let resolvedResource = null;
@@ -81,7 +80,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     if (annotation.motivation === 'linking' && bodySource) {
       // Extract ID from body source URI if needed
       const bodyDocId = bodySource.includes('://') ? uriToResourceId(bodySource) : bodySource;
-      resolvedResource = await ResourceQueryService.getResourceMetadata(makeResourceId(bodyDocId), config);
+      resolvedResource = await ResourceContext.getResourceMetadata(makeResourceId(bodyDocId), config);
     }
 
     const response: GetAnnotationResponse = {

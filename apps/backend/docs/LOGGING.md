@@ -18,7 +18,24 @@ Comprehensive Winston-based logging with configurable log levels, structured met
 
 ### Set Log Level
 
-Control logging verbosity with the `LOG_LEVEL` environment variable:
+Control logging verbosity with the `logLevel` setting in your environment configuration file.
+
+**Option 1: Edit environment file** (recommended for persistent changes):
+
+```bash
+# Edit environments/{env}.json (e.g., environments/local.json)
+{
+  ...
+  "logLevel": "debug",  // or http, info, warn, error
+  ...
+}
+
+# Then rebuild and start
+npm run build
+npm start
+```
+
+**Option 2: Override with LOG_LEVEL environment variable** (temporary for this run):
 
 ```bash
 # Debug mode - see everything (HTTP requests, auth, errors, debug messages)
@@ -27,12 +44,18 @@ LOG_LEVEL=debug npm start
 # HTTP mode - see HTTP requests + info/warn/error
 LOG_LEVEL=http npm start
 
-# Info mode (default) - see info/warn/error only
+# Info mode - see info/warn/error only
 LOG_LEVEL=info npm start
 
 # Error mode - see errors only
 LOG_LEVEL=error npm start
 ```
+
+**Default levels by environment:**
+- local, ci: `debug` (full verbosity for development)
+- staging: `http` (HTTP requests + info/warn/error)
+- production: `info` (info/warn/error only)
+- test: `error` (errors only)
 
 ### View Logs
 
@@ -50,9 +73,21 @@ LOG_LEVEL=error npm start
 
 ### Debugging 401 Errors
 
-When you get 401 errors, set `LOG_LEVEL=debug` to see exactly why:
+When you get 401 errors, set `logLevel: "debug"` to see exactly why:
 
 ```bash
+# Edit your environment file (e.g., environments/local.json)
+{
+  ...
+  "logLevel": "debug",
+  ...
+}
+
+# Then rebuild and restart
+npm run build
+npm start
+
+# Or override temporarily with environment variable
 LOG_LEVEL=debug npm start
 
 # Now you'll see detailed auth logs:
@@ -61,15 +96,40 @@ LOG_LEVEL=debug npm start
 # - "Authentication failed: Invalid token" → Token verification failed (expired, wrong secret, etc.)
 ```
 
+**Note:** Development environments (local, ci) already have `"logLevel": "debug"` configured.
+
 ## Configuration
 
-### Environment Variables
+### Log Level Configuration
 
+Logging is configured via the `logLevel` field in your environment configuration file (`environments/{env}.json`).
+
+**Configuration file** (`environments/local.json`):
+```json
+{
+  "logLevel": "debug"
+}
+```
+
+**Available log levels:**
+| Level | When to Use | What Gets Logged |
+|-------|-------------|------------------|
+| `error` | Production (minimal) | Critical failures only |
+| `warn` | Production | Errors + warnings (auth failures, validation errors) |
+| `info` | Production (default) | Errors + warnings + important events |
+| `http` | Staging/debugging | All of above + HTTP request/response logging |
+| `debug` | Development (default) | Everything including detailed auth flow |
+
+**Configuration precedence:**
+1. `LOG_LEVEL` environment variable (temporary override)
+2. `logLevel` in `environments/{env}.json` (recommended)
+3. Default: `info`
+
+**Other environment variables:**
 | Variable | Values | Default | Description |
 |----------|--------|---------|-------------|
-| `LOG_LEVEL` | `error`, `warn`, `info`, `http`, `debug` | `info` | Minimum log level to output |
 | `LOG_FORMAT` | `json`, `simple` | `json` | Log output format |
-| `NODE_ENV` | `development`, `production`, `test` | `development` | Environment (affects log defaults) |
+| `NODE_ENV` | `development`, `production`, `test` | `development` | Runtime environment |
 
 ### Log Formats
 

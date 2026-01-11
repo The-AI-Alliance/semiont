@@ -10,8 +10,8 @@ import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getBodySource } from '@semiont/api-client';
 import { resourceId as makeResourceId, annotationId } from '@semiont/core';
-import { AnnotationQueryService } from '../../../services/annotation-queries';
-import { ResourceQueryService } from '../../../services/resource-queries';
+import { AnnotationContext } from '@semiont/make-meaning';
+import { ResourceContext } from '@semiont/make-meaning';
 
 type GetAnnotationResponse = components['schemas']['GetAnnotationResponse'];
 
@@ -25,7 +25,7 @@ export function registerGetAnnotation(router: ResourcesRouterType) {
     const config = c.get('config');
 
     // Get annotation from view storage
-    const annotation = await AnnotationQueryService.getAnnotation(
+    const annotation = await AnnotationContext.getAnnotation(
       annotationId(annotationIdParam),
       makeResourceId(resourceIdParam),
       config
@@ -36,7 +36,7 @@ export function registerGetAnnotation(router: ResourcesRouterType) {
     }
 
     // Get source resource metadata
-    const resource = await ResourceQueryService.getResourceMetadata(
+    const resource = await ResourceContext.getResourceMetadata(
       makeResourceId(resourceIdParam),
       config
     );
@@ -46,7 +46,7 @@ export function registerGetAnnotation(router: ResourcesRouterType) {
     const bodySource = getBodySource(annotation.body);
     if (bodySource) {
       const resolvedId = bodySource.split('/').pop()!;
-      resolvedResource = await ResourceQueryService.getResourceMetadata(
+      resolvedResource = await ResourceContext.getResourceMetadata(
         makeResourceId(resolvedId),
         config
       );

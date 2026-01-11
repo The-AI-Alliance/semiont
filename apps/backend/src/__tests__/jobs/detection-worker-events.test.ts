@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
-import type { DetectionJob } from '../../jobs/types';
+import type { DetectionJob } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
@@ -26,16 +26,25 @@ vi.mock('../../inference/detect-annotations', () => ({
   ])
 }));
 
-// Mock resource queries
-vi.mock('../../services/resource-queries', () => ({
-  ResourceQueryService: {
-    getResourceMetadata: vi.fn().mockResolvedValue({
-      id: 'test-resource',
-      name: 'Test Resource',
-      format: 'text/plain'
-    })
-  }
-}));
+// Mock ResourceContext from @semiont/make-meaning
+vi.mock('@semiont/make-meaning', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    ResourceContext: {
+      getResourceMetadata: vi.fn().mockResolvedValue({
+        id: 'test-resource',
+        name: 'Test Resource',
+        format: 'text/plain',
+        content: 'Test content',
+        representations: [{
+          mediaType: 'text/plain',
+          rel: 'original'
+        }]
+      })
+    }
+  };
+});
 
 // Cache EventStore instances per basePath to ensure consistency
 const eventStoreCache = new Map();
@@ -43,8 +52,8 @@ const eventStoreCache = new Map();
 // Mock createEventStore to avoid requiring project config
 vi.mock('../../services/event-store-service', async (importOriginal) => {
   const actual = await importOriginal() as any;
-  const { EventStore } = await import('../../events/event-store');
-  const { FilesystemViewStorage } = await import('../../storage/view-storage');
+  const { EventStore } = await import('@semiont/event-sourcing');
+  const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
 
   return {
     ...actual,

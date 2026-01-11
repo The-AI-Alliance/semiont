@@ -4,7 +4,7 @@ import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
-import { getShardPath } from './shard-utils';
+import { getShardPath } from '@semiont/event-sourcing';
 import type { ResourceId } from '@semiont/core';
 
 export interface StorageService {

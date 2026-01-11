@@ -9,10 +9,8 @@ import "@/styles/animations.css";
 import { Providers } from "../providers";
 import { NEXT_PUBLIC_SITE_NAME } from "@/lib/env";
 import { CookieBanner } from "@/components/CookieBanner";
-import { SessionExpiryBanner } from "@/components/SessionExpiryBanner";
-import { SessionExpiredModal } from "@/components/modals/SessionExpiredModal";
-import { PermissionDeniedModal } from "@/components/modals/PermissionDeniedModal";
-import { SkipLinks } from "@/components/SkipLinks";
+import { SkipLinks } from "@semiont/react-ui";
+import { ClientModals } from "@/components/ClientModals";
 import { routing } from "@/i18n/routing";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -54,9 +52,7 @@ export default async function LocaleLayout({
         <NextIntlClientProvider messages={messages}>
           <Providers>
             <SkipLinks />
-            <SessionExpiryBanner />
-            <SessionExpiredModal />
-            <PermissionDeniedModal />
+            <ClientModals />
             {children}
             <CookieBanner />
           </Providers>

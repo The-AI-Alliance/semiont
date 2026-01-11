@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { resourceIdToURI, uriToResourceId, annotationIdToURI, uriToAnnotationId } from '../uri-utils';
+import { resourceIdToURI, uriToResourceId, annotationIdToURI, uriToAnnotationId } from '@semiont/core';
 import { resourceId, annotationId } from '@semiont/core';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../../__tests__/_test-setup';
 

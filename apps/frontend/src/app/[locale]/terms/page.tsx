@@ -1,16 +1,32 @@
 'use client';
 
-import React from 'react';
+import React, { useContext } from 'react';
 import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
-import { PageLayout } from '@/components/PageLayout';
+import { PageLayout } from '@semiont/react-ui';
+import { CookiePreferences } from '@/components/CookiePreferences';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { Link as RoutingLink, routes } from '@/lib/routing';
 
 export default function TermsOfService() {
   const t = useTranslations('Terms');
+  const tFooter = useTranslations('Footer');
+  const tNav = useTranslations('Navigation');
+  const tHome = useTranslations('Home');
   const locale = useLocale();
+  const keyboardContext = useContext(KeyboardShortcutsContext);
 
   return (
-    <PageLayout className="bg-gray-50">
+    <PageLayout
+      Link={RoutingLink}
+      routes={routes}
+      t={tFooter}
+      tNav={tNav}
+      tHome={tHome}
+      CookiePreferences={CookiePreferences}
+      {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+      className="bg-gray-50"
+    >
       <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-8">
           <div className="text-center mb-8">

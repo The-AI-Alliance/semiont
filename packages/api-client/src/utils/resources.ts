@@ -64,3 +64,125 @@ export function getChecksum(resource: ResourceDescriptor | undefined): string | 
 export function getLanguage(resource: ResourceDescriptor | undefined): string | undefined {
   return getPrimaryRepresentation(resource)?.language;
 }
+
+/**
+ * Get storage URI from primary representation
+ *
+ * @param resource - ResourceDescriptor
+ * @returns Storage URI or undefined
+ */
+export function getStorageUri(resource: ResourceDescriptor | undefined): string | undefined {
+  return getPrimaryRepresentation(resource)?.storageUri;
+}
+
+/**
+ * Get creator agent from wasAttributedTo
+ * Handles both single agent and array of agents
+ *
+ * @param resource - ResourceDescriptor
+ * @returns First agent or undefined
+ */
+export function getCreator(resource: ResourceDescriptor | undefined): components['schemas']['Agent'] | undefined {
+  if (!resource?.wasAttributedTo) return undefined;
+
+  return Array.isArray(resource.wasAttributedTo)
+    ? resource.wasAttributedTo[0]
+    : resource.wasAttributedTo;
+}
+
+/**
+ * Get derived-from URI
+ * Handles both single URI and array of URIs
+ *
+ * @param resource - ResourceDescriptor
+ * @returns First derivation URI or undefined
+ */
+export function getDerivedFrom(resource: ResourceDescriptor | undefined): string | undefined {
+  if (!resource?.wasDerivedFrom) return undefined;
+
+  return Array.isArray(resource.wasDerivedFrom)
+    ? resource.wasDerivedFrom[0]
+    : resource.wasDerivedFrom;
+}
+
+/**
+ * Check if resource is archived (application-specific field)
+ *
+ * @param resource - ResourceDescriptor
+ * @returns True if archived, false otherwise
+ */
+export function isArchived(resource: ResourceDescriptor | undefined): boolean {
+  return resource?.archived === true;
+}
+
+/**
+ * Get entity types from resource (application-specific field)
+ *
+ * @param resource - ResourceDescriptor
+ * @returns Array of entity types, empty if not set
+ */
+export function getResourceEntityTypes(resource: ResourceDescriptor | undefined): string[] {
+  return resource?.entityTypes || [];
+}
+
+/**
+ * Check if resource is a draft (application-specific field)
+ *
+ * @param resource - ResourceDescriptor
+ * @returns True if draft, false otherwise
+ */
+export function isDraft(resource: ResourceDescriptor | undefined): boolean {
+  return resource?.isDraft === true;
+}
+
+/**
+ * Map charset names to Node.js Buffer encoding names
+ * Node.js Buffer.toString() supports: 'utf8', 'utf16le', 'latin1', 'base64', 'hex', 'ascii', 'binary', 'ucs2'
+ *
+ * @param charset - Charset name (e.g., "UTF-8", "ISO-8859-1", "Windows-1252")
+ * @returns Node.js BufferEncoding
+ */
+export function getNodeEncoding(charset: string): BufferEncoding {
+  const normalized = charset.toLowerCase().replace(/[-_]/g, '');
+
+  // Map common charset names to Node.js encodings
+  const charsetMap: Record<string, BufferEncoding> = {
+    'utf8': 'utf8',
+    'iso88591': 'latin1',
+    'latin1': 'latin1',
+    'ascii': 'ascii',
+    'usascii': 'ascii',
+    'utf16le': 'utf16le',
+    'ucs2': 'ucs2',
+    'binary': 'binary',
+    'windows1252': 'latin1', // Windows-1252 is a superset of Latin-1
+    'cp1252': 'latin1',
+  };
+
+  return charsetMap[normalized] || 'utf8';
+}
+
+/**
+ * Decode a representation buffer to string using the correct charset
+ * Extracts charset from media type and uses appropriate encoding
+ *
+ * @param buffer - The raw representation data
+ * @param mediaType - Media type with optional charset (e.g., "text/plain; charset=iso-8859-1")
+ * @returns Decoded string
+ *
+ * @example
+ * ```typescript
+ * const content = decodeRepresentation(buffer, "text/plain; charset=utf-8");
+ * const legacy = decodeRepresentation(buffer, "text/plain; charset=windows-1252");
+ * ```
+ */
+export function decodeRepresentation(buffer: Buffer, mediaType: string): string {
+  // Extract charset from mediaType (e.g., "text/plain; charset=iso-8859-1")
+  const charsetMatch = mediaType.match(/charset=([^\s;]+)/i);
+  const charset = (charsetMatch?.[1] || 'utf-8').toLowerCase();
+
+  // Map to Node.js encoding
+  const encoding = getNodeEncoding(charset);
+
+  return buffer.toString(encoding);
+}

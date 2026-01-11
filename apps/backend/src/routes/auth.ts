@@ -20,6 +20,8 @@ import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 import type { components } from '@semiont/api-client';
 import { userId as makeUserId } from '@semiont/core';
 import { email as makeEmail, googleCredential } from '@semiont/api-client';
+import { getLogger } from '../logger';
+import { createSafeLogContext } from '../utils/log-sanitizer';
 
 // Types from OpenAPI spec (generated)
 type PasswordAuthRequest = components['schemas']['PasswordAuthRequest'];
@@ -46,9 +48,13 @@ export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unk
 authRouter.post('/api/tokens/password',
   validateRequestBody('PasswordAuthRequest'),
   async (c) => {
+    const logger = getLogger();
+
     try {
       const body = c.get('validatedBody') as PasswordAuthRequest;
       const { email, password } = body;
+
+      logger.debug('Password auth attempt', { email });
 
       // Get user from database by email
       const prisma = DatabaseConnection.getClient();
@@ -58,13 +64,25 @@ authRouter.post('/api/tokens/password',
 
       // Return same error for user not found and wrong password (security)
       if (!user) {
+        logger.debug('Password auth failed: user not found', { email });
         return c.json({
           error: 'Invalid credentials'
         }, 401);
       }
 
+      logger.debug('User found', createSafeLogContext({
+        email,
+        provider: user.provider,
+        isActive: user.isActive,
+        hasPasswordHash: !!user.passwordHash
+      }));
+
       // Verify user is password provider
       if (user.provider !== 'password') {
+        logger.debug('Password auth failed: wrong provider', {
+          email,
+          provider: user.provider
+        });
         return c.json({
           error: 'This account uses OAuth. Please sign in with Google.'
         }, 400);
@@ -72,6 +90,7 @@ authRouter.post('/api/tokens/password',
 
       // Verify password hash exists
       if (!user.passwordHash) {
+        logger.debug('Password auth failed: no password hash', { email });
         return c.json({
           error: 'Password not set for this account'
         }, 400);
@@ -80,6 +99,7 @@ authRouter.post('/api/tokens/password',
       // Verify password
       const isValid = await bcrypt.compare(password, user.passwordHash);
       if (!isValid) {
+        logger.debug('Password auth failed: invalid password', { email });
         return c.json({
           error: 'Invalid credentials'
         }, 401);
@@ -87,10 +107,13 @@ authRouter.post('/api/tokens/password',
 
       // Check if user is active
       if (!user.isActive) {
+        logger.debug('Password auth failed: inactive account', { email });
         return c.json({
           error: 'Account is not active'
         }, 403);
       }
+
+      logger.debug('Password auth successful', { email });
 
       // Generate JWT token
       const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
@@ -126,7 +149,10 @@ authRouter.post('/api/tokens/password',
 
       return c.json(response, 200);
     } catch (error) {
-      console.error('[PasswordAuth] Error:', error);
+      logger.error('Password auth error', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return c.json({
         error: 'Authentication failed'
       }, 400);

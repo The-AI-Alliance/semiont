@@ -9,13 +9,17 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
 // Mock environment variables
 beforeEach(() => {
+  process.env.SEMIONT_ENV = 'test';
   process.env.SEMIONT_API_URL = 'http://test.api.semiont.com';
   process.env.SEMIONT_API_TOKEN = 'test-token-123';
+  process.env.SEMIONT_ACCESS_TOKEN = 'test-access-token-456';
 });
 
 afterEach(() => {
+  delete process.env.SEMIONT_ENV;
   delete process.env.SEMIONT_API_URL;
   delete process.env.SEMIONT_API_TOKEN;
+  delete process.env.SEMIONT_ACCESS_TOKEN;
   vi.clearAllMocks();
 });
 

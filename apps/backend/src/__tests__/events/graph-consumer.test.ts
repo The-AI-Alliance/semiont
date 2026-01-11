@@ -7,7 +7,7 @@ import { GraphDBConsumer } from '../../events/consumers/graph-consumer';
 import type { StoredEvent, ResourceEvent, ResourceCreatedEvent, ResourceClonedEvent } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
-import type { GraphDatabase } from '../../graph/interface';
+import type { GraphDatabase } from '@semiont/graph';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
 // Mock GraphDB

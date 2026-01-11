@@ -8,14 +8,20 @@ vi.mock('@/components/CookiePreferences', () => ({
   CookiePreferences: () => <div data-testid="cookie-preferences">Cookie Preferences Component</div>
 }));
 
-// Mock PageLayout component
-vi.mock('@/components/PageLayout', () => ({
-  PageLayout: ({ children, className }: any) => (
-    <div className={`min-h-screen ${className || ''}`}>
-      {children}
-    </div>
-  )
-}));
+// Mock PageLayout component from react-ui
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    PageLayout: ({ children, className }: any) => (
+      <div className="flex flex-col min-h-screen">
+        <main className={`flex-1 ${className || ''}`}>
+          {children}
+        </main>
+      </div>
+    )
+  };
+});
 
 describe('Privacy Policy Page', () => {
   beforeEach(() => {
@@ -25,11 +31,16 @@ describe('Privacy Policy Page', () => {
   describe('Page Structure', () => {
     it('should render the main privacy policy container', () => {
       const { container } = render(<PrivacyPolicyPage />);
-      
-      // The privacy page uses a div container, not a main element
+
+      // PageLayout now wraps content in a main element with the bg-gray-50 class
       const pageContainer = container.querySelector('.min-h-screen');
       expect(pageContainer).toBeInTheDocument();
-      expect(pageContainer).toHaveClass('min-h-screen', 'bg-gray-50');
+      expect(pageContainer).toHaveClass('flex', 'flex-col', 'min-h-screen');
+
+      // The bg-gray-50 class is on the main element
+      const mainElement = container.querySelector('main');
+      expect(mainElement).toBeInTheDocument();
+      expect(mainElement).toHaveClass('flex-1', 'bg-gray-50');
     });
 
     it('should render the content within a responsive container', () => {

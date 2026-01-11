@@ -12,10 +12,10 @@ import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
-import { initializeJobQueue } from '../../jobs/job-queue';
-import { EventStore } from '../../events/event-store';
-import type { IdentifierConfig } from '../../services/identifier-service';
-import { FilesystemViewStorage } from '../../storage/view-storage';
+import { initializeJobQueue } from '@semiont/jobs';
+import { EventStore } from '@semiont/event-sourcing';
+import type { IdentifierConfig } from '@semiont/event-sourcing';
+import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -58,16 +58,25 @@ vi.mock('../../db', () => ({
   prisma: sharedMockClient,
 }));
 
-// Mock ResourceQueryService
-vi.mock('../../services/resource-queries', () => ({
-  ResourceQueryService: {
-    getResourceMetadata: vi.fn().mockResolvedValue({
-      id: 'test-resource',
-      name: 'Test Resource',
-      format: 'text/plain'
-    })
-  },
-}));
+// Mock ResourceContext from @semiont/make-meaning
+vi.mock('@semiont/make-meaning', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    ResourceContext: {
+      getResourceMetadata: vi.fn().mockResolvedValue({
+        id: 'test-resource',
+        name: 'Test Resource',
+        format: 'text/plain',
+        content: 'Test content',
+        representations: [{
+          mediaType: 'text/plain',
+          rel: 'original'
+        }]
+      })
+    }
+  };
+});
 
 // Mock environment
 vi.mock('../../config/environment-loader', () => ({
@@ -295,8 +304,8 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
 
   it('should handle resource not found', async () => {
     // Mock ResourceQueryService to return null
-    const { ResourceQueryService } = await import('../../services/resource-queries');
-    vi.mocked(ResourceQueryService.getResourceMetadata).mockResolvedValueOnce(null);
+    const { ResourceContext } = await import('@semiont/make-meaning');
+    vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
 
     const response = await app.request('/resources/nonexistent-resource/detect-annotations-stream', {
       method: 'POST',

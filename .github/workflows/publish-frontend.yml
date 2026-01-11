@@ -7,7 +7,6 @@ on:
     branches: [main]
     paths:
       - 'apps/frontend/**'
-      - 'packages/api-client/**'
       - '.github/workflows/publish-frontend.yml'
   workflow_dispatch:
     inputs:
@@ -65,10 +64,16 @@ jobs:
       - name: Verify image version
         run: |
           EXPECTED_VERSION="${{ steps.version.outputs.base }}"
-          echo "Expected version: $EXPECTED_VERSION"
+          SEMIONT_VERSION="${{ steps.version.outputs.tag }}"
+          echo "Expected frontend version: $EXPECTED_VERSION"
+          echo "Semiont packages version: $SEMIONT_VERSION"
 
-          # Build image locally to verify
-          docker build -t semiont-frontend-verify -f ./apps/frontend/Dockerfile .
+          # Build image locally to verify (with SEMIONT_VERSION)
+          docker build \
+            -t semiont-frontend-verify \
+            -f ./apps/frontend/Dockerfile \
+            --build-arg SEMIONT_VERSION=$SEMIONT_VERSION \
+            .
 
           # Extract version from built image
           ACTUAL_VERSION=$(docker run --rm semiont-frontend-verify node -e "console.log(require('/app/apps/frontend/package.json').version)")
@@ -104,10 +109,12 @@ jobs:
           build-args: |
             BUILD_VERSION=${{ steps.version.outputs.publish }}
             BUILD_SHA=${{ steps.version.outputs.sha }}
+            SEMIONT_VERSION=${{ steps.version.outputs.tag }}
           # NOTE: Only build-time variables (NEXT_PUBLIC_*) should be in build-args
           # Runtime variables like SERVER_API_URL, NEXTAUTH_SECRET, etc. are set
           # via -e flag when running the container (see apps/frontend/docs/CONTAINER.md)
           # API routing is handled by reverse proxy at runtime - no build-time API URL needed
+          # SEMIONT_VERSION installs @semiont/api-client and @semiont/react-ui from npm
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

@@ -6,28 +6,16 @@
  * creates tag annotations with dual-body structure.
  */
 
-import { JobWorker } from './job-worker';
-import type { Job, TagDetectionJob } from '../types';
-import { ResourceQueryService } from '../../services/resource-queries';
+import { JobWorker } from '@semiont/jobs';
+import type { Job, TagDetectionJob } from '@semiont/jobs';
+import { ResourceContext, AnnotationDetection } from '@semiont/make-meaning';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
-import { resourceIdToURI } from '../../lib/uri-utils';
-import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
-import { generateText } from '../../inference/factory';
-import { getTagSchema, getTagCategory } from '../../lib/tag-schemas';
-import { validateAndCorrectOffsets } from '../../lib/text-context';
+import { resourceIdToURI } from '@semiont/core';
+import { getTagSchema } from '@semiont/ontology';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
-
-interface TagMatch {
-  exact: string;
-  start: number;
-  end: number;
-  prefix?: string;
-  suffix?: string;
-  category: string;
-}
+import type { TagMatch } from '@semiont/inference';
 
 export class TagDetectionWorker extends JobWorker {
   private isFirstProgress = true;
@@ -152,7 +140,7 @@ export class TagDetectionWorker extends JobWorker {
     }
 
     // Fetch resource content
-    const resource = await ResourceQueryService.getResourceMetadata(job.resourceId, this.config);
+    const resource = await ResourceContext.getResourceMetadata(job.resourceId, this.config);
     if (!resource) {
       throw new Error(`Resource ${job.resourceId} not found`);
     }
@@ -166,14 +154,6 @@ export class TagDetectionWorker extends JobWorker {
       message: 'Loading resource...'
     };
     await this.updateJobProgress(job);
-
-    // Load content (FULL document - no truncation for structural analysis)
-    const content = await this.loadResourceContent(job.resourceId);
-    if (!content) {
-      throw new Error(`Could not load content for resource ${job.resourceId}`);
-    }
-
-    console.log(`[TagDetectionWorker] Loaded ${content.length} characters for tag detection`);
 
     // Process each category separately
     const allTags: TagMatch[] = [];
@@ -193,7 +173,12 @@ export class TagDetectionWorker extends JobWorker {
       await this.updateJobProgress(job);
 
       // Detect tags for this category
-      const tags = await this.detectTagsForCategory(content, job.schemaId, category);
+      const tags = await AnnotationDetection.detectTags(
+        job.resourceId,
+        this.config,
+        job.schemaId,
+        category
+      );
       console.log(`[TagDetectionWorker] Found ${tags.length} tags for category "${category}"`);
 
       allTags.push(...tags);
@@ -237,151 +222,6 @@ export class TagDetectionWorker extends JobWorker {
 
     await this.updateJobProgress(job);
     console.log(`[TagDetectionWorker] ✅ Created ${created}/${allTags.length} tags across ${job.categories.length} categories`);
-  }
-
-  private async loadResourceContent(resourceId: ResourceId): Promise<string | null> {
-    const resource = await ResourceQueryService.getResourceMetadata(resourceId, this.config);
-    if (!resource) return null;
-
-    const primaryRep = getPrimaryRepresentation(resource);
-    if (!primaryRep) return null;
-
-    // Only process text content
-    const baseMediaType = primaryRep.mediaType?.split(';')[0]?.trim() || '';
-    if (baseMediaType !== 'text/plain' && baseMediaType !== 'text/markdown') {
-      return null;
-    }
-
-    if (!primaryRep.checksum || !primaryRep.mediaType) return null;
-
-    const basePath = this.config.services.filesystem!.path;
-    const projectRoot = this.config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
-    const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-    return decodeRepresentation(contentBuffer, primaryRep.mediaType);
-  }
-
-  private async detectTagsForCategory(
-    content: string,
-    schemaId: string,
-    category: string
-  ): Promise<TagMatch[]> {
-    const schema = getTagSchema(schemaId);
-    if (!schema) return [];
-
-    const categoryInfo = getTagCategory(schemaId, category);
-    if (!categoryInfo) return [];
-
-    // Build prompt with schema context and category-specific guidance
-    const prompt = `You are analyzing a text using the ${schema.name} framework.
-
-Schema: ${schema.description}
-Domain: ${schema.domain}
-
-Your task: Identify passages that serve the structural role of "${category}".
-
-Category: ${category}
-Description: ${categoryInfo.description}
-Key questions:
-${categoryInfo.examples.map(ex => `- ${ex}`).join('\n')}
-
-Guidelines:
-- Focus on STRUCTURAL FUNCTION, not semantic content
-- A passage serves the "${category}" role if it performs this function in the document's structure
-- Look for passages that explicitly fulfill this role
-- Passages can be sentences, paragraphs, or sections
-- Aim for precision - only tag passages that clearly serve this structural role
-- Typical documents have 1-5 instances of each category (some may have 0)
-
-Text to analyze:
----
-${content}
----
-
-Return a JSON array of tags. Each tag should have:
-- "exact": the exact text passage (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
-
-Return ONLY a valid JSON array, no additional text or explanation.
-
-Example format:
-[
-  {"exact": "What duty did the defendant owe?", "start": 142, "end": 175, "prefix": "The central question is: ", "suffix": " This question must be"},
-  {"exact": "In tort law, a duty of care is established when...", "start": 412, "end": 520, "prefix": "Legal framework:\\n", "suffix": "\\n\\nApplying this standard"}
-]`;
-
-    console.log(`[TagDetectionWorker] Sending request to AI for category "${category}" (content: ${content.length} chars)`);
-
-    const response = await generateText(
-      prompt,
-      this.config,
-      4000,  // maxTokens: Higher for full document analysis
-      0.2    // temperature: Lower for structural consistency
-    );
-
-    console.log(`[TagDetectionWorker] Got response from AI for category "${category}"`);
-
-    // Parse and validate response
-    const tags = this.parseTags(response);
-
-    // Validate and correct AI's offsets, then extract proper context
-    // AI sometimes returns offsets that don't match the actual text position
-    const validatedTags: TagMatch[] = [];
-
-    for (const tag of tags) {
-      try {
-        const validated = validateAndCorrectOffsets(content, tag.start, tag.end, tag.exact);
-        validatedTags.push({
-          ...tag,
-          category,
-          start: validated.start,
-          end: validated.end,
-          prefix: validated.prefix,
-          suffix: validated.suffix
-        });
-      } catch (error) {
-        console.warn(`[TagDetectionWorker] Skipping invalid tag for category "${category}":`, error);
-        // Skip this tag - AI hallucinated text that doesn't exist
-      }
-    }
-
-    return validatedTags;
-  }
-
-  private parseTags(response: string): TagMatch[] {
-    try {
-      // Clean up markdown code fences if present
-      let cleaned = response.trim();
-      if (cleaned.startsWith('```')) {
-        cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-      }
-
-      const parsed = JSON.parse(cleaned);
-
-      if (!Array.isArray(parsed)) {
-        console.warn('[TagDetectionWorker] Response is not an array');
-        return [];
-      }
-
-      // Validate and filter
-      const valid = parsed.filter((t: any) =>
-        t &&
-        typeof t.exact === 'string' &&
-        typeof t.start === 'number' &&
-        typeof t.end === 'number' &&
-        t.exact.trim().length > 0
-      );
-
-      console.log(`[TagDetectionWorker] Parsed ${valid.length} valid tags from ${parsed.length} total`);
-
-      return valid;
-    } catch (error) {
-      console.error('[TagDetectionWorker] Failed to parse AI response:', error);
-      return [];
-    }
   }
 
   private async createTagAnnotation(

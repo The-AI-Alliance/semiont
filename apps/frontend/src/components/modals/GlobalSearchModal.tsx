@@ -3,8 +3,8 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import { useRouter } from '@/i18n/routing';
-import { useResources } from '@/lib/api-hooks';
-import { useSearchAnnouncements } from '@/components/LiveRegion';
+import { useResources } from '@semiont/react-ui';
+import { useSearchAnnouncements } from '@semiont/react-ui';
 import { getResourceId } from '@semiont/api-client';
 
 interface GlobalSearchModalProps {

@@ -83,7 +83,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     throw new Error('Database port not configured');
   }
 
-  const dbHost = 'localhost';
+  // Use database host from config if available, fallback to localhost
+  const dbHost = dbConfig.host || 'localhost';
   const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
 
   if (!service.quiet) {
@@ -150,6 +151,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const envUpdates: Record<string, string> = {
     'NODE_ENV': nodeEnv,
     'PORT': port.toString(),
+    'HOST': '0.0.0.0',  // Bind to all interfaces for Codespaces compatibility
     'DATABASE_URL': databaseUrl,
     'LOG_DIR': logsDir,
     'TMP_DIR': tmpDir,
@@ -225,13 +227,13 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     if (!service.quiet) {
       printInfo('Generating Prisma client...');
     }
-    
+
     try {
       execSync('npx prisma generate', {
         cwd: backendSourceDir,
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
-      
+
       if (!service.quiet) {
         printSuccess('Prisma client generated');
       }
@@ -239,7 +241,66 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
       printWarning(`Failed to generate Prisma client: ${error}`);
     }
   }
-  
+
+  // Build workspace packages that backend depends on
+  if (!service.quiet) {
+    printInfo('Building workspace dependencies...');
+  }
+
+  try {
+    const monorepoRoot = path.dirname(path.dirname(backendSourceDir));
+    const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
+
+    if (fs.existsSync(rootPackageJsonPath)) {
+      const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
+      if (rootPackageJson.workspaces) {
+        // Build workspace packages that backend depends on
+        execSync('npm run build --workspace=@semiont/core --if-present', {
+          cwd: monorepoRoot,
+          stdio: service.verbose ? 'inherit' : 'pipe'
+        });
+        execSync('npm run build --workspace=@semiont/event-sourcing --if-present', {
+          cwd: monorepoRoot,
+          stdio: service.verbose ? 'inherit' : 'pipe'
+        });
+        execSync('npm run build --workspace=@semiont/api-client --if-present', {
+          cwd: monorepoRoot,
+          stdio: service.verbose ? 'inherit' : 'pipe'
+        });
+
+        if (!service.quiet) {
+          printSuccess('Workspace dependencies built successfully');
+        }
+      }
+    }
+  } catch (error) {
+    printWarning(`Failed to build workspace dependencies: ${error}`);
+    printInfo('You may need to build manually: npm run build --workspace=@semiont/core');
+  }
+
+  // Build backend application
+  if (!service.quiet) {
+    printInfo('Building backend application...');
+  }
+
+  try {
+    execSync('npm run build', {
+      cwd: backendSourceDir,
+      stdio: service.verbose ? 'inherit' : 'pipe'
+    });
+
+    if (!service.quiet) {
+      printSuccess('Backend application built successfully');
+    }
+  } catch (error) {
+    printError(`Failed to build backend application: ${error}`);
+    return {
+      success: false,
+      error: `Failed to build backend application: ${error}`,
+      metadata: { serviceType: 'backend', backendSourceDir }
+    };
+  }
+
   // Check if we should run migrations
   if (options.migrate !== false && fs.existsSync(prismaSchemaPath)) {
     if (!service.quiet) {

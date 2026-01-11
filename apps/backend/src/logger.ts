@@ -22,15 +22,20 @@ export interface LoggerConfig {
 }
 
 /**
- * Get logger configuration from environment variables
+ * Get logger configuration from environment config or environment variables
+ *
+ * Priority:
+ * 1. Provided logLevel parameter (from environment config)
+ * 2. LOG_LEVEL environment variable
+ * 3. Default: 'info'
  *
  * Environment variables:
- * - LOG_LEVEL: error | warn | info | http | debug (default: info)
+ * - LOG_LEVEL: error | warn | info | http | debug (fallback if no config provided)
  * - LOG_FORMAT: json | simple (default: json)
  * - NODE_ENV: development | production | test
  */
-export function getLoggerConfig(): LoggerConfig {
-  const level = (process.env.LOG_LEVEL || 'info') as LogLevel;
+export function getLoggerConfig(logLevel?: LogLevel): LoggerConfig {
+  const level = logLevel || (process.env.LOG_LEVEL as LogLevel) || 'info';
   const format = (process.env.LOG_FORMAT || 'json') as 'json' | 'simple';
   const nodeEnv = process.env.NODE_ENV || 'development';
 
@@ -112,9 +117,11 @@ let loggerInstance: winston.Logger | null = null;
 /**
  * Initialize the global logger
  * Call this once at application startup
+ *
+ * @param logLevel - Optional log level from environment config
  */
-export function initializeLogger(): winston.Logger {
-  const config = getLoggerConfig();
+export function initializeLogger(logLevel?: LogLevel): winston.Logger {
+  const config = getLoggerConfig(logLevel);
 
   loggerInstance = winston.createLogger({
     level: config.level,

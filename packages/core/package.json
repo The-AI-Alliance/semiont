@@ -33,7 +33,9 @@
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && tsup",
     "watch": "tsup --watch",
-    "clean": "rm -rf dist *.tsbuildinfo"
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "types",
@@ -49,10 +51,12 @@
     "json-schema-to-typescript": "^15.0.2",
     "tsup": "^8.5.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@semiont/api-client": "*",
+    "@semiont/ontology": "*",
     "ajv": "^8.17.1",
     "ajv-formats": "^2.1.1"
   }

@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { getResourceIcon } from '@/lib/resource-utils';
+import { getResourceIcon } from '@semiont/react-ui';
 
 interface OpenDocument {
   id: string;

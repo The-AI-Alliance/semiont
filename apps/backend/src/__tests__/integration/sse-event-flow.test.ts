@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resourceId, userId, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import { resourceUri, jobId } from '@semiont/api-client';
-import type { EventStore } from '../../events/event-store';
+import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

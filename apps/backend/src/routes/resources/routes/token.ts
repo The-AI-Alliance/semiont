@@ -9,7 +9,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
+import { getGraphDatabase } from '@semiont/graph';
 import {
   CREATION_METHODS,
   generateUuid,
@@ -23,8 +23,8 @@ import type { components } from '@semiont/api-client';
 import { userToAgent } from '../../../utils/id-generator';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-import { FilesystemRepresentationStore } from '../../../storage/representation/representation-store';
-import { getPrimaryRepresentation, getResourceId, getEntityTypes } from '../../../utils/resource-helpers';
+import { FilesystemRepresentationStore } from '@semiont/content';
+import { getPrimaryRepresentation, getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 
 type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
 type CreateResourceFromTokenRequest = components['schemas']['CreateResourceFromTokenRequest'];
@@ -130,7 +130,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         '@context': 'https://schema.org/',
         '@id': `http://localhost:4000/resources/${resourceId}`,
         name: body.name,
-        entityTypes: getEntityTypes(sourceDoc),
+        entityTypes: getResourceEntityTypes(sourceDoc),
         representations: [{
           mediaType: format,
           checksum: storedRep.checksum,
@@ -162,7 +162,11 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       cloneTokens.delete(token);
 
       // Get annotations
-      const result = await graphDb.listAnnotations({ resourceId: makeResourceId(getResourceId(savedDoc)) });
+      const savedDocId = getResourceId(savedDoc);
+      if (!savedDocId) {
+        return c.json({ error: 'Resource must have an id' }, 500);
+      }
+      const result = await graphDb.listAnnotations({ resourceId: makeResourceId(savedDocId) });
 
       const response: CreateResourceFromTokenResponse = {
         resource: savedDoc,

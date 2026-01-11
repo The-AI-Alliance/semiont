@@ -1,17 +1,32 @@
 'use client';
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { useTranslations } from 'next-intl';
-import { PageLayout } from '@/components/PageLayout';
-import { buttonStyles } from '@/lib/button-styles';
+import { PageLayout, buttonStyles } from '@semiont/react-ui';
+import { CookiePreferences } from '@/components/CookiePreferences';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { Link as RoutingLink, routes } from '@/lib/routing';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 
 export default function AboutPage() {
   const t = useTranslations('About');
+  const tFooter = useTranslations('Footer');
+  const tNav = useTranslations('Navigation');
+  const tHome = useTranslations('Home');
+  const keyboardContext = useContext(KeyboardShortcutsContext);
 
   return (
-    <PageLayout showAuthLinks={false}>
+    <PageLayout
+      Link={RoutingLink}
+      routes={routes}
+      t={tFooter}
+      tNav={tNav}
+      tHome={tHome}
+      showAuthLinks={false}
+      CookiePreferences={CookiePreferences}
+      {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+    >
       <div className="max-w-4xl mx-auto px-4 py-12 space-y-12">
         {/* Header */}
         <div className="text-center space-y-6">

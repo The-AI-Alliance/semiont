@@ -7,18 +7,21 @@
  * This worker is INDEPENDENT of HTTP clients - it just processes jobs and emits events.
  */
 
-import { JobWorker } from './job-worker';
-import type { Job, DetectionJob } from '../types';
-import { ResourceQueryService } from '../../services/resource-queries';
+import { JobWorker } from '@semiont/jobs';
+import type { Job, DetectionJob } from '@semiont/jobs';
+import { ResourceContext } from '@semiont/make-meaning';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
-import { resourceIdToURI } from '../../lib/uri-utils';
+import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig } from '@semiont/core';
-import type { components } from '@semiont/api-client';
-import { extractEntities } from '../../inference/entity-extractor';
-import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
-import { validateAndCorrectOffsets } from '../../lib/text-context';
+import {
+  type components,
+  getPrimaryRepresentation,
+  decodeRepresentation,
+  validateAndCorrectOffsets,
+} from '@semiont/api-client';
+import { extractEntities } from '@semiont/inference';
+import { FilesystemRepresentationStore } from '@semiont/content';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -130,7 +133,7 @@ export class ReferenceDetectionWorker extends JobWorker {
     console.log(`[ReferenceDetectionWorker] 🔍 Entity types: ${job.entityTypes.join(', ')}`);
 
     // Fetch resource content
-    const resource = await ResourceQueryService.getResourceMetadata(job.resourceId, this.config);
+    const resource = await ResourceContext.getResourceMetadata(job.resourceId, this.config);
 
     if (!resource) {
       throw new Error(`Resource ${job.resourceId} not found`);

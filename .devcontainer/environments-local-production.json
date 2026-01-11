@@ -12,6 +12,7 @@
   "env": {
     "NODE_ENV": "production"
   },
+  "logLevel": "info",
   "services": {
     "backend": {
       "platform": {

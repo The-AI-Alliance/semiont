@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../jobs/workers/generation-worker';
-import type { GenerationJob } from '../../jobs/types';
+import type { GenerationJob } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
@@ -28,7 +28,7 @@ const mockGenerationContext: GenerationContext = {
 };
 
 // Mock AI generation to avoid external API calls
-vi.mock('../../inference/factory', () => ({
+vi.mock('@semiont/inference', () => ({
   generateResourceFromTopic: vi.fn().mockResolvedValue({
     content: '# Test Resource\n\nGenerated content about test topic.',
     metadata: { format: 'text/markdown' }
@@ -74,8 +74,8 @@ const eventStoreCache = new Map();
 // Mock createEventStore to avoid requiring project config
 vi.mock('../../services/event-store-service', async (importOriginal) => {
   const actual = await importOriginal() as any;
-  const { EventStore } = await import('../../events/event-store');
-  const { FilesystemViewStorage } = await import('../../storage/view-storage');
+  const { EventStore } = await import('@semiont/event-sourcing');
+  const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
 
   return {
     ...actual,
@@ -114,7 +114,7 @@ describe('GenerationWorker - Event Emission', () => {
 
   // Helper to create view for a source resource
   async function createSourceView(sourceResourceId: string) {
-    const { FilesystemViewStorage } = await import('../../storage/view-storage');
+    const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
     const viewStorage = new FilesystemViewStorage(testEnv.config.services.filesystem!.path);
 
     const view = {
@@ -153,7 +153,7 @@ describe('GenerationWorker - Event Emission', () => {
     testEnv = await setupTestEnvironment();
 
     // Initialize JobQueue to prevent "JobQueue not initialized" errors
-    const { initializeJobQueue } = await import('../../jobs/job-queue');
+    const { initializeJobQueue } = await import('@semiont/jobs');
     await initializeJobQueue({
       dataDir: testEnv.config.services.filesystem!.path
     });

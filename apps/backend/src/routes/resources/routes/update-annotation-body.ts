@@ -11,7 +11,7 @@ import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import type { BodyOperation } from '@semiont/core';
 import { resourceId, annotationId, userId } from '@semiont/core';
-import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { AnnotationContext } from '@semiont/make-meaning';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
@@ -33,7 +33,7 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
       console.log(`[BODY UPDATE HANDLER] Called for annotation ${annotationIdParam}, operations:`, request.operations);
 
       // Get annotation from view storage
-      const annotation = await AnnotationQueryService.getAnnotation(
+      const annotation = await AnnotationContext.getAnnotation(
         annotationId(annotationIdParam),
         resourceId(resourceIdParam),
         config

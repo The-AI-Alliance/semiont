@@ -10,7 +10,8 @@ import { UserMenu } from '../UserMenu';
 // Mock next-auth/react
 vi.mock('next-auth/react', () => ({
   signIn: vi.fn(),
-  signOut: vi.fn()
+  signOut: vi.fn(),
+  useSession: vi.fn(() => ({ data: null, status: 'unauthenticated' }))
 }));
 
 // Mock Next.js components
@@ -42,25 +43,30 @@ vi.mock('next/link', () => ({
   )
 }));
 
-// Mock custom hooks
-vi.mock('@/hooks/useAuth');
-vi.mock('@/hooks/useUI');
-
-// Mock SessionTimer component to avoid SessionContext dependency
-vi.mock('../SessionTimer', () => ({
-  SessionTimer: () => <div data-testid="session-timer">Session Timer</div>
+// Mock useAuth hook
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: vi.fn()
 }));
 
-// Mock validation utilities
-vi.mock('@/lib/validation', () => ({
-  sanitizeImageURL: vi.fn()
-}));
+// Mock react-ui hooks
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    useDropdown: vi.fn(),
+    sanitizeImageURL: vi.fn(),
+    UserMenuSkeleton: () => (
+      <div data-testid="user-menu-skeleton" role="status" aria-label="Loading user menu" className="animate-pulse">
+        Loading...
+      </div>
+    )
+  };
+});
 
 // Import mocked functions
 import { signIn, signOut } from 'next-auth/react';
+import { useDropdown, sanitizeImageURL } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
-import { useDropdown } from '@/hooks/useUI';
-import { sanitizeImageURL } from '@/lib/validation';
 
 // Type the mocked functions
 const mockSignIn = signIn as MockedFunction<typeof signIn>;

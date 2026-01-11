@@ -5,6 +5,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Just pass through children - locale layout handles <html> and <body> tags
+  // Root layout must return html and body tags in Next.js App Router
+  // The locale layout will be rendered as children
   return children;
 }

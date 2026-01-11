@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+// Root-level not found page - must not use any client components or hooks
 export default function RootNotFound() {
   return (
     <div style={{
@@ -13,7 +12,7 @@ export default function RootNotFound() {
     }}>
       <h1 style={{ fontSize: '4rem', margin: 0 }}>404</h1>
       <p style={{ fontSize: '1.5rem', marginTop: '1rem' }}>Page not found</p>
-      <Link
+      <a
         href="/en"
         style={{
           marginTop: '2rem',
@@ -21,11 +20,12 @@ export default function RootNotFound() {
           backgroundColor: '#0070f3',
           color: 'white',
           textDecoration: 'none',
-          borderRadius: '0.5rem'
+          borderRadius: '0.5rem',
+          display: 'inline-block'
         }}
       >
         Go home
-      </Link>
+      </a>
     </div>
   );
 }

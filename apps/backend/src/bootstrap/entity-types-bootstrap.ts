@@ -9,7 +9,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { createEventStore } from '../services/event-store-service';
-import { DEFAULT_ENTITY_TYPES } from '../graph/tag-collections';
+import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
 import { userId, type EnvironmentConfig } from '@semiont/core';
 
 // Singleton flag to ensure bootstrap only runs once per process
