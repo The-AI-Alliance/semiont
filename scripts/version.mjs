@@ -22,6 +22,7 @@ const PACKAGE_PATHS = {
   '@semiont/api-client': 'packages/api-client/package.json',
   '@semiont/core': 'packages/core/package.json',
   '@semiont/ontology': 'packages/ontology/package.json',
+  '@semiont/content': 'packages/content/package.json',
   '@semiont/event-sourcing': 'packages/event-sourcing/package.json',
   '@semiont/graph': 'packages/graph/package.json',
   '@semiont/inference': 'packages/inference/package.json',
