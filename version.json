@@ -4,6 +4,7 @@
     "@semiont/api-client": "0.2.28",
     "@semiont/core": "0.2.28",
     "@semiont/ontology": "0.2.28",
+    "@semiont/content": "0.2.28",
     "@semiont/event-sourcing": "0.2.28",
     "@semiont/graph": "0.2.28",
     "@semiont/inference": "0.2.28",
