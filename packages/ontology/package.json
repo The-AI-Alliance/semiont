@@ -20,12 +20,14 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@semiont/api-client": "*"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^3.0.0",
     "tsup": "^8.0.1",
     "typescript": "^5.6.3",
     "vitest": "^3.2.4"

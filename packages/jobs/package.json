@@ -18,13 +18,15 @@
   "scripts": {
     "build": "npm run typecheck && tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@semiont/api-client": "*",
     "@semiont/core": "*"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.8",
     "tsup": "^8.0.1",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"

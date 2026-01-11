@@ -35,7 +35,8 @@
     "watch": "tsup --watch",
     "clean": "rm -rf dist *.tsbuildinfo",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "types",
@@ -48,6 +49,7 @@
   "author": "Semiont Team",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@vitest/coverage-v8": "^3.0.0",
     "json-schema-to-typescript": "^15.0.2",
     "tsup": "^8.5.1",
     "tsx": "^4.19.2",
