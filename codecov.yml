@@ -2,12 +2,13 @@
 # https://docs.codecov.io/docs/codecovyml-reference
 
 codecov:
-  # Require CI to finish before processing coverage
-  require_ci_to_pass: true
+  # Don't require CI to finish before processing coverage
+  require_ci_to_pass: false
 
-  # Wait for all coverage reports before commenting
+  # Process coverage immediately
   notify:
-    wait_for_ci: true
+    wait_for_ci: false
+    after_n_builds: 1  # Comment after first build
 
 coverage:
   # Overall project coverage settings
