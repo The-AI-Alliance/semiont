@@ -1,7 +1,9 @@
 # @semiont/ontology
 
-[![npm version](https://img.shields.io/npm/v/@semiont/ontology)](https://www.npmjs.com/package/@semiont/ontology)
 [![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+ontology%22)
+[![npm version](https://img.shields.io/npm/v/@semiont/ontology.svg)](https://www.npmjs.com/package/@semiont/ontology)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/ontology.svg)](https://www.npmjs.com/package/@semiont/ontology)
+[![License](https://img.shields.io/npm/l/@semiont/ontology.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
 Entity types, tag schemas, and tag extraction utilities for the Semiont annotation system.
 

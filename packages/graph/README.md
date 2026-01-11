@@ -1,7 +1,9 @@
 # @semiont/graph
 
-[![npm version](https://img.shields.io/npm/v/@semiont/graph)](https://www.npmjs.com/package/@semiont/graph)
 [![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+graph%22)
+[![npm version](https://img.shields.io/npm/v/@semiont/graph.svg)](https://www.npmjs.com/package/@semiont/graph)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/graph.svg)](https://www.npmjs.com/package/@semiont/graph)
+[![License](https://img.shields.io/npm/l/@semiont/graph.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
 Graph database abstraction with Neo4j, Neptune, JanusGraph, and in-memory implementations.
 
