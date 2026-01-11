@@ -81,7 +81,7 @@ docker run -d \
 
 **Multi-platform Support:** linux/amd64, linux/arm64
 
-**Docker Compose Example:** See [ARTIFACTS.md](../../ARTIFACTS.md#using-frontend-container-image) for complete setup with backend and database.
+**Docker Compose Example:** See [docs/IMAGES.md](../../docs/IMAGES.md#docker-compose-example) for complete setup with backend and database.
 
 ## Technology Stack
 
