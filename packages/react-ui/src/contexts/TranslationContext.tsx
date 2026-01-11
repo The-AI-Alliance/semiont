@@ -12,7 +12,37 @@ const TranslationContext = createContext<TranslationManager | null>(null);
 const translationCache = new Map<string, any>();
 
 // List of available locales (can be extended without importing all files)
-export const AVAILABLE_LOCALES = ['en', 'es'] as const;
+export const AVAILABLE_LOCALES = [
+  'ar', // Arabic
+  'bn', // Bengali
+  'cs', // Czech
+  'da', // Danish
+  'de', // German
+  'el', // Greek
+  'en', // English
+  'es', // Spanish
+  'fa', // Persian/Farsi
+  'fi', // Finnish
+  'fr', // French
+  'he', // Hebrew
+  'hi', // Hindi
+  'id', // Indonesian
+  'it', // Italian
+  'ja', // Japanese
+  'ko', // Korean
+  'ms', // Malay
+  'nl', // Dutch
+  'no', // Norwegian
+  'pl', // Polish
+  'pt', // Portuguese
+  'ro', // Romanian
+  'sv', // Swedish
+  'th', // Thai
+  'tr', // Turkish
+  'uk', // Ukrainian
+  'vi', // Vietnamese
+  'zh', // Chinese
+] as const;
 export type AvailableLocale = typeof AVAILABLE_LOCALES[number];
 
 // Lazy load translations for a specific locale

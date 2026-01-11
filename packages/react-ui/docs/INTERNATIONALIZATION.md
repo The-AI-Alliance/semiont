@@ -44,8 +44,35 @@ function App() {
 ```
 
 Available locales:
+- `ar` - Arabic
+- `bn` - Bengali
+- `cs` - Czech
+- `da` - Danish
+- `de` - German
+- `el` - Greek
 - `en` - English (default)
 - `es` - Spanish
+- `fa` - Persian/Farsi
+- `fi` - Finnish
+- `fr` - French
+- `he` - Hebrew
+- `hi` - Hindi
+- `id` - Indonesian
+- `it` - Italian
+- `ja` - Japanese
+- `ko` - Korean
+- `ms` - Malay
+- `nl` - Dutch
+- `no` - Norwegian
+- `pl` - Polish
+- `pt` - Portuguese
+- `ro` - Romanian
+- `sv` - Swedish
+- `th` - Thai
+- `tr` - Turkish
+- `uk` - Ukrainian
+- `vi` - Vietnamese
+- `zh` - Chinese
 
 ### 3. Custom Translation Implementation
 
