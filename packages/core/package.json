@@ -35,7 +35,8 @@
     "watch": "tsup --watch",
     "clean": "rm -rf dist *.tsbuildinfo",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "types",

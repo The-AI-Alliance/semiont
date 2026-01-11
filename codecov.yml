@@ -1,0 +1,146 @@
+# Codecov configuration for Semiont monorepo
+# https://docs.codecov.io/docs/codecovyml-reference
+
+codecov:
+  # Require CI to finish before processing coverage
+  require_ci_to_pass: true
+
+  # Wait for all coverage reports before commenting
+  notify:
+    wait_for_ci: true
+
+coverage:
+  # Overall project coverage settings
+  status:
+    # Project-wide coverage status
+    project:
+      default:
+        # Coverage can drop by 1% without failing
+        threshold: 1%
+        target: 70%  # Target 70% overall coverage
+
+    # Per-PR patch coverage
+    patch:
+      default:
+        # New code should have at least 80% coverage
+        target: 80%
+        threshold: 5%
+
+  # Round coverage to 2 decimal places
+  precision: 2
+  round: down
+
+  # Coverage range for color coding
+  range: "50...90"
+
+# Component-specific coverage configuration
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+  individual_components:
+    # Core packages with higher coverage requirements
+    - component_id: core
+      name: "@semiont/core"
+      paths:
+        - packages/core/**
+    - component_id: api-client
+      name: "@semiont/api-client"
+      paths:
+        - packages/api-client/**
+    - component_id: ontology
+      name: "@semiont/ontology"
+      paths:
+        - packages/ontology/**
+    - component_id: content
+      name: "@semiont/content"
+      paths:
+        - packages/content/**
+    - component_id: event-sourcing
+      name: "@semiont/event-sourcing"
+      paths:
+        - packages/event-sourcing/**
+    - component_id: graph
+      name: "@semiont/graph"
+      paths:
+        - packages/graph/**
+    - component_id: inference
+      name: "@semiont/inference"
+      paths:
+        - packages/inference/**
+    - component_id: jobs
+      name: "@semiont/jobs"
+      paths:
+        - packages/jobs/**
+    - component_id: make-meaning
+      name: "@semiont/make-meaning"
+      paths:
+        - packages/make-meaning/**
+    - component_id: react-ui
+      name: "@semiont/react-ui"
+      paths:
+        - packages/react-ui/**
+
+# Ignore certain files from coverage
+ignore:
+  # Test files
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/__tests__/**"
+  - "**/test-utils/**"
+
+  # Build artifacts
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/coverage/**"
+  - "**/.next/**"
+
+  # Config files
+  - "**/*.config.ts"
+  - "**/*.config.js"
+  - "**/jest.setup.ts"
+
+  # Generated files
+  - "**/generated/**"
+  - "packages/api-client/src/types.ts"
+
+  # Examples and demos
+  - "**/examples/**"
+  - "**/demo/**"
+
+  # Scripts
+  - "scripts/**"
+
+# Comment configuration
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+# Flag configuration for different test suites
+flags:
+  # Unit tests for packages
+  packages:
+    paths:
+      - packages/**
+    carryforward: true
+
+  # Frontend tests
+  frontend:
+    paths:
+      - apps/frontend/**
+    carryforward: true
+
+  # Backend tests
+  backend:
+    paths:
+      - apps/backend/**
+    carryforward: true

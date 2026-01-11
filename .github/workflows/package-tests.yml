@@ -114,12 +114,27 @@ jobs:
       - name: Run tests with coverage
         run: |
           cd packages/${{ matrix.package }}
-          npm run test:coverage || npm test -- --coverage || echo "No coverage available"
-        continue-on-error: true
+          # Try to run coverage, fallback to test with coverage flag
+          if grep -q '"test:coverage"' package.json; then
+            npm run test:coverage
+          else
+            npm test -- --coverage
+          fi
         env:
           CI: true
 
-      - name: Upload coverage reports
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: packages/${{ matrix.package }}/coverage
+          files: ./packages/${{ matrix.package }}/coverage/coverage-final.json,./packages/${{ matrix.package }}/coverage/lcov.info
+          flags: packages,${{ matrix.package }}
+          name: ${{ matrix.package }}
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.package }}

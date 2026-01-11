@@ -41,7 +41,8 @@
     "watch": "tsup --watch",
     "clean": "rm -rf dist src/types.ts openapi.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "ky": "^1.2.0"

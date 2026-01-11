@@ -18,7 +18,8 @@
   "scripts": {
     "build": "npm run typecheck && tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@semiont/api-client": "*",
