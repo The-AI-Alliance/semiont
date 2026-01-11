@@ -8,6 +8,7 @@ on:
     paths:
       - 'packages/api-client/**'
       - 'packages/core/**'
+      - 'packages/content/**'
       - 'packages/ontology/**'
       - 'packages/event-sourcing/**'
       - 'packages/graph/**'
@@ -60,6 +61,7 @@ jobs:
           npm run build --workspace=@semiont/api-client
           npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/content
           npm run build --workspace=@semiont/event-sourcing
           npm run build --workspace=@semiont/graph
           npm run build --workspace=@semiont/inference
@@ -118,6 +120,15 @@ jobs:
             pkg.version = '$TARGET_VERSION';
             fs.writeFileSync('packages/ontology/package.json', JSON.stringify(pkg, null, 2) + '\n');
             console.log('✓ Updated @semiont/ontology to $TARGET_VERSION');
+          "
+
+          # Update @semiont/content
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('packages/content/package.json', 'utf-8'));
+            pkg.version = '$TARGET_VERSION';
+            fs.writeFileSync('packages/content/package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('✓ Updated @semiont/content to $TARGET_VERSION');
           "
 
           # Update @semiont/event-sourcing
@@ -214,6 +225,13 @@ jobs:
           echo "Publishing @semiont/ontology@${{ steps.version.outputs.publish }}"
           npm publish --tag ${{ steps.version.outputs.tag }} --access public
 
+      - name: Publish @semiont/content
+        if: github.event.inputs.dry_run != 'true'
+        working-directory: ./packages/content
+        run: |
+          echo "Publishing @semiont/content@${{ steps.version.outputs.publish }}"
+          npm publish --tag ${{ steps.version.outputs.tag }} --access public
+
       - name: Publish @semiont/event-sourcing
         if: github.event.inputs.dry_run != 'true'
         working-directory: ./packages/event-sourcing
@@ -274,6 +292,7 @@ jobs:
           echo "- @semiont/api-client@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "- @semiont/ontology@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "- @semiont/core@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "- @semiont/content@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "- @semiont/event-sourcing@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "- @semiont/graph@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
           echo "- @semiont/inference@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
@@ -287,6 +306,7 @@ jobs:
           echo "npm install @semiont/api-client@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install @semiont/ontology@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install @semiont/core@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @semiont/content@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install @semiont/event-sourcing@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install @semiont/graph@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install @semiont/inference@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY

@@ -45,32 +45,56 @@ const envConfig: EnvironmentConfig = {
 };
 
 const graph = await getGraphDatabase(envConfig);
+await graph.connect();
 
-// Create a resource
-const resource = await graph.createResource({
-  id: 'res_123',
-  type: 'Document',
-  title: 'My Document'
+// Create a document
+const document = await graph.createDocument({
+  id: 'doc-123',
+  name: 'My Document',
+  format: 'text/plain',
+  entityTypes: ['Person', 'Organization'],
+  archived: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
 });
 
 // Create an annotation
 const annotation = await graph.createAnnotation({
-  target: { source: 'res_123' },
-  body: { value: 'A note' },
-  motivation: 'commenting'
+  id: 'anno-456',
+  target: { source: 'doc-123' },
+  body: [{ value: 'Important note' }],
+  creator: 'user-123',
+  created: new Date().toISOString()
 });
+
+// Query relationships
+const annotations = await graph.getAnnotationsForDocument('doc-123');
 ```
+
+## Features
+
+- 🔌 **Multiple Providers** - Neo4j, AWS Neptune, JanusGraph, In-memory
+- 🎯 **Unified Interface** - Same API across all providers
+- 📊 **W3C Compliant** - Full Web Annotation Data Model support
+- 🔄 **Event-Driven Updates** - Sync from Event Store projections
+- 🚀 **Optional Projection** - Graph is optional, core features work without it
+- 🔍 **Rich Queries** - Cross-document relationships and entity searches
+
+## Documentation
+
+- [API Reference](./docs/API.md) - Complete API documentation
+- [Architecture](./docs/ARCHITECTURE.md) - System design and principles
+- [Provider Guide](./docs/PROVIDERS.md) - Provider-specific details
+
+## Examples
+
+- [Basic Example](./examples/basic.ts) - Simple graph operations
+- [Multi-Provider](./examples/multi-provider.ts) - Switching between providers
 
 ## Supported Implementations
 
-- **Neo4j** - Cypher-based graph database
-- **Neptune** - AWS managed Gremlin-based graph database
-- **JanusGraph** - Open-source Gremlin-based graph database
-- **MemoryGraph** - In-memory implementation for testing
-
-## Configuration
-
 ### Neo4j
+Native graph database with Cypher query language.
 
 ```typescript
 const envConfig = {
@@ -86,7 +110,8 @@ const envConfig = {
 };
 ```
 
-### Neptune
+### AWS Neptune
+Managed graph database supporting Gremlin.
 
 ```typescript
 const envConfig = {
@@ -102,6 +127,7 @@ const envConfig = {
 ```
 
 ### JanusGraph
+Open-source distributed graph database.
 
 ```typescript
 const envConfig = {
@@ -118,6 +144,7 @@ const envConfig = {
 ```
 
 ### MemoryGraph
+In-memory implementation for development and testing.
 
 ```typescript
 const envConfig = {
@@ -131,7 +158,73 @@ const envConfig = {
 
 ## API Overview
 
-See [docs/GraphInterface.md](docs/GraphInterface.md) for complete API documentation.
+### Core Operations
+
+```typescript
+// Document operations
+await graph.createDocument(document);
+await graph.getDocument(id);
+await graph.updateDocument(id, updates);
+await graph.deleteDocument(id);
+
+// Annotation operations
+await graph.createAnnotation(annotation);
+await graph.getAnnotation(id);
+await graph.updateAnnotation(id, updates);
+await graph.deleteAnnotation(id);
+
+// Query operations
+await graph.getAnnotationsForDocument(documentId);
+await graph.findDocumentsByEntityTypes(['Person']);
+await graph.findAnnotationsByTarget(targetId);
+
+// Tag collections
+await graph.getEntityTypes();
+await graph.addEntityType('NewType');
+```
+
+## Graph as Optional Projection
+
+The graph database is designed as an **optional read-only projection**:
+
+### Works WITHOUT Graph
+✅ Viewing resources and annotations
+✅ Creating/updating/deleting annotations
+✅ Single-document workflows
+✅ Real-time SSE updates
+
+### Requires Graph
+❌ Cross-document relationship queries
+❌ Entity-based search across resources
+❌ Graph visualization
+❌ Network analysis
+
+See [Architecture Documentation](./docs/ARCHITECTURE.md) for details.
+
+## Performance
+
+| Provider | Setup | Speed | Scalability | Persistence |
+|----------|-------|-------|-------------|-------------|
+| Neo4j | Medium | Fast | High | Yes |
+| Neptune | Complex | Medium | Very High | Yes |
+| JanusGraph | Complex | Medium | Very High | Yes |
+| Memory | None | Very Fast | Low | No |
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Build package
+npm run build
+
+# Run tests
+npm test
+
+# Type checking
+npm run typecheck
+```
 
 ## License
 
