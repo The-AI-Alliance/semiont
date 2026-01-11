@@ -553,7 +553,7 @@ export function DocumentPage() {
 
 ### Backend Documentation
 - [Backend README](../../backend/README.md) - Backend API overview
-- [Job Worker](../../../docs/services/JOB-WORKER.md) - Background job processing implementation
+- [Jobs Package](../../../packages/jobs/) - Background job processing implementation
 - [W3C Web Annotation](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C annotation data flow
 
 ### Frontend Documentation

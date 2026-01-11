@@ -55,5 +55,5 @@ External services support `check` command only - no start/stop lifecycle managem
 ## Related Documentation
 
 - [CLI Platform Implementation](../../apps/cli/src/platforms/external/) - External handlers source code
-- [Inference Service](../services/INFERENCE.md) - LLM service details
-- [Graph Service](../services/GRAPH.md) - Graph database details
+- [Inference Package](../../packages/inference/) - LLM integration and API documentation
+- [Graph Package](../../packages/graph/) - Graph database abstraction and providers

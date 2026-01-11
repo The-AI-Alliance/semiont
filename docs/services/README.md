@@ -4,12 +4,11 @@ Comprehensive documentation for all Semiont services and their implementations.
 
 ## Overview
 
-Semiont's architecture consists of multiple services that work together to provide a semantic knowledge platform. This directory contains detailed documentation for each service layer and component.
+Semiont's architecture consists of multiple services that work together to provide a semantic knowledge platform. For detailed service documentation, see:
 
-**Service Architecture**: Each service has:
-- **Documentation** (this directory) - Architecture, design, and operational details
-- **Implementation** - Code in `apps/` or `packages/` directories
-- **CLI Integration** - Service definitions in [apps/cli/src/services/](../../apps/cli/src/services/)
+- **Service Overview**: [OVERVIEW.md](./OVERVIEW.md) - Deployment-focused service catalog
+- **Architecture**: [../ARCHITECTURE.md](../ARCHITECTURE.md) - System architecture
+- **Package Documentation**: Individual packages in `packages/*/docs/`
 
 ## Service Categories
 
@@ -32,52 +31,45 @@ Semiont's architecture consists of multiple services that work together to provi
 
 ### Data Storage Services
 
-**RepresentationStore** - Binary/text document storage
-- **Documentation**: [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md)
-- **Implementation**: [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/)
-- **Storage**: Sharded filesystem (65,536 shards)
+**Content Store** - Binary/text document storage
+- **Package**: [@semiont/content](../../packages/content/)
+- **API Documentation**: [packages/content/docs/API.md](../../packages/content/docs/API.md)
+- **Implementation**: Content-addressed storage with SHA-256
 
 **Event Store** - Immutable event log + materialized views
-- **Documentation**: [EVENT-STORE.md](./EVENT-STORE.md)
-- **Implementation**: [apps/backend/src/events/](../../apps/backend/src/events/), [apps/backend/src/storage/view-storage.ts](../../apps/backend/src/storage/view-storage.ts)
-- **Storage**: Append-only JSONL files (events) + ViewStorage (materialized views)
+- **Package**: [@semiont/event-sourcing](../../packages/event-sourcing/)
+- **API Documentation**: [packages/event-sourcing/docs/API.md](../../packages/event-sourcing/docs/API.md)
+- **Architecture**: [packages/event-sourcing/docs/ARCHITECTURE.md](../../packages/event-sourcing/docs/ARCHITECTURE.md)
 
 **Graph Database** - Relationship traversal
-- **Documentation**: [GRAPH.md](./GRAPH.md)
-- **Implementation**: [apps/backend/src/graph/](../../apps/backend/src/graph/)
-- **Storage**: Neo4j, AWS Neptune, or in-memory
+- **Package**: [@semiont/graph](../../packages/graph/)
+- **API Documentation**: [packages/graph/docs/API.md](../../packages/graph/docs/API.md)
+- **Providers**: Neo4j, AWS Neptune, JanusGraph, in-memory
 
 ### Infrastructure Services
 
 **Database** - PostgreSQL for users and metadata
-- **Documentation**: [DATABASE.md](./DATABASE.md)
+- **Documentation**: [apps/backend/docs/DATABASE.md](../../apps/backend/docs/DATABASE.md)
 - **Implementation**: [apps/backend/prisma/](../../apps/backend/prisma/)
 - **CLI Service**: [database-service.ts](../../apps/cli/src/services/database-service.ts)
-- **Storage**: User accounts, API keys, job queue
+- **Storage**: User accounts, OAuth tokens (NOT document metadata)
 
-**Filesystem** - File storage and uploads
-- **Documentation**: [FILESYSTEM.md](./FILESYSTEM.md)
-- **Implementation**: [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/)
+**Filesystem** - File storage patterns
+- **Documentation**: [apps/backend/docs/FILESYSTEM.md](../../apps/backend/docs/FILESYSTEM.md)
+- **Implementation**: [apps/backend/src/storage/](../../apps/backend/src/storage/)
 - **CLI Service**: [filesystem-service.ts](../../apps/cli/src/services/filesystem-service.ts)
 - **Storage**: Local filesystem, AWS S3, AWS EFS
 
-**Graph** - Graph database service
-- **Documentation**: [GRAPH.md](./GRAPH.md)
-- **Implementation**: [apps/backend/src/graph/](../../apps/backend/src/graph/)
-- **CLI Service**: [graph-service.ts](../../apps/cli/src/services/graph-service.ts)
-- **Providers**: Neo4j, AWS Neptune, JanusGraph, in-memory
-
 **Inference** - AI/ML LLM service
-- **Documentation**: [INFERENCE.md](./INFERENCE.md)
-- **Implementation**: [apps/backend/src/jobs/generation-worker.ts](../../apps/backend/src/jobs/generation-worker.ts)
+- **Package**: [@semiont/inference](../../packages/inference/)
+- **API Documentation**: [packages/inference/docs/API.md](../../packages/inference/docs/API.md)
 - **CLI Service**: [inference-service.ts](../../apps/cli/src/services/inference-service.ts)
 - **Providers**: Anthropic Claude, OpenAI, local models
 
-**Job Worker** - Background job processing (prototype)
-
-- **Documentation**: [JOB-WORKER.md](./JOB-WORKER.md)
-- **Implementation**: [apps/backend/src/jobs/](../../apps/backend/src/jobs/)
-- **Status**: Embedded in backend (not yet a proper CLI service)
+**Job Worker** - Background job processing
+- **Package**: [@semiont/jobs](../../packages/jobs/)
+- **API Documentation**: [packages/jobs/docs/API.md](../../packages/jobs/docs/API.md)
+- **Status**: Embedded in backend (future standalone service)
 - **Workers**: Entity detection, document generation
 
 **Secrets Management** - Future secrets manager integration (planned)
@@ -87,19 +79,19 @@ Semiont's architecture consists of multiple services that work together to provi
 
 ## Service Documentation Index
 
-| Service | Type | Documentation | Implementation |
-|---------|------|---------------|----------------|
-| **Frontend** | Application | [apps/frontend/README.md](../../apps/frontend/README.md) | [apps/frontend/](../../apps/frontend/) |
-| **Backend** | Application | [apps/backend/README.md](../../apps/backend/README.md) | [apps/backend/](../../apps/backend/) |
-| **MCP Server** | Application | [packages/mcp-server/README.md](../../packages/mcp-server/README.md) | [packages/mcp-server/](../../packages/mcp-server/) |
-| **RepresentationStore** | Data Storage | [REPRESENTATION-STORE.md](./REPRESENTATION-STORE.md) | [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/) |
-| **Event Store** | Data Storage | [EVENT-STORE.md](./EVENT-STORE.md) | [apps/backend/src/events/](../../apps/backend/src/events/), [apps/backend/src/storage/view-storage.ts](../../apps/backend/src/storage/view-storage.ts) |
-| **Graph Database** | Data Storage | [GRAPH.md](./GRAPH.md) | [apps/backend/src/graph/](../../apps/backend/src/graph/) |
-| **Database** | Infrastructure | [DATABASE.md](./DATABASE.md) | [apps/backend/prisma/](../../apps/backend/prisma/) |
-| **Filesystem** | Infrastructure | [FILESYSTEM.md](./FILESYSTEM.md) | [apps/backend/src/storage/content/](../../apps/backend/src/storage/content/) |
-| **Inference** | Infrastructure | [INFERENCE.md](./INFERENCE.md) | [apps/backend/src/jobs/](../../apps/backend/src/jobs/) |
-| **Job Worker** | Infrastructure (prototype) | [JOB-WORKER.md](./JOB-WORKER.md) | [apps/backend/src/jobs/](../../apps/backend/src/jobs/) |
-| **Secrets** | Infrastructure | [SECRETS.md](./SECRETS.md) | Planned (Q1-Q4 2026) |
+| Service | Type | Package/Documentation | Implementation |
+|---------|------|----------------------|----------------|
+| **Frontend** | Application | [apps/frontend/](../../apps/frontend/) | Next.js app |
+| **Backend** | Application | [apps/backend/](../../apps/backend/) | Hono API |
+| **MCP Server** | Application | [@semiont/mcp-server](../../packages/mcp-server/) | MCP protocol |
+| **Content Store** | Data Storage | [@semiont/content](../../packages/content/) | Content-addressed storage |
+| **Event Store** | Data Storage | [@semiont/event-sourcing](../../packages/event-sourcing/) | Event log + views |
+| **Graph Database** | Data Storage | [@semiont/graph](../../packages/graph/) | Multi-provider graph |
+| **Database** | Infrastructure | [Backend Docs](../../apps/backend/docs/DATABASE.md) | PostgreSQL (auth only) |
+| **Filesystem** | Infrastructure | [Backend Docs](../../apps/backend/docs/FILESYSTEM.md) | Storage patterns |
+| **Inference** | Infrastructure | [@semiont/inference](../../packages/inference/) | LLM integration |
+| **Job Worker** | Infrastructure | [@semiont/jobs](../../packages/jobs/) | Background processing |
+| **Secrets** | Infrastructure | [SECRETS.md](./SECRETS.md) | Future plans |
 
 ## CLI Service Implementations
 
@@ -118,119 +110,38 @@ All services are integrated with the Semiont CLI for management:
 - `inference-service.ts` - LLM inference service
 - `mcp-service.ts` - MCP server management
 
-**Extending the CLI**:
+## Documentation Migration
 
-- [Adding Service Types](../../apps/cli/docs/ADDING_SERVICE_TYPES.md) - Define new service type schemas
-- [Adding Services](../../apps/cli/docs/ADDING_SERVICES.md) - Add service instances to environments
+The detailed service documentation has been reorganized to be package-centric:
 
-## Service Management
+### Previous Structure (Deleted)
+- `docs/services/EVENT-STORE.md` → Moved to `packages/event-sourcing/docs/`
+- `docs/services/GRAPH.md` → Moved to `packages/graph/docs/`
+- `docs/services/INFERENCE.md` → Moved to `packages/inference/docs/`
+- `docs/services/JOB-WORKER.md` → Moved to `packages/jobs/docs/`
+- `docs/services/REPRESENTATION-STORE.md` → Moved to `packages/content/docs/`
+- `docs/services/FILESYSTEM.md` → Moved to `apps/backend/docs/FILESYSTEM.md`
+- `docs/services/DATABASE.md` → Moved to `apps/backend/docs/DATABASE.md`
 
-### Using the CLI
-
-All services can be managed through the Semiont CLI:
-
-```bash
-# Start all services
-semiont start --environment local
-
-# Start specific service
-semiont start --service backend --environment local
-
-# Check service status
-semiont check --service all --environment local
-
-# Stop services
-semiont stop --service all --environment local
-
-# Monitor services
-semiont watch --environment local
-```
-
-### Environment Configuration
-
-Services are configured per environment in `environments/*.json`:
-
-```json
-{
-  "services": {
-    "backend": {
-      "platform": { "type": "posix" },
-      "command": "npm run dev",
-      "port": 4000
-    },
-    "database": {
-      "platform": { "type": "container" },
-      "image": "postgres:15-alpine",
-      "port": 5432
-    }
-  }
-}
-```
-
-See [CLI README](../../apps/cli/README.md) for complete CLI documentation.
-
-## Architecture References
-
-### Data Storage Architecture
-
-The data storage architecture:
-
-```
-Graph Database (Relationships & Traversal)
-           ↑
-Event Store (Immutable Event Log + Materialized Views)
-           ↑
-RepresentationStore (Binary/Text Files)
-```
-
-**Benefits**:
-- **Immutable Log**: Complete audit trail and time-travel capability
-- **Rebuildable**: Projections and graph can be rebuilt from events
-- **Separation of Concerns**: Each component optimized for its access pattern
-
-**Complete Documentation**:
-- [Architecture Overview](../ARCHITECTURE.md) - High-level system design
-- [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md#data-storage-architecture) - Detailed implementation
-
-### Service Communication
-
-**Request Flow**:
-1. User → Frontend (Next.js)
-2. Frontend → Backend API (Hono)
-3. Backend → Data Layers (Content, Events, Projections, Graph)
-4. Backend → External Services (Inference, Graph DB)
-
-**Authentication**:
-- Frontend: OAuth 2.0 (NextAuth.js)
-- Backend: JWT bearer tokens
-- MCP: Long-lived refresh tokens
-
-See [Authentication Documentation](../AUTHENTICATION.md) for details.
+### Current Structure
+- **Package Documentation**: Each package contains its own comprehensive docs in `packages/{name}/docs/`
+- **Backend Documentation**: Backend-specific implementation details in `apps/backend/docs/`
+- **Service Overview**: Deployment and management focus in [OVERVIEW.md](./OVERVIEW.md)
 
 ## Related Documentation
 
 ### System Documentation
-
 - [Architecture Overview](../ARCHITECTURE.md) - Overall system architecture
+- [Service Overview](./OVERVIEW.md) - Service management and deployment
 - [AWS Deployment](../platforms/AWS.md) - Production deployment guide
 - [Configuration Guide](../CONFIGURATION.md) - Environment and service configuration
 - [Authentication](../AUTHENTICATION.md) - OAuth 2.0 and JWT authentication
 
-### API Documentation
-
-- [API Overview](../../specs/docs/API.md) - High-level API capabilities
-- [OpenAPI Specification](../../specs/README.md) - Complete API reference (source in [../../specs/src/](../../specs/src/))
-- [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation semantics
+### Package Documentation
+- [Packages Overview](../../packages/README.md) - Package dependency graph and descriptions
+- Individual package docs in `packages/*/docs/` directories
 
 ### Development Guides
-
 - [CLI Documentation](../../apps/cli/README.md) - CLI usage and development
 - [Frontend Development](../../apps/frontend/README.md) - Next.js app development
 - [Backend Development](../../apps/backend/README.md) - API server development
-- [MCP Server](../../packages/mcp-server/README.md) - AI integration
-
----
-
-**Documentation Directory**: `/docs/services`
-**CLI Services**: `/apps/cli/src/services`
-**Last Updated**: 2025-10-25

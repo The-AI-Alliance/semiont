@@ -277,7 +277,7 @@ We welcome contributions! Please read:
 ### System Documentation
 - [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
 - [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation data flow across all layers
-- [Job Worker](../../docs/services/JOB-WORKER.md) - Background job processing (async operations)
+- [Jobs Package](../../packages/jobs/) - Background job processing (async operations)
 
 ### Other Services
 - [Backend README](../backend/README.md) - Backend API server

@@ -2,23 +2,23 @@
 
 This guide explains how Semiont manages its PostgreSQL database for **user authentication**, including schema management, migrations, and operational procedures.
 
-**Important**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata is stored in the Event Store (JSONL files) and Projections (sharded JSON files) - see [ARCHITECTURE.md](../ARCHITECTURE.md).
+**Important**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata is stored in the Event Store (JSONL files) and Projections (sharded JSON files) - see [System Architecture](../../../docs/ARCHITECTURE.md).
 
 ## Overview
 
 Semiont uses PostgreSQL **exclusively for user authentication**, managed through AWS RDS with the following components:
 
 - **Database Engine**: PostgreSQL 15.x on AWS RDS
-- **ORM**: Prisma for schema definition and database access ([see schema](../../apps/backend/prisma/schema.prisma))
+- **ORM**: Prisma for schema definition and database access ([see schema](../prisma/schema.prisma))
 - **Migration Strategy**: Automatic migrations on backend startup
 - **Connection Management**: Connection pooling via Prisma Client
 - **Scope**: User authentication ONLY - no document/annotation metadata
 
 **Data Architecture**: Semiont uses an immutable event log with materialized views where all document and annotation metadata flows through:
-- **Event Store**: Immutable event log in JSONL files - source of truth for all changes (see [EVENT-STORE.md](./EVENT-STORE.md))
-- **ViewStorage**: Materialized current state optimized for fast queries (see [EVENT-STORE.md](./EVENT-STORE.md))
+- **Event Store**: Immutable event log in JSONL files - source of truth for all changes (see [Event Sourcing Package](../../../packages/event-sourcing/))
+- **ViewStorage**: Materialized current state optimized for fast queries (see [Event Sourcing Package](../../../packages/event-sourcing/))
 
-**PostgreSQL does NOT store document or annotation metadata** - it only stores user authentication data (users table). See [W3C-WEB-ANNOTATION.md](../specs/docs/W3C-WEB-ANNOTATION.md) and [EVENT-STORE.md](./EVENT-STORE.md) for how annotations flow through the system.
+**PostgreSQL does NOT store document or annotation metadata** - it only stores user authentication data (users table). See [W3C Web Annotation](../../../specs/docs/W3C-WEB-ANNOTATION.md) and [Event Sourcing Package](../../../packages/event-sourcing/) for how annotations flow through the system.
 
 ## Database Architecture
 
@@ -32,7 +32,7 @@ Semiont uses PostgreSQL **exclusively for user authentication**, managed through
 
 ### Schema Definition
 
-The database schema is defined in `/apps/backend/prisma/schema.prisma`:
+The database schema is defined in `../prisma/schema.prisma`:
 
 ```prisma
 // Example current schema
@@ -133,7 +133,7 @@ semiont exec --service backend "cat prisma/schema.prisma"
 
 #### Manual Schema Changes
 
-1. **Update Schema**: Edit `/apps/backend/prisma/schema.prisma`
+1. **Update Schema**: Edit `../prisma/schema.prisma`
 2. **Deploy Changes**: Run `semiont publish`
 3. **Automatic Migration**: Backend container will apply changes on startup
 

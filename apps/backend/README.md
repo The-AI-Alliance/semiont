@@ -157,7 +157,7 @@ Asynchronous job processing for long-running AI operations that can't block HTTP
 
 **Future State**: Will become a standalone service with CLI integration, platform abstraction, and support for Redis/SQS queue backends.
 
-See [Job Worker Documentation](../../docs/services/JOB-WORKER.md) for implementation details.
+See [Jobs Package](../../packages/jobs/) for implementation details.
 
 ### Secure-by-Default Authentication
 
@@ -353,6 +353,9 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 - [Development Guide](./docs/DEVELOPMENT.md) - Complete local development setup
 - [API Reference](./docs/API.md) - All API endpoints and examples
 - [Authentication](./docs/AUTHENTICATION.md) - JWT, OAuth, MCP implementation
+- [Database](./docs/DATABASE.md) - PostgreSQL setup for user authentication
+- [Filesystem](./docs/FILESYSTEM.md) - Storage patterns and providers
+- [Data Flow](./docs/DATA-FLOW.md) - Data flow across all storage layers
 - [Logging](./docs/LOGGING.md) - Winston logging, log levels, debugging
 - [Testing](./docs/TESTING.md) - Testing philosophy and patterns
 - [Deployment](./docs/DEPLOYMENT.md) - Production deployment guide
@@ -360,10 +363,10 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 
 ### System Documentation
 - [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
-- [W3C Web Annotation](../../docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
-- [Event Store](../../docs/services/EVENT-STORE.md) - Event log and materialized views
-- [Graph Database](../../docs/services/GRAPH.md) - Relationship traversal
-- [Job Worker](../../docs/services/JOB-WORKER.md) - Background job processing (prototype)
+- [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
+- [Event Sourcing Package](../../packages/event-sourcing/) - Event log and materialized views
+- [Graph Package](../../packages/graph/) - Relationship traversal
+- [Jobs Package](../../packages/jobs/) - Background job processing (prototype)
 
 ### External Resources
 - [Hono Documentation](https://hono.dev/)
