@@ -49,7 +49,7 @@ Available locales:
 
 ### 3. Custom Translation Implementation
 
-Provide your own translation system via `TranslationManager`:
+Provide your own translation system via `TranslationManager`. This is especially useful for languages not included in the built-in translations:
 
 ```tsx
 import { TranslationProvider, Toolbar } from '@semiont/react-ui';
@@ -71,6 +71,62 @@ function App() {
   );
 }
 ```
+
+#### Example: Adding Klingon Translations (Not Built-in)
+
+Here's how you'd add support for Klingon, a language not included in react-ui:
+
+```tsx
+import { TranslationProvider } from '@semiont/react-ui';
+import type { TranslationManager } from '@semiont/react-ui';
+
+// Klingon translations for react-ui components
+const klingonTranslations = {
+  Toolbar: {
+    annotations: 'DIch',           // "annotations"
+    resourceInfo: 'teywI\' nugh',  // "resource info"
+    history: 'qej',                // "history"
+    collaboration: 'jup DIlo\'',   // "collaboration"
+    userAccount: 'lo\'wI\' DIch',  // "user account"
+    settings: 'nugh choq'          // "settings"
+  },
+  Common: {
+    save: 'choq',                  // "preserve"
+    cancel: 'mev',                 // "stop"
+    delete: 'teq',                 // "remove"
+    edit: 'choq',                  // "alter"
+    close: 'SoQ',                  // "close"
+    loading: 'cha\'...',           // "showing..."
+    error: 'Qob'                   // "danger/error"
+  },
+  Navigation: {
+    home: 'juH',                   // "home"
+    know: 'Sov',                   // "know"
+    moderate: 'mI\'',              // "moderate"
+    administer: 'vu\''             // "administer"
+  }
+  // ... add more namespaces as needed
+};
+
+const klingonTranslationManager: TranslationManager = {
+  t: (namespace: string, key: string) => {
+    // Return Klingon translation or fall back to the key
+    return klingonTranslations[namespace]?.[key] || key;
+  }
+};
+
+// Use throughout your app
+function App() {
+  return (
+    <TranslationProvider translationManager={klingonTranslationManager}>
+      {/* All components will now use Klingon translations */}
+      <YourApp />
+    </TranslationProvider>
+  );
+}
+```
+
+This approach works for any language or constructed language (Elvish, Dothraki, Esperanto, etc.) that isn't included in the built-in translations.
 
 ## Benefits
 

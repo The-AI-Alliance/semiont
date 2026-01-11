@@ -55,9 +55,6 @@ export interface ResourceDiscoveryPageProps {
 
   // Component dependencies
   ToolbarPanels: React.ComponentType<any>;
-
-  // Toolbar translation function
-  tToolbar: (key: string, params?: Record<string, any>) => string;
 }
 
 export function ResourceDiscoveryPage({
@@ -76,7 +73,6 @@ export function ResourceDiscoveryPage({
   onNavigateToCompose,
   translations: t,
   ToolbarPanels,
-  tToolbar,
 }: ResourceDiscoveryPageProps) {
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -294,7 +290,6 @@ export function ResourceDiscoveryPage({
 
         {/* Toolbar - Always visible on the right */}
         <Toolbar
-          t={tToolbar}
           context="simple"
           activePanel={activePanel}
           onPanelToggle={onPanelToggle}

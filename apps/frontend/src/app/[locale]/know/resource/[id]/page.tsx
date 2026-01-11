@@ -131,7 +131,6 @@ function ResourceViewWrapper({
 }) {
   const { data: session } = useSession();
   const locale = useLocale();
-  const tToolbar = useTranslations('Toolbar');
   const { addResource } = useOpenResources();
   const { triggerSparkleAnimation, clearNewAnnotationId, deleteAnnotation, createAnnotation } = useResourceAnnotations();
   const { showError, showSuccess } = useToast();
@@ -379,7 +378,6 @@ function ResourceViewWrapper({
       activePanel={activePanel}
       onPanelToggle={togglePanel}
       setActivePanel={setActivePanel}
-      tToolbar={tToolbar}
       onUpdateDocumentTags={handleUpdateDocumentTags}
       onArchive={handleArchive}
       onUnarchive={handleUnarchive}

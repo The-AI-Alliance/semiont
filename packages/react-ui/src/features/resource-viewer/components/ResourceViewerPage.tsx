@@ -73,10 +73,6 @@ export interface ResourceViewerPageProps {
    */
   locale: string;
 
-  /**
-   * Translation function for Toolbar
-   */
-  tToolbar: (key: string) => string;
 
   /**
    * Theme state
@@ -176,7 +172,6 @@ export function ResourceViewerPage({
   referencedByLoading,
   allEntityTypes,
   locale,
-  tToolbar,
   theme,
   onThemeChange,
   showLineNumbers,
@@ -758,7 +753,6 @@ export function ResourceViewerPage({
             activePanel={activePanel}
             isArchived={resource.archived ?? false}
             onPanelToggle={onPanelToggle}
-            t={tToolbar}
           />
         </div>
       </div>
