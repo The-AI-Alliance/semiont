@@ -1,6 +1,6 @@
 # Authentication Architecture
 
-Semiont implements a **secure-by-default** authentication model using OAuth 2.0 and JWT tokens with special support for MCP (Model Context Protocol) clients.
+Semiont implements a **router-level authentication** model using OAuth 2.0 and JWT tokens with special support for MCP (Model Context Protocol) clients.
 
 **Related Documentation:**
 - [Architecture Overview](./ARCHITECTURE.md) - Overall application architecture
@@ -12,7 +12,7 @@ Semiont implements a **secure-by-default** authentication model using OAuth 2.0 
 The authentication system has three main components:
 
 1. **Frontend Authentication**: NextAuth.js with Google OAuth 2.0
-2. **Backend Authentication**: JWT token validation with secure-by-default API protection
+2. **Backend Authentication**: JWT token validation with router-level API protection
 3. **MCP Client Support**: Browser-based OAuth flow with long-lived refresh tokens
 
 ## Authentication Flow Diagram
@@ -68,8 +68,8 @@ graph TB
 
 ### Core Principles
 
-- **Default Protection**: All API routes require authentication automatically
-- **Explicit Exceptions**: Public endpoints must be explicitly listed
+- **Router-Level Protection**: Each router applies authentication middleware to its protected routes
+- **Explicit Protection**: Routes must explicitly use `authMiddleware` for authentication
 - **JWT Bearer Tokens**: Stateless authentication for API requests
 - **OAuth Integration**: Google OAuth 2.0 for user authentication
 - **Domain Restrictions**: Email domain-based access control
@@ -110,7 +110,7 @@ Only these endpoints are accessible without authentication:
 
 ### Protected Endpoints
 
-All other API routes automatically require:
+Protected API routes (those using `authMiddleware`) require:
 
 - Valid JWT token in Authorization header
 - Token signature verification
@@ -237,7 +237,7 @@ const response = await fetch('https://api.semiont.com/api/documents', {
 - **Long-lived Refresh Tokens**: 30-day expiration for MCP clients only
 - **Secure Secret Management**: JWT secret stored in secure secret storage
 - **Domain Restrictions**: Email domain-based access control
-- **Automatic Middleware**: Global authentication applied to all API routes
+- **Router-Level Middleware**: Authentication middleware applied at router level
 
 ### Token Structure
 
@@ -353,13 +353,31 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
 
 ### Route Protection
 
-**Applying Middleware** (`apps/backend/src/routes/auth.ts`):
+**Router-Level Middleware** (`apps/backend/src/routes/resources/shared.ts`):
+```typescript
+import { authMiddleware } from '../../middleware/auth';
+import { Hono } from 'hono';
+
+export function initResourcesRouter(router: Hono) {
+  // Apply authentication to all resource routes
+  router.use('/api/resources/*', authMiddleware);
+  router.use('/resources/*', authMiddleware); // W3C URI endpoints also require auth
+}
+```
+
+**Route-Specific Protection** (`apps/backend/src/routes/auth.ts`):
 ```typescript
 import { authMiddleware } from '../middleware/auth';
 import { Hono } from 'hono';
 import type { User } from '@prisma/client';
 
 export const authRouter = new Hono<{ Variables: { user: User } }>();
+
+// Public route - no middleware
+authRouter.post('/api/tokens/password', async (c) => {
+  // Handle password authentication
+  return c.json({ token: '...' });
+});
 
 // Protected route - requires authentication
 authRouter.get('/api/users/me', authMiddleware, async (c) => {
@@ -437,7 +455,7 @@ See [Configuration Guide](./CONFIGURATION.md) for detailed secret management.
 
 ### API Security
 
-1. **Default deny**: All routes protected unless explicitly public
+1. **Explicit protection**: Routes must explicitly apply authentication middleware
 2. **Rate limiting**: Implement rate limiting per IP/user (see [AWS.md](./platforms/AWS.md) for WAF configuration)
 3. **Input validation**: Validate all inputs with Zod schemas
 4. **Audit logging**: Log all authentication events
