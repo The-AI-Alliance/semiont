@@ -139,16 +139,49 @@ jobs:
         env:
           CI: true
 
+      - name: Check coverage files
+        run: |
+          echo "Looking for coverage files in packages/${{ matrix.package }}/coverage/"
+          ls -la packages/${{ matrix.package }}/coverage/ || echo "No coverage directory found"
+          if [ -f "packages/${{ matrix.package }}/coverage/lcov.info" ]; then
+            echo "✅ Found lcov.info"
+            head -5 packages/${{ matrix.package }}/coverage/lcov.info
+          else
+            echo "❌ No lcov.info found"
+          fi
+          if [ -f "packages/${{ matrix.package }}/coverage/coverage-final.json" ]; then
+            echo "✅ Found coverage-final.json"
+          else
+            echo "❌ No coverage-final.json found"
+          fi
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          directory: packages/${{ matrix.package }}/coverage
-          files: ./packages/${{ matrix.package }}/coverage/coverage-final.json,./packages/${{ matrix.package }}/coverage/lcov.info
+          files: ./packages/${{ matrix.package }}/coverage/lcov.info
           flags: ${{ matrix.package }}
           name: ${{ matrix.package }}
-          fail_ci_if_error: false
+          fail_ci_if_error: true
           verbose: true
+        continue-on-error: true
+
+      - name: Alternative Codecov upload
+        if: always()
+        run: |
+          # Try uploading with the Codecov CLI as backup
+          if [ -f "packages/${{ matrix.package }}/coverage/lcov.info" ]; then
+            echo "Attempting CLI upload for ${{ matrix.package }}"
+            curl -Os https://uploader.codecov.io/latest/linux/codecov
+            chmod +x codecov
+            ./codecov \
+              -t "${{ secrets.CODECOV_TOKEN }}" \
+              -f "packages/${{ matrix.package }}/coverage/lcov.info" \
+              -F "${{ matrix.package }}" \
+              -n "${{ matrix.package }}" \
+              -v || echo "CLI upload failed"
+          fi
+        continue-on-error: true
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
