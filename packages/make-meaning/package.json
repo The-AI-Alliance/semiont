@@ -1,6 +1,6 @@
 {
   "name": "@semiont/make-meaning",
-  "version": "0.2.29",
+  "version": "0.2.30",
   "type": "module",
   "description": "Making meaning from resources through context assembly, pattern detection, and relationship reasoning",
   "main": "./dist/index.js",
