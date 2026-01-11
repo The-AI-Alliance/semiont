@@ -8,8 +8,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { resourceId, userId, annotationId } from '@semiont/core';
-import { EventQuery } from '../../events/query/event-query';
-import { EventStorage } from '../../events/storage/event-storage';
+import { EventQuery } from '@semiont/event-sourcing';
+import { EventStorage } from '@semiont/event-sourcing';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

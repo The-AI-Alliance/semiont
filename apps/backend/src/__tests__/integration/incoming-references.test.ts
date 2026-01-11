@@ -41,14 +41,14 @@ const testUser = {
   updatedAt: new Date(),
 };
 
-// Mock Neo4j graph database
+// Mock graph database
 const mockGraphDb = {
   getResourceReferencedBy: vi.fn(),
   getResource: vi.fn(),
 };
 
-// Mock the graph database factory
-vi.mock('../../graph/factory', () => ({
+// Mock the graph database factory (updated path after package extraction)
+vi.mock('@semiont/graph', () => ({
   getGraphDatabase: vi.fn(() => Promise.resolve(mockGraphDb)),
 }));
 

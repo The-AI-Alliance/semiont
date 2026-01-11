@@ -9,6 +9,7 @@ import { UserPanel } from '../UserPanel';
 const mockSignOut = vi.fn();
 vi.mock('next-auth/react', () => ({
   signOut: (...args: any[]) => mockSignOut(...args),
+  useSession: vi.fn(() => ({ data: null, status: 'unauthenticated' })),
 }));
 
 // Mock next/image
@@ -33,28 +34,26 @@ vi.mock('next-intl', () => ({
   useTranslations: () => mockUseTranslations,
 }));
 
-// Mock validation
-const mockSanitizeImageURL = vi.fn();
-vi.mock('@/lib/validation', () => ({
-  sanitizeImageURL: (url: string) => mockSanitizeImageURL(url),
-}));
-
-// Mock custom hooks
+// Mock useAuth hook
 const mockUseAuth = vi.fn();
-const mockUseSessionExpiry = vi.fn();
-const mockUseFormattedTime = vi.fn();
-
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-vi.mock('@/hooks/useSessionExpiry', () => ({
-  useSessionExpiry: () => mockUseSessionExpiry(),
-}));
+// Mock react-ui hooks and utilities
+const mockUseSessionExpiry = vi.fn();
+const mockUseFormattedTime = vi.fn();
+const mockSanitizeImageURL = vi.fn();
 
-vi.mock('@/hooks/useFormattedTime', () => ({
-  useFormattedTime: (time: number) => mockUseFormattedTime(time),
-}));
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    useSessionExpiry: () => mockUseSessionExpiry(),
+    useFormattedTime: (time: number) => mockUseFormattedTime(time),
+    sanitizeImageURL: (url: string) => mockSanitizeImageURL(url),
+  };
+});
 
 describe('UserPanel Component', () => {
   const FALLBACK_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2QjcyODAiLz4KPHBhdGggZD0iTTE2IDE2QzE4LjIwOTEgMTYgMjAgMTQuMjA5MSAyMCAxMkMyMCA5Ljc5MDg2IDE4LjIwOTEgOCAxNiA4QzEzLjc5MDkgOCAxMiA5Ljc5MDg2IDEyIDEyQzEyIDE0LjIwOTEgMTMuNzkwOSAxNiAxNiAxNloiIGZpbGw9IiNFNUU3RUIiLz4KPHBhdGggZD0iTTI0IDI1QzI0IDIxLjY4NjMgMjAuNDE4MyAxOSAxNiAxOUMxMS41ODE3IDE5IDggMjEuNjg2MyA4IDI1IiBzdHJva2U9IiNFNUU3RUIiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cjwvc3ZnPg==';

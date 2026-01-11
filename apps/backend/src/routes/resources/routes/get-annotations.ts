@@ -9,7 +9,7 @@
  */
 
 import type { ResourcesRouterType } from '../shared';
-import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { AnnotationContext } from '@semiont/make-meaning';
 import type { components } from '@semiont/api-client';
 import { resourceId } from '@semiont/core';
 
@@ -27,7 +27,7 @@ export function registerGetResourceAnnotations(router: ResourcesRouterType) {
     const { id } = c.req.param();
     const config = c.get('config');
 
-    const annotations = await AnnotationQueryService.getAllAnnotations(resourceId(id), config);
+    const annotations = await AnnotationContext.getAllAnnotations(resourceId(id), config);
 
     const response: GetAnnotationsResponse = {
       annotations,

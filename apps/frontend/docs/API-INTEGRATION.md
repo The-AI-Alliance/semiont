@@ -17,17 +17,21 @@ How the Semiont frontend integrates with the backend API, including type-safe cl
 
 ## Overview
 
-The frontend uses the `@semiont/api-client` package for type-safe API communication with the backend. All API interactions are:
+The frontend uses the `@semiont/api-client` package for type-safe API communication with the backend, integrated through the `@semiont/react-ui` Provider Pattern. All API interactions are:
 
 - **Type-safe**: TypeScript types generated from OpenAPI specification
-- **Authenticated**: Automatic JWT token inclusion via NextAuth.js session
+- **Framework-agnostic**: API client injected via `ApiClientProvider` from `@semiont/react-ui`
+- **Authenticated**: Automatic JWT token inclusion via session management
 - **Error-handled**: Structured error responses with proper HTTP status codes
-- **Cached**: React Query manages server state caching and invalidation
+- **Cached**: Apps provide their own cache management (React Query, SWR, etc.)
 
 **Key Concepts**:
+- **Provider Pattern**: `@semiont/react-ui` uses dependency injection for framework independence
 - **Synchronous APIs**: Return immediate responses (document CRUD, search, highlights)
 - **Asynchronous APIs**: Create background jobs with progress tracking (entity detection, document generation)
 - **W3C Annotations**: All annotations follow the W3C Web Annotation Data Model for interoperability
+
+See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for Provider Pattern documentation.
 
 ## API Client Usage
 
@@ -542,6 +546,11 @@ export function DocumentPage() {
 
 ## Related Documentation
 
+### React UI Library
+- [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) - Provider Pattern architecture
+- [`@semiont/react-ui/docs/API-INTEGRATION.md`](../../../packages/react-ui/docs/API-INTEGRATION.md) - API client integration guide
+- [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Annotation system documentation
+
 ### Backend Documentation
 - [Backend README](../../backend/README.md) - Backend API overview
 - [Job Worker](../../../docs/services/JOB-WORKER.md) - Background job processing implementation
@@ -559,6 +568,8 @@ export function DocumentPage() {
 
 ---
 
-**Package**: `@semiont/api-client`
-**Implementation**: [packages/api-client/](../../../packages/api-client/)
-**Last Updated**: 2025-10-25
+**Packages**:
+- `@semiont/api-client` - [packages/api-client/](../../../packages/api-client/)
+- `@semiont/react-ui` - [packages/react-ui/](../../../packages/react-ui/)
+
+**Last Updated**: 2025-01-03

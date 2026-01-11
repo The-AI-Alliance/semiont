@@ -11,7 +11,7 @@ import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { annotationUri } from '@semiont/api-client';
 import { resourceId, annotationId, userId } from '@semiont/core';
-import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { AnnotationContext } from '@semiont/make-meaning';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -26,7 +26,7 @@ export function registerDeleteAnnotation(router: ResourcesRouterType) {
     const config = c.get('config');
 
     // Get projection to verify annotation exists
-    const projection = await AnnotationQueryService.getResourceAnnotations(
+    const projection = await AnnotationContext.getResourceAnnotations(
       resourceId(resourceIdParam),
       config
     );

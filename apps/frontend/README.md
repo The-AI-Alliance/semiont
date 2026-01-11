@@ -49,6 +49,8 @@ npm run dev:mock
 ## 🐳 Container Image
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-frontend)
+[![Accessibility Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml)
+[![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-blue.svg)](https://www.w3.org/WAI/WCAG2AA-Conformance)
 
 Pull and run the published frontend container image:
 
@@ -75,7 +77,7 @@ docker run -d \
 **Optional Environment Variables:**
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` - Google OAuth client ID for authentication
 - `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` - Comma-separated list of allowed email domains
-- `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` - Enable password-based authentication (default: false)
+- `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` - Enable email/password credentials authentication (default: false)
 
 **Multi-platform Support:** linux/amd64, linux/arm64
 
@@ -93,6 +95,35 @@ docker run -d \
 - **Performance**: Bundle analysis, Lighthouse CI
 
 **Full stack details**: [Frontend Architecture](./docs/ARCHITECTURE.md)
+
+### Component Library
+
+The frontend uses **[@semiont/react-ui](../../packages/react-ui)** - a framework-agnostic React component library providing:
+
+- **Authentication Components**: SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage
+- **Layout Components**: PageLayout, UnifiedHeader, LeftSidebar, Footer
+- **Resource Components**: ResourceViewer, BrowseView, AnnotateView
+- **Annotation Components**: Annotation panels, toolbars, and widgets
+- **React Query Hooks**: Type-safe API integration hooks
+- **Built-in Translations**: English and Spanish included with dynamic loading
+
+The library is framework-independent, accepting framework-specific implementations (like Link components) as props. This allows the same components to work with Next.js, Vite, or any React framework.
+
+### Internationalization
+
+The frontend supports multiple languages through a hybrid approach:
+
+- **Frontend-specific translations**: Managed via `next-intl` in `messages/*.json`
+- **Component translations**: Provided by `@semiont/react-ui` with English and Spanish built-in
+- **Dynamic loading**: Non-English locales are loaded on-demand for optimal bundle size
+- **Unified translation manager**: Bridges next-intl with react-ui translations
+
+Current supported languages:
+- English (en)
+- Spanish (es)
+- 27+ additional languages (partial coverage)
+
+**See**: [@semiont/react-ui documentation](../../packages/react-ui/README.md)
 
 ## Project Structure
 

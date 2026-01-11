@@ -132,43 +132,6 @@ export function hasTargetSelector(target: Annotation['target']): boolean {
 }
 
 /**
- * Extract entity types from annotation bodies
- * Entity types are stored as TextualBody with purpose: "tagging"
- * Accepts any object with a body property matching Annotation['body']
- */
-export function getEntityTypes(annotation: { body: Annotation['body'] }): string[] {
-  // Extract from TextualBody bodies with purpose: "tagging"
-  if (Array.isArray(annotation.body)) {
-    const entityTags: string[] = [];
-
-    for (const item of annotation.body) {
-      // Runtime check for TextualBody with tagging purpose
-      // TypeScript incorrectly narrows the union type here, so we use runtime checks only
-      if (
-        typeof item === 'object' &&
-        item !== null &&
-        'type' in item &&
-        'value' in item &&
-        'purpose' in item
-      ) {
-        // Access properties as unknown first to avoid TypeScript narrowing issues
-        const itemType = (item as { type: unknown }).type;
-        const itemValue = (item as { value: unknown }).value;
-        const itemPurpose = (item as { purpose: unknown }).purpose;
-
-        if (itemType === 'TextualBody' && itemPurpose === 'tagging' && typeof itemValue === 'string' && itemValue.length > 0) {
-          entityTags.push(itemValue);
-        }
-      }
-    }
-
-    return entityTags;
-  }
-
-  return [];
-}
-
-/**
  * Type guard to check if an annotation is a highlight
  */
 export function isHighlight(annotation: Annotation): annotation is HighlightAnnotation {
@@ -213,38 +176,6 @@ export function getCommentText(annotation: Annotation): string | undefined {
   const body = Array.isArray(annotation.body) ? annotation.body[0] : annotation.body;
   if (body && 'value' in body) {
     return body.value;
-  }
-  return undefined;
-}
-
-/**
- * Extract tag category from a tag annotation's body
- * Tags use dual-body structure: first body has purpose: "tagging" with category value
- * @param annotation - The annotation to extract category from
- * @returns The tag category (e.g., "Issue", "Rule"), or undefined if not a tag or no category found
- */
-export function getTagCategory(annotation: Annotation): string | undefined {
-  if (!isTag(annotation)) return undefined;
-  const bodies = Array.isArray(annotation.body) ? annotation.body : [annotation.body];
-  const taggingBody = bodies.find(b => b && 'purpose' in b && b.purpose === 'tagging');
-  if (taggingBody && 'value' in taggingBody) {
-    return taggingBody.value;
-  }
-  return undefined;
-}
-
-/**
- * Extract tag schema ID from a tag annotation's body
- * Tags use dual-body structure: second body has purpose: "classifying" with schema ID
- * @param annotation - The annotation to extract schema ID from
- * @returns The schema ID (e.g., "legal-irac"), or undefined if not a tag or no schema found
- */
-export function getTagSchemaId(annotation: Annotation): string | undefined {
-  if (!isTag(annotation)) return undefined;
-  const bodies = Array.isArray(annotation.body) ? annotation.body : [annotation.body];
-  const classifyingBody = bodies.find(b => b && 'purpose' in b && b.purpose === 'classifying');
-  if (classifyingBody && 'value' in classifyingBody) {
-    return classifyingBody.value;
   }
   return undefined;
 }

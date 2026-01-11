@@ -175,24 +175,25 @@ await updateMutation.mutateAsync({ id, title, content });
 
 ### UI State (React Context)
 
-UI-only state that doesn't come from the server:
+UI-only state and framework-agnostic providers:
 
-**DocumentAnnotationsContext:**
-- `newAnnotationIds` - Track recently created annotations for animations
-- Mutation actions that return IDs for query invalidation
-- NO data storage - data comes from React Query
+**Framework-Agnostic Providers** (from `@semiont/react-ui`):
+- `AnnotationProvider` - Injects `AnnotationManager` for annotation mutations
+- `CacheProvider` - Injects `CacheManager` for cache invalidation
+- `AnnotationUIProvider` - UI-only state for sparkle animations (`newAnnotationIds`)
+- `TranslationProvider` - Injects `TranslationManager` for i18n
+- `ApiClientProvider` - Injects `ApiClientManager` for API access
+- `SessionProvider` - Injects `SessionManager` for session state
+- `OpenResourcesProvider` - Injects `OpenResourcesManager` for routing
 
-**KeyboardShortcutsContext:**
-- Keyboard shortcut registration and handling
-- Global keyboard event coordination
+These providers are framework-independent and can work with Next.js, Vite, or any React framework. The app provides framework-specific manager implementations.
 
-**ToastProvider:**
-- Toast notification queue
-- Success/error/info messages
+**Next.js-Specific Contexts:**
+- `KeyboardShortcutsProvider` - Keyboard shortcut registration and handling
+- `ToastProvider` - Toast notification queue
+- `LiveRegionProvider` - ARIA live region for screen reader announcements
 
-**LiveRegionProvider:**
-- ARIA live region for screen reader announcements
-- Accessibility notifications
+See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for complete Provider Pattern documentation.
 
 ## API Integration
 
@@ -373,29 +374,30 @@ Component mounts
 The app is wrapped in multiple providers in this order (outer to inner):
 
 ```tsx
-<SessionProvider>                    // NextAuth session
-  <AuthErrorBoundary>               // Catch auth errors
-    <CustomSessionProvider>         // isFullyAuthenticated helper
-      <QueryClientProvider>         // React Query state
-        <ToastProvider>             // Toast notifications
-          <LiveRegionProvider>      // Screen reader announcements
-            <KeyboardShortcutsProvider>  // Keyboard shortcuts
-              {children}            // App content
-            </KeyboardShortcutsProvider>
-          </LiveRegionProvider>
-        </ToastProvider>
-      </QueryClientProvider>
-    </CustomSessionProvider>
-  </AuthErrorBoundary>
-</SessionProvider>
+<NextAuthSessionProvider>              // NextAuth.js session
+  <AuthErrorBoundary>                 // Catch auth errors
+    <QueryClientProvider>             // React Query state
+      <SessionProvider>               // @semiont/react-ui - Session management
+        <ApiClientProvider>           // @semiont/react-ui - API client injection
+          <TranslationProvider>       // @semiont/react-ui - i18n
+            <CacheProvider>           // @semiont/react-ui - Cache invalidation
+              <AnnotationProvider>    // @semiont/react-ui - Annotation mutations
+                <AnnotationUIProvider>  // @semiont/react-ui - UI state (sparkles)
+                  <OpenResourcesProvider>  // @semiont/react-ui - Routing
+                    <ToastProvider>   // App-specific - Toast notifications
+                      <LiveRegionProvider>  // App-specific - Screen reader
+                        <KeyboardShortcutsProvider>  // App-specific - Keyboard
+                          {children}  // App content
 ```
 
 **Why This Order:**
-1. SessionProvider must be outermost (provides auth to all)
+1. NextAuthSessionProvider must be outermost (provides auth to all)
 2. AuthErrorBoundary catches auth failures
-3. CustomSessionProvider depends on SessionProvider
-4. QueryClientProvider needed for all data fetching
-5. ToastProvider, LiveRegionProvider, KeyboardShortcuts are independent utilities
+3. QueryClientProvider needed for all data fetching
+4. Provider Pattern providers (Session, ApiClient, Translation, Cache, Annotation, etc.) from `@semiont/react-ui`
+5. App-specific utilities (Toast, LiveRegion, KeyboardShortcuts)
+
+See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for details on the Provider Pattern architecture.
 
 ## Directory Structure
 
@@ -409,35 +411,130 @@ apps/frontend/src/
 │   │   └── compose/       # Document composition
 │   ├── api/               # API route handlers (NextAuth, etc.)
 │   ├── layout.tsx         # Root layout
-│   └── providers.tsx      # Provider setup
-├── components/            # Reusable UI components
-│   ├── document/          # Document-specific components
-│   │   ├── AnnotateView.tsx      # Curation mode (uses CodeMirrorRenderer)
-│   │   ├── BrowseView.tsx        # Browse mode (uses ReactMarkdown)
-│   │   ├── ResourceViewer.tsx    # Main resource component
-│   │   └── AnnotationHistory.tsx # Event log panel
-│   ├── CodeMirrorRenderer.tsx    # Editor-based renderer (for AnnotateView)
+│   └── providers.tsx      # Provider setup (wraps @semiont/react-ui providers)
+├── components/            # App-specific UI components
 │   ├── modals/            # Modal dialogs
-│   ├── annotation-popups/ # Annotation interaction UI
-│   └── ...                # Other shared components
-├── contexts/              # React Context providers
-│   ├── SessionContext.tsx
-│   ├── DocumentAnnotationsContext.tsx
-│   └── KeyboardShortcutsContext.tsx
-├── hooks/                 # Custom React hooks
+│   └── ...                # Other app-specific components
+├── contexts/              # App-specific React Context providers
+│   ├── KeyboardShortcutsContext.tsx
+│   └── ...
+├── hooks/                 # App-specific custom hooks
 │   ├── useAuthenticatedAPI.ts
 │   ├── useResourceEvents.ts
 │   └── ...
-├── lib/                   # Utility libraries
-│   ├── api-client.ts      # API client with React Query
+├── lib/                   # App-specific utility libraries
+│   ├── api-client.ts      # API client setup with React Query
 │   ├── query-helpers.ts   # React Query utilities
 │   ├── auth-events.ts     # Auth error event bus
+│   └── cacheManager.ts    # CacheManager implementation for @semiont/react-ui
 └── types/                 # TypeScript type definitions
+
+packages/react-ui/src/      # Reusable React components library
+├── features/              # Feature-based components
+│   ├── auth/              # Authentication components
+│   │   ├── components/
+│   │   │   ├── SignInForm.tsx         # Framework-agnostic sign-in
+│   │   │   ├── SignUpForm.tsx         # Framework-agnostic sign-up
+│   │   │   ├── AuthErrorDisplay.tsx   # Error display
+│   │   │   └── WelcomePage.tsx        # Welcome page
+│   │   └── __tests__/     # Component tests
+│   ├── resource-viewer/   # Resource viewing components
+│   ├── resource-discovery/ # Discovery components
+│   └── ...                # Other feature modules
+├── components/            # Shared UI components
+│   ├── resource/          # Resource viewer components
+│   │   ├── AnnotateView.tsx      # Curation mode
+│   │   ├── BrowseView.tsx        # Browse mode
+│   │   └── ResourceViewer.tsx    # Main resource component
+│   ├── CodeMirrorRenderer.tsx    # Editor-based renderer
+│   ├── annotation-popups/ # Annotation interaction UI
+│   └── ...                # Other reusable components
+├── contexts/              # Provider Pattern contexts
+│   ├── AnnotationContext.tsx
+│   ├── CacheContext.tsx
+│   ├── ApiClientContext.tsx
+│   ├── TranslationContext.tsx
+│   └── SessionContext.tsx
+├── hooks/                 # Reusable React hooks
+│   ├── useResourceAnnotations.ts
+│   └── ...
+├── lib/                   # Reusable utilities
+│   ├── annotation-registry.ts  # Annotation type metadata
+│   ├── api-hooks.ts       # API client utilities
+│   └── ...
+└── types/                 # Shared TypeScript interfaces
+    ├── AnnotationManager.ts
+    ├── CacheManager.ts
+    └── ...
 ```
+
+**Key Separation:**
+- `apps/frontend/src` - Next.js-specific pages and implementations
+- `packages/react-ui/src` - Framework-agnostic components and interfaces
+
+**Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage) are framework-agnostic and live in `packages/react-ui/src/features/auth/`. The frontend provides Next.js-specific wrappers that handle routing, translations, and authentication callbacks.
+
+See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentation on the reusable component library.
 
 ## Key Design Patterns
 
-### 1. No Default Values
+### 1. Provider Pattern (Framework Independence)
+
+**Philosophy:** Avoid framework lock-in by inverting dependencies.
+
+The `@semiont/react-ui` library uses the **Provider Pattern** to remain framework-agnostic:
+
+```typescript
+// @semiont/react-ui defines INTERFACES
+interface AnnotationManager {
+  createAnnotation: (params: CreateAnnotationParams) => Promise<Annotation | undefined>;
+  deleteAnnotation: (params: DeleteAnnotationParams) => Promise<void>;
+}
+
+interface CacheManager {
+  invalidateAnnotations: (rUri: ResourceUri) => void | Promise<void>;
+  invalidateEvents: (rUri: ResourceUri) => void | Promise<void>;
+}
+
+// Apps provide IMPLEMENTATIONS
+const annotationManager: AnnotationManager = {
+  createAnnotation: async (params) => {
+    const annotation = await client.createAnnotation(params);
+    queryClient.invalidateQueries(['annotations', params.rUri]);
+    return annotation;
+  },
+  deleteAnnotation: async (params) => {
+    await client.deleteAnnotation(params);
+    queryClient.invalidateQueries(['annotations', params.rUri]);
+  }
+};
+
+const cacheManager: CacheManager = {
+  invalidateAnnotations: (rUri) => {
+    queryClient.invalidateQueries({ queryKey: ['annotations', rUri] });
+  },
+  invalidateEvents: (rUri) => {
+    queryClient.invalidateQueries({ queryKey: ['documents', 'events', rUri] });
+  }
+};
+
+// Inject implementations via providers
+<AnnotationProvider annotationManager={annotationManager}>
+  <CacheProvider cacheManager={cacheManager}>
+    <App />
+  </CacheProvider>
+</AnnotationProvider>
+```
+
+**Benefits:**
+- ✅ React UI library has **zero React Query dependency**
+- ✅ Apps can use React Query, SWR, Apollo, or any data fetching library
+- ✅ Easy to test with mock implementations
+- ✅ Clear separation of concerns
+
+See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for complete documentation.
+
+### 2. No Default Values
 
 **Philosophy:** Defaults hide configuration errors and create silent failures.
 
@@ -541,6 +638,12 @@ The document and history panels synchronize via hover interactions:
 
 ## Related Documentation
 
+### React UI Library
+- [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) - Provider Pattern architecture
+- [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Annotation system documentation
+- [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) - Complete library documentation
+
+### Frontend Documentation
 - [AUTHENTICATION.md](./AUTHENTICATION.md) - Authentication and authorization
 - [AUTHORIZATION.md](./AUTHORIZATION.md) - Permission model
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Rendering pipeline and component hierarchy

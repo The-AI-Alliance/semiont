@@ -1,3 +1,5 @@
+'use client';
+
 import { useSession } from 'next-auth/react';
 import { useMemo } from 'react';
 import { validateData, JWTTokenSchema } from '@semiont/api-client';
@@ -11,9 +13,9 @@ export function useAuth() {
   const authInfo = useMemo(() => {
     const isLoading = status === 'loading';
     const isAuthenticated = !!session?.user;
-    
+
     // Validate backend token if present
-    const hasValidBackendToken = session?.backendToken ? 
+    const hasValidBackendToken = session?.backendToken ?
       validateData(JWTTokenSchema, session.backendToken).success : false;
 
     return {
@@ -21,19 +23,19 @@ export function useAuth() {
       session,
       user: session?.user,
       backendUser: session?.backendUser,
-      
+
       // Status flags
       isLoading,
       isAuthenticated,
       hasValidBackendToken,
-      
+
       // Computed properties
       userDomain: session?.backendUser?.domain || session?.user?.email?.split('@')[1],
       displayName: session?.user?.name || session?.user?.email?.split('@')[0] || 'User',
       avatarUrl: session?.user?.image,
       isAdmin: session?.backendUser?.isAdmin || false,
       isModerator: session?.backendUser?.isModerator || false,
-      
+
       // Combined auth status
       isFullyAuthenticated: isAuthenticated && hasValidBackendToken,
     };

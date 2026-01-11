@@ -4,25 +4,25 @@ FROM node:22-alpine AS builder
 # Build args to bust cache when version changes
 ARG BUILD_VERSION
 ARG BUILD_SHA
+# Version of @semiont packages to install from npm
+ARG SEMIONT_VERSION=latest
 
 WORKDIR /app
 
-# Copy package files
+# Copy only root package.json and frontend package.json
 COPY package.json package-lock.json ./
 COPY apps/frontend/package.json ./apps/frontend/
-COPY packages/api-client/package.json ./packages/api-client/
 
-# Install all dependencies
+# Install semiont packages from npm at specified version
+# This replaces workspace dependencies with published packages
+RUN npm install @semiont/api-client@${SEMIONT_VERSION} @semiont/react-ui@${SEMIONT_VERSION} --workspace=apps/frontend
+
+# Install all other dependencies
 RUN npm ci
 
-# Copy source files
+# Copy frontend source only
 COPY apps/frontend ./apps/frontend
-COPY packages/api-client ./packages/api-client
-COPY specs ./specs
 COPY tsconfig.json ./
-
-# Build api-client first (frontend depends on it)
-RUN npm run build -w packages/api-client
 
 # Build frontend (this creates the .next directory with standalone output)
 WORKDIR /app/apps/frontend

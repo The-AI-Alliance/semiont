@@ -6,14 +6,14 @@
  */
 
 import { createEventStore, createEventQuery } from '../../services/event-store-service';
-import { getGraphDatabase } from '../../graph/factory';
-import { didToAgent } from '../../utils/id-generator';
-import type { GraphDatabase } from '../../graph/interface';
+import { getGraphDatabase } from '@semiont/graph';
+import { didToAgent } from '@semiont/core';
+import type { GraphDatabase } from '@semiont/graph';
 import type { components } from '@semiont/api-client';
 import type { ResourceEvent, StoredEvent, EnvironmentConfig, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, findBodyItem } from '@semiont/core';
+import { toResourceUri, toAnnotationUri } from '@semiont/event-sourcing';
 import { resourceUri } from '@semiont/api-client';
-import { resourceIdToURI, annotationIdToURI } from '../../lib/uri-utils';
 
 type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -125,7 +125,7 @@ export class GraphDBConsumer {
     switch (event.type) {
       case 'resource.created': {
         if (!event.resourceId) throw new Error('resource.created requires resourceId');
-        const resourceUri = resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL);
+        const resourceUri = toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId);
         const resource: ResourceDescriptor = {
           '@context': 'https://schema.org/',
           '@id': resourceUri,
@@ -149,7 +149,7 @@ export class GraphDBConsumer {
 
       case 'resource.cloned': {
         if (!event.resourceId) throw new Error('resource.cloned requires resourceId');
-        const resourceUri = resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL);
+        const resourceUri = toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId);
         const resource: ResourceDescriptor = {
           '@context': 'https://schema.org/',
           '@id': resourceUri,
@@ -173,14 +173,14 @@ export class GraphDBConsumer {
 
       case 'resource.archived':
         if (!event.resourceId) throw new Error('resource.archived requires resourceId');
-        await graphDb.updateResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL), {
+        await graphDb.updateResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId), {
           archived: true,
         });
         break;
 
       case 'resource.unarchived':
         if (!event.resourceId) throw new Error('resource.unarchived requires resourceId');
-        await graphDb.updateResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL), {
+        await graphDb.updateResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId), {
           archived: false,
         });
         break;
@@ -198,7 +198,7 @@ export class GraphDBConsumer {
         break;
 
       case 'annotation.removed':
-        await graphDb.deleteAnnotation(annotationIdToURI(event.payload.annotationId, this.config.services.backend!.publicURL));
+        await graphDb.deleteAnnotation(toAnnotationUri({ baseUrl: this.config.services.backend!.publicURL }, event.payload.annotationId));
         break;
 
       case 'annotation.body.updated':
@@ -207,7 +207,7 @@ export class GraphDBConsumer {
         // Apply fine-grained body operations
         try {
           console.log(`[GraphDBConsumer] Creating annotation URI for: ${event.payload.annotationId}`);
-          const annotationUri = annotationIdToURI(event.payload.annotationId, this.config.services.backend!.publicURL);
+          const annotationUri = toAnnotationUri({ baseUrl: this.config.services.backend!.publicURL }, event.payload.annotationId);
           console.log(`[GraphDBConsumer] ✅ Annotation URI created: ${annotationUri}`);
           console.log(`[GraphDBConsumer] Processing annotation.body.updated for ${annotationUri}`);
           console.log(`[GraphDBConsumer] Operations:`, JSON.stringify(event.payload.operations));
@@ -279,9 +279,9 @@ export class GraphDBConsumer {
 
       case 'entitytag.added':
         if (!event.resourceId) throw new Error('entitytag.added requires resourceId');
-        const doc = await graphDb.getResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL));
+        const doc = await graphDb.getResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId));
         if (doc) {
-          await graphDb.updateResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL), {
+          await graphDb.updateResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId), {
             entityTypes: [...(doc.entityTypes || []), event.payload.entityType],
           });
         }
@@ -289,9 +289,9 @@ export class GraphDBConsumer {
 
       case 'entitytag.removed':
         if (!event.resourceId) throw new Error('entitytag.removed requires resourceId');
-        const doc2 = await graphDb.getResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL));
+        const doc2 = await graphDb.getResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId));
         if (doc2) {
-          await graphDb.updateResource(resourceIdToURI(event.resourceId, this.config.services.backend!.publicURL), {
+          await graphDb.updateResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId), {
             entityTypes: (doc2.entityTypes || []).filter(t => t !== event.payload.entityType),
           });
         }
@@ -319,7 +319,7 @@ export class GraphDBConsumer {
 
     // Delete existing data
     try {
-      await graphDb.deleteResource(resourceIdToURI(makeResourceId(resourceId), this.config.services.backend!.publicURL));
+      await graphDb.deleteResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, makeResourceId(resourceId)));
     } catch (error) {
       // Resource might not exist yet
       console.log(`[GraphDBConsumer] No existing resource to delete: ${resourceId}`);

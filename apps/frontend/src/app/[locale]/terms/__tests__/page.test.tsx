@@ -3,15 +3,21 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import TermsOfService from '../page';
 
-// Mock PageLayout to provide the home link
-vi.mock('@/components/PageLayout', () => ({
-  PageLayout: ({ children, className }: any) => (
-    <div className={className}>
-      <a href="/">Return to Home</a>
-      {children}
-    </div>
-  )
-}));
+// Mock PageLayout from react-ui to provide the home link
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    PageLayout: ({ children, className }: any) => (
+      <div className="flex flex-col min-h-screen">
+        <a href="/">Return to Home</a>
+        <main className={`flex-1 ${className || ''}`}>
+          {children}
+        </main>
+      </div>
+    )
+  };
+});
 
 describe('Terms of Service Page', () => {
   it('renders the main heading', () => {

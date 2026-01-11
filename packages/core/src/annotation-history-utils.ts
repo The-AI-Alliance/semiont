@@ -20,7 +20,8 @@ import type {
 } from './events';
 import type { CreationMethod } from './creation-methods';
 import type { components } from '@semiont/api-client';
-import { getAnnotationExactText, getEntityTypes } from '@semiont/api-client';
+import { getAnnotationExactText } from '@semiont/api-client';
+import { getEntityTypes } from '@semiont/ontology';
 import type { AnnotationId } from './identifiers';
 
 // Import OpenAPI types

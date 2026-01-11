@@ -5,27 +5,15 @@
  * passages in the text and creates assessment annotations.
  */
 
-import { JobWorker } from './job-worker';
-import type { Job, AssessmentDetectionJob } from '../types';
-import { ResourceQueryService } from '../../services/resource-queries';
+import { JobWorker } from '@semiont/jobs';
+import type { Job, AssessmentDetectionJob } from '@semiont/jobs';
+import { ResourceContext, AnnotationDetection } from '@semiont/make-meaning';
 import { createEventStore } from '../../services/event-store-service';
 import { generateAnnotationId } from '../../utils/id-generator';
-import { resourceIdToURI } from '../../lib/uri-utils';
-import { FilesystemRepresentationStore } from '../../storage/representation/representation-store';
-import { getPrimaryRepresentation, decodeRepresentation } from '../../utils/resource-helpers';
-import { generateText } from '../../inference/factory';
-import { validateAndCorrectOffsets } from '../../lib/text-context';
+import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
-
-interface AssessmentMatch {
-  exact: string;
-  start: number;
-  end: number;
-  prefix?: string;
-  suffix?: string;
-  assessment: string;
-}
+import type { AssessmentMatch } from '@semiont/inference';
 
 export class AssessmentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
@@ -139,25 +127,19 @@ export class AssessmentDetectionWorker extends JobWorker {
     console.log(`[AssessmentDetectionWorker] Processing assessment detection for resource ${job.resourceId} (job: ${job.id})`);
 
     // Fetch resource content
-    const resource = await ResourceQueryService.getResourceMetadata(job.resourceId, this.config);
+    const resource = await ResourceContext.getResourceMetadata(job.resourceId, this.config);
 
     if (!resource) {
       throw new Error(`Resource ${job.resourceId} not found`);
     }
 
-    // Emit job.started
+    // Emit job.started and start analyzing
     job.progress = {
       stage: 'analyzing',
       percentage: 10,
       message: 'Loading resource...'
     };
     await this.updateJobProgress(job);
-
-    // Load content
-    const content = await this.loadResourceContent(job.resourceId);
-    if (!content) {
-      throw new Error(`Could not load content for resource ${job.resourceId}`);
-    }
 
     // Update progress
     job.progress = {
@@ -168,7 +150,13 @@ export class AssessmentDetectionWorker extends JobWorker {
     await this.updateJobProgress(job);
 
     // Use AI to detect assessments
-    const assessments = await this.detectAssessments(content, job.instructions, job.tone, job.density);
+    const assessments = await AnnotationDetection.detectAssessments(
+      job.resourceId,
+      this.config,
+      job.instructions,
+      job.tone,
+      job.density
+    );
 
     console.log(`[AssessmentDetectionWorker] Found ${assessments.length} assessments to create`);
 
@@ -205,170 +193,6 @@ export class AssessmentDetectionWorker extends JobWorker {
 
     await this.updateJobProgress(job);
     console.log(`[AssessmentDetectionWorker] ✅ Created ${created}/${assessments.length} assessments`);
-  }
-
-  private async loadResourceContent(resourceId: ResourceId): Promise<string | null> {
-    const resource = await ResourceQueryService.getResourceMetadata(resourceId, this.config);
-    if (!resource) return null;
-
-    const primaryRep = getPrimaryRepresentation(resource);
-    if (!primaryRep) return null;
-
-    // Only process text content
-    const baseMediaType = primaryRep.mediaType?.split(';')[0]?.trim() || '';
-    if (baseMediaType !== 'text/plain' && baseMediaType !== 'text/markdown') {
-      return null;
-    }
-
-    if (!primaryRep.checksum || !primaryRep.mediaType) return null;
-
-    const basePath = this.config.services.filesystem!.path;
-    const projectRoot = this.config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
-    const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-    return decodeRepresentation(contentBuffer, primaryRep.mediaType);
-  }
-
-  private async detectAssessments(
-    content: string,
-    instructions?: string,
-    tone?: string,
-    density?: number
-  ): Promise<AssessmentMatch[]> {
-    // Build prompt with user instructions taking priority
-    let prompt: string;
-
-    if (instructions) {
-      // User provided specific instructions - minimal prompt, let instructions drive behavior
-      const toneGuidance = tone ? ` Use a ${tone} tone.` : '';
-      const densityGuidance = density
-        ? `\n\nAim for approximately ${density} assessments per 2000 words of text.`
-        : ''; // Let user instructions determine density
-
-      prompt = `Assess passages in this text following these instructions:
-
-${instructions}${toneGuidance}${densityGuidance}
-
-Text to analyze:
----
-${content.substring(0, 8000)}
----
-
-Return a JSON array of assessments. Each assessment must have:
-- "exact": the exact text passage being assessed (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
-- "assessment": your assessment following the instructions above
-
-Return ONLY a valid JSON array, no additional text or explanation.
-
-Example:
-[
-  {"exact": "the quarterly revenue target", "start": 142, "end": 169, "prefix": "We established ", "suffix": " for Q4 2024.", "assessment": "This target seems ambitious given market conditions. Consider revising based on recent trends."}
-]`;
-    } else {
-      // No specific instructions - fall back to analytical/evaluation mode
-      const toneGuidance = tone
-        ? `\n\nTone: Use a ${tone} style in your assessments.`
-        : '';
-      const densityGuidance = density
-        ? `\n- Aim for approximately ${density} assessments per 2000 words`
-        : `\n- Aim for 2-6 assessments per 2000 words (focus on key passages)`;
-
-      prompt = `Identify passages in this text that merit critical assessment or evaluation.
-For each passage, provide analysis of its validity, strength, or implications.${toneGuidance}
-
-Guidelines:
-- Select passages containing claims, arguments, conclusions, or assertions
-- Assess evidence quality, logical soundness, or practical implications
-- Provide assessments that ADD INSIGHT beyond restating the text
-- Focus on passages where evaluation would help readers form judgments
-- Keep assessments concise yet substantive (1-3 sentences typically)${densityGuidance}
-
-Text to analyze:
----
-${content.substring(0, 8000)}
----
-
-Return a JSON array of assessments. Each assessment should have:
-- "exact": the exact text passage being assessed (quoted verbatim from source)
-- "start": character offset where the passage starts
-- "end": character offset where the passage ends
-- "prefix": up to 32 characters of text immediately before the passage
-- "suffix": up to 32 characters of text immediately after the passage
-- "assessment": your analytical assessment (1-3 sentences, evaluate validity/strength/implications)
-
-Return ONLY a valid JSON array, no additional text or explanation.
-
-Example format:
-[
-  {"exact": "AI will replace most jobs by 2030", "start": 52, "end": 89, "prefix": "Many experts predict that ", "suffix": ", fundamentally reshaping", "assessment": "This claim lacks nuance and supporting evidence. Employment patterns historically show job transformation rather than wholesale replacement. The timeline appears speculative without specific sector analysis."}
-]`;
-    }
-
-    console.log(`[AssessmentDetectionWorker] Sending request to AI with content length: ${content.substring(0, 8000).length}`);
-
-    const response = await generateText(
-      prompt,
-      this.config,
-      3000,  // maxTokens: Higher for assessment text
-      0.3    // temperature: Lower for analytical consistency
-    );
-
-    // Parse JSON response
-    try {
-      // Clean up response - remove markdown code fences if present
-      let cleaned = response.trim();
-      if (cleaned.startsWith('```json') || cleaned.startsWith('```')) {
-        cleaned = cleaned.slice(cleaned.indexOf('\n') + 1);
-        const endIndex = cleaned.lastIndexOf('```');
-        if (endIndex !== -1) {
-          cleaned = cleaned.slice(0, endIndex);
-        }
-      }
-
-      const parsed = JSON.parse(cleaned);
-      if (!Array.isArray(parsed)) {
-        console.warn('[AssessmentDetectionWorker] AI response was not an array');
-        return [];
-      }
-
-      // Validate and filter results
-      const assessments = parsed.filter((a: any) =>
-        a && typeof a.exact === 'string' &&
-        typeof a.start === 'number' &&
-        typeof a.end === 'number' &&
-        typeof a.assessment === 'string'
-      );
-
-      // Validate and correct AI's offsets, then extract proper context
-      // AI sometimes returns offsets that don't match the actual text position
-      const validatedAssessments: AssessmentMatch[] = [];
-
-      for (const assessment of assessments) {
-        try {
-          const validated = validateAndCorrectOffsets(content, assessment.start, assessment.end, assessment.exact);
-          validatedAssessments.push({
-            ...assessment,
-            start: validated.start,
-            end: validated.end,
-            prefix: validated.prefix,
-            suffix: validated.suffix
-          });
-        } catch (error) {
-          console.warn(`[AssessmentDetectionWorker] Skipping invalid assessment "${assessment.exact}":`, error);
-          // Skip this assessment - AI hallucinated text that doesn't exist
-        }
-      }
-
-      return validatedAssessments;
-    } catch (error) {
-      console.error('[AssessmentDetectionWorker] Failed to parse AI response:', error);
-      console.error('Raw response:', response);
-      return [];
-    }
   }
 
   private async createAssessmentAnnotation(

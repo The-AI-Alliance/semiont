@@ -10,6 +10,7 @@
   "env": {
     "NODE_ENV": "test"
   },
+  "logLevel": "error",
   "services": {
     "backend": {
       "platform": {
@@ -50,6 +51,12 @@
         "POSTGRES_USER": "semiont",
         "POSTGRES_PASSWORD": "testpass"
       }
+    },
+    "graph": {
+      "platform": {
+        "type": "posix"
+      },
+      "type": "memory"
     },
     "mcp": {
       "platform": {

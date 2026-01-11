@@ -4,496 +4,1293 @@
   "definitions": {
     "PlatformType": {
       "type": "string",
-      "enum": ["posix", "container", "aws", "external"]
+      "enum": [
+        "posix",
+        "container",
+        "aws",
+        "external"
+      ]
     },
     "ServicePlatformConfig": {
       "type": "object",
       "properties": {
-        "type": { "$ref": "#/definitions/PlatformType" }
+        "type": {
+          "$ref": "#/definitions/PlatformType"
+        }
       },
-      "required": ["type"]
+      "required": [
+        "type"
+      ]
     },
     "ResourceRequirements": {
       "type": "object",
       "properties": {
-        "cpu": { "type": "string" },
-        "memory": { "type": "string" },
-        "gpu": { "type": "integer" },
-        "gpus": { "type": "integer" },
-        "replicas": { "type": "integer" },
-        "ephemeralStorage": { "type": "string" },
-        "memoryReservation": { "type": "string" }
+        "cpu": {
+          "type": "string"
+        },
+        "memory": {
+          "type": "string"
+        },
+        "gpu": {
+          "type": "integer"
+        },
+        "gpus": {
+          "type": "integer"
+        },
+        "replicas": {
+          "type": "integer"
+        },
+        "ephemeralStorage": {
+          "type": "string"
+        },
+        "memoryReservation": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
     "SecurityRequirements": {
       "type": "object",
       "properties": {
-        "readOnlyRootFilesystem": { "type": "boolean" },
-        "runAsNonRoot": { "type": "boolean" },
-        "runAsUser": { "type": "integer" },
-        "runAsGroup": { "type": "integer" },
+        "readOnlyRootFilesystem": {
+          "type": "boolean"
+        },
+        "runAsNonRoot": {
+          "type": "boolean"
+        },
+        "runAsUser": {
+          "type": "integer"
+        },
+        "runAsGroup": {
+          "type": "integer"
+        },
         "capabilities": {
           "oneOf": [
-            { "type": "array", "items": { "type": "string" } },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             {
               "type": "object",
               "properties": {
-                "add": { "type": "array", "items": { "type": "string" } },
-                "drop": { "type": "array", "items": { "type": "string" } }
+                "add": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "drop": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
               }
             }
           ]
         },
-        "privileged": { "type": "boolean" },
-        "allowPrivilegeEscalation": { "type": "boolean" }
+        "privileged": {
+          "type": "boolean"
+        },
+        "allowPrivilegeEscalation": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": false
     },
     "BuildRequirements": {
       "type": "object",
       "properties": {
-        "dockerfile": { "type": "string" },
-        "buildContext": { "type": "string" },
-        "buildArgs": { "type": "object", "additionalProperties": { "type": "string" } },
-        "buildTarget": { "type": "string" },
-        "prebuilt": { "type": "boolean" },
-        "noCache": { "type": "boolean" }
+        "dockerfile": {
+          "type": "string"
+        },
+        "buildContext": {
+          "type": "string"
+        },
+        "buildArgs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "buildTarget": {
+          "type": "string"
+        },
+        "prebuilt": {
+          "type": "boolean"
+        },
+        "noCache": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": false
     },
     "BackendServiceConfig": {
       "type": "object",
       "properties": {
-        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
-        "devMode": { "type": "boolean" },
-        "command": { "type": "string" },
-        "port": { "type": "integer" },
-        "publicURL": { "type": "string" },
-        "corsOrigin": { "type": "string" },
-        "image": { "type": "string" },
-        "cpu": { "type": "string" },
-        "memory": { "type": "string" },
-        "semiontRepo": { "type": "string" },
-        "databaseUrl": { "type": "string" },
-        "projectRoot": { "type": "string" },
-        "timeout": { "type": "integer" },
-        "wait": { "type": "integer" },
-        "logsEndpoint": { "type": "string" },
-        "tag": { "type": "string" },
-        "resources": { "$ref": "#/definitions/ResourceRequirements" },
-        "security": { "$ref": "#/definitions/SecurityRequirements" },
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
+        },
+        "devMode": {
+          "type": "boolean"
+        },
+        "command": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "publicURL": {
+          "type": "string"
+        },
+        "corsOrigin": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "cpu": {
+          "type": "string"
+        },
+        "memory": {
+          "type": "string"
+        },
+        "semiontRepo": {
+          "type": "string"
+        },
+        "databaseUrl": {
+          "type": "string"
+        },
+        "projectRoot": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "integer"
+        },
+        "wait": {
+          "type": "integer"
+        },
+        "logsEndpoint": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/ResourceRequirements"
+        },
+        "security": {
+          "$ref": "#/definitions/SecurityRequirements"
+        },
         "build": {
           "oneOf": [
-            { "type": "boolean" },
-            { "$ref": "#/definitions/BuildRequirements" }
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/BuildRequirements"
+            }
           ]
         },
-        "dockerfile": { "type": "string" },
-        "buildContext": { "type": "string" },
-        "buildArgs": { "type": "object", "additionalProperties": { "type": "string" } },
-        "buildTarget": { "type": "string" },
-        "prebuilt": { "type": "boolean" },
-        "noCache": { "type": "boolean" },
-        "secrets": { "type": "array", "items": { "type": "string" } },
-        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
-        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
-        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "dockerfile": {
+          "type": "string"
+        },
+        "buildContext": {
+          "type": "string"
+        },
+        "buildArgs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "buildTarget": {
+          "type": "string"
+        },
+        "prebuilt": {
+          "type": "boolean"
+        },
+        "noCache": {
+          "type": "boolean"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "externalDependencies": {
           "type": "array",
           "items": {
             "oneOf": [
-              { "type": "string" },
+              {
+                "type": "string"
+              },
               {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string" },
-                  "url": { "type": "string" },
-                  "required": { "type": "boolean" },
-                  "healthCheck": { "type": "string" }
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "healthCheck": {
+                    "type": "string"
+                  }
                 }
               }
             ]
           }
         },
-        "redisUrl": { "type": "string" },
-        "environment": { "type": "object", "additionalProperties": { "type": "string" } },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+        "redisUrl": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       },
-      "required": ["platform", "port", "publicURL", "corsOrigin"],
+      "required": [
+        "platform",
+        "port",
+        "publicURL",
+        "corsOrigin"
+      ],
       "additionalProperties": false
     },
     "FrontendServiceConfig": {
       "type": "object",
       "properties": {
-        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
-        "devMode": { "type": "boolean" },
-        "command": { "type": "string" },
-        "port": { "type": "integer" },
-        "url": { "type": "string" },
-        "siteName": { "type": "string" },
-        "image": { "type": "string" },
-        "semiontRepo": { "type": "string" },
-        "projectRoot": { "type": "string" },
-        "databaseUrl": { "type": "string" },
-        "timeout": { "type": "integer" },
-        "wait": { "type": "integer" },
-        "logsEndpoint": { "type": "string" },
-        "tag": { "type": "string" },
-        "resources": { "$ref": "#/definitions/ResourceRequirements" },
-        "security": { "$ref": "#/definitions/SecurityRequirements" },
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
+        },
+        "devMode": {
+          "type": "boolean"
+        },
+        "command": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "string"
+        },
+        "siteName": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "semiontRepo": {
+          "type": "string"
+        },
+        "projectRoot": {
+          "type": "string"
+        },
+        "databaseUrl": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "integer"
+        },
+        "wait": {
+          "type": "integer"
+        },
+        "logsEndpoint": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/ResourceRequirements"
+        },
+        "security": {
+          "$ref": "#/definitions/SecurityRequirements"
+        },
         "build": {
           "oneOf": [
-            { "type": "boolean" },
-            { "$ref": "#/definitions/BuildRequirements" }
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/BuildRequirements"
+            }
           ]
         },
-        "dockerfile": { "type": "string" },
-        "buildContext": { "type": "string" },
-        "buildArgs": { "type": "object", "additionalProperties": { "type": "string" } },
-        "buildTarget": { "type": "string" },
-        "prebuilt": { "type": "boolean" },
-        "noCache": { "type": "boolean" },
-        "secrets": { "type": "array", "items": { "type": "string" } },
-        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
-        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
-        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "dockerfile": {
+          "type": "string"
+        },
+        "buildContext": {
+          "type": "string"
+        },
+        "buildArgs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "buildTarget": {
+          "type": "string"
+        },
+        "prebuilt": {
+          "type": "boolean"
+        },
+        "noCache": {
+          "type": "boolean"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "externalDependencies": {
           "type": "array",
           "items": {
             "oneOf": [
-              { "type": "string" },
+              {
+                "type": "string"
+              },
               {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string" },
-                  "url": { "type": "string" },
-                  "required": { "type": "boolean" },
-                  "healthCheck": { "type": "string" }
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "healthCheck": {
+                    "type": "string"
+                  }
                 }
               }
             ]
           }
         },
-        "environment": { "type": "object", "additionalProperties": { "type": "string" } },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } },
-        "publicURL": { "type": "string" },
-        "allowedOrigins": { "type": "array", "items": { "type": "string" } }
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "publicURL": {
+          "type": "string"
+        },
+        "allowedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       },
-      "required": ["platform", "port", "url", "siteName"],
+      "required": [
+        "platform",
+        "port",
+        "url",
+        "siteName"
+      ],
       "additionalProperties": false
     },
     "DatabaseServiceConfig": {
       "type": "object",
       "properties": {
-        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
-        "type": { "type": "string" },
-        "name": { "type": "string" },
-        "host": { "type": "string" },
-        "port": { "type": "integer" },
-        "environment": { "type": "object", "additionalProperties": { "type": "string" } },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } },
-        "description": { "type": "string" },
-        "command": { "type": "string" },
-        "image": { "type": "string" },
-        "user": { "type": "string" },
-        "username": { "type": "string" },
-        "password": { "type": "string" },
-        "database": { "type": "string" },
-        "storageSize": { "type": "string" },
-        "timeout": { "type": "integer" },
-        "wait": { "type": "integer" },
-        "logsEndpoint": { "type": "string" },
-        "tag": { "type": "string" },
-        "resources": { "$ref": "#/definitions/ResourceRequirements" },
-        "security": { "$ref": "#/definitions/SecurityRequirements" },
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
+        },
+        "type": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "database": {
+          "type": "string"
+        },
+        "storageSize": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "integer"
+        },
+        "wait": {
+          "type": "integer"
+        },
+        "logsEndpoint": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/ResourceRequirements"
+        },
+        "security": {
+          "$ref": "#/definitions/SecurityRequirements"
+        },
         "build": {
           "oneOf": [
-            { "type": "boolean" },
-            { "$ref": "#/definitions/BuildRequirements" }
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/BuildRequirements"
+            }
           ]
         },
-        "dockerfile": { "type": "string" },
-        "buildContext": { "type": "string" },
-        "buildArgs": { "type": "object", "additionalProperties": { "type": "string" } },
-        "buildTarget": { "type": "string" },
-        "prebuilt": { "type": "boolean" },
-        "noCache": { "type": "boolean" },
-        "secrets": { "type": "array", "items": { "type": "string" } },
-        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
-        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
-        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "dockerfile": {
+          "type": "string"
+        },
+        "buildContext": {
+          "type": "string"
+        },
+        "buildArgs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "buildTarget": {
+          "type": "string"
+        },
+        "prebuilt": {
+          "type": "boolean"
+        },
+        "noCache": {
+          "type": "boolean"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "externalDependencies": {
           "type": "array",
           "items": {
             "oneOf": [
-              { "type": "string" },
+              {
+                "type": "string"
+              },
               {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string" },
-                  "url": { "type": "string" },
-                  "required": { "type": "boolean" },
-                  "healthCheck": { "type": "string" }
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "healthCheck": {
+                    "type": "string"
+                  }
                 }
               }
             ]
           }
         }
       },
-      "required": ["platform", "type", "host", "port"],
+      "required": [
+        "platform",
+        "type",
+        "host",
+        "port"
+      ],
       "additionalProperties": false
     },
     "GraphDatabaseType": {
       "type": "string",
-      "enum": ["neo4j", "janusgraph", "neptune", "memory"]
+      "enum": [
+        "neo4j",
+        "janusgraph",
+        "neptune",
+        "memory"
+      ]
     },
     "GraphServiceConfig": {
       "type": "object",
       "properties": {
-        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
-        "type": { "$ref": "#/definitions/GraphDatabaseType" },
-        "name": { "type": "string" },
-        "uri": { "type": "string" },
-        "url": { "type": "string" },
-        "username": { "type": "string" },
-        "password": { "type": "string" },
-        "database": { "type": "string" },
-        "host": { "type": "string" },
-        "port": { "type": "integer" },
-        "storage": { "type": "string" },
-        "index": { "type": "string" },
-        "endpoint": { "type": "string" },
-        "region": { "type": "string" },
-        "command": { "type": "string" },
-        "image": { "type": "string" },
-        "janusgraphVersion": { "type": "string" },
-        "javaOptions": { "type": "string" },
-        "heapSize": { "type": "string" },
-        "pageCacheSize": { "type": "string" },
-        "noAuth": { "type": "boolean" },
-        "dataPath": { "type": "string" },
-        "timeout": { "type": "integer" },
-        "wait": { "type": "integer" },
-        "logsEndpoint": { "type": "string" },
-        "tag": { "type": "string" },
-        "resources": { "$ref": "#/definitions/ResourceRequirements" },
-        "security": { "$ref": "#/definitions/SecurityRequirements" },
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
+        },
+        "type": {
+          "$ref": "#/definitions/GraphDatabaseType"
+        },
+        "name": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "database": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "storage": {
+          "type": "string"
+        },
+        "index": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "janusgraphVersion": {
+          "type": "string"
+        },
+        "javaOptions": {
+          "type": "string"
+        },
+        "heapSize": {
+          "type": "string"
+        },
+        "pageCacheSize": {
+          "type": "string"
+        },
+        "noAuth": {
+          "type": "boolean"
+        },
+        "dataPath": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "integer"
+        },
+        "wait": {
+          "type": "integer"
+        },
+        "logsEndpoint": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/ResourceRequirements"
+        },
+        "security": {
+          "$ref": "#/definitions/SecurityRequirements"
+        },
         "build": {
           "oneOf": [
-            { "type": "boolean" },
-            { "$ref": "#/definitions/BuildRequirements" }
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/BuildRequirements"
+            }
           ]
         },
-        "dockerfile": { "type": "string" },
-        "buildContext": { "type": "string" },
-        "buildArgs": { "type": "object", "additionalProperties": { "type": "string" } },
-        "buildTarget": { "type": "string" },
-        "prebuilt": { "type": "boolean" },
-        "noCache": { "type": "boolean" },
-        "secrets": { "type": "array", "items": { "type": "string" } },
-        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
-        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
-        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "dockerfile": {
+          "type": "string"
+        },
+        "buildContext": {
+          "type": "string"
+        },
+        "buildArgs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "buildTarget": {
+          "type": "string"
+        },
+        "prebuilt": {
+          "type": "boolean"
+        },
+        "noCache": {
+          "type": "boolean"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "externalDependencies": {
           "type": "array",
           "items": {
             "oneOf": [
-              { "type": "string" },
+              {
+                "type": "string"
+              },
               {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string" },
-                  "url": { "type": "string" },
-                  "required": { "type": "boolean" },
-                  "healthCheck": { "type": "string" }
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "healthCheck": {
+                    "type": "string"
+                  }
                 }
               }
             ]
           }
         },
-        "environment": { "type": "object", "additionalProperties": { "type": "string" } },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       },
-      "required": ["platform", "type", "uri", "username", "password", "database"],
+      "required": [
+        "platform",
+        "type"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "neo4j"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "uri",
+              "username",
+              "password",
+              "database"
+            ]
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "FilesystemServiceConfig": {
       "type": "object",
       "properties": {
-        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
-        "path": { "type": "string" },
-        "description": { "type": "string" },
-        "command": { "type": "string" },
-        "image": { "type": "string" },
-        "port": { "type": "integer" },
-        "timeout": { "type": "integer" },
-        "wait": { "type": "integer" },
-        "logsEndpoint": { "type": "string" },
-        "tag": { "type": "string" },
-        "resources": { "$ref": "#/definitions/ResourceRequirements" },
-        "security": { "$ref": "#/definitions/SecurityRequirements" },
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
+        },
+        "path": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "timeout": {
+          "type": "integer"
+        },
+        "wait": {
+          "type": "integer"
+        },
+        "logsEndpoint": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/ResourceRequirements"
+        },
+        "security": {
+          "$ref": "#/definitions/SecurityRequirements"
+        },
         "build": {
           "oneOf": [
-            { "type": "boolean" },
-            { "$ref": "#/definitions/BuildRequirements" }
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/BuildRequirements"
+            }
           ]
         },
-        "dockerfile": { "type": "string" },
-        "buildContext": { "type": "string" },
-        "buildArgs": { "type": "object", "additionalProperties": { "type": "string" } },
-        "buildTarget": { "type": "string" },
-        "prebuilt": { "type": "boolean" },
-        "noCache": { "type": "boolean" },
-        "secrets": { "type": "array", "items": { "type": "string" } },
-        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
-        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
-        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "dockerfile": {
+          "type": "string"
+        },
+        "buildContext": {
+          "type": "string"
+        },
+        "buildArgs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "buildTarget": {
+          "type": "string"
+        },
+        "prebuilt": {
+          "type": "boolean"
+        },
+        "noCache": {
+          "type": "boolean"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "externalDependencies": {
           "type": "array",
           "items": {
             "oneOf": [
-              { "type": "string" },
+              {
+                "type": "string"
+              },
               {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string" },
-                  "url": { "type": "string" },
-                  "required": { "type": "boolean" },
-                  "healthCheck": { "type": "string" }
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "healthCheck": {
+                    "type": "string"
+                  }
                 }
               }
             ]
           }
         },
-        "environment": { "type": "object", "additionalProperties": { "type": "string" } },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       },
-      "required": ["platform", "path"],
+      "required": [
+        "platform",
+        "path"
+      ],
       "additionalProperties": false
     },
     "InferenceServiceConfig": {
       "type": "object",
       "properties": {
-        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
-        "type": { "type": "string" },
-        "model": { "type": "string" },
-        "maxTokens": { "type": "integer" },
-        "endpoint": { "type": "string" },
-        "baseURL": { "type": "string" },
-        "apiKey": { "type": "string" },
-        "command": { "type": "string" },
-        "image": { "type": "string" },
-        "port": { "type": "integer" },
-        "organization": { "type": "string" },
-        "timeout": { "type": "integer" },
-        "wait": { "type": "integer" },
-        "logsEndpoint": { "type": "string" },
-        "tag": { "type": "string" },
-        "resources": { "$ref": "#/definitions/ResourceRequirements" },
-        "security": { "$ref": "#/definitions/SecurityRequirements" },
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
+        },
+        "type": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "maxTokens": {
+          "type": "integer"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "baseURL": {
+          "type": "string"
+        },
+        "apiKey": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "organization": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "integer"
+        },
+        "wait": {
+          "type": "integer"
+        },
+        "logsEndpoint": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/ResourceRequirements"
+        },
+        "security": {
+          "$ref": "#/definitions/SecurityRequirements"
+        },
         "build": {
           "oneOf": [
-            { "type": "boolean" },
-            { "$ref": "#/definitions/BuildRequirements" }
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/BuildRequirements"
+            }
           ]
         },
-        "dockerfile": { "type": "string" },
-        "buildContext": { "type": "string" },
-        "buildArgs": { "type": "object", "additionalProperties": { "type": "string" } },
-        "buildTarget": { "type": "string" },
-        "prebuilt": { "type": "boolean" },
-        "noCache": { "type": "boolean" },
-        "secrets": { "type": "array", "items": { "type": "string" } },
-        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
-        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
-        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "dockerfile": {
+          "type": "string"
+        },
+        "buildContext": {
+          "type": "string"
+        },
+        "buildArgs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "buildTarget": {
+          "type": "string"
+        },
+        "prebuilt": {
+          "type": "boolean"
+        },
+        "noCache": {
+          "type": "boolean"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "externalDependencies": {
           "type": "array",
           "items": {
             "oneOf": [
-              { "type": "string" },
+              {
+                "type": "string"
+              },
               {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string" },
-                  "url": { "type": "string" },
-                  "required": { "type": "boolean" },
-                  "healthCheck": { "type": "string" }
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "healthCheck": {
+                    "type": "string"
+                  }
                 }
               }
             ]
           }
         },
-        "environment": { "type": "object", "additionalProperties": { "type": "string" } },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       },
-      "required": ["platform", "type", "apiKey"],
+      "required": [
+        "platform",
+        "type",
+        "apiKey"
+      ],
       "additionalProperties": false
     },
     "McpServiceConfig": {
       "type": "object",
       "properties": {
-        "platform": { "$ref": "#/definitions/ServicePlatformConfig" },
-        "command": { "type": "string" },
-        "image": { "type": "string" },
-        "port": { "type": "integer" },
-        "dependsOn": { "type": "array", "items": { "type": "string" } },
-        "timeout": { "type": "integer" },
-        "wait": { "type": "integer" },
-        "logsEndpoint": { "type": "string" },
-        "tag": { "type": "string" },
-        "resources": { "$ref": "#/definitions/ResourceRequirements" },
-        "security": { "$ref": "#/definitions/SecurityRequirements" },
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
+        },
+        "command": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "timeout": {
+          "type": "integer"
+        },
+        "wait": {
+          "type": "integer"
+        },
+        "logsEndpoint": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/ResourceRequirements"
+        },
+        "security": {
+          "$ref": "#/definitions/SecurityRequirements"
+        },
         "build": {
           "oneOf": [
-            { "type": "boolean" },
-            { "$ref": "#/definitions/BuildRequirements" }
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/BuildRequirements"
+            }
           ]
         },
-        "dockerfile": { "type": "string" },
-        "buildContext": { "type": "string" },
-        "buildArgs": { "type": "object", "additionalProperties": { "type": "string" } },
-        "buildTarget": { "type": "string" },
-        "prebuilt": { "type": "boolean" },
-        "noCache": { "type": "boolean" },
-        "secrets": { "type": "array", "items": { "type": "string" } },
-        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
-        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
-        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "dockerfile": {
+          "type": "string"
+        },
+        "buildContext": {
+          "type": "string"
+        },
+        "buildArgs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "buildTarget": {
+          "type": "string"
+        },
+        "prebuilt": {
+          "type": "boolean"
+        },
+        "noCache": {
+          "type": "boolean"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "externalDependencies": {
           "type": "array",
           "items": {
             "oneOf": [
-              { "type": "string" },
+              {
+                "type": "string"
+              },
               {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string" },
-                  "url": { "type": "string" },
-                  "required": { "type": "boolean" },
-                  "healthCheck": { "type": "string" }
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "healthCheck": {
+                    "type": "string"
+                  }
                 }
               }
             ]
           }
         },
-        "environment": { "type": "object", "additionalProperties": { "type": "string" } },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       },
-      "required": ["platform"],
+      "required": [
+        "platform"
+      ],
       "additionalProperties": false
     },
     "ServicesConfig": {
       "type": "object",
       "properties": {
-        "backend": { "$ref": "#/definitions/BackendServiceConfig" },
-        "frontend": { "$ref": "#/definitions/FrontendServiceConfig" },
-        "database": { "$ref": "#/definitions/DatabaseServiceConfig" },
-        "graph": { "$ref": "#/definitions/GraphServiceConfig" },
-        "filesystem": { "$ref": "#/definitions/FilesystemServiceConfig" },
-        "inference": { "$ref": "#/definitions/InferenceServiceConfig" },
-        "mcp": { "$ref": "#/definitions/McpServiceConfig" }
+        "backend": {
+          "$ref": "#/definitions/BackendServiceConfig"
+        },
+        "frontend": {
+          "$ref": "#/definitions/FrontendServiceConfig"
+        },
+        "database": {
+          "$ref": "#/definitions/DatabaseServiceConfig"
+        },
+        "graph": {
+          "$ref": "#/definitions/GraphServiceConfig"
+        },
+        "filesystem": {
+          "$ref": "#/definitions/FilesystemServiceConfig"
+        },
+        "inference": {
+          "$ref": "#/definitions/InferenceServiceConfig"
+        },
+        "mcp": {
+          "$ref": "#/definitions/McpServiceConfig"
+        }
       },
       "additionalProperties": true
     },
@@ -529,7 +1326,9 @@
           "description": "Email domains allowed for OAuth authentication"
         }
       },
-      "required": ["domain"],
+      "required": [
+        "domain"
+      ],
       "additionalProperties": false
     },
     "AppConfig": {
@@ -538,9 +1337,15 @@
         "features": {
           "type": "object",
           "properties": {
-            "enableAnalytics": { "type": "boolean" },
-            "enableMaintenanceMode": { "type": "boolean" },
-            "enableDebugLogging": { "type": "boolean" }
+            "enableAnalytics": {
+              "type": "boolean"
+            },
+            "enableMaintenanceMode": {
+              "type": "boolean"
+            },
+            "enableDebugLogging": {
+              "type": "boolean"
+            }
           },
           "additionalProperties": false
         },
@@ -559,7 +1364,9 @@
             },
             "corsAllowedOrigins": {
               "type": "array",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             },
             "enableLocalAuth": {
               "type": "boolean",
@@ -576,7 +1383,9 @@
         "performance": {
           "type": "object",
           "properties": {
-            "enableCaching": { "type": "boolean" },
+            "enableCaching": {
+              "type": "boolean"
+            },
             "cacheTimeout": {
               "type": "integer",
               "minimum": 0,
@@ -603,10 +1412,17 @@
         "_metadata": {
           "type": "object",
           "properties": {
-            "environment": { "type": "string" },
-            "projectRoot": { "type": "string" }
+            "environment": {
+              "type": "string"
+            },
+            "projectRoot": {
+              "type": "string"
+            }
           },
-          "required": ["environment", "projectRoot"]
+          "required": [
+            "environment",
+            "projectRoot"
+          ]
         },
         "name": {
           "type": "string",
@@ -615,7 +1431,9 @@
         "platform": {
           "type": "object",
           "properties": {
-            "default": { "$ref": "#/definitions/PlatformType" }
+            "default": {
+              "$ref": "#/definitions/PlatformType"
+            }
           }
         },
         "services": {
@@ -632,22 +1450,43 @@
           "properties": {
             "NODE_ENV": {
               "type": "string",
-              "enum": ["development", "production", "test"]
+              "enum": [
+                "development",
+                "production",
+                "test"
+              ]
             }
           },
           "additionalProperties": true
+        },
+        "logLevel": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "http",
+            "debug"
+          ],
+          "description": "Logging verbosity level"
         },
         "deployment": {
           "type": "object",
           "properties": {
             "imageTagStrategy": {
               "type": "string",
-              "enum": ["mutable", "immutable", "git-hash"]
+              "enum": [
+                "mutable",
+                "immutable",
+                "git-hash"
+              ]
             }
           }
         }
       },
-      "required": ["services"],
+      "required": [
+        "services"
+      ],
       "additionalProperties": false
     },
     "SemiontConfig": {
@@ -673,7 +1512,11 @@
           "$ref": "#/definitions/ServicesConfig"
         }
       },
-      "required": ["version", "project", "site"],
+      "required": [
+        "version",
+        "project",
+        "site"
+      ],
       "additionalProperties": false
     }
   }

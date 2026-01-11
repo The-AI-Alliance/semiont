@@ -1,3 +1,4 @@
+// Environment variables are loaded via Node's --env-file flag (see package.json)
 // Construct DATABASE_URL from components if not already set
 // MUST be done before any Prisma imports!
 if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
@@ -69,9 +70,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Import graph database for initialization
-import { getGraphDatabase } from './graph/factory';
+import { getGraphDatabase } from '@semiont/graph';
 // Import inference client for initialization
-import { getInferenceClient } from './inference/factory';
+import { getInferenceClient } from '@semiont/inference';
 // Import security headers middleware
 import { securityHeaders } from './middleware/security-headers';
 // Import logging middleware
@@ -85,8 +86,8 @@ type Variables = {
   config: EnvironmentConfig;
 };
 
-// Initialize Winston logger
-initializeLogger();
+// Initialize Winston logger with log level from environment config
+initializeLogger(config.logLevel);
 
 // Create Hono app with proper typing
 const app = new Hono<{ Variables: Variables }>();
@@ -279,7 +280,7 @@ if (nodeEnv !== 'test') {
     // Initialize Job Queue
     try {
       console.log('💼 Initializing job queue...');
-      const { initializeJobQueue } = await import('./jobs/job-queue');
+      const { initializeJobQueue } = await import('@semiont/jobs');
       const dataDir = config.services?.filesystem?.path || process.env.DATA_DIR || './data';
       if (!dataDir) {
         throw new Error('services.filesystem.path is required in environment config for job queue initialization');

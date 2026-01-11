@@ -1,0 +1,329 @@
+name: Accessibility Testing
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+  schedule:
+    # Run daily at 6 AM UTC to catch accessibility regressions
+    - cron: '0 6 * * *'
+
+env:
+  NODE_VERSION: '20'
+  # WCAG 2.1 AA compliance target
+  LIGHTHOUSE_ACCESSIBILITY_THRESHOLD: 90
+
+jobs:
+  # Job 1: Automated axe-core testing for react-ui components
+  test-react-ui-accessibility:
+    name: React UI - axe-core Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Build dependencies
+        run: |
+          npm install
+          npm run openapi:bundle
+          npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/ontology
+          npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/react-ui
+
+      - name: Install axe-core testing packages
+        run: |
+          cd packages/react-ui
+          npm install --save-dev jest-axe axe-core @axe-core/cli
+
+      - name: Run accessibility tests
+        id: a11y-tests
+        run: |
+          cd packages/react-ui
+          # Run all tests including accessibility tests
+          npm test -- --reporter=verbose
+        continue-on-error: false
+        env:
+          CI: true
+
+      - name: Generate accessibility report
+        if: always()
+        run: |
+          cd packages/react-ui
+          npm run test:coverage -- --reporter=json --outputFile=a11y-report.json
+        continue-on-error: true
+
+      - name: Upload accessibility test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: react-ui-a11y-results
+          path: packages/react-ui/a11y-report.json
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request' && failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **Accessibility tests failed for @semiont/react-ui**\n\nPlease review the test results and fix accessibility violations before merging.'
+            })
+
+  # Job 2: Automated axe-core testing for frontend
+  test-frontend-accessibility:
+    name: Frontend - axe-core Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Build dependencies
+        run: |
+          npm install
+          npm run openapi:bundle
+          npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/ontology
+          npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/react-ui
+
+      - name: Install axe-core testing packages
+        run: |
+          cd apps/frontend
+          npm install --save-dev jest-axe axe-core @axe-core/cli
+
+      - name: Run accessibility tests
+        id: a11y-tests
+        run: |
+          cd apps/frontend
+          # Run all tests including accessibility tests
+          SEMIONT_ENV=unit SEMIONT_ROOT=../.. npm test -- --reporter=verbose
+        continue-on-error: false
+        env:
+          CI: true
+          SERVER_API_URL: http://localhost:4000
+          NEXT_PUBLIC_SITE_NAME: Semiont
+          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
+
+      - name: Generate accessibility report
+        if: always()
+        run: |
+          cd apps/frontend
+          SEMIONT_ENV=unit SEMIONT_ROOT=../.. npm run test:coverage -- --reporter=json --outputFile=a11y-report.json
+        continue-on-error: true
+        env:
+          SERVER_API_URL: http://localhost:4000
+          NEXT_PUBLIC_SITE_NAME: Semiont
+          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
+
+      - name: Upload accessibility test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-a11y-results
+          path: apps/frontend/a11y-report.json
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request' && failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **Accessibility tests failed for frontend**\n\nPlease review the test results and fix accessibility violations before merging.'
+            })
+
+  # Job 3: Lighthouse CI accessibility audit
+  lighthouse-accessibility:
+    name: Lighthouse - WCAG 2.1 AA Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Build dependencies
+        run: |
+          npm install
+          npm run openapi:bundle
+          npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/ontology
+          npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/react-ui
+
+      - name: Build frontend
+        run: |
+          cd apps/frontend
+          npm run build
+        env:
+          SERVER_API_URL: http://localhost:4000
+          NEXTAUTH_URL: http://localhost:3000
+          NEXTAUTH_SECRET: test-secret-for-ci-must-be-at-least-32-characters-long
+          NEXT_PUBLIC_SITE_NAME: Semiont
+          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
+
+      - name: Run Lighthouse CI
+        run: |
+          cd apps/frontend
+          npm run lighthouse
+        continue-on-error: true
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Upload Lighthouse results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-results
+          path: apps/frontend/.lighthouseci
+          retention-days: 30
+
+      - name: Check accessibility score threshold
+        run: |
+          cd apps/frontend
+          # Extract accessibility score from Lighthouse results
+          SCORE=$(cat .lighthouseci/lhr-*.json | jq '.categories.accessibility.score * 100' | head -1)
+          echo "Accessibility score: $SCORE"
+
+          if [ $(echo "$SCORE < $LIGHTHOUSE_ACCESSIBILITY_THRESHOLD" | bc -l) -eq 1 ]; then
+            echo "❌ Accessibility score ($SCORE) is below threshold ($LIGHTHOUSE_ACCESSIBILITY_THRESHOLD)"
+            exit 1
+          else
+            echo "✅ Accessibility score ($SCORE) meets threshold ($LIGHTHOUSE_ACCESSIBILITY_THRESHOLD)"
+          fi
+        continue-on-error: false
+
+      - name: Comment PR with Lighthouse results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Find the latest Lighthouse report
+            const lighthouseDir = 'apps/frontend/.lighthouseci';
+            const files = fs.readdirSync(lighthouseDir);
+            const lhrFile = files.find(f => f.startsWith('lhr-') && f.endsWith('.json'));
+
+            if (!lhrFile) {
+              console.log('No Lighthouse report found');
+              return;
+            }
+
+            const report = JSON.parse(fs.readFileSync(path.join(lighthouseDir, lhrFile), 'utf8'));
+            const a11yScore = Math.round(report.categories.accessibility.score * 100);
+            const threshold = process.env.LIGHTHOUSE_ACCESSIBILITY_THRESHOLD;
+
+            const status = a11yScore >= threshold ? '✅' : '❌';
+            const emoji = a11yScore >= threshold ? '🎉' : '⚠️';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${emoji} **Lighthouse Accessibility Score: ${a11yScore}/100** ${status}\n\n` +
+                    `**Threshold:** ${threshold}/100\n` +
+                    `**Status:** ${a11yScore >= threshold ? 'PASSED' : 'FAILED'}\n\n` +
+                    `Full results available in the workflow artifacts.`
+            })
+
+  # Job 4: Comprehensive accessibility summary
+  accessibility-summary:
+    name: Accessibility Summary
+    runs-on: ubuntu-latest
+    needs: [test-react-ui-accessibility, test-frontend-accessibility, lighthouse-accessibility]
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: accessibility-results
+
+      - name: Generate summary
+        run: |
+          echo "# 🔍 Accessibility Testing Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # React UI status
+          if [ "${{ needs.test-react-ui-accessibility.result }}" == "success" ]; then
+            echo "✅ **React UI (axe-core):** PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **React UI (axe-core):** FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Frontend status
+          if [ "${{ needs.test-frontend-accessibility.result }}" == "success" ]; then
+            echo "✅ **Frontend (axe-core):** PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Frontend (axe-core):** FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Lighthouse status
+          if [ "${{ needs.lighthouse-accessibility.result }}" == "success" ]; then
+            echo "✅ **Lighthouse (WCAG 2.1 AA):** PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Lighthouse (WCAG 2.1 AA):** FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 WCAG 2.1 AA Compliance Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.test-react-ui-accessibility.result }}" == "success" ] && \
+             [ "${{ needs.test-frontend-accessibility.result }}" == "success" ] && \
+             [ "${{ needs.lighthouse-accessibility.result }}" == "success" ]; then
+            echo "🎉 **All accessibility tests passed!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The application meets WCAG 2.1 AA compliance requirements." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Some accessibility tests failed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please review the test results and fix accessibility violations." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Resources:" >> $GITHUB_STEP_SUMMARY
+            echo "- [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)" >> $GITHUB_STEP_SUMMARY
+            echo "- [axe-core Rules](https://github.com/dequelabs/axe-core/blob/develop/doc/rule-descriptions.md)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Lighthouse Accessibility Scoring](https://web.dev/accessibility-scoring/)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail workflow if any test failed
+        if: |
+          needs.test-react-ui-accessibility.result != 'success' ||
+          needs.test-frontend-accessibility.result != 'success' ||
+          needs.lighthouse-accessibility.result != 'success'
+        run: |
+          echo "One or more accessibility tests failed"
+          exit 1

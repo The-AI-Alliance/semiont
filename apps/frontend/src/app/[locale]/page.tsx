@@ -1,17 +1,20 @@
 "use client";
 
-import React from "react";
+import React, { useContext } from "react";
 import { useSession } from "next-auth/react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Footer } from "@/components/Footer";
-import { SemiontBranding } from "@/components/SemiontBranding";
-import { buttonStyles } from "@/lib/button-styles";
+import { Footer, SemiontBranding, buttonStyles } from "@semiont/react-ui";
+import { CookiePreferences } from "@/components/CookiePreferences";
+import { KeyboardShortcutsContext } from "@/contexts/KeyboardShortcutsContext";
+import { Link as RoutingLink, routes } from "@/lib/routing";
 
 export default function Home() {
   const { data: session, status } = useSession();
   const t = useTranslations('Home');
+  const tFooter = useTranslations('Footer');
+  const keyboardContext = useContext(KeyboardShortcutsContext);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -27,6 +30,7 @@ export default function Home() {
               <section aria-labelledby="hero-heading" className="py-8">
                 <h1 id="hero-heading" className="sr-only">Semiont - AI-Powered Research Platform</h1>
                 <SemiontBranding
+                  t={t}
                   size="xl"
                   animated={true}
                   className="mb-8"
@@ -82,8 +86,14 @@ export default function Home() {
           )}
         </div>
       </main>
-      
-      <Footer />
+
+      <Footer
+        Link={RoutingLink}
+        routes={routes}
+        t={tFooter}
+        CookiePreferences={CookiePreferences}
+        {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+      />
     </div>
   );
 }

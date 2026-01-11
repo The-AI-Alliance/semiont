@@ -15,16 +15,16 @@
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { ResourceQueryService } from '../../../services/resource-queries';
+import { ResourceContext } from '@semiont/make-meaning';
 import { createEventStore } from '../../../services/event-store-service';
-import { getJobQueue } from '../../../jobs/job-queue';
-import type { TagDetectionJob } from '../../../jobs/types';
+import { getJobQueue } from '@semiont/jobs';
+import type { TagDetectionJob } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { jobId, resourceUri } from '@semiont/api-client';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
-import { getTagSchema } from '../../../lib/tag-schemas';
+import { getTagSchema } from '@semiont/ontology';
 
 type DetectTagsStreamRequest = components['schemas']['DetectTagsStreamRequest'];
 
@@ -91,7 +91,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType) {
       }
 
       // Validate resource exists using view storage
-      const resource = await ResourceQueryService.getResourceMetadata(resourceId(id), config);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found in view storage projections - resource may need to be recreated' });
       }

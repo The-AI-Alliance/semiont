@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { useAnnotations } from '@/lib/api-hooks';
+import { useAnnotations } from '@semiont/react-ui';
 import { useTranslations, useLocale } from 'next-intl';
 import type { ResourceUri, GenerationContext } from '@semiont/api-client';
 import { LOCALES } from '@semiont/api-client';

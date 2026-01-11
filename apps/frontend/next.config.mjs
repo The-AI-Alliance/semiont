@@ -126,6 +126,8 @@ const baseConfig = {
     // optimizeCss: true, // Disabled due to critters dependency issue
     optimizePackageImports: [
       '@tanstack/react-query',
+      '@semiont/react-ui',
+      '@semiont/api-client',
       'next-auth',
       '@heroicons/react',
       '@headlessui/react',

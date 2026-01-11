@@ -4,6 +4,8 @@
 [![API Stability](https://img.shields.io/badge/API-unstable-red.svg)](https://github.com/The-AI-Alliance/semiont)
 [![Continuous Integration](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![Security Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml?query=branch%3Amain)
+[![Accessibility Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml?query=branch%3Amain)
+[![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-blue.svg)](apps/frontend/docs/ACCESSIBILITY.md)
 [![License](https://img.shields.io/github/license/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/tree/main?tab=Apache-2.0-1-ov-file#readme)
 [![Issues](https://img.shields.io/github/issues/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/issues)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -28,26 +30,36 @@ Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructur
 
 ```text
 semiont/
-├── specs/                # API specifications (spec-first architecture)
-│   ├── src/              # OpenAPI source files (tracked in git)
-│   │   ├── openapi.json  # Root spec with $ref to all paths/schemas
-│   │   ├── paths/        # Individual endpoint definitions (37 files)
+├── specs/                      # API specifications (spec-first architecture)
+│   ├── src/                    # OpenAPI source files (tracked in git)
+│   │   ├── openapi.json        # Root spec with $ref to all paths/schemas
+│   │   ├── paths/              # Individual endpoint definitions (37 files)
 │   │   └── components/
-│   │       └── schemas/  # Schema definitions (79 files)
-│   ├── openapi.json      # Generated bundle (gitignored, built by Redocly)
-│   └── docs/             # API and W3C annotation documentation
-├── apps/                 # Application packages
-│   ├── frontend/         # Next.js 14 frontend application
-│   ├── backend/          # Hono backend API server
-│   └── cli/              # Semiont management CLI
-├── packages/             # Shared workspace packages
-│   ├── api-client/       # Primary TypeScript SDK (generated from OpenAPI spec)
-│   ├── core/             # Backend domain logic (events, crypto, type guards)
-│   ├── mcp-server/       # Model Context Protocol server for AI integration
-│   └── test-utils/       # Testing utilities and mock factories
-├── docs/                 # System documentation
-└── scripts/              # Build and utility scripts
+│   │       └── schemas/        # Schema definitions (79 files)
+│   ├── openapi.json            # Generated bundle (gitignored, built by Redocly)
+│   └── docs/                   # API and W3C annotation documentation
+├── apps/                       # Application packages
+│   ├── frontend/               # Next.js 14 frontend application
+│   ├── backend/                # Hono backend API server
+│   └── cli/                    # Semiont management CLI
+├── packages/                   # Shared workspace packages (see packages/README.md)
+│   ├── api-client/             # OpenAPI-generated TypeScript SDK
+│   ├── core/                   # Core types and utilities
+│   ├── event-sourcing/         # Event store and view storage
+│   ├── content/                # Content-addressed storage
+│   ├── graph/                  # Graph database abstraction
+│   ├── ontology/               # Entity types and tag schemas
+│   ├── inference/              # AI prompts, parsers, and text generation
+│   ├── make-meaning/           # Context assembly, detection, reasoning
+│   ├── jobs/                   # Job queue and worker infrastructure
+│   ├── react-ui/               # React components and hooks
+│   ├── mcp-server/             # Model Context Protocol server
+│   └── test-utils/             # Testing utilities and mock factories
+├── docs/                       # System documentation
+└── scripts/                    # Build and utility scripts
 ```
+
+**See [packages/README.md](packages/README.md) for detailed package documentation, architecture overview, and dependency graph.**
 
 ## 🚀 Getting Started
 
@@ -85,11 +97,18 @@ Semiont publishes npm packages and container images for easy integration and dep
 
 ### NPM Packages
 
-- **[@semiont/api-client](packages/api-client/)** [![npm](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client) - TypeScript SDK with complete types from OpenAPI spec. [Documentation →](packages/api-client/README.md)
+- **[@semiont/api-client](packages/api-client/)** [![npm](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client) - TypeScript SDK with complete types from OpenAPI spec
+- **[@semiont/core](packages/core/)** [![npm](https://img.shields.io/npm/v/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core) - Core domain types and utilities
+- **[@semiont/ontology](packages/ontology/)** [![npm](https://img.shields.io/npm/v/@semiont/ontology)](https://www.npmjs.com/package/@semiont/ontology) - Entity types, tag schemas, and vocabularies
+- **[@semiont/event-sourcing](packages/event-sourcing/)** [![npm](https://img.shields.io/npm/v/@semiont/event-sourcing.svg)](https://www.npmjs.com/package/@semiont/event-sourcing) - Event store and view storage
+- **[@semiont/graph](packages/graph/)** [![npm](https://img.shields.io/npm/v/@semiont/graph)](https://www.npmjs.com/package/@semiont/graph) - Graph database abstraction
+- **[@semiont/inference](packages/inference/)** [![npm](https://img.shields.io/npm/v/@semiont/inference)](https://www.npmjs.com/package/@semiont/inference) - AI prompts, parsers, and text generation
+- **[@semiont/jobs](packages/jobs/)** [![npm](https://img.shields.io/npm/v/@semiont/jobs.svg)](https://www.npmjs.com/package/@semiont/jobs) - Job queue and worker infrastructure
+- **[@semiont/make-meaning](packages/make-meaning/)** [![npm](https://img.shields.io/npm/v/@semiont/make-meaning)](https://www.npmjs.com/package/@semiont/make-meaning) - Context assembly, pattern detection, reasoning
+- **[@semiont/react-ui](packages/react-ui/)** [![npm](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui) - React components and hooks
+- **[@semiont/cli](apps/cli/)** [![npm](https://img.shields.io/npm/v/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli) - Command-line tool for environment management
 
-- **[@semiont/core](packages/core/)** [![npm](https://img.shields.io/npm/v/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core) - Core domain types and utilities for internal use. [Documentation →](packages/core/README.md)
-
-- **[@semiont/cli](apps/cli/)** [![npm](https://img.shields.io/npm/v/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli) - Command-line tool for environment management. [Documentation →](apps/cli/README.md)
+**See [packages/README.md](packages/README.md) for complete package documentation.**
 
 ### Container Images
 
@@ -144,6 +163,15 @@ Semiont publishes npm packages and container images for easy integration and dep
 | [SCALING.md](docs/SCALING.md) | Performance scaling and cost optimization |
 | [MAINTENANCE.md](docs/MAINTENANCE.md) | Operational maintenance procedures |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and diagnostic commands |
+
+### Accessibility
+
+| Document | Description |
+|----------|-------------|
+| [Frontend Accessibility](apps/frontend/docs/ACCESSIBILITY.md) | Frontend-specific accessibility features and testing |
+| [React UI Accessibility](packages/react-ui/docs/ACCESSIBILITY.md) | Component library accessibility architecture |
+| [Keyboard Navigation](apps/frontend/docs/KEYBOARD-NAV.md) | Comprehensive keyboard navigation guide |
+| [Accessibility Improvements](ACCESSIBILITY-IMPROVEMENTS.md) | Roadmap for accessibility enhancements |
 
 ## 📜 License
 

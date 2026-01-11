@@ -25,15 +25,19 @@ vi.mock('@/i18n/routing', () => ({
 }));
 
 // Mock auth events
-vi.mock('@/lib/auth-events', () => ({
-  AUTH_EVENTS: {
-    FORBIDDEN: 'auth:forbidden'
-  },
-  onAuthEvent: vi.fn((event, callback) => {
-    // Return cleanup function
-    return () => {};
-  })
-}));
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    AUTH_EVENTS: {
+      FORBIDDEN: 'auth:forbidden'
+    },
+    onAuthEvent: vi.fn((event, callback) => {
+      // Return cleanup function
+      return () => {};
+    })
+  };
+});
 
 // Mock SessionContext
 vi.mock('@/contexts/SessionContext', () => ({
@@ -62,7 +66,7 @@ describe('PermissionDeniedModal', () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show by simulating forbidden event
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
 
       act(() => {
@@ -81,7 +85,7 @@ describe('PermissionDeniedModal', () => {
     it('should display current user email', async () => {
       render(<PermissionDeniedModal />);
 
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
 
       act(() => {
@@ -100,7 +104,7 @@ describe('PermissionDeniedModal', () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
       act(() => {
         eventHandler({ detail: { message: 'You need admin access' } });
@@ -122,7 +126,7 @@ describe('PermissionDeniedModal', () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
       act(() => {
         eventHandler({ detail: { message: 'You need admin access' } });
@@ -144,7 +148,7 @@ describe('PermissionDeniedModal', () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
       act(() => {
         eventHandler({ detail: { message: 'You need admin access' } });
@@ -167,7 +171,7 @@ describe('PermissionDeniedModal', () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
       act(() => {
         eventHandler({ detail: { message: 'You need admin access' } });
@@ -192,7 +196,7 @@ describe('PermissionDeniedModal', () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
       act(() => {
         eventHandler({ detail: { message: 'You need admin access' } });
@@ -216,7 +220,7 @@ describe('PermissionDeniedModal', () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
       act(() => {
         eventHandler({ detail: { message: 'You need admin access' } });
@@ -239,7 +243,7 @@ describe('PermissionDeniedModal', () => {
     it('should only show one modal instance', async () => {
       render(<PermissionDeniedModal />);
 
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
 
       // Trigger multiple times
@@ -258,7 +262,7 @@ describe('PermissionDeniedModal', () => {
   describe('Event Listener Cleanup', () => {
     it('should cleanup event listeners on unmount', async () => {
       const { unmount } = render(<PermissionDeniedModal />);
-      const { onAuthEvent } = await import('@/lib/auth-events');
+      const { onAuthEvent } = await import('@semiont/react-ui');
 
       // Should have registered event listener
       expect(onAuthEvent).toHaveBeenCalledWith('auth:forbidden', expect.any(Function));

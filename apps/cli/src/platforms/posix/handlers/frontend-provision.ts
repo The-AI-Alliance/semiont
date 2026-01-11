@@ -74,8 +74,9 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     };
   }
 
-  // For POSIX platform, use localhost URL for server-side API calls
+  // For POSIX platform, use 127.0.0.1 URL for server-side API calls
   // (publicURL may be Codespaces public URL which requires external auth)
+  // Use 127.0.0.1 instead of localhost to avoid ECONNREFUSED in Node.js
   // This matches the approach in backend-check.ts:101
   if (!backendService.port) {
     return {
@@ -84,7 +85,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
       metadata: { serviceType: 'frontend' }
     };
   }
-  const backendUrl = `http://localhost:${backendService.port}`;
+  const backendUrl = `http://127.0.0.1:${backendService.port}`;
   if (!siteName) {
     return {
       success: false,
@@ -239,7 +240,35 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
       metadata: { serviceType: 'frontend', frontendSourceDir }
     };
   }
-  
+
+  // Build workspace packages that frontend depends on
+  if (!service.quiet) {
+    printInfo('Building workspace dependencies...');
+  }
+
+  try {
+    const monorepoRoot = path.dirname(path.dirname(frontendSourceDir));
+    const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
+
+    if (fs.existsSync(rootPackageJsonPath)) {
+      const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
+      if (rootPackageJson.workspaces) {
+        // Build @semiont/react-ui package which frontend depends on
+        execSync('npm run build --workspace=@semiont/react-ui --if-present', {
+          cwd: monorepoRoot,
+          stdio: service.verbose ? 'inherit' : 'pipe'
+        });
+
+        if (!service.quiet) {
+          printSuccess('Workspace dependencies built successfully');
+        }
+      }
+    }
+  } catch (error) {
+    printWarning(`Failed to build workspace dependencies: ${error}`);
+    printInfo('You may need to build manually: npm run build --workspace=@semiont/react-ui');
+  }
+
   // Build frontend if in production mode
   if (service.environment === 'prod') {
     if (!service.quiet) {

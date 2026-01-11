@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import { authMiddleware } from '../../middleware/auth';
-import { getJobQueue } from '../../jobs/job-queue';
+import { getJobQueue } from '@semiont/jobs';
 import type { components } from '@semiont/api-client';
 import { jobId } from '@semiont/api-client';
 

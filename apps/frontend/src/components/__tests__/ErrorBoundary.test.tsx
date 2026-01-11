@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vites
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { ErrorBoundary, AsyncErrorBoundary } from '../ErrorBoundary';
+import { ErrorBoundary, AsyncErrorBoundary } from '@semiont/react-ui';
 
 // Mock component that throws an error
 const ThrowError = ({ shouldThrow = false, message = 'Test error' }: { shouldThrow?: boolean; message?: string }) => {
