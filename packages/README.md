@@ -1,5 +1,7 @@
 # @semiont Packages
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/branch/main/graph/badge.svg)](https://codecov.io/gh/The-AI-Alliance/semiont)
+
 Modular packages for the Semiont platform, organized in a layered architecture from low-level primitives to high-level application logic.
 
 ## Dependency Graph

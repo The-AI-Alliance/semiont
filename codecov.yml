@@ -127,19 +127,68 @@ comment:
 
 # Flag configuration for different test suites
 flags:
-  # Unit tests for packages
-  packages:
+  # Individual package flags
+  api-client:
     paths:
-      - packages/**
+      - packages/api-client/**
     carryforward: true
 
-  # Frontend tests
+  content:
+    paths:
+      - packages/content/**
+    carryforward: true
+
+  core:
+    paths:
+      - packages/core/**
+    carryforward: true
+
+  event-sourcing:
+    paths:
+      - packages/event-sourcing/**
+    carryforward: true
+
+  graph:
+    paths:
+      - packages/graph/**
+    carryforward: true
+
+  inference:
+    paths:
+      - packages/inference/**
+    carryforward: true
+
+  jobs:
+    paths:
+      - packages/jobs/**
+    carryforward: true
+
+  make-meaning:
+    paths:
+      - packages/make-meaning/**
+    carryforward: true
+
+  mcp-server:
+    paths:
+      - packages/mcp-server/**
+    carryforward: true
+
+  ontology:
+    paths:
+      - packages/ontology/**
+    carryforward: true
+
+  react-ui:
+    paths:
+      - packages/react-ui/**
+    carryforward: true
+
+  # App flags (for future use)
   frontend:
     paths:
       - apps/frontend/**
     carryforward: true
 
-  # Backend tests
   backend:
     paths:
       - apps/backend/**

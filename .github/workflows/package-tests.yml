@@ -112,6 +112,7 @@ jobs:
           CI: true
 
       - name: Run tests with coverage
+        id: coverage
         run: |
           cd packages/${{ matrix.package }}
           # Try to run coverage, fallback to test with coverage flag
@@ -119,6 +120,21 @@ jobs:
             npm run test:coverage
           else
             npm test -- --coverage
+          fi
+
+          # Extract coverage summary if available
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "## Coverage for ${{ matrix.package }}" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            node -e "
+              const summary = require('./coverage/coverage-summary.json');
+              const total = summary.total;
+              console.log('Lines:      ' + total.lines.pct + '%');
+              console.log('Statements: ' + total.statements.pct + '%');
+              console.log('Functions:  ' + total.functions.pct + '%');
+              console.log('Branches:   ' + total.branches.pct + '%');
+            " >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Coverage data not available" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
           fi
         env:
           CI: true
@@ -129,7 +145,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           directory: packages/${{ matrix.package }}/coverage
           files: ./packages/${{ matrix.package }}/coverage/coverage-final.json,./packages/${{ matrix.package }}/coverage/lcov.info
-          flags: packages,${{ matrix.package }}
+          flags: ${{ matrix.package }}
           name: ${{ matrix.package }}
           fail_ci_if_error: false
           verbose: true
