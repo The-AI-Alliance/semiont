@@ -36,6 +36,8 @@
 @import './features/entity-tags.css';
 @import './features/recent-docs.css';
 @import './features/resource.css';
+@import './features/resource-discovery.css';
+@import './features/resource-viewer.css';
 @import './features/schemas.css';
 @import './features/welcome.css';
 
