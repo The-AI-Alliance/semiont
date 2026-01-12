@@ -1,42 +1,26 @@
 import { useMemo } from 'react';
-import { useMessages, useLocale } from 'next-intl';
+import { useMessages } from 'next-intl';
 import type { TranslationManager } from '@semiont/react-ui';
-
-// Import react-ui translations
-import enReactUI from '../../../../packages/react-ui/translations/en.json';
-import esReactUI from '../../../../packages/react-ui/translations/es.json';
-
-// Map of locale codes to react-ui translations
-const reactUITranslations: Record<string, any> = {
-  en: enReactUI,
-  es: esReactUI,
-};
 
 /**
  * Frontend implementation of TranslationManager
  * Wraps next-intl's useMessages to provide TranslationManager interface
- * and merges react-ui translations with frontend messages
+ * for frontend-specific translations only. React-ui handles its own translations.
  */
 export function useTranslationManager(): TranslationManager {
   const messages = useMessages();
-  const locale = useLocale();
 
   return useMemo(
     () => ({
       t: (namespace: string, key: string, params?: Record<string, any>): string => {
-        // First check frontend messages
+        // Only handle frontend messages
+        // React-ui components will use their own built-in translations
         const typedMessages = messages as Record<string, Record<string, string>>;
         let translation = typedMessages[namespace]?.[key];
 
-        // If not found in frontend messages, check react-ui translations
+        // If not found, return namespace.key format
         if (!translation) {
-          const reactUIMessages = reactUITranslations[locale] || reactUITranslations['en'];
-          translation = reactUIMessages[namespace]?.[key];
-        }
-
-        // If still not found, return namespace.key format
-        if (!translation) {
-          console.warn(`Translation not found: ${namespace}.${key}`);
+          console.warn(`Translation not found in frontend messages: ${namespace}.${key}`);
           return `${namespace}.${key}`;
         }
 
@@ -52,6 +36,6 @@ export function useTranslationManager(): TranslationManager {
         return translation;
       },
     }),
-    [messages, locale]
+    [messages]
   );
 }
