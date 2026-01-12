@@ -1,0 +1,114 @@
+/* Branding Component */
+.semiont-branding {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.semiont-branding-title {
+  font-family: 'Orbitron', var(--semiont-font-sans);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  margin-bottom: 0.25rem;
+}
+
+.semiont-branding[data-size="sm"] .semiont-branding-title {
+  font-size: 1.5rem;
+}
+
+.semiont-branding[data-size="md"] .semiont-branding-title {
+  font-size: 1.875rem;
+}
+
+.semiont-branding[data-size="lg"] .semiont-branding-title {
+  font-size: 2.25rem;
+}
+
+.semiont-branding[data-size="xl"] .semiont-branding-title {
+  font-size: 3rem;
+}
+
+@media (min-width: 640px) {
+  .semiont-branding[data-size="sm"] .semiont-branding-title { font-size: 1.875rem; }
+  .semiont-branding[data-size="md"] .semiont-branding-title { font-size: 2.25rem; }
+  .semiont-branding[data-size="lg"] .semiont-branding-title { font-size: 3rem; }
+  .semiont-branding[data-size="xl"] .semiont-branding-title { font-size: 3.75rem; }
+}
+
+@media (min-width: 768px) {
+  .semiont-branding[data-size="sm"] .semiont-branding-title { font-size: 2.25rem; }
+  .semiont-branding[data-size="md"] .semiont-branding-title { font-size: 3rem; }
+  .semiont-branding[data-size="lg"] .semiont-branding-title { font-size: 3.75rem; }
+  .semiont-branding[data-size="xl"] .semiont-branding-title { font-size: 4.5rem; }
+}
+
+.semiont-branding-text {
+  background: linear-gradient(to right, var(--semiont-color-gray-800), var(--semiont-color-primary-600), var(--semiont-color-gray-800));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="dark"] .semiont-branding-text,
+:root:not([data-theme="light"]) .semiont-branding-text {
+  background: linear-gradient(to right, white, var(--semiont-color-primary-400), white);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.semiont-branding[data-animated="true"] .semiont-branding-title {
+  animation: fadeInUp 1s ease-out;
+}
+
+.semiont-branding-tagline {
+  color: var(--semiont-color-primary-600);
+  font-family: 'Orbitron', var(--semiont-font-sans);
+  letter-spacing: 0.025em;
+}
+
+[data-theme="dark"] .semiont-branding-tagline,
+:root:not([data-theme="light"]) .semiont-branding-tagline {
+  color: var(--semiont-color-primary-400);
+}
+
+.semiont-branding[data-compact-tagline="true"] .semiont-branding-tagline {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+}
+
+.semiont-branding[data-size="sm"] .semiont-branding-tagline {
+  font-size: 1.125rem;
+}
+
+.semiont-branding[data-size="md"] .semiont-branding-tagline {
+  font-size: 1.25rem;
+}
+
+.semiont-branding[data-size="lg"] .semiont-branding-tagline {
+  font-size: 1.25rem;
+}
+
+.semiont-branding[data-size="xl"] .semiont-branding-tagline {
+  font-size: 1.5rem;
+}
+
+.semiont-branding[data-animated="true"] .semiont-branding-tagline {
+  animation: fadeInUp 1s ease-out 0.3s both;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Annotate Toolbar */

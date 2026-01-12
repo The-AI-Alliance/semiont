@@ -22,11 +22,17 @@
 @import './components/tables.css';
 @import './components/toast.css';
 @import './components/status-display.css';
-@import './components/core-ui.css';
 @import './components/panels.css';
 @import './components/modals.css';
-@import './components/remaining.css';
+@import './components/branding.css';
+@import './components/toolbar.css';
+@import './components/cards.css';
 
 /* Features */
 @import './features/admin.css';
 @import './features/resource.css';
+@import './features/schemas.css';
+
+/* Patterns */
+@import './patterns/loading.css';
+@import './patterns/errors.css';

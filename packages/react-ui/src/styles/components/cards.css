@@ -1,0 +1,28 @@
+.semiont-stat-card {
+[data-theme="dark"] .semiont-stat-card,
+:root:not([data-theme="light"]) .semiont-stat-card {
+.semiont-stat-card--loading {
+.semiont-stat-card__content {
+.semiont-stat-card__icon-wrapper {
+.semiont-stat-card__icon {
+.semiont-stat-card__icon--primary {
+[data-theme="dark"] .semiont-stat-card__icon--primary,
+:root:not([data-theme="light"]) .semiont-stat-card__icon--primary {
+.semiont-stat-card__icon--danger {
+[data-theme="dark"] .semiont-stat-card__icon--danger,
+:root:not([data-theme="light"]) .semiont-stat-card__icon--danger {
+.semiont-stat-card__icon--warning {
+[data-theme="dark"] .semiont-stat-card__icon--warning,
+:root:not([data-theme="light"]) .semiont-stat-card__icon--warning {
+.semiont-stat-card__text {
+.semiont-stat-card__label {
+[data-theme="dark"] .semiont-stat-card__label,
+:root:not([data-theme="light"]) .semiont-stat-card__label {
+.semiont-stat-card__value {
+[data-theme="dark"] .semiont-stat-card__value,
+:root:not([data-theme="light"]) .semiont-stat-card__value {
+.semiont-stat-card__status-indicator {
+.semiont-stat-card__status-indicator--active {
+[data-theme="dark"] .semiont-stat-card__status-indicator--active,
+:root:not([data-theme="light"]) .semiont-stat-card__status-indicator--active {
+.semiont-stat-card__status-dot {
