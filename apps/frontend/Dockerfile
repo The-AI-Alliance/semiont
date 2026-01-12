@@ -15,7 +15,7 @@ COPY apps/frontend/package.json ./apps/frontend/
 
 # Install semiont packages from npm at specified version
 # This replaces workspace dependencies with published packages
-RUN npm install @semiont/api-client@${SEMIONT_VERSION} @semiont/react-ui@${SEMIONT_VERSION} --workspace=apps/frontend
+RUN npm install @semiont/api-client@${SEMIONT_VERSION} @semiont/react-ui@${SEMIONT_VERSION} @semiont/ontology@${SEMIONT_VERSION} --workspace=apps/frontend
 
 # Install all other dependencies
 RUN npm ci
@@ -23,6 +23,10 @@ RUN npm ci
 # Copy frontend source only
 COPY apps/frontend ./apps/frontend
 COPY tsconfig.json ./
+
+# Copy favicon source files for the build script
+# The copy-favicons.js script expects these at ../../../packages/react-ui/public/favicons
+COPY packages/react-ui/public/favicons ./packages/react-ui/public/favicons
 
 # Build frontend (this creates the .next directory with standalone output)
 WORKDIR /app/apps/frontend
