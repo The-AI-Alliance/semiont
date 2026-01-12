@@ -58,77 +58,77 @@ function UserTableRow({
     deleteUser: string;
   };
 }) {
-  const roleColors = {
-    admin: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
-    user: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+  const roleClasses = {
+    admin: 'semiont-badge semiont-badge--danger',
+    user: 'semiont-badge semiont-badge--default'
   };
 
-  const statusColors = {
-    active: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-    inactive: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+  const statusClasses = {
+    active: 'semiont-badge semiont-badge--success',
+    inactive: 'semiont-badge semiont-badge--default'
   };
 
   const role = user.isAdmin ? 'admin' : 'user';
   const status = user.isActive ? 'active' : 'inactive';
 
   return (
-    <tr className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-      <td className="px-6 py-4 whitespace-nowrap">
-        <div className="flex items-center">
-          <UserCircleIcon className="h-8 w-8 text-gray-600 dark:text-gray-400 mr-3" />
+    <tr className="semiont-table__row">
+      <td className="semiont-table__cell">
+        <div className="semiont-user-info">
+          <UserCircleIcon className="semiont-user-info__avatar" />
           <div>
-            <div className="text-sm font-medium text-gray-900 dark:text-white">
+            <div className="semiont-user-info__name">
               {user.name || t.noName}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="semiont-user-info__email">
               {user.email}
             </div>
           </div>
         </div>
       </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span className="text-sm text-gray-600 dark:text-gray-400">
+      <td className="semiont-table__cell">
+        <span className="semiont-table__text--secondary">
           @{user.domain}
         </span>
       </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleColors[role]}`}>
+      <td className="semiont-table__cell">
+        <span className={roleClasses[role]}>
           {t[role]}
         </span>
       </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[status]}`}>
+      <td className="semiont-table__cell">
+        <span className={statusClasses[status]}>
           {t[status]}
         </span>
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+      <td className="semiont-table__cell semiont-table__text--secondary">
         {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : t.never}
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+      <td className="semiont-table__cell semiont-table__text--secondary">
         {new Date(user.created).toLocaleDateString()}
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-        <div className="flex items-center justify-end space-x-2">
+      <td className="semiont-table__cell semiont-table__cell--actions">
+        <div className="semiont-table__actions">
           <button
             onClick={() => onUpdate(user.id, { isAdmin: !user.isAdmin })}
-            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+            className="semiont-action-button semiont-action-button--info"
             title={user.isAdmin ? t.removeAdmin : t.makeAdmin}
           >
-            <ShieldCheckIcon className="h-4 w-4" />
+            <ShieldCheckIcon className="semiont-action-button__icon" />
           </button>
           <button
             onClick={() => onUpdate(user.id, { isActive: !user.isActive })}
-            className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300"
+            className="semiont-action-button semiont-action-button--warning"
             title={user.isActive ? t.deactivateUser : t.activateUser}
           >
-            <PencilIcon className="h-4 w-4" />
+            <PencilIcon className="semiont-action-button__icon" />
           </button>
           <button
             onClick={() => onDelete(user.id)}
-            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+            className="semiont-action-button semiont-action-button--danger"
             title={t.deleteUser}
           >
-            <TrashIcon className="h-4 w-4" />
+            <TrashIcon className="semiont-action-button__icon" />
           </button>
         </div>
       </td>
@@ -253,8 +253,8 @@ export function AdminUsersPage({
                 {t.subtitle}
               </p>
             </div>
-            <button onClick={onAddUser} className={`${buttonStyles.primary.base} inline-flex items-center`}>
-              <PlusIcon className="-ml-1 mr-2 h-4 w-4" />
+            <button onClick={onAddUser} className={buttonStyles.primary.base}>
+              <PlusIcon className="semiont-button__icon" />
               {t.addUser}
             </button>
           </div>
@@ -263,64 +263,64 @@ export function AdminUsersPage({
           <div className="semiont-admin__stats-grid">
             {isLoadingStats ? (
               Array(4).fill(0).map((_, i) => (
-                <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 animate-pulse">
-                  <div className="flex items-center">
-                    <div className="h-8 w-8 bg-gray-300 dark:bg-gray-600 rounded"></div>
-                    <div className="ml-4 flex-1">
-                      <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-20 mb-2"></div>
-                      <div className="h-8 bg-gray-300 dark:bg-gray-600 rounded w-12"></div>
+                <div key={i} className="semiont-stat-card semiont-stat-card--loading">
+                  <div className="semiont-stat-card__content">
+                    <div className="semiont-skeleton semiont-skeleton--icon"></div>
+                    <div className="semiont-stat-card__text">
+                      <div className="semiont-skeleton semiont-skeleton--text"></div>
+                      <div className="semiont-skeleton semiont-skeleton--number"></div>
                     </div>
                   </div>
                 </div>
               ))
             ) : (
               <>
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <UserCircleIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                <div className="semiont-stat-card">
+                  <div className="semiont-stat-card__content">
+                    <div className="semiont-stat-card__icon-wrapper">
+                      <UserCircleIcon className="semiont-stat-card__icon semiont-stat-card__icon--primary" />
                     </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t.totalUsers}</p>
-                      <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats?.totalUsers ?? 0}</p>
+                    <div className="semiont-stat-card__text">
+                      <p className="semiont-stat-card__label">{t.totalUsers}</p>
+                      <p className="semiont-stat-card__value">{userStats?.totalUsers ?? 0}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <div className="semiont-stat-card">
+                  <div className="semiont-stat-card__content">
+                    <div className="semiont-stat-card__icon-wrapper">
+                      <div className="semiont-stat-card__status-indicator semiont-stat-card__status-indicator--active">
+                        <div className="semiont-stat-card__status-dot"></div>
                       </div>
                     </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t.activeUsers}</p>
-                      <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats?.activeUsers ?? 0}</p>
+                    <div className="semiont-stat-card__text">
+                      <p className="semiont-stat-card__label">{t.activeUsers}</p>
+                      <p className="semiont-stat-card__value">{userStats?.activeUsers ?? 0}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <ShieldCheckIcon className="h-8 w-8 text-red-600 dark:text-red-400" />
+                <div className="semiont-stat-card">
+                  <div className="semiont-stat-card__content">
+                    <div className="semiont-stat-card__icon-wrapper">
+                      <ShieldCheckIcon className="semiont-stat-card__icon semiont-stat-card__icon--danger" />
                     </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t.administrators}</p>
-                      <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats?.adminUsers ?? 0}</p>
+                    <div className="semiont-stat-card__text">
+                      <p className="semiont-stat-card__label">{t.administrators}</p>
+                      <p className="semiont-stat-card__value">{userStats?.adminUsers ?? 0}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <ExclamationTriangleIcon className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
+                <div className="semiont-stat-card">
+                  <div className="semiont-stat-card__content">
+                    <div className="semiont-stat-card__icon-wrapper">
+                      <ExclamationTriangleIcon className="semiont-stat-card__icon semiont-stat-card__icon--warning" />
                     </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t.recentUsers}</p>
-                      <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats?.recentSignups?.length ?? 0}</p>
+                    <div className="semiont-stat-card__text">
+                      <p className="semiont-stat-card__label">{t.recentUsers}</p>
+                      <p className="semiont-stat-card__value">{userStats?.recentSignups?.length ?? 0}</p>
                     </div>
                   </div>
                 </div>
@@ -331,18 +331,18 @@ export function AdminUsersPage({
           {/* Filters and Search */}
           <div className="semiont-admin__filters-card">
             <div className="semiont-admin__filters-grid">
-              <div>
-                <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <div className="semiont-form__field">
+                <label htmlFor="search" className="semiont-form__label">
                   {t.searchUsers}
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <MagnifyingGlassIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                <div className="semiont-search-input">
+                  <div className="semiont-search-input__icon">
+                    <MagnifyingGlassIcon className="semiont-icon semiont-icon--small" />
                   </div>
                   <input
                     type="text"
                     id="search"
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className="semiont-search-input__field"
                     placeholder={t.searchPlaceholder}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -350,13 +350,13 @@ export function AdminUsersPage({
                 </div>
               </div>
 
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <div className="semiont-form__field">
+                <label htmlFor="role" className="semiont-form__label">
                   {t.role}
                 </label>
                 <select
                   id="role"
-                  className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="semiont-form__select"
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
                 >
@@ -366,13 +366,13 @@ export function AdminUsersPage({
                 </select>
               </div>
 
-              <div>
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <div className="semiont-form__field">
+                <label htmlFor="status" className="semiont-form__label">
                   {t.status}
                 </label>
                 <select
                   id="status"
-                  className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="semiont-form__select"
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
                 >
@@ -382,8 +382,8 @@ export function AdminUsersPage({
                 </select>
               </div>
 
-              <div className="flex items-end">
-                <button onClick={onExportUsers} className={`${buttonStyles.secondary.base} w-full`}>
+              <div className="semiont-form__field semiont-form__field--align-end">
+                <button onClick={onExportUsers} className={`${buttonStyles.secondary.base} semiont-button--full-width`}>
                   {t.exportUsers}
                 </button>
               </div>
@@ -392,40 +392,40 @@ export function AdminUsersPage({
 
           {/* Users Table */}
           <div className="semiont-admin__table-card">
-            <div className="overflow-x-auto">
+            <div className="semiont-table-container">
               {isLoadingUsers ? (
-                <div className="p-6 text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">{t.loadingUsers}</p>
+                <div className="semiont-loading-state">
+                  <div className="semiont-spinner"></div>
+                  <p className="semiont-loading-state__text">{t.loadingUsers}</p>
                 </div>
               ) : (
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-900">
+                <table className="semiont-table">
+                  <thead className="semiont-table__head">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="semiont-table__header">
                         {t.userColumn}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="semiont-table__header">
                         {t.domainColumn}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="semiont-table__header">
                         {t.roleColumn}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="semiont-table__header">
                         {t.statusColumn}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="semiont-table__header">
                         {t.lastLoginColumn}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="semiont-table__header">
                         {t.joinedColumn}
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="semiont-table__header semiont-table__header--actions">
                         {t.actionsColumn}
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="semiont-table__body">
                     {filteredUsers.map((user) => (
                       <UserTableRow
                         key={user.id}
@@ -441,10 +441,10 @@ export function AdminUsersPage({
             </div>
 
             {!isLoadingUsers && filteredUsers.length === 0 && (
-              <div className="p-6 text-center">
-                <UserCircleIcon className="mx-auto h-12 w-12 text-gray-600 dark:text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">{t.noUsersFound}</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              <div className="semiont-empty-state">
+                <UserCircleIcon className="semiont-empty-state__icon" />
+                <h3 className="semiont-empty-state__title">{t.noUsersFound}</h3>
+                <p className="semiont-empty-state__description">
                   {t.noUsersFoundDescription}
                 </p>
               </div>

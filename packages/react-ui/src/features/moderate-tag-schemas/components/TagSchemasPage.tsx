@@ -46,22 +46,10 @@ const domainIcons: Record<string, React.ComponentType<any>> = {
   general: LightBulbIcon
 };
 
-const domainColors = {
-  legal: {
-    bg: 'bg-purple-100 dark:bg-purple-900/20',
-    text: 'text-purple-600 dark:text-purple-400',
-    border: 'border-purple-200 dark:border-purple-800'
-  },
-  scientific: {
-    bg: 'bg-green-100 dark:bg-green-900/20',
-    text: 'text-green-600 dark:text-green-400',
-    border: 'border-green-200 dark:border-green-800'
-  },
-  general: {
-    bg: 'bg-orange-100 dark:bg-orange-900/20',
-    text: 'text-orange-600 dark:text-orange-400',
-    border: 'border-orange-200 dark:border-orange-800'
-  }
+const domainClasses = {
+  legal: 'semiont-schema-domain--legal',
+  scientific: 'semiont-schema-domain--scientific',
+  general: 'semiont-schema-domain--general'
 };
 
 export function TagSchemasPage({
@@ -101,7 +89,7 @@ export function TagSchemasPage({
         <div className="semiont-card-grid semiont-card-grid--two-columns">
           {schemas.map((schema) => {
             const Icon = domainIcons[schema.domain] || LightBulbIcon;
-            const colors = domainColors[schema.domain];
+            const domainClass = domainClasses[schema.domain] || domainClasses.general;
 
             return (
               <div
@@ -109,48 +97,48 @@ export function TagSchemasPage({
                 className="semiont-card"
               >
                 {/* Schema Header */}
-                <div className="flex items-start mb-4">
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${colors.bg} mr-3`}>
-                    {Icon && <Icon className={`w-6 h-6 ${colors.text}`} />}
+                <div className="semiont-schema__header">
+                  <div className={`semiont-schema__icon-wrapper ${domainClass}`}>
+                    {Icon && <Icon className="semiont-schema__icon" />}
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{schema.name}</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  <div className="semiont-schema__content">
+                    <h3 className="semiont-schema__title">{schema.name}</h3>
+                    <p className="semiont-schema__description">
                       {schema.description}
                     </p>
-                    <span className={`inline-block mt-2 px-2 py-1 text-xs rounded-md ${colors.bg} ${colors.text} border ${colors.border}`}>
+                    <span className={`semiont-schema__badge ${domainClass}`}>
                       {schema.domain}
                     </span>
                   </div>
                 </div>
 
                 {/* Categories */}
-                <div className="space-y-3 mt-4">
-                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                <div className="semiont-schema__categories">
+                  <h4 className="semiont-schema__categories-title">
                     {t.categories}
                   </h4>
                   {schema.tags.map((tag) => (
                     <div
                       key={tag.name}
-                      className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700"
+                      className="semiont-schema__category"
                     >
-                      <div className="font-medium text-gray-900 dark:text-white text-sm mb-1">
+                      <div className="semiont-schema__category-name">
                         {tag.name}
                       </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                      <div className="semiont-schema__category-description">
                         {tag.description}
                       </div>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="semiont-schema__examples">
                         {tag.examples.slice(0, 2).map((example, idx) => (
                           <span
                             key={idx}
-                            className="inline-block px-2 py-0.5 text-xs rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                            className="semiont-schema__example"
                           >
                             {example}
                           </span>
                         ))}
                         {tag.examples.length > 2 && (
-                          <span className="inline-block px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400">
+                          <span className="semiont-schema__example-more">
                             +{tag.examples.length - 2} more
                           </span>
                         )}
