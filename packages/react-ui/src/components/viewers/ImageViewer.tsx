@@ -16,11 +16,11 @@ export function ImageViewer({ resourceUri, mimeType, alt = 'Resource image' }: I
   const imageUrl = `/api/resources/${resourceId}`;
 
   return (
-    <div className="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+    <div className="semiont-image-viewer">
       <img
         src={imageUrl}
         alt={alt}
-        className="max-w-full max-h-full object-contain"
+        className="semiont-image-viewer__image"
         style={{ imageRendering: 'auto' }}
       />
     </div>

@@ -89,22 +89,22 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="semiont-jsonld-view">
       {/* Header with back and copy buttons */}
-      <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+      <div className="semiont-jsonld-view__header">
         <button
           onClick={onBack}
-          className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 text-lg font-bold"
+          className="semiont-jsonld-view__back-button"
           title="Go back (Escape)"
         >
           &lt;
         </button>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <h3 className="semiont-jsonld-view__title">
           JSON-LD
         </h3>
         <button
           onClick={handleCopyToClipboard}
-          className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 text-sm px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+          className="semiont-jsonld-view__copy-button"
           title="Copy to clipboard"
         >
           📋 Copy
@@ -114,7 +114,7 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
       {/* JSON-LD content rendered with CodeMirror */}
       <div
         ref={editorRef}
-        className="flex-1 overflow-auto rounded-lg border border-gray-200 dark:border-gray-700"
+        className="semiont-jsonld-view__editor"
       />
     </div>
   );

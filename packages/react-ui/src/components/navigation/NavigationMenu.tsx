@@ -24,50 +24,49 @@ export function NavigationMenu({
   isModerator = false,
   brandingLink = '/',
   onItemClick,
-  className = "p-3"
+  className = ""
 }: NavigationMenuProps) {
-  const linkClassName = "w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block";
-  const dividerClassName = "my-2 border-gray-200 dark:border-gray-600";
+  const navClassName = className ? `semiont-navigation-menu ${className}` : "semiont-navigation-menu";
 
   return (
-    <nav className={className} role="menu" aria-label="Main navigation">
+    <nav className={navClassName} role="menu" aria-label="Main navigation">
       <Link
         href={brandingLink}
         {...(onItemClick && { onClick: onItemClick })}
-        className={linkClassName}
+        className="semiont-navigation-menu__link"
         role="menuitem"
         tabIndex={0}
         aria-label="Go to home page"
       >
         {t('home')}
       </Link>
-      <hr className={dividerClassName} />
+      <hr className="semiont-navigation-menu__divider" />
 
       <Link
         href={routes.knowledge?.() || '/know'}
         {...(onItemClick && { onClick: onItemClick })}
-        className={linkClassName}
+        className="semiont-navigation-menu__link"
         role="menuitem"
         tabIndex={0}
         aria-label="Go to knowledge base"
       >
         {t('know')}
       </Link>
-      <hr className={dividerClassName} />
+      <hr className="semiont-navigation-menu__divider" />
 
       {(isModerator || isAdmin) && (
         <>
           <Link
             href={routes.moderate?.() || '/moderate'}
             {...(onItemClick && { onClick: onItemClick })}
-            className={linkClassName}
+            className="semiont-navigation-menu__link"
             role="menuitem"
             tabIndex={0}
             aria-label="Access moderation dashboard"
           >
             {t('moderate')}
           </Link>
-          <hr className={dividerClassName} />
+          <hr className="semiont-navigation-menu__divider" />
         </>
       )}
 
@@ -75,7 +74,7 @@ export function NavigationMenu({
         <Link
           href={routes.admin?.() || '/admin'}
           {...(onItemClick && { onClick: onItemClick })}
-          className={linkClassName}
+          className="semiont-navigation-menu__link"
           role="menuitem"
           tabIndex={0}
           aria-label="Access admin dashboard"

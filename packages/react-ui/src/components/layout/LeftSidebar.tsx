@@ -56,12 +56,19 @@ export function LeftSidebar({
   };
 
   return (
-    <aside className={`${isCollapsed ? 'w-14' : 'w-64'} bg-white dark:bg-gray-900 shadow border-r border-gray-200 dark:border-gray-700 flex-shrink-0 flex flex-col transition-all duration-300 ease-in-out`}>
+    <aside
+      className="semiont-left-sidebar"
+      data-collapsed={isCollapsed}
+    >
       {/* Logo Header - fixed height for alignment */}
-      <div className={`${isCollapsed ? 'p-2' : 'p-4'} h-24 border-b border-gray-200 dark:border-gray-700 flex items-center justify-center`} ref={dropdownRef}>
+      <div
+        className="semiont-left-sidebar__header"
+        data-collapsed={isCollapsed}
+        ref={dropdownRef}
+      >
         <button
           onClick={toggle}
-          className="hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+          className="semiont-left-sidebar__branding-button"
           aria-label="Navigation menu"
           aria-expanded={isOpen}
           aria-controls="sidebar-nav-dropdown"
@@ -70,8 +77,8 @@ export function LeftSidebar({
         >
           {isCollapsed ? (
             // Collapsed: Just show "S" with gradient
-            <div className="text-3xl font-bold font-orbitron">
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-gray-800 via-cyan-600 to-gray-800 dark:from-white dark:via-cyan-400 dark:to-white">
+            <div className="semiont-left-sidebar__logo-collapsed">
+              <span className="semiont-left-sidebar__logo-text">
                 S
               </span>
             </div>
@@ -91,7 +98,7 @@ export function LeftSidebar({
         {isOpen && isAuthenticated && (
           <div
             id="sidebar-nav-dropdown"
-            className="absolute left-4 top-20 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+            className="semiont-left-sidebar__dropdown"
             role="menu"
             aria-orientation="vertical"
             aria-labelledby="sidebar-nav-button"
@@ -110,7 +117,7 @@ export function LeftSidebar({
       </div>
 
       {/* Navigation Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="semiont-left-sidebar__content">
         {typeof children === 'function' ? children(isCollapsed, toggleCollapsed) : children}
       </div>
     </aside>

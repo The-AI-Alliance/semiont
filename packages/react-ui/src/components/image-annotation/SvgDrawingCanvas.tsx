@@ -284,29 +284,29 @@ export function SvgDrawingCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800"
+      className="semiont-svg-drawing-canvas"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
-      style={{ cursor: drawingMode ? 'crosshair' : 'default' }}
+      data-drawing-mode={drawingMode || 'none'}
     >
       {/* Image */}
       <img
         ref={imageRef}
         src={imageUrl}
         alt="Annotatable content"
-        className="max-w-full max-h-full object-contain"
+        className="semiont-svg-drawing-canvas__image"
         draggable={false}
       />
 
       {/* Overlay for annotations and drawing */}
       {displayDimensions && imageDimensions && (
         <div
-          className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none"
+          className="semiont-svg-drawing-canvas__overlay-container"
         >
           <div
-            className="relative"
+            className="semiont-svg-drawing-canvas__overlay"
             style={{
               width: displayDimensions.width,
               height: displayDimensions.height
@@ -330,7 +330,7 @@ export function SvgDrawingCanvas({
               const colors = getMotivationColor(selectedMotivation || null);
               return (
                 <svg
-                  className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                  className="semiont-svg-drawing-canvas__preview"
                   style={{ width: displayDimensions.width, height: displayDimensions.height }}
                 >
                   {drawingMode === 'circle' && (() => {
