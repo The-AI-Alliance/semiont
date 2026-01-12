@@ -1,0 +1,165 @@
+/**
+ * DevOps Feature Styles
+ *
+ * Styles for the Admin DevOps page components
+ */
+
+/* DevOps Feature Card */
+.semiont-devops-feature {
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  background-color: var(--semiont-color-gray-50);
+  border: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-devops-feature,
+:root:not([data-theme="light"]) .semiont-devops-feature {
+  background-color: rgba(31, 41, 55, 0.5); /* gray-800/50 */
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-devops-feature__header {
+  display: flex;
+  align-items: flex-start;
+}
+
+.semiont-devops-feature__icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  background-color: var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-devops-feature__icon-box,
+:root:not([data-theme="light"]) .semiont-devops-feature__icon-box {
+  background-color: var(--semiont-color-gray-700);
+}
+
+.semiont-devops-feature__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-devops-feature__icon,
+:root:not([data-theme="light"]) .semiont-devops-feature__icon {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-devops-feature__content {
+  margin-left: 0.75rem;
+  flex: 1;
+}
+
+.semiont-devops-feature__title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-devops-feature__title,
+:root:not([data-theme="light"]) .semiont-devops-feature__title {
+  color: var(--semiont-color-white);
+}
+
+.semiont-devops-feature__description {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-devops-feature__description,
+:root:not([data-theme="light"]) .semiont-devops-feature__description {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-devops-feature__available {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  font-family: var(--semiont-font-mono);
+  color: var(--semiont-color-blue-600);
+}
+
+[data-theme="dark"] .semiont-devops-feature__available,
+:root:not([data-theme="light"]) .semiont-devops-feature__available {
+  color: var(--semiont-color-blue-400);
+}
+
+/* Admin Info Box */
+.semiont-admin__info-box {
+  padding: 1rem;
+  background-color: var(--semiont-color-blue-50);
+  border: 1px solid var(--semiont-color-blue-200);
+  border-radius: 0.375rem;
+  margin-top: 2rem;
+}
+
+[data-theme="dark"] .semiont-admin__info-box,
+:root:not([data-theme="light"]) .semiont-admin__info-box {
+  background-color: rgba(30, 58, 138, 0.1);
+  border-color: var(--semiont-color-blue-800);
+}
+
+.semiont-admin__info-box-content {
+  display: flex;
+}
+
+.semiont-admin__info-box-icon {
+  flex-shrink: 0;
+}
+
+.semiont-admin__info-box-text {
+  margin-left: 0.75rem;
+}
+
+.semiont-admin__info-box-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--semiont-color-blue-800);
+}
+
+[data-theme="dark"] .semiont-admin__info-box-title,
+:root:not([data-theme="light"]) .semiont-admin__info-box-title {
+  color: var(--semiont-color-blue-300);
+}
+
+.semiont-admin__info-box-description {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--semiont-color-blue-700);
+}
+
+[data-theme="dark"] .semiont-admin__info-box-description,
+:root:not([data-theme="light"]) .semiont-admin__info-box-description {
+  color: var(--semiont-color-blue-400);
+}
+
+.semiont-admin__info-box-code {
+  display: block;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background-color: var(--semiont-color-blue-100);
+  border-radius: 0.25rem;
+  font-family: var(--semiont-font-mono);
+  font-size: 0.75rem;
+}
+
+[data-theme="dark"] .semiont-admin__info-box-code,
+:root:not([data-theme="light"]) .semiont-admin__info-box-code {
+  background-color: rgba(30, 58, 138, 0.5);
+}
+
+/* Icon utilities for info state */
+.semiont-icon--info {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--semiont-color-blue-600);
+}
+
+[data-theme="dark"] .semiont-icon--info,
+:root:not([data-theme="light"]) .semiont-icon--info {
+  color: var(--semiont-color-blue-400);
+}

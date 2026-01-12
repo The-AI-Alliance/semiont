@@ -419,20 +419,20 @@ export function ResourceComposePage({
           {!isClone && !isReferenceCompletion && inputMethod === 'upload' && (
             <div className="semiont-form__upload-section">
               <div>
-                <div className="flex items-center gap-4">
-                  <label className="flex-1 cursor-pointer">
-                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+                <div className="semiont-form__upload-container">
+                  <label className="semiont-form__upload-dropzone">
+                    <div className="semiont-form__upload-area">
                       <input
                         type="file"
                         accept="text/plain,text/markdown,image/png,image/jpeg"
                         onChange={handleFileUpload}
-                        className="hidden"
+                        className="semiont-form__upload-input"
                         disabled={isCreating}
                       />
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="semiont-form__upload-text">
                         {uploadedFile ? uploadedFile.name : t.dropFileOrClick}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      <p className="semiont-form__upload-hint">
                         {t.supportedFormats}
                       </p>
                     </div>
@@ -445,7 +445,7 @@ export function ResourceComposePage({
                         setFilePreviewUrl(null);
                         setFileMimeType('text/markdown');
                       }}
-                      className="px-3 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                      className="semiont-button semiont-button--danger semiont-button--small"
                       disabled={isCreating}
                     >
                       Clear
@@ -456,24 +456,24 @@ export function ResourceComposePage({
 
               {/* Media Type Display - Auto-detected */}
               {uploadedFile && (
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">{t.mediaType}:</span>
-                  <code className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-gray-900 dark:text-gray-100">
+                <div className="semiont-form__media-type">
+                  <span className="semiont-form__media-type-label">{t.mediaType}:</span>
+                  <code className="semiont-form__media-type-value">
                     {fileMimeType}
                   </code>
-                  <span className="text-gray-500" title={t.autoDetected}>🔒</span>
+                  <span className="semiont-form__media-type-lock" title={t.autoDetected}>🔒</span>
                 </div>
               )}
 
               {/* Image Preview */}
               {uploadedFile && filePreviewUrl && isImageMimeType(fileMimeType) && (
-                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preview:</p>
-                  <div className="max-h-96 overflow-hidden rounded">
+                <div className="semiont-form__image-preview">
+                  <p className="semiont-form__image-preview-label">Preview:</p>
+                  <div className="semiont-form__image-preview-container">
                     <img
                       src={filePreviewUrl}
                       alt="Upload preview"
-                      className="max-w-full h-auto"
+                      className="semiont-form__image-preview-img"
                     />
                   </div>
                 </div>

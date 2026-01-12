@@ -177,11 +177,11 @@ export function ReferencesPanel({
             <div className="semiont-detect-widget" data-type="reference">
             <>
               {/* Entity Types Selection */}
-              <div className="mb-4">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <div className="semiont-detect-widget__entity-types">
+                <p className="semiont-detect-widget__label">
                   {t('selectEntityTypes')}
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="semiont-detect-widget__chips">
                   {allEntityTypes.length > 0 ? (
                     allEntityTypes.map((type: string) => (
                       <button
@@ -195,17 +195,14 @@ export function ReferencesPanel({
                         }}
                         aria-pressed={selectedEntityTypes.includes(type)}
                         aria-label={`${selectedEntityTypes.includes(type) ? t('deselect') : t('select')} ${type}`}
-                        className={`px-3 py-1 text-sm rounded-full transition-colors border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          selectedEntityTypes.includes(type)
-                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
-                            : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
+                        className="semiont-chip semiont-chip--selectable"
+                        data-selected={selectedEntityTypes.includes(type)}
                       >
                         {type}
                       </button>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="semiont-detect-widget__no-types">
                       {t('noEntityTypes')}
                     </p>
                   )}
@@ -214,23 +211,23 @@ export function ReferencesPanel({
 
               {/* Selected Count */}
               {selectedEntityTypes.length > 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-4">
+                <p className="semiont-detect-widget__count">
                   {t('typesSelected', { count: selectedEntityTypes.length })}
                 </p>
               )}
 
               {/* Include Descriptive References Checkbox */}
-              <div className="mb-4">
-                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+              <div className="semiont-detect-widget__checkbox-group">
+                <label className="semiont-detect-widget__checkbox-label">
                   <input
                     type="checkbox"
                     checked={includeDescriptiveReferences}
                     onChange={(e) => setIncludeDescriptiveReferences(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
+                    className="semiont-detect-widget__checkbox"
                   />
                   <span>{tRef('includeDescriptiveReferences')}</span>
                 </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
+                <p className="semiont-detect-widget__checkbox-hint">
                   {tRef('descriptiveReferencesTooltip')}
                 </p>
               </div>
@@ -240,13 +237,10 @@ export function ReferencesPanel({
                 onClick={handleDetect}
                 disabled={selectedEntityTypes.length === 0}
                 title={t('startDetection')}
-                className={`w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium ${
-                  selectedEntityTypes.length > 0
-                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                }`}
+                className="semiont-detect-widget__button"
+                data-enabled={selectedEntityTypes.length > 0}
               >
-                <span className="text-2xl">✨</span>
+                <span className="semiont-detect-widget__button-icon">✨</span>
               </button>
             </>
             </div>
@@ -262,19 +256,19 @@ export function ReferencesPanel({
 
           {/* Completed detection log - shown after completion */}
           {!detectionProgress && lastDetectionLog && lastDetectionLog.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 space-y-3">
-              <div className="space-y-1">
+            <div className="semiont-detect-widget__log">
+              <div className="semiont-detect-widget__log-items">
                 {lastDetectionLog.map((item, index) => (
-                  <div key={index} className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                    <span className="text-green-600 dark:text-green-400">✓</span>
-                    <span className="font-medium">{item.entityType}:</span>
+                  <div key={index} className="semiont-detect-widget__log-item">
+                    <span className="semiont-detect-widget__log-check">✓</span>
+                    <span className="semiont-detect-widget__log-type">{item.entityType}:</span>
                     <span>{t('found', { count: item.foundCount })}</span>
                   </div>
                 ))}
               </div>
               <button
                 onClick={() => setLastDetectionLog(null)}
-                className="w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg"
+                className="semiont-detect-widget__button semiont-detect-widget__button--gradient"
               >
                 {t('more')}
               </button>
@@ -285,15 +279,15 @@ export function ReferencesPanel({
 
         {/* References List Section */}
         <div>
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+          <div className="semiont-panel__divider">
+            <h3 className="semiont-panel__subtitle">
               {tRef('outgoingReferences')} ({sortedAnnotations.length})
             </h3>
           </div>
 
-          <div className="space-y-3">
+          <div className="semiont-panel__list">
             {sortedAnnotations.length === 0 ? (
-              <p className="text-gray-500 dark:text-gray-400 text-sm">
+              <p className="semiont-panel__empty-message">
                 {tRef('noReferences')}
               </p>
             ) : (
@@ -318,36 +312,36 @@ export function ReferencesPanel({
 
         {/* Referenced By Section */}
         <div>
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+          <div className="semiont-panel__divider">
+            <h3 className="semiont-panel__subtitle">
               {tRef('incomingReferences')} ({referencedBy.length})
               {referencedByLoading && (
-                <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">({tRef('loading')})</span>
+                <span className="semiont-panel__loading-indicator">({tRef('loading')})</span>
               )}
             </h3>
           </div>
 
           {referencedBy.length > 0 ? (
-            <div className="space-y-2">
+            <div className="semiont-panel__list">
               {referencedBy.map((ref) => {
                 // Extract resource ID from full URI (e.g., "http://localhost:4000/resources/abc123" -> "abc123")
                 const resourceId = ref.target.source.split('/').pop() || '';
 
                 return (
-                  <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                  <div key={ref.id} className="semiont-reference-item semiont-reference-item--incoming">
+                    <div className="semiont-reference-item__header">
+                      <span className="semiont-reference-item__title">
                         {ref.resourceName || tRef('untitledResource')}
                       </span>
                       <Link
                         href={routes.resourceDetail(resourceId)}
-                        className="text-lg hover:opacity-70 transition-opacity flex-shrink-0"
+                        className="semiont-reference-item__link"
                         title={tRef('open')}
                       >
                         🔗
                       </Link>
                     </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
+                    <span className="semiont-reference-item__excerpt">
                       "{ref.target.selector?.exact || tRef('noText')}"
                     </span>
                   </div>
@@ -355,7 +349,7 @@ export function ReferencesPanel({
               })}
             </div>
           ) : (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="semiont-panel__empty-message semiont-panel__empty-message--small">
               {referencedByLoading ? tRef('loadingEllipsis') : tRef('noIncomingReferences')}
             </p>
           )}

@@ -88,25 +88,25 @@ export function EntityTagsPage({
 
         {/* Entity Tags Management */}
         <div className="semiont-card">
-          <div className="flex items-start mb-6">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 mr-3">
-              <TagIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          <div className="semiont-entity-tags__header">
+            <div className="semiont-entity-tags__icon-box">
+              <TagIcon className="semiont-entity-tags__icon" />
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.sectionTitle}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <div className="semiont-entity-tags__content">
+              <h3 className="semiont-entity-tags__title">{t.sectionTitle}</h3>
+              <p className="semiont-entity-tags__description">
                 {t.sectionDescription}
               </p>
             </div>
           </div>
 
           {/* Existing tags */}
-          <div className="mb-6">
-            <div className="flex flex-wrap gap-2">
+          <div className="semiont-entity-tags__tags-section">
+            <div className="semiont-entity-tags__tags-list">
               {entityTypes.map((tag: string) => (
                 <span
                   key={tag}
-                  className="px-3 py-1 rounded-md text-sm border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                  className="semiont-entity-tags__tag"
                 >
                   {tag}
                 </span>
@@ -115,26 +115,26 @@ export function EntityTagsPage({
           </div>
 
           {/* Add new tag */}
-          <div className="flex items-center gap-2">
+          <div className="semiont-entity-tags__input-group">
             <input
               type="text"
               value={newTag}
               onChange={(e) => onNewTagChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={t.inputPlaceholder}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+              className="semiont-entity-tags__input"
               disabled={isAddingTag}
             />
             <button
               onClick={onAddTag}
               disabled={isAddingTag || !newTag.trim()}
-              className="px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-blue-600 hover:bg-blue-700 text-white"
+              className="semiont-button semiont-button--primary"
             >
               {isAddingTag ? (
                 t.adding
               ) : (
                 <>
-                  <PlusIcon className="w-5 h-5 inline-block mr-1" />
+                  <PlusIcon className="semiont-icon semiont-icon--small semiont-icon--inline" />
                   {t.addTag}
                 </>
               )}
@@ -143,8 +143,8 @@ export function EntityTagsPage({
 
           {/* Error message */}
           {error && (
-            <div className="mt-3 flex items-center text-red-600 dark:text-red-400 text-sm">
-              <ExclamationCircleIcon className="w-4 h-4 mr-1" />
+            <div className="semiont-entity-tags__error">
+              <ExclamationCircleIcon className="semiont-entity-tags__error-icon" />
               {error}
             </div>
           )}

@@ -27,11 +27,17 @@
 @import './components/branding.css';
 @import './components/toolbar.css';
 @import './components/cards.css';
+@import './components/references.css';
 
 /* Features */
 @import './features/admin.css';
+@import './features/compose.css';
+@import './features/devops.css';
+@import './features/entity-tags.css';
+@import './features/recent-docs.css';
 @import './features/resource.css';
 @import './features/schemas.css';
+@import './features/welcome.css';
 
 /* Patterns */
 @import './patterns/loading.css';

@@ -72,24 +72,24 @@ export function RecentDocumentsPage({
 
         {/* Recent Documents Section */}
         <div className="semiont-card">
-          <div className="flex items-start mb-4">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-900/20 mr-3">
-              <ClockIcon className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+          <div className="semiont-recent-docs__header">
+            <div className="semiont-recent-docs__icon-box">
+              <ClockIcon className="semiont-recent-docs__icon" />
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.sectionTitle}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <div className="semiont-recent-docs__content">
+              <h3 className="semiont-recent-docs__title">{t.sectionTitle}</h3>
+              <p className="semiont-recent-docs__description">
                 {t.sectionDescription}
               </p>
             </div>
           </div>
 
-          <div className="text-center py-12">
-            <svg className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="semiont-recent-docs__empty-state">
+            <svg className="semiont-recent-docs__empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-gray-500 dark:text-gray-400">{t.noDocuments}</p>
-            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+            <p className="semiont-recent-docs__empty-message">{t.noDocuments}</p>
+            <p className="semiont-recent-docs__empty-hint">
               {t.activityWillAppear}
             </p>
           </div>

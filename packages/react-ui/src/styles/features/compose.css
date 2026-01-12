@@ -1,0 +1,155 @@
+/**
+ * Resource Compose Page Styles
+ *
+ * Styles for the resource creation and editing interface
+ */
+
+/* Page Layout */
+.semiont-page__compose {
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+/* Form Upload Section */
+.semiont-form__upload-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.semiont-form__upload-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.semiont-form__upload-dropzone {
+  flex: 1;
+  cursor: pointer;
+}
+
+.semiont-form__upload-area {
+  border: 2px dashed var(--semiont-color-gray-300);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  text-align: center;
+  transition: border-color 0.15s;
+}
+
+[data-theme="dark"] .semiont-form__upload-area,
+:root:not([data-theme="light"]) .semiont-form__upload-area {
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-form__upload-area:hover {
+  border-color: var(--semiont-color-blue-500);
+}
+
+[data-theme="dark"] .semiont-form__upload-area:hover,
+:root:not([data-theme="light"]) .semiont-form__upload-area:hover {
+  border-color: var(--semiont-color-blue-400);
+}
+
+.semiont-form__upload-input {
+  display: none;
+}
+
+.semiont-form__upload-text {
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-form__upload-text,
+:root:not([data-theme="light"]) .semiont-form__upload-text {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-form__upload-hint {
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-500);
+  margin-top: 0.25rem;
+}
+
+/* Media Type Display */
+.semiont-form__media-type {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.semiont-form__media-type-label {
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-form__media-type-label,
+:root:not([data-theme="light"]) .semiont-form__media-type-label {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-form__media-type-value {
+  padding: 0.125rem 0.5rem;
+  background-color: var(--semiont-color-gray-100);
+  border-radius: 0.25rem;
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-form__media-type-value,
+:root:not([data-theme="light"]) .semiont-form__media-type-value {
+  background-color: var(--semiont-color-gray-800);
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-form__media-type-lock {
+  color: var(--semiont-color-gray-500);
+}
+
+/* Image Preview */
+.semiont-form__image-preview {
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+[data-theme="dark"] .semiont-form__image-preview,
+:root:not([data-theme="light"]) .semiont-form__image-preview {
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-form__image-preview-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--semiont-color-gray-700);
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-form__image-preview-label,
+:root:not([data-theme="light"]) .semiont-form__image-preview-label {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-form__image-preview-container {
+  max-height: 24rem;
+  overflow: hidden;
+  border-radius: 0.25rem;
+}
+
+.semiont-form__image-preview-img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Button Variants */
+.semiont-button--danger {
+  background-color: var(--semiont-color-red-600);
+  color: white;
+}
+
+.semiont-button--danger:hover {
+  background-color: var(--semiont-color-red-700);
+}
+
+.semiont-button--small {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}

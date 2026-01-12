@@ -137,7 +137,7 @@ export function WelcomePage({
           </div>
 
           <div className="semiont-welcome-page__terms-content">
-            <div className="prose dark:prose-invert max-w-none text-sm">
+            <div className="semiont-welcome-page__prose">
               <h3>{t.termsSummaryTitle}</h3>
               <p>{t.termsSummaryIntro}</p>
 
@@ -169,7 +169,7 @@ export function WelcomePage({
                   href="https://ai-alliance.cdn.prismic.io/ai-alliance/Zl-MG5m069VX1dgH_AIAllianceCodeofConduct.pdf"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                  className="semiont-link"
                 >
                   {t.conductLink}
                 </a>
@@ -184,7 +184,7 @@ export function WelcomePage({
                 <li>{t.responsibilitiesComply}</li>
               </ul>
 
-              <p className="mt-4 font-medium">
+              <p className="semiont-welcome-page__warning">
                 {t.violationsWarning}
               </p>
             </div>

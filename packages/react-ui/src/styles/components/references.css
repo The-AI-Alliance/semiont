@@ -1,0 +1,357 @@
+/**
+ * References Panel Component Styles
+ *
+ * Styles for reference entries, detection widget, and incoming references
+ */
+
+/* Detection Widget */
+.semiont-detect-widget__entity-types {
+  margin-bottom: 1rem;
+}
+
+.semiont-detect-widget__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--semiont-color-gray-700);
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-detect-widget__label,
+:root:not([data-theme="light"]) .semiont-detect-widget__label {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-detect-widget__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.semiont-detect-widget__no-types {
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-500);
+}
+
+[data-theme="dark"] .semiont-detect-widget__no-types,
+:root:not([data-theme="light"]) .semiont-detect-widget__no-types {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-detect-widget__count {
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-500);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .semiont-detect-widget__count,
+:root:not([data-theme="light"]) .semiont-detect-widget__count {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Checkbox Group */
+.semiont-detect-widget__checkbox-group {
+  margin-bottom: 1rem;
+}
+
+.semiont-detect-widget__checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-700);
+  cursor: pointer;
+}
+
+[data-theme="dark"] .semiont-detect-widget__checkbox-label,
+:root:not([data-theme="light"]) .semiont-detect-widget__checkbox-label {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-detect-widget__checkbox {
+  border-radius: 0.25rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  color: var(--semiont-color-blue-600);
+}
+
+[data-theme="dark"] .semiont-detect-widget__checkbox,
+:root:not([data-theme="light"]) .semiont-detect-widget__checkbox {
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-detect-widget__checkbox:focus {
+  outline: 2px solid var(--semiont-color-blue-500);
+  outline-offset: 2px;
+}
+
+.semiont-detect-widget__checkbox-hint {
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-500);
+  margin-top: 0.25rem;
+  margin-left: 1.5rem;
+}
+
+[data-theme="dark"] .semiont-detect-widget__checkbox-hint,
+:root:not([data-theme="light"]) .semiont-detect-widget__checkbox-hint {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Detection Button */
+.semiont-detect-widget__button {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+}
+
+.semiont-detect-widget__button[data-enabled="false"] {
+  background-color: var(--semiont-color-gray-200);
+  color: var(--semiont-color-gray-400);
+  cursor: not-allowed;
+}
+
+[data-theme="dark"] .semiont-detect-widget__button[data-enabled="false"],
+:root:not([data-theme="light"]) .semiont-detect-widget__button[data-enabled="false"] {
+  background-color: var(--semiont-color-gray-700);
+  color: var(--semiont-color-gray-500);
+}
+
+.semiont-detect-widget__button[data-enabled="true"] {
+  background: linear-gradient(to right, var(--semiont-color-blue-600), var(--semiont-color-cyan-600));
+  color: white;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.semiont-detect-widget__button[data-enabled="true"]:hover {
+  background: linear-gradient(to right, var(--semiont-color-blue-700), var(--semiont-color-cyan-700));
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.semiont-detect-widget__button--gradient {
+  background: linear-gradient(to right, var(--semiont-color-blue-600), var(--semiont-color-cyan-600));
+  color: white;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.semiont-detect-widget__button--gradient:hover {
+  background: linear-gradient(to right, var(--semiont-color-blue-700), var(--semiont-color-cyan-700));
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.semiont-detect-widget__button-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+/* Detection Log */
+.semiont-detect-widget__log {
+  background-color: var(--semiont-color-white);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+[data-theme="dark"] .semiont-detect-widget__log,
+:root:not([data-theme="light"]) .semiont-detect-widget__log {
+  background-color: var(--semiont-color-gray-800);
+}
+
+.semiont-detect-widget__log-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.semiont-detect-widget__log-item {
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-600);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-detect-widget__log-item,
+:root:not([data-theme="light"]) .semiont-detect-widget__log-item {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-detect-widget__log-check {
+  color: var(--semiont-color-green-600);
+}
+
+[data-theme="dark"] .semiont-detect-widget__log-check,
+:root:not([data-theme="light"]) .semiont-detect-widget__log-check {
+  color: var(--semiont-color-green-400);
+}
+
+.semiont-detect-widget__log-type {
+  font-weight: 500;
+}
+
+/* Reference Item */
+.semiont-reference-item {
+  border: 1px solid var(--semiont-color-gray-200);
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-reference-item,
+:root:not([data-theme="light"]) .semiont-reference-item {
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-reference-item__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.semiont-reference-item__title {
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-700);
+  font-weight: 500;
+}
+
+[data-theme="dark"] .semiont-reference-item__title,
+:root:not([data-theme="light"]) .semiont-reference-item__title {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-reference-item__link {
+  font-size: 1.125rem;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.semiont-reference-item__link:hover {
+  opacity: 0.7;
+}
+
+.semiont-reference-item__excerpt {
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-500);
+  font-style: italic;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .semiont-reference-item__excerpt,
+:root:not([data-theme="light"]) .semiont-reference-item__excerpt {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Chip Component for Entity Types */
+.semiont-chip {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  border-radius: 9999px;
+  transition: all 0.15s;
+  border: 1px solid;
+  cursor: pointer;
+}
+
+.semiont-chip:focus {
+  outline: 2px solid var(--semiont-color-blue-500);
+  outline-offset: 2px;
+}
+
+.semiont-chip--selectable[data-selected="false"] {
+  background-color: var(--semiont-color-gray-50);
+  color: var(--semiont-color-gray-700);
+  border-color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-chip--selectable[data-selected="false"],
+:root:not([data-theme="light"]) .semiont-chip--selectable[data-selected="false"] {
+  background-color: var(--semiont-color-gray-800);
+  color: var(--semiont-color-gray-300);
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-chip--selectable[data-selected="false"]:hover {
+  background-color: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-chip--selectable[data-selected="false"]:hover,
+:root:not([data-theme="light"]) .semiont-chip--selectable[data-selected="false"]:hover {
+  background-color: var(--semiont-color-gray-700);
+}
+
+.semiont-chip--selectable[data-selected="true"] {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: var(--semiont-color-blue-700);
+  border-color: var(--semiont-color-blue-300);
+}
+
+[data-theme="dark"] .semiont-chip--selectable[data-selected="true"],
+:root:not([data-theme="light"]) .semiont-chip--selectable[data-selected="true"] {
+  background-color: rgba(59, 130, 246, 0.3);
+  color: var(--semiont-color-blue-300);
+  border-color: var(--semiont-color-blue-700);
+}
+
+/* Panel Elements */
+.semiont-panel__divider {
+  border-top: 1px solid var(--semiont-color-gray-200);
+  padding-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .semiont-panel__divider,
+:root:not([data-theme="light"]) .semiont-panel__divider {
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-panel__subtitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-panel__subtitle,
+:root:not([data-theme="light"]) .semiont-panel__subtitle {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-panel__loading-indicator {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: normal;
+  color: var(--semiont-color-gray-500);
+}
+
+[data-theme="dark"] .semiont-panel__loading-indicator,
+:root:not([data-theme="light"]) .semiont-panel__loading-indicator {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.semiont-panel__empty-message {
+  color: var(--semiont-color-gray-500);
+  font-size: 0.875rem;
+}
+
+[data-theme="dark"] .semiont-panel__empty-message,
+:root:not([data-theme="light"]) .semiont-panel__empty-message {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-panel__empty-message--small {
+  font-size: 0.75rem;
+}
