@@ -4174,3 +4174,336 @@
 :root:not([data-theme="light"]) .semiont-history-event__link:hover {
   color: var(--semiont-color-primary-300);
 }
+
+/* ============================================
+   Tier 5: Resource View Components
+   ============================================ */
+
+/* ResourceViewer Component */
+.semiont-resource-viewer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Delete Confirmation Modal */
+.semiont-delete-confirmation {
+  padding: 1.5rem;
+  background: white;
+  border-radius: var(--semiont-radius-lg);
+  max-width: 28rem;
+  width: 100%;
+}
+
+[data-theme="dark"] .semiont-delete-confirmation,
+:root:not([data-theme="light"]) .semiont-delete-confirmation {
+  background: var(--semiont-color-gray-800);
+}
+
+.semiont-delete-confirmation__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.semiont-delete-confirmation__icon {
+  font-size: 1.5rem;
+}
+
+.semiont-delete-confirmation__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-900);
+  margin: 0;
+}
+
+[data-theme="dark"] .semiont-delete-confirmation__title,
+:root:not([data-theme="light"]) .semiont-delete-confirmation__title {
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-delete-confirmation__quote {
+  padding: 0.75rem;
+  background: var(--semiont-color-gray-50);
+  border-radius: var(--semiont-radius-md);
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .semiont-delete-confirmation__quote,
+:root:not([data-theme="light"]) .semiont-delete-confirmation__quote {
+  background: var(--semiont-color-gray-900);
+}
+
+.semiont-delete-confirmation__text {
+  font-style: italic;
+  color: var(--semiont-color-gray-700);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+[data-theme="dark"] .semiont-delete-confirmation__text,
+:root:not([data-theme="light"]) .semiont-delete-confirmation__text {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-delete-confirmation__message {
+  color: var(--semiont-color-gray-600);
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+[data-theme="dark"] .semiont-delete-confirmation__message,
+:root:not([data-theme="light"]) .semiont-delete-confirmation__message {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-delete-confirmation__actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.semiont-button--danger {
+  background: var(--semiont-color-red-600);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: var(--semiont-radius-md);
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all var(--semiont-duration-base);
+}
+
+.semiont-button--danger:hover {
+  background: var(--semiont-color-red-700);
+}
+
+.semiont-button--danger:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
+}
+
+/* BrowseView Component */
+.semiont-browse-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.semiont-browse-view__content {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.semiont-browse-view[data-mime-type="text"] .semiont-browse-view__content {
+  padding: 2rem;
+  max-width: 65ch;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.semiont-browse-view[data-mime-type="image"] .semiont-browse-view__content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.semiont-browse-view--unsupported {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: var(--semiont-color-gray-50);
+}
+
+[data-theme="dark"] .semiont-browse-view--unsupported,
+:root:not([data-theme="light"]) .semiont-browse-view--unsupported {
+  background: var(--semiont-color-gray-900);
+}
+
+.semiont-browse-view__empty {
+  padding: 2rem;
+  text-align: center;
+}
+
+.semiont-browse-view__empty-message {
+  color: var(--semiont-color-gray-600);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .semiont-browse-view__empty-message,
+:root:not([data-theme="light"]) .semiont-browse-view__empty-message {
+  color: var(--semiont-color-gray-400);
+}
+
+/* AnnotateView Component */
+.semiont-annotate-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.semiont-annotate-view__content {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+  position: relative;
+}
+
+.semiont-annotate-view[data-mime-type="text"] .semiont-annotate-view__content {
+  padding: 2rem;
+  max-width: 65ch;
+  margin: 0 auto;
+  line-height: 1.8;
+}
+
+.semiont-annotate-view[data-mime-type="image"] .semiont-annotate-view__content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  position: relative;
+}
+
+.semiont-annotate-view--unsupported {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: var(--semiont-color-gray-50);
+}
+
+[data-theme="dark"] .semiont-annotate-view--unsupported,
+:root:not([data-theme="light"]) .semiont-annotate-view--unsupported {
+  background: var(--semiont-color-gray-900);
+}
+
+.semiont-annotate-view__empty {
+  padding: 2rem;
+  text-align: center;
+}
+
+.semiont-annotate-view__empty-message {
+  color: var(--semiont-color-gray-600);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .semiont-annotate-view__empty-message,
+:root:not([data-theme="light"]) .semiont-annotate-view__empty-message {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Selection Indicator for AnnotateView */
+.semiont-annotate-view__selection-indicator {
+  position: absolute;
+  pointer-events: none;
+  border: 2px dashed rgba(250, 204, 21, 0.6);
+  border-radius: 3px;
+  background-color: rgba(254, 240, 138, 0.2);
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.semiont-annotate-view__selection-indicator[data-active="true"] {
+  opacity: 1;
+  animation: selectionPulse 2s ease-in-out infinite;
+}
+
+@keyframes selectionPulse {
+  0%, 100% {
+    border-color: rgba(250, 204, 21, 0.6);
+    background-color: rgba(254, 240, 138, 0.2);
+  }
+  50% {
+    border-color: rgba(250, 204, 21, 0.9);
+    background-color: rgba(254, 240, 138, 0.3);
+  }
+}
+
+/* CodeMirrorRenderer Component */
+.semiont-codemirror {
+  height: 100%;
+  overflow: auto;
+  background: white;
+}
+
+[data-theme="dark"] .semiont-codemirror,
+:root:not([data-theme="light"]) .semiont-codemirror {
+  background: var(--semiont-color-gray-900);
+}
+
+.semiont-codemirror--source {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding: 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-codemirror--source,
+:root:not([data-theme="light"]) .semiont-codemirror--source {
+  color: var(--semiont-color-gray-100);
+}
+
+/* Shared View Patterns */
+.semiont-view-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.semiont-view-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--semiont-color-gray-200);
+  background: white;
+}
+
+[data-theme="dark"] .semiont-view-toolbar,
+:root:not([data-theme="light"]) .semiont-view-toolbar {
+  background: var(--semiont-color-gray-800);
+  border-bottom-color: var(--semiont-color-gray-700);
+}
+
+.semiont-view-content {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+/* Download Button Pattern */
+.semiont-button--download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--semiont-color-primary-500);
+  color: white;
+  border-radius: var(--semiont-radius-md);
+  font-weight: 500;
+  text-decoration: none;
+  transition: all var(--semiont-duration-base);
+  cursor: pointer;
+  border: none;
+}
+
+.semiont-button--download:hover {
+  background: var(--semiont-color-primary-600);
+}
+
+.semiont-button--download:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
