@@ -13,23 +13,30 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
 
-# Install semiont packages from npm at specified version
+# Install all dependencies first
+RUN npm ci
+
+# Then override with semiont packages from npm at specified version
 # This replaces workspace dependencies with published packages
 RUN npm install \
+  @semiont/api-client@${SEMIONT_VERSION} \
+  @semiont/content@${SEMIONT_VERSION} \
   @semiont/core@${SEMIONT_VERSION} \
   @semiont/event-sourcing@${SEMIONT_VERSION} \
   @semiont/graph@${SEMIONT_VERSION} \
   @semiont/inference@${SEMIONT_VERSION} \
   @semiont/jobs@${SEMIONT_VERSION} \
   @semiont/make-meaning@${SEMIONT_VERSION} \
+  @semiont/ontology@${SEMIONT_VERSION} \
   --workspace=apps/backend
-
-# Install all other dependencies
-RUN npm ci
 
 # Copy backend source only
 COPY apps/backend ./apps/backend
 COPY tsconfig.json ./
+
+# Copy and build OpenAPI spec (required for validation)
+COPY specs ./specs
+RUN npm run openapi:bundle
 
 # Build backend application
 WORKDIR /app/apps/backend
@@ -47,21 +54,27 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
 
-# Install semiont packages from npm at specified version
+# Install production dependencies first
+RUN npm ci --omit=dev
+
+# Then override with semiont packages from npm at specified version
 RUN npm install \
+  @semiont/api-client@${SEMIONT_VERSION} \
+  @semiont/content@${SEMIONT_VERSION} \
   @semiont/core@${SEMIONT_VERSION} \
   @semiont/event-sourcing@${SEMIONT_VERSION} \
   @semiont/graph@${SEMIONT_VERSION} \
   @semiont/inference@${SEMIONT_VERSION} \
   @semiont/jobs@${SEMIONT_VERSION} \
   @semiont/make-meaning@${SEMIONT_VERSION} \
+  @semiont/ontology@${SEMIONT_VERSION} \
   --workspace=apps/backend
-
-# Install production dependencies only
-RUN npm ci --omit=dev
 
 # Copy built artifacts from builder
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
+
+# Copy generated OpenAPI spec from builder
+COPY --from=builder /app/specs/openapi.json ./specs/openapi.json
 
 # Copy Prisma schema and generate client
 COPY --from=builder /app/apps/backend/prisma ./apps/backend/prisma
