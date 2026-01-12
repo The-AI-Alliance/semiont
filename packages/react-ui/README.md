@@ -197,6 +197,7 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 - [COMPONENTS.md](docs/COMPONENTS.md) - Component library reference
 - [ROUTING.md](docs/ROUTING.md) - Framework-agnostic routing
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Design principles and decisions
+- [STYLES.md](docs/STYLES.md) - CSS architecture and styling guide
 - [FAVICON.md](docs/FAVICON.md) - Favicon assets and usage
 - [ANNOTATIONS.md](docs/ANNOTATIONS.md) - Annotation system (coming soon)
 
