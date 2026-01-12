@@ -1,0 +1,158 @@
+/* ============================================
+   Toast Component Styles
+   ============================================ */
+
+.semiont-toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 24rem;
+}
+
+.semiont-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--semiont-radius-lg);
+  border: 1px solid;
+  box-shadow: var(--semiont-shadow-lg);
+  transition: all var(--semiont-duration-base) var(--semiont-ease);
+  transform: translateX(0);
+  animation: slideIn var(--semiont-duration-base) var(--semiont-ease);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.semiont-toast-icon-wrapper {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.semiont-toast-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.semiont-toast-message {
+  flex: 1;
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+}
+
+.semiont-toast-close {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: var(--semiont-radius-base);
+  transition: opacity var(--semiont-duration-fast) var(--semiont-ease);
+}
+
+.semiont-toast-close:hover {
+  opacity: 0.7;
+}
+
+.semiont-toast-close-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Toast Variants */
+.semiont-toast[data-variant="success"] {
+  background-color: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.semiont-toast[data-variant="error"] {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.semiont-toast[data-variant="warning"] {
+  background-color: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.semiont-toast[data-variant="info"] {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+/* Dark mode toast variants */
+@media (prefers-color-scheme: dark) {
+  .semiont-toast[data-variant="success"] {
+    background-color: rgba(34, 197, 94, 0.1);
+    border-color: #16a34a;
+    color: #86efac;
+  }
+
+  .semiont-toast[data-variant="error"] {
+    background-color: rgba(239, 68, 68, 0.1);
+    border-color: #dc2626;
+    color: #fca5a5;
+  }
+
+  .semiont-toast[data-variant="warning"] {
+    background-color: rgba(245, 158, 11, 0.1);
+    border-color: #d97706;
+    color: #fcd34d;
+  }
+
+  .semiont-toast[data-variant="info"] {
+    background-color: rgba(59, 130, 246, 0.1);
+    border-color: #2563eb;
+    color: #93c5fd;
+  }
+}
+
+[data-theme="dark"] {
+  .semiont-toast[data-variant="success"] {
+    background-color: rgba(34, 197, 94, 0.1);
+    border-color: #16a34a;
+    color: #86efac;
+  }
+
+  .semiont-toast[data-variant="error"] {
+    background-color: rgba(239, 68, 68, 0.1);
+    border-color: #dc2626;
+    color: #fca5a5;
+  }
+
+  .semiont-toast[data-variant="warning"] {
+    background-color: rgba(245, 158, 11, 0.1);
+    border-color: #d97706;
+    color: #fcd34d;
+  }
+
+  .semiont-toast[data-variant="info"] {
+    background-color: rgba(59, 130, 246, 0.1);
+    border-color: #2563eb;
+    color: #93c5fd;
+  }
+}
+

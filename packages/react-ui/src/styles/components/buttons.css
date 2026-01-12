@@ -1,0 +1,406 @@
+/**
+ * Button Component Styles
+ *
+ * Data-attribute based button styling system
+ * Supports variants, sizes, states, and groups
+ */
+
+/* ============================================
+   Button Component Styles
+   ============================================ */
+
+.semiont-button {
+  /* Base styles */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--semiont-font-sans);
+  font-weight: var(--semiont-font-medium);
+  line-height: var(--semiont-leading-snug);
+  border: none;
+  outline: none;
+  cursor: pointer;
+  transition: all var(--semiont-duration-base) var(--semiont-ease);
+  user-select: none;
+  white-space: nowrap;
+  text-decoration: none;
+
+  /* Focus styles */
+  &:focus-visible {
+    outline: 2px solid var(--semiont-color-primary-500);
+    outline-offset: 2px;
+  }
+
+  /* Disabled state */
+  &:disabled,
+  &[data-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+/* Button content wrapper */
+.semiont-button-content {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Button icons */
+.semiont-button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.semiont-button-icon-left {
+  margin-right: var(--semiont-spacing-sm);
+}
+
+.semiont-button-icon-right {
+  margin-left: var(--semiont-spacing-sm);
+}
+
+/* Loading spinner */
+.semiont-button-spinner {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+}
+
+.semiont-spinner-svg {
+  animation: spin 1s linear infinite;
+  width: 1.25em;
+  height: 1.25em;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Hide content when loading */
+.semiont-button[data-loading="true"] .semiont-button-content,
+.semiont-button[data-loading="true"] .semiont-button-icon {
+  visibility: hidden;
+}
+
+/* ============================================
+   Button Variants
+   ============================================ */
+
+/* Primary variant */
+.semiont-button[data-variant="primary"] {
+  background-color: var(--semiont-color-primary-500);
+  color: var(--semiont-color-neutral-0);
+
+  &:hover:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-primary-600);
+  }
+
+  &:active:not(:disabled):not([data-disabled="true"]),
+  &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-primary-700);
+  }
+}
+
+/* Secondary variant */
+.semiont-button[data-variant="secondary"] {
+  background-color: var(--semiont-color-neutral-100);
+  color: var(--semiont-color-neutral-900);
+
+  &:hover:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-neutral-200);
+  }
+
+  &:active:not(:disabled):not([data-disabled="true"]),
+  &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-neutral-300);
+  }
+}
+
+/* Tertiary variant */
+.semiont-button[data-variant="tertiary"] {
+  background-color: transparent;
+  color: var(--semiont-color-primary-600);
+  box-shadow: inset 0 0 0 1px var(--semiont-color-primary-200);
+
+  &:hover:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-primary-50);
+    box-shadow: inset 0 0 0 1px var(--semiont-color-primary-300);
+  }
+
+  &:active:not(:disabled):not([data-disabled="true"]),
+  &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-primary-100);
+    box-shadow: inset 0 0 0 1px var(--semiont-color-primary-400);
+  }
+}
+
+/* Danger variant */
+.semiont-button[data-variant="danger"] {
+  background-color: var(--semiont-color-error);
+  color: var(--semiont-color-neutral-0);
+
+  &:hover:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-error-dark);
+  }
+
+  &:active:not(:disabled):not([data-disabled="true"]),
+  &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-error-dark);
+    filter: brightness(0.9);
+  }
+}
+
+/* Warning variant */
+.semiont-button[data-variant="warning"] {
+  background-color: var(--semiont-color-warning);
+  color: var(--semiont-color-neutral-900);
+
+  &:hover:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-warning-dark);
+  }
+
+  &:active:not(:disabled):not([data-disabled="true"]),
+  &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-warning-dark);
+    filter: brightness(0.9);
+  }
+}
+
+/* Ghost variant */
+.semiont-button[data-variant="ghost"] {
+  background-color: transparent;
+  color: var(--semiont-text-primary);
+
+  &:hover:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-neutral-100);
+  }
+
+  &:active:not(:disabled):not([data-disabled="true"]),
+  &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-neutral-200);
+  }
+}
+
+/* ============================================
+   Button Sizes
+   ============================================ */
+
+.semiont-button[data-size="xs"] {
+  padding: var(--semiont-spacing-xs) var(--semiont-spacing-sm);
+  font-size: var(--semiont-text-xs);
+  border-radius: var(--semiont-radius-sm);
+  min-height: 1.75rem;
+}
+
+.semiont-button[data-size="sm"] {
+  padding: var(--semiont-spacing-xs) var(--semiont-spacing-md);
+  font-size: var(--semiont-text-sm);
+  border-radius: var(--semiont-radius-base);
+  min-height: 2rem;
+}
+
+.semiont-button[data-size="md"] {
+  padding: var(--semiont-spacing-sm) var(--semiont-spacing-lg);
+  font-size: var(--semiont-text-base);
+  border-radius: var(--semiont-radius-md);
+  min-height: 2.5rem;
+}
+
+.semiont-button[data-size="lg"] {
+  padding: var(--semiont-spacing-sm) var(--semiont-spacing-xl);
+  font-size: var(--semiont-text-lg);
+  border-radius: var(--semiont-radius-md);
+  min-height: 3rem;
+}
+
+.semiont-button[data-size="xl"] {
+  padding: var(--semiont-spacing-md) var(--semiont-spacing-2xl);
+  font-size: var(--semiont-text-xl);
+  border-radius: var(--semiont-radius-lg);
+  min-height: 3.5rem;
+}
+
+/* Icon-only buttons have equal padding */
+.semiont-button[data-icon-only="true"][data-size="xs"] {
+  padding: var(--semiont-spacing-xs);
+  width: 1.75rem;
+}
+
+.semiont-button[data-icon-only="true"][data-size="sm"] {
+  padding: var(--semiont-spacing-xs);
+  width: 2rem;
+}
+
+.semiont-button[data-icon-only="true"][data-size="md"] {
+  padding: var(--semiont-spacing-sm);
+  width: 2.5rem;
+}
+
+.semiont-button[data-icon-only="true"][data-size="lg"] {
+  padding: var(--semiont-spacing-sm);
+  width: 3rem;
+}
+
+.semiont-button[data-icon-only="true"][data-size="xl"] {
+  padding: var(--semiont-spacing-md);
+  width: 3.5rem;
+}
+
+/* Full width button */
+.semiont-button[data-full-width="true"] {
+  width: 100%;
+}
+
+/* ============================================
+   Button Group Styles
+   ============================================ */
+
+.semiont-button-group {
+  display: flex;
+}
+
+/* Horizontal orientation (default) */
+.semiont-button-group[data-orientation="horizontal"] {
+  flex-direction: row;
+}
+
+.semiont-button-group[data-orientation="vertical"] {
+  flex-direction: column;
+}
+
+/* Spacing between buttons */
+.semiont-button-group[data-spacing="xs"] {
+  gap: var(--semiont-spacing-xs);
+}
+
+.semiont-button-group[data-spacing="sm"] {
+  gap: var(--semiont-spacing-sm);
+}
+
+.semiont-button-group[data-spacing="md"] {
+  gap: var(--semiont-spacing-md);
+}
+
+.semiont-button-group[data-spacing="lg"] {
+  gap: var(--semiont-spacing-lg);
+}
+
+/* Attached button group (no gaps) */
+.semiont-button-group[data-attached="true"] {
+  gap: 0;
+}
+
+/* Attached horizontal buttons */
+.semiont-button-group[data-attached="true"][data-orientation="horizontal"] .semiont-button:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;
+}
+
+.semiont-button-group[data-attached="true"][data-orientation="horizontal"] .semiont-button:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Attached vertical buttons */
+.semiont-button-group[data-attached="true"][data-orientation="vertical"] .semiont-button:not(:first-child) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  margin-top: -1px;
+}
+
+.semiont-button-group[data-attached="true"][data-orientation="vertical"] .semiont-button:not(:last-child) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Ensure attached buttons have proper z-index on hover/focus */
+.semiont-button-group[data-attached="true"] .semiont-button:hover,
+.semiont-button-group[data-attached="true"] .semiont-button:focus-visible,
+.semiont-button-group[data-attached="true"] .semiont-button[data-active="true"] {
+  z-index: 1;
+  position: relative;
+}
+
+/* ============================================
+   Dark Mode Support
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  /* Ghost variant in dark mode */
+  .semiont-button[data-variant="ghost"] {
+    &:hover:not(:disabled):not([data-disabled="true"]) {
+      background-color: var(--semiont-color-neutral-800);
+    }
+
+    &:active:not(:disabled):not([data-disabled="true"]),
+    &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+      background-color: var(--semiont-color-neutral-700);
+    }
+  }
+
+  /* Secondary variant in dark mode */
+  .semiont-button[data-variant="secondary"] {
+    background-color: var(--semiont-color-neutral-700);
+    color: var(--semiont-color-neutral-100);
+
+    &:hover:not(:disabled):not([data-disabled="true"]) {
+      background-color: var(--semiont-color-neutral-600);
+    }
+
+    &:active:not(:disabled):not([data-disabled="true"]),
+    &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+      background-color: var(--semiont-color-neutral-500);
+    }
+  }
+}
+
+/* Manual dark mode override */
+[data-theme="dark"] {
+  /* Ghost variant in dark mode */
+  .semiont-button[data-variant="ghost"] {
+    &:hover:not(:disabled):not([data-disabled="true"]) {
+      background-color: var(--semiont-color-neutral-800);
+    }
+
+    &:active:not(:disabled):not([data-disabled="true"]),
+    &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+      background-color: var(--semiont-color-neutral-700);
+    }
+  }
+
+  /* Secondary variant in dark mode */
+  .semiont-button[data-variant="secondary"] {
+    background-color: var(--semiont-color-neutral-700);
+    color: var(--semiont-color-neutral-100);
+
+    &:hover:not(:disabled):not([data-disabled="true"]) {
+      background-color: var(--semiont-color-neutral-600);
+    }
+
+    &:active:not(:disabled):not([data-disabled="true"]),
+    &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+      background-color: var(--semiont-color-neutral-500);
+    }
+  }
+}
+
+/* Additional button styles from base.css */
+.semiont-button__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.semiont-button--full-width {
+  width: 100%;
+}
