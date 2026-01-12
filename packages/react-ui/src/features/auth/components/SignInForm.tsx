@@ -118,14 +118,14 @@ function CredentialsAuthForm({
   return (
     <>
       {validationError && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
-          <div className="text-sm text-red-700 dark:text-red-400">{validationError}</div>
+        <div className="semiont-auth__error">
+          <div className="semiont-auth__error-text">{validationError}</div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+      <form onSubmit={handleSubmit} className="semiont-auth__form">
+        <div className="semiont-form__field">
+          <label htmlFor="email" className="semiont-form__label">
             {t.emailLabel}
           </label>
           <input
@@ -134,12 +134,12 @@ function CredentialsAuthForm({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={t.emailPlaceholder}
-            className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm bg-white dark:bg-gray-800"
+            className="semiont-form__input"
             required
           />
         </div>
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <div className="semiont-form__field">
+          <label htmlFor="password" className="semiont-form__label">
             {t.passwordLabel}
           </label>
           <input
@@ -148,7 +148,7 @@ function CredentialsAuthForm({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={t.passwordPlaceholder}
-            className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm bg-white dark:bg-gray-800"
+            className="semiont-form__input"
             required
           />
         </div>
@@ -157,13 +157,9 @@ function CredentialsAuthForm({
         </button>
       </form>
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400">{t.or}</span>
-        </div>
+      <div className="semiont-auth__divider">
+        <div className="semiont-auth__divider-line"></div>
+        <div className="semiont-auth__divider-text">{t.or}</div>
       </div>
     </>
   );
@@ -181,34 +177,34 @@ export function SignInForm({
   translations: t,
 }: SignInFormProps) {
   return (
-    <main className="flex-1 flex flex-col items-center justify-center p-24" role="main">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-sans text-sm">
-        <div className="text-center space-y-8">
+    <main className="semiont-auth__main" role="main">
+      <div className="semiont-auth__container">
+        <div className="semiont-auth__content">
           {/* Hero Branding Section */}
-          <section aria-labelledby="signin-heading" className="py-8">
+          <section aria-labelledby="signin-heading" className="semiont-auth__branding">
             <h1 id="signin-heading" className="sr-only">
               {t.pageTitle}
             </h1>
-            <SemiontBranding t={(key: string) => t[key as keyof typeof t] || key} size="xl" animated={true} className="mb-8" />
-            <p className="text-xl text-gray-600 dark:text-gray-300 font-sans max-w-4xl mx-auto px-4 mb-2">
+            <SemiontBranding t={(key: string) => t[key as keyof typeof t] || key} size="xl" animated={true} className="semiont-auth__logo" />
+            <p className="semiont-auth__welcome">
               {t.welcomeBack}
             </p>
-            <p className="text-base text-gray-500 dark:text-gray-400 font-sans max-w-2xl mx-auto px-4">
+            <p className="semiont-auth__subtitle">
               {t.signInPrompt}
             </p>
           </section>
 
           {/* Error Message */}
           {error && (
-            <div className="max-w-md mx-auto">
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
-                <div className="text-sm text-red-700 dark:text-red-400">{error}</div>
+            <div className="semiont-auth__error-container">
+              <div className="semiont-auth__error">
+                <div className="semiont-auth__error-text">{error}</div>
               </div>
             </div>
           )}
 
           {/* Sign In Forms */}
-          <div className="max-w-md mx-auto space-y-6">
+          <div className="semiont-auth__forms">
             {showCredentialsAuth && onCredentialsSignIn && <CredentialsAuthForm onSubmit={onCredentialsSignIn} translations={t} />}
 
             <button onClick={onGoogleSignIn} className={`${buttonStyles.primary.base} w-full justify-center`}>
@@ -216,13 +212,13 @@ export function SignInForm({
               {t.continueWithGoogle}
             </button>
 
-            <div className="text-xs text-center text-gray-500 dark:text-gray-400">
+            <div className="semiont-auth__info">
               {showCredentialsAuth ? t.credentialsAuthEnabled : t.approvedDomainsOnly}
             </div>
           </div>
 
           {/* Navigation Links */}
-          <div className="flex gap-4 justify-center items-center flex-wrap">
+          <div className="semiont-auth__links">
             <Link href="/" className={buttonStyles.secondary.base}>
               {t.backToHome}
             </Link>

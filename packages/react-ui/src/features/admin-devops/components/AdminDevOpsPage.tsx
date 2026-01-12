@@ -62,30 +62,30 @@ export function AdminDevOpsPage({
   Toolbar,
 }: AdminDevOpsPageProps) {
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="semiont-page">
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-8">
+      <div className="semiont-page__content">
         {/* Page Title */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t.title}</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+        <div className="semiont-page__header">
+          <h1 className="semiont-page__title">{t.title}</h1>
+          <p className="semiont-page__subtitle">
             {t.subtitle}
           </p>
         </div>
 
         {/* System Status */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t.systemStatus}</h2>
+        <div className="semiont-admin__section">
+          <h2 className="semiont-admin__section-title">{t.systemStatus}</h2>
           <StatusDisplay />
         </div>
 
         {/* CLI Operations */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t.cliOperations}</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        <div className="semiont-admin__section">
+          <h2 className="semiont-admin__section-title">{t.cliOperations}</h2>
+          <p className="semiont-admin__section-description">
             {t.cliOperationsDescription}
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="semiont-admin__features-grid">
             {suggestedFeatures.map((feature) => (
               <div
                 key={feature.title}
@@ -113,7 +113,7 @@ export function AdminDevOpsPage({
         </div>
 
         {/* Info Box */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+        <div className="semiont-admin__info-box">
           <div className="flex">
             <div className="flex-shrink-0">
               <CommandLineIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -136,7 +136,7 @@ export function AdminDevOpsPage({
       </div>
 
       {/* Right Sidebar - Panels and Toolbar */}
-      <div className="flex">
+      <div className="semiont-page__sidebar">
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}

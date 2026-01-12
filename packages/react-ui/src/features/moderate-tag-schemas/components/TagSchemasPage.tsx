@@ -79,26 +79,26 @@ export function TagSchemasPage({
 }: TagSchemasPageProps) {
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-gray-600 dark:text-gray-300">{t.loading}</p>
+      <div className="semiont-page__loading">
+        <p className="semiont-page__loading-text">{t.loading}</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="semiont-page">
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-8">
+      <div className="semiont-page__content">
         {/* Page Title */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t.pageTitle}</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+        <div className="semiont-page__header">
+          <h1 className="semiont-page__title">{t.pageTitle}</h1>
+          <p className="semiont-page__subtitle">
             {t.pageDescription}
           </p>
         </div>
 
         {/* Schemas Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="semiont-card-grid semiont-card-grid--two-columns">
           {schemas.map((schema) => {
             const Icon = domainIcons[schema.domain] || LightBulbIcon;
             const colors = domainColors[schema.domain];
@@ -106,7 +106,7 @@ export function TagSchemasPage({
             return (
               <div
                 key={schema.id}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6"
+                className="semiont-card"
               >
                 {/* Schema Header */}
                 <div className="flex items-start mb-4">
@@ -165,7 +165,7 @@ export function TagSchemasPage({
       </div>
 
       {/* Right Sidebar - Panels and Toolbar */}
-      <div className="flex">
+      <div className="semiont-page__sidebar">
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}

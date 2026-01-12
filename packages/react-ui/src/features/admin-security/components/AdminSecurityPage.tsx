@@ -73,20 +73,20 @@ export function AdminSecurityPage({
   Toolbar,
 }: AdminSecurityPageProps) {
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="semiont-page">
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-8">
-        <div className="space-y-6">
+      <div className="semiont-page__content">
+        <div className="semiont-page__sections">
           {/* Page Header */}
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t.title}</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
+          <div className="semiont-page__header">
+            <h1 className="semiont-page__title">{t.title}</h1>
+            <p className="semiont-page__subtitle">
               {t.subtitle}
             </p>
           </div>
 
           {/* OAuth Providers */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+          <div className="semiont-admin__card">
             <div className="flex items-center mb-4">
               <ShieldCheckIcon className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-3" />
               <div>
@@ -128,7 +128,7 @@ export function AdminSecurityPage({
           </div>
 
           {/* Allowed Domains */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+          <div className="semiont-admin__card">
             <div className="flex items-center mb-4">
               <GlobeAltIcon className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-3" />
               <div>
@@ -158,7 +158,7 @@ export function AdminSecurityPage({
           </div>
 
           {/* Configuration Info */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+          <div className="semiont-admin__info-box">
             <div className="flex">
               <InformationCircleIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
               <div className="ml-3 text-sm">
@@ -178,7 +178,7 @@ export function AdminSecurityPage({
       </div>
 
       {/* Right Sidebar - Panels and Toolbar */}
-      <div className="flex">
+      <div className="semiont-page__sidebar">
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}

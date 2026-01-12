@@ -52,26 +52,26 @@ export function RecentDocumentsPage({
 }: RecentDocumentsPageProps) {
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-gray-600 dark:text-gray-300">{t.loading}</p>
+      <div className="semiont-page__loading">
+        <p className="semiont-page__loading-text">{t.loading}</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="semiont-page">
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-8">
+      <div className="semiont-page__content">
         {/* Page Title */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t.pageTitle}</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+        <div className="semiont-page__header">
+          <h1 className="semiont-page__title">{t.pageTitle}</h1>
+          <p className="semiont-page__subtitle">
             {t.pageDescription}
           </p>
         </div>
 
         {/* Recent Documents Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
+        <div className="semiont-card">
           <div className="flex items-start mb-4">
             <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-900/20 mr-3">
               <ClockIcon className="w-6 h-6 text-gray-600 dark:text-gray-400" />
@@ -97,7 +97,7 @@ export function RecentDocumentsPage({
       </div>
 
       {/* Right Sidebar - Panels and Toolbar */}
-      <div className="flex">
+      <div className="semiont-page__sidebar">
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}

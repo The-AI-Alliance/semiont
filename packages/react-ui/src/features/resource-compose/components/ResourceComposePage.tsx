@@ -240,34 +240,34 @@ export function ResourceComposePage({
   const isReferenceCompletion = mode === 'reference';
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="semiont-page">
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-8 bg-white dark:bg-gray-900">
+      <div className="semiont-page__content semiont-page__compose">
         {/* Page Title */}
-        <div className="mb-8">
-        <h1 className="text-2xl font-bold text-black dark:text-white">
-          {isClone ? t.titleEditClone : isReferenceCompletion ? t.titleCompleteReference : t.title}
-        </h1>
-        {(isClone || isReferenceCompletion) && (
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            {isClone ? t.subtitleClone : t.subtitleReference}
-          </p>
-        )}
-        {isReferenceCompletion && (
-          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              {t.linkedNoticePrefix}
+        <div className="semiont-page__header">
+          <h1 className="semiont-page__title">
+            {isClone ? t.titleEditClone : isReferenceCompletion ? t.titleCompleteReference : t.title}
+          </h1>
+          {(isClone || isReferenceCompletion) && (
+            <p className="semiont-page__subtitle">
+              {isClone ? t.subtitleClone : t.subtitleReference}
             </p>
-          </div>
-        )}
-      </div>
+          )}
+          {isReferenceCompletion && (
+            <div className="semiont-page__reference-notice">
+              <p className="semiont-page__reference-notice-text">
+                {t.linkedNoticePrefix}
+              </p>
+            </div>
+          )}
+        </div>
 
-      {/* Create Form */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
-        <form onSubmit={handleSaveResource} className="space-y-4">
+        {/* Create Form */}
+        <div className="semiont-form">
+        <form onSubmit={handleSaveResource} className="semiont-form__fields">
           {/* Name */}
-          <div className="flex items-center gap-4">
-            <label htmlFor="docName" className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0">
+          <div className="semiont-form__field">
+            <label htmlFor="docName" className="semiont-form__label">
               {t.resourceName}
             </label>
             <input
@@ -276,7 +276,7 @@ export function ResourceComposePage({
               value={newResourceName}
               onChange={(e) => setNewResourceName(e.target.value)}
               placeholder={t.resourceNamePlaceholder}
-              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="semiont-form__input"
               required
               disabled={isCreating}
             />
@@ -284,12 +284,12 @@ export function ResourceComposePage({
 
           {/* Entity Types Selection */}
           {(!isReferenceCompletion || selectedEntityTypes.length === 0) && (
-            <div className="flex gap-4">
-              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0 pt-2">
+            <div className="semiont-form__field semiont-form__entity-types">
+              <div className="semiont-form__label">
                 {t.entityTypes}
               </div>
               <div
-                className="flex flex-wrap gap-2 mb-2"
+                className="semiont-form__entity-type-buttons"
                 role="group"
                 aria-describedby="entity-types-description"
               >
@@ -306,11 +306,8 @@ export function ResourceComposePage({
                             : [...prev, type]
                         );
                       }}
-                      className={`px-3 py-1 rounded-full text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                        isSelected
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
+                      className="semiont-form__entity-type-button"
+                      data-selected={isSelected}
                       disabled={isCreating}
                       aria-pressed={isSelected}
                       aria-label={`${type} entity type, ${isSelected ? 'selected' : 'not selected'}`}
@@ -334,31 +331,31 @@ export function ResourceComposePage({
 
           {/* Entity Types Display for reference completion */}
           {isReferenceCompletion && selectedEntityTypes.length > 0 && (
-            <div role="region" aria-labelledby="selected-entity-types-label">
-              <h3 id="selected-entity-types-label" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="semiont-form__field semiont-form__entity-types-display" role="region" aria-labelledby="selected-entity-types-label">
+              <h3 id="selected-entity-types-label" className="semiont-form__label">
                 {t.entityTypes}
               </h3>
-              <div className="flex flex-wrap gap-2" role="list">
+              <div className="semiont-form__entity-type-tags" role="list">
                 {selectedEntityTypes.map((type) => (
                   <span
                     key={type}
                     role="listitem"
-                    className="px-3 py-1 rounded-full text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700"
+                    className="semiont-form__entity-type-tag"
                     aria-label={`Entity type: ${type}`}
                   >
                     {type}
                   </span>
                 ))}
               </div>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400" id="reference-entity-types-description">
+              <p className="semiont-form__helper-text" id="reference-entity-types-description">
                 These entity types were selected when creating the reference
               </p>
             </div>
           )}
 
           {/* Language Selector */}
-          <div className="flex items-center gap-4">
-            <label htmlFor="language-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0">
+          <div className="semiont-form__field">
+            <label htmlFor="language-select" className="semiont-form__label">
               {t.language}
             </label>
             <select
@@ -366,7 +363,7 @@ export function ResourceComposePage({
               value={selectedLanguage}
               onChange={(e) => setSelectedLanguage(e.target.value)}
               disabled={isCreating}
-              className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+              className="semiont-form__select"
             >
               {LOCALES.map((lang) => (
                 <option key={lang.code} value={lang.code}>
@@ -378,26 +375,23 @@ export function ResourceComposePage({
 
           {/* Content Source Toggle - only show for new resources */}
           {!isClone && !isReferenceCompletion && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            <div className="semiont-form__field">
+              <label className="semiont-form__label">
                 {t.contentSource}
               </label>
-              <div className="flex gap-4">
+              <div className="semiont-form__content-source-toggle">
                 <button
                   type="button"
                   onClick={() => setInputMethod('upload')}
                   disabled={isCreating}
-                  className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
-                    inputMethod === 'upload'
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-700'
-                  } ${isCreating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className="semiont-form__content-source-button"
+                  data-active={inputMethod === 'upload'}
                 >
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <span className="text-xl">📎</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{t.uploadFile}</span>
+                  <div className="semiont-form__content-source-icon-wrapper">
+                    <span className="semiont-form__content-source-icon">📎</span>
+                    <span className="semiont-form__content-source-label">{t.uploadFile}</span>
                   </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                  <div className="semiont-form__content-source-description">
                     {t.uploadFileDescription}
                   </div>
                 </button>
@@ -406,17 +400,14 @@ export function ResourceComposePage({
                   type="button"
                   onClick={() => setInputMethod('write')}
                   disabled={isCreating}
-                  className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
-                    inputMethod === 'write'
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-700'
-                  } ${isCreating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className="semiont-form__content-source-button"
+                  data-active={inputMethod === 'write'}
                 >
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <span className="text-xl">✍️</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{t.writeContent}</span>
+                  <div className="semiont-form__content-source-icon-wrapper">
+                    <span className="semiont-form__content-source-icon">✍️</span>
+                    <span className="semiont-form__content-source-label">{t.writeContent}</span>
                   </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                  <div className="semiont-form__content-source-description">
                     {t.writeContentDescription}
                   </div>
                 </button>
@@ -426,7 +417,7 @@ export function ResourceComposePage({
 
           {/* Upload File Section */}
           {!isClone && !isReferenceCompletion && inputMethod === 'upload' && (
-            <div className="space-y-4">
+            <div className="semiont-form__upload-section">
               <div>
                 <div className="flex items-center gap-4">
                   <label className="flex-1 cursor-pointer">
@@ -492,11 +483,11 @@ export function ResourceComposePage({
 
           {/* Write Content Section */}
           {(isClone || isReferenceCompletion || inputMethod === 'write') && (
-            <div className="space-y-4">
+            <div className="semiont-form__write-section">
               {/* Format Selector - only for manual entry, not clones */}
               {!isClone && !isReferenceCompletion && (
-                <div className="flex items-center gap-4">
-                  <label htmlFor="format-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0">
+                <div className="semiont-form__field">
+                  <label htmlFor="format-select" className="semiont-form__label">
                     {t.format}
                   </label>
                   <select
@@ -504,7 +495,7 @@ export function ResourceComposePage({
                     value={selectedFormat}
                     onChange={(e) => setSelectedFormat(e.target.value)}
                     disabled={isCreating}
-                    className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                    className="semiont-form__select"
                   >
                     <option value="text/markdown">Markdown (text/markdown)</option>
                     <option value="text/plain">Plain Text (text/plain)</option>
@@ -514,11 +505,11 @@ export function ResourceComposePage({
               )}
 
               {/* Content Editor */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <div className="semiont-form__field semiont-form__editor">
+                <label className="semiont-form__label">
                   {isClone ? t.resourceContent : t.content}
                 </label>
-                <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                <div className="semiont-form__editor-wrapper">
                   <CodeMirrorRenderer
                     content={newResourceContent}
                     segments={[]}
@@ -532,8 +523,8 @@ export function ResourceComposePage({
 
               {/* Encoding Selector - only for manual text entry */}
               {!isClone && !isReferenceCompletion && (
-                <div className="flex items-center gap-4">
-                  <label htmlFor="charset-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0">
+                <div className="semiont-form__field">
+                  <label htmlFor="charset-select" className="semiont-form__label">
                     {t.encoding}
                   </label>
                   <select
@@ -541,7 +532,7 @@ export function ResourceComposePage({
                     value={selectedCharset}
                     onChange={(e) => setSelectedCharset(e.target.value)}
                     disabled={isCreating}
-                    className="px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                    className="semiont-form__select"
                   >
                     <option value="">UTF-8 (default)</option>
                     <option value="iso-8859-1">ISO-8859-1 (Latin-1)</option>
@@ -556,23 +547,23 @@ export function ResourceComposePage({
 
           {/* Archive Original Checkbox (for clones only) */}
           {isClone && (
-            <div className="flex items-center">
+            <div className="semiont-form__checkbox-field">
               <input
                 id="archiveOriginal"
                 type="checkbox"
                 checked={archiveOriginal}
                 onChange={(e) => setArchiveOriginal(e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="semiont-form__checkbox"
                 disabled={isCreating}
               />
-              <label htmlFor="archiveOriginal" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+              <label htmlFor="archiveOriginal" className="semiont-form__checkbox-label">
                 {t.archiveOriginal}
               </label>
             </div>
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-4 justify-end">
+          <div className="semiont-form__actions">
             <button
               type="button"
               onClick={onCancel}
@@ -596,7 +587,7 @@ export function ResourceComposePage({
       </div>
 
       {/* Right Sidebar - Panels and Toolbar */}
-      <div className="flex">
+      <div className="semiont-page__sidebar">
         {/* Panels Container */}
         <ToolbarPanels
           activePanel={activePanel}

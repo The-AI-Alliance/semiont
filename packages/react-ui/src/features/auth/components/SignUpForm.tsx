@@ -80,37 +80,37 @@ export function SignUpForm({ onSignUp, Link, translations: t }: SignUpFormProps)
   };
 
   return (
-    <div className="flex items-center justify-center py-12 font-sans">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+    <div className="semiont-auth__signup-wrapper">
+      <div className="semiont-auth__signup-container">
+        <div className="semiont-auth__signup-header">
+          <h2 className="semiont-auth__signup-title">
             {t.pageTitle}
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+          <p className="semiont-auth__subtitle">
             {t.signUpPrompt}
           </p>
         </div>
 
-        <div className="mt-8 space-y-6">
+        <div className="semiont-auth__signup-content">
           <button onClick={handleSignUp} disabled={isLoading} className={buttonStyles.primary.large}>
             {isLoading ? (
-              <div className="w-5 h-5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+              <div className="semiont-auth__spinner"></div>
             ) : (
               <GoogleIcon />
             )}
             {isLoading ? t.creatingAccount : t.signUpWithGoogle}
           </button>
 
-          <div className="text-xs text-center text-gray-500 dark:text-gray-400">
+          <div className="semiont-auth__signup-info">
             {t.approvedDomainsInfo}
             <br />
             {t.termsAgreement}
           </div>
 
-          <div className="text-center">
+          <div className="semiont-auth__signup-footer">
             <Link
               href="/auth/signin"
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+              className="semiont-auth__signin-link"
             >
               {t.alreadyHaveAccount}
             </Link>

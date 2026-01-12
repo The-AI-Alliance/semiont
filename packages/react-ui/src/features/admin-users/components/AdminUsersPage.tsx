@@ -241,15 +241,15 @@ export function AdminUsersPage({
   });
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="semiont-page">
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-8">
-        <div className="space-y-6">
+      <div className="semiont-page__content">
+        <div className="semiont-page__sections">
           {/* Page Header */}
-          <div className="flex justify-between items-center">
+          <div className="semiont-page__header-with-action">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t.title}</h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">
+              <h1 className="semiont-page__title">{t.title}</h1>
+              <p className="semiont-page__subtitle">
                 {t.subtitle}
               </p>
             </div>
@@ -260,7 +260,7 @@ export function AdminUsersPage({
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="semiont-admin__stats-grid">
             {isLoadingStats ? (
               Array(4).fill(0).map((_, i) => (
                 <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 animate-pulse">
@@ -329,8 +329,8 @@ export function AdminUsersPage({
           </div>
 
           {/* Filters and Search */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="semiont-admin__filters-card">
+            <div className="semiont-admin__filters-grid">
               <div>
                 <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t.searchUsers}
@@ -391,7 +391,7 @@ export function AdminUsersPage({
           </div>
 
           {/* Users Table */}
-          <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="semiont-admin__table-card">
             <div className="overflow-x-auto">
               {isLoadingUsers ? (
                 <div className="p-6 text-center">
@@ -454,7 +454,7 @@ export function AdminUsersPage({
       </div>
 
       {/* Right Sidebar - Panels and Toolbar */}
-      <div className="flex">
+      <div className="semiont-page__sidebar">
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
