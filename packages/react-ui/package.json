@@ -13,10 +13,24 @@
       "types": "./dist/test-utils.d.mts",
       "import": "./dist/test-utils.mjs"
     },
+    "./styles/base.css": "./src/styles/base.css",
+    "./styles/variables.css": "./src/styles/variables.css",
+    "./tailwind": "./src/integrations/tailwind-plugin.js",
+    "./integrations/css-modules": {
+      "types": "./dist/integrations/css-modules-helper.d.mts",
+      "import": "./dist/integrations/css-modules-helper.mjs"
+    },
+    "./integrations/styled-components": {
+      "types": "./dist/integrations/styled-components-theme.d.mts",
+      "import": "./dist/integrations/styled-components-theme.mjs"
+    },
     "./translations/*": "./translations/*.json"
   },
   "files": [
     "dist",
+    "src/styles",
+    "src/integrations",
+    "src/examples",
     "translations",
     "public",
     "README.md"

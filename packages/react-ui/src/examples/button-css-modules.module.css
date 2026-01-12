@@ -1,0 +1,146 @@
+/**
+ * Example: Button styling with CSS Modules
+ *
+ * This shows how to style the Button component using CSS Modules
+ * by targeting the data attributes with module-scoped styles.
+ */
+
+/* Base button styles */
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+/* Primary variant */
+.button[data-variant="primary"] {
+  background-color: #0080ff;
+  color: white;
+}
+
+.button[data-variant="primary"]:hover:not(:disabled) {
+  background-color: #0066cc;
+}
+
+.button[data-variant="primary"]:active:not(:disabled) {
+  background-color: #0052a3;
+}
+
+/* Secondary variant */
+.button[data-variant="secondary"] {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.button[data-variant="secondary"]:hover:not(:disabled) {
+  background-color: #e5e7eb;
+}
+
+.button[data-variant="secondary"]:active:not(:disabled) {
+  background-color: #d1d5db;
+}
+
+/* Ghost variant */
+.button[data-variant="ghost"] {
+  background-color: transparent;
+  color: currentColor;
+}
+
+.button[data-variant="ghost"]:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Size variants */
+.button[data-size="sm"] {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  border-radius: 0.25rem;
+  min-height: 2rem;
+}
+
+.button[data-size="md"] {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  border-radius: 0.375rem;
+  min-height: 2.5rem;
+}
+
+.button[data-size="lg"] {
+  padding: 0.75rem 1.5rem;
+  font-size: 1.125rem;
+  border-radius: 0.375rem;
+  min-height: 3rem;
+}
+
+/* Icon-only styles */
+.button[data-icon-only="true"][data-size="sm"] {
+  padding: 0.375rem;
+  width: 2rem;
+}
+
+.button[data-icon-only="true"][data-size="md"] {
+  padding: 0.5rem;
+  width: 2.5rem;
+}
+
+.button[data-icon-only="true"][data-size="lg"] {
+  padding: 0.75rem;
+  width: 3rem;
+}
+
+/* Full width */
+.button[data-full-width="true"] {
+  width: 100%;
+}
+
+/* Loading state */
+.button[data-loading="true"] {
+  color: transparent;
+  pointer-events: none;
+}
+
+.spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Focus styles */
+.button:focus-visible {
+  outline: 2px solid #0080ff;
+  outline-offset: 2px;
+}
+
+/* Disabled state */
+.button:disabled,
+.button[data-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Icon spacing */
+.iconLeft {
+  margin-right: 0.5rem;
+}
+
+.iconRight {
+  margin-left: 0.5rem;
+}

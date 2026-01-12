@@ -49,7 +49,7 @@ export function LiveRegionProvider({ children }: LiveRegionProviderProps) {
         role="status"
         aria-live="polite"
         aria-atomic="true"
-        className="sr-only"
+        className="semiont-sr-only"
       >
         {politeMessage}
       </div>
@@ -58,7 +58,7 @@ export function LiveRegionProvider({ children }: LiveRegionProviderProps) {
         role="alert"
         aria-live="assertive"
         aria-atomic="true"
-        className="sr-only"
+        className="semiont-sr-only"
       >
         {assertiveMessage}
       </div>

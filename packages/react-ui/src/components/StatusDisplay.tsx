@@ -22,20 +22,20 @@ export function StatusDisplay({
     if (isAuthenticated && !hasValidBackendToken) {
       return '🚀 Frontend Status: Ready • Backend: Please sign out and sign in again to reconnect';
     }
-    
+
     // If user is not authenticated at all, show appropriate message
     if (!isFullyAuthenticated) {
       return '🚀 Frontend Status: Ready • Backend: Authentication required';
     }
-    
+
     if (status.data) {
       return `🚀 Frontend Status: Ready • Backend: ${status.data.status} (v${status.data.version})`;
     }
-    
+
     if (status.isLoading) {
       return '🚀 Frontend Status: Ready • Backend: Connecting...';
     }
-    
+
     if (status.error) {
       // Check if this is an auth error that might be fixed by re-login
       const errorMessage = status.error instanceof Error ? status.error.message : String(status.error);
@@ -44,69 +44,49 @@ export function StatusDisplay({
       }
       return '🚀 Frontend Status: Ready • Backend: Connection failed';
     }
-    
+
     return '🚀 Frontend Status: Ready • Backend: Unknown';
   };
 
-  const getStatusColor = () => {
+  const getStatusType = (): 'warning' | 'info' | 'success' | 'loading' | 'error' => {
     // Check for users who need to re-authenticate
     if (isAuthenticated && !hasValidBackendToken) {
-      return 'text-orange-800 dark:text-orange-200';
+      return 'warning';
     }
-    
-    if (!isFullyAuthenticated) {
-      return 'text-gray-800 dark:text-gray-200';
-    }
-    
-    if (status.data) {
-      return 'text-blue-800 dark:text-blue-200';
-    }
-    
-    if (status.isLoading) {
-      return 'text-yellow-800 dark:text-yellow-200';
-    }
-    
-    return 'text-red-800 dark:text-red-200';
-  };
 
-  const getBackgroundColor = () => {
-    // Check for users who need to re-authenticate
-    if (isAuthenticated && !hasValidBackendToken) {
-      return 'bg-orange-50 dark:bg-orange-900/20';
-    }
-    
     if (!isFullyAuthenticated) {
-      return 'bg-gray-50 dark:bg-gray-900/20';
+      return 'info';
     }
-    
+
     if (status.data) {
-      return 'bg-blue-50 dark:bg-blue-900/20';
+      return 'success';
     }
-    
+
     if (status.isLoading) {
-      return 'bg-yellow-50 dark:bg-yellow-900/20';
+      return 'loading';
     }
-    
-    return 'bg-red-50 dark:bg-red-900/20';
+
+    return 'error';
   };
 
   return (
-    <section 
-      className={`mt-8 p-4 rounded-lg ${getBackgroundColor()}`}
+    <section
+      className="semiont-status-display"
+      data-status={getStatusType()}
       role="status"
       aria-live="polite"
       aria-label="System status information"
     >
-      <p className={getStatusColor()}>
+      <p className="semiont-status-message">
         <span className="sr-only">System status: </span>
         {getStatusContent()}
       </p>
       {!isFullyAuthenticated ? (
-        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+        <p className="semiont-status-hint">
           Sign in to view backend status
         </p>
       ) : status.error ? (
-        <p className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
+        <p className="semiont-status-hint semiont-status-error-hint" role="alert">
           <span className="sr-only">Error: </span>
           Check that the backend server is running and accessible
         </p>

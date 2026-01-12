@@ -9,23 +9,23 @@ import React from 'react';
  */
 export function SkipLinks() {
   return (
-    <div className="sr-only focus-within:not-sr-only">
-      <div className="absolute top-0 left-0 z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+    <div className="semiont-skip-links">
+      <div className="semiont-skip-links-container">
         <a
           href="#main-content"
-          className="block px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 focus:bg-gray-50 dark:focus:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-t-lg"
+          className="semiont-skip-link semiont-skip-link-first"
         >
           Skip to main content
         </a>
         <a
           href="#main-navigation"
-          className="block px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 focus:bg-gray-50 dark:focus:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="semiont-skip-link"
         >
           Skip to navigation
         </a>
         <a
           href="#search"
-          className="block px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 focus:bg-gray-50 dark:focus:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-b-lg"
+          className="semiont-skip-link semiont-skip-link-last"
         >
           Skip to search
         </a>
