@@ -8,8 +8,8 @@
 import React from 'react';
 import { Button, ButtonGroup } from '../components/Button/Button';
 
-// Import base CSS (users can replace this with their own styles)
-import '../styles/base.css';
+// Import styles (users can replace this with their own styles)
+import '../styles/index.css';
 
 export function ButtonUsageExample() {
   const [loading, setLoading] = React.useState(false);
