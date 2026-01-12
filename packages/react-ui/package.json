@@ -18,6 +18,7 @@
   "files": [
     "dist",
     "translations",
+    "public",
     "README.md"
   ],
   "scripts": {

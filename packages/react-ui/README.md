@@ -26,6 +26,7 @@ Framework-agnostic React component library for building Semiont knowledge manage
 - **Annotation System** - Rich annotation and tagging capabilities
 - **Built-in Translations** - English and Spanish included, with dynamic loading for optimal bundle size
 - **Flexible i18n** - Three modes: default English, built-in locales, or custom translation system
+- **Favicon Assets** - Complete set of Semiont branded favicons for all platforms
 
 ## Installation
 
@@ -127,6 +128,10 @@ function App() {
 }
 ```
 
+## Favicon Assets
+
+The package includes Semiont-branded favicons in multiple formats (SVG, PNG, ICO) and a React component for inline usage. See [docs/FAVICON.md](docs/FAVICON.md) for complete usage instructions.
+
 ## Architecture
 
 The library follows strict architectural principles:
@@ -192,6 +197,7 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 - [COMPONENTS.md](docs/COMPONENTS.md) - Component library reference
 - [ROUTING.md](docs/ROUTING.md) - Framework-agnostic routing
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Design principles and decisions
+- [FAVICON.md](docs/FAVICON.md) - Favicon assets and usage
 - [ANNOTATIONS.md](docs/ANNOTATIONS.md) - Annotation system (coming soon)
 
 ## Examples

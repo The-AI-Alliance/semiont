@@ -132,6 +132,10 @@ export * from './components/layout/UnifiedHeader';
 export * from './components/layout/LeftSidebar';
 export * from './components/layout/PageLayout';
 
+// Favicon components and assets
+export { SemiontFavicon } from './assets/favicons/SemiontFavicon';
+export { faviconPaths } from './assets/favicons';
+
 // Components - Loading States
 export * from './components/loading-states/ComposeLoadingState';
 export * from './components/loading-states/ResourceLoadingState';
