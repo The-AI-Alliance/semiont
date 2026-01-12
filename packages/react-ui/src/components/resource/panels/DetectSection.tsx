@@ -71,44 +71,46 @@ export function DetectSection({
   };
 
   return (
-    <div>
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+    <div className="semiont-panel__section">
+      <h3 className="semiont-panel__section-title">
         {t(annotationType === 'highlight' ? 'detectHighlights' :
            annotationType === 'assessment' ? 'detectAssessments' :
            'detectComments')}
       </h3>
-      <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 ${
-        isDetecting && detectionProgress ? `border-2 ${colors.border}` : ''
-      }`}>
+      <div
+        className="semiont-detect-widget"
+        data-detecting={isDetecting && detectionProgress ? 'true' : 'false'}
+        data-type={annotationType}
+      >
         {!isDetecting && !detectionProgress && (
           <>
-            <div className="mb-4">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+            <div className="semiont-form-field">
+              <label className="semiont-form-field__label">
                 {t('instructions')} {t('optional')}
               </label>
               <textarea
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
-                className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+                className="semiont-textarea"
                 rows={3}
                 placeholder={t('instructionsPlaceholder')}
                 maxLength={500}
               />
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="semiont-form-field__char-count">
                 {instructions.length}/500
               </div>
             </div>
 
             {/* Tone selector - for comments and assessments */}
             {(annotationType === 'comment' || annotationType === 'assessment') && (
-              <div className="mb-4">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+              <div className="semiont-form-field">
+                <label className="semiont-form-field__label">
                   {t('toneLabel')} {t('toneOptional')}
                 </label>
                 <select
                   value={tone}
                   onChange={(e) => setTone(e.target.value)}
-                  className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+                  className="semiont-select"
                 >
                   <option value="">Default</option>
                   {annotationType === 'comment' && (
@@ -133,20 +135,21 @@ export function DetectSection({
 
             {/* Density selector - for comments, assessments, and highlights */}
             {(annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && (
-              <div className="mb-4">
+              <div className="semiont-form-field">
                 {/* Header with toggle */}
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <div className="semiont-form-field__header">
+                  <label className="semiont-form-field__label semiont-form-field__label--with-checkbox">
                     <input
                       type="checkbox"
                       checked={useDensity}
                       onChange={(e) => setUseDensity(e.target.checked)}
-                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 dark:border-gray-600"
+                      className="semiont-checkbox"
+                      data-variant={annotationType}
                     />
                     <span>{t('densityLabel')}</span>
                   </label>
                   {useDensity && (
-                    <span className="text-xs text-gray-500">{density} per 2000 words</span>
+                    <span className="semiont-form-field__info">{density} per 2000 words</span>
                   )}
                 </div>
 
@@ -159,9 +162,9 @@ export function DetectSection({
                       max={annotationType === 'comment' ? '12' : annotationType === 'assessment' ? '10' : '15'}
                       value={density}
                       onChange={(e) => setDensity(Number(e.target.value))}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                      className="semiont-slider"
                     />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <div className="semiont-form-field__slider-labels">
                       <span>{t('densitySparse')}</span>
                       <span>{t('densityDense')}</span>
                     </div>
@@ -172,31 +175,32 @@ export function DetectSection({
 
             <button
               onClick={handleDetect}
-              className={`w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium bg-gradient-to-r ${colors.button} text-white shadow-md hover:shadow-lg`}
+              className="semiont-detect-button"
+              data-type={annotationType}
             >
-              <span className="text-2xl">✨</span>
+              <span className="semiont-detect-button__icon">✨</span>
             </button>
           </>
         )}
 
         {/* Detection Progress */}
         {isDetecting && detectionProgress && (
-          <div className="space-y-3">
+          <div className="semiont-detection-progress">
             {/* Request Parameters */}
             {detectionProgress.requestParams && detectionProgress.requestParams.length > 0 && (
-              <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-200 dark:border-blue-800">
-                <div className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">Request Parameters:</div>
+              <div className="semiont-detection-progress__params" data-type={annotationType}>
+                <div className="semiont-detection-progress__params-title">Request Parameters:</div>
                 {detectionProgress.requestParams.map((param, idx) => (
-                  <div key={idx} className="text-xs text-blue-800 dark:text-blue-200">
-                    <span className="font-medium">{param.label}:</span> {param.value}
+                  <div key={idx} className="semiont-detection-progress__param">
+                    <span className="semiont-detection-progress__param-label">{param.label}:</span> {param.value}
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <div className="flex items-center gap-2">
-                <span className="text-lg animate-sparkle-infinite">✨</span>
+            <div className="semiont-detection-progress__status">
+              <div className="semiont-detection-progress__message">
+                <span className="semiont-detection-progress__icon">✨</span>
                 <span>{detectionProgress.message}</span>
               </div>
             </div>

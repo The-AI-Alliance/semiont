@@ -80,31 +80,29 @@ export function AssessmentEntry({
   return (
     <div
       ref={assessmentRef}
-      className={`border rounded-lg p-3 transition-all cursor-pointer ${
-        isFocused
-          ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 animate-pulse-outline'
-          : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600'
-      }`}
+      className="semiont-annotation-entry"
+      data-type="assessment"
+      data-focused={isFocused ? 'true' : 'false'}
       onClick={onClick}
       onMouseEnter={() => onAssessmentHover?.(assessment.id)}
       onMouseLeave={() => onAssessmentHover?.(null)}
     >
       {/* Selected text quote */}
       {selectedText && (
-        <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-blue-300 pl-2">
+        <div className="semiont-annotation-entry__quote" data-type="assessment">
           "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
         </div>
       )}
 
       {/* Assessment body */}
       {assessmentText && (
-        <div className="text-sm mb-2 bg-blue-50 dark:bg-blue-900/10 p-2 rounded border-l-2 border-blue-400">
+        <div className="semiont-annotation-entry__body" data-type="assessment">
           {assessmentText}
         </div>
       )}
 
       {/* Metadata */}
-      <div className="text-xs text-gray-500">
+      <div className="semiont-annotation-entry__metadata">
         By {typeof assessment.creator === 'string' ? assessment.creator : assessment.creator?.name || 'Unknown'} • {formatRelativeTime(assessment.created || new Date().toISOString())}
       </div>
     </div>

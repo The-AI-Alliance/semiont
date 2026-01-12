@@ -120,13 +120,13 @@ export function ReferencesPanel({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900">
+    <div className="semiont-panel">
       <PanelHeader annotationType="reference" count={annotations.length} title={tRef('referencesTitle')} />
 
       {/* New reference creation - shown when there's a pending selection */}
       {pendingSelection && onCreate && (
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/10">
-          <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-blue-300 pl-2">
+        <div className="semiont-annotation-prompt" data-type="reference">
+          <div className="semiont-annotation-prompt__quote">
             {pendingSelection.svgSelector
               ? tRef('imageRegionSelected')
               : `"${pendingSelection.exact.substring(0, 100)}${pendingSelection.exact.length > 100 ? '...' : ''}"`
@@ -135,20 +135,17 @@ export function ReferencesPanel({
 
           {/* Entity Types Multi-Select */}
           {allEntityTypes.length > 0 && (
-            <div className="mb-3">
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+            <div className="semiont-form-field">
+              <p className="semiont-form-field__label">
                 {tRef('entityTypesOptional')}
               </p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="semiont-tag-selector">
                 {allEntityTypes.map((type: string) => (
                   <button
                     key={type}
                     onClick={() => togglePendingEntityType(type)}
-                    className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
-                      pendingEntityTypes.includes(type)
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
+                    className="semiont-tag-selector__item"
+                    data-selected={pendingEntityTypes.includes(type) ? 'true' : 'false'}
                   >
                     {type}
                   </button>
@@ -159,7 +156,8 @@ export function ReferencesPanel({
 
           <button
             onClick={handleCreateReference}
-            className="w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+            className="semiont-button semiont-button--primary"
+            data-type="reference"
           >
             🔗 {tRef('createReference')}
           </button>
@@ -167,16 +165,16 @@ export function ReferencesPanel({
       )}
 
       {/* Scrollable content area */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div ref={containerRef} className="semiont-panel__content">
         {/* Detection Section - only in Annotate mode and for text resources */}
         {annotateMode && isTextResource && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+          <div className="semiont-panel__section">
+            <h3 className="semiont-panel__section-title">
               {t('title')}
             </h3>
             {/* Show annotation UI only when not detecting and no completed log */}
             {!detectionProgress && !lastDetectionLog && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <div className="semiont-detect-widget" data-type="reference">
             <>
               {/* Entity Types Selection */}
               <div className="mb-4">

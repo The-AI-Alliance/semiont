@@ -98,33 +98,31 @@ export function ReferenceEntry({
   return (
     <div
       ref={referenceRef}
-      className={`border rounded-lg p-3 transition-all cursor-pointer ${
-        isFocused
-          ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 animate-pulse-outline'
-          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-      }`}
+      className="semiont-annotation-entry"
+      data-type="reference"
+      data-focused={isFocused ? 'true' : 'false'}
       onClick={onClick}
       onMouseEnter={() => onReferenceHover?.(reference.id)}
       onMouseLeave={() => onReferenceHover?.(null)}
     >
       {/* Status indicator and text quote */}
-      <div className="text-sm text-gray-600 dark:text-gray-400 mb-2 flex items-start gap-2">
-        <span className="text-base flex-shrink-0" title={isResolved ? t('resolved') : t('stub')}>
+      <div className="semiont-annotation-entry__header">
+        <span className="semiont-reference-icon" title={isResolved ? t('resolved') : t('stub')}>
           {isResolved ? '🔗' : '❓'}
         </span>
-        <div className="flex-1">
+        <div className="semiont-annotation-entry__content">
           {selectedText && (
-            <div className="italic border-l-2 border-blue-300 pl-2">
+            <div className="semiont-annotation-entry__quote" data-type="reference">
               "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
             </div>
           )}
           {!selectedText && (
-            <div className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="semiont-annotation-entry__meta">
               Image annotation
             </div>
           )}
           {resolvedDocumentName && (
-            <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1">
+            <div className="semiont-reference-link">
               <span>→ {resourceIcon} {resolvedDocumentName}</span>
             </div>
           )}
@@ -133,11 +131,12 @@ export function ReferenceEntry({
 
       {/* Entity type badges */}
       {entityTypes.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1">
+        <div className="semiont-annotation-entry__tags">
           {entityTypes.map((type, index) => (
             <span
               key={index}
-              className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+              className="semiont-tag"
+              data-variant="blue"
             >
               {type}
             </span>
@@ -146,10 +145,10 @@ export function ReferenceEntry({
       )}
 
       {/* Actions based on state - only show curation actions in Annotate mode */}
-      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+      <div className="semiont-annotation-entry__actions" onClick={(e) => e.stopPropagation()}>
         {isResolved ? (
           // Resolved reference actions
-          <div className="flex gap-1">
+          <div className="semiont-annotation-entry__action-row">
             <button
               onClick={handleOpen}
               className={`${buttonStyles.primary.base} ${annotateMode ? 'flex-1' : 'w-full'} !px-2 justify-center text-lg py-1`}
@@ -170,7 +169,7 @@ export function ReferenceEntry({
         ) : (
           // Stub reference actions - only in Annotate mode
           annotateMode && (
-            <div className="flex gap-1">
+            <div className="semiont-annotation-entry__action-row">
               <button
                 onClick={handleGenerate}
                 className={`${buttonStyles.primary.base} flex-1 !px-2 justify-center text-lg py-1`}

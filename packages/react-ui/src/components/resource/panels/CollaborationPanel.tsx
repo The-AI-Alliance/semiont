@@ -38,32 +38,38 @@ export function CollaborationPanel({
   }, [lastEventTimestamp, t]);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 space-y-4">
+    <div className="semiont-collaboration-panel">
       {/* Connection Status Section */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+      <div className="semiont-collaboration-panel__section">
+        <h3 className="semiont-collaboration-panel__heading">
           {t('connectionStatus')}
         </h3>
 
         {/* Live indicator */}
-        <div className="flex items-center gap-2 text-sm mb-2">
-          <span className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-            <span className={isConnected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+        <div className="semiont-collaboration-panel__status">
+          <span className="semiont-collaboration-panel__indicator">
+            <span
+              className="semiont-collaboration-panel__dot"
+              data-connected={isConnected ? 'true' : 'false'}
+            ></span>
+            <span
+              className="semiont-collaboration-panel__status-text"
+              data-connected={isConnected ? 'true' : 'false'}
+            >
               {isConnected ? t('live') : t('disconnected')}
             </span>
           </span>
           {isConnected && eventCount > 0 && (
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="semiont-collaboration-panel__event-count">
               ({t('events', { count: eventCount })})
             </span>
           )}
         </div>
 
         {/* Last sync */}
-        <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+        <div className="semiont-collaboration-panel__details">
           <div>
-            <span className="font-medium">{t('lastSync')}</span> {lastSyncText}
+            <span className="semiont-collaboration-panel__label">{t('lastSync')}</span> {lastSyncText}
           </div>
           <div>
             {isConnected
@@ -74,11 +80,11 @@ export function CollaborationPanel({
       </div>
 
       {/* Sharing Section - Placeholder for future */}
-      <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+      <div className="semiont-collaboration-panel__section semiont-collaboration-panel__section--bordered">
+        <h3 className="semiont-collaboration-panel__heading">
           {t('sharing')}
         </h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="semiont-collaboration-panel__description">
           {t('collaborationComingSoon')}
         </p>
       </div>

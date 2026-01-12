@@ -97,32 +97,32 @@ export function TaggingPanel({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900">
+    <div className="semiont-panel">
       <PanelHeader annotationType="tag" count={annotations.length} title={t('title')} />
 
       {/* Scrollable content area */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div ref={containerRef} className="semiont-panel__content">
         {/* Pending Manual Tag Creation */}
         {pendingSelection && onCreate && (
-          <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-4">
-            <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-100 mb-2">
+          <div className="semiont-annotation-prompt" data-type="tag">
+            <h3 className="semiont-annotation-prompt__title">
               {t('createTagForSelection')}
             </h3>
-            <div className="p-3 bg-white dark:bg-gray-800 rounded border-l-4 border-orange-500 mb-3">
-              <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+            <div className="semiont-annotation-prompt__quote">
+              <p className="semiont-annotation-prompt__text">
                 "{pendingSelection.exact.substring(0, 100)}{pendingSelection.exact.length > 100 ? '...' : ''}"
               </p>
             </div>
 
             {/* Schema and Category Selection for Manual Tag */}
-            <div className="mb-3">
-              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+            <div className="semiont-form-field">
+              <label className="semiont-form-field__label">
                 {t('selectSchema')}
               </label>
               <select
                 value={selectedSchemaId}
                 onChange={(e) => handleSchemaChange(e.target.value)}
-                className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+                className="semiont-select"
               >
                 {schemas.map(schema => (
                   <option key={schema.id} value={schema.id}>
@@ -133,12 +133,12 @@ export function TaggingPanel({
             </div>
 
             {selectedSchema && (
-              <div className="mb-3">
-                <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+              <div className="semiont-form-field">
+                <label className="semiont-form-field__label">
                   {t('selectCategory')}
                 </label>
                 <select
-                  className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+                  className="semiont-select"
                   onChange={(e) => {
                     if (e.target.value) {
                       onCreate(pendingSelection, selectedSchemaId, e.target.value);
@@ -158,24 +158,22 @@ export function TaggingPanel({
 
         {/* Detection Section - only in Annotate mode */}
         {annotateMode && onDetect && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+          <div className="semiont-panel__section">
+            <h3 className="semiont-panel__section-title">
               {t('detectTags')}
             </h3>
-            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 ${
-              isDetecting && detectionProgress ? `border-2 ${categoryColors.border}` : ''
-            }`}>
+            <div className="semiont-detect-widget" data-detecting={isDetecting && detectionProgress ? 'true' : 'false'} data-type="tag">
               {!isDetecting && !detectionProgress && (
                 <>
                   {/* Schema Selector */}
-                  <div className="mb-4">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                  <div className="semiont-form-field">
+                    <label className="semiont-form-field__label">
                       {t('selectSchema')}
                     </label>
                     <select
                       value={selectedSchemaId}
                       onChange={(e) => handleSchemaChange(e.target.value)}
-                      className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+                      className="semiont-select"
                     >
                       {schemas.map(schema => (
                         <option key={schema.id} value={schema.id}>
@@ -184,7 +182,7 @@ export function TaggingPanel({
                       ))}
                     </select>
                     {selectedSchema && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      <p className="semiont-form-field__description">
                         {selectedSchema.description}
                       </p>
                     )}
@@ -192,43 +190,46 @@ export function TaggingPanel({
 
                   {/* Category Selector */}
                   {selectedSchema && (
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <div className="semiont-form-field">
+                      <div className="semiont-form-field__header">
+                        <label className="semiont-form-field__label">
                           {t('selectCategories')}
                         </label>
-                        <div className="flex gap-2">
+                        <div className="semiont-form-field__actions">
                           <button
                             onClick={handleSelectAll}
-                            className="text-xs text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
+                            className="semiont-text-button"
+                            data-variant="tag"
                           >
                             {t('selectAll')}
                           </button>
-                          <span className="text-xs text-gray-400">|</span>
+                          <span className="semiont-form-field__separator">|</span>
                           <button
                             onClick={handleDeselectAll}
-                            className="text-xs text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
+                            className="semiont-text-button"
+                            data-variant="tag"
                           >
                             {t('deselectAll')}
                           </button>
                         </div>
                       </div>
 
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                      <div className="semiont-category-list">
                         {selectedSchema.tags.map(category => (
-                          <div key={category.name} className="border border-gray-200 dark:border-gray-700 rounded p-3">
-                            <label className="flex items-start gap-3 cursor-pointer group">
+                          <div key={category.name} className="semiont-category-item">
+                            <label className="semiont-category-item__label">
                               <input
                                 type="checkbox"
                                 checked={selectedCategories.has(category.name)}
                                 onChange={() => handleCategoryToggle(category.name)}
-                                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                                className="semiont-checkbox"
+                                data-variant="tag"
                               />
-                              <div className="flex-1">
-                                <div className="font-medium text-sm text-gray-900 dark:text-gray-100 group-hover:text-orange-600 dark:group-hover:text-orange-400">
+                              <div className="semiont-category-item__content">
+                                <div className="semiont-category-item__name">
                                   {t(`category${category.name.replace(/\s+/g, '')}`)}
                                 </div>
-                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                <div className="semiont-category-item__description">
                                   {category.description}
                                 </div>
                               </div>
@@ -237,7 +238,7 @@ export function TaggingPanel({
                         ))}
                       </div>
 
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      <div className="semiont-form-field__description">
                         {t('categoriesSelected', { count: selectedCategories.size })}
                       </div>
                     </div>
@@ -246,10 +247,11 @@ export function TaggingPanel({
                   <button
                     onClick={handleDetect}
                     disabled={selectedCategories.size === 0}
-                    className={`w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium bg-gradient-to-r ${categoryColors.button} text-white shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className="semiont-detect-button"
+                    data-type="tag"
                   >
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="text-2xl">✨</span>
+                    <span className="semiont-detect-button__content">
+                      <span className="semiont-detect-button__icon">✨</span>
                       <span>{t('detect')}</span>
                     </span>
                   </button>
@@ -258,26 +260,26 @@ export function TaggingPanel({
 
               {/* Detection Progress */}
               {isDetecting && detectionProgress && (
-                <div className="space-y-3">
+                <div className="semiont-detection-progress">
                   {/* Request Parameters */}
                   {detectionProgress.requestParams && detectionProgress.requestParams.length > 0 && (
-                    <div className="mb-3 p-2 bg-orange-50 dark:bg-orange-950/20 rounded border border-orange-200 dark:border-orange-800">
-                      <div className="text-xs font-semibold text-orange-900 dark:text-orange-100 mb-1">Request Parameters:</div>
+                    <div className="semiont-detection-progress__params" data-type="tag">
+                      <div className="semiont-detection-progress__params-title">Request Parameters:</div>
                       {detectionProgress.requestParams.map((param, idx) => (
-                        <div key={idx} className="text-xs text-orange-800 dark:text-orange-200">
-                          <span className="font-medium">{param.label}:</span> {param.value}
+                        <div key={idx} className="semiont-detection-progress__param">
+                          <span className="semiont-detection-progress__param-label">{param.label}:</span> {param.value}
                         </div>
                       ))}
                     </div>
                   )}
 
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg animate-sparkle-infinite">✨</span>
+                  <div className="semiont-detection-progress__status">
+                    <div className="semiont-detection-progress__message">
+                      <span className="semiont-detection-progress__icon">✨</span>
                       <span>{detectionProgress.message}</span>
                     </div>
                     {detectionProgress.currentCategory && (
-                      <div className="mt-2 text-xs text-gray-500">
+                      <div className="semiont-detection-progress__details">
                         Processing: {detectionProgress.currentCategory}
                         {detectionProgress.processedCategories !== undefined && detectionProgress.totalCategories !== undefined && (
                           <> ({detectionProgress.processedCategories}/{detectionProgress.totalCategories})</>
@@ -286,9 +288,10 @@ export function TaggingPanel({
                     )}
                   </div>
                   {detectionProgress.percentage !== undefined && (
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div className="semiont-progress-bar">
                       <div
-                        className="bg-gradient-to-r from-orange-500 to-amber-500 h-2 rounded-full transition-all duration-300"
+                        className="semiont-progress-bar__fill"
+                        data-type="tag"
                         style={{ width: `${detectionProgress.percentage}%` }}
                       />
                     </div>
@@ -300,9 +303,9 @@ export function TaggingPanel({
         )}
 
         {/* Tags list */}
-        <div className="space-y-4">
+        <div className="semiont-panel__list">
           {sortedAnnotations.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-sm">
+            <p className="semiont-panel__empty">
               {t('noTags')}
             </p>
           ) : (

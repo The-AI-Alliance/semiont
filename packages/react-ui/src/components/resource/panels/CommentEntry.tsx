@@ -84,47 +84,46 @@ export function CommentEntry({
   return (
     <div
       ref={commentRef}
-      className={`border rounded-lg p-3 transition-all cursor-pointer ${
-        isFocused
-          ? 'border-gray-400 bg-gray-50 dark:bg-gray-800 animate-pulse-outline'
-          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-      }`}
+      className="semiont-annotation-entry"
+      data-type="comment"
+      data-focused={isFocused ? 'true' : 'false'}
       onClick={onClick}
       onMouseEnter={() => onCommentHover?.(comment.id)}
       onMouseLeave={() => onCommentHover?.(null)}
     >
       {/* Selected text quote - only for text annotations */}
       {selectedText && (
-        <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 border-l-2 border-purple-300 pl-2">
+        <div className="semiont-annotation-entry__quote" data-type="comment">
           "{selectedText.substring(0, 100)}{selectedText.length > 100 ? '...' : ''}"
         </div>
       )}
 
       {/* Comment body */}
       {isEditing ? (
-        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+        <div className="semiont-annotation-entry__edit" onClick={(e) => e.stopPropagation()}>
           <textarea
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
-            className="w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+            className="semiont-textarea"
             rows={3}
             autoFocus
             maxLength={2000}
           />
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">
+          <div className="semiont-annotation-entry__edit-footer">
+            <span className="semiont-annotation-entry__char-count">
               {editText.length}/2000
             </span>
-            <div className="flex gap-2">
+            <div className="semiont-annotation-entry__button-group">
               <button
                 onClick={handleSave}
-                className="text-sm px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+                className="semiont-button semiont-button--primary"
+                data-type="comment"
               >
                 {t('save')}
               </button>
               <button
                 onClick={handleCancel}
-                className="text-sm px-3 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                className="semiont-button semiont-button--secondary"
               >
                 {t('cancel')}
               </button>
@@ -132,20 +131,21 @@ export function CommentEntry({
           </div>
         </div>
       ) : (
-        <div className="text-sm mb-2 whitespace-pre-wrap">{commentText}</div>
+        <div className="semiont-annotation-entry__body">{commentText}</div>
       )}
 
       {/* Metadata and actions */}
       {!isEditing && (
-        <div className="space-y-1">
-          <div className="text-xs text-gray-500">
+        <div className="semiont-annotation-entry__footer">
+          <div className="semiont-annotation-entry__metadata">
             By {typeof comment.creator === 'string' ? comment.creator : comment.creator?.name || 'Unknown'} • {formatRelativeTime(comment.created || new Date().toISOString())}
           </div>
           {annotateMode && (
-            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+            <div className="semiont-annotation-entry__actions" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={handleEditClick}
-                className="text-xs hover:text-purple-600 dark:hover:text-purple-400"
+                className="semiont-text-button"
+                data-variant="comment"
               >
                 {t('edit')}
               </button>
