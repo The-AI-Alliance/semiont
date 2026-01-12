@@ -1,4 +1,9 @@
-/* Annotate Toolbar */
+/**
+ * Toolbar Component
+ *
+ * Styles for toolbar including annotation toolbar and dropdown groups
+ */
+
 .semiont-annotate-toolbar {
   display: flex;
   align-items: center;

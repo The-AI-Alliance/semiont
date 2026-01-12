@@ -1,3 +1,9 @@
+/**
+ * Loading Patterns
+ *
+ * Styles for loading states and skeleton screens
+ */
+
 /* Loading States */
 .semiont-loading-state {
   display: flex;
@@ -19,11 +25,3 @@
 :root:not([data-theme="light"]) .semiont-loading-message {
   color: var(--semiont-color-gray-300);
 }
-
-/* Error States */
-.semiont-skeleton {
-[data-theme="dark"] .semiont-skeleton,
-:root:not([data-theme="light"]) .semiont-skeleton {
-.semiont-skeleton--icon {
-.semiont-skeleton--text {
-.semiont-skeleton--number {

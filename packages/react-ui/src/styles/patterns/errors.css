@@ -1,3 +1,9 @@
+/**
+ * Error Patterns
+ *
+ * Styles for error states and error messages
+ */
+
 /* Error States */
 .semiont-error-state {
   display: flex;
@@ -17,5 +23,3 @@
 :root:not([data-theme="light"]) .semiont-error-message {
   color: var(--semiont-color-error-light);
 }
-
-/* Branding Component */

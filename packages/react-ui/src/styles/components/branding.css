@@ -1,4 +1,9 @@
-/* Branding Component */
+/**
+ * Branding Component
+ *
+ * Styles for the Semiont branding display including logo and tagline
+ */
+
 .semiont-branding {
   display: flex;
   flex-direction: column;
