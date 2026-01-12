@@ -1,28 +1,155 @@
+/**
+ * Card Component Styles
+ *
+ * Styles for card components including stat cards and resource cards
+ */
+
+/* Base Card Styles */
+.semiont-card {
+  background: white;
+  border: 1px solid var(--semiont-color-gray-200);
+  border-radius: var(--semiont-radius-lg);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .semiont-card,
+:root:not([data-theme="light"]) .semiont-card {
+  background: var(--semiont-color-gray-800);
+  border-color: var(--semiont-color-gray-700);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Stat Card Styles */
 .semiont-stat-card {
+  background: white;
+  border: 1px solid var(--semiont-color-gray-200);
+  border-radius: var(--semiont-radius-lg);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 [data-theme="dark"] .semiont-stat-card,
 :root:not([data-theme="light"]) .semiont-stat-card {
+  background: var(--semiont-color-gray-800);
+  border-color: var(--semiont-color-gray-700);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
 .semiont-stat-card--loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .semiont-stat-card__content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .semiont-stat-card__icon-wrapper {
+  flex-shrink: 0;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--semiont-radius-md);
+  background: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-stat-card__icon-wrapper,
+:root:not([data-theme="light"]) .semiont-stat-card__icon-wrapper {
+  background: var(--semiont-color-gray-700);
+}
+
 .semiont-stat-card__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-stat-card__icon,
+:root:not([data-theme="light"]) .semiont-stat-card__icon {
+  color: var(--semiont-color-gray-400);
+}
+
 .semiont-stat-card__icon--primary {
+  color: var(--semiont-color-primary-500);
+}
+
 [data-theme="dark"] .semiont-stat-card__icon--primary,
 :root:not([data-theme="light"]) .semiont-stat-card__icon--primary {
+  color: var(--semiont-color-primary-400);
+}
+
 .semiont-stat-card__icon--danger {
+  color: var(--semiont-color-red-500);
+}
+
 [data-theme="dark"] .semiont-stat-card__icon--danger,
 :root:not([data-theme="light"]) .semiont-stat-card__icon--danger {
+  color: var(--semiont-color-red-400);
+}
+
 .semiont-stat-card__icon--warning {
+  color: var(--semiont-color-yellow-500);
+}
+
 [data-theme="dark"] .semiont-stat-card__icon--warning,
 :root:not([data-theme="light"]) .semiont-stat-card__icon--warning {
+  color: var(--semiont-color-yellow-400);
+}
+
 .semiont-stat-card__text {
+  flex: 1;
+}
+
 .semiont-stat-card__label {
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-600);
+  margin-bottom: 0.25rem;
+}
+
 [data-theme="dark"] .semiont-stat-card__label,
 :root:not([data-theme="light"]) .semiont-stat-card__label {
+  color: var(--semiont-color-gray-400);
+}
+
 .semiont-stat-card__value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-900);
+}
+
 [data-theme="dark"] .semiont-stat-card__value,
 :root:not([data-theme="light"]) .semiont-stat-card__value {
+  color: var(--semiont-color-gray-100);
+}
+
 .semiont-stat-card__status-indicator {
-.semiont-stat-card__status-indicator--active {
-[data-theme="dark"] .semiont-stat-card__status-indicator--active,
-:root:not([data-theme="light"]) .semiont-stat-card__status-indicator--active {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.semiont-stat-card__status-indicator--active .semiont-stat-card__status-dot {
+  background: var(--semiont-color-green-500);
+}
+
+[data-theme="dark"] .semiont-stat-card__status-indicator--active .semiont-stat-card__status-dot,
+:root:not([data-theme="light"]) .semiont-stat-card__status-indicator--active .semiont-stat-card__status-dot {
+  background: var(--semiont-color-green-400);
+}
+
 .semiont-stat-card__status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--semiont-radius-full);
+  background: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-stat-card__status-dot,
+:root:not([data-theme="light"]) .semiont-stat-card__status-dot {
+  background: var(--semiont-color-gray-600);
+}

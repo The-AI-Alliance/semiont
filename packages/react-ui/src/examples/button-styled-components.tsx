@@ -15,7 +15,7 @@ export const StyledButton = styled(SemiontButton)`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: ${props => props.theme?.fonts?.sans || 'system-ui, -apple-system, sans-serif'};
+  font-family: ${props => props.theme?.typography?.fonts?.sans || 'system-ui, -apple-system, sans-serif'};
   font-weight: 500;
   border: none;
   cursor: pointer;

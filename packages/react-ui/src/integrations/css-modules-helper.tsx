@@ -5,6 +5,7 @@
  * with CSS Modules while preserving the data-attribute architecture.
  */
 
+import React from 'react';
 import { clsx } from 'clsx';
 
 /**
@@ -82,7 +83,7 @@ export function mergeDataAttributes<T extends Record<string, any>>(
   props: T,
   dataAttributes: Record<string, string | undefined>
 ): T {
-  const merged = { ...props };
+  const merged = { ...props } as any;
 
   Object.entries(dataAttributes).forEach(([key, value]) => {
     if (value !== undefined) {
@@ -90,7 +91,7 @@ export function mergeDataAttributes<T extends Record<string, any>>(
     }
   });
 
-  return merged;
+  return merged as T;
 }
 
 /**

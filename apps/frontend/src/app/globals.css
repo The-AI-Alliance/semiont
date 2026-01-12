@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import @semiont/react-ui styles */
+@import '@semiont/react-ui/styles';
+
 /* Light mode (default) */
 :root {
   --foreground-rgb: 0, 0, 0;

@@ -41,7 +41,20 @@ export const semiontTheme: DefaultTheme = {
  */
 declare module 'styled-components' {
   export interface DefaultTheme {
-    colors: typeof semiontTheme.colors;
+    colors: typeof tokens.colors & {
+      error: string;
+      errorLight: string;
+      errorDark: string;
+      warning: string;
+      warningLight: string;
+      warningDark: string;
+      success: string;
+      successLight: string;
+      successDark: string;
+      info: string;
+      infoLight: string;
+      infoDark: string;
+    };
     spacing: typeof tokens.spacing;
     typography: typeof tokens.typography;
     borderRadius: typeof tokens.borderRadius;

@@ -13,7 +13,8 @@
       "types": "./dist/test-utils.d.mts",
       "import": "./dist/test-utils.mjs"
     },
-    "./styles/base.css": "./src/styles/base.css",
+    "./styles": "./src/styles/index.css",
+    "./styles/index.css": "./src/styles/index.css",
     "./styles/variables.css": "./src/styles/variables.css",
     "./tailwind": "./src/integrations/tailwind-plugin.js",
     "./integrations/css-modules": {
