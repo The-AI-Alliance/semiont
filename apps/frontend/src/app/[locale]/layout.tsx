@@ -22,6 +22,28 @@ const orbitron = Orbitron({
 export const metadata: Metadata = {
   title: `${NEXT_PUBLIC_SITE_NAME} - AI-Powered Research Environment`,
   description: "A modern AI-powered research environment for collaborative knowledge work and analysis",
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' }
+    ],
+    apple: '/apple-touch-icon.png',
+    other: [
+      { rel: 'mask-icon', url: '/favicon.svg', color: '#00FFFF' }
+    ]
+  },
+  manifest: '/site.webmanifest',
+  openGraph: {
+    type: 'website',
+    siteName: NEXT_PUBLIC_SITE_NAME,
+    images: ['/android-chrome-512x512.png']
+  },
+  twitter: {
+    card: 'summary',
+    images: ['/android-chrome-512x512.png']
+  }
 };
 
 export function generateStaticParams() {

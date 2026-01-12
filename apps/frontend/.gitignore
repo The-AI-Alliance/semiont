@@ -81,3 +81,12 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Favicon files copied from @semiont/react-ui
+# These are generated during build/dev from the source package
+public/favicon.ico
+public/favicon.svg
+public/favicon-*.png
+public/apple-touch-icon.png
+public/android-chrome-*.png
+public/site.webmanifest
