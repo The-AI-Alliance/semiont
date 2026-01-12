@@ -80,7 +80,7 @@ packages/*/scripts/*.js
 packages/*/scripts/*.js.map
 packages/*/scripts/*.d.ts
 packages/*/scripts/*.d.ts.map
-apps/*/scripts/*.js
+# Note: apps/*/scripts/*.js removed - these are actual source JS files, not compiled output
 apps/*/scripts/*.js.map
 apps/*/scripts/*.d.ts
 apps/*/scripts/*.d.ts.map
