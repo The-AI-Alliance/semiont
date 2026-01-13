@@ -48,6 +48,16 @@
   position: relative;
 }
 
+/* Collapsed state modifications */
+.sidebar-navigation--collapsed .sidebar-navigation__item {
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.sidebar-navigation--collapsed .sidebar-navigation__container {
+  padding: 0.5rem;
+}
+
 /* Active State */
 .sidebar-navigation__item--active {
   background-color: var(--color-primary-bg, rgba(59, 130, 246, 0.1));

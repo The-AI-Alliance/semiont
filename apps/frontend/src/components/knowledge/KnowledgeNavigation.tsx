@@ -5,7 +5,8 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
-import { useOpenResources } from '@semiont/react-ui';
+import { useOpenResources, SidebarNavigation } from '@semiont/react-ui';
+import type { NavigationItem } from '@semiont/react-ui';
 import {
   DndContext,
   closestCenter,
@@ -38,7 +39,7 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
   const router = useRouter();
   const { openResources, removeResource, reorderResources } = useOpenResources();
 
-  const fixedNavigation = [
+  const fixedNavigation: NavigationItem[] = [
     {
       name: t('discover'),
       href: '/know/discover',
@@ -128,36 +129,16 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
 
             {/* Navigation content */}
             <div id="knowledge-nav-content">
-            {/* Fixed navigation items */}
-            {fixedNavigation.map((item) => {
-              const isActive = pathname === item.href;
-
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`group flex items-center ${
-                    isCollapsed ? 'justify-center px-2' : 'px-3'
-                  } py-2 text-sm font-medium rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                      : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800'
-                  }`}
-                  title={isCollapsed ? item.name : item.description}
-                >
-                  <item.icon
-                    className={`flex-shrink-0 h-5 w-5 ${
-                      isCollapsed ? '' : '-ml-1 mr-3'
-                    } ${
-                      isActive
-                        ? 'text-blue-500 dark:text-blue-400'
-                        : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
-                    }`}
-                  />
-                  {!isCollapsed && item.name}
-                </Link>
-              );
-            })}
+            {/* Fixed navigation items using SidebarNavigation */}
+            <SidebarNavigation
+              items={fixedNavigation}
+              currentPath={pathname}
+              LinkComponent={Link as any}
+              isCollapsed={isCollapsed}
+              showDescriptions={true}
+              activeClassName="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
+              inactiveClassName="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
+            />
             
             {/* Document tabs with drag and drop */}
             {isCollapsed ? (

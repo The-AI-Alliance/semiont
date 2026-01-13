@@ -45,4 +45,8 @@ export interface SidebarNavigationProps extends NavigationProps {
   activeClassName?: string;
   /** Custom inactive item class */
   inactiveClassName?: string;
+  /** Whether the navigation is in collapsed state (icons only) */
+  isCollapsed?: boolean;
+  /** Whether to show text labels (when not collapsed) */
+  showText?: boolean;
 }

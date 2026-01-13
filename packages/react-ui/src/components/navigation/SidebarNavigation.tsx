@@ -6,6 +6,7 @@ import type { SidebarNavigationProps } from '../../types/navigation';
 /**
  * Framework-agnostic sidebar navigation component.
  * Accepts a Link component for routing and handles active state highlighting.
+ * Supports collapsed state where only icons are shown.
  */
 export function SidebarNavigation({
   items,
@@ -15,16 +16,18 @@ export function SidebarNavigation({
   className = '',
   showDescriptions = true,
   activeClassName,
-  inactiveClassName
+  inactiveClassName,
+  isCollapsed = false,
+  showText = true
 }: SidebarNavigationProps) {
   const defaultActiveClass = 'sidebar-navigation__item--active';
   const defaultInactiveClass = 'sidebar-navigation__item--inactive';
 
   return (
-    <div className={`sidebar-navigation ${className}`}>
+    <div className={`sidebar-navigation ${className} ${isCollapsed ? 'sidebar-navigation--collapsed' : ''}`}>
       <div className="sidebar-navigation__container">
         <div className="sidebar-navigation__section">
-          {title && (
+          {title && !isCollapsed && (
             <div className="sidebar-navigation__header">
               <div className="sidebar-navigation__title">{title}</div>
             </div>
@@ -42,7 +45,7 @@ export function SidebarNavigation({
                   key={item.name}
                   href={item.href}
                   className={`sidebar-navigation__item ${itemClass}`}
-                  title={showDescriptions ? item.description : undefined}
+                  title={(isCollapsed || showDescriptions) ? (item.description || item.name) : undefined}
                 >
                   <item.icon
                     className={`sidebar-navigation__icon ${
@@ -52,7 +55,9 @@ export function SidebarNavigation({
                     }`}
                     aria-hidden="true"
                   />
-                  <span className="sidebar-navigation__text">{item.name}</span>
+                  {!isCollapsed && showText && (
+                    <span className="sidebar-navigation__text">{item.name}</span>
+                  )}
                 </LinkComponent>
               );
             })}
