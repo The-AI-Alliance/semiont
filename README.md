@@ -149,7 +149,6 @@ Semiont publishes npm packages and container images for easy integration and dep
 | [Frontend Accessibility](apps/frontend/docs/ACCESSIBILITY.md) | Frontend-specific accessibility features and testing |
 | [React UI Accessibility](packages/react-ui/docs/ACCESSIBILITY.md) | Component library accessibility architecture |
 | [Keyboard Navigation](apps/frontend/docs/KEYBOARD-NAV.md) | Comprehensive keyboard navigation guide |
-| [Accessibility Improvements](ACCESSIBILITY-IMPROVEMENTS.md) | Roadmap for accessibility enhancements |
 
 ## 📜 License
 
