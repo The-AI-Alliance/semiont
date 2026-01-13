@@ -19,6 +19,9 @@ export interface SortableResourceTabProps {
   isActive: boolean;
   href: string;
   onClose: (id: string, e: React.MouseEvent) => void;
+  onReorder?: (resourceId: string, direction: 'up' | 'down') => void;
+  index?: number;
+  totalCount?: number;
   LinkComponent: ComponentType<any>;
   dragHandleProps?: any;
   isDragging?: boolean;
@@ -26,6 +29,8 @@ export interface SortableResourceTabProps {
     dragToReorder?: string;
     dragToReorderDoc?: string;
     closeResource?: string;
+    moveUp?: string;
+    moveDown?: string;
   };
 }
 

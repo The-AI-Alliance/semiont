@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -8,7 +8,8 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent
+  DragEndEvent,
+  DragStartEvent
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -17,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { SidebarNavigation } from './SidebarNavigation';
 import { SortableResourceTab } from './SortableResourceTab';
+import { useDragAnnouncements } from '../../hooks/useDragAnnouncements';
 import type { CollapsibleResourceNavigationProps } from '../../types/collapsible-navigation';
 
 /**
@@ -46,6 +48,8 @@ export function CollapsibleResourceNavigation({
   const BarsIcon = icons.bars;
   const CloseIcon = icons.close;
 
+  const { announcePickup, announceDrop, announceKeyboardReorder, announceCannotMove } = useDragAnnouncements();
+
   // Setup drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -57,6 +61,27 @@ export function CollapsibleResourceNavigation({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Handle keyboard reordering (Alt+Up/Down arrows)
+  const handleKeyboardReorder = useCallback((resourceId: string, direction: 'up' | 'down') => {
+    const currentIndex = resources.findIndex(r => r.id === resourceId);
+    if (currentIndex === -1) return;
+
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+    // Check bounds
+    if (newIndex < 0 || newIndex >= resources.length) {
+      announceCannotMove(direction);
+      return;
+    }
+
+    // Perform reorder
+    onResourceReorder(currentIndex, newIndex);
+
+    // Announce the change
+    const resource = resources[currentIndex];
+    announceKeyboardReorder(resource.name, direction, newIndex + 1, resources.length);
+  }, [resources, onResourceReorder, announceKeyboardReorder, announceCannotMove]);
 
   // Handle resource close
   const handleResourceClose = (resourceId: string, e: React.MouseEvent) => {
@@ -72,6 +97,16 @@ export function CollapsibleResourceNavigation({
     }
   };
 
+  // Handle drag start
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const resource = resources.find(r => r.id === active.id);
+    if (resource) {
+      const index = resources.indexOf(resource);
+      announcePickup(resource.name, index + 1, resources.length);
+    }
+  };
+
   // Handle drag end for resource reordering
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -81,6 +116,8 @@ export function CollapsibleResourceNavigation({
       const newIndex = resources.findIndex((resource) => resource.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
         onResourceReorder(oldIndex, newIndex);
+        const resource = resources[oldIndex];
+        announceDrop(resource.name, newIndex + 1, resources.length);
       }
     }
   };
@@ -88,9 +125,14 @@ export function CollapsibleResourceNavigation({
   return (
     <div className={`collapsible-resource-navigation ${className}`}>
       {/* Screen reader instructions for drag and drop */}
-      <div id="drag-instructions" className="sr-only">
+      <div id="drag-instructions" className="sr-only" aria-live="polite">
         {translations.dragInstructions ||
-         'Press space bar to pick up the item. Use arrow keys to move it. Press space bar again to drop.'}
+         'To reorder resources: Use Tab to navigate to a resource. Press Alt+Up arrow to move up or Alt+Down arrow to move down. For drag and drop: Press space bar to pick up the item. Use arrow keys to move it. Press space bar again to drop.'}
+      </div>
+
+      {/* Keyboard reordering instructions (announced once) */}
+      <div className="sr-only" role="status" aria-atomic="true">
+        Resources can be reordered using Alt+Up or Alt+Down arrow keys.
       </div>
 
       <div className={`${isCollapsed ? 'p-2' : 'p-4'}`}>
@@ -167,13 +209,14 @@ export function CollapsibleResourceNavigation({
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
+                    onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                   >
                     <SortableContext
                       items={resources.map((resource) => resource.id)}
                       strategy={verticalListSortingStrategy}
                     >
-                      {resources.map((resource) => {
+                      {resources.map((resource, index) => {
                         const resourceHref = getResourceHref(resource.id);
                         const isActive = currentPath === resourceHref;
 
@@ -185,6 +228,9 @@ export function CollapsibleResourceNavigation({
                             isActive={isActive}
                             href={resourceHref}
                             onClose={handleResourceClose}
+                            onReorder={handleKeyboardReorder}
+                            index={index}
+                            totalCount={resources.length}
                             LinkComponent={LinkComponent}
                             translations={{
                               dragToReorder: translations.dragToReorder,
