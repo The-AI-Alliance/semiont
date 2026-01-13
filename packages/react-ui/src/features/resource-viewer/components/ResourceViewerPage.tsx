@@ -24,6 +24,7 @@ import { ResourceInfoPanel } from '@semiont/react-ui';
 import { CollaborationPanel } from '@semiont/react-ui';
 import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
+import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { SemiontResource, Annotation, Motivation, TextSelection, GenerationOptions } from '@semiont/react-ui';
 import type { DetectionProgress } from '@semiont/react-ui';
 
@@ -208,6 +209,13 @@ export function ResourceViewerPage({
   GenerationConfigModal,
 }: ResourceViewerPageProps) {
   const queryClient = useQueryClient();
+
+  // Resource loading announcements
+  const {
+    announceResourceLoading,
+    announceResourceLoaded,
+    announceResourceError
+  } = useResourceLoadingAnnouncements();
 
   // Group annotations by type using centralized registry
   const groups = groupAnnotationsByType(annotations);
@@ -410,6 +418,15 @@ export function ResourceViewerPage({
       showError('Failed to update reference');
     }
   }, [rUri, references, onUpdateAnnotationBody, onRefetchAnnotations, showSuccess, showError]);
+
+  // Announce content loading state changes
+  useEffect(() => {
+    if (contentLoading) {
+      announceResourceLoading(resource.name);
+    } else if (content) {
+      announceResourceLoaded(resource.name);
+    }
+  }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
 
   // Manual tag creation handler
   const handleCreateTag = useCallback(async (

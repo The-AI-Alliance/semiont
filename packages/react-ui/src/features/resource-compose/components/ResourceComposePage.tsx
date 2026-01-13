@@ -10,6 +10,7 @@ import React, { useState, useEffect } from 'react';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
 import { isImageMimeType, LOCALES } from '@semiont/api-client';
 import { buttonStyles, CodeMirrorRenderer } from '@semiont/react-ui';
+import { useFormAnnouncements } from '@semiont/react-ui';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -121,6 +122,9 @@ export function ResourceComposePage({
   ToolbarPanels,
   Toolbar,
 }: ResourceComposePageProps) {
+  // Form announcements
+  const { announceFormSubmitting, announceFormSuccess, announceFormError } = useFormAnnouncements();
+
   // Form state
   const [newResourceName, setNewResourceName] = useState('');
   const [newResourceContent, setNewResourceContent] = useState('');
@@ -204,6 +208,8 @@ export function ResourceComposePage({
     if (!newResourceName.trim()) return;
 
     setIsCreating(true);
+    announceFormSubmitting();
+
     try {
       const params: SaveResourceParams = {
         mode,
@@ -231,6 +237,17 @@ export function ResourceComposePage({
       }
 
       await onSaveResource(params);
+
+      // Announce success based on mode
+      const successMessage = mode === 'clone'
+        ? 'Resource cloned successfully'
+        : mode === 'reference'
+        ? 'Reference completed successfully'
+        : 'Resource created successfully';
+      announceFormSuccess(successMessage);
+    } catch (error) {
+      announceFormError('Failed to save resource. Please try again.');
+      throw error;
     } finally {
       setIsCreating(false);
     }
