@@ -4,24 +4,13 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
-import { PlusIcon, ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
-import { useOpenResources, SidebarNavigation } from '@semiont/react-ui';
-import type { NavigationItem } from '@semiont/react-ui';
+import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { SortableResourceTab } from './SortableResourceTab';
+  useOpenResources,
+  CollapsibleResourceNavigation,
+  type NavigationItem,
+  type OpenResource
+} from '@semiont/react-ui';
 
 // Custom telescope icon component
 const TelescopeIcon = ({ className }: { className?: string }) => (
@@ -54,129 +43,55 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
     }
   ];
 
-  // Setup drag and drop sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  // Function to close a document tab
-  const closeDocument = (docId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    removeResource(docId);
+  // Handle resource close
+  const handleResourceClose = (resourceId: string) => {
+    removeResource(resourceId);
 
     // If we're closing the currently viewed document, navigate to Discover
-    if (pathname === `/know/resource/${docId}`) {
+    if (pathname === `/know/resource/${resourceId}`) {
       router.push('/know/discover');
     }
   };
 
-  // Handle drag end
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
+  // Handle navigation
+  const handleNavigate = (path: string) => {
+    router.push(path);
+  };
 
-    if (over && active.id !== over.id) {
-      const oldIndex = openResources.findIndex((resource) => resource.id === active.id);
-      const newIndex = openResources.findIndex((resource) => resource.id === over.id);
-      reorderResources(oldIndex, newIndex);
-    }
+  // Build resource href
+  const getResourceHref = (resourceId: string) => {
+    return `/know/resource/${resourceId}`;
   };
 
   return (
-    <>
-      {/* Screen reader instructions for drag and drop */}
-      <div id="drag-instructions" className="sr-only">
-        Press space bar to pick up the item. Use arrow keys to move it. Press space bar again to drop.
-      </div>
-      <div className={`${isCollapsed ? 'p-2' : 'p-4'}`}>
-        <div className="space-y-1">
-          <div>
-            {/* Header with collapse button - fixed height for alignment */}
-            <div className="h-12 flex items-center mb-3">
-              {!isCollapsed ? (
-                <>
-                  <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex-1">
-                    {t('title')}
-                  </div>
-                  <button
-                    onClick={onToggleCollapse}
-                    className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 flex-shrink-0"
-                    title={t('collapseSidebar')}
-                    aria-label={t('collapseSidebar')}
-                  >
-                    <ChevronLeftIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={onToggleCollapse}
-                  className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 mx-auto"
-                  title={t('expandSidebar')}
-                  aria-label={t('expandSidebar')}
-                >
-                  <Bars3Icon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-                </button>
-              )}
-            </div>
-
-            {/* Navigation content */}
-            <div id="knowledge-nav-content">
-            {/* Fixed navigation items using SidebarNavigation */}
-            <SidebarNavigation
-              items={fixedNavigation}
-              currentPath={pathname}
-              LinkComponent={Link as any}
-              isCollapsed={isCollapsed}
-              showDescriptions={true}
-              activeClassName="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
-              inactiveClassName="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
-            />
-            
-            {/* Document tabs with drag and drop */}
-            {isCollapsed ? (
-              // When collapsed, dragging is disabled - just render simple tabs
-              openResources.map((resource) => (
-                <SortableResourceTab
-                  key={resource.id}
-                  doc={resource}
-                  isCollapsed={isCollapsed}
-                  onClose={closeDocument}
-                />
-              ))
-            ) : (
-              // When expanded, enable drag and drop
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={openResources.map((resource) => resource.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {openResources.map((resource) => (
-                    <SortableResourceTab
-                      key={resource.id}
-                      doc={resource}
-                      isCollapsed={isCollapsed}
-                      onClose={closeDocument}
-                    />
-                  ))}
-                </SortableContext>
-              </DndContext>
-            )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
+    <CollapsibleResourceNavigation
+      fixedItems={fixedNavigation}
+      resources={openResources as OpenResource[]}
+      isCollapsed={isCollapsed}
+      onToggleCollapse={onToggleCollapse}
+      onResourceClose={handleResourceClose}
+      onResourceReorder={reorderResources}
+      currentPath={pathname}
+      LinkComponent={Link as any}
+      onNavigate={handleNavigate}
+      getResourceHref={getResourceHref}
+      className="knowledge-navigation"
+      activeClassName="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
+      inactiveClassName="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
+      translations={{
+        title: t('title'),
+        collapseSidebar: t('collapseSidebar'),
+        expandSidebar: t('expandSidebar'),
+        dragToReorder: t('dragToReorder'),
+        dragToReorderDoc: t('dragToReorderDoc'),
+        closeResource: t('closeResource'),
+        dragInstructions: t('dragInstructions')
+      }}
+      icons={{
+        chevronLeft: ChevronLeftIcon,
+        bars: Bars3Icon,
+        close: XMarkIcon
+      }}
+    />
   );
 }

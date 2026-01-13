@@ -118,6 +118,9 @@ export * from './components/viewers';
 export * from './components/navigation/Footer';
 export * from './components/navigation/NavigationMenu';
 export * from './components/navigation/SidebarNavigation';
+export * from './components/navigation/CollapsibleResourceNavigation';
+export * from './components/navigation/SortableResourceTab';
+export * from './types/collapsible-navigation';
 
 // Components - Modals
 export * from './components/modals/SearchModal';
