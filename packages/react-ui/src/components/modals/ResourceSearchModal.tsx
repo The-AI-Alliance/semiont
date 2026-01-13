@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { useResources } from '../../hooks/useResources';
+import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
 
 interface ResourceSearchModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export function ResourceSearchModal({
   searchTerm = '',
   translations = {}
 }: ResourceSearchModalProps) {
+  const { announceSearchResults, announceSearching, announceNavigation } = useSearchAnnouncements();
   const [search, setSearch] = useState(searchTerm);
   const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
 
@@ -67,6 +69,20 @@ export function ResourceSearchModal({
     };
   }) || [];
 
+  // Announce search results
+  useEffect(() => {
+    if (!loading && debouncedSearch) {
+      announceSearchResults(results.length, debouncedSearch);
+    }
+  }, [loading, results.length, debouncedSearch, announceSearchResults]);
+
+  // Announce when searching
+  useEffect(() => {
+    if (loading && debouncedSearch) {
+      announceSearching();
+    }
+  }, [loading, debouncedSearch, announceSearching]);
+
   // Update search term when modal opens
   useEffect(() => {
     if (isOpen && searchTerm) {
@@ -80,7 +96,8 @@ export function ResourceSearchModal({
     // Search is handled by React Query hook
   };
 
-  const handleSelect = (resourceId: string) => {
+  const handleSelect = (resourceId: string, resourceName: string) => {
+    announceNavigation(resourceName, 'resource');
     onSelect(resourceId);
     onClose();
   };
@@ -160,7 +177,7 @@ export function ResourceSearchModal({
                           <div
                             key={resource.id}
                             className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                            onClick={() => handleSelect(resource.id)}
+                            onClick={() => handleSelect(resource.id, resource.name)}
                           >
                             <h4 className="font-medium text-gray-900 dark:text-white mb-1">
                               {resource.name}

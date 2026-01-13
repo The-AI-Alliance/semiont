@@ -28,7 +28,7 @@ export function Footer({
 
   return (
     <>
-      <footer className="semiont-footer">
+      <footer role="contentinfo" className="semiont-footer">
         <div className="semiont-footer__container">
           <div className="semiont-footer__content">
             <div className="semiont-footer__copyright">

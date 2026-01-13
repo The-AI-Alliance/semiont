@@ -120,9 +120,14 @@ export function LeftSidebar({
       </div>
 
       {/* Navigation Content */}
-      <div className="semiont-left-sidebar__content">
+      <nav
+        role="navigation"
+        aria-label="Main navigation"
+        id="main-navigation"
+        className="semiont-left-sidebar__content"
+      >
         {typeof children === 'function' ? children(isCollapsed, toggleCollapsed) : children}
-      </div>
+      </nav>
     </aside>
   );
 }
