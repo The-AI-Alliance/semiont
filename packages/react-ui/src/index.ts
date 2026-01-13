@@ -9,6 +9,7 @@ export * from './types/annotation-props';
 export * from './types/AnnotationManager';
 export * from './types/ApiClientManager';
 export * from './types/CacheManager';
+export * from './types/navigation';
 export * from './types/OpenResourcesManager';
 export * from './types/SessionManager';
 export * from './types/TranslationManager';
@@ -116,6 +117,7 @@ export * from './components/viewers';
 // Components - Navigation
 export * from './components/navigation/Footer';
 export * from './components/navigation/NavigationMenu';
+export * from './components/navigation/SidebarNavigation';
 
 // Components - Layout
 export * from './components/SkipLinks';

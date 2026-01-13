@@ -28,6 +28,7 @@
 @import './components/toolbar.css';
 @import './components/cards.css';
 @import './components/references.css';
+@import './components/sidebar-navigation.css';
 
 /* Features */
 @import './features/admin.css';
