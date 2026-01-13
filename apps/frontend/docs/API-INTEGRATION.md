@@ -1,12 +1,13 @@
 # API Integration Guide
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2025-01-12
 
-How the Semiont frontend integrates with the backend API, including type-safe client usage, W3C annotation model, and asynchronous operations.
+How the Semiont frontend integrates with the backend API through the framework-agnostic @semiont/react-ui library, including the provider pattern, type-safe client usage, and W3C annotation model.
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Provider Pattern Architecture](#provider-pattern-architecture)
 - [API Client Usage](#api-client-usage)
 - [W3C Web Annotation Model](#w3c-web-annotation-model)
 - [Synchronous vs Asynchronous Operations](#synchronous-vs-asynchronous-operations)
@@ -17,56 +18,159 @@ How the Semiont frontend integrates with the backend API, including type-safe cl
 
 ## Overview
 
-The frontend uses the `@semiont/api-client` package for type-safe API communication with the backend, integrated through the `@semiont/react-ui` Provider Pattern. All API interactions are:
+The frontend integrates with the backend API through a layered architecture that maintains framework independence:
 
-- **Type-safe**: TypeScript types generated from OpenAPI specification
-- **Framework-agnostic**: API client injected via `ApiClientProvider` from `@semiont/react-ui`
+```
+┌─────────────────────────────────────┐
+│         apps/frontend               │
+│      (Next.js Application)          │
+│                                     │
+│  Implements Provider Interfaces:    │
+│  • NextAuth Session Provider        │
+│  • API Client Configuration         │
+│  • React Query Setup                │
+└─────────────┬───────────────────────┘
+              │ uses
+              ▼
+┌─────────────────────────────────────┐
+│    packages/react-ui                │
+│  (Framework-agnostic library)       │
+│                                     │
+│  Provides:                          │
+│  • ApiClientProvider Interface      │
+│  • API Hooks (useResources, etc.)   │
+│  • Query Key Management             │
+└─────────────┬───────────────────────┘
+              │ uses
+              ▼
+┌─────────────────────────────────────┐
+│    packages/api-client              │
+│  (Type-safe API Client)             │
+│                                     │
+│  • OpenAPI Generated Types          │
+│  • HTTP Client                      │
+│  • Request/Response Handling        │
+└─────────────────────────────────────┘
+```
+
+All API interactions feature:
+- **Type-safety**: TypeScript types generated from OpenAPI specification
+- **Framework-agnostic**: API client injected via Provider Pattern
 - **Authenticated**: Automatic JWT token inclusion via session management
 - **Error-handled**: Structured error responses with proper HTTP status codes
-- **Cached**: Apps provide their own cache management (React Query, SWR, etc.)
+- **Cached**: React Query integration for intelligent caching
 
-**Key Concepts**:
-- **Provider Pattern**: `@semiont/react-ui` uses dependency injection for framework independence
-- **Synchronous APIs**: Return immediate responses (document CRUD, search, highlights)
-- **Asynchronous APIs**: Create background jobs with progress tracking (entity detection, document generation)
-- **W3C Annotations**: All annotations follow the W3C Web Annotation Data Model for interoperability
+## Provider Pattern Architecture
 
-See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for Provider Pattern documentation.
+The Provider Pattern enables @semiont/react-ui to work with any React framework by abstracting framework-specific implementations behind interfaces.
+
+### How It Works
+
+1. **@semiont/react-ui defines interfaces** for external dependencies
+2. **Frontend implements these interfaces** using Next.js specific tools
+3. **Components use the interfaces**, not the implementations
+
+### ApiClientProvider Implementation
+
+The frontend provides the API client to @semiont/react-ui components:
+
+```typescript
+// apps/frontend/src/app/providers/ApiClientProvider.tsx
+import { ApiClientProvider } from '@semiont/react-ui';
+import { createApiClient } from '@semiont/api-client';
+import { useSession } from 'next-auth/react';
+
+export function NextApiClientProvider({ children }) {
+  const session = useSession();
+
+  const apiClientManager = {
+    getClient: () => createApiClient({
+      baseURL: process.env.NEXT_PUBLIC_API_URL,
+      getToken: async () => session.data?.accessToken
+    }),
+
+    // React Query configuration
+    queryOptions: {
+      defaultOptions: {
+        queries: {
+          staleTime: 5 * 60 * 1000, // 5 minutes
+          cacheTime: 10 * 60 * 1000, // 10 minutes
+          retry: 3,
+          retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000)
+        }
+      }
+    }
+  };
+
+  return (
+    <ApiClientProvider apiClientManager={apiClientManager}>
+      {children}
+    </ApiClientProvider>
+  );
+}
+```
+
+### Using API Hooks from @semiont/react-ui
+
+Components can now use the framework-agnostic hooks:
+
+```typescript
+// Any component in the app
+import { useResources, useAnnotations } from '@semiont/react-ui';
+
+export function ResourceList() {
+  // These hooks work regardless of whether the app uses
+  // Next.js, Vite, CRA, or any other React framework
+  const resources = useResources();
+  const { data, isLoading } = resources.list.useQuery();
+
+  const createMutation = resources.create.useMutation({
+    onSuccess: (newResource) => {
+      // Handle success
+    }
+  });
+
+  // Component logic...
+}
+```
+
+### Benefits of This Architecture
+
+1. **Framework Independence**: @semiont/react-ui works with any React framework
+2. **Testability**: Easy to mock providers for testing
+3. **Flexibility**: Each app can implement providers differently
+4. **Type Safety**: Full TypeScript support across boundaries
+5. **Separation of Concerns**: UI logic separate from infrastructure
 
 ## API Client Usage
 
-### Installation and Setup
+### Component Library Integration
 
-The API client is pre-configured in `src/lib/api-client.ts` with React Query integration:
-
-```typescript
-import { api } from '@/lib/api-client';
-
-// API client automatically:
-// - Includes JWT bearer token from NextAuth session
-// - Handles 401 errors (redirects to login)
-// - Handles 403 errors (shows permission denied)
-// - Provides React Query hooks for caching
-```
-
-### Making API Calls
-
-**Using React Query Hooks** (recommended for components):
+With @semiont/react-ui factored out, API calls are made through the library's hooks which use the injected API client:
 
 ```typescript
-'use client';
-
-import { api } from '@/lib/api-client';
+// Components use @semiont/react-ui hooks, not direct API calls
+import { useResources, useAnnotations, useToast } from '@semiont/react-ui';
 
 export function DocumentList() {
-  const { data, error, isLoading } = api.documents.list.useQuery();
+  const resources = useResources();
+  const { showToast } = useToast();
+
+  // React Query hooks provided by @semiont/react-ui
+  const { data, error, isLoading } = resources.list.useQuery();
+
+  const createMutation = resources.create.useMutation({
+    onSuccess: () => {
+      showToast('Resource created successfully', 'success');
+    }
+  });
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
 
   return (
     <ul>
-      {data.documents.map(doc => (
+      {data?.resources.map(doc => (
         <li key={doc.id}>{doc.name}</li>
       ))}
     </ul>
@@ -74,55 +178,89 @@ export function DocumentList() {
 }
 ```
 
-**Using API Service Directly** (for non-component code):
+### Direct API Client Usage
+
+For app-specific API calls not covered by @semiont/react-ui hooks:
 
 ```typescript
-import { apiService } from '@/lib/api-client';
+// apps/frontend/src/lib/api-client.ts
+import { createApiClient } from '@semiont/api-client';
+import { getSession } from 'next-auth/react';
 
-async function createDocument() {
+// Create a Next.js specific API client instance
+export const apiClient = createApiClient({
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  getToken: async () => {
+    const session = await getSession();
+    return session?.accessToken;
+  }
+});
+
+// Use for custom endpoints
+async function callCustomEndpoint() {
   try {
-    const response = await apiService.documents.create({
-      name: 'My Document',
-      content: '# Hello World',
+    const response = await apiClient.request({
+      method: 'POST',
+      path: '/api/custom/endpoint',
+      body: { data: 'value' }
     });
-    console.log('Created:', response.id);
+    console.log('Success:', response);
   } catch (error) {
     console.error('Failed:', error);
   }
 }
 ```
 
-### Authentication Integration
+### Authentication Flow
 
-The API client automatically includes the JWT token from NextAuth.js:
+The authentication flow is handled through the provider pattern:
 
 ```typescript
-// src/lib/api-client.ts
-async function apiClient(endpoint: string, options: RequestInit = {}) {
-  const session = await getSession();
+// 1. Frontend implements session provider
+export function NextAuthSessionProvider({ children }) {
+  const session = useSession();
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': session?.accessToken ? `Bearer ${session.accessToken}` : '',
-      ...options.headers,
-    },
-  });
+  const sessionManager = {
+    getSession: () => session.data,
+    getToken: async () => session.data?.accessToken,
+    signIn: (credentials) => signIn('credentials', credentials),
+    signOut: () => signOut(),
+  };
 
-  if (!response.ok) {
-    // Automatic 401/403 handling
-    if (response.status === 401) {
-      // Redirect to login
+  return (
+    <SessionProvider sessionManager={sessionManager}>
+      {children}
+    </SessionProvider>
+  );
+}
+
+// 2. @semiont/react-ui hooks use the session for API calls
+// Inside @semiont/react-ui:
+function useResources() {
+  const { apiClient } = useApiClient(); // Gets injected client
+  const { getToken } = useSession();    // Gets token from provider
+
+  // React Query automatically includes auth token
+  return {
+    list: {
+      useQuery: () => useQuery({
+        queryKey: ['resources'],
+        queryFn: async () => {
+          const token = await getToken();
+          return apiClient.resources.list({
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        }
+      })
     }
-    throw new APIError(response);
-  }
-
-  return response.json();
+  };
 }
 ```
 
-**No manual token management required** - NextAuth.js session handles everything.
+**Key Points**:
+- **No manual token management** - Provider pattern handles authentication
+- **Framework-agnostic** - @semiont/react-ui doesn't know about NextAuth
+- **Type-safe** - Full TypeScript support from OpenAPI specs
 
 ## W3C Web Annotation Model
 

@@ -22,8 +22,9 @@ The Semiont frontend implements comprehensive accessibility features to ensure a
 The frontend accessibility architecture consists of:
 
 - **Next.js App Router** - Server-side rendering for better accessibility
-- **Headless UI** - Fully accessible component primitives
-- **Tailwind CSS** - Utility classes for focus states and responsive design
+- **@semiont/react-ui** - Accessible components with built-in semantic CSS and ARIA support
+- **Headless UI** - Fully accessible component primitives for app-specific components
+- **Tailwind CSS** - Utility classes for focus states and responsive design in app layouts
 - **React Query** - Accessible loading and error states
 - **NextAuth.js** - Accessible authentication flows
 
@@ -48,7 +49,7 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body>
-        <SkipLinks />
+        <SkipLinks /> {/* Imported from @semiont/react-ui */}
         {children}
       </body>
     </html>
