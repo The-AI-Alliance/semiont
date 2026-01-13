@@ -46,6 +46,7 @@ export function SidebarNavigation({
                   href={item.href}
                   className={`sidebar-navigation__item ${itemClass}`}
                   title={(isCollapsed || showDescriptions) ? (item.description || item.name) : undefined}
+                  aria-current={isActive ? 'page' : undefined}
                 >
                   <item.icon
                     className={`sidebar-navigation__icon ${

@@ -138,7 +138,7 @@ export function CollapsibleResourceNavigation({
               />
 
               {/* Resource tabs with drag and drop */}
-              <div className="collapsible-resource-navigation__resources mt-3">
+              <div className="collapsible-resource-navigation__resources mt-3" role="tablist" aria-label="Open resources">
                 {isCollapsed ? (
                   // When collapsed, dragging is disabled - just render simple tabs
                   resources.map((resource) => {

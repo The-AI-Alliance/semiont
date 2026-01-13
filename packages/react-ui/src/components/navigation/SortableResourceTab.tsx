@@ -43,6 +43,8 @@ export function SortableResourceTab({
     <div
       ref={setNodeRef}
       style={style}
+      role="tab"
+      aria-selected={isActive}
       className={`sortable-resource-tab group flex items-center ${
         isCollapsed ? 'justify-center px-2' : 'px-3'
       } py-2 text-sm font-medium rounded-md transition-colors ${

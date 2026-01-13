@@ -19,6 +19,7 @@ interface UnifiedHeaderProps {
   isAuthenticated?: boolean;
   isAdmin?: boolean;
   isModerator?: boolean;
+  currentPath?: string;
 }
 
 export function UnifiedHeader({
@@ -32,7 +33,8 @@ export function UnifiedHeader({
   variant = 'standalone',
   isAuthenticated = false,
   isAdmin = false,
-  isModerator = false
+  isModerator = false,
+  currentPath
 }: UnifiedHeaderProps) {
   const { isOpen, toggle, close, dropdownRef } = useDropdown();
 
@@ -80,6 +82,7 @@ export function UnifiedHeader({
               isModerator={isModerator}
               brandingLink={brandingLink}
               onItemClick={close}
+              currentPath={currentPath}
             />
           </div>
         )}
@@ -130,6 +133,7 @@ export function UnifiedHeader({
               isModerator={isModerator}
               brandingLink={brandingLink}
               onItemClick={close}
+              currentPath={currentPath}
             />
             </div>
           )}

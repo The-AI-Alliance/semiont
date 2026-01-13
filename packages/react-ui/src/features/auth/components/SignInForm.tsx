@@ -98,19 +98,26 @@ function CredentialsAuthForm({
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [validationError, setValidationError] = React.useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = React.useState<{ email?: string; password?: string }>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors: { email?: string; password?: string } = {};
 
     if (!email) {
-      setValidationError(t.errorEmailRequired);
-      return;
+      errors.email = t.errorEmailRequired;
     }
     if (!password) {
-      setValidationError(t.errorPasswordRequired);
+      errors.password = t.errorPasswordRequired;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setValidationError(Object.values(errors)[0]); // Set first error for screen readers
       return;
     }
 
+    setFieldErrors({});
     setValidationError(null);
     await onSubmit(email, password);
   };
@@ -118,12 +125,12 @@ function CredentialsAuthForm({
   return (
     <>
       {validationError && (
-        <div className="semiont-auth__error">
+        <div className="semiont-auth__error" role="alert" aria-live="polite">
           <div className="semiont-auth__error-text">{validationError}</div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="semiont-auth__form">
+      <form onSubmit={handleSubmit} className="semiont-auth__form" noValidate>
         <div className="semiont-form__field">
           <label htmlFor="email" className="semiont-form__label">
             {t.emailLabel}
@@ -132,11 +139,23 @@ function CredentialsAuthForm({
             id="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (fieldErrors.email) {
+                setFieldErrors({ ...fieldErrors, email: undefined });
+              }
+            }}
             placeholder={t.emailPlaceholder}
             className="semiont-form__input"
+            aria-invalid={!!fieldErrors.email}
+            aria-describedby={fieldErrors.email ? 'email-error' : undefined}
             required
           />
+          {fieldErrors.email && (
+            <span id="email-error" className="semiont-form__error" role="alert">
+              {fieldErrors.email}
+            </span>
+          )}
         </div>
         <div className="semiont-form__field">
           <label htmlFor="password" className="semiont-form__label">
@@ -146,11 +165,23 @@ function CredentialsAuthForm({
             id="password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (fieldErrors.password) {
+                setFieldErrors({ ...fieldErrors, password: undefined });
+              }
+            }}
             placeholder={t.passwordPlaceholder}
             className="semiont-form__input"
+            aria-invalid={!!fieldErrors.password}
+            aria-describedby={fieldErrors.password ? 'password-error' : undefined}
             required
           />
+          {fieldErrors.password && (
+            <span id="password-error" className="semiont-form__error" role="alert">
+              {fieldErrors.password}
+            </span>
+          )}
         </div>
         <button type="submit" className={`${buttonStyles.primary.base} semiont-button--full-width`}>
           {t.signInWithCredentials}

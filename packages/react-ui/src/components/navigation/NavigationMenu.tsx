@@ -14,6 +14,7 @@ interface NavigationMenuProps {
   brandingLink?: string;
   onItemClick?: () => void;
   className?: string;
+  currentPath?: string;
 }
 
 export function NavigationMenu({
@@ -24,19 +25,25 @@ export function NavigationMenu({
   isModerator = false,
   brandingLink = '/',
   onItemClick,
-  className = ""
+  className = "",
+  currentPath
 }: NavigationMenuProps) {
   const navClassName = className ? `semiont-navigation-menu ${className}` : "semiont-navigation-menu";
 
+  // Helper to check if a path is current
+  const isCurrentPage = (path: string) => {
+    if (!currentPath) return false;
+    // Exact match or starts with path followed by /
+    return currentPath === path || currentPath.startsWith(path + '/');
+  };
+
   return (
-    <nav className={navClassName} role="menu" aria-label="Main navigation">
+    <nav className={navClassName} aria-label="Main navigation">
       <Link
         href={brandingLink}
         {...(onItemClick && { onClick: onItemClick })}
         className="semiont-navigation-menu__link"
-        role="menuitem"
-        tabIndex={0}
-        aria-label="Go to home page"
+        aria-current={isCurrentPage(brandingLink) ? 'page' : undefined}
       >
         {t('home')}
       </Link>
@@ -46,9 +53,7 @@ export function NavigationMenu({
         href={routes.knowledge?.() || '/know'}
         {...(onItemClick && { onClick: onItemClick })}
         className="semiont-navigation-menu__link"
-        role="menuitem"
-        tabIndex={0}
-        aria-label="Go to knowledge base"
+        aria-current={isCurrentPage(routes.knowledge?.() || '/know') ? 'page' : undefined}
       >
         {t('know')}
       </Link>
@@ -60,9 +65,7 @@ export function NavigationMenu({
             href={routes.moderate?.() || '/moderate'}
             {...(onItemClick && { onClick: onItemClick })}
             className="semiont-navigation-menu__link"
-            role="menuitem"
-            tabIndex={0}
-            aria-label="Access moderation dashboard"
+            aria-current={isCurrentPage(routes.moderate?.() || '/moderate') ? 'page' : undefined}
           >
             {t('moderate')}
           </Link>
@@ -75,9 +78,7 @@ export function NavigationMenu({
           href={routes.admin?.() || '/admin'}
           {...(onItemClick && { onClick: onItemClick })}
           className="semiont-navigation-menu__link"
-          role="menuitem"
-          tabIndex={0}
-          aria-label="Access admin dashboard"
+          aria-current={isCurrentPage(routes.admin?.() || '/admin') ? 'page' : undefined}
         >
           {t('administer')}
         </Link>

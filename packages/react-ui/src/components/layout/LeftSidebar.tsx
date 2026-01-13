@@ -19,6 +19,7 @@ interface LeftSidebarProps {
   isAuthenticated?: boolean;
   isAdmin?: boolean;
   isModerator?: boolean;
+  currentPath?: string;
 }
 
 export function LeftSidebar({
@@ -32,7 +33,8 @@ export function LeftSidebar({
   storageKey = 'leftSidebarCollapsed',
   isAuthenticated = false,
   isAdmin = false,
-  isModerator = false
+  isModerator = false,
+  currentPath
 }: LeftSidebarProps) {
   const { isOpen, toggle, close, dropdownRef } = useDropdown();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -111,6 +113,7 @@ export function LeftSidebar({
               isModerator={isModerator}
               brandingLink={brandingLink}
               onItemClick={close}
+              currentPath={currentPath}
             />
           </div>
         )}
