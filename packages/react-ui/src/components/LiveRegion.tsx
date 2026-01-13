@@ -193,3 +193,21 @@ export function useFormAnnouncements() {
     announceFormValidationError
   };
 }
+
+// Hook for language/locale change announcements
+export function useLanguageChangeAnnouncements() {
+  const { announce } = useLiveRegion();
+
+  const announceLanguageChanging = useCallback((newLanguage: string) => {
+    announce(`Changing language to ${newLanguage}...`, 'polite');
+  }, [announce]);
+
+  const announceLanguageChanged = useCallback((newLanguage: string) => {
+    announce(`Language changed to ${newLanguage}`, 'polite');
+  }, [announce]);
+
+  return {
+    announceLanguageChanging,
+    announceLanguageChanged
+  };
+}

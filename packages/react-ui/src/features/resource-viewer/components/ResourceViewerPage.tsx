@@ -488,7 +488,7 @@ export function ResourceViewerPage({
               </h2>
             </div>
           </div>
-          <div className="semiont-document-viewer__body">
+          <div className="semiont-document-viewer__body" lang={getLanguage(resource) || undefined}>
             <ErrorBoundary
               fallback={(error, reset) => (
                 <div className="semiont-document-viewer__error">

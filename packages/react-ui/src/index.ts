@@ -67,6 +67,9 @@ export * from './components/ResourceTagsInline';
 export * from './components/Toast';
 export * from './components/Toolbar';
 
+// Components - Settings
+export * from './components/settings/SettingsPanel';
+
 // Components - Annotation
 export * from './components/annotation/AnnotateToolbar';
 

@@ -526,7 +526,7 @@ export function ResourceComposePage({
                 <label className="semiont-form__label">
                   {isClone ? t.resourceContent : t.content}
                 </label>
-                <div className="semiont-form__editor-wrapper">
+                <div className="semiont-form__editor-wrapper" lang={selectedLanguage}>
                   <CodeMirrorRenderer
                     content={newResourceContent}
                     segments={[]}
