@@ -119,6 +119,11 @@ export * from './components/navigation/Footer';
 export * from './components/navigation/NavigationMenu';
 export * from './components/navigation/SidebarNavigation';
 
+// Components - Modals
+export * from './components/modals/SearchModal';
+export * from './components/modals/ResourceSearchModal';
+export * from './types/modals';
+
 // Components - Layout
 export * from './components/SkipLinks';
 export * from './components/StatusDisplay';
