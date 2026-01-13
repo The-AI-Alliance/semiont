@@ -21,6 +21,8 @@ Framework-agnostic React component library for building Semiont knowledge manage
 - **Provider Pattern** - Consistent approach for session, translations, API client, and routing
 - **Type-Safe API Hooks** - React Query wrappers for all Semiont API operations
 - **Authentication Components** - Sign-in, sign-up, and error display components
+- **Navigation Components** - Collapsible sidebar with drag & drop resource tabs
+- **Modal Components** - Global search and resource selection modals
 - **Accessibility First** - WCAG compliant with keyboard navigation, screen reader support
 - **Comprehensive Testing** - 1250+ tests with extensive coverage
 - **Annotation System** - Rich annotation and tagging capabilities
@@ -195,6 +197,8 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 - [TESTING.md](docs/TESTING.md) - Testing utilities and patterns
 - [API-INTEGRATION.md](docs/API-INTEGRATION.md) - Working with the Semiont API
 - [COMPONENTS.md](docs/COMPONENTS.md) - Component library reference
+- [navigation-components.md](docs/navigation-components.md) - Navigation components (SidebarNavigation, CollapsibleResourceNavigation)
+- [modal-components.md](docs/modal-components.md) - Modal components (SearchModal, ResourceSearchModal)
 - [ROUTING.md](docs/ROUTING.md) - Framework-agnostic routing
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Design principles and decisions
 - [STYLES.md](docs/STYLES.md) - CSS architecture and styling guide

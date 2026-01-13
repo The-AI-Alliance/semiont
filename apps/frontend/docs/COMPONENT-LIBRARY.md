@@ -42,7 +42,15 @@ The factoring of @semiont/react-ui creates a clear architectural boundary:
 - **Resource Components**: ResourceViewer, AnnotateView, BrowseView
 - **Annotation System**: All annotation components and popups
 - **Panels**: All resource panels (Comments, References, Tags, etc.)
-- **Navigation**: Footer, NavigationMenu, SkipLinks
+- **Navigation**:
+  - Footer, NavigationMenu, SkipLinks
+  - **SidebarNavigation**: Reusable sidebar navigation for admin/moderation
+  - **CollapsibleResourceNavigation**: Full-featured collapsible navigation with drag & drop
+  - **SortableResourceTab**: Draggable resource tabs with sorting
+- **Modals**:
+  - **SearchModal**: Global search with navigation
+  - **ResourceSearchModal**: Resource-specific search modal
+  - KeyboardShortcutsHelpModal, ProposeEntitiesModal
 - **Layout Components**: UnifiedHeader, LeftSidebar, PageLayout
 - **Branding**: SemiontBranding component
 - **Session Components**: SessionTimer, SessionExpiryBanner
@@ -343,6 +351,44 @@ npm run test:e2e
 ```
 
 ## Common Patterns
+
+### Platform-Agnostic Navigation Pattern
+
+The new navigation components demonstrate best practices for platform-agnostic design:
+
+```tsx
+// Example: Using CollapsibleResourceNavigation
+import { CollapsibleResourceNavigation } from '@semiont/react-ui';
+import { Link } from '@/i18n/routing'; // Next.js specific
+import { ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline'; // Icons passed as props
+
+export function KnowledgeNavigation() {
+  // Platform-specific routing
+  const router = useRouter();
+
+  return (
+    <CollapsibleResourceNavigation
+      // Pass platform-specific components as props
+      LinkComponent={Link}
+      icons={{
+        chevronLeft: ChevronLeftIcon,
+        bars: Bars3Icon
+      }}
+      // Handle navigation with platform-specific router
+      onNavigate={(path) => router.push(path)}
+      // All other props are platform-agnostic
+      fixedItems={navigationItems}
+      resources={openResources}
+    />
+  );
+}
+```
+
+This pattern allows the same component to work in:
+- Next.js apps (with next/link)
+- Vite apps (with react-router)
+- Mobile apps (with react-navigation)
+- Desktop apps (with electron routing)
 
 ### Wrapping react-ui Components
 
