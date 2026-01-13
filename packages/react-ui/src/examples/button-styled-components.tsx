@@ -15,7 +15,7 @@ export const StyledButton = styled(SemiontButton)`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: ${props => props.theme?.typography?.fonts?.sans || 'system-ui, -apple-system, sans-serif'};
+  font-family: ${props => props.theme?.typography?.fontFamily?.sans || 'system-ui, -apple-system, sans-serif'};
   font-weight: 500;
   border: none;
   cursor: pointer;
@@ -24,40 +24,40 @@ export const StyledButton = styled(SemiontButton)`
 
   /* Primary variant */
   &[data-variant="primary"] {
-    background-color: ${props => props.theme?.colors?.primary || '#0080ff'};
+    background-color: ${props => props.theme?.colors?.primary?.[500] || '#0080ff'};
     color: white;
 
     &:hover:not(:disabled) {
-      background-color: ${props => props.theme?.colors?.primaryDark || '#0066cc'};
+      background-color: ${props => props.theme?.colors?.primary?.[600] || '#0066cc'};
     }
 
     &:active:not(:disabled) {
-      background-color: ${props => props.theme?.colors?.primaryDarker || '#0052a3'};
+      background-color: ${props => props.theme?.colors?.primary?.[700] || '#0052a3'};
     }
   }
 
   /* Secondary variant */
   &[data-variant="secondary"] {
-    background-color: ${props => props.theme?.colors?.gray100 || '#f3f4f6'};
-    color: ${props => props.theme?.colors?.gray900 || '#111827'};
+    background-color: ${props => props.theme?.colors?.neutral?.[100] || '#f3f4f6'};
+    color: ${props => props.theme?.colors?.neutral?.[900] || '#111827'};
 
     &:hover:not(:disabled) {
-      background-color: ${props => props.theme?.colors?.gray200 || '#e5e7eb'};
+      background-color: ${props => props.theme?.colors?.neutral?.[200] || '#e5e7eb'};
     }
 
     &:active:not(:disabled) {
-      background-color: ${props => props.theme?.colors?.gray300 || '#d1d5db'};
+      background-color: ${props => props.theme?.colors?.neutral?.[300] || '#d1d5db'};
     }
   }
 
   /* Tertiary variant */
   &[data-variant="tertiary"] {
     background-color: transparent;
-    color: ${props => props.theme?.colors?.primary || '#0080ff'};
-    box-shadow: inset 0 0 0 1px ${props => props.theme?.colors?.primary || '#0080ff'}33;
+    color: ${props => props.theme?.colors?.primary?.[500] || '#0080ff'};
+    box-shadow: inset 0 0 0 1px ${props => (props.theme?.colors?.primary?.[500] || '#0080ff') + '33'};
 
     &:hover:not(:disabled) {
-      background-color: ${props => props.theme?.colors?.primary || '#0080ff'}0a;
+      background-color: ${props => (props.theme?.colors?.primary?.[500] || '#0080ff') + '0a'};
     }
   }
 
@@ -77,18 +77,18 @@ export const StyledButton = styled(SemiontButton)`
 
   /* Danger variant */
   &[data-variant="danger"] {
-    background-color: ${props => props.theme?.colors?.danger || '#ef4444'};
+    background-color: ${props => props.theme?.colors?.error || '#ef4444'};
     color: white;
 
     &:hover:not(:disabled) {
-      background-color: ${props => props.theme?.colors?.dangerDark || '#dc2626'};
+      background-color: ${props => props.theme?.colors?.errorDark || '#dc2626'};
     }
   }
 
   /* Warning variant */
   &[data-variant="warning"] {
     background-color: ${props => props.theme?.colors?.warning || '#f59e0b'};
-    color: ${props => props.theme?.colors?.gray900 || '#111827'};
+    color: ${props => props.theme?.colors?.neutral?.[900] || '#111827'};
 
     &:hover:not(:disabled) {
       background-color: ${props => props.theme?.colors?.warningDark || '#d97706'};
@@ -172,7 +172,7 @@ export const StyledButton = styled(SemiontButton)`
 
   /* Focus styles */
   &:focus-visible {
-    outline: 2px solid ${props => props.theme?.colors?.primary || '#0080ff'};
+    outline: 2px solid ${props => props.theme?.colors?.primary?.[500] || '#0080ff'};
     outline-offset: 2px;
   }
 
