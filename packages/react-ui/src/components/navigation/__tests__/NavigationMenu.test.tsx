@@ -66,7 +66,7 @@ describe('NavigationMenu Component', () => {
       expect(mockTranslate).toHaveBeenCalledWith('know');
     });
 
-    it('should render all menu items with proper role', () => {
+    it('should render all navigation links', () => {
       const { container } = render(
         <NavigationMenu
           Link={mockLink}
@@ -75,8 +75,8 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      const menuItems = container.querySelectorAll('[role="menuitem"]');
-      expect(menuItems.length).toBeGreaterThanOrEqual(2);
+      const links = container.querySelectorAll('a');
+      expect(links.length).toBeGreaterThanOrEqual(2);
     });
 
     it('should render dividers between sections', () => {
@@ -466,7 +466,7 @@ describe('NavigationMenu Component', () => {
   });
 
   describe('Styling', () => {
-    it('should apply default className to container', () => {
+    it('should apply base className to container', () => {
       const { container } = render(
         <NavigationMenu
           Link={mockLink}
@@ -475,10 +475,10 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      expect(container.firstChild).toHaveClass('p-3');
+      expect(container.firstChild).toHaveClass('semiont-navigation-menu');
     });
 
-    it('should apply custom className to container', () => {
+    it('should apply custom className with base className to container', () => {
       const { container } = render(
         <NavigationMenu
           Link={mockLink}
@@ -488,12 +488,12 @@ describe('NavigationMenu Component', () => {
         />
       );
 
+      expect(container.firstChild).toHaveClass('semiont-navigation-menu');
       expect(container.firstChild).toHaveClass('custom-nav');
-      expect(container.firstChild).not.toHaveClass('p-3');
     });
 
-    it('should apply link styles to all links', () => {
-      render(
+    it('should apply semantic link styles to all links', () => {
+      const { container } = render(
         <NavigationMenu
           Link={mockLink}
           routes={mockRoutes}
@@ -502,13 +502,13 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      const links = screen.getAllByRole('menuitem');
+      const links = container.querySelectorAll('a');
       links.forEach(link => {
-        expect(link).toHaveClass('w-full', 'text-left', 'text-sm');
+        expect(link).toHaveClass('semiont-navigation-menu__link');
       });
     });
 
-    it('should apply divider styles', () => {
+    it('should apply semantic divider styles', () => {
       const { container } = render(
         <NavigationMenu
           Link={mockLink}
@@ -519,14 +519,14 @@ describe('NavigationMenu Component', () => {
 
       const dividers = container.querySelectorAll('hr');
       dividers.forEach(divider => {
-        expect(divider).toHaveClass('my-2', 'border-gray-200', 'dark:border-gray-600');
+        expect(divider).toHaveClass('semiont-navigation-menu__divider');
       });
     });
   });
 
   describe('Accessibility', () => {
-    it('should have menuitem role on all links', () => {
-      render(
+    it('should have navigation landmark with aria-label', () => {
+      const { container } = render(
         <NavigationMenu
           Link={mockLink}
           routes={mockRoutes}
@@ -534,67 +534,53 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      const homeLink = screen.getByText('Home').closest('a');
-      expect(homeLink).toHaveAttribute('role', 'menuitem');
+      const nav = container.querySelector('nav');
+      expect(nav).toHaveAttribute('aria-label', 'Main navigation');
     });
 
-    it('should have tabIndex on all links', () => {
+    it('should mark current page with aria-current', () => {
       render(
         <NavigationMenu
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-        />
-      );
-
-      const links = screen.getAllByRole('menuitem');
-      links.forEach(link => {
-        expect(link).toHaveAttribute('tabIndex', '0');
-      });
-    });
-
-    it('should have aria-label for home link', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-        />
-      );
-
-      const homeLink = screen.getByText('Home').closest('a');
-      expect(homeLink).toHaveAttribute('aria-label', 'Go to home page');
-    });
-
-    it('should have aria-label for knowledge link', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
+          currentPath="/knowledge"
         />
       );
 
       const knowledgeLink = screen.getByText('Knowledge').closest('a');
-      expect(knowledgeLink).toHaveAttribute('aria-label', 'Go to knowledge base');
+      expect(knowledgeLink).toHaveAttribute('aria-current', 'page');
     });
 
-    it('should have aria-label for moderate link', () => {
+    it('should not have aria-current on non-current pages', () => {
       render(
         <NavigationMenu
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
+          currentPath="/knowledge"
         />
       );
 
-      const moderateLink = screen.getByText('Moderate').closest('a');
-      expect(moderateLink).toHaveAttribute('aria-label', 'Access moderation dashboard');
+      const homeLink = screen.getByText('Home').closest('a');
+      expect(homeLink).not.toHaveAttribute('aria-current');
     });
 
-    it('should have aria-label for admin link', () => {
+    it('should have accessible link text', () => {
       render(
+        <NavigationMenu
+          Link={mockLink}
+          routes={mockRoutes}
+          t={mockTranslate}
+        />
+      );
+
+      expect(screen.getByText('Home')).toBeInTheDocument();
+      expect(screen.getByText('Knowledge')).toBeInTheDocument();
+    });
+
+    it('should have semantic navigation structure', () => {
+      const { container } = render(
         <NavigationMenu
           Link={mockLink}
           routes={mockRoutes}
@@ -603,8 +589,10 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      const adminLink = screen.getByText('Administer').closest('a');
-      expect(adminLink).toHaveAttribute('aria-label', 'Access admin dashboard');
+      const nav = container.querySelector('nav');
+      expect(nav).toBeInTheDocument();
+      const links = nav?.querySelectorAll('a');
+      expect(links).toHaveLength(4); // Home, Knowledge, Moderate, Admin
     });
   });
 
@@ -723,8 +711,8 @@ describe('NavigationMenu Component', () => {
           />
         );
 
-        const menuItems = container.querySelectorAll('[role="menuitem"]');
-        expect(menuItems).toHaveLength(expectedCount);
+        const links = container.querySelectorAll('a');
+        expect(links).toHaveLength(expectedCount);
       });
     });
   });
