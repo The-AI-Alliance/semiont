@@ -44,7 +44,11 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:a11y": "vitest run -t \"Accessibility\"",
-    "test:a11y:watch": "vitest -t \"Accessibility\""
+    "test:a11y:watch": "vitest -t \"Accessibility\"",
+    "test:components": "vitest run src/components",
+    "test:features": "vitest run src/features",
+    "test:other": "vitest run src/contexts src/hooks src/lib src/assets",
+    "test:split": "npm run test:components && npm run test:features && npm run test:other"
   },
   "peerDependencies": {
     "@semiont/api-client": "*",
