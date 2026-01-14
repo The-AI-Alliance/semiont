@@ -490,7 +490,7 @@ export function ResourceViewerPage({
 
   // Document rendering
   return (
-    <div className="semiont-document-viewer">
+    <div className={`semiont-document-viewer${activePanel ? ' semiont-document-viewer--panel-open' : ''}`}>
       {/* Main Content - Fills remaining height */}
       <div className="semiont-document-viewer__main">
         {/* Document Content - Left Side */}

@@ -75,7 +75,7 @@ export function EntityTagsPage({
   };
 
   return (
-    <div className="semiont-page">
+    <div className={`semiont-page${activePanel ? ' semiont-page--panel-open' : ''}`}>
       {/* Main Content Area */}
       <div className="semiont-page__content">
         {/* Page Title */}

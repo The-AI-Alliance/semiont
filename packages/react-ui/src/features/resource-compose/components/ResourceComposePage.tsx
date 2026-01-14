@@ -257,7 +257,7 @@ export function ResourceComposePage({
   const isReferenceCompletion = mode === 'reference';
 
   return (
-    <div className="semiont-page">
+    <div className={`semiont-page${activePanel ? ' semiont-page--panel-open' : ''}`}>
       {/* Main Content Area */}
       <div className="semiont-page__content semiont-page__compose">
         {/* Page Title */}

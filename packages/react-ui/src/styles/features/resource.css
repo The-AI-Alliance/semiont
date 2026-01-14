@@ -290,6 +290,7 @@
   display: flex;
   height: 100vh;
   background: var(--semiont-color-gray-50);
+  position: relative;
 }
 
 [data-theme="dark"] .semiont-document-viewer,
@@ -302,6 +303,13 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  margin-right: 3rem; /* Space for the toolbar */
+  transition: margin-right 0.2s ease-in-out;
+}
+
+/* When a panel is open, adjust main content margin */
+.semiont-document-viewer--panel-open .semiont-document-viewer__main {
+  margin-right: 23rem; /* 3rem toolbar + 20rem panel */
 }
 
 .semiont-document-viewer__content {
@@ -426,18 +434,37 @@
 }
 
 .semiont-document-viewer__sidebar {
-  width: 24rem;
+  display: flex;
+  flex-direction: row;
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: transparent;
+  z-index: 30;
+}
+
+/* Toolbar panels container */
+.semiont-toolbar-panels {
+  width: 20rem;
   background: white;
   border-left: 1px solid var(--semiont-color-gray-200);
+  padding: 1rem;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
-[data-theme="dark"] .semiont-document-viewer__sidebar,
-:root:not([data-theme="light"]) .semiont-document-viewer__sidebar {
+[data-theme="dark"] .semiont-toolbar-panels {
   background: var(--semiont-color-gray-800);
   border-left-color: var(--semiont-color-gray-700);
+}
+
+.semiont-toolbar-panels__content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* Admin Components - Consolidated in Admin sections below */

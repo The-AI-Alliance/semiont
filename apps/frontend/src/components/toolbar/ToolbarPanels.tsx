@@ -15,8 +15,6 @@ interface ToolbarPanelsProps {
   onLineNumbersToggle: () => void;
   /** Custom panel content for context-specific panels */
   children?: React.ReactNode;
-  /** Panel width (default: w-80) */
-  width?: string;
 }
 
 /**
@@ -55,8 +53,7 @@ export function ToolbarPanels({
   onThemeChange,
   showLineNumbers,
   onLineNumbersToggle,
-  children,
-  width = 'w-80'
+  children
 }: ToolbarPanelsProps) {
   // Don't render container if no panel is active
   if (!activePanel) {
@@ -64,9 +61,9 @@ export function ToolbarPanels({
   }
 
   return (
-    <div className={`${width} bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 overflow-hidden flex flex-col h-full`}>
+    <div className="semiont-toolbar-panels">
       {/* Custom context-specific panels */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="semiont-toolbar-panels__content">
         {children}
 
         {/* User Panel - common to all contexts */}
