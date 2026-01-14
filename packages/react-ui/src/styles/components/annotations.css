@@ -1,0 +1,244 @@
+/**
+ * Inline Annotation Styles
+ *
+ * Visual styles for annotated text within documents
+ */
+
+/* Base annotation mark styles */
+mark[data-annotation-id] {
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+  transition: all var(--semiont-duration-fast);
+}
+
+/* Highlight annotations - Yellow background */
+mark[data-annotation-type="highlight"] {
+  background: var(--semiont-color-yellow-200);
+  color: var(--semiont-color-yellow-900);
+  padding: 0.125rem 0;
+  border-radius: 2px;
+}
+
+mark[data-annotation-type="highlight"]:hover {
+  background: var(--semiont-color-yellow-300);
+}
+
+[data-theme="dark"] mark[data-annotation-type="highlight"],
+:root:not([data-theme="light"]) mark[data-annotation-type="highlight"] {
+  background: rgba(251, 191, 36, 0.3);
+  color: var(--semiont-color-yellow-200);
+}
+
+[data-theme="dark"] mark[data-annotation-type="highlight"]:hover,
+:root:not([data-theme="light"]) mark[data-annotation-type="highlight"]:hover {
+  background: rgba(251, 191, 36, 0.4);
+}
+
+/* Reference annotations - Blue underline */
+mark[data-annotation-type="reference"] {
+  color: var(--semiont-color-blue-600);
+  text-decoration: underline;
+  text-decoration-color: var(--semiont-color-blue-400);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+mark[data-annotation-type="reference"]:hover {
+  color: var(--semiont-color-blue-700);
+  text-decoration-color: var(--semiont-color-blue-500);
+  background: var(--semiont-color-blue-50);
+}
+
+[data-theme="dark"] mark[data-annotation-type="reference"],
+:root:not([data-theme="light"]) mark[data-annotation-type="reference"] {
+  color: var(--semiont-color-blue-400);
+  text-decoration-color: var(--semiont-color-blue-500);
+}
+
+[data-theme="dark"] mark[data-annotation-type="reference"]:hover,
+:root:not([data-theme="light"]) mark[data-annotation-type="reference"]:hover {
+  color: var(--semiont-color-blue-300);
+  text-decoration-color: var(--semiont-color-blue-400);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* Assessment annotations - Red wavy underline */
+mark[data-annotation-type="assessment"] {
+  text-decoration: underline wavy;
+  text-decoration-color: var(--semiont-color-red-500);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  color: var(--semiont-color-red-700);
+}
+
+mark[data-annotation-type="assessment"]:hover {
+  background: var(--semiont-color-red-50);
+  text-decoration-color: var(--semiont-color-red-600);
+}
+
+[data-theme="dark"] mark[data-annotation-type="assessment"],
+:root:not([data-theme="light"]) mark[data-annotation-type="assessment"] {
+  color: var(--semiont-color-red-400);
+  text-decoration-color: var(--semiont-color-red-400);
+}
+
+[data-theme="dark"] mark[data-annotation-type="assessment"]:hover,
+:root:not([data-theme="light"]) mark[data-annotation-type="assessment"]:hover {
+  background: rgba(239, 68, 68, 0.1);
+  text-decoration-color: var(--semiont-color-red-300);
+}
+
+/* Comment annotations - Purple dotted underline */
+mark[data-annotation-type="comment"] {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--semiont-color-purple-500);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+mark[data-annotation-type="comment"]:hover {
+  background: var(--semiont-color-purple-50);
+  text-decoration-color: var(--semiont-color-purple-600);
+}
+
+[data-theme="dark"] mark[data-annotation-type="comment"],
+:root:not([data-theme="light"]) mark[data-annotation-type="comment"] {
+  text-decoration-color: var(--semiont-color-purple-400);
+}
+
+[data-theme="dark"] mark[data-annotation-type="comment"]:hover,
+:root:not([data-theme="light"]) mark[data-annotation-type="comment"]:hover {
+  background: rgba(168, 85, 247, 0.1);
+  text-decoration-color: var(--semiont-color-purple-300);
+}
+
+/* Tag annotations - Green background with border */
+mark[data-annotation-type="tag"] {
+  background: var(--semiont-color-green-100);
+  color: var(--semiont-color-green-900);
+  padding: 0.125rem 0.25rem;
+  border-radius: 4px;
+  border: 1px solid var(--semiont-color-green-300);
+}
+
+mark[data-annotation-type="tag"]:hover {
+  background: var(--semiont-color-green-200);
+  border-color: var(--semiont-color-green-400);
+}
+
+[data-theme="dark"] mark[data-annotation-type="tag"],
+:root:not([data-theme="light"]) mark[data-annotation-type="tag"] {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--semiont-color-green-300);
+  border-color: var(--semiont-color-green-600);
+}
+
+[data-theme="dark"] mark[data-annotation-type="tag"]:hover,
+:root:not([data-theme="light"]) mark[data-annotation-type="tag"]:hover {
+  background: rgba(34, 197, 94, 0.3);
+  border-color: var(--semiont-color-green-500);
+}
+
+/* Multiple annotations on same text */
+mark[data-annotation-id][data-multiple="true"] {
+  background: linear-gradient(
+    to right,
+    var(--semiont-color-yellow-200) 0%,
+    var(--semiont-color-blue-200) 50%,
+    var(--semiont-color-purple-200) 100%
+  );
+  padding: 0.125rem 0.25rem;
+  border-radius: 3px;
+}
+
+[data-theme="dark"] mark[data-annotation-id][data-multiple="true"],
+:root:not([data-theme="light"]) mark[data-annotation-id][data-multiple="true"] {
+  background: linear-gradient(
+    to right,
+    rgba(251, 191, 36, 0.3) 0%,
+    rgba(59, 130, 246, 0.3) 50%,
+    rgba(168, 85, 247, 0.3) 100%
+  );
+}
+
+/* Active/selected annotation */
+mark[data-annotation-id][data-active="true"] {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  z-index: 10;
+  position: relative;
+}
+
+/* Annotation tooltip on hover */
+mark[data-annotation-id]::after {
+  content: attr(data-annotation-preview);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-0.5rem);
+  background: var(--semiont-color-gray-900);
+  color: var(--semiont-color-white);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--semiont-radius-md);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--semiont-duration-fast), visibility var(--semiont-duration-fast);
+  z-index: 100;
+}
+
+mark[data-annotation-id][data-annotation-preview]:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+[data-theme="dark"] mark[data-annotation-id]::after,
+:root:not([data-theme="light"]) mark[data-annotation-id]::after {
+  background: var(--semiont-color-gray-100);
+  color: var(--semiont-color-gray-900);
+}
+
+/* Animation for newly added annotations */
+@keyframes annotationPulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--semiont-color-primary-500);
+  }
+  70% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+mark[data-annotation-id][data-new="true"] {
+  animation: annotationPulse 1.5s ease-out;
+}
+
+/* Fallback for browsers without full text-decoration support */
+@supports not (text-decoration: underline wavy) {
+  mark[data-annotation-type="assessment"] {
+    text-decoration: underline;
+    text-decoration-style: solid;
+    border-bottom: 2px solid var(--semiont-color-red-500);
+  }
+}
+
+/* Print styles */
+@media print {
+  mark[data-annotation-id] {
+    background: transparent !important;
+    text-decoration: underline !important;
+    color: inherit !important;
+  }
+
+  mark[data-annotation-id]::after {
+    display: none !important;
+  }
+}
