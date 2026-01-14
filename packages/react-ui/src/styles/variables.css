@@ -18,6 +18,30 @@
   --semiont-color-primary-800: #1e40af;
   --semiont-color-primary-900: #1e3a8a;
 
+  /* Blue Colors (Tailwind palette for toolbar) */
+  --semiont-color-blue-50: #eff6ff;
+  --semiont-color-blue-100: #dbeafe;
+  --semiont-color-blue-200: #bfdbfe;
+  --semiont-color-blue-300: #93c5fd;
+  --semiont-color-blue-400: #60a5fa;
+  --semiont-color-blue-500: #3b82f6;
+  --semiont-color-blue-600: #2563eb;
+  --semiont-color-blue-700: #1d4ed8;
+  --semiont-color-blue-800: #1e40af;
+  --semiont-color-blue-900: #1e3a8a;
+
+  /* Gray Colors (Tailwind palette for consistency) */
+  --semiont-color-gray-50: #f9fafb;
+  --semiont-color-gray-100: #f3f4f6;
+  --semiont-color-gray-200: #e5e7eb;
+  --semiont-color-gray-300: #d1d5db;
+  --semiont-color-gray-400: #9ca3af;
+  --semiont-color-gray-500: #6b7280;
+  --semiont-color-gray-600: #4b5563;
+  --semiont-color-gray-700: #374151;
+  --semiont-color-gray-800: #1f2937;
+  --semiont-color-gray-900: #111827;
+
   /* Secondary Colors */
   --semiont-color-secondary-50: #f0fffe;
   --semiont-color-secondary-100: #e0fffd;

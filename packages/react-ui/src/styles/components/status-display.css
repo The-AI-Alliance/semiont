@@ -293,42 +293,41 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--semiont-spacing-xs);
-  padding: var(--semiont-spacing-sm) 0;
-  background-color: var(--semiont-color-neutral-50);
-  border-left: 1px solid var(--semiont-color-neutral-200);
+  gap: 0.5rem; /* gap-2 from main */
+  padding: 0.75rem 0; /* py-3 from main */
+  background-color: var(--semiont-color-gray-50);
+  border-left: 1px solid var(--semiont-color-gray-200);
   flex-shrink: 0;
   z-index: 10;
 }
 
 .semiont-toolbar-button {
-  padding: 0.5rem; /* Increased from xs (0.25rem) to accommodate larger icons */
+  padding: 0.5rem;
   border-radius: var(--semiont-radius-md);
-  transition: all 0.2s;
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
   position: relative;
   background: transparent;
   border: none;
   cursor: pointer;
-  color: var(--semiont-color-neutral-600);
+  color: var(--semiont-color-gray-600);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .semiont-toolbar-button:hover {
-  background-color: var(--semiont-color-neutral-200);
+  background-color: var(--semiont-color-gray-200);
 }
 
 .semiont-toolbar-button:focus {
   outline: none;
-  ring: 2px solid var(--semiont-color-primary-500);
-  ring-offset: 2px;
+  box-shadow: 0 0 0 2px var(--semiont-color-blue-500), 0 0 0 4px rgba(59, 130, 246, 0.1); /* ring-2 ring-blue-500 ring-offset-2 */
 }
 
 .semiont-toolbar-button[data-active="true"] {
-  background-color: var(--semiont-color-primary-200);
-  color: var(--semiont-color-primary-700);
-  border-left: 4px solid var(--semiont-color-primary-600);
+  background-color: var(--semiont-color-blue-200);
+  color: var(--semiont-color-blue-700);
+  border-left: 4px solid var(--semiont-color-blue-600);
 }
 
 .semiont-toolbar-icon {
@@ -342,22 +341,22 @@
 
 /* Dark mode for Toolbar - Fixed to respect data-theme attribute */
 [data-theme="dark"] .semiont-toolbar {
-  background-color: var(--semiont-color-neutral-900);
-  border-left-color: var(--semiont-color-neutral-700);
+  background-color: var(--semiont-color-gray-900);
+  border-left-color: var(--semiont-color-gray-700);
 }
 
 [data-theme="dark"] .semiont-toolbar-button {
-  color: var(--semiont-color-neutral-400);
+  color: var(--semiont-color-gray-400);
 }
 
 [data-theme="dark"] .semiont-toolbar-button:hover {
-  background-color: var(--semiont-color-neutral-800);
+  background-color: var(--semiont-color-gray-800);
 }
 
 [data-theme="dark"] .semiont-toolbar-button[data-active="true"] {
-  background-color: rgba(59, 130, 246, 0.5);
-  color: var(--semiont-color-primary-300);
-  border-left-color: var(--semiont-color-primary-400);
+  background-color: rgba(30, 58, 138, 0.5); /* blue-800/50 - keeping rgba for opacity */
+  color: var(--semiont-color-blue-300);
+  border-left-color: var(--semiont-color-blue-400);
 }
 
 /* ResourceTagsInline Component */
