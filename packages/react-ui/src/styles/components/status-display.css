@@ -302,7 +302,7 @@
 }
 
 .semiont-toolbar-button {
-  padding: var(--semiont-spacing-xs);
+  padding: 0.5rem; /* Increased from xs (0.25rem) to accommodate larger icons */
   border-radius: var(--semiont-radius-md);
   transition: all 0.2s;
   position: relative;
@@ -310,6 +310,9 @@
   border: none;
   cursor: pointer;
   color: var(--semiont-color-neutral-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .semiont-toolbar-button:hover {
@@ -329,11 +332,11 @@
 }
 
 .semiont-toolbar-icon {
-  font-size: var(--semiont-font-size-xl);
+  font-size: 1.5rem; /* 24px - was xl/1.25rem */
 }
 
 .semiont-toolbar-icon-large {
-  font-size: var(--semiont-font-size-2xl);
+  font-size: 1.875rem; /* 30px - was 2xl/1.5rem */
   font-weight: var(--semiont-font-weight-bold);
 }
 
