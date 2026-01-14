@@ -54,7 +54,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "ink": "^5.2.1",
+    "ink": "^6.3.1",
     "ink-table": "^3.0.0",
     "next": "15.5.6",
     "next-auth": "^4.24.5",
