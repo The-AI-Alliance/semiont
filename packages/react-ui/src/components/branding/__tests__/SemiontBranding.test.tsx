@@ -163,7 +163,7 @@ describe('SemiontBranding Component', () => {
       );
 
       const h2 = container.querySelector('h2');
-      expect(h2).toHaveClass('semiont-collaboration-panel__status-text');
+      expect(h2).toHaveClass('semiont-branding-tagline');
     });
 
     it('should apply tracking-wide for normal tagline', () => {

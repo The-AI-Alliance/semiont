@@ -150,7 +150,8 @@ describe('LeftSidebar Component', () => {
       );
 
       const aside = container.querySelector('aside');
-      expect(aside).toHaveClass('semiont-left-sidebar--expanded');
+      expect(aside).toHaveClass('semiont-left-sidebar');
+      expect(aside).toHaveAttribute('data-collapsed', 'false');
     });
 
     it('should render function as children with collapse state', () => {
@@ -194,7 +195,8 @@ describe('LeftSidebar Component', () => {
       );
 
       const aside = container.querySelector('aside');
-      expect(aside).toHaveClass('semiont-left-sidebar--collapsed');
+      expect(aside).toHaveClass('semiont-left-sidebar');
+      expect(aside).toHaveAttribute('data-collapsed', 'true');
     });
 
     it('should save collapsed state to localStorage', () => {
@@ -242,7 +244,8 @@ describe('LeftSidebar Component', () => {
       fireEvent.click(toggleButton);
 
       const aside = container.querySelector('aside');
-      expect(aside).toHaveClass('semiont-left-sidebar--expanded'); // Still expanded
+      expect(aside).toHaveClass('semiont-left-sidebar');
+      expect(aside).toHaveAttribute('data-collapsed', 'false'); // Still expanded
     });
 
     it('should use default storage key', () => {
@@ -384,7 +387,7 @@ describe('LeftSidebar Component', () => {
       );
 
       const aside = container.querySelector('aside');
-      expect(aside).toHaveClass('semiont-panel');
+      expect(aside).toHaveClass('semiont-left-sidebar');
     });
 
     it('should apply transition classes', () => {
