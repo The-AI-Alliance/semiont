@@ -334,6 +334,8 @@
   height: 100vh;
   overflow: hidden;
   background-color: var(--semiont-color-gray-50);
+  /* Add padding-right to account for the fixed toolbar */
+  padding-right: 3rem;
 }
 
 [data-theme="dark"] .semiont-page,

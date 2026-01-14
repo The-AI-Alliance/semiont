@@ -333,37 +333,8 @@
 }
 
 /* ============================================
-   Dark Mode Support
+   Dark Mode Support - Fixed to respect data-theme attribute
    ============================================ */
-
-@media (prefers-color-scheme: dark) {
-  /* Ghost variant in dark mode */
-  .semiont-button[data-variant="ghost"] {
-    &:hover:not(:disabled):not([data-disabled="true"]) {
-      background-color: var(--semiont-color-neutral-800);
-    }
-
-    &:active:not(:disabled):not([data-disabled="true"]),
-    &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
-      background-color: var(--semiont-color-neutral-700);
-    }
-  }
-
-  /* Secondary variant in dark mode */
-  .semiont-button[data-variant="secondary"] {
-    background-color: var(--semiont-color-neutral-700);
-    color: var(--semiont-color-neutral-100);
-
-    &:hover:not(:disabled):not([data-disabled="true"]) {
-      background-color: var(--semiont-color-neutral-600);
-    }
-
-    &:active:not(:disabled):not([data-disabled="true"]),
-    &[data-active="true"]:not(:disabled):not([data-disabled="true"]) {
-      background-color: var(--semiont-color-neutral-500);
-    }
-  }
-}
 
 /* Manual dark mode override */
 [data-theme="dark"] {

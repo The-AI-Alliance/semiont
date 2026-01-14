@@ -57,83 +57,42 @@
   color: #4b5563;
 }
 
-/* Dark mode status variants */
-@media (prefers-color-scheme: dark) {
-  .semiont-status-display[data-status="success"] {
-    background-color: rgba(59, 130, 246, 0.1);
-    color: #93c5fd;
-  }
-
-  .semiont-status-display[data-status="error"] {
-    background-color: rgba(239, 68, 68, 0.1);
-    color: #fca5a5;
-  }
-
-  .semiont-status-display[data-status="warning"] {
-    background-color: rgba(251, 146, 60, 0.1);
-    color: #fdba74;
-  }
-
-  .semiont-status-display[data-status="loading"] {
-    background-color: rgba(245, 158, 11, 0.1);
-    color: #fcd34d;
-  }
-
-  .semiont-status-display[data-status="info"] {
-    background-color: rgba(156, 163, 175, 0.1);
-    color: #e5e7eb;
-  }
-
-  .semiont-status-display[data-status="success"] .semiont-status-hint {
-    color: #60a5fa;
-  }
-
-  .semiont-status-display[data-status="error"] .semiont-status-error-hint {
-    color: #f87171;
-  }
-
-  .semiont-status-display[data-status="info"] .semiont-status-hint {
-    color: #9ca3af;
-  }
+/* Dark mode status variants - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-status-display[data-status="success"] {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #93c5fd;
 }
 
-[data-theme="dark"] {
-  .semiont-status-display[data-status="success"] {
-    background-color: rgba(59, 130, 246, 0.1);
-    color: #93c5fd;
-  }
+[data-theme="dark"] .semiont-status-display[data-status="error"] {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+}
 
-  .semiont-status-display[data-status="error"] {
-    background-color: rgba(239, 68, 68, 0.1);
-    color: #fca5a5;
-  }
+[data-theme="dark"] .semiont-status-display[data-status="warning"] {
+  background-color: rgba(251, 146, 60, 0.1);
+  color: #fdba74;
+}
 
-  .semiont-status-display[data-status="warning"] {
-    background-color: rgba(251, 146, 60, 0.1);
-    color: #fdba74;
-  }
+[data-theme="dark"] .semiont-status-display[data-status="loading"] {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #fcd34d;
+}
 
-  .semiont-status-display[data-status="loading"] {
-    background-color: rgba(245, 158, 11, 0.1);
-    color: #fcd34d;
-  }
+[data-theme="dark"] .semiont-status-display[data-status="info"] {
+  background-color: rgba(156, 163, 175, 0.1);
+  color: #e5e7eb;
+}
 
-  .semiont-status-display[data-status="info"] {
-    background-color: rgba(156, 163, 175, 0.1);
-    color: #e5e7eb;
-  }
+[data-theme="dark"] .semiont-status-display[data-status="success"] .semiont-status-hint {
+  color: #60a5fa;
+}
 
-  .semiont-status-display[data-status="success"] .semiont-status-hint {
-    color: #60a5fa;
-  }
+[data-theme="dark"] .semiont-status-display[data-status="error"] .semiont-status-error-hint {
+  color: #f87171;
+}
 
-  .semiont-status-display[data-status="error"] .semiont-status-error-hint {
-    color: #f87171;
-  }
-
-  .semiont-status-display[data-status="info"] .semiont-status-hint {
-    color: #9ca3af;
-  }
+[data-theme="dark"] .semiont-status-display[data-status="info"] .semiont-status-hint {
+  color: #9ca3af;
 }
 
 /* UserMenuSkeleton Component */
@@ -145,11 +104,9 @@
   animation: semiont-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@media (prefers-color-scheme: dark) {
-  [data-theme="dark"] .semiont-user-menu-skeleton,
-  :root:not([data-theme="light"]) .semiont-user-menu-skeleton {
-    background-color: var(--semiont-color-neutral-700);
-  }
+/* Dark mode for UserMenuSkeleton - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-user-menu-skeleton {
+  background-color: var(--semiont-color-neutral-700);
 }
 
 /* DetectionProgressWidget Component */
@@ -273,75 +230,65 @@
   font-weight: var(--semiont-font-weight-medium);
 }
 
-/* Dark mode for DetectionProgressWidget */
-@media (prefers-color-scheme: dark) {
-  [data-theme="dark"] .semiont-detection-progress,
-  :root:not([data-theme="light"]) .semiont-detection-progress {
-    background-color: var(--semiont-color-neutral-800);
-    border-color: var(--semiont-color-primary-600);
-  }
+/* Dark mode for DetectionProgressWidget - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-detection-progress {
+  background-color: var(--semiont-color-neutral-800);
+  border-color: var(--semiont-color-primary-600);
+}
 
-  [data-theme="dark"] .semiont-detection-title,
-  :root:not([data-theme="light"]) .semiont-detection-title {
-    color: var(--semiont-color-neutral-0);
-  }
+[data-theme="dark"] .semiont-detection-title {
+  color: var(--semiont-color-neutral-0);
+}
 
-  [data-theme="dark"] .semiont-detection-cancel,
-  :root:not([data-theme="light"]) .semiont-detection-cancel {
-    color: var(--semiont-color-neutral-400);
-  }
+[data-theme="dark"] .semiont-detection-cancel {
+  color: var(--semiont-color-neutral-400);
+}
 
-  [data-theme="dark"] .semiont-detection-cancel:hover,
-  :root:not([data-theme="light"]) .semiont-detection-cancel:hover {
-    color: var(--semiont-color-neutral-300);
-  }
+[data-theme="dark"] .semiont-detection-cancel:hover {
+  color: var(--semiont-color-neutral-300);
+}
 
-  [data-theme="dark"] .semiont-detection-params,
-  :root:not([data-theme="light"]) .semiont-detection-params {
-    background-color: rgba(59, 130, 246, 0.1);
-    border-color: var(--semiont-color-primary-800);
-  }
+[data-theme="dark"] .semiont-detection-params {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: var(--semiont-color-primary-800);
+}
 
-  [data-theme="dark"] .semiont-detection-params-title,
-  :root:not([data-theme="light"]) .semiont-detection-params-title {
-    color: var(--semiont-color-primary-100);
-  }
+[data-theme="dark"] .semiont-detection-params-title {
+  color: var(--semiont-color-primary-100);
+}
 
-  [data-theme="dark"] .semiont-detection-params-item,
-  :root:not([data-theme="light"]) .semiont-detection-params-item {
-    color: var(--semiont-color-primary-200);
-  }
+[data-theme="dark"] .semiont-detection-params-item {
+  color: var(--semiont-color-primary-200);
+}
 
-  [data-theme="dark"] .semiont-detection-log-item,
-  :root:not([data-theme="light"]) .semiont-detection-log-item {
-    color: var(--semiont-color-neutral-400);
-  }
+[data-theme="dark"] .semiont-detection-log-item {
+  color: var(--semiont-color-neutral-400);
+}
 
-  [data-theme="dark"] .semiont-detection-check,
-  :root:not([data-theme="light"]) .semiont-detection-check {
-    color: var(--semiont-color-success-400);
-  }
+[data-theme="dark"] .semiont-detection-check {
+  color: var(--semiont-color-success-400);
+}
 
-  [data-theme="dark"] .semiont-detection-status-text,
-  :root:not([data-theme="light"]) .semiont-detection-status-text {
-    color: var(--semiont-color-neutral-400);
-  }
+[data-theme="dark"] .semiont-detection-status-text {
+  color: var(--semiont-color-neutral-400);
+}
 
-  [data-theme="dark"] .semiont-detection-status-complete,
-  :root:not([data-theme="light"]) .semiont-detection-status-complete {
-    color: var(--semiont-color-success-400);
-  }
+[data-theme="dark"] .semiont-detection-status-complete {
+  color: var(--semiont-color-success-400);
+}
 
-  [data-theme="dark"] .semiont-detection-status-error,
-  :root:not([data-theme="light"]) .semiont-detection-status-error {
-    color: var(--semiont-color-danger-400);
-  }
+[data-theme="dark"] .semiont-detection-status-error {
+  color: var(--semiont-color-danger-400);
 }
 
 /* ===== TIER 2 - CORE UI COMPONENTS ===== */
 
 /* Toolbar Component */
 .semiont-toolbar {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
   width: 3rem;
   height: 100%;
   display: flex;
@@ -351,6 +298,7 @@
   padding: var(--semiont-spacing-sm) 0;
   background-color: var(--semiont-color-neutral-50);
   border-left: 1px solid var(--semiont-color-neutral-200);
+  z-index: 40;
 }
 
 .semiont-toolbar-button {
@@ -389,30 +337,24 @@
   font-weight: var(--semiont-font-weight-bold);
 }
 
-/* Dark mode for Toolbar */
-@media (prefers-color-scheme: dark) {
-  [data-theme="dark"] .semiont-toolbar,
-  :root:not([data-theme="light"]) .semiont-toolbar {
-    background-color: var(--semiont-color-neutral-900);
-    border-left-color: var(--semiont-color-neutral-700);
-  }
+/* Dark mode for Toolbar - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-toolbar {
+  background-color: var(--semiont-color-neutral-900);
+  border-left-color: var(--semiont-color-neutral-700);
+}
 
-  [data-theme="dark"] .semiont-toolbar-button,
-  :root:not([data-theme="light"]) .semiont-toolbar-button {
-    color: var(--semiont-color-neutral-400);
-  }
+[data-theme="dark"] .semiont-toolbar-button {
+  color: var(--semiont-color-neutral-400);
+}
 
-  [data-theme="dark"] .semiont-toolbar-button:hover,
-  :root:not([data-theme="light"]) .semiont-toolbar-button:hover {
-    background-color: var(--semiont-color-neutral-800);
-  }
+[data-theme="dark"] .semiont-toolbar-button:hover {
+  background-color: var(--semiont-color-neutral-800);
+}
 
-  [data-theme="dark"] .semiont-toolbar-button[data-active="true"],
-  :root:not([data-theme="light"]) .semiont-toolbar-button[data-active="true"] {
-    background-color: rgba(59, 130, 246, 0.5);
-    color: var(--semiont-color-primary-300);
-    border-left-color: var(--semiont-color-primary-400);
-  }
+[data-theme="dark"] .semiont-toolbar-button[data-active="true"] {
+  background-color: rgba(59, 130, 246, 0.5);
+  color: var(--semiont-color-primary-300);
+  border-left-color: var(--semiont-color-primary-400);
 }
 
 /* ResourceTagsInline Component */
@@ -440,19 +382,15 @@
   font-size: var(--semiont-font-size-xs);
 }
 
-/* Dark mode for ResourceTagsInline */
-@media (prefers-color-scheme: dark) {
-  [data-theme="dark"] .semiont-resource-tags-inline,
-  :root:not([data-theme="light"]) .semiont-resource-tags-inline {
-    border-top-color: var(--semiont-color-neutral-700);
-  }
+/* Dark mode for ResourceTagsInline - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-resource-tags-inline {
+  border-top-color: var(--semiont-color-neutral-700);
+}
 
-  [data-theme="dark"] .semiont-resource-tag,
-  :root:not([data-theme="light"]) .semiont-resource-tag {
-    background-color: rgba(59, 130, 246, 0.3);
-    color: var(--semiont-color-primary-300);
-    border-color: var(--semiont-color-primary-800);
-  }
+[data-theme="dark"] .semiont-resource-tag {
+  background-color: rgba(59, 130, 246, 0.3);
+  color: var(--semiont-color-primary-300);
+  border-color: var(--semiont-color-primary-800);
 }
 
 /* ErrorBoundary Component */

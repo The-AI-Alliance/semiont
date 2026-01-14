@@ -103,56 +103,28 @@
   color: #1e40af;
 }
 
-/* Dark mode toast variants */
-@media (prefers-color-scheme: dark) {
-  .semiont-toast[data-variant="success"] {
-    background-color: rgba(34, 197, 94, 0.1);
-    border-color: #16a34a;
-    color: #86efac;
-  }
-
-  .semiont-toast[data-variant="error"] {
-    background-color: rgba(239, 68, 68, 0.1);
-    border-color: #dc2626;
-    color: #fca5a5;
-  }
-
-  .semiont-toast[data-variant="warning"] {
-    background-color: rgba(245, 158, 11, 0.1);
-    border-color: #d97706;
-    color: #fcd34d;
-  }
-
-  .semiont-toast[data-variant="info"] {
-    background-color: rgba(59, 130, 246, 0.1);
-    border-color: #2563eb;
-    color: #93c5fd;
-  }
+/* Dark mode toast variants - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-toast[data-variant="success"] {
+  background-color: rgba(34, 197, 94, 0.1);
+  border-color: #16a34a;
+  color: #86efac;
 }
 
-[data-theme="dark"] {
-  .semiont-toast[data-variant="success"] {
-    background-color: rgba(34, 197, 94, 0.1);
-    border-color: #16a34a;
-    color: #86efac;
-  }
+[data-theme="dark"] .semiont-toast[data-variant="error"] {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: #dc2626;
+  color: #fca5a5;
+}
 
-  .semiont-toast[data-variant="error"] {
-    background-color: rgba(239, 68, 68, 0.1);
-    border-color: #dc2626;
-    color: #fca5a5;
-  }
+[data-theme="dark"] .semiont-toast[data-variant="warning"] {
+  background-color: rgba(245, 158, 11, 0.1);
+  border-color: #d97706;
+  color: #fcd34d;
+}
 
-  .semiont-toast[data-variant="warning"] {
-    background-color: rgba(245, 158, 11, 0.1);
-    border-color: #d97706;
-    color: #fcd34d;
-  }
-
-  .semiont-toast[data-variant="info"] {
-    background-color: rgba(59, 130, 246, 0.1);
-    border-color: #2563eb;
-    color: #93c5fd;
-  }
+[data-theme="dark"] .semiont-toast[data-variant="info"] {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: #2563eb;
+  color: #93c5fd;
 }
 
