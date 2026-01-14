@@ -66,6 +66,20 @@ RUN apt-get update && \
 # Set working directory
 WORKDIR /workspace
 
+# Pre-install node_modules to speed up setup
+# Copy package files and install dependencies at build time
+COPY --chown=node:node package.json package-lock.json /opt/semiont-prebuild/
+RUN echo "=== After COPY ===" && \
+    ls -la /opt/semiont-prebuild/ && \
+    cat /opt/semiont-prebuild/package.json | head -5
+USER node
+RUN echo "=== Running npm ci as node user ===" && \
+    cd /opt/semiont-prebuild && \
+    npm ci && \
+    echo "=== npm ci completed ===" && \
+    ls -la /opt/semiont-prebuild/node_modules | head -20
+USER root
+
 # Switch to node user for development
 USER node
 
