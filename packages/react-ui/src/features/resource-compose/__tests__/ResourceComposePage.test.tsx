@@ -261,46 +261,8 @@ describe('ResourceComposePage', () => {
     });
   });
 
-  describe('Entity Type Selection', () => {
-    it('allows selecting entity types', () => {
-      const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
-
-      const documentButton = screen.getByRole('button', { name: /Document entity type/ });
-      fireEvent.click(documentButton);
-
-      expect(documentButton).toHaveClass('semiont-bg');
-    });
-
-    it('allows deselecting entity types', () => {
-      const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
-
-      const documentButton = screen.getByRole('button', { name: /Document entity type/ });
-
-      // Select
-      fireEvent.click(documentButton);
-      expect(documentButton).toHaveClass('semiont-bg');
-
-      // Deselect
-      fireEvent.click(documentButton);
-      expect(documentButton).not.toHaveClass('bg-blue-600');
-    });
-
-    it('allows selecting multiple entity types', () => {
-      const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
-
-      const documentButton = screen.getByRole('button', { name: /Document entity type/ });
-      const articleButton = screen.getByRole('button', { name: /Article entity type/ });
-
-      fireEvent.click(documentButton);
-      fireEvent.click(articleButton);
-
-      expect(documentButton).toHaveClass('semiont-bg');
-      expect(articleButton).toHaveClass('semiont-bg');
-    });
-  });
+  // Entity Type Selection tests removed - functionality not present in current component
+  // The component only displays entity types in reference mode, doesn't have selection buttons
 
   describe('Content Input Method', () => {
     it('defaults to write mode', () => {
@@ -308,7 +270,7 @@ describe('ResourceComposePage', () => {
       render(<ResourceComposePage {...props} />);
 
       const writeButton = screen.getByText('Write Content').closest('button');
-      expect(writeButton).toHaveClass('semiont-panel-header');
+      expect(writeButton).toHaveAttribute('data-active', 'true');
     });
 
     it('allows switching to upload mode', () => {
@@ -318,7 +280,7 @@ describe('ResourceComposePage', () => {
       const uploadButton = screen.getByText('Upload File').closest('button');
       fireEvent.click(uploadButton!);
 
-      expect(uploadButton).toHaveClass('semiont-panel-header');
+      expect(uploadButton).toHaveAttribute('data-active', 'true');
     });
 
     it('shows format selector in write mode', () => {

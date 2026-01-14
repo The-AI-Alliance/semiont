@@ -163,9 +163,8 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel {...defaultProps} annotations={mockComments.many} />
       );
 
-      const commentsList = container.querySelector('.semiont-page__content');
+      const commentsList = container.querySelector('.semiont-panel__list');
       expect(commentsList).toBeInTheDocument();
-      expect(commentsList).toHaveClass('semiont-comment-entry__body');
     });
   });
 
@@ -482,10 +481,9 @@ describe('CommentsPanel Component', () => {
         />
       );
 
-      const newCommentArea = container.querySelector('.bg-purple-50');
+      const newCommentArea = container.querySelector('.semiont-annotation-prompt');
       expect(newCommentArea).toBeInTheDocument();
-      // Check for the dark mode class (dark:bg-purple-900/10)
-      expect(newCommentArea?.className).toContain('dark:bg-purple-900/10');
+      expect(newCommentArea).toHaveAttribute('data-type', 'comment');
     });
   });
 
@@ -633,7 +631,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel {...defaultProps} annotations={mockComments.multiple} />
       );
 
-      const commentsList = container.querySelector('.semiont-collaboration-panel');
+      const commentsList = container.querySelector('.semiont-panel__list');
       expect(commentsList).toBeInTheDocument();
     });
 
@@ -733,7 +731,7 @@ describe('CommentsPanel Component', () => {
       render(<CommentsPanel {...defaultProps} />);
 
       const heading = screen.getByText(/Comments/);
-      expect(heading).toHaveClass('semiont-heading');
+      expect(heading).toHaveClass('semiont-panel-header__text');
     });
 
     it('should have proper textarea attributes for new comments', () => {

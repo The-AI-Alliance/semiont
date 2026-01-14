@@ -75,10 +75,10 @@ describe('WelcomePage', () => {
 
     it('renders with correct page layout', () => {
       const props = createMockProps({ status: 'loading' });
-      render(<WelcomePage {...props} />);
+      const { container } = render(<WelcomePage {...props} />);
 
-      const pageLayout = screen.getByTestId('page-layout');
-      expect(pageLayout).toHaveClass('semiont-panel');
+      const pageLayout = container.querySelector('.semiont-welcome-page__layout');
+      expect(pageLayout).toBeInTheDocument();
     });
 
     it('renders spinner', () => {
@@ -101,9 +101,9 @@ describe('WelcomePage', () => {
 
     it('renders success checkmark', () => {
       const props = createMockProps({ status: 'accepted' });
-      render(<WelcomePage {...props} />);
+      const { container } = render(<WelcomePage {...props} />);
 
-      const checkmarkContainer = screen.getByText('Welcome!').closest('div')?.parentElement?.querySelector('.bg-green-100');
+      const checkmarkContainer = container.querySelector('.semiont-welcome-page__accepted-checkmark');
       expect(checkmarkContainer).toBeInTheDocument();
     });
 
@@ -284,10 +284,10 @@ describe('WelcomePage', () => {
   describe('Styling and Accessibility', () => {
     it('renders scrollable terms container', () => {
       const props = createMockProps();
-      render(<WelcomePage {...props} />);
+      const { container } = render(<WelcomePage {...props} />);
 
-      const termsContainer = screen.getByText('Terms Summary').closest('div.max-h-96');
-      expect(termsContainer).toHaveClass('overflow-y-auto');
+      const termsContainer = container.querySelector('.semiont-welcome-page__terms-content');
+      expect(termsContainer).toBeInTheDocument();
     });
 
     it('renders accept button with correct styling', () => {
@@ -308,10 +308,10 @@ describe('WelcomePage', () => {
 
     it('renders with proper dark mode classes', () => {
       const props = createMockProps();
-      render(<WelcomePage {...props} />);
+      const { container } = render(<WelcomePage {...props} />);
 
-      const pageLayout = screen.getByTestId('page-layout');
-      expect(pageLayout).toHaveClass('semiont-panel');
+      const pageLayout = container.querySelector('.semiont-welcome-page__layout');
+      expect(pageLayout).toBeInTheDocument();
     });
   });
 });

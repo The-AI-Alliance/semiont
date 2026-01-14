@@ -110,7 +110,8 @@ describe('SkipLinks - Accessibility', () => {
       );
 
       const skipLinks = container.querySelector('.semiont-skip-links');
-      const firstElement = container.firstElementChild;
+      const wrapper = container.firstElementChild;
+      const firstElement = wrapper?.firstElementChild;
 
       expect(skipLinks).toBe(firstElement);
     });
