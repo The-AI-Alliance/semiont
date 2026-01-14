@@ -146,7 +146,7 @@
 
 /* Domain-specific styles */
 .semiont-schema-domain--legal .semiont-schema__icon-wrapper {
-  background-color: rgb(243 232 255);
+  background-color: var(--semiont-color-purple-100);
 }
 
 [data-theme="dark"] .semiont-schema-domain--legal .semiont-schema__icon-wrapper,
@@ -155,29 +155,29 @@
 }
 
 .semiont-schema-domain--legal .semiont-schema__icon {
-  color: rgb(147 51 234);
+  color: var(--semiont-color-purple-600);
 }
 
 [data-theme="dark"] .semiont-schema-domain--legal .semiont-schema__icon,
 :root:not([data-theme="light"]) .semiont-schema-domain--legal .semiont-schema__icon {
-  color: rgb(196 181 253);
+  color: var(--semiont-color-purple-400);
 }
 
 .semiont-schema-domain--legal.semiont-schema__badge {
-  background-color: rgb(243 232 255);
-  color: rgb(147 51 234);
-  border-color: rgb(221 214 254);
+  background-color: var(--semiont-color-purple-100);
+  color: var(--semiont-color-purple-600);
+  border-color: var(--semiont-color-purple-200);
 }
 
 [data-theme="dark"] .semiont-schema-domain--legal.semiont-schema__badge,
 :root:not([data-theme="light"]) .semiont-schema-domain--legal.semiont-schema__badge {
   background-color: rgba(147, 51, 234, 0.2);
-  color: rgb(196 181 253);
-  border-color: rgb(107 33 168);
+  color: var(--semiont-color-purple-400);
+  border-color: var(--semiont-color-purple-800);
 }
 
 .semiont-schema-domain--scientific .semiont-schema__icon-wrapper {
-  background-color: rgb(220 252 231);
+  background-color: var(--semiont-color-green-100);
 }
 
 [data-theme="dark"] .semiont-schema-domain--scientific .semiont-schema__icon-wrapper,
@@ -186,29 +186,29 @@
 }
 
 .semiont-schema-domain--scientific .semiont-schema__icon {
-  color: rgb(34 197 94);
+  color: var(--semiont-color-green-500);
 }
 
 [data-theme="dark"] .semiont-schema-domain--scientific .semiont-schema__icon,
 :root:not([data-theme="light"]) .semiont-schema-domain--scientific .semiont-schema__icon {
-  color: rgb(134 239 172);
+  color: var(--semiont-color-green-300);
 }
 
 .semiont-schema-domain--scientific.semiont-schema__badge {
-  background-color: rgb(220 252 231);
-  color: rgb(34 197 94);
-  border-color: rgb(187 247 208);
+  background-color: var(--semiont-color-green-100);
+  color: var(--semiont-color-green-500);
+  border-color: var(--semiont-color-green-200);
 }
 
 [data-theme="dark"] .semiont-schema-domain--scientific.semiont-schema__badge,
 :root:not([data-theme="light"]) .semiont-schema-domain--scientific.semiont-schema__badge {
   background-color: rgba(34, 197, 94, 0.2);
-  color: rgb(134 239 172);
-  border-color: rgb(22 163 74);
+  color: var(--semiont-color-green-300);
+  border-color: var(--semiont-color-green-600);
 }
 
 .semiont-schema-domain--general .semiont-schema__icon-wrapper {
-  background-color: rgb(254 243 199);
+  background-color: var(--semiont-color-amber-100);
 }
 
 [data-theme="dark"] .semiont-schema-domain--general .semiont-schema__icon-wrapper,
@@ -217,23 +217,23 @@
 }
 
 .semiont-schema-domain--general .semiont-schema__icon {
-  color: rgb(251 146 60);
+  color: var(--semiont-color-orange-400);
 }
 
 [data-theme="dark"] .semiont-schema-domain--general .semiont-schema__icon,
 :root:not([data-theme="light"]) .semiont-schema-domain--general .semiont-schema__icon {
-  color: rgb(253 186 116);
+  color: var(--semiont-color-orange-300);
 }
 
 .semiont-schema-domain--general.semiont-schema__badge {
-  background-color: rgb(254 243 199);
-  color: rgb(251 146 60);
-  border-color: rgb(254 215 170);
+  background-color: var(--semiont-color-amber-100);
+  color: var(--semiont-color-orange-400);
+  border-color: var(--semiont-color-orange-200);
 }
 
 [data-theme="dark"] .semiont-schema-domain--general.semiont-schema__badge,
 :root:not([data-theme="light"]) .semiont-schema-domain--general.semiont-schema__badge {
   background-color: rgba(251, 146, 60, 0.2);
-  color: rgb(253 186 116);
-  border-color: rgb(234 88 12);
+  color: var(--semiont-color-orange-300);
+  border-color: var(--semiont-color-orange-600);
 }

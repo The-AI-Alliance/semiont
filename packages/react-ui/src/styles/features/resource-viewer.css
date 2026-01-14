@@ -78,9 +78,9 @@
 }
 
 .semiont-delete-confirmation__warning {
-  background: rgb(254, 226, 226);
-  border: 1px solid rgb(252, 165, 165);
-  color: rgb(185, 28, 28);
+  background: var(--semiont-color-red-50);
+  border: 1px solid var(--semiont-color-red-300);
+  color: var(--semiont-color-red-700);
   padding: 0.75rem;
   border-radius: var(--semiont-radius-md);
   font-size: 0.75rem;
@@ -90,8 +90,8 @@
 [data-theme="dark"] .semiont-delete-confirmation__warning,
 :root:not([data-theme="light"]) .semiont-delete-confirmation__warning {
   background: rgba(239, 68, 68, 0.1);
-  border-color: rgb(239, 68, 68);
-  color: rgb(252, 165, 165);
+  border-color: var(--semiont-color-red-500);
+  color: var(--semiont-color-red-300);
 }
 
 .semiont-delete-confirmation__actions {
@@ -215,8 +215,8 @@
   position: absolute;
   top: 0;
   right: 1rem;
-  background: rgb(251, 191, 36);
-  color: rgb(78, 70, 65);
+  background: var(--semiont-color-amber-400);
+  color: var(--semiont-color-amber-900);
   padding: 0.5rem 1rem;
   border-radius: 0 0 var(--semiont-radius-md) var(--semiont-radius-md);
   font-size: 0.875rem;

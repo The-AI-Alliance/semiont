@@ -42,6 +42,66 @@
   --semiont-color-gray-800: #1f2937;
   --semiont-color-gray-900: #111827;
 
+  /* Purple/Violet Colors (Tailwind palette for schemas) */
+  --semiont-color-purple-50: #faf5ff;
+  --semiont-color-purple-100: #f3e8ff;
+  --semiont-color-purple-200: #e9d5ff;
+  --semiont-color-purple-300: #d8b4fe;
+  --semiont-color-purple-400: #c084fc;
+  --semiont-color-purple-500: #a855f7;
+  --semiont-color-purple-600: #9333ea;
+  --semiont-color-purple-700: #7e22ce;
+  --semiont-color-purple-800: #6b21a8;
+  --semiont-color-purple-900: #581c87;
+
+  /* Green Colors (Tailwind palette for success states) */
+  --semiont-color-green-50: #f0fdf4;
+  --semiont-color-green-100: #dcfce7;
+  --semiont-color-green-200: #bbf7d0;
+  --semiont-color-green-300: #86efac;
+  --semiont-color-green-400: #4ade80;
+  --semiont-color-green-500: #22c55e;
+  --semiont-color-green-600: #16a34a;
+  --semiont-color-green-700: #15803d;
+  --semiont-color-green-800: #166534;
+  --semiont-color-green-900: #14532d;
+
+  /* Orange/Amber Colors (Tailwind palette for warnings) */
+  --semiont-color-orange-50: #fff7ed;
+  --semiont-color-orange-100: #ffedd5;
+  --semiont-color-orange-200: #fed7aa;
+  --semiont-color-orange-300: #fdba74;
+  --semiont-color-orange-400: #fb923c;
+  --semiont-color-orange-500: #f97316;
+  --semiont-color-orange-600: #ea580c;
+  --semiont-color-orange-700: #c2410c;
+  --semiont-color-orange-800: #9a3412;
+  --semiont-color-orange-900: #7c2d12;
+
+  /* Amber Colors (Alternative warning palette) */
+  --semiont-color-amber-50: #fffbeb;
+  --semiont-color-amber-100: #fef3c7;
+  --semiont-color-amber-200: #fde68a;
+  --semiont-color-amber-300: #fcd34d;
+  --semiont-color-amber-400: #fbbf24;
+  --semiont-color-amber-500: #f59e0b;
+  --semiont-color-amber-600: #d97706;
+  --semiont-color-amber-700: #b45309;
+  --semiont-color-amber-800: #92400e;
+  --semiont-color-amber-900: #78350f;
+
+  /* Red Colors (Tailwind palette for errors) */
+  --semiont-color-red-50: #fef2f2;
+  --semiont-color-red-100: #fee2e2;
+  --semiont-color-red-200: #fecaca;
+  --semiont-color-red-300: #fca5a5;
+  --semiont-color-red-400: #f87171;
+  --semiont-color-red-500: #ef4444;
+  --semiont-color-red-600: #dc2626;
+  --semiont-color-red-700: #b91c1c;
+  --semiont-color-red-800: #991b1b;
+  --semiont-color-red-900: #7f1d1d;
+
   /* Secondary Colors */
   --semiont-color-secondary-50: #f0fffe;
   --semiont-color-secondary-100: #e0fffd;
