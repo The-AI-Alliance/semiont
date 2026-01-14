@@ -93,7 +93,7 @@ describe('ResourceErrorState', () => {
       render(<ResourceErrorState error={error} onRetry={onRetry} />);
 
       const container = screen.getByText('Test error').parentElement;
-      expect(container).toHaveClass('semiont-loading-state');
+      expect(container).toHaveClass('semiont-error-state', 'semiont-error-state-resource');
     });
   });
 });

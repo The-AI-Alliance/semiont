@@ -150,7 +150,7 @@ describe('LeftSidebar Component', () => {
       );
 
       const aside = container.querySelector('aside');
-      expect(aside).toHaveClass('w-64');
+      expect(aside).toHaveClass('semiont-left-sidebar--expanded');
     });
 
     it('should render function as children with collapse state', () => {
@@ -194,7 +194,7 @@ describe('LeftSidebar Component', () => {
       );
 
       const aside = container.querySelector('aside');
-      expect(aside).toHaveClass('w-14');
+      expect(aside).toHaveClass('semiont-left-sidebar--collapsed');
     });
 
     it('should save collapsed state to localStorage', () => {
@@ -242,7 +242,7 @@ describe('LeftSidebar Component', () => {
       fireEvent.click(toggleButton);
 
       const aside = container.querySelector('aside');
-      expect(aside).toHaveClass('w-64'); // Still expanded
+      expect(aside).toHaveClass('semiont-left-sidebar--expanded'); // Still expanded
     });
 
     it('should use default storage key', () => {
@@ -401,7 +401,7 @@ describe('LeftSidebar Component', () => {
       );
 
       const aside = container.querySelector('aside');
-      expect(aside).toHaveClass('transition-all', 'duration-300', 'ease-in-out');
+      expect(aside).toHaveClass('semiont-left-sidebar');
     });
 
     it('should show "S" when collapsed', () => {
