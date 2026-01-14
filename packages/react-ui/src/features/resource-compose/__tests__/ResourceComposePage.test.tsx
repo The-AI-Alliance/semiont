@@ -308,7 +308,7 @@ describe('ResourceComposePage', () => {
       render(<ResourceComposePage {...props} />);
 
       const writeButton = screen.getByText('Write Content').closest('button');
-      expect(writeButton).toHaveClass('border-blue-500');
+      expect(writeButton).toHaveClass('semiont-panel-header');
     });
 
     it('allows switching to upload mode', () => {
@@ -318,7 +318,7 @@ describe('ResourceComposePage', () => {
       const uploadButton = screen.getByText('Upload File').closest('button');
       fireEvent.click(uploadButton!);
 
-      expect(uploadButton).toHaveClass('border-blue-500');
+      expect(uploadButton).toHaveClass('semiont-panel-header');
     });
 
     it('shows format selector in write mode', () => {

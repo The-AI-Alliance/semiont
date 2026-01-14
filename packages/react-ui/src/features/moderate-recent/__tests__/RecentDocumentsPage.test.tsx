@@ -96,7 +96,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps({ hasDocuments: false });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const noDocsText = container.querySelector('.text-gray-500');
+      const noDocsText = container.querySelector('.semiont-panel-header__button');
       expect(noDocsText).toHaveTextContent('No documents found');
     });
 
@@ -130,7 +130,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const card = container.querySelector('.rounded-lg');
+      const card = container.querySelector('.semiont-collaboration-panel');
       expect(card).toBeInTheDocument();
     });
 

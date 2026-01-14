@@ -246,7 +246,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps({ error: '' });
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const errorMessage = container.querySelector('.text-red-600');
+      const errorMessage = container.querySelector('.semiont-error-message');
       expect(errorMessage).not.toBeInTheDocument();
     });
 

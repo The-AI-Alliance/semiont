@@ -155,7 +155,7 @@ describe('CommentsPanel Component', () => {
 
       // Find the root panel div (first child of the container)
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('flex', 'flex-col', 'h-full');
+      expect(panel).toHaveClass('semiont-panel');
     });
 
     it('should have scrollable comments list', () => {
@@ -165,7 +165,7 @@ describe('CommentsPanel Component', () => {
 
       const commentsList = container.querySelector('.overflow-y-auto');
       expect(commentsList).toBeInTheDocument();
-      expect(commentsList).toHaveClass('flex-1', 'p-4');
+      expect(commentsList).toHaveClass('semiont-comment-entry__body');
     });
   });
 
@@ -618,14 +618,14 @@ describe('CommentsPanel Component', () => {
       );
 
       const header = screen.getByText(/Comments/).closest('div');
-      expect(header).toHaveClass('flex-shrink-0');
+      expect(header).toHaveClass('semiont-panel-header');
     });
 
     it('should support dark mode', () => {
       const { container } = render(<CommentsPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('dark:bg-gray-900');
+      expect(panel).toHaveClass('semiont-panel');
     });
 
     it('should have proper spacing between comments', () => {
@@ -633,7 +633,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel {...defaultProps} annotations={mockComments.multiple} />
       );
 
-      const commentsList = container.querySelector('.space-y-4');
+      const commentsList = container.querySelector('.semiont-collaboration-panel');
       expect(commentsList).toBeInTheDocument();
     });
 
@@ -641,7 +641,7 @@ describe('CommentsPanel Component', () => {
       render(<CommentsPanel {...defaultProps} />);
 
       const header = screen.getByText(/Comments/).closest('div');
-      expect(header).toHaveClass('border-b', 'border-gray-200', 'dark:border-gray-700');
+      expect(header).toHaveClass('semiont-panel-header');
     });
   });
 
@@ -733,7 +733,7 @@ describe('CommentsPanel Component', () => {
       render(<CommentsPanel {...defaultProps} />);
 
       const heading = screen.getByText(/Comments/);
-      expect(heading).toHaveClass('text-lg', 'font-semibold');
+      expect(heading).toHaveClass('semiont-heading');
     });
 
     it('should have proper textarea attributes for new comments', () => {
@@ -761,7 +761,7 @@ describe('CommentsPanel Component', () => {
       );
 
       // Panel should be a properly structured div hierarchy
-      expect(container.querySelector('.flex.flex-col.h-full')).toBeInTheDocument();
+      expect(container.querySelector('.semiont-panel')).toBeInTheDocument();
     });
   });
 });

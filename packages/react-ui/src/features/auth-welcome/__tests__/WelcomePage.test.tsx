@@ -78,7 +78,7 @@ describe('WelcomePage', () => {
       render(<WelcomePage {...props} />);
 
       const pageLayout = screen.getByTestId('page-layout');
-      expect(pageLayout).toHaveClass('bg-gray-50', 'dark:bg-gray-900');
+      expect(pageLayout).toHaveClass('semiont-panel');
     });
 
     it('renders spinner', () => {
@@ -86,7 +86,7 @@ describe('WelcomePage', () => {
       render(<WelcomePage {...props} />);
 
       const spinner = screen.getByText('Loading...').previousElementSibling;
-      expect(spinner).toHaveClass('animate-spin');
+      expect(spinner).toHaveClass('semiont-welcome-page__spinner');
     });
   });
 
@@ -295,7 +295,7 @@ describe('WelcomePage', () => {
       render(<WelcomePage {...props} />);
 
       const button = screen.getByRole('button', { name: 'Accept and Continue' });
-      expect(button).toHaveClass('bg-green-600', 'text-white');
+      expect(button).toHaveClass('semiont-welcome-page__button semiont-welcome-page__button--primary');
     });
 
     it('renders decline button with correct styling', () => {
@@ -303,7 +303,7 @@ describe('WelcomePage', () => {
       render(<WelcomePage {...props} />);
 
       const button = screen.getByRole('button', { name: 'Decline and Sign Out' });
-      expect(button).toHaveClass('border', 'border-gray-300');
+      expect(button).toHaveClass('semiont-welcome-page__button semiont-welcome-page__button--secondary');
     });
 
     it('renders with proper dark mode classes', () => {
@@ -311,7 +311,7 @@ describe('WelcomePage', () => {
       render(<WelcomePage {...props} />);
 
       const pageLayout = screen.getByTestId('page-layout');
-      expect(pageLayout).toHaveClass('dark:bg-gray-900');
+      expect(pageLayout).toHaveClass('semiont-panel');
     });
   });
 });

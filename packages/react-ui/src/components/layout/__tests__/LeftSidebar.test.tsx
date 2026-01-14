@@ -384,14 +384,7 @@ describe('LeftSidebar Component', () => {
       );
 
       const aside = container.querySelector('aside');
-      expect(aside).toHaveClass(
-        'bg-white',
-        'dark:bg-gray-900',
-        'shadow',
-        'flex-shrink-0',
-        'flex',
-        'flex-col'
-      );
+      expect(aside).toHaveClass('semiont-panel');
     });
 
     it('should apply transition classes', () => {

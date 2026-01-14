@@ -394,16 +394,7 @@ describe('JsonLdPanel Component', () => {
       const { container } = render(<JsonLdPanel resource={resource} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass(
-        'bg-white',
-        'dark:bg-gray-800',
-        'rounded-lg',
-        'shadow-sm',
-        'p-4',
-        'h-full',
-        'flex',
-        'flex-col'
-      );
+      expect(panel).toHaveClass('semiont-collaboration-panel');
     });
 
     it('should have proper header styling', () => {
@@ -411,14 +402,7 @@ describe('JsonLdPanel Component', () => {
       render(<JsonLdPanel resource={resource} />);
 
       const header = screen.getByText('JSON-LD').parentElement;
-      expect(header).toHaveClass(
-        'flex',
-        'items-center',
-        'justify-between',
-        'mb-3',
-        'pb-2',
-        'border-b'
-      );
+      expect(header).toHaveClass('semiont-panel-header');
     });
 
     it('should have proper button styling', () => {
@@ -442,7 +426,7 @@ describe('JsonLdPanel Component', () => {
       const { container } = render(<JsonLdPanel resource={resource} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('dark:bg-gray-800');
+      expect(panel).toHaveClass('semiont-collaboration-panel');
     });
   });
 
@@ -460,7 +444,7 @@ describe('JsonLdPanel Component', () => {
       render(<JsonLdPanel resource={resource} />);
 
       const heading = screen.getByText('JSON-LD');
-      expect(heading).toHaveClass('text-sm', 'font-semibold');
+      expect(heading).toHaveClass('semiont-collaboration-panel__heading');
     });
 
     it('should have proper button structure', () => {

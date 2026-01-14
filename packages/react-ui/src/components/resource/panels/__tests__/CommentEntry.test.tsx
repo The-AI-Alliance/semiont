@@ -129,7 +129,7 @@ describe('CommentEntry Component', () => {
 
       const quote = screen.getByText(/"This is th"/);
       expect(quote).toBeInTheDocument();
-      expect(quote).toHaveClass('italic', 'border-l-2', 'border-purple-300');
+      expect(quote).toHaveClass('semiont-blockquote');
     });
 
     it('should truncate long selected text at 100 characters', () => {
@@ -204,7 +204,7 @@ describe('CommentEntry Component', () => {
 
       const commentDiv = container.querySelector('.animate-pulse-outline');
       expect(commentDiv).toBeInTheDocument();
-      expect(commentDiv).toHaveClass('border-gray-400', 'bg-gray-50');
+      expect(commentDiv).toHaveClass('semiont-panel-header');
     });
 
     it('should not apply focus styles when not focused', () => {
@@ -256,7 +256,7 @@ describe('CommentEntry Component', () => {
       const { container } = render(<CommentEntry {...defaultProps} />);
 
       const commentDiv = container.firstChild as HTMLElement;
-      expect(commentDiv).toHaveClass('cursor-pointer');
+      expect(commentDiv).toHaveClass('semiont-button');
     });
   });
 
@@ -456,24 +456,21 @@ describe('CommentEntry Component', () => {
       const { container } = render(<CommentEntry {...defaultProps} />);
 
       const commentDiv = container.firstChild as HTMLElement;
-      expect(commentDiv).toHaveClass('border', 'rounded-lg', 'p-3');
+      expect(commentDiv).toHaveClass('semiont-navigation-menu');
     });
 
     it('should have hover styles when not focused', () => {
       const { container } = render(<CommentEntry {...defaultProps} />);
 
       const commentDiv = container.firstChild as HTMLElement;
-      expect(commentDiv).toHaveClass(
-        'hover:border-gray-300',
-        'dark:hover:border-gray-600'
-      );
+      expect(commentDiv).toHaveClass('semiont-navigation-menu__link--hover');
     });
 
     it('should support dark mode classes', () => {
       const { container } = render(<CommentEntry {...defaultProps} />);
 
       const commentDiv = container.firstChild as HTMLElement;
-      expect(commentDiv).toHaveClass('dark:border-gray-700');
+      expect(commentDiv).toHaveClass('semiont-navigation-menu__divider');
     });
 
     it('should render comment text with whitespace preserved', () => {

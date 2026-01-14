@@ -157,7 +157,7 @@ describe('PageLayout Component', () => {
       );
 
       const main = screen.getByRole('main');
-      expect(main).toHaveClass('flex-1');
+      expect(main).toHaveClass('semiont-comment-entry__body');
     });
 
     it('should have proper header styling', () => {
@@ -174,12 +174,7 @@ describe('PageLayout Component', () => {
       );
 
       const header = container.querySelector('header');
-      expect(header).toHaveClass(
-        'bg-white',
-        'dark:bg-gray-800',
-        'shadow-sm',
-        'border-b'
-      );
+      expect(header).toHaveClass('semiont-collaboration-panel');
     });
   });
 

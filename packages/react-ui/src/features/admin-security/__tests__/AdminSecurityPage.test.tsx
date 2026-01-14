@@ -220,7 +220,7 @@ describe('AdminSecurityPage', () => {
       });
       const { container } = render(<AdminSecurityPage {...props} />);
 
-      const domainBadge = container.querySelector('.bg-blue-100');
+      const domainBadge = container.querySelector('.semiont-tag');
       expect(domainBadge).toBeInTheDocument();
       expect(domainBadge).toHaveTextContent('@example.com');
     });

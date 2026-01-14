@@ -217,7 +217,7 @@ describe('SignUpForm - Accessibility', () => {
       await screen.findByText('Creating your account...');
 
       // Loading spinner should be present
-      const spinner = container.querySelector('.animate-spin');
+      const spinner = container.querySelector('.semiont-welcome-page__spinner');
       expect(spinner).toBeInTheDocument();
     });
   });

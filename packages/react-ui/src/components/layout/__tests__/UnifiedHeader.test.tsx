@@ -81,7 +81,7 @@ describe('UnifiedHeader Component', () => {
 
       const header = container.querySelector('header');
       expect(header).toBeInTheDocument();
-      expect(header).toHaveClass('bg-white', 'dark:bg-gray-900', 'shadow');
+      expect(header).toHaveClass('semiont-panel');
     });
 
     it('should render branding in standalone variant', () => {
@@ -526,7 +526,7 @@ describe('UnifiedHeader Component', () => {
       );
 
       const header = container.querySelector('header');
-      expect(header).toHaveClass('bg-white', 'dark:bg-gray-900', 'shadow', 'border-b');
+      expect(header).toHaveClass('semiont-panel');
     });
 
     it('should have proper floating variant styling', () => {
@@ -541,14 +541,7 @@ describe('UnifiedHeader Component', () => {
       );
 
       const floatingDiv = container.querySelector('.fixed');
-      expect(floatingDiv).toHaveClass(
-        'top-0',
-        'left-0',
-        'w-64',
-        'z-50',
-        'bg-white',
-        'dark:bg-gray-900'
-      );
+      expect(floatingDiv).toHaveClass('semiont-panel');
     });
 
     it('should have different layout classes for standalone vs embedded', () => {
@@ -572,7 +565,7 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      const standaloneContent = standaloneContainer.querySelector('.h-16');
+      const standaloneContent = standaloneContainer.querySelector('.semiont-unified-header');
       expect(standaloneContent).toBeInTheDocument();
 
       const embeddedContent = embeddedContainer.querySelector('.mb-8');

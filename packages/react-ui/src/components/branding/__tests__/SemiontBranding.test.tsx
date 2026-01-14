@@ -73,28 +73,28 @@ describe('SemiontBranding Component', () => {
       const { container } = render(<SemiontBranding t={mockTranslate} size="sm" />);
 
       const h1 = container.querySelector('h1');
-      expect(h1).toHaveClass('text-2xl', 'sm:text-3xl', 'md:text-4xl');
+      expect(h1).toHaveClass('semiont-heading semiont-heading--lg');
     });
 
     it('should apply medium size classes', () => {
       const { container } = render(<SemiontBranding t={mockTranslate} size="md" />);
 
       const h1 = container.querySelector('h1');
-      expect(h1).toHaveClass('text-3xl', 'sm:text-4xl', 'md:text-5xl', 'lg:text-6xl');
+      expect(h1).toHaveClass('semiont-heading semiont-heading--xl');
     });
 
     it('should apply large size classes by default', () => {
       const { container } = render(<SemiontBranding t={mockTranslate} />);
 
       const h1 = container.querySelector('h1');
-      expect(h1).toHaveClass('text-4xl', 'sm:text-5xl', 'md:text-6xl', 'lg:text-7xl', 'xl:text-8xl');
+      expect(h1).toHaveClass('semiont-heading semiont-heading--2xl');
     });
 
     it('should apply extra large size classes', () => {
       const { container } = render(<SemiontBranding t={mockTranslate} size="xl" />);
 
       const h1 = container.querySelector('h1');
-      expect(h1).toHaveClass('text-5xl', 'sm:text-6xl', 'md:text-7xl', 'lg:text-8xl', 'xl:text-9xl');
+      expect(h1).toHaveClass('semiont-heading semiont-heading--3xl');
     });
   });
 
@@ -103,28 +103,28 @@ describe('SemiontBranding Component', () => {
       const { container } = render(<SemiontBranding t={mockTranslate} size="sm" showTagline={true} />);
 
       const h2 = container.querySelector('h2');
-      expect(h2).toHaveClass('text-lg', 'sm:text-xl');
+      expect(h2).toHaveClass('semiont-heading semiont-heading--sm');
     });
 
     it('should apply medium tagline size', () => {
       const { container } = render(<SemiontBranding t={mockTranslate} size="md" showTagline={true} />);
 
       const h2 = container.querySelector('h2');
-      expect(h2).toHaveClass('text-xl', 'sm:text-2xl', 'md:text-3xl');
+      expect(h2).toHaveClass('semiont-heading semiont-heading--md');
     });
 
     it('should apply large tagline size', () => {
       const { container } = render(<SemiontBranding t={mockTranslate} size="lg" showTagline={true} />);
 
       const h2 = container.querySelector('h2');
-      expect(h2).toHaveClass('text-xl', 'sm:text-2xl', 'md:text-3xl', 'lg:text-4xl');
+      expect(h2).toHaveClass('semiont-heading semiont-heading--md');
     });
 
     it('should apply extra large tagline size', () => {
       const { container } = render(<SemiontBranding t={mockTranslate} size="xl" showTagline={true} />);
 
       const h2 = container.querySelector('h2');
-      expect(h2).toHaveClass('text-2xl', 'sm:text-3xl', 'md:text-4xl', 'lg:text-5xl');
+      expect(h2).toHaveClass('semiont-heading semiont-heading--lg');
     });
   });
 
@@ -162,7 +162,7 @@ describe('SemiontBranding Component', () => {
       );
 
       const h2 = container.querySelector('h2');
-      expect(h2).toHaveClass('text-sm', 'tracking-widest');
+      expect(h2).toHaveClass('semiont-collaboration-panel__status-text');
     });
 
     it('should apply tracking-wide for normal tagline', () => {

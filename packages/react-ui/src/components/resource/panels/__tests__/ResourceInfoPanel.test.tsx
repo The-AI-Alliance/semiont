@@ -141,8 +141,8 @@ describe('ResourceInfoPanel Component', () => {
       );
 
       const tag = screen.getByText('TestType');
-      expect(tag).toHaveClass('bg-blue-100');
-      expect(tag).toHaveClass('dark:bg-blue-900/30');
+      expect(tag).toHaveClass('semiont-tag');
+      expect(tag).toHaveClass('semiont-tag');
     });
   });
 

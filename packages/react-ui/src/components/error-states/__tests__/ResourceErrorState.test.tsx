@@ -83,7 +83,7 @@ describe('ResourceErrorState', () => {
       render(<ResourceErrorState error={error} onRetry={onRetry} />);
 
       const errorText = screen.getByText('Test error');
-      expect(errorText).toHaveClass('text-red-600', 'dark:text-red-400');
+      expect(errorText).toHaveClass('semiont-error-message');
     });
 
     it('renders container with correct layout', () => {
@@ -93,7 +93,7 @@ describe('ResourceErrorState', () => {
       render(<ResourceErrorState error={error} onRetry={onRetry} />);
 
       const container = screen.getByText('Test error').parentElement;
-      expect(container).toHaveClass('flex', 'flex-col', 'items-center', 'justify-center', 'py-20', 'space-y-4');
+      expect(container).toHaveClass('semiont-loading-state');
     });
   });
 });

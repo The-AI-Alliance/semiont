@@ -359,12 +359,7 @@ describe('Footer Component', () => {
       );
 
       const footer = container.querySelector('footer');
-      expect(footer).toHaveClass(
-        'bg-gray-50',
-        'dark:bg-gray-800',
-        'border-t',
-        'mt-auto'
-      );
+      expect(footer).toHaveClass('semiont-collaboration-panel');
     });
 
     it('should have responsive layout classes', () => {

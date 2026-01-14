@@ -73,7 +73,7 @@ describe('SignUpForm', () => {
       expect(button).toBeDisabled();
 
       // Should show spinner instead of Google icon
-      const spinner = button.querySelector('.animate-spin');
+      const spinner = button.querySelector('.semiont-welcome-page__spinner');
       expect(spinner).toBeInTheDocument();
 
       await waitFor(() => expect(onSignUp).toHaveBeenCalled());
