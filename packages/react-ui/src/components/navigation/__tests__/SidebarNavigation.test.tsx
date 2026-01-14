@@ -21,7 +21,13 @@ const MockLink = ({
   className?: string;
   title?: string;
 }) => (
-  <a href={href} className={className} title={title} data-testid={`link-${href}`}>
+  <a
+    href={href}
+    className={className}
+    title={title}
+    data-testid={`link-${href}`}
+    onClick={(e) => e.preventDefault()}
+  >
     {children}
   </a>
 );

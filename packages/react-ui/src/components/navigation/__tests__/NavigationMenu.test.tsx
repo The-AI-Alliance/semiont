@@ -7,7 +7,15 @@ import type { LinkComponentProps } from '../../../contexts/RoutingContext';
 
 describe('NavigationMenu Component', () => {
   const mockLink = vi.fn(({ href, children, className, onClick, ...props }: LinkComponentProps) => (
-    <a href={href} className={className} onClick={onClick} {...props}>
+    <a
+      href={href}
+      className={className}
+      onClick={(e) => {
+        e.preventDefault();
+        if (onClick) onClick(e);
+      }}
+      {...props}
+    >
       {children}
     </a>
   ));
