@@ -62,12 +62,12 @@
 }
 
 /* Collapsed state modifications */
-.sidebar-navigation--collapsed .sidebar-navigation__item {
-  justify-content: center;
+.sidebar-navigation--collapsed .sidebar-navigation__container {
   padding: 0.5rem;
 }
 
-.sidebar-navigation--collapsed .sidebar-navigation__container {
+.sidebar-navigation--collapsed .sidebar-navigation__item {
+  justify-content: center;
   padding: 0.5rem;
 }
 
