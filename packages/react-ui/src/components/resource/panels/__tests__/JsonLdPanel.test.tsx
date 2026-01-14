@@ -130,7 +130,7 @@ describe('JsonLdPanel Component', () => {
       const resource = createMockResource();
       const { container } = render(<JsonLdPanel resource={resource} />);
 
-      const editorDiv = container.querySelector('.flex-1.overflow-auto');
+      const editorDiv = container.querySelector('.semiont-jsonld-panel__editor');
       expect(editorDiv).toBeInTheDocument();
     });
   });
@@ -141,7 +141,7 @@ describe('JsonLdPanel Component', () => {
       const { container } = render(<JsonLdPanel resource={resource} />);
 
       // Verify editor container is rendered
-      const editorDiv = container.querySelector('.flex-1.overflow-auto');
+      const editorDiv = container.querySelector('.semiont-jsonld-panel__editor');
       expect(editorDiv).toBeInTheDocument();
     });
 
@@ -394,7 +394,7 @@ describe('JsonLdPanel Component', () => {
       const { container } = render(<JsonLdPanel resource={resource} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('semiont-collaboration-panel');
+      expect(panel).toHaveClass('semiont-jsonld-panel');
     });
 
     it('should have proper header styling', () => {
@@ -402,7 +402,7 @@ describe('JsonLdPanel Component', () => {
       render(<JsonLdPanel resource={resource} />);
 
       const header = screen.getByText('JSON-LD').parentElement;
-      expect(header).toHaveClass('semiont-panel-header');
+      expect(header).toHaveClass('semiont-jsonld-panel__header');
     });
 
     it('should have proper button styling', () => {
@@ -410,15 +410,15 @@ describe('JsonLdPanel Component', () => {
       render(<JsonLdPanel resource={resource} />);
 
       const copyButton = screen.getByText(/Copy/).closest('button');
-      expect(copyButton).toHaveClass('hover:bg-gray-100', 'dark:hover:bg-gray-700');
+      expect(copyButton).toHaveClass('semiont-button', 'semiont-button--icon');
     });
 
     it('should have proper editor container styling', () => {
       const resource = createMockResource();
       const { container } = render(<JsonLdPanel resource={resource} />);
 
-      const editorContainer = container.querySelector('.flex-1.overflow-auto');
-      expect(editorContainer).toHaveClass('rounded-lg', 'border');
+      const editorContainer = container.querySelector('.semiont-jsonld-panel__editor');
+      expect(editorContainer).toBeInTheDocument();
     });
 
     it('should support dark mode styling', () => {
@@ -426,7 +426,7 @@ describe('JsonLdPanel Component', () => {
       const { container } = render(<JsonLdPanel resource={resource} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('semiont-collaboration-panel');
+      expect(panel).toHaveClass('semiont-jsonld-panel');
     });
   });
 
@@ -444,7 +444,7 @@ describe('JsonLdPanel Component', () => {
       render(<JsonLdPanel resource={resource} />);
 
       const heading = screen.getByText('JSON-LD');
-      expect(heading).toHaveClass('semiont-collaboration-panel__heading');
+      expect(heading).toHaveClass('semiont-jsonld-panel__title');
     });
 
     it('should have proper button structure', () => {

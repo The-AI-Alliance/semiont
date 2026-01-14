@@ -202,7 +202,7 @@ describe('CommentEntry Component', () => {
         <CommentEntry {...defaultProps} isFocused={true} />
       );
 
-      const commentDiv = container.querySelector('.animate-pulse-outline');
+      const commentDiv = container.querySelector('.semiont-skeleton-outline');
       expect(commentDiv).toBeInTheDocument();
       expect(commentDiv).toHaveClass('semiont-panel-header');
     });
@@ -212,7 +212,7 @@ describe('CommentEntry Component', () => {
         <CommentEntry {...defaultProps} isFocused={false} />
       );
 
-      const commentDiv = container.querySelector('.animate-pulse-outline');
+      const commentDiv = container.querySelector('.semiont-skeleton-outline');
       expect(commentDiv).not.toBeInTheDocument();
     });
 

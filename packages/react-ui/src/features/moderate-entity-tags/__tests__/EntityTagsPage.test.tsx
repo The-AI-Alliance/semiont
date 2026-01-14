@@ -60,7 +60,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps();
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const icon = container.querySelector('.w-6.h-6.text-blue-600');
+      const icon = container.querySelector('.semiont-entity-tags__icon');
       expect(icon).toBeInTheDocument();
     });
   });
@@ -79,7 +79,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps();
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const tagBadge = container.querySelector('.bg-blue-50');
+      const tagBadge = container.querySelector('.semiont-entity-tags__tag');
       expect(tagBadge).toBeInTheDocument();
       expect(tagBadge).toHaveTextContent('Document');
     });
@@ -88,7 +88,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps({ entityTypes: [] });
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const tags = container.querySelectorAll('.bg-blue-50');
+      const tags = container.querySelectorAll('.semiont-entity-tags__tag');
       expect(tags.length).toBe(0);
     });
 
@@ -221,7 +221,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps();
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const plusIcon = container.querySelector('.w-5.h-5');
+      const plusIcon = container.querySelector('.semiont-icon--small');
       expect(plusIcon).toBeInTheDocument();
     });
   });
@@ -238,7 +238,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps({ error: 'Error occurred' });
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const errorIcon = container.querySelector('.text-red-600 .w-4.h-4');
+      const errorIcon = container.querySelector('.semiont-entity-tags__error-icon');
       expect(errorIcon).toBeInTheDocument();
     });
 
@@ -246,7 +246,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps({ error: '' });
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const errorMessage = container.querySelector('.semiont-error-message');
+      const errorMessage = container.querySelector('.semiont-entity-tags__error');
       expect(errorMessage).not.toBeInTheDocument();
     });
 
@@ -254,7 +254,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps({ error: 'Test error' });
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const errorDiv = container.querySelector('.text-red-600.dark\\:text-red-400');
+      const errorDiv = container.querySelector('.semiont-entity-tags__error');
       expect(errorDiv).toBeInTheDocument();
     });
   });
@@ -302,7 +302,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps();
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const mainContainer = container.querySelector('.flex.flex-1');
+      const mainContainer = container.querySelector('.semiont-page');
       expect(mainContainer).toBeInTheDocument();
     });
 
@@ -310,7 +310,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps();
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const scrollArea = container.querySelector('.overflow-y-auto');
+      const scrollArea = container.querySelector('.semiont-page__content');
       expect(scrollArea).toBeInTheDocument();
     });
 
@@ -318,7 +318,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps();
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const contentArea = container.querySelector('.px-4.py-8');
+      const contentArea = container.querySelector('.semiont-page__content');
       expect(contentArea).toBeInTheDocument();
     });
   });
@@ -336,7 +336,7 @@ describe('EntityTagsPage', () => {
       const { container } = render(<EntityTagsPage {...props} />);
 
       const input = container.querySelector('input');
-      expect(input).toHaveClass('dark:bg-gray-700');
+      expect(input).toHaveClass('semiont-entity-tags__input');
     });
   });
 

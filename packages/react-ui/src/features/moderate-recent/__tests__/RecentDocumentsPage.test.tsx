@@ -264,7 +264,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const mainContainer = container.querySelector('.flex.flex-1');
+      const mainContainer = container.querySelector('.semiont-page');
       expect(mainContainer).toBeInTheDocument();
     });
 
@@ -272,7 +272,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const scrollArea = container.querySelector('.overflow-y-auto');
+      const scrollArea = container.querySelector('.semiont-page__content');
       expect(scrollArea).toBeInTheDocument();
     });
 
@@ -280,7 +280,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const contentArea = container.querySelector('.px-4.py-8');
+      const contentArea = container.querySelector('.semiont-page__content');
       expect(contentArea).toBeInTheDocument();
     });
 

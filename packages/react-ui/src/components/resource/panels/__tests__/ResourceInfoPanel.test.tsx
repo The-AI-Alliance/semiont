@@ -129,7 +129,7 @@ describe('ResourceInfoPanel Component', () => {
   describe('Styling and Appearance', () => {
     it('should have proper panel structure', () => {
       const { container } = render(<ResourceInfoPanel {...defaultProps} />);
-      expect(container.querySelector('.bg-white.dark\\:bg-gray-800')).toBeInTheDocument();
+      expect(container.querySelector('.semiont-resource-info-panel')).toBeInTheDocument();
     });
 
     it('should style entity type tags appropriately', () => {
@@ -142,7 +142,7 @@ describe('ResourceInfoPanel Component', () => {
 
       const tag = screen.getByText('TestType');
       expect(tag).toHaveClass('semiont-tag');
-      expect(tag).toHaveClass('semiont-tag');
+      expect(tag).toHaveAttribute('data-variant', 'blue');
     });
   });
 

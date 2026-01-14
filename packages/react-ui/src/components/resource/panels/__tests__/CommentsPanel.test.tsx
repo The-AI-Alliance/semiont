@@ -163,7 +163,7 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel {...defaultProps} annotations={mockComments.many} />
       );
 
-      const commentsList = container.querySelector('.overflow-y-auto');
+      const commentsList = container.querySelector('.semiont-page__content');
       expect(commentsList).toBeInTheDocument();
       expect(commentsList).toHaveClass('semiont-comment-entry__body');
     });

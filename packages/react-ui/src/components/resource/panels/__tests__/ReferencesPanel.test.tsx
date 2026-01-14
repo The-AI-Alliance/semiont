@@ -167,14 +167,13 @@ describe('ReferencesPanel Component', () => {
       const personButton = screen.getByText('Person');
 
       // Before selection
-      expect(personButton).toHaveClass('semiont-panel-header');
-      expect(personButton).not.toHaveClass('semiont-tag');
+      expect(personButton).toHaveClass('semiont-chip', 'semiont-chip--selectable');
+      expect(personButton).toHaveAttribute('data-selected', 'false');
 
       await userEvent.click(personButton);
 
       // After selection
-      expect(personButton).toHaveClass('semiont-tag');
-      expect(personButton).not.toHaveClass('semiont-panel-header');
+      expect(personButton).toHaveAttribute('data-selected', 'true');
     });
 
     it('should have proper ARIA attributes', () => {
@@ -191,7 +190,7 @@ describe('ReferencesPanel Component', () => {
 
       const personButton = screen.getByText('Person');
 
-      expect(personButton).toHaveClass('semiont-button--focus');
+      expect(personButton).toHaveClass('semiont-chip', 'semiont-chip--selectable');
     });
   });
 
@@ -282,7 +281,8 @@ describe('ReferencesPanel Component', () => {
 
       const startButton = screen.getByTitle('Start Detection');
 
-      expect(startButton).toHaveClass('semiont-button--disabled');
+      expect(startButton).toHaveClass('semiont-detect-widget__button');
+      expect(startButton).toHaveAttribute('data-enabled', 'false');
     });
 
     it('should have proper styling when enabled', async () => {
@@ -292,7 +292,8 @@ describe('ReferencesPanel Component', () => {
 
       const startButton = screen.getByTitle('Start Detection');
 
-      expect(startButton).toHaveClass('semiont-gradient');
+      expect(startButton).toHaveClass('semiont-detect-widget__button');
+      expect(startButton).toHaveAttribute('data-enabled', 'true');
     });
   });
 
@@ -663,7 +664,7 @@ describe('ReferencesPanel Component', () => {
       render(<ReferencesPanel {...defaultProps} />);
 
       const buttonContainer = screen.getByText('Person').parentElement;
-      expect(buttonContainer).toHaveClass('semiont-tag-list');
+      expect(buttonContainer).toHaveClass('semiont-detect-widget__chips');
     });
   });
 

@@ -139,7 +139,7 @@ describe('AdminUsersPage', () => {
       const props = createMockProps({ isLoadingStats: true });
       const { container } = render(<AdminUsersPage {...props} />);
 
-      const skeletons = container.querySelectorAll('.animate-pulse');
+      const skeletons = container.querySelectorAll('.semiont-skeleton');
       expect(skeletons.length).toBeGreaterThan(0);
     });
   });

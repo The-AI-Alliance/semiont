@@ -269,7 +269,7 @@ describe('ResourceComposePage', () => {
       const documentButton = screen.getByRole('button', { name: /Document entity type/ });
       fireEvent.click(documentButton);
 
-      expect(documentButton).toHaveClass('bg-blue-600');
+      expect(documentButton).toHaveClass('semiont-bg');
     });
 
     it('allows deselecting entity types', () => {
@@ -280,7 +280,7 @@ describe('ResourceComposePage', () => {
 
       // Select
       fireEvent.click(documentButton);
-      expect(documentButton).toHaveClass('bg-blue-600');
+      expect(documentButton).toHaveClass('semiont-bg');
 
       // Deselect
       fireEvent.click(documentButton);
@@ -297,8 +297,8 @@ describe('ResourceComposePage', () => {
       fireEvent.click(documentButton);
       fireEvent.click(articleButton);
 
-      expect(documentButton).toHaveClass('bg-blue-600');
-      expect(articleButton).toHaveClass('bg-blue-600');
+      expect(documentButton).toHaveClass('semiont-bg');
+      expect(articleButton).toHaveClass('semiont-bg');
     });
   });
 

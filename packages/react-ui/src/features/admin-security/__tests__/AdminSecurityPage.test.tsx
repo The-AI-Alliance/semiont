@@ -118,7 +118,7 @@ describe('AdminSecurityPage', () => {
     const props = createMockProps({ isLoading: true });
     const { container } = render(<AdminSecurityPage {...props} />);
 
-    const skeletons = container.querySelectorAll('.animate-pulse');
+    const skeletons = container.querySelectorAll('.semiont-skeleton');
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
@@ -232,7 +232,7 @@ describe('AdminSecurityPage', () => {
       const { container } = render(<AdminSecurityPage {...props} />);
 
       // Should have loading skeletons
-      const skeletons = container.querySelectorAll('.animate-pulse');
+      const skeletons = container.querySelectorAll('.semiont-skeleton');
       expect(skeletons.length).toBeGreaterThan(0);
     });
 
@@ -241,7 +241,7 @@ describe('AdminSecurityPage', () => {
       const { container } = render(<AdminSecurityPage {...props} />);
 
       // Multiple loading skeletons for both sections
-      const skeletons = container.querySelectorAll('.animate-pulse');
+      const skeletons = container.querySelectorAll('.semiont-skeleton');
       expect(skeletons.length).toBeGreaterThan(1);
     });
 
@@ -284,7 +284,7 @@ describe('AdminSecurityPage', () => {
       const props = createMockProps();
       const { container } = render(<AdminSecurityPage {...props} />);
 
-      const infoBox = container.querySelector('.bg-blue-50');
+      const infoBox = container.querySelector('.semiont-tag');
       expect(infoBox).toBeInTheDocument();
     });
   });
