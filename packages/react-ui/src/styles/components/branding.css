@@ -17,7 +17,7 @@
   font-weight: bold;
   text-transform: uppercase;
   letter-spacing: -0.025em;
-  margin-bottom: 0.25rem;
+  margin-bottom: 1.5rem; /* mb-6 from main */
 }
 
 .semiont-branding[data-size="sm"] .semiont-branding-title {
@@ -41,6 +41,11 @@
   .semiont-branding[data-size="md"] .semiont-branding-title { font-size: 2.25rem; }
   .semiont-branding[data-size="lg"] .semiont-branding-title { font-size: 3rem; }
   .semiont-branding[data-size="xl"] .semiont-branding-title { font-size: 3.75rem; }
+
+  /* Increase spacing on larger screens */
+  .semiont-branding-title {
+    margin-bottom: 2rem; /* sm:mb-8 from main */
+  }
 }
 
 @media (min-width: 768px) {
