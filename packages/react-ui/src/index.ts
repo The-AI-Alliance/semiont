@@ -10,7 +10,8 @@ export * from './types/AnnotationManager';
 export * from './types/ApiClientManager';
 export * from './types/CacheManager';
 export * from './types/navigation';
-export * from './types/OpenResourcesManager';
+export type { OpenResourcesManager } from './types/OpenResourcesManager';
+export { type OpenResource as OpenResourceFromManager } from './types/OpenResourcesManager';
 export * from './types/SessionManager';
 export * from './types/TranslationManager';
 export * from './types/resource-viewer';
@@ -123,12 +124,20 @@ export * from './components/navigation/NavigationMenu';
 export * from './components/navigation/SidebarNavigation';
 export * from './components/navigation/CollapsibleResourceNavigation';
 export * from './components/navigation/SortableResourceTab';
-export * from './types/collapsible-navigation';
+export type {
+  CollapsibleResourceNavigationProps,
+  SortableResourceTabProps,
+  OpenResource
+} from './types/collapsible-navigation';
 
 // Components - Modals
 export * from './components/modals/SearchModal';
 export * from './components/modals/ResourceSearchModal';
-export * from './types/modals';
+export type {
+  SearchModalProps,
+  ResourceSearchModalProps,
+  GenerationOptions
+} from './types/modals';
 
 // Components - Layout
 export * from './components/SkipLinks';

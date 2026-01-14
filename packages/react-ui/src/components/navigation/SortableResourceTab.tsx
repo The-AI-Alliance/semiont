@@ -39,7 +39,7 @@ export function SortableResourceTab({
     opacity: isSortableDragging || isDragging ? 0.5 : 1,
   };
 
-  const resourceIcon = getResourceIcon(resource.mediaType);
+  const IconComponent = getResourceIcon(resource.mediaType);
   const isCurrentlyDragging = isSortableDragging || isDragging;
 
   // Handle keyboard shortcuts for reordering (Alt + Up/Down)
@@ -99,12 +99,12 @@ export function SortableResourceTab({
               }
             }}
           >
-            <span className="text-base" aria-hidden="true">{resourceIcon}</span>
+            <span className="text-base" aria-hidden="true"><IconComponent className="w-5 h-5" /></span>
           </div>
         ) : (
           // When collapsed, icon is clickable for navigation
           <span className="sortable-resource-tab__icon flex-shrink-0 text-base" aria-hidden="true">
-            {resourceIcon}
+            <IconComponent className="w-5 h-5" />
           </span>
         )}
         {!isCollapsed && (

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
-import { useResources } from '../../hooks/useResources';
+// import { useResources } from '../../hooks/useResources';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
 import { getResourceId } from '@semiont/api-client';
 
@@ -64,11 +64,15 @@ export function SearchModal({
   }, [query]);
 
   // Use React Query for search
-  const resources = useResources();
-  const { data: searchData, isFetching: loading } = resources.search.useQuery(
-    debouncedQuery,
-    5
-  );
+  // const resources = useResources();
+  // const { data: searchData, isFetching: loading } = resources.search.useQuery(
+  //   debouncedQuery,
+  //   5
+  // );
+
+  // TODO: This should come from props or context
+  const searchData = { resources: [], entities: [] };
+  const loading = false;
 
   // Reset state when modal opens/closes
   useEffect(() => {

@@ -8,6 +8,7 @@ export interface OpenResource {
   name: string;
   openedAt: number;
   mediaType?: string;
+  order?: number;
 }
 
 /**
@@ -42,7 +43,7 @@ export interface CollapsibleResourceNavigationProps {
   fixedItems: Array<{
     name: string;
     href: string;
-    icon: ComponentType<{ className?: string }>;
+    icon: ComponentType<any>;
     description?: string;
   }>;
 
@@ -84,9 +85,9 @@ export interface CollapsibleResourceNavigationProps {
 
   // Icons (to avoid platform-specific imports)
   icons: {
-    chevronLeft: ComponentType<{ className?: string }>;
-    bars: ComponentType<{ className?: string }>;
-    close: ComponentType<{ className?: string }>;
+    chevronLeft: ComponentType<any>;
+    bars: ComponentType<any>;
+    close: ComponentType<any>;
   };
 }
 

@@ -25,7 +25,22 @@ import { CollaborationPanel } from '@semiont/react-ui';
 import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
-import type { SemiontResource, Annotation, Motivation, TextSelection, GenerationOptions } from '@semiont/react-ui';
+import type { GenerationOptions } from '@semiont/react-ui';
+
+type SemiontResource = components['schemas']['ResourceDescriptor'];
+type Annotation = components['schemas']['Annotation'];
+type Motivation = components['schemas']['Motivation'];
+
+// Internal selection type used by viewer components
+interface InternalTextSelection {
+  exact: string;
+  start: number;
+  end: number;
+  prefix?: string;
+  suffix?: string;
+  svgSelector?: string;
+}
+
 import type { DetectionProgress } from '@semiont/react-ui';
 
 export interface ResourceViewerPageProps {
@@ -214,7 +229,7 @@ export function ResourceViewerPage({
   const {
     announceResourceLoading,
     announceResourceLoaded,
-    announceResourceError
+    announceResourceLoadError
   } = useResourceLoadingAnnouncements();
 
   // Group annotations by type using centralized registry
@@ -246,9 +261,9 @@ export function ResourceViewerPage({
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
 
   // Pending selections for creating annotations
-  const [pendingCommentSelection, setPendingCommentSelection] = useState<TextSelection | null>(null);
-  const [pendingTagSelection, setPendingTagSelection] = useState<TextSelection | null>(null);
-  const [pendingReferenceSelection, setPendingReferenceSelection] = useState<TextSelection | null>(null);
+  const [pendingCommentSelection, setPendingCommentSelection] = useState<InternalTextSelection | null>(null);
+  const [pendingTagSelection, setPendingTagSelection] = useState<InternalTextSelection | null>(null);
+  const [pendingReferenceSelection, setPendingReferenceSelection] = useState<InternalTextSelection | null>(null);
 
   // Search state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -528,7 +543,7 @@ export function ResourceViewerPage({
                   setPendingTagSelection(selection);
                   setActivePanel('annotations');
                 }}
-                onReferenceCreationRequested={(selection: TextSelection) => {
+                onReferenceCreationRequested={(selection) => {
                   setPendingReferenceSelection(selection);
                   setActivePanel('annotations');
                 }}
