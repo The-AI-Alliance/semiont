@@ -59,7 +59,7 @@
 
 [data-theme="dark"] .semiont-branding-text,
 :root:not([data-theme="light"]) .semiont-branding-text {
-  background: linear-gradient(to right, white, var(--semiont-color-primary-400), white);
+  background: linear-gradient(to right, var(--semiont-color-white), var(--semiont-color-primary-400), var(--semiont-color-white));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

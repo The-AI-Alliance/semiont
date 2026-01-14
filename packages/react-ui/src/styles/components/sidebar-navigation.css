@@ -86,7 +86,7 @@
 
 [data-theme="dark"] .sidebar-navigation__item--inactive:hover {
   background-color: rgba(107, 114, 128, 0.2);
-  color: #ffffff;
+  color: var(--semiont-color-white);
 }
 
 /* Icon */

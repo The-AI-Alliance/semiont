@@ -52,7 +52,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: white;
+  background: var(--semiont-color-white);
 }
 
 [data-theme="dark"] .semiont-unified-panel,
@@ -125,7 +125,7 @@
 
 /* ResourceInfoPanel Component */
 .semiont-resource-info-panel {
-  background: white;
+  background: var(--semiont-color-white);
   border-radius: var(--semiont-radius-lg);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 1rem;
@@ -243,7 +243,7 @@
   align-items: center;
   gap: 0.5rem;
   justify-content: center;
-  background: white;
+  background: var(--semiont-color-white);
   color: var(--semiont-color-red-600);
   border: 1px solid var(--semiont-color-red-300);
   cursor: pointer;
@@ -582,7 +582,7 @@
 
 .semiont-annotation-prompt__quote {
   padding: 0.5rem;
-  background: white;
+  background: var(--semiont-color-white);
   border-radius: var(--semiont-radius-sm);
   font-style: italic;
   font-size: 0.875rem;
@@ -706,7 +706,7 @@
   font-size: 0.875rem;
   cursor: pointer;
   transition: all var(--semiont-duration-base);
-  background: white;
+  background: var(--semiont-color-white);
   color: var(--semiont-color-gray-700);
 }
 
@@ -730,7 +730,7 @@
 
 .semiont-tag-selector__item[data-selected="true"] {
   background: var(--semiont-color-primary-500);
-  color: white;
+  color: var(--semiont-color-white);
   border-color: var(--semiont-color-primary-500);
 }
 
@@ -844,7 +844,7 @@
   font-size: 0.875rem;
   resize: vertical;
   min-height: 5rem;
-  background: white;
+  background: var(--semiont-color-white);
   color: var(--semiont-color-gray-900);
 }
 
@@ -867,7 +867,7 @@
   border: 1px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-md);
   font-size: 0.875rem;
-  background: white;
+  background: var(--semiont-color-white);
   color: var(--semiont-color-gray-900);
   cursor: pointer;
 }
@@ -981,7 +981,7 @@
   cursor: pointer;
   border: none;
   background: var(--semiont-color-primary-500);
-  color: white;
+  color: var(--semiont-color-white);
 }
 
 .semiont-button--primary:hover {
@@ -1133,7 +1133,7 @@
 .semiont-detection-progress__params {
   margin-bottom: 1rem;
   padding: 0.75rem;
-  background: white;
+  background: var(--semiont-color-white);
   border-radius: var(--semiont-radius-sm);
   border: 1px solid var(--semiont-color-gray-200);
 }
@@ -1250,7 +1250,7 @@
   max-height: 15rem;
   overflow-y: auto;
   padding: 0.5rem;
-  background: white;
+  background: var(--semiont-color-white);
   border: 1px solid var(--semiont-color-gray-200);
   border-radius: var(--semiont-radius-md);
 }

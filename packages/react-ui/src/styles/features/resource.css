@@ -40,7 +40,7 @@
   border: 1px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-md);
   font-size: 0.875rem;
-  background: white;
+  background: var(--semiont-color-white);
   color: var(--semiont-color-gray-900);
   width: 100%;
 }
@@ -99,7 +99,7 @@
   padding: 0.5rem 1rem;
   border: 1px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-md);
-  background: white;
+  background: var(--semiont-color-white);
   color: var(--semiont-color-gray-700);
   font-size: 0.875rem;
   cursor: pointer;
@@ -126,7 +126,7 @@
 
 .semiont-form__entity-type-button[data-selected="true"] {
   background: var(--semiont-color-primary-500);
-  color: white;
+  color: var(--semiont-color-white);
   border-color: var(--semiont-color-primary-500);
 }
 
@@ -178,7 +178,7 @@
   padding: 0.75rem;
   border: 2px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-md);
-  background: white;
+  background: var(--semiont-color-white);
   cursor: pointer;
   transition: all var(--semiont-duration-base);
 }
@@ -318,7 +318,7 @@
 }
 
 .semiont-document-viewer__header {
-  background: white;
+  background: var(--semiont-color-white);
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
@@ -385,7 +385,7 @@
 .semiont-document-viewer__error-button {
   padding: 0.5rem 1rem;
   background: var(--semiont-color-primary-500);
-  color: white;
+  color: var(--semiont-color-white);
   border: none;
   border-radius: var(--semiont-radius-md);
   font-weight: 500;
@@ -447,7 +447,7 @@
 /* Toolbar panels container */
 .semiont-toolbar-panels {
   width: 20rem;
-  background: white;
+  background: var(--semiont-color-white);
   border-left: 1px solid var(--semiont-color-gray-200);
   padding: 1rem;
   overflow: hidden;

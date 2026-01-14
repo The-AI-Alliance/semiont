@@ -14,7 +14,7 @@
 /* Delete Confirmation Modal */
 .semiont-delete-confirmation {
   padding: 1.5rem;
-  background: white;
+  background: var(--semiont-color-white);
   border-radius: var(--semiont-radius-lg);
   max-width: 28rem;
   width: 100%;
@@ -306,7 +306,7 @@
   bottom: 2rem;
   right: 2rem;
   background: var(--semiont-color-blue-600);
-  color: white;
+  color: var(--semiont-color-white);
   padding: 0.75rem 1.5rem;
   border-radius: var(--semiont-radius-full);
   font-weight: 500;

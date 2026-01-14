@@ -121,7 +121,7 @@
 
 .semiont-detect-widget__button[data-enabled="true"] {
   background: linear-gradient(to right, var(--semiont-color-blue-600), var(--semiont-color-cyan-600));
-  color: white;
+  color: var(--semiont-color-white);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
@@ -132,7 +132,7 @@
 
 .semiont-detect-widget__button--gradient {
   background: linear-gradient(to right, var(--semiont-color-blue-600), var(--semiont-color-cyan-600));
-  color: white;
+  color: var(--semiont-color-white);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 

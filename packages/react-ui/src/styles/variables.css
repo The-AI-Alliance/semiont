@@ -128,6 +128,10 @@
   --semiont-color-info-light: #93c5fd;
   --semiont-color-info-dark: #1d4ed8;
 
+  /* Base Colors */
+  --semiont-color-white: #ffffff;
+  --semiont-color-black: #000000;
+
   /* Neutral Colors */
   --semiont-color-neutral-0: #ffffff;
   --semiont-color-neutral-50: #f9fafb;
@@ -252,6 +256,9 @@
 @media (prefers-color-scheme: dark) {
   :root {
     /* Override for dark mode */
+    --semiont-color-white: var(--semiont-color-gray-900);
+    --semiont-color-black: var(--semiont-color-gray-100);
+
     --semiont-bg-primary: var(--semiont-color-neutral-900);
     --semiont-bg-secondary: var(--semiont-color-neutral-800);
     --semiont-bg-tertiary: var(--semiont-color-neutral-700);
@@ -267,6 +274,9 @@
 
 /* Allow manual dark mode override */
 [data-theme="dark"] {
+  --semiont-color-white: var(--semiont-color-gray-900);
+  --semiont-color-black: var(--semiont-color-gray-100);
+
   --semiont-bg-primary: var(--semiont-color-neutral-900);
   --semiont-bg-secondary: var(--semiont-color-neutral-800);
   --semiont-bg-tertiary: var(--semiont-color-neutral-700);

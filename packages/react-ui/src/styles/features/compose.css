@@ -142,7 +142,7 @@
 /* Button Variants */
 .semiont-button--danger {
   background-color: var(--semiont-color-red-600);
-  color: white;
+  color: var(--semiont-color-white);
 }
 
 .semiont-button--danger:hover {

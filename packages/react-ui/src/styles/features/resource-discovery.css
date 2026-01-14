@@ -6,7 +6,7 @@
 
 /* Card Component */
 .semiont-card {
-  background: white;
+  background: var(--semiont-color-white);
   border: 1px solid var(--semiont-color-gray-200);
   border-radius: var(--semiont-radius-lg);
   padding: 1.5rem;
@@ -37,7 +37,7 @@
   border: 1px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-md);
   font-size: 1rem;
-  background: white;
+  background: var(--semiont-color-white);
   color: var(--semiont-color-gray-900);
 }
 
@@ -57,7 +57,7 @@
 .semiont-card__search-button {
   padding: 0.75rem 1.5rem;
   background: var(--semiont-color-primary-500);
-  color: white;
+  color: var(--semiont-color-white);
   border: none;
   border-radius: var(--semiont-radius-md);
   font-weight: 500;
@@ -101,7 +101,7 @@
   padding: 0.5rem 1rem;
   border: 1px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-full);
-  background: white;
+  background: var(--semiont-color-white);
   color: var(--semiont-color-gray-700);
   font-size: 0.875rem;
   cursor: pointer;
@@ -128,7 +128,7 @@
 
 .semiont-card__filter-button[data-active="true"] {
   background: var(--semiont-color-primary-500);
-  color: white;
+  color: var(--semiont-color-white);
   border-color: var(--semiont-color-primary-500);
 }
 
@@ -192,7 +192,7 @@
 .semiont-card__empty-button {
   padding: 0.5rem 1rem;
   background: var(--semiont-color-primary-500);
-  color: white;
+  color: var(--semiont-color-white);
   border: none;
   border-radius: var(--semiont-radius-md);
   font-weight: 500;
@@ -208,7 +208,7 @@
 .semiont-resource-card {
   display: flex;
   flex-direction: column;
-  background: white;
+  background: var(--semiont-color-white);
   border: 1px solid var(--semiont-color-gray-200);
   border-radius: var(--semiont-radius-lg);
   padding: 1.25rem;

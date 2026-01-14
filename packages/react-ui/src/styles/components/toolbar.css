@@ -9,7 +9,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem;
-  background: white;
+  background: var(--semiont-color-white);
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
@@ -91,7 +91,7 @@
 }
 
 .semiont-dropdown-content {
-  background: white;
+  background: var(--semiont-color-white);
   border: 1px solid var(--semiont-color-gray-200);
   border-radius: var(--semiont-radius-lg);
   box-shadow: var(--semiont-shadow-lg);
@@ -183,7 +183,7 @@
 
 .semiont-toolbar-menu-button[data-delete="true"][data-selected="true"] {
   background: var(--semiont-color-error);
-  color: white;
+  color: var(--semiont-color-white);
 }
 
 [data-theme="dark"] .semiont-toolbar-menu-button[data-delete="true"][data-selected="false"],

@@ -17,7 +17,7 @@
 
 .semiont-page-layout__header-container {
   width: 100%;
-  background: white;
+  background: var(--semiont-color-white);
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
@@ -33,7 +33,7 @@
 
 /* UnifiedHeader Component */
 .semiont-unified-header {
-  background: white;
+  background: var(--semiont-color-white);
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
@@ -134,7 +134,7 @@
 .semiont-left-sidebar {
   display: flex;
   flex-direction: column;
-  background: white;
+  background: var(--semiont-color-white);
   border-right: 1px solid var(--semiont-color-gray-200);
   transition: width var(--semiont-duration-base);
   overflow: hidden;
@@ -207,7 +207,7 @@
 
 [data-theme="dark"] .semiont-left-sidebar__logo-text,
 :root:not([data-theme="light"]) .semiont-left-sidebar__logo-text {
-  color: white;
+  color: var(--semiont-color-white);
 }
 
 .semiont-left-sidebar__dropdown {
@@ -223,7 +223,7 @@
 
 /* Footer Component */
 .semiont-footer {
-  background: white;
+  background: var(--semiont-color-white);
   border-top: 1px solid var(--semiont-color-gray-200);
 }
 
@@ -358,7 +358,7 @@
 [data-theme="dark"] .semiont-navigation-menu__link:hover,
 :root:not([data-theme="light"]) .semiont-navigation-menu__link:hover {
   background: var(--semiont-color-gray-800);
-  color: white;
+  color: var(--semiont-color-white);
 }
 
 .semiont-navigation-menu__link:focus-visible {

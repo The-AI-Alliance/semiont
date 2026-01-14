@@ -6,7 +6,7 @@
 
 /* Base Card Styles */
 .semiont-card {
-  background: white;
+  background: var(--semiont-color-white);
   border: 1px solid var(--semiont-color-gray-200);
   border-radius: var(--semiont-radius-lg);
   padding: 1.5rem;
@@ -22,7 +22,7 @@
 
 /* Stat Card Styles */
 .semiont-stat-card {
-  background: white;
+  background: var(--semiont-color-white);
   border: 1px solid var(--semiont-color-gray-200);
   border-radius: var(--semiont-radius-lg);
   padding: 1.5rem;
