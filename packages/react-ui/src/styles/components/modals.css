@@ -35,17 +35,11 @@
   transform: translateX(0);
   overflow: hidden;
   border-radius: 0.75rem;
-  background-color: var(--semiont-color-white);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  background-color: var(--semiont-bg-primary);
+  box-shadow: var(--semiont-shadow-lg);
   transition: all 0.2s ease;
   padding: 1.5rem;
-  border: 1px solid var(--semiont-color-gray-200);
-}
-
-[data-theme="dark"] .semiont-modal__panel,
-:root:not([data-theme="light"]) .semiont-modal__panel {
-  background-color: var(--semiont-color-gray-800);
-  border-color: var(--semiont-color-gray-700);
+  border: 1px solid var(--semiont-border-primary);
 }
 
 .semiont-modal__panel--medium {
@@ -101,19 +95,8 @@
 }
 
 .semiont-modal__close:hover {
-  color: var(--semiont-color-gray-900);
-  background-color: var(--semiont-color-gray-100);
-}
-
-[data-theme="dark"] .semiont-modal__close,
-:root:not([data-theme="light"]) .semiont-modal__close {
-  color: var(--semiont-color-gray-400);
-}
-
-[data-theme="dark"] .semiont-modal__close:hover,
-:root:not([data-theme="light"]) .semiont-modal__close:hover {
-  color: var(--semiont-color-gray-300);
-  background-color: var(--semiont-color-gray-700);
+  color: var(--semiont-text-primary);
+  background-color: var(--semiont-bg-tertiary);
 }
 
 .semiont-modal__close-icon {
@@ -147,14 +130,8 @@
 /* Modal Footer */
 .semiont-modal__footer {
   padding: 0.75rem 1.5rem;
-  background-color: var(--semiont-color-gray-50);
-  border-top: 1px solid var(--semiont-color-gray-200);
-}
-
-[data-theme="dark"] .semiont-modal__footer,
-:root:not([data-theme="light"]) .semiont-modal__footer {
-  background-color: rgba(17, 24, 39, 0.5);
-  border-color: var(--semiont-color-gray-700);
+  background-color: var(--semiont-bg-secondary);
+  border-top: 1px solid var(--semiont-border-primary);
 }
 
 .semiont-modal__footer-content {
@@ -177,15 +154,9 @@
   padding: 0.125rem 0.375rem;
   font-size: 0.75rem;
   font-weight: 600;
-  background-color: var(--semiont-color-gray-100);
-  border: 1px solid var(--semiont-color-gray-300);
+  background-color: var(--semiont-bg-tertiary);
+  border: 1px solid var(--semiont-border-primary);
   border-radius: 0.25rem;
-}
-
-[data-theme="dark"] .semiont-modal__hint-key,
-:root:not([data-theme="light"]) .semiont-modal__hint-key {
-  background-color: var(--semiont-color-gray-700);
-  border-color: var(--semiont-color-gray-600);
 }
 
 /* Modal Icon */
@@ -270,25 +241,14 @@
   font-size: 0.875rem;
   border-radius: 9999px;
   transition: colors 0.15s ease;
-  background-color: var(--semiont-color-gray-100);
-  color: var(--semiont-color-gray-700);
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-primary);
   border: none;
   cursor: pointer;
 }
 
 .semiont-chip:hover {
-  background-color: var(--semiont-color-gray-200);
-}
-
-[data-theme="dark"] .semiont-chip,
-:root:not([data-theme="light"]) .semiont-chip {
-  background-color: var(--semiont-color-gray-700);
-  color: var(--semiont-color-gray-300);
-}
-
-[data-theme="dark"] .semiont-chip:hover,
-:root:not([data-theme="light"]) .semiont-chip:hover {
-  background-color: var(--semiont-color-gray-600);
+  background-color: var(--semiont-bg-secondary);
 }
 
 .semiont-chip--selected,
@@ -319,17 +279,9 @@
 
 .semiont-button--disabled,
 .semiont-button[data-disabled="true"] {
-  background-color: var(--semiont-color-gray-200);
-  color: var(--semiont-color-gray-400);
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-tertiary);
   cursor: not-allowed;
-}
-
-[data-theme="dark"] .semiont-button--disabled,
-[data-theme="dark"] .semiont-button[data-disabled="true"],
-:root:not([data-theme="light"]) .semiont-button--disabled,
-:root:not([data-theme="light"]) .semiont-button[data-disabled="true"] {
-  background-color: var(--semiont-color-gray-700);
-  color: var(--semiont-color-gray-500);
 }
 
 /* Keyboard Shortcuts Styles */
@@ -399,17 +351,10 @@
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--semiont-color-gray-700);
-  background-color: var(--semiont-color-gray-100);
-  border: 1px solid var(--semiont-color-gray-300);
+  color: var(--semiont-text-primary);
+  background-color: var(--semiont-bg-tertiary);
+  border: 1px solid var(--semiont-border-primary);
   border-radius: 0.25rem;
-}
-
-[data-theme="dark"] .semiont-shortcuts__key,
-:root:not([data-theme="light"]) .semiont-shortcuts__key {
-  color: var(--semiont-color-gray-300);
-  background-color: var(--semiont-color-gray-700);
-  border-color: var(--semiont-color-gray-600);
 }
 
 .semiont-shortcuts__note {

@@ -6,34 +6,20 @@
 
 /* Base Card Styles */
 .semiont-card {
-  background: var(--semiont-color-white);
-  border: 1px solid var(--semiont-color-gray-200);
+  background: var(--semiont-bg-primary);
+  border: 1px solid var(--semiont-border-primary);
   border-radius: var(--semiont-radius-lg);
   padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-[data-theme="dark"] .semiont-card,
-:root:not([data-theme="light"]) .semiont-card {
-  background: var(--semiont-color-gray-800);
-  border-color: var(--semiont-color-gray-700);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--semiont-shadow-sm);
 }
 
 /* Stat Card Styles */
 .semiont-stat-card {
-  background: var(--semiont-color-white);
-  border: 1px solid var(--semiont-color-gray-200);
+  background: var(--semiont-bg-primary);
+  border: 1px solid var(--semiont-border-primary);
   border-radius: var(--semiont-radius-lg);
   padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-[data-theme="dark"] .semiont-stat-card,
-:root:not([data-theme="light"]) .semiont-stat-card {
-  background: var(--semiont-color-gray-800);
-  border-color: var(--semiont-color-gray-700);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--semiont-shadow-sm);
 }
 
 .semiont-stat-card--loading {
@@ -55,12 +41,7 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--semiont-radius-md);
-  background: var(--semiont-color-gray-100);
-}
-
-[data-theme="dark"] .semiont-stat-card__icon-wrapper,
-:root:not([data-theme="light"]) .semiont-stat-card__icon-wrapper {
-  background: var(--semiont-color-gray-700);
+  background: var(--semiont-bg-secondary);
 }
 
 .semiont-stat-card__icon {
@@ -146,10 +127,5 @@
   width: 0.5rem;
   height: 0.5rem;
   border-radius: var(--semiont-radius-full);
-  background: var(--semiont-color-gray-400);
-}
-
-[data-theme="dark"] .semiont-stat-card__status-dot,
-:root:not([data-theme="light"]) .semiont-stat-card__status-dot {
-  background: var(--semiont-color-gray-600);
+  background: var(--semiont-text-tertiary);
 }
