@@ -256,9 +256,6 @@
 @media (prefers-color-scheme: dark) {
   :root {
     /* Override for dark mode */
-    --semiont-color-white: var(--semiont-color-gray-900);
-    --semiont-color-black: var(--semiont-color-gray-100);
-
     --semiont-bg-primary: var(--semiont-color-neutral-900);
     --semiont-bg-secondary: var(--semiont-color-neutral-800);
     --semiont-bg-tertiary: var(--semiont-color-neutral-700);
@@ -274,9 +271,6 @@
 
 /* Allow manual dark mode override */
 [data-theme="dark"] {
-  --semiont-color-white: var(--semiont-color-gray-900);
-  --semiont-color-black: var(--semiont-color-gray-100);
-
   --semiont-bg-primary: var(--semiont-color-neutral-900);
   --semiont-bg-secondary: var(--semiont-color-neutral-800);
   --semiont-bg-tertiary: var(--semiont-color-neutral-700);
