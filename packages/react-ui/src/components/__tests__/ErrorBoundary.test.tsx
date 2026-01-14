@@ -312,9 +312,9 @@ describe('ErrorBoundary Component', () => {
         </ErrorBoundary>
       );
 
-      const wrapper = container.querySelector('.semiont-error-boundary');
+      const wrapper = container.querySelector('.semiont-error-boundary-container');
       expect(wrapper).toBeInTheDocument();
-      expect(wrapper).toHaveClass('semiont-error-boundary');
+      expect(wrapper).toHaveClass('semiont-error-boundary-container');
     });
 
     it('should have proper button styling', () => {
@@ -325,10 +325,12 @@ describe('ErrorBoundary Component', () => {
       );
 
       const tryAgainButton = screen.getByText('Try Again');
-      expect(tryAgainButton).toHaveClass('semiont-button', 'semiont-button--primary');
+      expect(tryAgainButton).toHaveClass('semiont-button');
+      expect(tryAgainButton).toHaveAttribute('data-variant', 'primary');
 
       const goHomeButton = screen.getByText('Go Home');
-      expect(goHomeButton).toHaveClass('semiont-button', 'semiont-button--secondary');
+      expect(goHomeButton).toHaveClass('semiont-button');
+      expect(goHomeButton).toHaveAttribute('data-variant', 'secondary');
     });
   });
 
@@ -493,7 +495,7 @@ describe('AsyncErrorBoundary Component', () => {
 
       const icon = container.querySelector('svg');
       expect(icon).toBeInTheDocument();
-      expect(icon).toHaveClass('semiont-async-error-boundary__icon');
+      expect(icon).toHaveClass('semiont-icon-warning');
     });
   });
 

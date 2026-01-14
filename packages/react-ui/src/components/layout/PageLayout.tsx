@@ -3,7 +3,7 @@
 import React from 'react';
 import { UnifiedHeader } from './UnifiedHeader';
 import { Footer } from '../navigation/Footer';
-import { SkipLinks } from '../SkipLinks';
+import { SkipLinks } from './SkipLinks';
 import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
 import type { TranslateFn } from '../../types/translation';
 

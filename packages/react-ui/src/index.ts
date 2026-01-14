@@ -140,7 +140,7 @@ export type {
 } from './types/modals';
 
 // Components - Layout
-export * from './components/SkipLinks';
+export * from './components/layout/SkipLinks';
 export * from './components/StatusDisplay';
 
 // Components - Session
