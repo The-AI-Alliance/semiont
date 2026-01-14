@@ -1,0 +1,320 @@
+/**
+ * Auth Component Styles
+ *
+ * Styles for authentication forms including sign-in and sign-up
+ */
+
+/* Main container */
+.semiont-auth__main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  background: var(--semiont-bg-primary);
+}
+
+[data-theme="dark"] .semiont-auth__main,
+:root:not([data-theme="light"]) .semiont-auth__main {
+  background: var(--semiont-bg-primary);
+}
+
+.semiont-auth__container {
+  width: 100%;
+  max-width: 28rem; /* max-w-md equivalent */
+}
+
+.semiont-auth__content {
+  background: var(--semiont-bg-secondary);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  padding: 2.5rem 2rem;
+}
+
+[data-theme="dark"] .semiont-auth__content,
+:root:not([data-theme="light"]) .semiont-auth__content {
+  background: var(--semiont-bg-secondary);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}
+
+/* Branding section */
+.semiont-auth__branding {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.semiont-auth__logo {
+  margin-bottom: 1.5rem;
+}
+
+.semiont-auth__welcome {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--semiont-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-auth__welcome,
+:root:not([data-theme="light"]) .semiont-auth__welcome {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-auth__subtitle {
+  font-size: 1rem;
+  color: var(--semiont-text-secondary);
+}
+
+[data-theme="dark"] .semiont-auth__subtitle,
+:root:not([data-theme="light"]) .semiont-auth__subtitle {
+  color: var(--semiont-text-secondary);
+}
+
+/* Error display */
+.semiont-auth__error-container {
+  margin-bottom: 1.5rem;
+}
+
+.semiont-auth__error {
+  background-color: var(--semiont-color-red-50);
+  border: 1px solid var(--semiont-color-red-200);
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+}
+
+[data-theme="dark"] .semiont-auth__error,
+:root:not([data-theme="light"]) .semiont-auth__error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: var(--semiont-color-red-800);
+}
+
+.semiont-auth__error-text {
+  color: var(--semiont-color-red-700);
+  font-size: 0.875rem;
+}
+
+[data-theme="dark"] .semiont-auth__error-text,
+:root:not([data-theme="light"]) .semiont-auth__error-text {
+  color: var(--semiont-color-red-400);
+}
+
+/* Forms container */
+.semiont-auth__forms {
+  margin-bottom: 1.5rem;
+}
+
+.semiont-auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* Divider */
+.semiont-auth__divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.semiont-auth__divider-line {
+  flex: 1;
+  height: 1px;
+  background-color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-auth__divider-line,
+:root:not([data-theme="light"]) .semiont-auth__divider-line {
+  background-color: var(--semiont-color-gray-700);
+}
+
+.semiont-auth__divider-text {
+  color: var(--semiont-text-secondary);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Info text */
+.semiont-auth__info {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--semiont-text-secondary);
+  margin-top: 1rem;
+}
+
+[data-theme="dark"] .semiont-auth__info,
+:root:not([data-theme="light"]) .semiont-auth__info {
+  color: var(--semiont-text-secondary);
+}
+
+/* Navigation links */
+.semiont-auth__links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-auth__links,
+:root:not([data-theme="light"]) .semiont-auth__links {
+  border-top-color: var(--semiont-color-gray-800);
+}
+
+/* Button modifiers for auth context */
+.semiont-button--full-width {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Icon styles */
+.semiont-icon {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.semiont-icon--small {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.semiont-icon--inline {
+  margin-right: 0.5rem;
+}
+
+/* Responsive adjustments */
+@media (min-width: 640px) {
+  .semiont-auth__content {
+    padding: 3rem 2.5rem;
+  }
+
+  .semiont-auth__links {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+}
+
+/* Sign-up specific styles */
+.semiont-auth__signup-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 200px); /* Account for header/footer */
+  padding: 2rem 1rem;
+}
+
+.semiont-auth__signup-container {
+  width: 100%;
+  max-width: 28rem;
+  background: var(--semiont-bg-secondary);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  padding: 2.5rem 2rem;
+}
+
+[data-theme="dark"] .semiont-auth__signup-container,
+:root:not([data-theme="light"]) .semiont-auth__signup-container {
+  background: var(--semiont-bg-secondary);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}
+
+.semiont-auth__signup-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.semiont-auth__signup-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--semiont-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-auth__signup-title,
+:root:not([data-theme="light"]) .semiont-auth__signup-title {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-auth__signup-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.semiont-auth__signup-info {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--semiont-text-secondary);
+  line-height: 1.5;
+}
+
+[data-theme="dark"] .semiont-auth__signup-info,
+:root:not([data-theme="light"]) .semiont-auth__signup-info {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-auth__signup-footer {
+  text-align: center;
+  padding-top: 1rem;
+  border-top: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-auth__signup-footer,
+:root:not([data-theme="light"]) .semiont-auth__signup-footer {
+  border-top-color: var(--semiont-color-gray-700);
+}
+
+.semiont-auth__signin-link {
+  color: var(--semiont-color-primary-600);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.semiont-auth__signin-link:hover {
+  color: var(--semiont-color-primary-700);
+  text-decoration: underline;
+}
+
+[data-theme="dark"] .semiont-auth__signin-link,
+:root:not([data-theme="light"]) .semiont-auth__signin-link {
+  color: var(--semiont-color-primary-400);
+}
+
+[data-theme="dark"] .semiont-auth__signin-link:hover,
+:root:not([data-theme="light"]) .semiont-auth__signin-link:hover {
+  color: var(--semiont-color-primary-300);
+}
+
+/* Loading spinner */
+.semiont-auth__spinner {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Accessibility - screen reader only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

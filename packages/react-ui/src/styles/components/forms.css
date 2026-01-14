@@ -1,0 +1,231 @@
+/**
+ * Form Component Styles
+ *
+ * Reusable form field styles using BEM methodology
+ */
+
+/* Form container */
+.semiont-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.semiont-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Form field */
+.semiont-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Labels */
+.semiont-form__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-form__label,
+:root:not([data-theme="light"]) .semiont-form__label {
+  color: var(--semiont-text-primary);
+}
+
+/* Input and select elements */
+.semiont-form__input,
+.semiont-form__select,
+.semiont-form__textarea {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: 0.375rem;
+  font-size: 1rem;
+  background-color: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+[data-theme="dark"] .semiont-form__input,
+[data-theme="dark"] .semiont-form__select,
+[data-theme="dark"] .semiont-form__textarea,
+:root:not([data-theme="light"]) .semiont-form__input,
+:root:not([data-theme="light"]) .semiont-form__select,
+:root:not([data-theme="light"]) .semiont-form__textarea {
+  background-color: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  border-color: var(--semiont-color-gray-700);
+}
+
+/* Focus states */
+.semiont-form__input:focus,
+.semiont-form__select:focus,
+.semiont-form__textarea:focus {
+  outline: none;
+  border-color: var(--semiont-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-theme="dark"] .semiont-form__input:focus,
+[data-theme="dark"] .semiont-form__select:focus,
+[data-theme="dark"] .semiont-form__textarea:focus,
+:root:not([data-theme="light"]) .semiont-form__input:focus,
+:root:not([data-theme="light"]) .semiont-form__select:focus,
+:root:not([data-theme="light"]) .semiont-form__textarea:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Invalid states */
+.semiont-form__input[aria-invalid="true"],
+.semiont-form__select[aria-invalid="true"],
+.semiont-form__textarea[aria-invalid="true"] {
+  border-color: var(--semiont-color-red-500);
+}
+
+.semiont-form__input[aria-invalid="true"]:focus,
+.semiont-form__select[aria-invalid="true"]:focus,
+.semiont-form__textarea[aria-invalid="true"]:focus {
+  border-color: var(--semiont-color-red-500);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* Textarea specific */
+.semiont-form__textarea {
+  min-height: 4rem;
+  resize: vertical;
+}
+
+/* Error messages */
+.semiont-form__error {
+  color: var(--semiont-color-red-600);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-form__error,
+:root:not([data-theme="light"]) .semiont-form__error {
+  color: var(--semiont-color-red-400);
+}
+
+/* Checkbox and radio */
+.semiont-form__checkbox-field,
+.semiont-form__radio-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.semiont-form__checkbox,
+.semiont-form__radio {
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: 0.25rem;
+}
+
+.semiont-form__radio {
+  border-radius: 50%;
+}
+
+[data-theme="dark"] .semiont-form__checkbox,
+[data-theme="dark"] .semiont-form__radio,
+:root:not([data-theme="light"]) .semiont-form__checkbox,
+:root:not([data-theme="light"]) .semiont-form__radio {
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-form__checkbox-label,
+.semiont-form__radio-label {
+  font-size: 0.875rem;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-form__checkbox-label,
+[data-theme="dark"] .semiont-form__radio-label,
+:root:not([data-theme="light"]) .semiont-form__checkbox-label,
+:root:not([data-theme="light"]) .semiont-form__radio-label {
+  color: var(--semiont-text-primary);
+}
+
+/* Form actions */
+.semiont-form__actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.semiont-form__actions--right {
+  justify-content: flex-end;
+}
+
+.semiont-form__actions--center {
+  justify-content: center;
+}
+
+.semiont-form__actions--between {
+  justify-content: space-between;
+}
+
+/* Help text */
+.semiont-form__help {
+  font-size: 0.875rem;
+  color: var(--semiont-text-secondary);
+  margin-top: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-form__help,
+:root:not([data-theme="light"]) .semiont-form__help {
+  color: var(--semiont-text-secondary);
+}
+
+/* Fieldset and legend */
+.semiont-form__fieldset {
+  border: 1px solid var(--semiont-color-gray-200);
+  border-radius: 0.375rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .semiont-form__fieldset,
+:root:not([data-theme="light"]) .semiont-form__fieldset {
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-form__legend {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--semiont-text-primary);
+  padding: 0 0.5rem;
+}
+
+[data-theme="dark"] .semiont-form__legend,
+:root:not([data-theme="light"]) .semiont-form__legend {
+  color: var(--semiont-text-primary);
+}
+
+/* Disabled states */
+.semiont-form__input:disabled,
+.semiont-form__select:disabled,
+.semiont-form__textarea:disabled,
+.semiont-form__checkbox:disabled,
+.semiont-form__radio:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-form__input:disabled,
+[data-theme="dark"] .semiont-form__select:disabled,
+[data-theme="dark"] .semiont-form__textarea:disabled,
+[data-theme="dark"] .semiont-form__checkbox:disabled,
+[data-theme="dark"] .semiont-form__radio:disabled,
+:root:not([data-theme="light"]) .semiont-form__input:disabled,
+:root:not([data-theme="light"]) .semiont-form__select:disabled,
+:root:not([data-theme="light"]) .semiont-form__textarea:disabled,
+:root:not([data-theme="light"]) .semiont-form__checkbox:disabled,
+:root:not([data-theme="light"]) .semiont-form__radio:disabled {
+  background-color: var(--semiont-color-gray-800);
+}

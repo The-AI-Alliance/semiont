@@ -117,7 +117,7 @@ function SignInContent() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="semiont-page-wrapper">
       <SignInForm
         onGoogleSignIn={handleGoogleSignIn}
         onCredentialsSignIn={showCredentialsAuth ? handleCredentialsSignIn : undefined}

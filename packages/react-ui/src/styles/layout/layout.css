@@ -9,6 +9,29 @@
   min-height: 100vh;
 }
 
+/* Page wrapper for standalone pages (auth, etc) */
+.semiont-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--semiont-bg-primary);
+}
+
+[data-theme="dark"] .semiont-page-wrapper,
+:root:not([data-theme="light"]) .semiont-page-wrapper {
+  background: var(--semiont-bg-primary);
+}
+
+/* Auth-specific page layout modifier */
+.semiont-page-layout--auth {
+  background: var(--semiont-color-gray-50);
+}
+
+[data-theme="dark"] .semiont-page-layout--auth,
+:root:not([data-theme="light"]) .semiont-page-layout--auth {
+  background: var(--semiont-color-gray-900);
+}
+
 .semiont-page-layout__header {
   position: sticky;
   top: 0;

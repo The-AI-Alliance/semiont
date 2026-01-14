@@ -53,7 +53,7 @@ function SignUpContent() {
       tHome={tHome}
       CookiePreferences={CookiePreferences}
       {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-      className="bg-gray-50 dark:bg-gray-900"
+      className="semiont-page-layout--auth"
       showAuthLinks={false}
     >
       <SignUpForm onSignUp={handleSignUp} Link={Link} translations={translations} />

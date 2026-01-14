@@ -1,87 +1,11 @@
 /**
  * Resource Core Styles
  *
- * Core form components and document viewer styles
+ * Document viewer and resource-specific form styles
  */
 
-/* Form Components */
-.semiont-form {
-  width: 100%;
-  max-width: 100%;
-}
-
-.semiont-form__fields {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.semiont-form__field {
-  display: flex;
-  flex-direction: column;
-}
-
-.semiont-form__label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--semiont-color-gray-700);
-  margin-bottom: 0.5rem;
-}
-
-[data-theme="dark"] .semiont-form__label,
-:root:not([data-theme="light"]) .semiont-form__label {
-  color: var(--semiont-color-gray-300);
-}
-
-.semiont-form__input,
-.semiont-form__select {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--semiont-color-gray-300);
-  border-radius: var(--semiont-radius-md);
-  font-size: 0.875rem;
-  background: var(--semiont-color-white);
-  color: var(--semiont-color-gray-900);
-  width: 100%;
-}
-
-[data-theme="dark"] .semiont-form__input,
-[data-theme="dark"] .semiont-form__select,
-:root:not([data-theme="light"]) .semiont-form__input,
-:root:not([data-theme="light"]) .semiont-form__select {
-  background: var(--semiont-color-gray-800);
-  color: var(--semiont-color-gray-100);
-  border-color: var(--semiont-color-gray-600);
-}
-
-.semiont-form__input:focus,
-.semiont-form__select:focus {
-  outline: none;
-  border-color: var(--semiont-color-primary-500);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.semiont-form__checkbox-field {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.semiont-form__checkbox {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--semiont-color-primary-500);
-}
-
-.semiont-form__checkbox-label {
-  font-size: 0.875rem;
-  color: var(--semiont-color-gray-700);
-}
-
-[data-theme="dark"] .semiont-form__checkbox-label,
-:root:not([data-theme="light"]) .semiont-form__checkbox-label {
-  color: var(--semiont-color-gray-300);
-}
+/* Resource-specific form extensions */
+/* Inherits base form styles from components/forms.css */
 
 .semiont-form__entity-types {
   display: flex;

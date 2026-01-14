@@ -19,6 +19,8 @@
 
 /* Core Components */
 @import './components/buttons.css';
+@import './components/forms.css';
+@import './components/auth.css';
 @import './components/tables.css';
 @import './components/toast.css';
 @import './components/status-display.css';
