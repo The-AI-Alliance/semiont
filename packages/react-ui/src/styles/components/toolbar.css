@@ -9,13 +9,12 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem;
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
 [data-theme="dark"] .semiont-annotate-toolbar,
 :root:not([data-theme="light"]) .semiont-annotate-toolbar {
-  background: var(--semiont-color-gray-800);
   border-bottom-color: var(--semiont-color-gray-700);
 }
 
@@ -91,7 +90,7 @@
 }
 
 .semiont-dropdown-content {
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   border: 1px solid var(--semiont-color-gray-200);
   border-radius: var(--semiont-radius-lg);
   box-shadow: var(--semiont-shadow-lg);
@@ -104,7 +103,6 @@
 
 [data-theme="dark"] .semiont-dropdown-content,
 :root:not([data-theme="light"]) .semiont-dropdown-content {
-  background: var(--semiont-color-gray-800);
   border-color: var(--semiont-color-gray-700);
 }
 

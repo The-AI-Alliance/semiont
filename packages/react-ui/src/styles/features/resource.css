@@ -288,6 +288,7 @@
 /* Document Viewer Components */
 .semiont-document-viewer {
   display: flex;
+  flex-direction: row;
   height: 100vh;
   background: var(--semiont-color-gray-50);
   position: relative;
@@ -303,13 +304,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  margin-right: 3rem; /* Space for the toolbar */
-  transition: margin-right 0.2s ease-in-out;
-}
-
-/* When a panel is open, adjust main content margin */
-.semiont-document-viewer--panel-open .semiont-document-viewer__main {
-  margin-right: 23rem; /* 3rem toolbar + 20rem panel */
+  min-width: 0; /* Allow flexbox to shrink below content width */
 }
 
 .semiont-document-viewer__content {
@@ -436,12 +431,9 @@
 .semiont-document-viewer__sidebar {
   display: flex;
   flex-direction: row;
-  position: fixed;
-  right: 0;
-  top: 0;
-  bottom: 0;
+  flex-shrink: 0; /* Prevent sidebar from shrinking */
+  height: 100%;
   background: transparent;
-  z-index: 30;
 }
 
 /* Toolbar panels container */

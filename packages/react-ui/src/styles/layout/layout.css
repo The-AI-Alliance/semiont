@@ -31,6 +31,45 @@
   flex: 1;
 }
 
+/* App Layout for Document/Knowledge Views */
+.semiont-app-layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+.semiont-app-layout__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Allow content to shrink */
+  overflow: hidden;
+}
+
+.semiont-app-layout__sidebar {
+  display: flex;
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.semiont-app-layout__toolbar-panel {
+  width: 20rem;
+  height: 100%;
+  background: var(--semiont-color-white);
+  border-left: 1px solid var(--semiont-color-gray-200);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .semiont-app-layout__toolbar-panel,
+:root:not([data-theme="light"]) .semiont-app-layout__toolbar-panel {
+  background: var(--semiont-color-gray-800);
+  border-left-color: var(--semiont-color-gray-700);
+}
+
 /* UnifiedHeader Component */
 .semiont-unified-header {
   background: var(--semiont-color-white);
