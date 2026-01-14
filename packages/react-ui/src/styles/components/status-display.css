@@ -340,20 +340,24 @@
 }
 
 /* Dark mode for Toolbar - Fixed to respect data-theme attribute */
-[data-theme="dark"] .semiont-toolbar {
+[data-theme="dark"] .semiont-toolbar,
+:root:not([data-theme="light"]) .semiont-toolbar {
   background-color: var(--semiont-color-gray-900);
   border-left-color: var(--semiont-color-gray-700);
 }
 
-[data-theme="dark"] .semiont-toolbar-button {
+[data-theme="dark"] .semiont-toolbar-button,
+:root:not([data-theme="light"]) .semiont-toolbar-button {
   color: var(--semiont-color-gray-400);
 }
 
-[data-theme="dark"] .semiont-toolbar-button:hover {
+[data-theme="dark"] .semiont-toolbar-button:hover,
+:root:not([data-theme="light"]) .semiont-toolbar-button:hover {
   background-color: var(--semiont-color-gray-800);
 }
 
-[data-theme="dark"] .semiont-toolbar-button[data-active="true"] {
+[data-theme="dark"] .semiont-toolbar-button[data-active="true"],
+:root:not([data-theme="light"]) .semiont-toolbar-button[data-active="true"] {
   background-color: rgba(30, 58, 138, 0.5); /* blue-800/50 - keeping rgba for opacity */
   color: var(--semiont-color-blue-300);
   border-left-color: var(--semiont-color-blue-400);

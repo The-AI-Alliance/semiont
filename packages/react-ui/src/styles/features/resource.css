@@ -456,7 +456,8 @@
   height: 100%;
 }
 
-[data-theme="dark"] .semiont-toolbar-panels {
+[data-theme="dark"] .semiont-toolbar-panels,
+:root:not([data-theme="light"]) .semiont-toolbar-panels {
   background: var(--semiont-color-gray-800);
   border-left-color: var(--semiont-color-gray-700);
 }
