@@ -302,7 +302,7 @@
 .semiont-document-viewer__main {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row; /* Changed from column to row for side-by-side layout */
   overflow: hidden;
   min-width: 0; /* Allow flexbox to shrink below content width */
 }
@@ -310,6 +310,9 @@
 .semiont-document-viewer__content {
   flex: 1;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Prevent flex child from growing beyond parent */
 }
 
 .semiont-document-viewer__header {
