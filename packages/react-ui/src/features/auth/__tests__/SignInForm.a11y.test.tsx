@@ -304,7 +304,7 @@ describe('SignInForm - Accessibility', () => {
       // Error should be visible and properly styled
       const error = screen.getByText(errorMessage);
       expect(error).toBeInTheDocument();
-      expect(error).toHaveClass('semiont-error-message');
+      expect(error).toHaveClass('semiont-auth__error-text');
     });
   });
 

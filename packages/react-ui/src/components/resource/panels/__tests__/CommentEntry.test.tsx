@@ -479,7 +479,7 @@ describe('CommentEntry Component', () => {
       const { container } = render(<CommentEntry {...defaultProps} />);
 
       // Look for the comment text in the annotation entry
-      const commentContent = container.querySelector('.semiont-annotation-entry__content');
+      const commentContent = container.querySelector('.semiont-annotation-entry__body');
       expect(commentContent).toBeInTheDocument();
     });
   });

@@ -315,24 +315,27 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps({ theme: 'dark' });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const card = container.querySelector('.dark\\:bg-gray-800');
+      const card = container.querySelector('.semiont-card');
       expect(card).toBeInTheDocument();
+      // Dark mode is handled by CSS, not inline classes
     });
 
     it('applies dark mode classes to icon container', () => {
       const props = createMockProps({ theme: 'dark' });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const iconBg = container.querySelector('.dark\\:bg-gray-900\\/20');
+      const iconBg = container.querySelector('.semiont-recent-docs__icon-box');
       expect(iconBg).toBeInTheDocument();
+      // Dark mode is handled by CSS, not inline classes
     });
 
     it('applies dark mode classes to empty state SVG', () => {
-      const props = createMockProps({ theme: 'dark' });
+      const props = createMockProps({ theme: 'dark', hasDocuments: false });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const svg = container.querySelector('.dark\\:text-gray-600');
+      const svg = container.querySelector('.semiont-recent-docs__empty-icon');
       expect(svg).toBeInTheDocument();
+      // Dark mode is handled by CSS, not inline classes
     });
   });
 
@@ -425,24 +428,27 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const titleSection = container.querySelector('.mb-8');
+      const titleSection = container.querySelector('.semiont-page__header');
       expect(titleSection).toBeInTheDocument();
+      // Spacing is handled by CSS, not utility classes
     });
 
     it('applies padding to card', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const card = container.querySelector('.p-6');
+      const card = container.querySelector('.semiont-card');
       expect(card).toBeInTheDocument();
+      // Padding is handled by CSS, not utility classes
     });
 
     it('applies margin to section header', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const header = container.querySelector('.mb-4');
+      const header = container.querySelector('.semiont-recent-docs__header');
       expect(header).toBeInTheDocument();
+      // Margins are handled by CSS, not utility classes
     });
   });
 });
