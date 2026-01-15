@@ -101,6 +101,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
 
     try {
       const response = await fetch(healthUrl, {
+        redirect: 'follow',  // Follow redirects automatically (e.g., / -> /en)
         signal: AbortSignal.timeout(5000)
       });
 
@@ -119,6 +120,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
         // Try to check frontend's API route (if it exists)
         try {
           const apiResponse = await fetch(`${healthUrl}/api/health`, {
+            redirect: 'follow',
             signal: AbortSignal.timeout(2000)
           });
           if (apiResponse.ok) {
