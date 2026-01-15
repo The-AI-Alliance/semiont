@@ -43,7 +43,7 @@ jobs:
     # Setup Node.js for JavaScript/TypeScript analysis
     - name: Setup Node.js
       if: matrix.language == 'javascript' || matrix.language == 'typescript'
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '20'
         cache: 'npm'
