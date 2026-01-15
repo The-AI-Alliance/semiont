@@ -44,7 +44,7 @@
     "ajv-formats": "^2.1.1",
     "bcrypt": "^5.1.1",
     "dotenv": "^16.3.1",
-    "google-auth-library": "^9.10.0",
+    "google-auth-library": "^10.4.1",
     "gremlin": "^3.7.4",
     "hono": "^4.8.10",
     "jsonwebtoken": "^9.0.2",
