@@ -257,16 +257,23 @@
 }
 
 .semiont-left-sidebar__logo-text {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--semiont-color-gray-900);
+  font-family: 'Orbitron', var(--semiont-font-sans);
+  font-size: 1.5rem; /* Match size="sm" branding */
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  background: linear-gradient(to right, var(--semiont-color-black), var(--semiont-color-primary-600), var(--semiont-color-black));
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 [data-theme="dark"] .semiont-left-sidebar__logo-text {
-  color: var(--semiont-color-white);
+  background: linear-gradient(to right, var(--semiont-color-white), var(--semiont-color-primary-400), var(--semiont-color-white));
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .semiont-left-sidebar__dropdown {
