@@ -337,7 +337,7 @@
 
 /* Dark mode for Toolbar - Fixed to respect data-theme attribute */
 [data-theme="dark"] .semiont-toolbar {
-  background-color: var(--semiont-bg-inverse);
+  background-color: var(--semiont-bg-secondary);
   border-left-color: var(--semiont-color-gray-700);
 }
 
@@ -346,7 +346,7 @@
 }
 
 [data-theme="dark"] .semiont-toolbar-button:hover {
-  background-color: var(--semiont-color-gray-800);
+  background-color: var(--semiont-bg-tertiary);
 }
 
 [data-theme="dark"] .semiont-toolbar-button[data-active="true"] {

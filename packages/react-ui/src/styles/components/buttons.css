@@ -371,3 +371,162 @@
 .semiont-button--full-width {
   width: 100%;
 }
+
+/* ============================================
+   Panel Buttons (Settings Panel, User Panel)
+   ============================================ */
+
+/* Default panel button (inactive) */
+.semiont-panel-button {
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-primary);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--semiont-radius-lg);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  transition: all var(--semiont-duration-base);
+  cursor: pointer;
+  border: none;
+}
+
+.semiont-panel-button:hover {
+  background-color: var(--semiont-color-neutral-300);
+}
+
+/* Active/selected state */
+.semiont-panel-button-active {
+  background-color: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+}
+
+.semiont-panel-button-active:hover {
+  background-color: var(--semiont-color-primary-700);
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .semiont-panel-button {
+  background-color: var(--semiont-color-neutral-700);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-panel-button:hover {
+  background-color: var(--semiont-color-neutral-600);
+}
+
+[data-theme="dark"] .semiont-panel-button-active {
+  background-color: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-panel-button-active:hover {
+  background-color: var(--semiont-color-primary-700);
+}
+
+/* Sign out button */
+.semiont-signout-button {
+  background-color: var(--semiont-bg-secondary);
+  color: var(--semiont-text-primary);
+  padding: 0.5rem 1rem;
+  border-radius: var(--semiont-radius-lg);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  transition: all var(--semiont-duration-base);
+  cursor: pointer;
+  border: none;
+  width: 100%;
+}
+
+.semiont-signout-button:hover {
+  background-color: var(--semiont-bg-tertiary);
+}
+
+.semiont-signout-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-signout-button {
+  background-color: var(--semiont-color-neutral-700);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-signout-button:hover {
+  background-color: var(--semiont-color-neutral-600);
+}
+
+/* Session info box */
+.semiont-session-box {
+  background-color: var(--semiont-bg-secondary);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--semiont-radius-lg);
+}
+
+[data-theme="dark"] .semiont-session-box {
+  background-color: var(--semiont-color-neutral-800);
+}
+
+/* ============================================
+   User Menu Dropdown
+   ============================================ */
+
+.semiont-user-menu-dropdown {
+  background-color: var(--semiont-bg-primary);
+  border: 1px solid var(--semiont-color-gray-200);
+  border-radius: var(--semiont-radius-lg);
+  box-shadow: var(--semiont-shadow-lg);
+  padding: 0.75rem;
+  width: 16rem;
+  position: absolute;
+  right: 0;
+  margin-top: 0.5rem;
+  z-index: 50;
+}
+
+[data-theme="dark"] .semiont-user-menu-dropdown {
+  background-color: var(--semiont-color-gray-800);
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-user-menu-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+  padding: 0.25rem;
+  transition: all var(--semiont-duration-base);
+  text-decoration: none;
+  border-radius: var(--semiont-radius-base);
+}
+
+.semiont-user-menu-link:hover {
+  color: var(--semiont-text-primary);
+  background-color: var(--semiont-bg-secondary);
+}
+
+.semiont-user-menu-link:focus-visible {
+  outline: none;
+  background-color: var(--semiont-bg-secondary);
+}
+
+[data-theme="dark"] .semiont-user-menu-link {
+  color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-user-menu-link:hover {
+  color: var(--semiont-color-gray-100);
+  background-color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-user-menu-link:focus-visible {
+  background-color: var(--semiont-color-gray-700);
+}
+
+.semiont-user-menu-divider {
+  margin: 0.5rem 0;
+  border-top: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-user-menu-divider {
+  border-top-color: var(--semiont-color-gray-600);
+}

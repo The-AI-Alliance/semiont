@@ -356,7 +356,7 @@
 }
 
 [data-theme="dark"] .semiont-toolbar-panels {
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-primary);
   border-left-color: var(--semiont-color-gray-700);
 }
 
