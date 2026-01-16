@@ -323,20 +323,25 @@
 }
 
 [data-theme="dark"] .semiont-page {
-  background-color: var(--semiont-bg-secondary);
+  background-color: var(--semiont-bg-primary);
 }
 
 .semiont-page__content {
   flex: 1;
   overflow-y: auto;
   padding: 2rem;
-  margin-right: 3rem; /* Space for the toolbar */
+  margin-right: 3rem; /* Default: space for toolbar */
   transition: margin-right 0.2s ease-in-out;
 }
 
 /* When a panel is open, adjust content margin */
 .semiont-page--panel-open .semiont-page__content {
   margin-right: 23rem; /* 3rem toolbar + 20rem panel */
+}
+
+/* For pages without toolbar (like compose), remove the margin */
+.semiont-page__content.semiont-page__compose {
+  margin-right: 0;
 }
 
 .semiont-page__sidebar {
@@ -357,21 +362,13 @@
 .semiont-page__title {
   font-size: 1.875rem;
   font-weight: 700;
-  color: var(--semiont-color-gray-900);
+  color: var(--semiont-text-primary);
   margin-bottom: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-page__title {
-  color: var(--semiont-color-white);
-}
-
 .semiont-page__subtitle {
-  color: var(--semiont-color-gray-600);
+  color: var(--semiont-text-secondary);
   font-size: 1rem;
-}
-
-[data-theme="dark"] .semiont-page__subtitle {
-  color: var(--semiont-color-gray-400);
 }
 
 .semiont-page__reference-notice {
