@@ -218,13 +218,13 @@ a:visited,
 
   /* Pure black/white for maximum contrast */
   .semiont-high-contrast {
-    background: white !important;
-    color: black !important;
+    background: var(--semiont-color-white) !important;
+    color: var(--semiont-color-black) !important;
   }
 
   [data-theme="dark"] .semiont-high-contrast {
-    background: black !important;
-    color: white !important;
+    background: var(--semiont-color-black) !important;
+    color: var(--semiont-color-white) !important;
   }
 }
 
