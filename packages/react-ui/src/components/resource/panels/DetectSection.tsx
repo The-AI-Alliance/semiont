@@ -16,20 +16,7 @@ interface DetectSectionProps {
   onDetect: (instructions?: string, tone?: string, density?: number) => void | Promise<void>;
 }
 
-const colorSchemes = {
-  highlight: {
-    border: 'border-yellow-500 dark:border-yellow-600',
-    button: 'from-yellow-600 to-amber-600 hover:from-yellow-700 hover:to-amber-700',
-  },
-  assessment: {
-    border: 'border-red-500 dark:border-red-600',
-    button: 'from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700',
-  },
-  comment: {
-    border: 'border-purple-500 dark:border-purple-600',
-    button: 'from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700',
-  }
-};
+// Color schemes are now handled via CSS data attributes
 
 /**
  * Shared detect section for Highlight, Assessment, and Comment panels
@@ -57,7 +44,6 @@ export function DetectSection({
   const [density, setDensity] = useState(defaultDensity);
   const [useDensity, setUseDensity] = useState(true); // Enabled by default
   const metadata = ANNOTATORS[annotationType]!;
-  const colors = colorSchemes[annotationType];
 
   const handleDetect = () => {
     onDetect(

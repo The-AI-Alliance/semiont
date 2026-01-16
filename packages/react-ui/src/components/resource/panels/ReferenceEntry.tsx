@@ -6,7 +6,6 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, isBodyResolved, getBodySource } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
-import { buttonStyles } from '../../../lib/button-styles';
 import { getResourceIcon } from '../../../lib/resource-utils';
 
 type Annotation = components['schemas']['Annotation'];
@@ -151,7 +150,7 @@ export function ReferenceEntry({
           <div className="semiont-annotation-entry__action-row">
             <button
               onClick={handleOpen}
-              className={`${buttonStyles.primary.base} ${annotateMode ? 'flex-1' : 'w-full'} !px-2 justify-center text-lg py-1`}
+              className={`semiont-reference-button semiont-reference-button--primary ${annotateMode ? 'semiont-reference-button--full' : 'semiont-reference-button--wide'}`}
               title={t('open')}
             >
               🔗
@@ -159,7 +158,7 @@ export function ReferenceEntry({
             {annotateMode && (
               <button
                 onClick={handleUnlink}
-                className={`${buttonStyles.secondary.base} !px-2 flex items-center justify-center text-lg`}
+                className="semiont-reference-button semiont-reference-button--secondary"
                 title={t('unlink')}
               >
                 ⛓️‍💥
@@ -172,21 +171,21 @@ export function ReferenceEntry({
             <div className="semiont-annotation-entry__action-row">
               <button
                 onClick={handleGenerate}
-                className={`${buttonStyles.primary.base} flex-1 !px-2 justify-center text-lg py-1`}
+                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
                 title={t('generate')}
               >
                 ✨
               </button>
               <button
                 onClick={handleSearch}
-                className={`${buttonStyles.secondary.base} flex-1 !px-2 justify-center text-lg py-1`}
+                className="semiont-reference-button semiont-reference-button--secondary semiont-reference-button--full"
                 title={t('find')}
               >
                 🔍
               </button>
               <button
                 onClick={handleComposeDocument}
-                className={`${buttonStyles.secondary.base} flex-1 !px-2 justify-center text-lg py-1`}
+                className="semiont-reference-button semiont-reference-button--secondary semiont-reference-button--full"
                 title={t('create')}
               >
                 ✏️

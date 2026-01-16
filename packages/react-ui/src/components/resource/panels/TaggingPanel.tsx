@@ -91,10 +91,7 @@ export function TaggingPanel({
     }
   };
 
-  const categoryColors = {
-    border: 'border-orange-500 dark:border-orange-600',
-    button: 'from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700',
-  };
+  // Color schemes are now handled via CSS data attributes
 
   return (
     <div className="semiont-panel">

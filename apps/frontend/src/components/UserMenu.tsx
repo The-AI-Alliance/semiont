@@ -107,7 +107,7 @@ export function UserMenu({ }: UserMenuProps) {
       {isOpen && (
         <div
           id="user-menu-dropdown"
-          className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+          className="semiont-user-menu-dropdown"
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="user-menu-button"
@@ -116,34 +116,34 @@ export function UserMenu({ }: UserMenuProps) {
             <Link
               href="/know"
               onClick={close}
-              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+              className="semiont-user-menu-link"
               role="menuitem"
               tabIndex={0}
               aria-label="Go to knowledge base"
             >
               Know
             </Link>
-            <hr className="my-2 border-gray-200 dark:border-gray-600" />
+            <hr className="semiont-user-menu-divider" />
             {(isModerator || isAdmin) && (
               <>
                 <Link
                   href="/moderate"
                   onClick={close}
-                  className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+                  className="semiont-user-menu-link"
                   role="menuitem"
                   tabIndex={0}
                   aria-label="Access moderation dashboard"
                 >
                   Moderate
                 </Link>
-                <hr className="my-2 border-gray-200 dark:border-gray-600" />
+                <hr className="semiont-user-menu-divider" />
               </>
             )}
             {isAdmin && (
               <Link
                 href="/admin"
                 onClick={close}
-                className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+                className="semiont-user-menu-link"
                 role="menuitem"
                 tabIndex={0}
                 aria-label="Access admin dashboard"

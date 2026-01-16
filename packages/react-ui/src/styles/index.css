@@ -32,6 +32,7 @@
 @import './components/references.css';
 @import './components/sidebar-navigation.css';
 @import './components/annotations.css';
+@import './components/annotation-entries.css';
 @import './components/skip-links.css';
 
 /* Features */

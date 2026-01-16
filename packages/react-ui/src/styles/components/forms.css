@@ -209,3 +209,70 @@
 [data-theme="dark"] .semiont-form__radio:disabled {
   background-color: var(--semiont-color-gray-800);
 }
+
+/* Panel form elements */
+.semiont-panel-label {
+  display: block;
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-panel-label {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-panel-hint {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-color-gray-500);
+  margin-top: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-panel-hint {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-panel-divider {
+  border-top: 1px solid var(--semiont-color-gray-200);
+  padding-top: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-panel-divider {
+  border-top-color: var(--semiont-color-gray-700);
+}
+
+/* Language selector dropdown */
+.semiont-language-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--semiont-radius-lg);
+  font-size: var(--semiont-text-sm);
+  border: 1px solid var(--semiont-color-gray-300);
+  background-color: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  transition: all var(--semiont-duration-base);
+  cursor: pointer;
+}
+
+.semiont-language-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--semiont-color-primary-500);
+  border-color: transparent;
+}
+
+.semiont-language-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-theme="dark"] .semiont-language-select {
+  border-color: var(--semiont-color-gray-600);
+  background-color: var(--semiont-color-gray-700);
+  color: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-language-select option {
+  background-color: var(--semiont-color-gray-700);
+  color: var(--semiont-color-gray-100);
+}

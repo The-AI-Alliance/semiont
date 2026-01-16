@@ -44,8 +44,8 @@ export function ModerationNavigation() {
         title={t('title')}
         currentPath={pathname}
         LinkComponent={Link as any}
-        activeClassName="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-r-2 border-blue-500 group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
-        inactiveClassName="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
+        activeClassName="semiont-nav-link semiont-nav-link--active"
+        inactiveClassName="semiont-nav-link"
       />
     </div>
   );

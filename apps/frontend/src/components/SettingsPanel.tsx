@@ -35,7 +35,7 @@ export function SettingsPanel({
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+      <h3 className="semiont-panel-title">
         {t('title')}
       </h3>
 
@@ -43,7 +43,7 @@ export function SettingsPanel({
           {/* Line Numbers Toggle */}
           <div>
             <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <span className="semiont-panel-label" style={{ marginBottom: 0 }}>
                 {t('lineNumbers')}
               </span>
               <button
@@ -62,56 +62,56 @@ export function SettingsPanel({
                 />
               </button>
             </label>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="semiont-panel-hint">
               {showLineNumbers ? t('lineNumbersVisible') : t('lineNumbersHidden')}
             </p>
           </div>
 
           {/* Theme Selection */}
           <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+            <label className="semiont-panel-label">
               {t('theme')}
             </label>
             <div className="flex gap-2">
               <button
                 onClick={() => onThemeChange('light')}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex-1 ${
                   theme === 'light'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    ? 'semiont-panel-button-active'
+                    : 'semiont-panel-button'
                 }`}
               >
                 ☀️ {t('themeLight')}
               </button>
               <button
                 onClick={() => onThemeChange('dark')}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex-1 ${
                   theme === 'dark'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    ? 'semiont-panel-button-active'
+                    : 'semiont-panel-button'
                 }`}
               >
                 🌙 {t('themeDark')}
               </button>
               <button
                 onClick={() => onThemeChange('system')}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex-1 ${
                   theme === 'system'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    ? 'semiont-panel-button-active'
+                    : 'semiont-panel-button'
                 }`}
               >
                 💻 {t('themeSystem')}
               </button>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="semiont-panel-hint">
               {theme === 'system' ? t('themeSystemActive') : t('themeModeActive', { mode: theme.charAt(0).toUpperCase() + theme.slice(1) })}
             </p>
           </div>
 
           {/* Language Selection */}
           <div>
-            <label htmlFor="language-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+            <label htmlFor="language-select" className="semiont-panel-label">
               {t('language')}
             </label>
             <select
@@ -119,7 +119,7 @@ export function SettingsPanel({
               value={locale}
               onChange={(e) => handleLocaleChange(e.target.value)}
               disabled={isPending}
-              className="w-full px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+              className="semiont-language-select"
             >
               {LOCALES.map((lang) => (
                 <option key={lang.code} value={lang.code}>
@@ -127,7 +127,7 @@ export function SettingsPanel({
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="semiont-panel-hint">
               {t('languageHint')}
             </p>
           </div>

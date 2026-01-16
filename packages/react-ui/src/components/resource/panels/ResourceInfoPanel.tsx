@@ -3,7 +3,6 @@
 import React from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { formatLocaleDisplay } from '@semiont/api-client';
-import { buttonStyles } from '../../../lib/button-styles';
 
 interface Props {
   documentEntityTypes: string[];
@@ -92,7 +91,7 @@ export function ResourceInfoPanel({
         <div className="semiont-resource-info-panel__action-section">
           <button
             onClick={onClone}
-            className={`${buttonStyles.secondary.base} w-full justify-center`}
+            className="semiont-resource-button semiont-resource-button--secondary"
           >
             🔗 {t('clone')}
           </button>
@@ -109,7 +108,7 @@ export function ResourceInfoPanel({
             <>
               <button
                 onClick={onUnarchive}
-                className={`${buttonStyles.secondary.base} w-full justify-center`}
+                className="semiont-resource-button semiont-resource-button--secondary"
               >
                 📤 {t('unarchive')}
               </button>
@@ -121,7 +120,7 @@ export function ResourceInfoPanel({
             <>
               <button
                 onClick={onArchive}
-                className="semiont-button semiont-button--archive"
+                className="semiont-resource-button semiont-resource-button--archive"
               >
                 📦 {t('archive')}
               </button>
