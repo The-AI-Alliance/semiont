@@ -19,7 +19,6 @@
   font-size: var(--semiont-text-base);
 }
 
-[data-theme="dark"] .semiont-error-message,
-:root:not([data-theme="light"]) .semiont-error-message {
+[data-theme="dark"] .semiont-error-message {
   color: var(--semiont-color-error-light);
 }

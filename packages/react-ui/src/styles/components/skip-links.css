@@ -78,23 +78,18 @@
 }
 
 /* Dark mode adjustments */
-[data-theme="dark"] .semiont-skip-link,
-:root:not([data-theme="light"]) .semiont-skip-link {
+[data-theme="dark"] .semiont-skip-link {
   background: var(--semiont-color-primary-500);
   color: var(--semiont-color-white);
 }
 
 [data-theme="dark"] .semiont-skip-link:focus,
-[data-theme="dark"] .semiont-skip-link:focus-visible,
-:root:not([data-theme="light"]) .semiont-skip-link:focus,
-:root:not([data-theme="light"]) .semiont-skip-link:focus-visible {
+[data-theme="dark"] .semiont-skip-link:focus-visible {
   outline-color: var(--semiont-color-primary-400);
 }
 
 [data-theme="dark"] .semiont-skip-link:focus:hover,
-[data-theme="dark"] .semiont-skip-link:focus-visible:hover,
-:root:not([data-theme="light"]) .semiont-skip-link:focus:hover,
-:root:not([data-theme="light"]) .semiont-skip-link:focus-visible:hover {
+[data-theme="dark"] .semiont-skip-link:focus-visible:hover {
   background: var(--semiont-color-primary-600);
 }
 

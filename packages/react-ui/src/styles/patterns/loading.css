@@ -21,7 +21,6 @@
   font-size: var(--semiont-text-base);
 }
 
-[data-theme="dark"] .semiont-loading-message,
-:root:not([data-theme="light"]) .semiont-loading-message {
+[data-theme="dark"] .semiont-loading-message {
   color: var(--semiont-color-gray-300);
 }

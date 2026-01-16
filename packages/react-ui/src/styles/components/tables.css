@@ -30,8 +30,7 @@
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
-[data-theme="dark"] .semiont-table__head,
-:root:not([data-theme="light"]) .semiont-table__head {
+[data-theme="dark"] .semiont-table__head {
   background-color: var(--semiont-color-gray-900);
   border-color: var(--semiont-color-gray-700);
 }
@@ -46,8 +45,7 @@
   color: var(--semiont-color-gray-500);
 }
 
-[data-theme="dark"] .semiont-table__header,
-:root:not([data-theme="light"]) .semiont-table__header {
+[data-theme="dark"] .semiont-table__header {
   color: var(--semiont-color-gray-400);
 }
 
@@ -63,8 +61,7 @@
   background-color: var(--semiont-color-white);
 }
 
-[data-theme="dark"] .semiont-table__body,
-:root:not([data-theme="light"]) .semiont-table__body {
+[data-theme="dark"] .semiont-table__body {
   background-color: var(--semiont-color-gray-800);
 }
 
@@ -73,8 +70,7 @@
   transition: background-color 0.15s ease;
 }
 
-[data-theme="dark"] .semiont-table__row,
-:root:not([data-theme="light"]) .semiont-table__row {
+[data-theme="dark"] .semiont-table__row {
   border-color: var(--semiont-color-gray-700);
 }
 
@@ -82,8 +78,7 @@
   background-color: var(--semiont-color-gray-50);
 }
 
-[data-theme="dark"] .semiont-table__row:hover,
-:root:not([data-theme="light"]) .semiont-table__row:hover {
+[data-theme="dark"] .semiont-table__row:hover {
   background-color: var(--semiont-color-gray-700);
 }
 
@@ -105,8 +100,7 @@
   color: var(--semiont-color-gray-600);
 }
 
-[data-theme="dark"] .semiont-table__text--secondary,
-:root:not([data-theme="light"]) .semiont-table__text--secondary {
+[data-theme="dark"] .semiont-table__text--secondary {
   color: var(--semiont-color-gray-400);
 }
 
@@ -142,13 +136,11 @@
   color: var(--semiont-color-blue-700);
 }
 
-[data-theme="dark"] .semiont-action-button--info,
-:root:not([data-theme="light"]) .semiont-action-button--info {
+[data-theme="dark"] .semiont-action-button--info {
   color: var(--semiont-color-blue-400);
 }
 
-[data-theme="dark"] .semiont-action-button--info:hover,
-:root:not([data-theme="light"]) .semiont-action-button--info:hover {
+[data-theme="dark"] .semiont-action-button--info:hover {
   color: var(--semiont-color-blue-300);
 }
 
@@ -160,13 +152,11 @@
   color: var(--semiont-color-yellow-700);
 }
 
-[data-theme="dark"] .semiont-action-button--warning,
-:root:not([data-theme="light"]) .semiont-action-button--warning {
+[data-theme="dark"] .semiont-action-button--warning {
   color: var(--semiont-color-yellow-400);
 }
 
-[data-theme="dark"] .semiont-action-button--warning:hover,
-:root:not([data-theme="light"]) .semiont-action-button--warning:hover {
+[data-theme="dark"] .semiont-action-button--warning:hover {
   color: var(--semiont-color-yellow-300);
 }
 
@@ -178,12 +168,10 @@
   color: var(--semiont-color-red-700);
 }
 
-[data-theme="dark"] .semiont-action-button--danger,
-:root:not([data-theme="light"]) .semiont-action-button--danger {
+[data-theme="dark"] .semiont-action-button--danger {
   color: var(--semiont-color-red-400);
 }
 
-[data-theme="dark"] .semiont-action-button--danger:hover,
-:root:not([data-theme="light"]) .semiont-action-button--danger:hover {
+[data-theme="dark"] .semiont-action-button--danger:hover {
   color: var(--semiont-color-red-300);
 }

@@ -30,8 +30,7 @@
   margin-bottom: 2rem;
 }
 
-[data-theme="dark"] .semiont-admin__filters-card,
-:root:not([data-theme="light"]) .semiont-admin__filters-card {
+[data-theme="dark"] .semiont-admin__filters-card {
   background-color: var(--semiont-color-gray-800);
   border-color: var(--semiont-color-gray-700);
 }
@@ -51,8 +50,7 @@
   border: 1px solid var(--semiont-color-gray-200);
 }
 
-[data-theme="dark"] .semiont-admin__table-card,
-:root:not([data-theme="light"]) .semiont-admin__table-card {
+[data-theme="dark"] .semiont-admin__table-card {
   background-color: var(--semiont-color-gray-800);
   border-color: var(--semiont-color-gray-700);
 }
@@ -67,8 +65,7 @@
   margin-bottom: 1.5rem;
 }
 
-[data-theme="dark"] .semiont-admin__card,
-:root:not([data-theme="light"]) .semiont-admin__card {
+[data-theme="dark"] .semiont-admin__card {
   background-color: var(--semiont-color-gray-800);
   border-color: var(--semiont-color-gray-700);
 }
@@ -89,8 +86,7 @@
   color: var(--semiont-color-blue-600);
 }
 
-[data-theme="dark"] .semiont-admin__card-icon--primary,
-:root:not([data-theme="light"]) .semiont-admin__card-icon--primary {
+[data-theme="dark"] .semiont-admin__card-icon--primary {
   color: var(--semiont-color-blue-400);
 }
 
@@ -100,8 +96,7 @@
   color: var(--semiont-color-gray-900);
 }
 
-[data-theme="dark"] .semiont-admin__card-title,
-:root:not([data-theme="light"]) .semiont-admin__card-title {
+[data-theme="dark"] .semiont-admin__card-title {
   color: var(--semiont-color-white);
 }
 
@@ -110,8 +105,7 @@
   color: var(--semiont-color-gray-600);
 }
 
-[data-theme="dark"] .semiont-admin__card-description,
-:root:not([data-theme="light"]) .semiont-admin__card-description {
+[data-theme="dark"] .semiont-admin__card-description {
   color: var(--semiont-color-gray-400);
 }
 
@@ -123,8 +117,7 @@
   padding: 1rem;
 }
 
-[data-theme="dark"] .semiont-admin__info-box,
-:root:not([data-theme="light"]) .semiont-admin__info-box {
+[data-theme="dark"] .semiont-admin__info-box {
   background-color: rgba(59, 130, 246, 0.1);
   border-color: var(--semiont-color-blue-500);
 }
@@ -145,8 +138,7 @@
   border-radius: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-provider-item,
-:root:not([data-theme="light"]) .semiont-provider-item {
+[data-theme="dark"] .semiont-provider-item {
   background-color: var(--semiont-color-gray-700);
 }
 
@@ -171,8 +163,7 @@
   text-transform: capitalize;
 }
 
-[data-theme="dark"] .semiont-provider-item__name,
-:root:not([data-theme="light"]) .semiont-provider-item__name {
+[data-theme="dark"] .semiont-provider-item__name {
   color: var(--semiont-color-white);
 }
 
@@ -183,8 +174,7 @@
   font-family: monospace;
 }
 
-[data-theme="dark"] .semiont-provider-item__client-id,
-:root:not([data-theme="light"]) .semiont-provider-item__client-id {
+[data-theme="dark"] .semiont-provider-item__client-id {
   color: var(--semiont-color-gray-400);
 }
 
@@ -201,8 +191,7 @@
   color: var(--semiont-color-gray-500);
 }
 
-[data-theme="dark"] .semiont-empty-message,
-:root:not([data-theme="light"]) .semiont-empty-message {
+[data-theme="dark"] .semiont-empty-message {
   color: var(--semiont-color-gray-400);
 }
 
@@ -243,8 +232,7 @@
   flex-shrink: 0;
 }
 
-[data-theme="dark"] .semiont-info-box__icon,
-:root:not([data-theme="light"]) .semiont-info-box__icon {
+[data-theme="dark"] .semiont-info-box__icon {
   color: var(--semiont-color-blue-400);
 }
 
@@ -259,8 +247,7 @@
   margin-bottom: 0.25rem;
 }
 
-[data-theme="dark"] .semiont-info-box__title,
-:root:not([data-theme="light"]) .semiont-info-box__title {
+[data-theme="dark"] .semiont-info-box__title {
   color: var(--semiont-color-blue-300);
 }
 
@@ -269,8 +256,7 @@
   margin-top: 0.25rem;
 }
 
-[data-theme="dark"] .semiont-info-box__description,
-:root:not([data-theme="light"]) .semiont-info-box__description {
+[data-theme="dark"] .semiont-info-box__description {
   color: var(--semiont-color-blue-400);
 }
 
@@ -281,8 +267,7 @@
   margin-top: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-info-box__list,
-:root:not([data-theme="light"]) .semiont-info-box__list {
+[data-theme="dark"] .semiont-info-box__list {
   color: var(--semiont-color-blue-400);
 }
 
@@ -299,7 +284,6 @@
   font-size: 0.875rem;
 }
 
-[data-theme="dark"] .semiont-code-inline,
-:root:not([data-theme="light"]) .semiont-code-inline {
+[data-theme="dark"] .semiont-code-inline {
   background-color: var(--semiont-color-blue-800);
 }

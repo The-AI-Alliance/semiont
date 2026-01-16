@@ -49,3 +49,6 @@
 /* Patterns */
 @import './patterns/loading.css';
 @import './patterns/errors.css';
+
+/* Theme Fixes - MUST BE LAST to override component styles */
+@import './theme-light-fixes.css';

@@ -50,8 +50,7 @@
   color: var(--semiont-color-gray-600);
 }
 
-[data-theme="dark"] .semiont-stat-card__icon,
-:root:not([data-theme="light"]) .semiont-stat-card__icon {
+[data-theme="dark"] .semiont-stat-card__icon {
   color: var(--semiont-color-gray-400);
 }
 
@@ -59,8 +58,7 @@
   color: var(--semiont-color-primary-500);
 }
 
-[data-theme="dark"] .semiont-stat-card__icon--primary,
-:root:not([data-theme="light"]) .semiont-stat-card__icon--primary {
+[data-theme="dark"] .semiont-stat-card__icon--primary {
   color: var(--semiont-color-primary-400);
 }
 
@@ -68,8 +66,7 @@
   color: var(--semiont-color-red-500);
 }
 
-[data-theme="dark"] .semiont-stat-card__icon--danger,
-:root:not([data-theme="light"]) .semiont-stat-card__icon--danger {
+[data-theme="dark"] .semiont-stat-card__icon--danger {
   color: var(--semiont-color-red-400);
 }
 
@@ -77,8 +74,7 @@
   color: var(--semiont-color-yellow-500);
 }
 
-[data-theme="dark"] .semiont-stat-card__icon--warning,
-:root:not([data-theme="light"]) .semiont-stat-card__icon--warning {
+[data-theme="dark"] .semiont-stat-card__icon--warning {
   color: var(--semiont-color-yellow-400);
 }
 
@@ -92,8 +88,7 @@
   margin-bottom: 0.25rem;
 }
 
-[data-theme="dark"] .semiont-stat-card__label,
-:root:not([data-theme="light"]) .semiont-stat-card__label {
+[data-theme="dark"] .semiont-stat-card__label {
   color: var(--semiont-color-gray-400);
 }
 
@@ -103,8 +98,7 @@
   color: var(--semiont-color-gray-900);
 }
 
-[data-theme="dark"] .semiont-stat-card__value,
-:root:not([data-theme="light"]) .semiont-stat-card__value {
+[data-theme="dark"] .semiont-stat-card__value {
   color: var(--semiont-color-gray-100);
 }
 
@@ -118,8 +112,7 @@
   background: var(--semiont-color-green-500);
 }
 
-[data-theme="dark"] .semiont-stat-card__status-indicator--active .semiont-stat-card__status-dot,
-:root:not([data-theme="light"]) .semiont-stat-card__status-indicator--active .semiont-stat-card__status-dot {
+[data-theme="dark"] .semiont-stat-card__status-indicator--active .semiont-stat-card__status-dot {
   background: var(--semiont-color-green-400);
 }
 

@@ -336,24 +336,20 @@
 }
 
 /* Dark mode for Toolbar - Fixed to respect data-theme attribute */
-[data-theme="dark"] .semiont-toolbar,
-:root:not([data-theme="light"]) .semiont-toolbar {
+[data-theme="dark"] .semiont-toolbar {
   background-color: var(--semiont-color-gray-900);
   border-left-color: var(--semiont-color-gray-700);
 }
 
-[data-theme="dark"] .semiont-toolbar-button,
-:root:not([data-theme="light"]) .semiont-toolbar-button {
+[data-theme="dark"] .semiont-toolbar-button {
   color: var(--semiont-color-gray-400);
 }
 
-[data-theme="dark"] .semiont-toolbar-button:hover,
-:root:not([data-theme="light"]) .semiont-toolbar-button:hover {
+[data-theme="dark"] .semiont-toolbar-button:hover {
   background-color: var(--semiont-color-gray-800);
 }
 
-[data-theme="dark"] .semiont-toolbar-button[data-active="true"],
-:root:not([data-theme="light"]) .semiont-toolbar-button[data-active="true"] {
+[data-theme="dark"] .semiont-toolbar-button[data-active="true"] {
   background-color: rgba(30, 58, 138, 0.5); /* blue-800/50 - keeping rgba for opacity */
   color: var(--semiont-color-blue-300);
   border-left-color: var(--semiont-color-blue-400);
@@ -520,64 +516,64 @@
 /* Dark mode for ErrorBoundary */
 @media (prefers-color-scheme: dark) {
   [data-theme="dark"] .semiont-error-boundary-container,
-  :root:not([data-theme="light"]) .semiont-error-boundary-container {
+  .semiont-error-boundary-container {
     background-color: var(--semiont-color-neutral-900);
   }
 
   [data-theme="dark"] .semiont-error-boundary-title,
-  :root:not([data-theme="light"]) .semiont-error-boundary-title {
+  .semiont-error-boundary-title {
     color: var(--semiont-color-neutral-0);
   }
 
   [data-theme="dark"] .semiont-error-boundary-message,
-  :root:not([data-theme="light"]) .semiont-error-boundary-message {
+  .semiont-error-boundary-message {
     color: var(--semiont-color-neutral-400);
   }
 
   [data-theme="dark"] .semiont-error-boundary-details,
-  :root:not([data-theme="light"]) .semiont-error-boundary-details {
+  .semiont-error-boundary-details {
     background-color: rgba(239, 68, 68, 0.2);
     border-color: var(--semiont-color-danger-800);
   }
 
   [data-theme="dark"] .semiont-error-boundary-details-title,
-  :root:not([data-theme="light"]) .semiont-error-boundary-details-title {
+  .semiont-error-boundary-details-title {
     color: var(--semiont-color-danger-300);
   }
 
   [data-theme="dark"] .semiont-error-boundary-details-message,
-  :root:not([data-theme="light"]) .semiont-error-boundary-details-message {
+  .semiont-error-boundary-details-message {
     color: var(--semiont-color-danger-400);
   }
 
   [data-theme="dark"] .semiont-error-boundary-stack,
-  :root:not([data-theme="light"]) .semiont-error-boundary-stack {
+  .semiont-error-boundary-stack {
     color: var(--semiont-color-danger-500);
   }
 
   [data-theme="dark"] .semiont-async-error-boundary,
-  :root:not([data-theme="light"]) .semiont-async-error-boundary {
+  .semiont-async-error-boundary {
     background-color: rgba(245, 158, 11, 0.2);
     border-color: var(--semiont-color-warning-800);
   }
 
   [data-theme="dark"] .semiont-async-error-title,
-  :root:not([data-theme="light"]) .semiont-async-error-title {
+  .semiont-async-error-title {
     color: var(--semiont-color-warning-300);
   }
 
   [data-theme="dark"] .semiont-async-error-message,
-  :root:not([data-theme="light"]) .semiont-async-error-message {
+  .semiont-async-error-message {
     color: var(--semiont-color-warning-400);
   }
 
   [data-theme="dark"] .semiont-async-error-retry,
-  :root:not([data-theme="light"]) .semiont-async-error-retry {
+  .semiont-async-error-retry {
     color: var(--semiont-color-warning-400);
   }
 
   [data-theme="dark"] .semiont-async-error-retry:hover,
-  :root:not([data-theme="light"]) .semiont-async-error-retry:hover {
+  .semiont-async-error-retry:hover {
     color: var(--semiont-color-warning-300);
   }
 }

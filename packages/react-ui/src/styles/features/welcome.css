@@ -12,8 +12,7 @@
   color: var(--semiont-color-gray-700);
 }
 
-[data-theme="dark"] .semiont-welcome-page__prose,
-:root:not([data-theme="light"]) .semiont-welcome-page__prose {
+[data-theme="dark"] .semiont-welcome-page__prose {
   color: var(--semiont-color-gray-300);
 }
 
@@ -61,7 +60,6 @@
   text-decoration: underline;
 }
 
-[data-theme="dark"] .semiont-link,
-:root:not([data-theme="light"]) .semiont-link {
+[data-theme="dark"] .semiont-link {
   color: var(--semiont-color-blue-400);
 }

@@ -31,8 +31,7 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-form__label,
-:root:not([data-theme="light"]) .semiont-form__label {
+[data-theme="dark"] .semiont-form__label {
   color: var(--semiont-text-primary);
 }
 
@@ -51,10 +50,7 @@
 
 [data-theme="dark"] .semiont-form__input,
 [data-theme="dark"] .semiont-form__select,
-[data-theme="dark"] .semiont-form__textarea,
-:root:not([data-theme="light"]) .semiont-form__input,
-:root:not([data-theme="light"]) .semiont-form__select,
-:root:not([data-theme="light"]) .semiont-form__textarea {
+[data-theme="dark"] .semiont-form__textarea {
   background-color: var(--semiont-bg-primary);
   color: var(--semiont-text-primary);
   border-color: var(--semiont-color-gray-700);
@@ -71,10 +67,7 @@
 
 [data-theme="dark"] .semiont-form__input:focus,
 [data-theme="dark"] .semiont-form__select:focus,
-[data-theme="dark"] .semiont-form__textarea:focus,
-:root:not([data-theme="light"]) .semiont-form__input:focus,
-:root:not([data-theme="light"]) .semiont-form__select:focus,
-:root:not([data-theme="light"]) .semiont-form__textarea:focus {
+[data-theme="dark"] .semiont-form__textarea:focus {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
@@ -105,8 +98,7 @@
   margin-top: 0.25rem;
 }
 
-[data-theme="dark"] .semiont-form__error,
-:root:not([data-theme="light"]) .semiont-form__error {
+[data-theme="dark"] .semiont-form__error {
   color: var(--semiont-color-red-400);
 }
 
@@ -131,9 +123,7 @@
 }
 
 [data-theme="dark"] .semiont-form__checkbox,
-[data-theme="dark"] .semiont-form__radio,
-:root:not([data-theme="light"]) .semiont-form__checkbox,
-:root:not([data-theme="light"]) .semiont-form__radio {
+[data-theme="dark"] .semiont-form__radio {
   border-color: var(--semiont-color-gray-600);
 }
 
@@ -144,9 +134,7 @@
 }
 
 [data-theme="dark"] .semiont-form__checkbox-label,
-[data-theme="dark"] .semiont-form__radio-label,
-:root:not([data-theme="light"]) .semiont-form__checkbox-label,
-:root:not([data-theme="light"]) .semiont-form__radio-label {
+[data-theme="dark"] .semiont-form__radio-label {
   color: var(--semiont-text-primary);
 }
 
@@ -176,8 +164,7 @@
   margin-top: 0.25rem;
 }
 
-[data-theme="dark"] .semiont-form__help,
-:root:not([data-theme="light"]) .semiont-form__help {
+[data-theme="dark"] .semiont-form__help {
   color: var(--semiont-text-secondary);
 }
 
@@ -189,8 +176,7 @@
   margin-bottom: 1rem;
 }
 
-[data-theme="dark"] .semiont-form__fieldset,
-:root:not([data-theme="light"]) .semiont-form__fieldset {
+[data-theme="dark"] .semiont-form__fieldset {
   border-color: var(--semiont-color-gray-700);
 }
 
@@ -201,8 +187,7 @@
   padding: 0 0.5rem;
 }
 
-[data-theme="dark"] .semiont-form__legend,
-:root:not([data-theme="light"]) .semiont-form__legend {
+[data-theme="dark"] .semiont-form__legend {
   color: var(--semiont-text-primary);
 }
 
@@ -221,11 +206,6 @@
 [data-theme="dark"] .semiont-form__select:disabled,
 [data-theme="dark"] .semiont-form__textarea:disabled,
 [data-theme="dark"] .semiont-form__checkbox:disabled,
-[data-theme="dark"] .semiont-form__radio:disabled,
-:root:not([data-theme="light"]) .semiont-form__input:disabled,
-:root:not([data-theme="light"]) .semiont-form__select:disabled,
-:root:not([data-theme="light"]) .semiont-form__textarea:disabled,
-:root:not([data-theme="light"]) .semiont-form__checkbox:disabled,
-:root:not([data-theme="light"]) .semiont-form__radio:disabled {
+[data-theme="dark"] .semiont-form__radio:disabled {
   background-color: var(--semiont-color-gray-800);
 }

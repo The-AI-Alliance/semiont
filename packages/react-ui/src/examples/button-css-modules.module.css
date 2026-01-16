@@ -22,7 +22,7 @@
 /* Primary variant */
 .button[data-variant="primary"] {
   background-color: #0080ff;
-  color: white;
+  color: #ffffff;
 }
 
 .button[data-variant="primary"]:hover:not(:disabled) {

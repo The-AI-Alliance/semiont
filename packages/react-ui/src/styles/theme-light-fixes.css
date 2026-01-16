@@ -1,0 +1,347 @@
+/**
+ * Light Theme Fixes
+ *
+ * This file provides explicit light theme overrides for components that were only
+ * defining dark mode styles. Without these overrides, components show dark backgrounds
+ * even when light theme is explicitly selected.
+ *
+ * The pattern is: components were using :root:not([data-theme="light"]) to apply
+ * dark styles, but never defined corresponding light theme rules, so the dark
+ * backgrounds persisted in light mode.
+ */
+
+/* When light theme is explicitly set, use light backgrounds */
+[data-theme="light"] {
+  /* Annotations */
+  .annotation-comment:hover {
+    background: var(--semiont-bg-secondary);
+  }
+
+  /* Tables */
+  .semiont-table__head {
+    background-color: var(--semiont-bg-secondary);
+    border-color: var(--semiont-color-gray-200);
+  }
+
+  .semiont-table__body {
+    background-color: var(--semiont-bg-primary);
+  }
+
+  .semiont-table__row:hover {
+    background-color: var(--semiont-bg-tertiary);
+  }
+
+  /* Buttons */
+  .semiont-button[data-variant="secondary"] {
+    background-color: var(--semiont-bg-tertiary);
+    color: var(--semiont-text-primary);
+  }
+
+  .semiont-button[data-variant="secondary"]:hover:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-gray-200);
+  }
+
+  .semiont-button[data-variant="secondary"]:active:not(:disabled):not([data-disabled="true"]),
+  .semiont-button[data-variant="secondary"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+    background-color: var(--semiont-color-gray-300);
+  }
+
+  /* References & Chips */
+  .semiont-detect-widget__button[data-enabled="false"] {
+    background-color: var(--semiont-bg-tertiary);
+    color: var(--semiont-text-tertiary);
+  }
+
+  .semiont-detect-widget__log {
+    background-color: var(--semiont-bg-secondary);
+  }
+
+  .semiont-chip--selectable[data-selected="false"] {
+    background-color: var(--semiont-bg-secondary);
+    color: var(--semiont-text-secondary);
+  }
+
+  .semiont-chip--selectable[data-selected="false"]:hover {
+    background-color: var(--semiont-bg-tertiary);
+  }
+
+  /* Forms */
+  .semiont-form__radio:disabled {
+    background-color: var(--semiont-bg-tertiary);
+  }
+
+  /* Schemas */
+  .semiont-schema__example {
+    background-color: var(--semiont-bg-tertiary);
+  }
+
+  /* Resource Viewer */
+  .semiont-browse-view {
+    background-color: var(--semiont-bg-primary);
+  }
+
+  .semiont-annotate-view {
+    background: var(--semiont-bg-primary);
+  }
+
+  .semiont-annotate-view--pdf {
+    background: var(--semiont-bg-secondary);
+  }
+
+  .semiont-page {
+    background-color: var(--semiont-bg-primary);
+  }
+
+  /* Layout */
+  .semiont-page-layout--auth {
+    background: var(--semiont-bg-primary);
+  }
+
+  /* DevOps */
+  .semiont-devops-feature {
+    background-color: rgba(249, 250, 251, 0.5); /* gray-50/50 for light mode */
+    border-color: var(--semiont-color-gray-300);
+  }
+
+  .semiont-devops-feature__icon-box {
+    background-color: var(--semiont-bg-tertiary);
+  }
+
+  /* Compose */
+  .semiont-form__media-type-value {
+    background-color: var(--semiont-bg-secondary);
+    color: var(--semiont-text-primary);
+    border-color: var(--semiont-color-gray-300);
+  }
+
+  /* Panels */
+  .semiont-panel {
+    background-color: var(--semiont-bg-primary);
+  }
+
+  /* Sidebar Navigation */
+  .semiont-sidebar-nav {
+    background-color: var(--semiont-bg-secondary);
+  }
+
+  .semiont-sidebar-nav__item:hover {
+    background-color: var(--semiont-bg-tertiary);
+  }
+
+  .semiont-sidebar-nav__item--active {
+    background-color: var(--semiont-bg-tertiary);
+  }
+
+  /* Toolbar */
+  .semiont-toolbar {
+    background-color: var(--semiont-bg-secondary);
+    border-color: var(--semiont-color-gray-200);
+  }
+
+  /* Status Display */
+  .semiont-status-display {
+    background-color: var(--semiont-bg-secondary);
+  }
+
+  /* Admin Features */
+  .semiont-admin-feature {
+    background-color: var(--semiont-bg-primary);
+  }
+
+  /* Entity Tags */
+  .semiont-entity-tag {
+    background-color: var(--semiont-bg-secondary);
+  }
+
+  /* Resource Discovery */
+  .semiont-resource-discovery {
+    background-color: var(--semiont-bg-primary);
+  }
+
+  .semiont-resource-discovery__item {
+    background-color: var(--semiont-bg-secondary);
+  }
+
+  .semiont-resource-discovery__item:hover {
+    background-color: var(--semiont-bg-tertiary);
+  }
+
+  /* Auth Components */
+  .semiont-auth__container {
+    background-color: var(--semiont-bg-primary);
+  }
+
+  .semiont-auth__form-card {
+    background-color: var(--semiont-bg-primary);
+    box-shadow: var(--semiont-shadow-base);
+  }
+}
+
+/* Also handle when no theme is set but system prefers light */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    /* Annotations */
+    .annotation-comment:hover {
+      background: var(--semiont-bg-secondary);
+    }
+
+    /* Tables */
+    .semiont-table__head {
+      background-color: var(--semiont-bg-secondary);
+      border-color: var(--semiont-color-gray-200);
+    }
+
+    .semiont-table__body {
+      background-color: var(--semiont-bg-primary);
+    }
+
+    .semiont-table__row:hover {
+      background-color: var(--semiont-bg-tertiary);
+    }
+
+    /* Buttons */
+    .semiont-button[data-variant="secondary"] {
+      background-color: var(--semiont-bg-tertiary);
+      color: var(--semiont-text-primary);
+    }
+
+    .semiont-button[data-variant="secondary"]:hover:not(:disabled):not([data-disabled="true"]) {
+      background-color: var(--semiont-color-gray-200);
+    }
+
+    .semiont-button[data-variant="secondary"]:active:not(:disabled):not([data-disabled="true"]),
+    .semiont-button[data-variant="secondary"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+      background-color: var(--semiont-color-gray-300);
+    }
+
+    /* References & Chips */
+    .semiont-detect-widget__button[data-enabled="false"] {
+      background-color: var(--semiont-bg-tertiary);
+      color: var(--semiont-text-tertiary);
+    }
+
+    .semiont-detect-widget__log {
+      background-color: var(--semiont-bg-secondary);
+    }
+
+    .semiont-chip--selectable[data-selected="false"] {
+      background-color: var(--semiont-bg-secondary);
+      color: var(--semiont-text-secondary);
+    }
+
+    .semiont-chip--selectable[data-selected="false"]:hover {
+      background-color: var(--semiont-bg-tertiary);
+    }
+
+    /* Forms */
+    .semiont-form__radio:disabled {
+      background-color: var(--semiont-bg-tertiary);
+    }
+
+    /* Schemas */
+    .semiont-schema__example {
+      background-color: var(--semiont-bg-tertiary);
+    }
+
+    /* Resource Viewer */
+    .semiont-browse-view {
+      background-color: var(--semiont-bg-primary);
+    }
+
+    .semiont-annotate-view {
+      background: var(--semiont-bg-primary);
+    }
+
+    .semiont-annotate-view--pdf {
+      background: var(--semiont-bg-secondary);
+    }
+
+    .semiont-page {
+      background-color: var(--semiont-bg-primary);
+    }
+
+    /* Layout */
+    .semiont-page-layout--auth {
+      background: var(--semiont-bg-primary);
+    }
+
+    /* DevOps */
+    .semiont-devops-feature {
+      background-color: rgba(249, 250, 251, 0.5); /* gray-50/50 for light mode */
+      border-color: var(--semiont-color-gray-300);
+    }
+
+    .semiont-devops-feature__icon-box {
+      background-color: var(--semiont-bg-tertiary);
+    }
+
+    /* Compose */
+    .semiont-form__media-type-value {
+      background-color: var(--semiont-bg-secondary);
+      color: var(--semiont-text-primary);
+      border-color: var(--semiont-color-gray-300);
+    }
+
+    /* Panels */
+    .semiont-panel {
+      background-color: var(--semiont-bg-primary);
+    }
+
+    /* Sidebar Navigation */
+    .semiont-sidebar-nav {
+      background-color: var(--semiont-bg-secondary);
+    }
+
+    .semiont-sidebar-nav__item:hover {
+      background-color: var(--semiont-bg-tertiary);
+    }
+
+    .semiont-sidebar-nav__item--active {
+      background-color: var(--semiont-bg-tertiary);
+    }
+
+    /* Toolbar */
+    .semiont-toolbar {
+      background-color: var(--semiont-bg-secondary);
+      border-color: var(--semiont-color-gray-200);
+    }
+
+    /* Status Display */
+    .semiont-status-display {
+      background-color: var(--semiont-bg-secondary);
+    }
+
+    /* Admin Features */
+    .semiont-admin-feature {
+      background-color: var(--semiont-bg-primary);
+    }
+
+    /* Entity Tags */
+    .semiont-entity-tag {
+      background-color: var(--semiont-bg-secondary);
+    }
+
+    /* Resource Discovery */
+    .semiont-resource-discovery {
+      background-color: var(--semiont-bg-primary);
+    }
+
+    .semiont-resource-discovery__item {
+      background-color: var(--semiont-bg-secondary);
+    }
+
+    .semiont-resource-discovery__item:hover {
+      background-color: var(--semiont-bg-tertiary);
+    }
+
+    /* Auth Components */
+    .semiont-auth__container {
+      background-color: var(--semiont-bg-primary);
+    }
+
+    .semiont-auth__form-card {
+      background-color: var(--semiont-bg-primary);
+      box-shadow: var(--semiont-shadow-base);
+    }
+  }
+}

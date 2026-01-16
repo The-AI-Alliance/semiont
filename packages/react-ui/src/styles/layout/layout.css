@@ -17,8 +17,7 @@
   background: var(--semiont-bg-primary);
 }
 
-[data-theme="dark"] .semiont-page-wrapper,
-:root:not([data-theme="light"]) .semiont-page-wrapper {
+[data-theme="dark"] .semiont-page-wrapper {
   background: var(--semiont-bg-primary);
 }
 
@@ -27,8 +26,7 @@
   background: var(--semiont-color-gray-50);
 }
 
-[data-theme="dark"] .semiont-page-layout--auth,
-:root:not([data-theme="light"]) .semiont-page-layout--auth {
+[data-theme="dark"] .semiont-page-layout--auth {
   background: var(--semiont-color-gray-900);
 }
 
@@ -98,8 +96,7 @@
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
-[data-theme="dark"] .semiont-unified-header--standalone,
-:root:not([data-theme="light"]) .semiont-unified-header--standalone {
+[data-theme="dark"] .semiont-unified-header--standalone {
   border-bottom-color: var(--semiont-color-gray-800);
 }
 
@@ -192,8 +189,7 @@
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
-[data-theme="dark"] .semiont-left-sidebar__header,
-:root:not([data-theme="light"]) .semiont-left-sidebar__header {
+[data-theme="dark"] .semiont-left-sidebar__header {
   border-bottom-color: var(--semiont-color-gray-800);
 }
 
@@ -233,8 +229,7 @@
   text-overflow: ellipsis;
 }
 
-[data-theme="dark"] .semiont-left-sidebar__logo-text,
-:root:not([data-theme="light"]) .semiont-left-sidebar__logo-text {
+[data-theme="dark"] .semiont-left-sidebar__logo-text {
   color: var(--semiont-color-white);
 }
 
@@ -292,8 +287,7 @@
   font-size: 0.875rem;
 }
 
-[data-theme="dark"] .semiont-footer__copyright,
-:root:not([data-theme="light"]) .semiont-footer__copyright {
+[data-theme="dark"] .semiont-footer__copyright {
   color: var(--semiont-color-gray-400);
 }
 
@@ -314,13 +308,11 @@
   color: var(--semiont-color-gray-900);
 }
 
-[data-theme="dark"] .semiont-footer__link,
-:root:not([data-theme="light"]) .semiont-footer__link {
+[data-theme="dark"] .semiont-footer__link {
   color: var(--semiont-color-gray-400);
 }
 
-[data-theme="dark"] .semiont-footer__link:hover,
-:root:not([data-theme="light"]) .semiont-footer__link:hover {
+[data-theme="dark"] .semiont-footer__link:hover {
   color: var(--semiont-color-gray-100);
 }
 

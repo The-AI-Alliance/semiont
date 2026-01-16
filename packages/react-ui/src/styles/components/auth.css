@@ -15,8 +15,7 @@
   background: var(--semiont-bg-primary);
 }
 
-[data-theme="dark"] .semiont-auth__main,
-:root:not([data-theme="light"]) .semiont-auth__main {
+[data-theme="dark"] .semiont-auth__main {
   background: var(--semiont-bg-primary);
 }
 
@@ -32,8 +31,7 @@
   padding: 2.5rem 2rem;
 }
 
-[data-theme="dark"] .semiont-auth__content,
-:root:not([data-theme="light"]) .semiont-auth__content {
+[data-theme="dark"] .semiont-auth__content {
   background: var(--semiont-bg-secondary);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
 }
@@ -55,8 +53,7 @@
   margin-bottom: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-auth__welcome,
-:root:not([data-theme="light"]) .semiont-auth__welcome {
+[data-theme="dark"] .semiont-auth__welcome {
   color: var(--semiont-text-primary);
 }
 
@@ -65,8 +62,7 @@
   color: var(--semiont-text-secondary);
 }
 
-[data-theme="dark"] .semiont-auth__subtitle,
-:root:not([data-theme="light"]) .semiont-auth__subtitle {
+[data-theme="dark"] .semiont-auth__subtitle {
   color: var(--semiont-text-secondary);
 }
 
@@ -82,8 +78,7 @@
   padding: 0.75rem;
 }
 
-[data-theme="dark"] .semiont-auth__error,
-:root:not([data-theme="light"]) .semiont-auth__error {
+[data-theme="dark"] .semiont-auth__error {
   background-color: rgba(239, 68, 68, 0.1);
   border-color: var(--semiont-color-red-800);
 }
@@ -93,8 +88,7 @@
   font-size: 0.875rem;
 }
 
-[data-theme="dark"] .semiont-auth__error-text,
-:root:not([data-theme="light"]) .semiont-auth__error-text {
+[data-theme="dark"] .semiont-auth__error-text {
   color: var(--semiont-color-red-400);
 }
 
@@ -124,8 +118,7 @@
   background-color: var(--semiont-color-gray-300);
 }
 
-[data-theme="dark"] .semiont-auth__divider-line,
-:root:not([data-theme="light"]) .semiont-auth__divider-line {
+[data-theme="dark"] .semiont-auth__divider-line {
   background-color: var(--semiont-color-gray-700);
 }
 
@@ -144,8 +137,7 @@
   margin-top: 1rem;
 }
 
-[data-theme="dark"] .semiont-auth__info,
-:root:not([data-theme="light"]) .semiont-auth__info {
+[data-theme="dark"] .semiont-auth__info {
   color: var(--semiont-text-secondary);
 }
 
@@ -159,8 +151,7 @@
   border-top: 1px solid var(--semiont-color-gray-200);
 }
 
-[data-theme="dark"] .semiont-auth__links,
-:root:not([data-theme="light"]) .semiont-auth__links {
+[data-theme="dark"] .semiont-auth__links {
   border-top-color: var(--semiont-color-gray-800);
 }
 
@@ -215,8 +206,7 @@
   padding: 2.5rem 2rem;
 }
 
-[data-theme="dark"] .semiont-auth__signup-container,
-:root:not([data-theme="light"]) .semiont-auth__signup-container {
+[data-theme="dark"] .semiont-auth__signup-container {
   background: var(--semiont-bg-secondary);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
 }
@@ -233,8 +223,7 @@
   margin-bottom: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-auth__signup-title,
-:root:not([data-theme="light"]) .semiont-auth__signup-title {
+[data-theme="dark"] .semiont-auth__signup-title {
   color: var(--semiont-text-primary);
 }
 
@@ -251,8 +240,7 @@
   line-height: 1.5;
 }
 
-[data-theme="dark"] .semiont-auth__signup-info,
-:root:not([data-theme="light"]) .semiont-auth__signup-info {
+[data-theme="dark"] .semiont-auth__signup-info {
   color: var(--semiont-text-secondary);
 }
 
@@ -262,8 +250,7 @@
   border-top: 1px solid var(--semiont-color-gray-200);
 }
 
-[data-theme="dark"] .semiont-auth__signup-footer,
-:root:not([data-theme="light"]) .semiont-auth__signup-footer {
+[data-theme="dark"] .semiont-auth__signup-footer {
   border-top-color: var(--semiont-color-gray-700);
 }
 
@@ -279,13 +266,11 @@
   text-decoration: underline;
 }
 
-[data-theme="dark"] .semiont-auth__signin-link,
-:root:not([data-theme="light"]) .semiont-auth__signin-link {
+[data-theme="dark"] .semiont-auth__signin-link {
   color: var(--semiont-color-primary-400);
 }
 
-[data-theme="dark"] .semiont-auth__signin-link:hover,
-:root:not([data-theme="light"]) .semiont-auth__signin-link:hover {
+[data-theme="dark"] .semiont-auth__signin-link:hover {
   color: var(--semiont-color-primary-300);
 }
 

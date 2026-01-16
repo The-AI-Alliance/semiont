@@ -290,13 +290,11 @@
 }
 
 .semiont-overflow-x-auto {
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: auto visible;
 }
 
 .semiont-overflow-y-auto {
-  overflow-x: visible;
-  overflow-y: auto;
+  overflow: visible auto;
 }
 
 /* ============================================

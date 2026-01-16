@@ -57,15 +57,12 @@
 
 .semiont-branding-text {
   background: linear-gradient(to right, var(--semiont-color-black), var(--semiont-color-primary-600), var(--semiont-color-black));
-  -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-[data-theme="dark"] .semiont-branding-text,
-:root:not([data-theme="light"]) .semiont-branding-text {
+[data-theme="dark"] .semiont-branding-text {
   background: linear-gradient(to right, var(--semiont-color-white), var(--semiont-color-primary-400), var(--semiont-color-white));
-  -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -80,8 +77,7 @@
   letter-spacing: 0.025em;
 }
 
-[data-theme="dark"] .semiont-branding-tagline,
-:root:not([data-theme="light"]) .semiont-branding-tagline {
+[data-theme="dark"] .semiont-branding-tagline {
   color: var(--semiont-color-primary-400);
 }
 
