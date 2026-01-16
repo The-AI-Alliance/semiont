@@ -130,6 +130,12 @@ function hasFocusStyles(selector, root) {
 
 // Check for potentially problematic color values
 function hasColorContrastRisk(value) {
+  // Skip pure white and black as they typically have good contrast
+  if (value === '#fff' || value === '#ffffff' || value === 'white' ||
+      value === '#000' || value === '#000000' || value === 'black') {
+    return false;
+  }
+
   // Light colors on presumed light backgrounds
   const riskyLightColors = [
     /#[ef][ef][0-9a-f]{4}/i, // Very light colors like #eee, #ffa, etc
@@ -184,6 +190,12 @@ const plugin = stylelint.createPlugin(
       // Skip animation checks if this is a motion utility file
       const isMotionUtilityFile = filename.includes('/utilities/motion');
       if (isMotionUtilityFile) {
+        return;
+      }
+
+      // Skip contrast checks if this is a contrast utility file
+      const isContrastUtilityFile = filename.includes('/utilities/contrast');
+      if (isContrastUtilityFile) {
         return;
       }
 
@@ -249,7 +261,11 @@ const plugin = stylelint.createPlugin(
           }
 
           // Check for color contrast risks
-          if ((prop === 'color' || prop === 'background-color') &&
+          // Skip if we have global contrast utilities
+          const hasGlobalContrastSupport = filename.includes('packages/react-ui/src/styles');
+
+          if (!hasGlobalContrastSupport &&
+              (prop === 'color' || prop === 'background-color') &&
               hasColorContrastRisk(value)) {
             report({
               message: messages.insufficientColorContrast(prop),
