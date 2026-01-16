@@ -339,11 +339,6 @@
   margin-right: 23rem; /* 3rem toolbar + 20rem panel */
 }
 
-/* For pages without toolbar (like compose), remove the margin */
-.semiont-page__content.semiont-page__compose {
-  margin-right: 0;
-}
-
 .semiont-page__sidebar {
   display: flex;
   flex-direction: row;

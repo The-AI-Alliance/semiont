@@ -6,8 +6,7 @@
 
 /* Page Layout */
 .semiont-page__compose {
-  max-width: 48rem;
-  margin: 0 auto;
+  /* Use full width like the Discover page instead of centering */
 }
 
 /* Form Upload Section */
