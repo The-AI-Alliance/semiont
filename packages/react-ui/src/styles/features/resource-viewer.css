@@ -321,9 +321,24 @@
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
+/* Focus styles for keyboard navigation */
+.semiont-download-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
 [data-theme="dark"] .semiont-download-button:hover {
   background: var(--semiont-color-blue-600);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .semiont-download-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Remove focus for mouse users */
+.semiont-download-button:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .semiont-download-button__icon {

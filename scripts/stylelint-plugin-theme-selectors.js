@@ -51,8 +51,12 @@ const plugin = stylelint.createPlugin(ruleName, (primaryOption, secondaryOptions
         });
       }
 
+      // Skip duplicate checking for rules inside media queries
+      const isInsideMediaQuery = rule.parent && rule.parent.type === 'atrule' && rule.parent.name === 'media';
+
       // Check for duplicate selectors after dark theme selectors
-      if (previousRule &&
+      if (!isInsideMediaQuery &&
+          previousRule &&
           previousRule.selector.startsWith('[data-theme="dark"]') &&
           !rule.selector.startsWith('[data-theme="dark"]')) {
 
@@ -70,7 +74,10 @@ const plugin = stylelint.createPlugin(ruleName, (primaryOption, secondaryOptions
         }
       }
 
-      previousRule = rule;
+      // Only track previousRule if not inside media query
+      if (!isInsideMediaQuery) {
+        previousRule = rule;
+      }
     });
   };
 });

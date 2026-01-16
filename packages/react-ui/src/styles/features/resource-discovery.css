@@ -76,6 +76,20 @@
   background: var(--semiont-color-primary-500);
 }
 
+/* Focus styles for search button */
+.semiont-card__search-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-card__search-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-card__search-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .semiont-card__search-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -128,6 +142,26 @@
 [data-theme="dark"] .semiont-card__filter-button:hover {
   border-color: var(--semiont-color-primary-500);
   background: rgba(59, 130, 246, 0.1);
+}
+
+/* Focus styles for filter buttons */
+.semiont-card__filter-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-card__filter-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-card__filter-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-card__filter-button:focus-visible {
+    outline-width: 3px;
+  }
 }
 
 .semiont-card__filter-button[data-active="true"] {
@@ -217,6 +251,26 @@
 
 [data-theme="dark"] .semiont-card__empty-button:hover {
   background: var(--semiont-color-primary-500);
+}
+
+/* Focus styles for empty button */
+.semiont-card__empty-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-card__empty-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-card__empty-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-card__empty-button:focus-visible {
+    outline-width: 3px;
+  }
 }
 
 /* Resource Card Component */

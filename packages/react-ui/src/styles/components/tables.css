@@ -123,6 +123,28 @@
   transition: color 0.15s ease;
 }
 
+/* Focus styles for keyboard navigation */
+.semiont-action-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+[data-theme="dark"] .semiont-action-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Remove focus for mouse users */
+.semiont-action-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-action-button:focus-visible {
+    outline-width: 3px;
+  }
+}
+
 .semiont-action-button__icon {
   width: 1rem;
   height: 1rem;

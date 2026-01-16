@@ -56,19 +56,46 @@
   border-color: var(--semiont-color-gray-700);
 }
 
-/* Focus states */
-.semiont-form__input:focus,
-.semiont-form__select:focus,
-.semiont-form__textarea:focus {
+/* Focus states - keyboard navigation */
+.semiont-form__input:focus-visible,
+.semiont-form__select:focus-visible,
+.semiont-form__textarea:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -1px;
+  border-color: var(--semiont-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-theme="dark"] .semiont-form__input:focus-visible,
+[data-theme="dark"] .semiont-form__select:focus-visible,
+[data-theme="dark"] .semiont-form__textarea:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-400);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Remove default focus for mouse users */
+.semiont-form__input:focus:not(:focus-visible),
+.semiont-form__select:focus:not(:focus-visible),
+.semiont-form__textarea:focus:not(:focus-visible) {
   outline: none;
   border-color: var(--semiont-color-primary-500);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-[data-theme="dark"] .semiont-form__input:focus,
-[data-theme="dark"] .semiont-form__select:focus,
-[data-theme="dark"] .semiont-form__textarea:focus {
+[data-theme="dark"] .semiont-form__input:focus:not(:focus-visible),
+[data-theme="dark"] .semiont-form__select:focus:not(:focus-visible),
+[data-theme="dark"] .semiont-form__textarea:focus:not(:focus-visible) {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+  .semiont-form__input:focus-visible,
+  .semiont-form__select:focus-visible,
+  .semiont-form__textarea:focus-visible {
+    outline-width: 3px;
+  }
 }
 
 /* Invalid states */
@@ -84,16 +111,19 @@
   border-color: var(--semiont-color-red-400);
 }
 
-.semiont-form__input[aria-invalid="true"]:focus,
-.semiont-form__select[aria-invalid="true"]:focus,
-.semiont-form__textarea[aria-invalid="true"]:focus {
+.semiont-form__input[aria-invalid="true"]:focus-visible,
+.semiont-form__select[aria-invalid="true"]:focus-visible,
+.semiont-form__textarea[aria-invalid="true"]:focus-visible {
+  outline: 2px solid var(--semiont-color-red-500);
+  outline-offset: -1px;
   border-color: var(--semiont-color-red-500);
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
 }
 
-[data-theme="dark"] .semiont-form__input[aria-invalid="true"]:focus,
-[data-theme="dark"] .semiont-form__select[aria-invalid="true"]:focus,
-[data-theme="dark"] .semiont-form__textarea[aria-invalid="true"]:focus {
+[data-theme="dark"] .semiont-form__input[aria-invalid="true"]:focus-visible,
+[data-theme="dark"] .semiont-form__select[aria-invalid="true"]:focus-visible,
+[data-theme="dark"] .semiont-form__textarea[aria-invalid="true"]:focus-visible {
+  outline-color: var(--semiont-color-red-400);
   border-color: var(--semiont-color-red-400);
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
 }

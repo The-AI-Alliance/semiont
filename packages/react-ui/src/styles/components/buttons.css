@@ -26,12 +26,33 @@
   white-space: nowrap;
   text-decoration: none;
 
-  /* Focus styles */
+  /* Focus styles handled below */
 }
 
+/* Focus indicators for keyboard navigation */
 .semiont-button:focus-visible {
   outline: 2px solid var(--semiont-color-primary-500);
   outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Remove default focus for mouse users */
+.semiont-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Dark theme focus */
+[data-theme="dark"] .semiont-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+  .semiont-button:focus-visible {
+    outline-width: 3px;
+    outline-color: currentColor;
+  }
 }
 
 /* Disabled state */
