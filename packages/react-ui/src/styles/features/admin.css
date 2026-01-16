@@ -157,6 +157,10 @@
   color: var(--semiont-color-green-500);
 }
 
+[data-theme="dark"] .semiont-provider-item__icon--success {
+  color: var(--semiont-color-green-400);
+}
+
 .semiont-provider-item__name {
   font-weight: 500;
   color: var(--semiont-color-gray-900);

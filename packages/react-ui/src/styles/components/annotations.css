@@ -171,10 +171,4 @@
   }
 }
 
-/* Add cyan color variables if not already defined */
-:root {
-  --semiont-color-cyan-200: #a5f3fc;
-  --semiont-color-cyan-300: #67e8f9;
-  --semiont-color-cyan-500: #06b6d4;
-  --semiont-color-cyan-900: #083344;
-}
+/* Cyan color variables are defined in variables.css */

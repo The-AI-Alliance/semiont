@@ -66,6 +66,10 @@
   margin-top: 0.25rem;
 }
 
+[data-theme="dark"] .semiont-form__upload-hint {
+  color: var(--semiont-color-gray-400);
+}
+
 /* Media Type Display */
 .semiont-form__media-type {
   display: flex;
@@ -96,6 +100,10 @@
 
 .semiont-form__media-type-lock {
   color: var(--semiont-color-gray-500);
+}
+
+[data-theme="dark"] .semiont-form__media-type-lock {
+  color: var(--semiont-color-gray-400);
 }
 
 /* Image Preview */
@@ -139,6 +147,15 @@
 
 .semiont-button--danger:hover {
   background-color: var(--semiont-color-red-700);
+}
+
+[data-theme="dark"] .semiont-button--danger {
+  background-color: var(--semiont-color-red-700);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-button--danger:hover {
+  background-color: var(--semiont-color-red-600);
 }
 
 .semiont-button--small {

@@ -52,6 +52,12 @@
   border-color: var(--semiont-color-primary-500);
 }
 
+[data-theme="dark"] .semiont-form__entity-type-button[data-selected="true"] {
+  background: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+  border-color: var(--semiont-color-primary-600);
+}
+
 .semiont-form__entity-types-display {
   margin-top: 0.5rem;
 }
@@ -300,6 +306,15 @@
 
 .semiont-document-viewer__error-button:hover {
   background: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-document-viewer__error-button {
+  background: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-document-viewer__error-button:hover {
+  background: var(--semiont-color-primary-500);
 }
 
 .semiont-document-viewer__loading {
