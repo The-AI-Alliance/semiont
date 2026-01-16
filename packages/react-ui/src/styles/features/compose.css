@@ -158,7 +158,35 @@
   background-color: var(--semiont-color-red-600);
 }
 
+/* Focus styles for danger button */
+.semiont-button--danger:focus-visible {
+  outline: 2px solid var(--semiont-color-red-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-button--danger:focus-visible {
+  outline-color: var(--semiont-color-red-400);
+}
+
+.semiont-button--danger:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .semiont-button--small {
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
+}
+
+/* Focus styles for small button */
+.semiont-button--small:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-button--small:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-button--small:focus:not(:focus-visible) {
+  outline: none;
 }

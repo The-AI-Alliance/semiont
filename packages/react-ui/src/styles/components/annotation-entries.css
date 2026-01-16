@@ -386,6 +386,26 @@
   width: 100%;
 }
 
+/* Focus styles for reference buttons */
+.semiont-reference-button:focus-visible {
+  outline: 2px solid var(--semiont-color-cyan-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-reference-button:focus-visible {
+  outline-color: var(--semiont-color-cyan-400);
+}
+
+.semiont-reference-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-reference-button:focus-visible {
+    outline-width: 3px;
+  }
+}
+
 .semiont-reference-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;

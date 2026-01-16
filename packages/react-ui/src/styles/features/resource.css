@@ -58,6 +58,26 @@
   border-color: var(--semiont-color-primary-600);
 }
 
+/* Focus styles for entity type buttons */
+.semiont-form__entity-type-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-form__entity-type-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-form__entity-type-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-form__entity-type-button:focus-visible {
+    outline-width: 3px;
+  }
+}
+
 .semiont-form__entity-types-display {
   margin-top: 0.5rem;
 }
@@ -132,6 +152,26 @@
 [data-theme="dark"] .semiont-form__content-source-button[data-active="true"] {
   background: rgba(59, 130, 246, 0.1);
   border-color: var(--semiont-color-primary-500);
+}
+
+/* Focus styles for content source button */
+.semiont-form__content-source-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-form__content-source-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-form__content-source-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-form__content-source-button:focus-visible {
+    outline-width: 3px;
+  }
 }
 
 .semiont-form__content-source-icon-wrapper {
@@ -315,6 +355,26 @@
 
 [data-theme="dark"] .semiont-document-viewer__error-button:hover {
   background: var(--semiont-color-primary-500);
+}
+
+/* Focus styles for error button */
+.semiont-document-viewer__error-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-document-viewer__error-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-document-viewer__error-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-document-viewer__error-button:focus-visible {
+    outline-width: 3px;
+  }
 }
 
 .semiont-document-viewer__loading {

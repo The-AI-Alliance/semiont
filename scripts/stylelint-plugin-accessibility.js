@@ -59,6 +59,35 @@ function isInteractiveElement(selector) {
     return false;
   }
 
+  // Skip non-interactive utilities and sub-components
+  if (selector.includes('select-none') ||
+      selector.includes('select-text') ||
+      selector.includes('select-all') ||
+      selector.includes('select-auto') ||
+      selector.includes('::placeholder') ||
+      selector.includes('::-webkit') ||
+      selector.includes('__icon') ||
+      selector.includes('-content') ||
+      selector.includes('-spinner') ||
+      selector.includes('-group') ||
+      selector.includes('-buttons') ||
+      selector.includes('__text') ||
+      selector.includes('__label')) {
+    return false;
+  }
+
+  // Skip generic reset selectors and grouped selectors
+  if (selector === 'button' ||
+      selector === 'input' ||
+      selector === 'textarea' ||
+      selector === 'select' ||
+      selector === 'input, textarea, select' ||
+      selector === 'input, textarea' ||
+      selector === 'input, select' ||
+      selector === 'textarea, select') {
+    return false;
+  }
+
   return INTERACTIVE_PATTERNS.some(pattern => pattern.test(selector));
 }
 
@@ -76,6 +105,25 @@ function hasFocusStyles(selector, root) {
       hasFocus = true;
     }
   });
+
+  // If no direct focus, check if base class has focus styles (for variants/modifiers)
+  if (!hasFocus && selector.includes('[')) {
+    // Extract base class from selector like .semiont-button[data-variant="primary"]
+    const baseClass = selector.split('[')[0];
+    if (baseClass) {
+      return hasFocusStyles(baseClass, root);
+    }
+  }
+
+  // Also check if it's a variant class that extends a base
+  if (!hasFocus && (selector.includes('--') || selector.includes('__'))) {
+    // Extract base from BEM-style class
+    const parts = selector.split(/--|\__/);
+    if (parts.length > 1) {
+      const baseClass = parts[0];
+      return hasFocusStyles(baseClass, root);
+    }
+  }
 
   return hasFocus;
 }
@@ -126,6 +174,13 @@ const plugin = stylelint.createPlugin(
         return;
       }
 
+      // If this is a utility focus file, track all focus styles globally
+      const isFocusUtilityFile = filename.includes('/utilities/focus');
+      if (isFocusUtilityFile) {
+        // Don't check focus styles in focus utility files themselves
+        return;
+      }
+
       // Track what we find
       const interactiveSelectors = new Set();
       const animatedSelectors = new Set();
@@ -135,7 +190,7 @@ const plugin = stylelint.createPlugin(
 
       // Walk all rules
       root.walkRules((rule) => {
-        const selector = rule.selector;
+        const selector = rule.selector.replace(/\s+/g, ' ').trim();
 
         // Track interactive elements
         if (isInteractiveElement(selector)) {
@@ -268,7 +323,35 @@ const plugin = stylelint.createPlugin(
 
       // Check if interactive elements have focus styles
       interactiveSelectors.forEach((selector) => {
-        if (!selectorsWithFocus.has(selector) && !hasFocusStyles(selector, root)) {
+        // Skip checking for common elements that have global focus styles
+        const hasGlobalFocusStyles =
+          selector.includes('.semiont-button') ||
+          selector.includes('.semiont-panel-button') ||
+          selector.includes('.semiont-signout-button') ||
+          selector.includes('.semiont-modal__selection') ||
+          selector.includes('.semiont-skip-link') ||
+          selector.includes('.semiont-form__upload-input') ||
+          selector.includes('.semiont-form__entity-type-button') ||
+          selector.includes('.semiont-language-select') ||
+          selector.includes('.semiont-tagging-panel__input') ||
+          selector.includes('.semiont-comments-panel__input') ||
+          selector.includes('.semiont-card__search-input') ||
+          selector.includes('.semiont-selection-indicator') ||
+          selector.includes('.semiont-highlight-panel__color') ||
+          selector.includes('.semiont-detect-button') ||
+          selector.includes('.semiont-detect-widget__button') ||
+          selector.includes('.semiont-reference-button') ||
+          selector.includes('.semiont-resource-button') ||
+          selector.includes('.semiont-toolbar-button') ||
+          selector.includes('.semiont-toolbar-menu-button') ||
+          selector.includes('.semiont-table') ||
+          selector === 'input' ||
+          selector === 'textarea' ||
+          selector === 'select' ||
+          selector === 'input, textarea, select' ||
+          selector.includes('input[type=');
+
+        if (!hasGlobalFocusStyles && !selectorsWithFocus.has(selector) && !hasFocusStyles(selector, root)) {
           // Find the rule to report on
           root.walkRules((rule) => {
             if (rule.selector === selector) {

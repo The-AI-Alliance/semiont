@@ -16,6 +16,7 @@
 
 /* Utilities */
 @import './utilities/focus.css';
+@import './utilities/focus-extended.css';
 
 /* Layout */
 @import './layout/layout.css';
