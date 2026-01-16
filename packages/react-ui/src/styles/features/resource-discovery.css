@@ -67,6 +67,15 @@
   background: var(--semiont-color-primary-600);
 }
 
+[data-theme="dark"] .semiont-card__search-button {
+  background: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-card__search-button:hover {
+  background: var(--semiont-color-primary-500);
+}
+
 .semiont-card__search-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -125,6 +134,12 @@
   background: var(--semiont-color-primary-500);
   color: var(--semiont-color-white);
   border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-card__filter-button[data-active="true"] {
+  background: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+  border-color: var(--semiont-color-primary-600);
 }
 
 .semiont-card__documents {
@@ -191,8 +206,17 @@
   transition: background var(--semiont-duration-base);
 }
 
+[data-theme="dark"] .semiont-card__empty-button {
+  background: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+}
+
 .semiont-card__empty-button:hover {
   background: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-card__empty-button:hover {
+  background: var(--semiont-color-primary-500);
 }
 
 /* Resource Card Component */

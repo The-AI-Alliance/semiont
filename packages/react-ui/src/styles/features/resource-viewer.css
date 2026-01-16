@@ -214,6 +214,12 @@
   animation: slideDown 0.3s ease-out;
 }
 
+[data-theme="dark"] .semiont-selection-indicator {
+  background: var(--semiont-color-amber-600);
+  color: var(--semiont-color-amber-100);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
 @keyframes slideDown {
   from {
     transform: translateY(-100%);
@@ -304,9 +310,20 @@
   gap: 0.5rem;
 }
 
+[data-theme="dark"] .semiont-download-button {
+  background: var(--semiont-color-blue-700);
+  color: var(--semiont-color-white);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
 .semiont-download-button:hover {
   background: var(--semiont-color-blue-700);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .semiont-download-button:hover {
+  background: var(--semiont-color-blue-600);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
 }
 
 .semiont-download-button__icon {
@@ -361,9 +378,17 @@
   margin-bottom: 0.5rem;
 }
 
+[data-theme="dark"] .semiont-page__title {
+  color: var(--semiont-text-primary);
+}
+
 .semiont-page__subtitle {
   color: var(--semiont-text-secondary);
   font-size: 1rem;
+}
+
+[data-theme="dark"] .semiont-page__subtitle {
+  color: var(--semiont-text-secondary);
 }
 
 .semiont-page__reference-notice {
