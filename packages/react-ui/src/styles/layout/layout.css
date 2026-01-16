@@ -258,7 +258,7 @@
 
 .semiont-left-sidebar__logo-text {
   font-family: 'Orbitron', var(--semiont-font-sans);
-  font-size: 1.5rem; /* Match size="sm" branding */
+  font-size: 1.5rem; /* Match size="sm" branding - mobile */
   font-weight: bold;
   text-transform: uppercase;
   letter-spacing: -0.025em;
@@ -268,6 +268,18 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (min-width: 640px) {
+  .semiont-left-sidebar__logo-text {
+    font-size: 1.875rem; /* Match size="sm" branding - small screens */
+  }
+}
+
+@media (min-width: 768px) {
+  .semiont-left-sidebar__logo-text {
+    font-size: 2.25rem; /* Match size="sm" branding - medium screens */
+  }
 }
 
 [data-theme="dark"] .semiont-left-sidebar__logo-text {
