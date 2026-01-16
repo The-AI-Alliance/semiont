@@ -142,7 +142,7 @@ export function CollapsibleResourceNavigation({
             <div className="collapsible-resource-navigation__header h-12 flex items-center mb-3">
               {!isCollapsed ? (
                 <>
-                  <div className="collapsible-resource-navigation__title text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex-1">
+                  <div className="semiont-nav-header__title">
                     {translations.title || 'Navigation'}
                   </div>
                   <button

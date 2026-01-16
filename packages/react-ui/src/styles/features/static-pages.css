@@ -239,7 +239,10 @@
   color: var(--semiont-color-white);
 }
 
-[data-theme="dark"] .semiont-static-article h3,
+[data-theme="dark"] .semiont-static-article h3 {
+  color: var(--semiont-color-gray-100);
+}
+
 [data-theme="dark"] .semiont-static-article h4 {
   color: var(--semiont-color-gray-100);
 }
@@ -250,6 +253,12 @@
 
 [data-theme="dark"] .semiont-static-link:hover {
   color: var(--semiont-color-primary-300);
+}
+
+[data-theme="dark"] .semiont-static-link:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-400);
+  outline-offset: 2px;
+  border-radius: 0.125rem;
 }
 
 /* ========================================
@@ -568,8 +577,9 @@
     padding: 0;
   }
 
+  /* Action buttons are hidden in print mode - decorative for printed documents */
   .semiont-static-action-buttons {
-    display: none;
+    display: none; /* stylelint-disable-line semiont/accessibility */
   }
 
   .semiont-static-feature-card,
