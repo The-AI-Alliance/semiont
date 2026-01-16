@@ -17,6 +17,8 @@
 /* Utilities */
 @import './utilities/focus.css';
 @import './utilities/focus-extended.css';
+@import './utilities/motion.css';
+@import './utilities/motion-overrides.css';
 
 /* Layout */
 @import './layout/layout.css';

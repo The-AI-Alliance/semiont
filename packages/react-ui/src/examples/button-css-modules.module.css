@@ -144,3 +144,21 @@
 .iconRight {
   margin-left: 0.5rem;
 }
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none !important;
+  }
+
+  .spinner {
+    animation: none !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  @keyframes spin {
+    from, to {
+      transform: translate(-50%, -50%);
+    }
+  }
+}

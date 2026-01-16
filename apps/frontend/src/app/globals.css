@@ -200,3 +200,56 @@ body {
 .prose {
   margin-left: 0 !important;
 }
+
+/* ========================================
+   Reduced Motion Support
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all animations and transitions */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Override specific keyframes */
+  @keyframes fadeInScale {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideDown {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes pulse-outline {
+    from, to {
+      outline-color: currentColor;
+      outline-offset: 0;
+    }
+  }
+
+  /* Ensure elements are visible without animation */
+  .fade-in-scale {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .slide-down {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .annotation-comment-focused {
+    animation: none !important;
+  }
+}

@@ -131,3 +131,64 @@
   background-size: 20px 4px;
   padding-bottom: 2px;
 }
+
+/* ========================================
+   Reduced Motion Support
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all animations */
+  .annotation-sparkle,
+  .annotation-shimmer,
+  .annotation-pulse,
+  .animate-sparkle-infinite,
+  .animate-sparkle-blue {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  /* Static keyframes */
+  @keyframes sparkle {
+    from, to {
+      transform: none;
+      opacity: 1;
+      box-shadow: none;
+    }
+  }
+
+  @keyframes shimmer {
+    from, to {
+      background-position: 0 center;
+    }
+  }
+
+  @keyframes pulse-glow {
+    from, to {
+      box-shadow: none;
+    }
+  }
+
+  @keyframes sparkle-blue {
+    from, to {
+      filter: none;
+      transform: none;
+    }
+  }
+
+  @keyframes ping {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  /* Ensure content is still visible */
+  .annotation-sparkle {
+    box-shadow: 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+
+  .annotation-shimmer {
+    background: transparent;
+  }
+}

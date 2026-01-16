@@ -1,0 +1,378 @@
+/**
+ * Motion Overrides for Accessibility
+ *
+ * This file applies prefers-reduced-motion overrides to all components
+ * that use animations or transitions, ensuring WCAG 2.1 compliance.
+ */
+
+/* ========================================
+   Global Reduced Motion Settings
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Remove ALL animations and transitions by default */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* ========================================
+     Button Components
+     ======================================== */
+
+  .semiont-button,
+  .semiont-button[data-variant],
+  .semiont-button[data-size],
+  .semiont-button--gradient,
+  .semiont-action-button,
+  .semiont-panel-button,
+  .semiont-toolbar-button,
+  .semiont-signout-button,
+  .semiont-detect-button,
+  .semiont-resource-button,
+  .semiont-reference-button {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* ========================================
+     Loading & Spinner Components
+     ======================================== */
+
+  .semiont-loading__spinner,
+  .semiont-spinner,
+  .semiont-sparkles,
+  .semiont-sparkles-row,
+  .semiont-spinner__circle,
+  .semiont-loading-spinner,
+  .semiont-loading-skeleton {
+    animation: none !important;
+    opacity: 0.6; /* Keep visible but static */
+  }
+
+  /* Skeleton loading effects */
+  .semiont-skeleton,
+  .semiont-skeleton-text,
+  .semiont-skeleton-button,
+  .semiont-skeleton-avatar {
+    animation: none !important;
+    background: var(--semiont-color-gray-200) !important;
+  }
+
+  [data-theme="dark"] .semiont-skeleton,
+  [data-theme="dark"] .semiont-skeleton-text,
+  [data-theme="dark"] .semiont-skeleton-button,
+  [data-theme="dark"] .semiont-skeleton-avatar {
+    background: var(--semiont-color-gray-700) !important;
+  }
+
+  /* ========================================
+     Toast & Notification Components
+     ======================================== */
+
+  .semiont-toast,
+  .semiont-toast__container,
+  .semiont-toast-enter,
+  .semiont-toast-exit,
+  .semiont-notification {
+    animation: none !important;
+    transition: opacity 0.01ms !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  /* ========================================
+     Modal & Dialog Components
+     ======================================== */
+
+  .semiont-modal,
+  .semiont-modal__backdrop,
+  .semiont-modal__content,
+  .semiont-modal-enter,
+  .semiont-modal-exit,
+  .semiont-dialog,
+  .semiont-dialog__overlay {
+    animation: none !important;
+    transition: opacity 0.01ms !important;
+    transform: none !important;
+  }
+
+  /* ========================================
+     Panel & Sidebar Components
+     ======================================== */
+
+  .semiont-panel,
+  .semiont-panel__content,
+  .semiont-sidebar,
+  .semiont-sidebar__content,
+  .semiont-drawer {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+
+  /* ========================================
+     Dropdown & Select Components
+     ======================================== */
+
+  .semiont-dropdown,
+  .semiont-dropdown__menu,
+  .semiont-select__menu,
+  .semiont-autocomplete__dropdown {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+
+  /* ========================================
+     Tab & Accordion Components
+     ======================================== */
+
+  .semiont-tabs__panel,
+  .semiont-accordion__content,
+  .semiont-collapsible,
+  .semiont-expandable {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* ========================================
+     Tooltip & Popover Components
+     ======================================== */
+
+  .semiont-tooltip,
+  .semiont-tooltip__content,
+  .semiont-popover,
+  .semiont-popover__content {
+    transition: none !important;
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  /* ========================================
+     Progress & Status Components
+     ======================================== */
+
+  .semiont-progress__bar,
+  .semiont-progress__fill,
+  .semiont-status-indicator,
+  .semiont-status-badge {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* ========================================
+     Card & List Components
+     ======================================== */
+
+  .semiont-card,
+  .semiont-card__hover,
+  .semiont-list-item,
+  .semiont-grid-item {
+    transition: none !important;
+    transform: none !important;
+  }
+
+  /* ========================================
+     Form Components
+     ======================================== */
+
+  .semiont-form__field,
+  .semiont-input,
+  .semiont-textarea,
+  .semiont-checkbox,
+  .semiont-radio,
+  .semiont-switch,
+  .semiont-toggle {
+    transition: none !important;
+  }
+
+  /* ========================================
+     Annotation & Highlight Components
+     ======================================== */
+
+  .semiont-annotation,
+  .semiont-annotation-entry,
+  .semiont-highlight,
+  .semiont-selection-highlight {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* ========================================
+     Branding & Logo Components
+     ======================================== */
+
+  .semiont-logo,
+  .semiont-brand,
+  .semiont-sparkles-text,
+  .semiont-brand__tagline {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  /* ========================================
+     Table Components
+     ======================================== */
+
+  .semiont-table__row:hover,
+  .semiont-table__cell,
+  .semiont-table__sort-icon {
+    transition: none !important;
+  }
+
+  /* ========================================
+     Navigation Components
+     ======================================== */
+
+  .semiont-nav-link,
+  .semiont-breadcrumb__link,
+  .semiont-pagination__button {
+    transition: none !important;
+  }
+
+  /* ========================================
+     Resource Discovery Components
+     ======================================== */
+
+  .semiont-resource-card,
+  .semiont-discovery-item,
+  .semiont-search-result {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* ========================================
+     Toolbar Components
+     ======================================== */
+
+  .semiont-toolbar__item,
+  .semiont-toolbar-menu,
+  .semiont-toolbar-panel {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* ========================================
+     Layout Components
+     ======================================== */
+
+  .semiont-layout__sidebar,
+  .semiont-layout__main,
+  .semiont-layout__header {
+    transition: none !important;
+  }
+
+  /* ========================================
+     Specific Animation Overrides
+     ======================================== */
+
+  /* Fade animations */
+  @keyframes fadeIn {
+    from, to { opacity: 1; }
+  }
+
+  @keyframes fadeOut {
+    from, to { opacity: 0; }
+  }
+
+  @keyframes fadeInUp {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  /* Slide animations */
+  @keyframes slideInUp {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInDown {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInLeft {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInRight {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideIn {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideDown {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  /* Scale animations */
+  @keyframes scaleIn {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes scaleOut {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  /* Spin animation - static */
+  @keyframes spin {
+    from, to { transform: none; }
+  }
+
+  /* Pulse animation - static */
+  @keyframes pulse {
+    from, to { transform: none; }
+  }
+
+  /* Shimmer animation - static */
+  @keyframes shimmer {
+    from, to { background-position: 0 0; }
+  }
+
+  /* Sparkle animation - static */
+  @keyframes sparkle {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes semiont-sparkle-infinite {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+}

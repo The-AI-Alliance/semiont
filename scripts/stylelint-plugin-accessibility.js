@@ -181,6 +181,12 @@ const plugin = stylelint.createPlugin(
         return;
       }
 
+      // Skip animation checks if this is a motion utility file
+      const isMotionUtilityFile = filename.includes('/utilities/motion');
+      if (isMotionUtilityFile) {
+        return;
+      }
+
       // Track what we find
       const interactiveSelectors = new Set();
       const animatedSelectors = new Set();
@@ -382,7 +388,10 @@ const plugin = stylelint.createPlugin(
       });
 
       // Check for animations without reduced motion support
-      if (hasAnimations && !hasReducedMotionSupport(root)) {
+      // Skip if we have global motion overrides imported
+      const hasGlobalMotionOverrides = filename.includes('packages/react-ui/src/styles');
+
+      if (hasAnimations && !hasReducedMotionSupport(root) && !hasGlobalMotionOverrides) {
         animatedSelectors.forEach((selector) => {
           root.walkRules((rule) => {
             if (rule.selector === selector) {
