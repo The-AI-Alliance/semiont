@@ -53,6 +53,7 @@
 @import './features/resource-discovery.css';
 @import './features/resource-viewer.css';
 @import './features/schemas.css';
+@import './features/static-pages.css';
 @import './features/welcome.css';
 
 /* Patterns */

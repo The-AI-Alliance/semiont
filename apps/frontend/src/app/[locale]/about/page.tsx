@@ -26,150 +26,125 @@ export default function AboutPage() {
       showAuthLinks={false}
       CookiePreferences={CookiePreferences}
       {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+      className="semiont-static-page"
     >
-      <div className="max-w-4xl mx-auto px-4 py-12 space-y-12">
-        {/* Header */}
-        <div className="text-center space-y-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            {t('pageTitle')}
-          </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
-            {t('tagline')}
-          </p>
-        </div>
+      <div className="semiont-static-container">
+        <div className="semiont-static-content">
+          {/* Header */}
+          <header className="semiont-static-header">
+            <h1 className="semiont-static-title">
+              {t('pageTitle')}
+            </h1>
+            <p className="semiont-static-subtitle">
+              {t('tagline')}
+            </p>
+          </header>
 
-        {/* Action Buttons */}
-        <div className="flex gap-4 justify-center items-center flex-wrap">
-          <Link
-            href="/auth/signup"
-            className={buttonStyles.primary.base}
-          >
-            {t('signUp')}
-          </Link>
-          <button
-            onClick={() => signIn(undefined, { callbackUrl: '/know' })}
-            className={buttonStyles.primary.base}
-            type="button"
-          >
-            {t('signIn')}
-          </button>
-        </div>
+          {/* Action Buttons */}
+          <div className="semiont-static-action-buttons">
+            <Link
+              href="/auth/signup"
+              className={buttonStyles.primary.base}
+            >
+              {t('signUp')}
+            </Link>
+            <button
+              onClick={() => signIn(undefined, { callbackUrl: '/know' })}
+              className={buttonStyles.primary.base}
+              type="button"
+            >
+              {t('signIn')}
+            </button>
+          </div>
 
-        {/* Mission Section */}
-        <section className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            {t('missionTitle')}
-          </h2>
-          <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
-            {t('mission')}
-          </p>
-        </section>
+          <article className="semiont-static-article">
+            {/* Mission Section */}
+            <section>
+              <h2>{t('missionTitle')}</h2>
+              <p>
+                {t('mission')}
+              </p>
+            </section>
 
-        {/* Features Section */}
-        <section className="space-y-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center">
-            {t('coreFeaturesTitle')}
-          </h2>
+            {/* Features Section */}
+            <section>
+              <h2>{t('coreFeaturesTitle')}</h2>
 
-          {/* Semantic Content */}
-          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-8">
-            <div className="flex items-start gap-4">
-              <span className="text-3xl">📊</span>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
-                  {t('semanticContentTitle')}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  {t('semanticContentSubtitle')}
-                </p>
-                <div className="text-gray-600 dark:text-gray-300 space-y-3">
+              <div className="semiont-static-feature-grid">
+                {/* Semantic Content */}
+                <div className="semiont-static-feature-card">
+                  <span className="semiont-static-feature-icon">📊</span>
+                  <h3>{t('semanticContentTitle')}</h3>
+                  <p className="semiont-static-feature-subtitle">
+                    {t('semanticContentSubtitle')}
+                  </p>
                   {t('semanticContent').split('\n\n').map((para, i) => (
                     <p key={i}>{para}</p>
                   ))}
+                  <span className="semiont-static-badge semiont-static-badge-planned">
+                    {t('planned')}
+                  </span>
                 </div>
-                <span className="inline-block mt-4 text-sm font-medium text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full bg-amber-100/20 dark:bg-amber-900/20">
-                  {t('planned')}
-                </span>
-              </div>
-            </div>
-          </div>
 
-          {/* Real-time Collaboration */}
-          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-8">
-            <div className="flex items-start gap-4">
-              <span className="text-3xl">🤝</span>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
-                  {t('collaborationTitle')}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  {t('collaborationSubtitle')}
-                </p>
-                <div className="text-gray-600 dark:text-gray-300 space-y-3">
+                {/* Real-time Collaboration */}
+                <div className="semiont-static-feature-card">
+                  <span className="semiont-static-feature-icon">🤝</span>
+                  <h3>{t('collaborationTitle')}</h3>
+                  <p className="semiont-static-feature-subtitle">
+                    {t('collaborationSubtitle')}
+                  </p>
                   {t('collaboration').split('\n\n').map((para, i) => (
                     <p key={i}>{para}</p>
                   ))}
+                  <span className="semiont-static-badge semiont-static-badge-planned">
+                    {t('planned')}
+                  </span>
                 </div>
-                <span className="inline-block mt-4 text-sm font-medium text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full bg-amber-100/20 dark:bg-amber-900/20">
-                  {t('planned')}
-                </span>
-              </div>
-            </div>
-          </div>
 
-          {/* Advanced RBAC */}
-          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-8">
-            <div className="flex items-start gap-4">
-              <span className="text-3xl">🔐</span>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
-                  {t('rbacTitle')}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  {t('rbacSubtitle')}
-                </p>
-                <div className="text-gray-600 dark:text-gray-300 space-y-3">
+                {/* Advanced RBAC */}
+                <div className="semiont-static-feature-card">
+                  <span className="semiont-static-feature-icon">🔐</span>
+                  <h3>{t('rbacTitle')}</h3>
+                  <p className="semiont-static-feature-subtitle">
+                    {t('rbacSubtitle')}
+                  </p>
                   {t('rbac').split('\n\n').map((para, i) => (
                     <p key={i}>{para}</p>
                   ))}
+                  <span className="semiont-static-badge semiont-static-badge-planned">
+                    {t('planned')}
+                  </span>
                 </div>
-                <span className="inline-block mt-4 text-sm font-medium text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full bg-amber-100/20 dark:bg-amber-900/20">
-                  {t('planned')}
-                </span>
               </div>
-            </div>
-          </div>
-        </section>
+            </section>
 
-        {/* Open Source Section */}
-        <section className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 dark:from-cyan-600/10 dark:to-blue-600/10 rounded-lg p-8 border border-cyan-400/30 dark:border-cyan-500/30">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            {t('openSourceTitle')}
-          </h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-6">
-            {t('openSource')}
-          </p>
-          <div className="flex gap-4">
-            <a
-              href="https://github.com/The-AI-Alliance/semiont"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonStyles.primary.base}
-            >
-              {t('viewOnGitHub')}
-            </a>
-          </div>
-        </section>
+            {/* Open Source Section */}
+            <section className="semiont-static-highlight">
+              <h2>{t('openSourceTitle')}</h2>
+              <p>
+                {t('openSource')}
+              </p>
+              <div className="semiont-static-action-buttons">
+                <a
+                  href="https://github.com/The-AI-Alliance/semiont"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={buttonStyles.primary.base}
+                >
+                  {t('viewOnGitHub')}
+                </a>
+              </div>
+            </section>
 
-        {/* Future Vision */}
-        <section className="text-center space-y-4">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t('futureVisionTitle')}
-          </h2>
-          <p className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            {t('futureVision')}
-          </p>
-        </section>
+            {/* Future Vision */}
+            <section>
+              <h2>{t('futureVisionTitle')}</h2>
+              <p>
+                {t('futureVision')}
+              </p>
+            </section>
+          </article>
+        </div>
       </div>
     </PageLayout>
   );

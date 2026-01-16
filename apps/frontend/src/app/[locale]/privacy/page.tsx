@@ -23,34 +23,36 @@ export default function PrivacyPolicyPage() {
       tHome={tHome}
       CookiePreferences={CookiePreferences}
       {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-      className="bg-gray-50"
+      className="semiont-static-page"
     >
-      <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">{t('pageTitle')}</h1>
+      <div className="semiont-static-container">
+        <div className="semiont-static-content">
+          <header className="semiont-static-header">
+            <h1 className="semiont-static-title">{t('pageTitle')}</h1>
+          </header>
 
-          <div className="prose prose-lg max-w-none space-y-6">
+          <article className="semiont-static-article">
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('introTitle')}</h2>
+              <h2>{t('introTitle')}</h2>
               {t('intro').split('\n\n').map((para, i) => (
-                <p key={i} className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                <p key={i}>
                   {para}
                 </p>
               ))}
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('infoCollectTitle')}</h2>
+              <h2>{t('infoCollectTitle')}</h2>
 
-              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">{t('personalInfoTitle')}</h3>
-              <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
+              <h3>{t('personalInfoTitle')}</h3>
+              <ul>
                 {t('personalInfo').split('\n').map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}
               </ul>
 
-              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2 mt-4">{t('autoCollectTitle')}</h3>
-              <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
+              <h3>{t('autoCollectTitle')}</h3>
+              <ul>
                 {t('autoCollect').split('\n').map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}
@@ -58,8 +60,8 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('howWeUseTitle')}</h2>
-              <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
+              <h2>{t('howWeUseTitle')}</h2>
+              <ul>
                 {t('howWeUse').split('\n').map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}
@@ -67,45 +69,45 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('cookiePolicyTitle')}</h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
+              <h2>{t('cookiePolicyTitle')}</h2>
+              <p>
                 {t('cookiePolicyIntro')}
               </p>
 
-              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">{t('cookieCategoriesTitle')}</h3>
+              <h3>{t('cookieCategoriesTitle')}</h3>
 
-              <div className="space-y-4">
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900">{t('necessaryCookiesTitle')}</h4>
+              <div className="semiont-static-cookie-grid">
+                <div className="semiont-static-cookie-card">
+                  <h4>{t('necessaryCookiesTitle')}</h4>
                   {t('necessaryCookies').split('\n\n').map((para, i) => (
-                    <p key={i} className={i === 0 ? "text-sm text-gray-600 mt-1" : "text-xs text-gray-500 mt-1"}>
+                    <p key={i}>
                       {para}
                     </p>
                   ))}
                 </div>
 
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900">{t('analyticsCookiesTitle')}</h4>
+                <div className="semiont-static-cookie-card">
+                  <h4>{t('analyticsCookiesTitle')}</h4>
                   {t('analyticsCookies').split('\n\n').map((para, i) => (
-                    <p key={i} className={i === 0 ? "text-sm text-gray-600 mt-1" : "text-xs text-gray-500 mt-1"}>
+                    <p key={i}>
                       {para}
                     </p>
                   ))}
                 </div>
 
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900">{t('marketingCookiesTitle')}</h4>
+                <div className="semiont-static-cookie-card">
+                  <h4>{t('marketingCookiesTitle')}</h4>
                   {t('marketingCookies').split('\n\n').map((para, i) => (
-                    <p key={i} className={i === 0 ? "text-sm text-gray-600 mt-1" : "text-xs text-gray-500 mt-1"}>
+                    <p key={i}>
                       {para}
                     </p>
                   ))}
                 </div>
 
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900">{t('preferenceCookiesTitle')}</h4>
+                <div className="semiont-static-cookie-card">
+                  <h4>{t('preferenceCookiesTitle')}</h4>
                   {t('preferenceCookies').split('\n\n').map((para, i) => (
-                    <p key={i} className={i === 0 ? "text-sm text-gray-600 mt-1" : "text-xs text-gray-500 mt-1"}>
+                    <p key={i}>
                       {para}
                     </p>
                   ))}
@@ -114,17 +116,17 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('yourRightsTitle')}</h2>
+              <h2>{t('yourRightsTitle')}</h2>
 
-              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">{t('gdprRightsTitle')}</h3>
-              <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
+              <h3>{t('gdprRightsTitle')}</h3>
+              <ul>
                 {t('gdprRights').split('\n').map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}
               </ul>
 
-              <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2 mt-4">{t('ccpaRightsTitle')}</h3>
-              <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1">
+              <h3>{t('ccpaRightsTitle')}</h3>
+              <ul>
                 {t('ccpaRights').split('\n').map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}
@@ -132,17 +134,17 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('dataSecurityTitle')}</h2>
+              <h2>{t('dataSecurityTitle')}</h2>
               {t('dataSecurity').split('\n\n').map((block, i) => {
                 if (i === 0) {
                   return (
-                    <p key={i} className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    <p key={i}>
                       {block}
                     </p>
                   );
                 }
                 return (
-                  <ul key={i} className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-1 mt-2">
+                  <ul key={i}>
                     {block.split('\n').map((item, j) => (
                       <li key={j}>{item}</li>
                     ))}
@@ -152,26 +154,26 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('dataRetentionTitle')}</h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              <h2>{t('dataRetentionTitle')}</h2>
+              <p>
                 {t('dataRetention')}
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('internationalTransfersTitle')}</h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              <h2>{t('internationalTransfersTitle')}</h2>
+              <p>
                 {t('internationalTransfers')}
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('contactTitle')}</h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              <h2>{t('contactTitle')}</h2>
+              <p>
                 {t('contactIntro')}
               </p>
-              <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                <p className="text-gray-700 dark:text-gray-300">
+              <div className="semiont-static-info-box">
+                <p>
                   <strong>{t('contactEmail')}</strong> privacy@semiont.com<br />
                   <strong>{t('contactAddress')}</strong> [Your Company Address]
                 </p>
@@ -179,15 +181,17 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">{t('updatesTitle')}</h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              <h2>{t('updatesTitle')}</h2>
+              <p>
                 {t('updates')}
               </p>
-              <p className="text-gray-600 text-sm mt-4">
-                <strong>{t('lastUpdated', { date: new Date().toLocaleDateString() })}</strong>
-              </p>
+              <footer className="semiont-static-footer">
+                <p>
+                  <strong>{t('lastUpdated', { date: new Date().toLocaleDateString() })}</strong>
+                </p>
+              </footer>
             </section>
-          </div>
+          </article>
         </div>
       </div>
     </PageLayout>
