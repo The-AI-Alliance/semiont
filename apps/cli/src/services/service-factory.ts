@@ -16,6 +16,7 @@ import { FilesystemService } from './filesystem-service.js';
 import { GraphService } from './graph-service.js';
 import { MCPService } from './mcp-service.js';
 import { InferenceService } from './inference-service.js';
+import { ProxyService } from './proxy-service.js';
 import { GenericService } from '../core/generic-service.js';
 import { printInfo } from '../core/io/cli-logger.js';
 
@@ -59,6 +60,9 @@ export class ServiceFactory {
 
       case 'inference':
         return new InferenceService(name, platform, envConfig, serviceConfig, runtimeFlags);
+
+      case 'proxy':
+        return new ProxyService('proxy', platform, envConfig, serviceConfig, runtimeFlags);
 
       default:
         // Use GenericService for unknown service types

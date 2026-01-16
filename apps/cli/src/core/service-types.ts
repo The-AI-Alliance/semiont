@@ -28,7 +28,8 @@ export const SERVICE_TYPES = {
   
   // Infrastructure
   STACK: 'stack',          // Infrastructure stacks (CloudFormation, Terraform)
-  
+  PROXY: 'proxy',          // API gateways, reverse proxies, load balancers
+
   // Fallback
   GENERIC: 'generic',      // Generic service without specific type
 } as const;
