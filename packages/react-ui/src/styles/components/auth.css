@@ -129,6 +129,10 @@
   letter-spacing: 0.05em;
 }
 
+[data-theme="dark"] .semiont-auth__divider-text {
+  color: var(--semiont-text-secondary);
+}
+
 /* Info text */
 .semiont-auth__info {
   text-align: center;

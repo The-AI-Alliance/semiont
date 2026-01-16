@@ -15,6 +15,10 @@
   backdrop-filter: blur(4px);
 }
 
+[data-theme="dark"] .semiont-modal__backdrop {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
 .semiont-modal__container {
   position: fixed;
   inset: 0;
@@ -40,6 +44,12 @@
   transition: all 0.2s ease;
   padding: 1.5rem;
   border: 1px solid var(--semiont-border-primary);
+}
+
+[data-theme="dark"] .semiont-modal__panel {
+  background-color: var(--semiont-bg-primary);
+  border-color: var(--semiont-border-primary);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
 }
 
 .semiont-modal__panel--medium {
@@ -92,7 +102,16 @@
   cursor: pointer;
 }
 
+[data-theme="dark"] .semiont-modal__close {
+  color: var(--semiont-color-gray-400);
+}
+
 .semiont-modal__close:hover {
+  color: var(--semiont-text-primary);
+  background-color: var(--semiont-bg-tertiary);
+}
+
+[data-theme="dark"] .semiont-modal__close:hover {
   color: var(--semiont-text-primary);
   background-color: var(--semiont-bg-tertiary);
 }
@@ -131,6 +150,11 @@
   border-top: 1px solid var(--semiont-border-primary);
 }
 
+[data-theme="dark"] .semiont-modal__footer {
+  background-color: var(--semiont-bg-secondary);
+  border-color: var(--semiont-border-primary);
+}
+
 .semiont-modal__footer-content {
   display: flex;
   align-items: center;
@@ -153,6 +177,11 @@
   background-color: var(--semiont-bg-tertiary);
   border: 1px solid var(--semiont-border-primary);
   border-radius: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-modal__hint-key {
+  background-color: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-border-primary);
 }
 
 /* Modal Icon */
@@ -239,6 +268,11 @@
   cursor: pointer;
 }
 
+[data-theme="dark"] .semiont-chip {
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-primary);
+}
+
 .semiont-chip:hover {
   background-color: var(--semiont-bg-secondary);
 }
@@ -249,9 +283,20 @@
   color: var(--semiont-color-white);
 }
 
+[data-theme="dark"] .semiont-chip--selected,
+[data-theme="dark"] .semiont-chip[data-selected="true"] {
+  background-color: var(--semiont-color-blue-700);
+  color: var(--semiont-color-white);
+}
+
 .semiont-chip--selected:hover,
 .semiont-chip[data-selected="true"]:hover {
   background-color: var(--semiont-color-blue-700);
+}
+
+[data-theme="dark"] .semiont-chip--selected:hover,
+[data-theme="dark"] .semiont-chip[data-selected="true"]:hover {
+  background-color: var(--semiont-color-blue-600);
 }
 
 /* Button Extensions for Modals */
@@ -264,9 +309,19 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
+[data-theme="dark"] .semiont-button--gradient {
+  background: linear-gradient(to right, var(--semiont-color-blue-700), var(--semiont-color-cyan-700));
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
 .semiont-button--gradient:hover {
   background: linear-gradient(to right, var(--semiont-color-blue-700), var(--semiont-color-cyan-700));
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .semiont-button--gradient:hover {
+  background: linear-gradient(to right, var(--semiont-color-blue-600), var(--semiont-color-cyan-600));
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
 }
 
 .semiont-button--disabled,
@@ -274,6 +329,12 @@
   background-color: var(--semiont-bg-tertiary);
   color: var(--semiont-text-tertiary);
   cursor: not-allowed;
+}
+
+[data-theme="dark"] .semiont-button--disabled,
+[data-theme="dark"] .semiont-button[data-disabled="true"] {
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-tertiary);
 }
 
 /* Keyboard Shortcuts Styles */
@@ -344,6 +405,12 @@
   background-color: var(--semiont-bg-tertiary);
   border: 1px solid var(--semiont-border-primary);
   border-radius: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-shortcuts__key {
+  color: var(--semiont-text-primary);
+  background-color: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-border-primary);
 }
 
 .semiont-shortcuts__note {

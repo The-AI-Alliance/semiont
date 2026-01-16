@@ -78,11 +78,24 @@
   border-color: var(--semiont-color-red-500);
 }
 
+[data-theme="dark"] .semiont-form__input[aria-invalid="true"],
+[data-theme="dark"] .semiont-form__select[aria-invalid="true"],
+[data-theme="dark"] .semiont-form__textarea[aria-invalid="true"] {
+  border-color: var(--semiont-color-red-400);
+}
+
 .semiont-form__input[aria-invalid="true"]:focus,
 .semiont-form__select[aria-invalid="true"]:focus,
 .semiont-form__textarea[aria-invalid="true"]:focus {
   border-color: var(--semiont-color-red-500);
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+[data-theme="dark"] .semiont-form__input[aria-invalid="true"]:focus,
+[data-theme="dark"] .semiont-form__select[aria-invalid="true"]:focus,
+[data-theme="dark"] .semiont-form__textarea[aria-invalid="true"]:focus {
+  border-color: var(--semiont-color-red-400);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
 }
 
 /* Textarea specific */

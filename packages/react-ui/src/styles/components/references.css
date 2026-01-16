@@ -118,6 +118,10 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
+[data-theme="dark"] .semiont-detect-widget__button[data-enabled="true"] {
+  background: linear-gradient(to right, var(--semiont-color-blue-600), var(--semiont-color-cyan-600));
+}
+
 .semiont-detect-widget__button[data-enabled="true"]:hover {
   background: linear-gradient(to right, var(--semiont-color-blue-700), var(--semiont-color-cyan-700));
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -127,6 +131,10 @@
   background: linear-gradient(to right, var(--semiont-color-blue-600), var(--semiont-color-cyan-600));
   color: var(--semiont-color-white);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .semiont-detect-widget__button--gradient {
+  background: linear-gradient(to right, var(--semiont-color-blue-600), var(--semiont-color-cyan-600));
 }
 
 .semiont-detect-widget__button--gradient:hover {
