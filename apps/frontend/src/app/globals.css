@@ -13,8 +13,8 @@
   --cm-cursor-color: #000000;
 }
 
-/* Dark mode - applied when html has class="dark" */
-.dark {
+/* Dark mode - applied when html has data-theme="dark" attribute */
+[data-theme="dark"] {
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 0, 0, 0;
   --background-end-rgb: 0, 0, 0;
@@ -29,6 +29,15 @@ body {
       rgb(var(--background-end-rgb))
     )
     rgb(var(--background-start-rgb));
+}
+
+/* Knowledge layout background that respects data-theme */
+.semiont-knowledge-layout {
+  background-color: #f9fafb; /* gray-50 */
+}
+
+[data-theme="dark"] .semiont-knowledge-layout {
+  background-color: #111827; /* gray-900 */
 }
 
 @keyframes pulse {

@@ -323,7 +323,7 @@
 }
 
 [data-theme="dark"] .semiont-page {
-  background-color: var(--semiont-bg-primary);
+  background-color: var(--semiont-bg-secondary);
 }
 
 .semiont-page__content {

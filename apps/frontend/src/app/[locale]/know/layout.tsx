@@ -32,7 +32,7 @@ export default function KnowledgeLayout({
     <CacheProvider cacheManager={cacheManager}>
       <OpenResourcesProvider openResourcesManager={openResourcesManager}>
         <ResourceAnnotationsProvider>
-          <div className="h-screen bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
+          <div className="h-screen semiont-knowledge-layout flex flex-col overflow-hidden">
             <div className="flex flex-1 overflow-hidden">
               <KnowledgeSidebarWrapper />
               <main className="flex-1 px-2 pb-6 flex flex-col overflow-hidden">
