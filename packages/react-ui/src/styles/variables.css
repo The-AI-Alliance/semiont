@@ -269,6 +269,20 @@
   }
 }
 
+/* Explicit light mode */
+[data-theme="light"] {
+  --semiont-bg-primary: var(--semiont-color-neutral-0);
+  --semiont-bg-secondary: var(--semiont-color-neutral-50);
+  --semiont-bg-tertiary: var(--semiont-color-neutral-100);
+  --semiont-bg-inverse: var(--semiont-color-neutral-900);
+
+  --semiont-text-primary: var(--semiont-color-neutral-900);
+  --semiont-text-secondary: var(--semiont-color-neutral-600);
+  --semiont-text-tertiary: var(--semiont-color-neutral-500);
+  --semiont-text-disabled: var(--semiont-color-neutral-400);
+  --semiont-text-inverse: var(--semiont-color-neutral-0);
+}
+
 /* Allow manual dark mode override */
 [data-theme="dark"] {
   --semiont-bg-primary: var(--semiont-color-neutral-900);

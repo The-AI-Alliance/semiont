@@ -119,7 +119,7 @@
 }
 
 [data-theme="dark"] .semiont-auth__divider-line {
-  background-color: var(--semiont-color-gray-700);
+  background-color: var(--semiont-bg-tertiary);
 }
 
 .semiont-auth__divider-text {

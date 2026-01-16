@@ -114,7 +114,7 @@
 
 /* Secondary variant */
 .semiont-button[data-variant="secondary"] {
-  background-color: var(--semiont-color-neutral-100);
+  background-color: var(--semiont-bg-tertiary);
   color: var(--semiont-color-neutral-900);
 }
 
@@ -184,7 +184,7 @@
 }
 
 .semiont-button[data-variant="ghost"]:hover:not(:disabled):not([data-disabled="true"]) {
-  background-color: var(--semiont-color-neutral-100);
+  background-color: var(--semiont-bg-tertiary);
 }
 
 .semiont-button[data-variant="ghost"]:active:not(:disabled):not([data-disabled="true"]),

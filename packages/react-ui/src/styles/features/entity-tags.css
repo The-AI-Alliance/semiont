@@ -115,7 +115,7 @@
 
 [data-theme="dark"] .semiont-entity-tags__input {
   border-color: var(--semiont-color-gray-600);
-  background-color: var(--semiont-color-gray-700);
+  background-color: var(--semiont-bg-tertiary);
   color: var(--semiont-color-white);
 }
 

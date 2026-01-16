@@ -48,7 +48,7 @@
 }
 
 [data-theme="dark"] .annotation-comment:hover {
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
 }
 
 /* Assessment annotation - Red wavy underline */

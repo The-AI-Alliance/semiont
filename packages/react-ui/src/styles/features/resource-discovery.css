@@ -6,7 +6,7 @@
 
 /* Card Component */
 .semiont-card {
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   border: 1px solid var(--semiont-color-gray-200);
   border-radius: var(--semiont-radius-lg);
   padding: 1.5rem;
@@ -14,7 +14,7 @@
 }
 
 [data-theme="dark"] .semiont-card {
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
   border-color: var(--semiont-color-gray-700);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
@@ -36,8 +36,8 @@
   border: 1px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-md);
   font-size: 1rem;
-  background: var(--semiont-color-white);
-  color: var(--semiont-color-gray-900);
+  background: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
 }
 
 [data-theme="dark"] .semiont-card__search-input {
@@ -98,7 +98,7 @@
   padding: 0.5rem 1rem;
   border: 1px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-full);
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   color: var(--semiont-color-gray-700);
   font-size: 0.875rem;
   cursor: pointer;
@@ -199,7 +199,7 @@
 .semiont-resource-card {
   display: flex;
   flex-direction: column;
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   border: 1px solid var(--semiont-color-gray-200);
   border-radius: var(--semiont-radius-lg);
   padding: 1.25rem;
@@ -232,7 +232,7 @@
 .semiont-resource-card__title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--semiont-color-gray-900);
+  color: var(--semiont-text-primary);
   line-height: 1.4;
   flex: 1;
   margin-right: 0.75rem;
@@ -300,7 +300,7 @@
 }
 
 [data-theme="dark"] .semiont-resource-card__tag {
-  background: var(--semiont-color-gray-700);
+  background: var(--semiont-bg-tertiary);
   color: var(--semiont-color-gray-300);
 }
 

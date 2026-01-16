@@ -98,7 +98,7 @@
 }
 
 [data-theme="dark"] .semiont-unified-panel__tab-button--active {
-  background: var(--semiont-color-gray-700);
+  background: var(--semiont-bg-tertiary);
   color: var(--semiont-color-gray-100);
 }
 
@@ -495,7 +495,7 @@
 }
 
 [data-theme="dark"] .semiont-annotation-prompt {
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
 }
 
 .semiont-annotation-prompt[data-type="tag"] {
@@ -709,7 +709,7 @@
 }
 
 [data-theme="dark"] .semiont-form-field__separator {
-  background: var(--semiont-color-gray-700);
+  background: var(--semiont-bg-tertiary);
 }
 
 .semiont-form-field__description {
@@ -811,7 +811,7 @@
 }
 
 [data-theme="dark"] .semiont-slider {
-  background: var(--semiont-color-gray-700);
+  background: var(--semiont-bg-tertiary);
 }
 
 .semiont-slider::-webkit-slider-thumb {
@@ -855,7 +855,7 @@
 
 [data-theme="dark"] .semiont-text-button:hover {
   color: var(--semiont-color-gray-200);
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
 }
 
 .semiont-text-button[data-variant="comment"] {
@@ -967,7 +967,7 @@
 
 [data-theme="dark"] .semiont-detect-button:hover {
   border-color: var(--semiont-color-gray-500);
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
 }
 
 .semiont-detect-button[data-type="tag"] {
@@ -1020,7 +1020,7 @@
 }
 
 [data-theme="dark"] .semiont-detection-progress {
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
 }
 
 .semiont-detection-progress__params {
@@ -1111,7 +1111,7 @@
 }
 
 [data-theme="dark"] .semiont-progress-bar {
-  background: var(--semiont-color-gray-700);
+  background: var(--semiont-bg-tertiary);
 }
 
 .semiont-progress-bar__fill {
@@ -1281,7 +1281,7 @@
 
 [data-theme="dark"] .semiont-collaboration-panel__event-count {
   color: var(--semiont-color-gray-400);
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
 }
 
 .semiont-collaboration-panel__details {
@@ -1548,7 +1548,7 @@
 }
 
 [data-theme="dark"] .semiont-history-event[data-interactive="true"]:hover {
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
 }
 
 .semiont-history-event__content {

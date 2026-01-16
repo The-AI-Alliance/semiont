@@ -8,12 +8,12 @@
 .semiont-devops-feature {
   border-radius: 0.5rem;
   padding: 1.5rem;
-  background-color: var(--semiont-color-gray-50);
+  background-color: var(--semiont-bg-secondary);
   border: 1px solid var(--semiont-color-gray-200);
 }
 
 [data-theme="dark"] .semiont-devops-feature {
-  background-color: rgba(31, 41, 55, 0.5); /* gray-800/50 */
+  background-color: rgba(0, 0, 0, 0.05); /* gray-800/50 */
   border-color: var(--semiont-color-gray-700);
 }
 

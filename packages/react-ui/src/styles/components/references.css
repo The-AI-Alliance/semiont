@@ -108,7 +108,7 @@
 }
 
 [data-theme="dark"] .semiont-detect-widget__button[data-enabled="false"] {
-  background-color: var(--semiont-color-gray-700);
+  background-color: var(--semiont-bg-tertiary);
   color: var(--semiont-color-gray-500);
 }
 
@@ -141,7 +141,7 @@
 
 /* Detection Log */
 .semiont-detect-widget__log {
-  background-color: var(--semiont-color-white);
+  background-color: var(--semiont-bg-primary);
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   padding: 1rem;
@@ -254,23 +254,23 @@
 }
 
 .semiont-chip--selectable[data-selected="false"] {
-  background-color: var(--semiont-color-gray-50);
+  background-color: var(--semiont-bg-secondary);
   color: var(--semiont-color-gray-700);
   border-color: var(--semiont-color-gray-300);
 }
 
 [data-theme="dark"] .semiont-chip--selectable[data-selected="false"] {
-  background-color: var(--semiont-color-gray-800);
+  background-color: var(--semiont-bg-secondary);
   color: var(--semiont-color-gray-300);
   border-color: var(--semiont-color-gray-600);
 }
 
 .semiont-chip--selectable[data-selected="false"]:hover {
-  background-color: var(--semiont-color-gray-100);
+  background-color: var(--semiont-bg-tertiary);
 }
 
 [data-theme="dark"] .semiont-chip--selectable[data-selected="false"]:hover {
-  background-color: var(--semiont-color-gray-700);
+  background-color: var(--semiont-bg-tertiary);
 }
 
 .semiont-chip--selectable[data-selected="true"] {

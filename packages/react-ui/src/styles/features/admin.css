@@ -22,7 +22,7 @@
 
 /* Admin Filters Card */
 .semiont-admin__filters-card {
-  background-color: var(--semiont-color-white);
+  background-color: var(--semiont-bg-primary);
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 1.5rem;
@@ -31,7 +31,7 @@
 }
 
 [data-theme="dark"] .semiont-admin__filters-card {
-  background-color: var(--semiont-color-gray-800);
+  background-color: var(--semiont-bg-secondary);
   border-color: var(--semiont-color-gray-700);
 }
 
@@ -44,20 +44,20 @@
 
 /* Admin Table Card */
 .semiont-admin__table-card {
-  background-color: var(--semiont-color-white);
+  background-color: var(--semiont-bg-primary);
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   border: 1px solid var(--semiont-color-gray-200);
 }
 
 [data-theme="dark"] .semiont-admin__table-card {
-  background-color: var(--semiont-color-gray-800);
+  background-color: var(--semiont-bg-secondary);
   border-color: var(--semiont-color-gray-700);
 }
 
 /* Admin Card */
 .semiont-admin__card {
-  background-color: var(--semiont-color-white);
+  background-color: var(--semiont-bg-primary);
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 1.5rem;
@@ -66,7 +66,7 @@
 }
 
 [data-theme="dark"] .semiont-admin__card {
-  background-color: var(--semiont-color-gray-800);
+  background-color: var(--semiont-bg-secondary);
   border-color: var(--semiont-color-gray-700);
 }
 
@@ -134,12 +134,12 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem;
-  background-color: var(--semiont-color-gray-50);
+  background-color: var(--semiont-bg-secondary);
   border-radius: 0.5rem;
 }
 
 [data-theme="dark"] .semiont-provider-item {
-  background-color: var(--semiont-color-gray-700);
+  background-color: var(--semiont-bg-tertiary);
 }
 
 .semiont-provider-item__info {

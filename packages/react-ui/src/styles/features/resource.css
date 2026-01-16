@@ -23,7 +23,7 @@
   padding: 0.5rem 1rem;
   border: 1px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-md);
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   color: var(--semiont-color-gray-700);
   font-size: 0.875rem;
   cursor: pointer;
@@ -98,7 +98,7 @@
   padding: 0.75rem;
   border: 2px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-md);
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   cursor: pointer;
   transition: all var(--semiont-duration-base);
 }
@@ -147,7 +147,7 @@
 .semiont-form__content-source-label {
   display: block;
   font-weight: 500;
-  color: var(--semiont-color-gray-900);
+  color: var(--semiont-text-primary);
   margin-bottom: 0.25rem;
 }
 
@@ -207,7 +207,7 @@
 }
 
 [data-theme="dark"] .semiont-document-viewer {
-  background: var(--semiont-color-gray-900);
+  background: var(--semiont-bg-primary);
 }
 
 .semiont-document-viewer__main {
@@ -227,12 +227,12 @@
 }
 
 .semiont-document-viewer__header {
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
 [data-theme="dark"] .semiont-document-viewer__header {
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
   border-bottom-color: var(--semiont-color-gray-700);
 }
 
@@ -246,7 +246,7 @@
 .semiont-document-viewer__title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--semiont-color-gray-900);
+  color: var(--semiont-text-primary);
 }
 
 [data-theme="dark"] .semiont-document-viewer__title {
@@ -270,7 +270,7 @@
 .semiont-document-viewer__error-title {
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--semiont-color-gray-900);
+  color: var(--semiont-text-primary);
   margin: 0 0 0.5rem;
 }
 
@@ -346,7 +346,7 @@
 /* Toolbar panels container */
 .semiont-toolbar-panels {
   width: 20rem;
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   border-left: 1px solid var(--semiont-color-gray-200);
   padding: 1rem;
   overflow: hidden;
@@ -375,7 +375,7 @@
 .semiont-admin__section-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--semiont-color-gray-900);
+  color: var(--semiont-text-primary);
   margin: 0 0 0.5rem;
 }
 

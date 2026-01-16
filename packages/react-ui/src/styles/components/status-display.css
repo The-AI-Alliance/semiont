@@ -41,7 +41,7 @@
 }
 
 .semiont-status-display[data-status="info"] {
-  background-color: #f3f4f6;
+  background-color: var(--semiont-bg-tertiary);
   color: #1f2937;
 }
 
@@ -111,7 +111,7 @@
 
 /* DetectionProgressWidget Component */
 .semiont-detection-progress {
-  background-color: var(--semiont-color-neutral-0);
+  background-color: var(--semiont-bg-primary);
   border-radius: var(--semiont-radius-lg);
   box-shadow: var(--semiont-shadow-sm);
   padding: var(--semiont-spacing-md);
@@ -292,7 +292,7 @@
   align-items: center;
   gap: 0.5rem; /* gap-2 from main */
   padding: 0.75rem 0; /* py-3 from main */
-  background-color: var(--semiont-color-gray-50);
+  background-color: var(--semiont-bg-secondary);
   border-left: 1px solid var(--semiont-color-gray-200);
   flex-shrink: 0;
 }
@@ -337,7 +337,7 @@
 
 /* Dark mode for Toolbar - Fixed to respect data-theme attribute */
 [data-theme="dark"] .semiont-toolbar {
-  background-color: var(--semiont-color-gray-900);
+  background-color: var(--semiont-bg-inverse);
   border-left-color: var(--semiont-color-gray-700);
 }
 
@@ -397,7 +397,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--semiont-color-neutral-50);
+  background-color: var(--semiont-bg-secondary);
   padding: var(--semiont-spacing-md);
 }
 
@@ -517,7 +517,7 @@
 @media (prefers-color-scheme: dark) {
   [data-theme="dark"] .semiont-error-boundary-container,
   .semiont-error-boundary-container {
-    background-color: var(--semiont-color-neutral-900);
+    background-color: var(--semiont-bg-inverse);
   }
 
   [data-theme="dark"] .semiont-error-boundary-title,

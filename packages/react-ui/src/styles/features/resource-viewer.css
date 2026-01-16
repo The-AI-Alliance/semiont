@@ -14,14 +14,14 @@
 /* Delete Confirmation Modal */
 .semiont-delete-confirmation {
   padding: 1.5rem;
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   border-radius: var(--semiont-radius-lg);
   max-width: 28rem;
   width: 100%;
 }
 
 [data-theme="dark"] .semiont-delete-confirmation {
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
 }
 
 .semiont-delete-confirmation__header {
@@ -48,7 +48,7 @@
 
 .semiont-delete-confirmation__quote {
   padding: 0.75rem;
-  background: var(--semiont-color-gray-100);
+  background: var(--semiont-bg-tertiary);
   border-radius: var(--semiont-radius-md);
   margin-bottom: 1rem;
   font-style: italic;
@@ -100,11 +100,11 @@
   padding: 0 1.5rem;
   height: 100%;
   overflow-y: auto;
-  background-color: var(--semiont-color-white);
+  background-color: var(--semiont-bg-primary);
 }
 
 [data-theme="dark"] .semiont-browse-view {
-  background-color: var(--semiont-color-gray-900);
+  background-color: var(--semiont-bg-inverse);
 }
 
 .semiont-browse-view--pdf,
@@ -147,13 +147,13 @@
   position: relative;
   padding: 0 1.5rem;
   padding-bottom: 2rem;
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
   height: 100%;
   overflow-y: auto;
 }
 
 [data-theme="dark"] .semiont-annotate-view {
-  background: var(--semiont-color-gray-900);
+  background: var(--semiont-bg-inverse);
 }
 
 .semiont-annotate-view--image,
@@ -162,12 +162,12 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  background: var(--semiont-color-gray-100);
+  background: var(--semiont-bg-tertiary);
 }
 
 [data-theme="dark"] .semiont-annotate-view--image,
 [data-theme="dark"] .semiont-annotate-view--pdf {
-  background: var(--semiont-color-gray-800);
+  background: var(--semiont-bg-secondary);
 }
 
 .semiont-annotate-view__content {
@@ -319,11 +319,11 @@
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background-color: var(--semiont-color-gray-50);
+  background-color: var(--semiont-bg-secondary);
 }
 
 [data-theme="dark"] .semiont-page {
-  background-color: var(--semiont-color-gray-900);
+  background-color: var(--semiont-bg-secondary);
 }
 
 .semiont-page__content {

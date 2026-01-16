@@ -26,12 +26,12 @@
    ============================================ */
 
 .semiont-table__head {
-  background-color: var(--semiont-color-gray-50);
+  background-color: var(--semiont-bg-secondary);
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
 [data-theme="dark"] .semiont-table__head {
-  background-color: var(--semiont-color-gray-900);
+  background-color: var(--semiont-bg-inverse);
   border-color: var(--semiont-color-gray-700);
 }
 
@@ -58,11 +58,11 @@
    ============================================ */
 
 .semiont-table__body {
-  background-color: var(--semiont-color-white);
+  background-color: var(--semiont-bg-primary);
 }
 
 [data-theme="dark"] .semiont-table__body {
-  background-color: var(--semiont-color-gray-800);
+  background-color: var(--semiont-bg-secondary);
 }
 
 .semiont-table__row {
@@ -75,7 +75,7 @@
 }
 
 .semiont-table__row:hover {
-  background-color: var(--semiont-color-gray-50);
+  background-color: var(--semiont-bg-secondary);
 }
 
 [data-theme="dark"] .semiont-table__row:hover {
