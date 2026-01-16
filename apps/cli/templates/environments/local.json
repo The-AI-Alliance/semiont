@@ -78,6 +78,17 @@
       "maxTokens": 8192,
       "endpoint": "https://api.anthropic.com",
       "apiKey": "${ANTHROPIC_API_KEY}"
+    },
+    "proxy": {
+      "platform": {
+        "type": "container"
+      },
+      "type": "envoy",
+      "port": 8080,
+      "adminPort": 9901,
+      "backendPort": 4000,
+      "frontendPort": 3000,
+      "image": "envoyproxy/envoy:v1.28-latest"
     }
   }
 }
