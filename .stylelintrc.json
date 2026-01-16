@@ -9,7 +9,7 @@
     "semiont/theme-selectors": true,
     "semiont/invariants": true,
     "at-rule-no-unknown": true,
-    "selector-class-pattern": "^(semiont-[a-z][a-z0-9]*((-|--|__)[a-z0-9]+)*|annotation-[a-z][a-z0-9-]*|red-underline|md-[a-z][a-z0-9-]*|animate-[a-zA-Z-]+|quick-actions-widget|sidebar-navigation[a-z0-9-_]*|cm-[a-zA-Z-]+|sr-only|[a-z][a-zA-Z0-9]+)$",
+    "selector-class-pattern": "^(semiont-[a-z][a-z0-9]*((-|--|__)[a-z0-9]+)*|annotation-[a-z][a-z0-9-]*|red-underline|md-[a-z][a-z0-9-]*|animate-[a-zA-Z-]+|quick-actions-widget|sidebar-navigation[a-z0-9-_]*|cm-[a-zA-Z-]+|sr-only)$",
     "selector-pseudo-class-no-unknown": [
       true,
       {
@@ -63,6 +63,23 @@
       "rules": {
         "selector-class-pattern": null,
         "semiont/invariants": null
+      }
+    },
+    {
+      "files": ["**/packages/react-ui/**/*.css"],
+      "rules": {
+        "at-rule-no-unknown": [
+          true,
+          {
+            "ignoreAtRules": []
+          }
+        ],
+        "function-no-unknown": [
+          true,
+          {
+            "ignoreFunctions": []
+          }
+        ]
       }
     },
     {
