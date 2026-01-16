@@ -18,10 +18,22 @@
   color: var(--semiont-color-gray-600) !important; /* Darker gray for better contrast */
 }
 
+[data-theme="dark"] .semiont-color-gray-300,
+[data-theme="dark"] [class*="text-gray-300"],
+[data-theme="dark"] [class*="color-gray-300"] {
+  color: var(--semiont-color-gray-400) !important;
+}
+
 .semiont-color-gray-400,
 [class*="text-gray-400"],
 [class*="color-gray-400"] {
   color: var(--semiont-color-gray-600) !important;
+}
+
+[data-theme="dark"] .semiont-color-gray-400,
+[data-theme="dark"] [class*="text-gray-400"],
+[data-theme="dark"] [class*="color-gray-400"] {
+  color: var(--semiont-color-gray-300) !important;
 }
 
 /* Fix light yellow that often fails contrast */
@@ -32,12 +44,27 @@
   color: var(--semiont-color-yellow-700) !important; /* Much darker yellow */
 }
 
+[data-theme="dark"] .semiont-color-yellow-100,
+[data-theme="dark"] .semiont-color-yellow-200,
+[data-theme="dark"] [class*="text-yellow-100"],
+[data-theme="dark"] [class*="text-yellow-200"] {
+  color: var(--semiont-color-yellow-400) !important;
+}
+
 /* Fix light backgrounds with light text */
 .semiont-bg-gray-100,
 .semiont-bg-gray-200,
 [class*="bg-gray-100"],
 [class*="bg-gray-200"] {
   color: var(--semiont-color-gray-800) !important; /* Ensure dark text on light bg */
+}
+
+[data-theme="dark"] .semiont-bg-gray-100,
+[data-theme="dark"] .semiont-bg-gray-200,
+[data-theme="dark"] [class*="bg-gray-100"],
+[data-theme="dark"] [class*="bg-gray-200"] {
+  background-color: var(--semiont-color-gray-800) !important;
+  color: var(--semiont-color-gray-100) !important;
 }
 
 /* ========================================
@@ -173,6 +200,14 @@ a:visited,
   background-color: var(--semiont-color-gray-100) !important;
 }
 
+[data-theme="dark"] .semiont-badge--light,
+[data-theme="dark"] .semiont-chip--light,
+[data-theme="dark"] .semiont-tag--light,
+[data-theme="dark"] [data-variant="light"] {
+  color: var(--semiont-color-gray-100) !important;
+  background-color: var(--semiont-color-gray-700) !important;
+}
+
 /* ========================================
    High Contrast Mode Support
    ======================================== */
@@ -202,6 +237,18 @@ a:visited,
   .semiont-textarea {
     border-width: 2px !important;
     border-color: currentColor !important;
+  }
+
+  [data-theme="dark"] button,
+  [data-theme="dark"] input,
+  [data-theme="dark"] select,
+  [data-theme="dark"] textarea,
+  [data-theme="dark"] .semiont-button,
+  [data-theme="dark"] .semiont-input,
+  [data-theme="dark"] .semiont-select,
+  [data-theme="dark"] .semiont-textarea {
+    border-width: 2px !important;
+    border-color: var(--semiont-color-gray-400) !important;
   }
 
   /* Higher opacity for disabled states */

@@ -20,6 +20,7 @@
 @import './utilities/motion.css';
 @import './utilities/motion-overrides.css';
 @import './utilities/contrast.css';
+@import './utilities/semantic-indicators.css';
 
 /* Layout */
 @import './layout/layout.css';

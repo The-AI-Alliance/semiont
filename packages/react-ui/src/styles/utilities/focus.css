@@ -98,6 +98,11 @@ select:focus-visible {
   z-index: 100;
 }
 
+[data-theme="dark"] .semiont-skip-link {
+  background: var(--semiont-color-gray-800);
+  color: var(--semiont-color-gray-100);
+}
+
 .semiont-skip-link:focus {
   top: 0;
 }

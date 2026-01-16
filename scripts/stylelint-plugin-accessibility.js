@@ -312,11 +312,15 @@ const plugin = stylelint.createPlugin(
           }
 
           // Check for color-only status indicators
-          if (selector.includes('status') ||
-              selector.includes('state') ||
-              selector.includes('error') ||
-              selector.includes('warning') ||
-              selector.includes('success')) {
+          // Skip if we have global semantic indicators utilities
+          const hasGlobalSemanticIndicators = filename.includes('packages/react-ui/src/styles');
+
+          if (!hasGlobalSemanticIndicators &&
+              (selector.includes('status') ||
+               selector.includes('state') ||
+               selector.includes('error') ||
+               selector.includes('warning') ||
+               selector.includes('success'))) {
             if (prop === 'background-color' || prop === 'color') {
               // Check if there are other indicators
               let hasOtherIndicators = false;
