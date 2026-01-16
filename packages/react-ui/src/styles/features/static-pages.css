@@ -12,8 +12,46 @@
 .semiont-static-page {
   min-height: 100vh;
   background: var(--semiont-color-gray-50);
-  padding-top: 4rem; /* Add space for header/branding */
   position: relative;
+  overflow: visible !important;
+  padding-top: 1rem; /* Ensure content doesn't get cut off at top */
+}
+
+/* Ensure the entire page allows scrolling */
+.semiont-page-layout.semiont-static-page {
+  overflow: visible !important;
+  overflow-y: auto !important;
+}
+
+/* Override sticky header behavior for static pages */
+.semiont-page-layout.semiont-static-page .semiont-page-layout__header {
+  position: relative !important;
+  top: auto !important;
+  z-index: auto !important;
+  min-height: 5rem !important; /* Ensure adequate height for branding */
+}
+
+/* Ensure header content has proper spacing */
+.semiont-page-layout.semiont-static-page .semiont-page-layout__header-container {
+  padding: 1rem 0 !important; /* Add vertical padding */
+}
+
+/* Ensure branding is visible and has space */
+.semiont-page-layout.semiont-static-page .semiont-branding {
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+/* Ensure the unified header content doesn't clip */
+.semiont-page-layout.semiont-static-page .semiont-unified-header__content {
+  min-height: 4rem !important;
+  align-items: center !important;
+}
+
+/* Alternative: Add extra padding to the main content area */
+.semiont-static-page .semiont-page-layout__main {
+  padding-top: 0 !important;
+  overflow: visible !important;
 }
 
 .semiont-static-container {
@@ -33,10 +71,6 @@
 }
 
 @media (min-width: 640px) {
-  .semiont-static-page {
-    padding-top: 5rem; /* More space on tablets */
-  }
-
   .semiont-static-container {
     padding: 3rem 1.5rem;
   }
@@ -47,10 +81,6 @@
 }
 
 @media (min-width: 1024px) {
-  .semiont-static-page {
-    padding-top: 6rem; /* Even more space on desktop */
-  }
-
   .semiont-static-container {
     padding: 3rem 2rem;
   }
