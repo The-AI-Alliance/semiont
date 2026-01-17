@@ -479,7 +479,7 @@
 
 /* Primary button with cyan/blue gradient */
 .semiont-button--primary {
-  background: linear-gradient(to right, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.2));
+  background: var(--semiont-gradient-primary);
   color: var(--semiont-color-primary-700);
   border: 1px solid var(--semiont-color-primary-300);
   padding: 0.5rem 1.5rem;
@@ -495,7 +495,7 @@
 }
 
 .semiont-button--primary:hover:not(:disabled) {
-  background: linear-gradient(to right, var(--semiont-color-primary-600), var(--semiont-color-blue-600));
+  background: var(--semiont-gradient-primary-hover);
   color: var(--semiont-color-neutral-0);
   border-color: var(--semiont-color-primary-600);
 }
@@ -507,13 +507,13 @@
 
 /* Dark mode primary button */
 [data-theme="dark"] .semiont-button--primary {
-  background: linear-gradient(to right, rgba(8, 145, 178, 0.2), rgba(37, 99, 235, 0.2));
+  background: var(--semiont-gradient-primary-dark);
   color: var(--semiont-color-primary-400);
   border-color: var(--semiont-color-primary-500);
 }
 
 [data-theme="dark"] .semiont-button--primary:hover:not(:disabled) {
-  background: linear-gradient(to right, var(--semiont-color-primary-500), var(--semiont-color-blue-500));
+  background: var(--semiont-gradient-primary-hover-dark);
   color: var(--semiont-color-neutral-0);
   border-color: var(--semiont-color-primary-400);
 }

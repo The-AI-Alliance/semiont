@@ -32,11 +32,11 @@
 
 /* Reference - Blue/Cyan gradient theme */
 .semiont-annotation-entry[data-type="reference"] {
-  border-color: rgba(6, 182, 212, 0.3);
+  border-color: var(--semiont-gradient-cyan-30);
 }
 
 [data-theme="dark"] .semiont-annotation-entry[data-type="reference"] {
-  border-color: rgba(6, 182, 212, 0.3);
+  border-color: var(--semiont-gradient-cyan-30);
 }
 
 .semiont-annotation-entry[data-type="reference"]:hover {
@@ -335,15 +335,15 @@
 }
 
 .semiont-reference-button--primary {
-  background: linear-gradient(to right, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.2));
+  background: var(--semiont-gradient-primary);
   color: var(--semiont-color-cyan-700);
-  border-color: rgba(6, 182, 212, 0.3);
+  border-color: var(--semiont-gradient-cyan-30);
 }
 
 [data-theme="dark"] .semiont-reference-button--primary {
-  background: linear-gradient(to right, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.2));
+  background: var(--semiont-gradient-primary);
   color: var(--semiont-color-cyan-400);
-  border-color: rgba(6, 182, 212, 0.3);
+  border-color: var(--semiont-gradient-cyan-30);
 }
 
 .semiont-reference-button--primary:hover {

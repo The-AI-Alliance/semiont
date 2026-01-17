@@ -250,6 +250,7 @@
 
   /* Button Gradient Colors */
   --semiont-gradient-cyan-20: rgba(6, 182, 212, 0.2);  /* cyan-500 at 20% */
+  --semiont-gradient-cyan-30: rgba(6, 182, 212, 0.3);  /* cyan-500 at 30% */
   --semiont-gradient-blue-20: rgba(59, 130, 246, 0.2); /* blue-500 at 20% */
   --semiont-gradient-cyan-dark-20: rgba(8, 145, 178, 0.2); /* cyan-600 at 20% */
   --semiont-gradient-blue-dark-20: rgba(37, 99, 235, 0.2); /* blue-600 at 20% */
