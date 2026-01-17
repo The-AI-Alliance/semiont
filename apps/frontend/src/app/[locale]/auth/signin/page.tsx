@@ -30,6 +30,7 @@ function SignInContent() {
 
   const [error, setError] = useState<string | null>(null);
   const [showCredentialsAuth, setShowCredentialsAuth] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const callbackUrl = searchParams?.get('callbackUrl') || '/know';
 
@@ -41,8 +42,13 @@ function SignInContent() {
         if (providers.credentials) {
           setShowCredentialsAuth(true);
         }
+        setIsLoading(false);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Even on error, show the form (fail open)
+        setShowCredentialsAuth(true);
+        setIsLoading(false);
+      });
 
     // Parse error from URL
     const errorParam = searchParams?.get('error');
@@ -123,6 +129,7 @@ function SignInContent() {
         onCredentialsSignIn={showCredentialsAuth ? handleCredentialsSignIn : undefined}
         error={error}
         showCredentialsAuth={showCredentialsAuth}
+        isLoading={isLoading}
         Link={Link}
         translations={translations}
       />

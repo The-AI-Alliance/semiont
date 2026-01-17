@@ -30,6 +30,11 @@ export interface SignInFormProps {
   showCredentialsAuth?: boolean;
 
   /**
+   * Whether the auth providers are still loading
+   */
+  isLoading?: boolean;
+
+  /**
    * Link component for routing - passed from parent
    */
   Link: React.ComponentType<any>;
@@ -204,6 +209,7 @@ export function SignInForm({
   onCredentialsSignIn,
   error,
   showCredentialsAuth = false,
+  isLoading = false,
   Link,
   translations: t,
 }: SignInFormProps) {
@@ -236,16 +242,25 @@ export function SignInForm({
 
           {/* Sign In Forms */}
           <div className="semiont-auth__forms">
-            {showCredentialsAuth && onCredentialsSignIn && <CredentialsAuthForm onSubmit={onCredentialsSignIn} translations={t} />}
+            {!isLoading ? (
+              <>
+                {showCredentialsAuth && onCredentialsSignIn && <CredentialsAuthForm onSubmit={onCredentialsSignIn} translations={t} />}
 
-            <button onClick={onGoogleSignIn} className={`${buttonStyles.primary.base} semiont-button--full-width`}>
-              <GoogleIcon />
-              {t.continueWithGoogle}
-            </button>
+                <button onClick={onGoogleSignIn} className={`${buttonStyles.primary.base} semiont-button--full-width`}>
+                  <GoogleIcon />
+                  {t.continueWithGoogle}
+                </button>
 
-            <div className="semiont-auth__info">
-              {showCredentialsAuth ? t.credentialsAuthEnabled : t.approvedDomainsOnly}
-            </div>
+                <div className="semiont-auth__info">
+                  {showCredentialsAuth ? t.credentialsAuthEnabled : t.approvedDomainsOnly}
+                </div>
+              </>
+            ) : (
+              <div className="semiont-auth__loading" aria-busy="true" aria-live="polite">
+                {/* Placeholder to maintain consistent height while loading */}
+                <div style={{ height: '200px' }}></div>
+              </div>
+            )}
           </div>
 
           {/* Navigation Links */}
