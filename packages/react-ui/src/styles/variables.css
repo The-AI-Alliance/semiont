@@ -30,6 +30,18 @@
   --semiont-color-blue-800: #1e40af;
   --semiont-color-blue-900: #1e3a8a;
 
+  /* Cyan Colors (Tailwind palette for gradient accents) */
+  --semiont-color-cyan-50: #ecfeff;
+  --semiont-color-cyan-100: #cffafe;
+  --semiont-color-cyan-200: #a5f3fc;
+  --semiont-color-cyan-300: #67e8f9;
+  --semiont-color-cyan-400: #22d3ee;
+  --semiont-color-cyan-500: #06b6d4;
+  --semiont-color-cyan-600: #0891b2;
+  --semiont-color-cyan-700: #0e7490;
+  --semiont-color-cyan-800: #155e75;
+  --semiont-color-cyan-900: #164e63;
+
   /* Gray Colors (Tailwind palette for consistency) */
   --semiont-color-gray-50: #f9fafb;
   --semiont-color-gray-100: #f3f4f6;
@@ -235,6 +247,18 @@
   --semiont-ease-linear: linear;
   --semiont-ease: cubic-bezier(0.4, 0, 0.2, 1);
   --semiont-ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Button Gradient Colors */
+  --semiont-gradient-cyan-20: rgba(6, 182, 212, 0.2);  /* cyan-500 at 20% */
+  --semiont-gradient-blue-20: rgba(59, 130, 246, 0.2); /* blue-500 at 20% */
+  --semiont-gradient-cyan-dark-20: rgba(8, 145, 178, 0.2); /* cyan-600 at 20% */
+  --semiont-gradient-blue-dark-20: rgba(37, 99, 235, 0.2); /* blue-600 at 20% */
+
+  /* Button gradients */
+  --semiont-gradient-primary: linear-gradient(to right, var(--semiont-gradient-cyan-20), var(--semiont-gradient-blue-20));
+  --semiont-gradient-primary-dark: linear-gradient(to right, var(--semiont-gradient-cyan-dark-20), var(--semiont-gradient-blue-dark-20));
+  --semiont-gradient-primary-hover: linear-gradient(to right, var(--semiont-color-cyan-600), var(--semiont-color-blue-600));
+  --semiont-gradient-primary-hover-dark: linear-gradient(to right, var(--semiont-color-cyan-500), var(--semiont-color-blue-500));
   --semiont-ease-out: cubic-bezier(0, 0, 0.2, 1);
   --semiont-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
