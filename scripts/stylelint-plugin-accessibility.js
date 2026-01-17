@@ -283,7 +283,9 @@ const plugin = stylelint.createPlugin(
             if (!selector.includes('::before') &&
                 !selector.includes('::after') &&
                 !selector.includes('.sr-only') &&
-                !selector.includes('icon')) {
+                !selector.includes('icon') &&
+                !selector.includes('.semiont-hidden') &&  // Utility class for programmatic hiding
+                !selector.includes('.semiont-form__upload-input')) {  // Hidden file input with accessible button
               report({
                 message: messages.hiddenContentWarning(selector),
                 node: decl,
