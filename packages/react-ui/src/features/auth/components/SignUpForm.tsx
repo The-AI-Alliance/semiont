@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { buttonStyles } from '@semiont/react-ui';
+import { buttonStyles, SemiontBranding } from '@semiont/react-ui';
 
 
 export interface SignUpFormProps {
@@ -31,6 +31,8 @@ export interface SignUpFormProps {
     approvedDomainsInfo: string;
     termsAgreement: string;
     alreadyHaveAccount: string;
+    tagline: string;
+    backToHome: string;
   };
 }
 
@@ -80,43 +82,56 @@ export function SignUpForm({ onSignUp, Link, translations: t }: SignUpFormProps)
   };
 
   return (
-    <div className="semiont-auth__signup-wrapper">
-      <div className="semiont-auth__signup-container">
-        <div className="semiont-auth__signup-header">
-          <h2 className="semiont-auth__signup-title">
-            {t.pageTitle}
-          </h2>
-          <p className="semiont-auth__subtitle">
-            {t.signUpPrompt}
-          </p>
-        </div>
+    <main className="semiont-auth__main" role="main">
+      <div className="semiont-auth__container">
+        <div className="semiont-auth__content">
+          {/* Hero Branding Section */}
+          <section aria-labelledby="signup-heading" className="semiont-auth__branding">
+            <h1 id="signup-heading" className="sr-only">
+              {t.pageTitle}
+            </h1>
+            <SemiontBranding t={(key: string) => t[key as keyof typeof t] || key} size="xl" animated={true} className="semiont-auth__logo" />
+            <p className="semiont-auth__welcome">
+              {t.pageTitle}
+            </p>
+            <p className="semiont-auth__subtitle">
+              {t.signUpPrompt}
+            </p>
+          </section>
 
-        <div className="semiont-auth__signup-content">
-          <button onClick={handleSignUp} disabled={isLoading} className={buttonStyles.primary.large}>
-            {isLoading ? (
-              <div className="semiont-auth__spinner"></div>
-            ) : (
-              <GoogleIcon />
-            )}
-            {isLoading ? t.creatingAccount : t.signUpWithGoogle}
-          </button>
+          {/* Sign Up Form */}
+          <div className="semiont-auth__forms">
+            <button
+              onClick={handleSignUp}
+              disabled={isLoading}
+              className={`${buttonStyles.primary.base} semiont-button--full-width`}
+            >
+              {isLoading ? (
+                <div className="semiont-auth__spinner"></div>
+              ) : (
+                <GoogleIcon />
+              )}
+              {isLoading ? t.creatingAccount : t.signUpWithGoogle}
+            </button>
 
-          <div className="semiont-auth__signup-info">
-            {t.approvedDomainsInfo}
-            <br />
-            {t.termsAgreement}
+            <div className="semiont-auth__info">
+              {t.approvedDomainsInfo}
+              <br />
+              {t.termsAgreement}
+            </div>
           </div>
 
-          <div className="semiont-auth__signup-footer">
-            <Link
-              href="/auth/signin"
-              className="semiont-auth__signin-link"
-            >
+          {/* Navigation Links */}
+          <div className="semiont-auth__links">
+            <Link href="/" className={buttonStyles.secondary.base}>
+              {t.backToHome}
+            </Link>
+            <Link href="/auth/signin" className={buttonStyles.primary.base}>
               {t.alreadyHaveAccount}
             </Link>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

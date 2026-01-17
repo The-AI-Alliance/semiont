@@ -129,7 +129,7 @@ export default function AboutPage() {
                   href="https://github.com/The-AI-Alliance/semiont"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={buttonStyles.primary.base}
+                  className={buttonStyles.secondary.base}
                 >
                   {t('viewOnGitHub')}
                 </a>

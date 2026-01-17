@@ -42,6 +42,8 @@ function SignUpContent() {
     approvedDomainsInfo: t('approvedDomainsInfo'),
     termsAgreement: t('termsAgreement'),
     alreadyHaveAccount: t('alreadyHaveAccount'),
+    tagline: tHome('tagline'),
+    backToHome: t('backToHome'),
   };
 
   return (
