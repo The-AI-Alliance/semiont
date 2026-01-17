@@ -15,7 +15,8 @@ import {
   CogIcon,
   TrashIcon,
   ArrowDownTrayIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 
 interface CookiePreferencesProps {
@@ -42,6 +43,22 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
       });
     }
   }, [isOpen]);
+
+  // Handle ESC key to close modal
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEsc);
+      return () => {
+        document.removeEventListener('keydown', handleEsc);
+      };
+    }
+  }, [isOpen, onClose]);
 
   const handleSave = async () => {
     if (!consent) return;
@@ -92,12 +109,21 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
         />
 
         {/* Modal panel */}
-        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
+        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6 relative">
+          {/* Close button in upper right */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-lg p-1"
+            aria-label="Close"
+          >
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+
           <div className="sm:flex sm:items-start">
             <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
               <CogIcon className="h-6 w-6 text-blue-600" />
             </div>
-            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
+            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1 pr-8">
               <h3 className="text-lg leading-6 font-medium text-gray-900">
                 {t('title')}
               </h3>
