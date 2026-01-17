@@ -1,8 +1,10 @@
 'use client';
 
-import React from 'react';
-import { SettingsPanel } from '../SettingsPanel';
+import React, { useTransition } from 'react';
+import { SettingsPanel } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
+import { useLocale } from 'next-intl';
+import { usePathname, useRouter } from '@/i18n/routing';
 import type { ToolbarPanelType } from '@semiont/react-ui';
 
 interface ToolbarPanelsProps {
@@ -55,6 +57,20 @@ export function ToolbarPanels({
   onLineNumbersToggle,
   children
 }: ToolbarPanelsProps) {
+  const locale = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isPending, startTransition] = useTransition();
+
+  const handleLocaleChange = (newLocale: string) => {
+    if (!pathname) return;
+
+    startTransition(() => {
+      // The router from @/i18n/routing is locale-aware and will handle the locale prefix
+      router.replace(pathname, { locale: newLocale });
+    });
+  };
+
   // Don't render container if no panel is active
   if (!activePanel) {
     return null;
@@ -78,6 +94,9 @@ export function ToolbarPanels({
             onLineNumbersToggle={onLineNumbersToggle}
             theme={theme}
             onThemeChange={onThemeChange}
+            locale={locale}
+            onLocaleChange={handleLocaleChange}
+            isPendingLocaleChange={isPending}
           />
         )}
       </div>

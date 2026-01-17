@@ -79,13 +79,7 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
       activeClassName="semiont-nav-link semiont-nav-link--active"
       inactiveClassName="semiont-nav-link"
       translations={{
-        title: t('title'),
-        collapseSidebar: t('collapseSidebar'),
-        expandSidebar: t('expandSidebar'),
-        dragToReorder: t('dragToReorder'),
-        dragToReorderDoc: t('dragToReorderDoc'),
-        closeResource: t('closeResource'),
-        dragInstructions: t('dragInstructions')
+        title: t('title')
       }}
       icons={{
         chevronLeft: ChevronLeftIcon,

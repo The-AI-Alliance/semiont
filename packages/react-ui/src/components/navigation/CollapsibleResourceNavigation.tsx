@@ -19,6 +19,7 @@ import {
 import { SidebarNavigation } from './SidebarNavigation';
 import { SortableResourceTab } from './SortableResourceTab';
 import { useDragAnnouncements } from '../../hooks/useDragAnnouncements';
+import { useTranslations } from '../../contexts/TranslationContext';
 import type { CollapsibleResourceNavigationProps } from '../../types/collapsible-navigation';
 
 /**
@@ -49,6 +50,18 @@ export function CollapsibleResourceNavigation({
   const CloseIcon = icons.close;
 
   const { announcePickup, announceDrop, announceKeyboardReorder, announceCannotMove } = useDragAnnouncements();
+  const t = useTranslations('CollapsibleResourceNavigation');
+
+  // Use translations from context, with fallback to props for backward compatibility
+  const mergedTranslations = {
+    title: translations?.title || t('title'),
+    collapseSidebar: translations?.collapseSidebar || t('collapseSidebar'),
+    expandSidebar: translations?.expandSidebar || t('expandSidebar'),
+    dragToReorder: translations?.dragToReorder || t('dragToReorder'),
+    dragToReorderDoc: translations?.dragToReorderDoc || t('dragToReorderDoc'),
+    closeResource: translations?.closeResource || t('closeResource'),
+    dragInstructions: translations?.dragInstructions || t('dragInstructions')
+  };
 
   // Setup drag and drop sensors
   const sensors = useSensors(
@@ -126,8 +139,7 @@ export function CollapsibleResourceNavigation({
     <div className={`semiont-collapsible-nav ${className}`}>
       {/* Screen reader instructions for drag and drop */}
       <div id="drag-instructions" className="sr-only" aria-live="polite">
-        {translations.dragInstructions ||
-         'To reorder resources: Use Tab to navigate to a resource. Press Alt+Up arrow to move up or Alt+Down arrow to move down. For drag and drop: Press space bar to pick up the item. Use arrow keys to move it. Press space bar again to drop.'}
+        {mergedTranslations.dragInstructions}
       </div>
 
       {/* Keyboard reordering instructions (announced once) */}
@@ -143,13 +155,13 @@ export function CollapsibleResourceNavigation({
               {!isCollapsed ? (
                 <>
                   <div className="semiont-nav-header__title">
-                    {translations.title || 'Navigation'}
+                    {mergedTranslations.title}
                   </div>
                   <button
                     onClick={onToggleCollapse}
                     className="semiont-collapsible-nav__collapse-btn"
-                    title={translations.collapseSidebar || 'Collapse sidebar'}
-                    aria-label={translations.collapseSidebar || 'Collapse sidebar'}
+                    title={mergedTranslations.collapseSidebar}
+                    aria-label={mergedTranslations.collapseSidebar}
                   >
                     <ChevronLeftIcon />
                   </button>
@@ -158,8 +170,8 @@ export function CollapsibleResourceNavigation({
                 <button
                   onClick={onToggleCollapse}
                   className="semiont-collapsible-nav__expand-btn"
-                  title={translations.expandSidebar || 'Expand sidebar'}
-                  aria-label={translations.expandSidebar || 'Expand sidebar'}
+                  title={mergedTranslations.expandSidebar}
+                  aria-label={mergedTranslations.expandSidebar}
                 >
                   <BarsIcon />
                 </button>
@@ -197,9 +209,9 @@ export function CollapsibleResourceNavigation({
                         onClose={handleResourceClose}
                         LinkComponent={LinkComponent}
                         translations={{
-                          dragToReorder: translations.dragToReorder,
-                          dragToReorderDoc: translations.dragToReorderDoc,
-                          closeResource: translations.closeResource
+                          dragToReorder: mergedTranslations.dragToReorder,
+                          dragToReorderDoc: mergedTranslations.dragToReorderDoc,
+                          closeResource: mergedTranslations.closeResource
                         }}
                       />
                     );
@@ -233,9 +245,9 @@ export function CollapsibleResourceNavigation({
                             totalCount={resources.length}
                             LinkComponent={LinkComponent}
                             translations={{
-                              dragToReorder: translations.dragToReorder,
-                              dragToReorderDoc: translations.dragToReorderDoc,
-                              closeResource: translations.closeResource
+                              dragToReorder: mergedTranslations.dragToReorder,
+                              dragToReorderDoc: mergedTranslations.dragToReorderDoc,
+                              closeResource: mergedTranslations.closeResource
                             }}
                           />
                         );
