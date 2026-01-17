@@ -123,7 +123,7 @@ export function CollapsibleResourceNavigation({
   };
 
   return (
-    <div className={`collapsible-resource-navigation ${className}`}>
+    <div className={`semiont-collapsible-nav ${className}`}>
       {/* Screen reader instructions for drag and drop */}
       <div id="drag-instructions" className="sr-only" aria-live="polite">
         {translations.dragInstructions ||
@@ -135,11 +135,11 @@ export function CollapsibleResourceNavigation({
         Resources can be reordered using Alt+Up or Alt+Down arrow keys.
       </div>
 
-      <div className={`${isCollapsed ? 'p-2' : 'p-4'}`}>
+      <div className="p-4">
         <div className="space-y-1">
           <div>
             {/* Header with collapse button - fixed height for alignment */}
-            <div className="collapsible-resource-navigation__header h-12 flex items-center mb-3">
+            <div className="semiont-collapsible-nav__header">
               {!isCollapsed ? (
                 <>
                   <div className="semiont-nav-header__title">
@@ -147,27 +147,27 @@ export function CollapsibleResourceNavigation({
                   </div>
                   <button
                     onClick={onToggleCollapse}
-                    className="collapsible-resource-navigation__collapse-btn p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                    className="semiont-collapsible-nav__collapse-btn"
                     title={translations.collapseSidebar || 'Collapse sidebar'}
                     aria-label={translations.collapseSidebar || 'Collapse sidebar'}
                   >
-                    <ChevronLeftIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                    <ChevronLeftIcon />
                   </button>
                 </>
               ) : (
                 <button
                   onClick={onToggleCollapse}
-                  className="collapsible-resource-navigation__expand-btn p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 mx-auto"
+                  className="semiont-collapsible-nav__expand-btn"
                   title={translations.expandSidebar || 'Expand sidebar'}
                   aria-label={translations.expandSidebar || 'Expand sidebar'}
                 >
-                  <BarsIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                  <BarsIcon />
                 </button>
               )}
             </div>
 
             {/* Navigation content */}
-            <div className="collapsible-resource-navigation__content">
+            <div className="semiont-collapsible-nav__content">
               {/* Fixed navigation items using SidebarNavigation */}
               <SidebarNavigation
                 items={fixedItems}
@@ -180,7 +180,7 @@ export function CollapsibleResourceNavigation({
               />
 
               {/* Resource tabs with drag and drop */}
-              <div className="collapsible-resource-navigation__resources mt-3" role="tablist" aria-label="Open resources">
+              <div className="semiont-collapsible-nav__resources mt-3" role="tablist" aria-label="Open resources">
                 {isCollapsed ? (
                   // When collapsed, dragging is disabled - just render simple tabs
                   resources.map((resource) => {

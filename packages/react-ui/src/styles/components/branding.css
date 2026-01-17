@@ -17,7 +17,13 @@
   font-weight: bold;
   text-transform: uppercase;
   letter-spacing: -0.025em;
+  line-height: 1;
   margin-bottom: 1.5rem; /* mb-6 from main */
+}
+
+/* Remove margin when tagline is not shown */
+.semiont-branding:not(:has(.semiont-branding-tagline)) .semiont-branding-title {
+  margin-bottom: 0;
 }
 
 .semiont-branding[data-size="sm"] .semiont-branding-title {
@@ -45,6 +51,11 @@
   /* Increase spacing on larger screens */
   .semiont-branding-title {
     margin-bottom: 2rem; /* sm:mb-8 from main */
+  }
+
+  /* Remove margin when tagline is not shown (override for larger screens) */
+  .semiont-branding:not(:has(.semiont-branding-tagline)) .semiont-branding-title {
+    margin-bottom: 0;
   }
 }
 

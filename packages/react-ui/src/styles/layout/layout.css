@@ -251,8 +251,11 @@
 }
 
 .semiont-left-sidebar__logo-collapsed {
-  width: 2rem;
-  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Match the natural height of the SEMIONT branding */
+  line-height: 1;
   flex-shrink: 0;
 }
 
@@ -262,6 +265,7 @@
   font-weight: bold;
   text-transform: uppercase;
   letter-spacing: -0.025em;
+  line-height: 1;
   background: linear-gradient(to right, var(--semiont-color-black), var(--semiont-color-primary-600), var(--semiont-color-black));
   background-clip: text;
   -webkit-text-fill-color: transparent;
