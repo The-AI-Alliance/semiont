@@ -14,6 +14,7 @@ import {
 } from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
+import { ThemeInitializer } from '@/components/ThemeInitializer';
 import { APIError } from '@semiont/api-client';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
@@ -112,6 +113,7 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
               <ToastProvider>
                 <LiveRegionProvider>
                   <KeyboardShortcutsProvider>
+                    <ThemeInitializer />
                     {children}
                   </KeyboardShortcutsProvider>
                 </LiveRegionProvider>

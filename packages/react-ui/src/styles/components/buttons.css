@@ -473,6 +473,186 @@
   background-color: var(--semiont-color-primary-700);
 }
 
+/* ============================================
+   Button Class Modifiers (for button-styles.ts)
+   ============================================ */
+
+/* Primary button with cyan/blue gradient */
+.semiont-button--primary {
+  background: linear-gradient(to right, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.2));
+  color: var(--semiont-color-primary-700);
+  border: 1px solid var(--semiont-color-primary-300);
+  padding: 0.5rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 300ms;
+  backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.semiont-button--primary:hover:not(:disabled) {
+  background: linear-gradient(to right, var(--semiont-color-primary-600), var(--semiont-color-blue-600));
+  color: var(--semiont-color-neutral-0);
+  border-color: var(--semiont-color-primary-600);
+}
+
+.semiont-button--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Dark mode primary button */
+[data-theme="dark"] .semiont-button--primary {
+  background: linear-gradient(to right, rgba(8, 145, 178, 0.2), rgba(37, 99, 235, 0.2));
+  color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-button--primary:hover:not(:disabled) {
+  background: linear-gradient(to right, var(--semiont-color-primary-500), var(--semiont-color-blue-500));
+  color: var(--semiont-color-neutral-0);
+  border-color: var(--semiont-color-primary-400);
+}
+
+/* Large variant */
+.semiont-button--large {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+}
+
+.semiont-button--large:hover:not(:disabled) {
+  transform: scale(1.02);
+}
+
+/* Secondary button */
+.semiont-button--secondary {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--semiont-color-gray-900);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  padding: 0.5rem 1.5rem;
+  border-radius: 0.5rem;
+  transition: all 300ms;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.semiont-button--secondary:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.semiont-button--secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-theme="dark"] .semiont-button--secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--semiont-color-neutral-0);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .semiont-button--secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Scale modifier */
+.semiont-button--scale:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+/* Tertiary button */
+.semiont-button--tertiary {
+  color: var(--semiont-color-gray-700);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: colors 150ms;
+  background: transparent;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.semiont-button--tertiary:hover:not(:disabled) {
+  background: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-button--tertiary {
+  color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-button--tertiary:hover:not(:disabled) {
+  background: var(--semiont-color-gray-700);
+}
+
+/* Danger button */
+.semiont-button--danger {
+  color: var(--semiont-color-red-600);
+  padding: 0.5rem 1.5rem;
+  border: 1px solid var(--semiont-color-red-200);
+  border-radius: 0.5rem;
+  transition: all 300ms;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.semiont-button--danger:hover:not(:disabled) {
+  background: var(--semiont-color-red-50);
+}
+
+[data-theme="dark"] .semiont-button--danger {
+  color: var(--semiont-color-red-400);
+  border-color: var(--semiont-color-red-800);
+}
+
+[data-theme="dark"] .semiont-button--danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Warning button */
+.semiont-button--warning {
+  background: rgba(251, 191, 36, 0.2);
+  color: var(--semiont-color-amber-800);
+  border: 1px solid var(--semiont-color-amber-300);
+  padding: 0.5rem 1.5rem;
+  border-radius: 0.5rem;
+  transition: all 300ms;
+  backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.semiont-button--warning:hover:not(:disabled) {
+  background: rgba(251, 191, 36, 0.3);
+  color: var(--semiont-color-amber-900);
+  border-color: var(--semiont-color-amber-500);
+}
+
+[data-theme="dark"] .semiont-button--warning {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--semiont-color-amber-300);
+  border-color: var(--semiont-color-amber-500);
+}
+
+[data-theme="dark"] .semiont-button--warning:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.3);
+  color: var(--semiont-color-amber-200);
+  border-color: var(--semiont-color-amber-400);
+}
+
 /* Sign out button */
 .semiont-signout-button {
   background-color: var(--semiont-bg-secondary);
