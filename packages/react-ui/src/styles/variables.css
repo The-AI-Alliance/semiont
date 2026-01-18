@@ -90,6 +90,18 @@
   --semiont-color-orange-800: #9a3412;
   --semiont-color-orange-900: #7c2d12;
 
+  /* Yellow Colors (Tailwind palette for highlighting) */
+  --semiont-color-yellow-50: #fefce8;
+  --semiont-color-yellow-100: #fef9c3;
+  --semiont-color-yellow-200: #fef08a;
+  --semiont-color-yellow-300: #fde047;
+  --semiont-color-yellow-400: #facc15;
+  --semiont-color-yellow-500: #eab308;
+  --semiont-color-yellow-600: #ca8a04;
+  --semiont-color-yellow-700: #a16207;
+  --semiont-color-yellow-800: #854d0e;
+  --semiont-color-yellow-900: #713f12;
+
   /* Amber Colors (Alternative warning palette) */
   --semiont-color-amber-50: #fffbeb;
   --semiont-color-amber-100: #fef3c7;
