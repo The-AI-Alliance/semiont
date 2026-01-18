@@ -33,7 +33,7 @@ export function PageLayout({
   onOpenKeyboardHelp
 }: PageLayoutProps) {
   return (
-    <div className={`semiont-page-layout ${className}`}>
+    <div className="semiont-page-layout">
       <SkipLinks />
 
       <header role="banner" className="semiont-page-layout__header">
@@ -54,7 +54,7 @@ export function PageLayout({
         role="main"
         id="main-content"
         tabIndex={-1}
-        className="semiont-page-layout__main"
+        className={`semiont-page-layout__main ${className}`}
       >
         {children}
       </main>
