@@ -286,7 +286,7 @@
   --semiont-panel-gap-sm: 0.5rem;
   --semiont-panel-gap-md: 0.75rem;
   --semiont-panel-header-margin-bottom: 0.75rem;
-  --semiont-panel-title-size: var(--semiont-text-sm);
+  --semiont-panel-title-size: var(--semiont-text-lg);
   --semiont-panel-title-weight: var(--semiont-font-semibold);
   --semiont-panel-section-gap: 1.5rem;
   --semiont-panel-field-gap: 0.5rem;
