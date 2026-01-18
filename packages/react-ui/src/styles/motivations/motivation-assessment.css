@@ -30,9 +30,9 @@
   --semiont-motivation-assessment-panel-bg: rgba(254, 226, 226, 0.3);
   --semiont-motivation-assessment-panel-bg-dark: rgba(127, 29, 29, 0.2);
 
-  /* Button gradients */
-  --semiont-motivation-assessment-button-bg: linear-gradient(to right, var(--semiont-color-error), #ec4899);
-  --semiont-motivation-assessment-button-bg-hover: linear-gradient(to right, var(--semiont-color-error-dark), #db2777);
+  /* Button gradients - using red gradient for assessment */
+  --semiont-motivation-assessment-button-bg: linear-gradient(to right, var(--semiont-color-red-500), var(--semiont-color-red-600));
+  --semiont-motivation-assessment-button-bg-hover: linear-gradient(to right, var(--semiont-color-red-600), var(--semiont-color-red-700));
 }
 
 /* ============================================

@@ -118,7 +118,7 @@
 
 [data-theme="dark"] .semiont-toast[data-variant="warning"] {
   background-color: rgba(245, 158, 11, 0.1);
-  border-color: #d97706;
+  border-color: var(--semiont-color-amber-600);
   color: #fcd34d;
 }
 

@@ -129,7 +129,7 @@
 
 .semiont-motivation-highlight-button:hover,
 .semiont-detect-button[data-type="highlight"]:hover {
-  background: linear-gradient(to right, var(--semiont-motivation-highlight-button-bg-hover), #d97706);
+  background: var(--semiont-motivation-highlight-button-bg-hover);
   border-color: var(--semiont-motivation-highlight-primary);
 }
 

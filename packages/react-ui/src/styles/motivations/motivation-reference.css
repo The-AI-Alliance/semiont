@@ -28,8 +28,8 @@
   --semiont-motivation-reference-dark-primary: var(--semiont-color-cyan-400);
 
   /* Button gradients */
-  --semiont-motivation-reference-button-bg: linear-gradient(to right, rgb(8, 145, 178), rgb(59, 130, 246));
-  --semiont-motivation-reference-button-bg-hover: linear-gradient(to right, rgb(6, 182, 212), rgb(59, 130, 246));
+  --semiont-motivation-reference-button-bg: linear-gradient(to right, var(--semiont-color-cyan-600), var(--semiont-color-blue-500));
+  --semiont-motivation-reference-button-bg-hover: linear-gradient(to right, var(--semiont-color-cyan-500), var(--semiont-color-blue-500));
 }
 
 /* ============================================
