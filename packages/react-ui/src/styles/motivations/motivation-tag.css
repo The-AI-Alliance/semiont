@@ -183,24 +183,6 @@
 /* ============================================
    Individual Tag Chips
    ============================================ */
-.semiont-tagging-panel__tag {
-  background: var(--semiont-color-primary-100);
-  color: var(--semiont-color-primary-700);
-  border-radius: var(--semiont-radius-full);
-  padding: var(--semiont-panel-padding-xs) var(--semiont-panel-padding-sm);
-  font-size: var(--semiont-text-xs);
-  font-weight: var(--semiont-font-medium);
-  transition: all 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--semiont-panel-padding-xs);
-}
-
-[data-theme="dark"] .semiont-tagging-panel__tag {
-  background: rgba(59, 130, 246, 0.2);
-  color: var(--semiont-color-primary-300);
-}
-
 /* Tag chip when related to tag motivation */
 .semiont-motivation-tag-chip {
   background: var(--semiont-motivation-tag-primary);
