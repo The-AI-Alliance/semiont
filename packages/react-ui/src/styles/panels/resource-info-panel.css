@@ -7,7 +7,7 @@
   background: var(--semiont-bg-primary);
   border-radius: var(--semiont-radius-lg);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 1rem;
+  padding: var(--semiont-panel-padding);
 }
 
 [data-theme="dark"] .semiont-resource-info-panel {
@@ -15,7 +15,7 @@
 }
 
 .semiont-resource-info-panel__section {
-  margin-bottom: 1rem;
+  margin-bottom: var(--semiont-panel-gap);
 }
 
 .semiont-resource-info-panel__section:last-child {
@@ -26,7 +26,7 @@
   font-size: var(--semiont-text-sm);
   font-weight: var(--semiont-font-semibold);
   color: var(--semiont-text-secondary);
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--semiont-panel-gap-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -56,8 +56,8 @@
 .semiont-resource-info-panel__metric {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
+  margin-bottom: var(--semiont-panel-gap-sm);
 }
 
 .semiont-resource-info-panel__metric:last-child {
@@ -86,12 +86,12 @@
 .semiont-resource-info-panel__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
 }
 
 .semiont-resource-info-panel__tag {
   /* Use global tag styles from tags.css */
-  padding: 0.25rem 0.5rem;
+  padding: var(--semiont-panel-padding-xs) var(--semiont-panel-padding-sm);
   background-color: var(--semiont-color-primary-100);
   color: var(--semiont-color-primary-700);
   border-radius: var(--semiont-radius-full);
@@ -106,8 +106,8 @@
 
 .semiont-resource-info-panel__actions {
   display: flex;
-  gap: 0.5rem;
-  padding-top: 1rem;
+  gap: var(--semiont-panel-gap-sm);
+  padding-top: var(--semiont-panel-padding);
   border-top: 1px solid var(--semiont-color-gray-200);
 }
 
@@ -118,7 +118,7 @@
 .semiont-resource-info-panel__field-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
 }
 
 .semiont-resource-info-panel__field-group > div {
@@ -130,7 +130,7 @@
 .semiont-resource-info-panel__label {
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-tertiary);
-  margin-right: 0.5rem;
+  margin-right: var(--semiont-panel-gap-sm);
 }
 
 [data-theme="dark"] .semiont-resource-info-panel__label {
@@ -140,12 +140,12 @@
 .semiont-resource-info-panel__tag-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
 }
 
 .semiont-resource-info-panel__action-section {
-  margin-top: 1rem;
-  padding-top: 1rem;
+  margin-top: var(--semiont-panel-gap);
+  padding-top: var(--semiont-panel-padding);
   border-top: 1px solid var(--semiont-color-gray-200);
 }
 
@@ -156,7 +156,7 @@
 .semiont-resource-info-panel__description {
   font-size: var(--semiont-text-xs);
   color: var(--semiont-text-tertiary);
-  margin-top: 0.5rem;
+  margin-top: var(--semiont-panel-gap-sm);
   line-height: 1.4;
 }
 
@@ -167,11 +167,11 @@
 /* Resource Info Panel Buttons */
 .semiont-resource-button {
   width: 100%;
-  padding: 0.5rem 1rem;
+  padding: var(--semiont-panel-padding-sm) var(--semiont-panel-padding);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
   font-size: var(--semiont-text-sm);
   font-weight: var(--semiont-font-medium);
   border-radius: var(--semiont-radius-lg);

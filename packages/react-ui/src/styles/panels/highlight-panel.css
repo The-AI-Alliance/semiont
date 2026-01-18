@@ -6,8 +6,8 @@
 .semiont-highlight-panel {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
+  gap: var(--semiont-panel-gap);
+  padding: var(--semiont-panel-padding);
   background: var(--semiont-bg-primary);
   border-radius: var(--semiont-radius-lg);
 }
@@ -19,7 +19,7 @@
 .semiont-highlight-panel__section {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
 }
 
 .semiont-highlight-panel__label {
@@ -37,7 +37,7 @@
 .semiont-highlight-panel__colors {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
 }
 
 .semiont-highlight-panel__color {

@@ -6,19 +6,19 @@
 .semiont-history-panel {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--semiont-panel-gap);
 }
 
 .semiont-history-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--semiont-panel-gap-md);
 }
 
 .semiont-history-group {
   background: var(--semiont-bg-secondary);
   border-radius: var(--semiont-radius-md);
-  padding: 0.75rem;
+  padding: var(--semiont-panel-padding-md);
 }
 
 [data-theme="dark"] .semiont-history-group {
@@ -29,13 +29,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--semiont-panel-gap-sm);
 }
 
 .semiont-history-group__type {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
   font-weight: var(--semiont-font-medium);
   color: var(--semiont-text-primary);
 }
@@ -45,7 +45,7 @@
 }
 
 .semiont-history-group__type-icon {
-  font-size: 1.125rem;
+  font-size: var(--semiont-panel-icon-size);
 }
 
 .semiont-history-group__count {
@@ -60,14 +60,14 @@
 .semiont-history-group__events {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
 }
 
 .semiont-history-event {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.5rem;
+  gap: var(--semiont-panel-gap-md);
+  padding: var(--semiont-panel-padding-sm);
   background: var(--semiont-bg-primary);
   border-radius: var(--semiont-radius-sm);
   transition: background-color 0.2s ease;
@@ -86,7 +86,7 @@
 }
 
 .semiont-history-event__icon {
-  font-size: 1rem;
+  font-size: var(--semiont-panel-icon-size-sm);
   flex-shrink: 0;
   margin-top: 0.125rem;
 }
@@ -108,7 +108,7 @@
 .semiont-history-event__text {
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-secondary);
-  margin-top: 0.25rem;
+  margin-top: var(--semiont-panel-padding-xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -121,8 +121,8 @@
 .semiont-history-event__meta {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.25rem;
+  gap: var(--semiont-panel-gap-md);
+  margin-top: var(--semiont-panel-padding-xs);
 }
 
 .semiont-history-event__user {

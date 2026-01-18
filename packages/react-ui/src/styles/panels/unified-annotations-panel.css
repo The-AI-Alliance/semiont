@@ -11,8 +11,8 @@
 
 .semiont-unified-panel__tabs {
   display: flex;
-  gap: 0.25rem;
-  padding: 0.5rem;
+  gap: var(--semiont-panel-padding-xs);
+  padding: var(--semiont-panel-padding-sm);
   background: var(--semiont-bg-secondary);
   border-radius: var(--semiont-radius-md);
 }
@@ -23,7 +23,7 @@
 
 .semiont-unified-panel__tab {
   flex: 1;
-  padding: 0.5rem;
+  padding: var(--semiont-panel-padding-sm);
   background: transparent;
   border: none;
   border-radius: var(--semiont-radius-sm);
@@ -61,7 +61,7 @@
 }
 
 .semiont-unified-panel__tab-icon {
-  font-size: 1.125rem;
+  font-size: var(--semiont-panel-icon-size);
 }
 
 .semiont-unified-panel__content {

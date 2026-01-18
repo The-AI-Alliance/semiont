@@ -14,7 +14,7 @@
   overflow: hidden;
   background: var(--semiont-bg-secondary);
   border-radius: var(--semiont-radius-md);
-  padding: 1rem;
+  padding: var(--semiont-panel-padding);
 }
 
 [data-theme="dark"] .semiont-jsonld-panel__editor {

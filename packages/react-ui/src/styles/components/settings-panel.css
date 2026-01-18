@@ -259,17 +259,4 @@
   border-left-color: var(--semiont-color-primary-400);
 }
 
-/* Responsive adjustments */
-@media (min-width: 640px) {
-  .semiont-settings-panel {
-    padding: 1.5rem;
-  }
-
-  .semiont-settings-panel__title {
-    font-size: var(--semiont-text-xl);
-  }
-
-  .semiont-settings-panel__content {
-    gap: 1.5rem;
-  }
-}
+/* Removed responsive adjustments to maintain consistency across all panels */

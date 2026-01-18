@@ -6,20 +6,20 @@
 .semiont-collaboration-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
 }
 
 .semiont-collaboration-panel__user-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
 }
 
 .semiont-collaboration-panel__user {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem;
+  gap: var(--semiont-panel-gap-md);
+  padding: var(--semiont-panel-padding-sm);
   background: var(--semiont-bg-secondary);
   border-radius: var(--semiont-radius-md);
   transition: background-color 0.2s ease;
@@ -79,8 +79,8 @@
 }
 
 .semiont-collaboration-panel__indicator {
-  width: 0.5rem;
-  height: 0.5rem;
+  width: var(--semiont-panel-padding-sm);
+  height: var(--semiont-panel-padding-sm);
   border-radius: var(--semiont-radius-full);
   background: var(--semiont-color-success);
 }

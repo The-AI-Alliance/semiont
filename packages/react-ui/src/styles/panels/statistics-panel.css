@@ -6,8 +6,8 @@
 .semiont-statistics-panel {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
+  gap: var(--semiont-panel-gap);
+  padding: var(--semiont-panel-padding);
   background: var(--semiont-bg-primary);
   border-radius: var(--semiont-radius-lg);
 }
@@ -19,16 +19,16 @@
 .semiont-statistics-panel__grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
+  gap: var(--semiont-panel-gap);
 }
 
 .semiont-statistics-panel__card {
-  padding: 0.75rem;
+  padding: var(--semiont-panel-padding-md);
   background: var(--semiont-bg-secondary);
   border-radius: var(--semiont-radius-md);
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--semiont-panel-padding-xs);
 }
 
 [data-theme="dark"] .semiont-statistics-panel__card {
@@ -60,7 +60,7 @@
   font-size: var(--semiont-text-xs);
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--semiont-panel-padding-xs);
 }
 
 .semiont-statistics-panel__card-change--positive {
@@ -80,7 +80,7 @@
 }
 
 .semiont-statistics-panel__chart {
-  padding: 1rem;
+  padding: var(--semiont-panel-padding);
   background: var(--semiont-bg-secondary);
   border-radius: var(--semiont-radius-md);
   min-height: 200px;

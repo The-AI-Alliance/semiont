@@ -11,11 +11,11 @@
 .semiont-references-panel__list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
 }
 
 .semiont-references-panel__item {
-  padding: 0.75rem;
+  padding: var(--semiont-panel-padding-md);
   background: var(--semiont-bg-secondary);
   border-radius: var(--semiont-radius-md);
   border: 1px solid transparent;
@@ -44,7 +44,7 @@
 .semiont-references-panel__path {
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-tertiary);
-  margin-top: 0.25rem;
+  margin-top: var(--semiont-panel-padding-xs);
 }
 
 [data-theme="dark"] .semiont-references-panel__path {
@@ -54,7 +54,7 @@
 .semiont-references-panel__count {
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-tertiary);
-  margin-top: 0.25rem;
+  margin-top: var(--semiont-panel-padding-xs);
 }
 
 [data-theme="dark"] .semiont-references-panel__count {
@@ -64,7 +64,7 @@
 /* Reference Entry Buttons */
 .semiont-reference-button-group {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-gap-sm);
   width: 100%;
 }
 
@@ -72,8 +72,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem 0.5rem;
-  font-size: 1.125rem;
+  padding: var(--semiont-panel-padding-xs) var(--semiont-panel-padding-sm);
+  font-size: var(--semiont-panel-icon-size);
 }
 
 .semiont-reference-button--full {

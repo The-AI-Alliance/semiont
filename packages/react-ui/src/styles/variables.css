@@ -279,13 +279,21 @@
   /* Panel Component Tokens */
   /* These define the standard sizing for all panels */
   --semiont-panel-padding: 1rem;
+  --semiont-panel-padding-sm: 0.5rem;
+  --semiont-panel-padding-md: 0.75rem;
+  --semiont-panel-padding-xs: 0.25rem;
   --semiont-panel-gap: 1rem;
+  --semiont-panel-gap-sm: 0.5rem;
+  --semiont-panel-gap-md: 0.75rem;
   --semiont-panel-header-margin-bottom: 0.75rem;
   --semiont-panel-title-size: var(--semiont-text-sm);
   --semiont-panel-title-weight: var(--semiont-font-semibold);
   --semiont-panel-section-gap: 1.5rem;
   --semiont-panel-field-gap: 0.5rem;
   --semiont-panel-border-radius: var(--semiont-radius-lg);
+  --semiont-panel-icon-size: 1.125rem;
+  --semiont-panel-icon-size-sm: 1rem;
+  --semiont-panel-icon-size-lg: 1.5rem;
 }
 
 /* Dark Mode Support */
