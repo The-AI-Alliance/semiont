@@ -259,14 +259,28 @@
   cursor: pointer;
 }
 
+.semiont-panel-item--clickable:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
 .semiont-panel-item--selected {
   border: 1px solid var(--semiont-color-primary-500);
   background: var(--semiont-color-primary-50);
 }
 
+.semiont-panel-item--selected:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
 [data-theme="dark"] .semiont-panel-item--selected {
   border-color: var(--semiont-color-primary-400);
   background: rgba(59, 130, 246, 0.1);
+}
+
+[data-theme="dark"] .semiont-panel-item--selected:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 /* Panel Divider */

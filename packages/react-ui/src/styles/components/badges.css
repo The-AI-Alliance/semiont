@@ -154,6 +154,11 @@
   background: transparent;
 }
 
+[data-theme="dark"] .semiont-badge--outlined.semiont-badge--admin {
+  border-color: var(--semiont-color-purple-400);
+  background: transparent;
+}
+
 .semiont-badge--outlined.semiont-badge--admin .semiont-badge__text {
   color: var(--semiont-color-purple-600);
 }

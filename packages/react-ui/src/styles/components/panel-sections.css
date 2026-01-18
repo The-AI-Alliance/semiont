@@ -85,8 +85,17 @@
   margin-bottom: 1rem;
 }
 
+.semiont-panel-tabs:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
 [data-theme="dark"] .semiont-panel-tabs {
   background: var(--semiont-bg-tertiary);
+}
+
+[data-theme="dark"] .semiont-panel-tabs:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 .semiont-panel-tab {
@@ -106,8 +115,17 @@
   gap: 0.375rem;
 }
 
+.semiont-panel-tab:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -2px;
+}
+
 [data-theme="dark"] .semiont-panel-tab {
   color: var(--semiont-text-secondary);
+}
+
+[data-theme="dark"] .semiont-panel-tab:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 .semiont-panel-tab:hover {
@@ -123,9 +141,18 @@
   color: var(--semiont-text-primary);
 }
 
+.semiont-panel-tab--active:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -2px;
+}
+
 [data-theme="dark"] .semiont-panel-tab--active {
   background: var(--semiont-bg-secondary);
   color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-panel-tab--active:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 .semiont-panel-tab__icon {
@@ -199,6 +226,11 @@
   border-top: 1px solid var(--semiont-border-primary);
 }
 
+.semiont-panel-input-area:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -2px;
+}
+
 .semiont-panel-input {
   width: 100%;
   padding: 0.5rem;
@@ -214,6 +246,11 @@
   background: var(--semiont-bg-tertiary);
   border-color: var(--semiont-color-gray-600);
   color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-panel-input:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-400);
+  outline-offset: 0;
 }
 
 .semiont-panel-input:focus {
@@ -238,6 +275,11 @@
   background: var(--semiont-bg-tertiary);
   border-color: var(--semiont-color-gray-600);
   color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-panel-textarea:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-400);
+  outline-offset: 0;
 }
 
 .semiont-panel-textarea:focus {
@@ -291,8 +333,16 @@
   color: var(--semiont-color-success);
 }
 
+[data-theme="dark"] .semiont-panel-card__change--positive {
+  color: var(--semiont-color-success-light);
+}
+
 .semiont-panel-card__change--negative {
   color: var(--semiont-color-error);
+}
+
+[data-theme="dark"] .semiont-panel-card__change--negative {
+  color: var(--semiont-color-error-light);
 }
 
 /* Progress Bar (for panels) */
@@ -313,6 +363,10 @@
   height: 100%;
   background-color: var(--semiont-color-primary-500);
   transition: width 0.3s ease;
+}
+
+[data-theme="dark"] .semiont-panel-progress__fill {
+  background-color: var(--semiont-color-primary-500);
 }
 
 /* User Lists */
