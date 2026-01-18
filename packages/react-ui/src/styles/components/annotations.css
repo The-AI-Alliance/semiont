@@ -1,130 +1,9 @@
 /**
  * Inline Annotation Styles
  *
- * Visual styles for annotated text within documents
+ * Common annotation styles and effects.
+ * Motivation-specific styles are in /styles/motivations/*.css
  */
-
-/* Highlight annotation - Yellow background */
-.annotation-highlight {
-  border-radius: 0.25rem;
-  padding: 0 0.125rem;
-  cursor: pointer;
-  transition: all 200ms;
-  background: var(--semiont-color-yellow-200);
-  color: var(--semiont-color-gray-900);
-}
-
-.annotation-highlight:hover {
-  background: var(--semiont-color-yellow-300);
-}
-
-[data-theme="dark"] .annotation-highlight {
-  background: rgba(113, 63, 18, 0.5); /* yellow-900/50 */
-  color: var(--semiont-color-white);
-  outline: 2px dashed rgba(251, 191, 36, 0.6); /* yellow-500/60 */
-  outline-offset: 1px;
-}
-
-[data-theme="dark"] .annotation-highlight:hover {
-  background: rgba(113, 63, 18, 0.6); /* yellow-900/60 */
-}
-
-/* Comment annotation - Gray outline */
-.annotation-comment {
-  border-radius: 0.25rem;
-  padding: 0 0.125rem;
-  cursor: pointer;
-  transition: all 200ms;
-  outline: 2px dashed var(--semiont-color-gray-900);
-  outline-offset: 1px;
-}
-
-.annotation-comment:hover {
-  background: var(--semiont-color-gray-100);
-}
-
-[data-theme="dark"] .annotation-comment {
-  outline: 2px dashed var(--semiont-color-gray-100);
-}
-
-[data-theme="dark"] .annotation-comment:hover {
-  background: var(--semiont-bg-secondary);
-}
-
-/* Assessment annotation - Red wavy underline */
-.annotation-assessment,
-.red-underline {
-  cursor: pointer;
-  transition: all 200ms;
-  text-decoration: underline wavy;
-  text-decoration-color: var(--semiont-color-red-500);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 2px;
-}
-
-.annotation-assessment:hover,
-.red-underline:hover {
-  opacity: 0.8;
-}
-
-/* Fallback for browsers that don't support wavy underline */
-@supports not (text-decoration-style: wavy) {
-  .annotation-assessment,
-  .red-underline {
-    border-bottom: 2px solid var(--semiont-color-red-500);
-    text-decoration: none;
-  }
-}
-
-/* Reference annotation - Blue gradient background */
-.annotation-reference {
-  border-radius: 0.25rem;
-  padding: 0 0.125rem;
-  cursor: pointer;
-  transition: all 200ms;
-  background: linear-gradient(to right, var(--semiont-color-cyan-200, #a5f3fc), var(--semiont-color-blue-200));
-  color: var(--semiont-color-gray-900);
-}
-
-.annotation-reference:hover {
-  background: linear-gradient(to right, var(--semiont-color-cyan-300, #67e8f9), var(--semiont-color-blue-300));
-}
-
-[data-theme="dark"] .annotation-reference {
-  background: linear-gradient(to right, rgba(30, 58, 138, 0.5), rgba(8, 51, 68, 0.5)); /* blue-900/50 to cyan-900/50 */
-  color: var(--semiont-color-white);
-  outline: 2px dashed rgba(6, 182, 212, 0.6); /* cyan-500/60 */
-  outline-offset: 1px;
-}
-
-[data-theme="dark"] .annotation-reference:hover {
-  background: linear-gradient(to right, rgba(30, 58, 138, 0.6), rgba(8, 51, 68, 0.6)); /* blue-900/60 to cyan-900/60 */
-}
-
-/* Tag annotation - Orange/Amber gradient background */
-.annotation-tag {
-  border-radius: 0.25rem;
-  padding: 0 0.125rem;
-  cursor: pointer;
-  transition: all 200ms;
-  background: linear-gradient(to right, var(--semiont-color-orange-200), var(--semiont-color-amber-200));
-  color: var(--semiont-color-gray-900);
-}
-
-.annotation-tag:hover {
-  background: linear-gradient(to right, var(--semiont-color-orange-300), var(--semiont-color-amber-300));
-}
-
-[data-theme="dark"] .annotation-tag {
-  background: linear-gradient(to right, rgba(124, 45, 18, 0.5), rgba(120, 53, 15, 0.5)); /* orange-900/50 to amber-900/50 */
-  color: var(--semiont-color-white);
-  outline: 2px dashed rgba(251, 146, 60, 0.6); /* orange-500/60 */
-  outline-offset: 1px;
-}
-
-[data-theme="dark"] .annotation-tag:hover {
-  background: linear-gradient(to right, rgba(124, 45, 18, 0.6), rgba(120, 53, 15, 0.6)); /* orange-900/60 to amber-900/60 */
-}
 
 /* Animation for newly created annotations (sparkle effect) */
 @keyframes sparkle {
@@ -170,5 +49,3 @@
     color: inherit !important;
   }
 }
-
-/* Cyan color variables are defined in variables.css */

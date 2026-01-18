@@ -1,8 +1,8 @@
 /**
  * Annotation Entry Styles for Panels
  *
- * These styles should match the color themes used in annotations.css
- * for consistency between the document view and the panel views.
+ * Base structure and common styles for annotation entries.
+ * Motivation-specific styles are in /styles/motivations/*.css
  */
 
 /* Base annotation entry container */
@@ -28,97 +28,7 @@
   z-index: 10;
 }
 
-/* Type-specific borders and hover states */
-
-/* Reference - Blue/Cyan gradient theme */
-.semiont-annotation-entry[data-type="reference"] {
-  border-color: var(--semiont-gradient-cyan-30);
-}
-
-[data-theme="dark"] .semiont-annotation-entry[data-type="reference"] {
-  border-color: var(--semiont-gradient-cyan-30);
-}
-
-.semiont-annotation-entry[data-type="reference"]:hover {
-  background: linear-gradient(to right, rgba(165, 243, 252, 0.1), rgba(191, 219, 254, 0.1));
-  border-color: rgba(6, 182, 212, 0.5);
-}
-
-[data-theme="dark"] .semiont-annotation-entry[data-type="reference"]:hover {
-  background: linear-gradient(to right, rgba(30, 58, 138, 0.2), rgba(8, 51, 68, 0.2));
-}
-
-/* Assessment - Red theme */
-.semiont-annotation-entry[data-type="assessment"] {
-  border-color: rgba(239, 68, 68, 0.3);
-}
-
-[data-theme="dark"] .semiont-annotation-entry[data-type="assessment"] {
-  border-color: rgba(239, 68, 68, 0.3);
-}
-
-.semiont-annotation-entry[data-type="assessment"]:hover {
-  background: rgba(254, 226, 226, 0.3);
-  border-color: rgba(239, 68, 68, 0.5);
-}
-
-[data-theme="dark"] .semiont-annotation-entry[data-type="assessment"]:hover {
-  background: rgba(127, 29, 29, 0.2);
-}
-
-/* Highlight - Yellow theme */
-.semiont-annotation-entry[data-type="highlight"] {
-  border-color: rgba(251, 191, 36, 0.3);
-}
-
-[data-theme="dark"] .semiont-annotation-entry[data-type="highlight"] {
-  border-color: rgba(251, 191, 36, 0.3);
-}
-
-.semiont-annotation-entry[data-type="highlight"]:hover {
-  background: rgba(254, 249, 195, 0.3);
-  border-color: rgba(251, 191, 36, 0.5);
-}
-
-[data-theme="dark"] .semiont-annotation-entry[data-type="highlight"]:hover {
-  background: rgba(113, 63, 18, 0.2);
-}
-
-/* Comment - Gray theme */
-.semiont-annotation-entry[data-type="comment"] {
-  border-color: rgba(107, 114, 128, 0.3);
-}
-
-[data-theme="dark"] .semiont-annotation-entry[data-type="comment"] {
-  border-color: rgba(107, 114, 128, 0.3);
-}
-
-.semiont-annotation-entry[data-type="comment"]:hover {
-  background: rgba(243, 244, 246, 0.5);
-  border-color: rgba(107, 114, 128, 0.5);
-}
-
-[data-theme="dark"] .semiont-annotation-entry[data-type="comment"]:hover {
-  background: rgba(55, 65, 81, 0.2);
-}
-
-/* Tag - Orange/Amber theme */
-.semiont-annotation-entry[data-type="tag"] {
-  border-color: rgba(251, 146, 60, 0.3);
-}
-
-[data-theme="dark"] .semiont-annotation-entry[data-type="tag"] {
-  border-color: rgba(251, 146, 60, 0.3);
-}
-
-.semiont-annotation-entry[data-type="tag"]:hover {
-  background: linear-gradient(to right, rgba(254, 237, 213, 0.2), rgba(254, 243, 199, 0.2));
-  border-color: rgba(251, 146, 60, 0.5);
-}
-
-[data-theme="dark"] .semiont-annotation-entry[data-type="tag"]:hover {
-  background: linear-gradient(to right, rgba(124, 45, 18, 0.2), rgba(120, 53, 15, 0.2));
-}
+/* Motivation-specific styles are handled in /styles/motivations/*.css */
 
 /* Entry structure */
 .semiont-annotation-entry__header {
@@ -133,7 +43,7 @@
   min-width: 0;
 }
 
-/* Quote styling - matches the annotation colors */
+/* Quote styling - base structure */
 .semiont-annotation-entry__quote {
   font-size: var(--semiont-text-sm);
   line-height: 1.5;
@@ -142,55 +52,7 @@
   margin-bottom: 0.5rem;
 }
 
-.semiont-annotation-entry__quote[data-type="reference"] {
-  background: linear-gradient(to right, rgba(165, 243, 252, 0.2), rgba(191, 219, 254, 0.2));
-  color: var(--semiont-color-cyan-700);
-}
-
-[data-theme="dark"] .semiont-annotation-entry__quote[data-type="reference"] {
-  background: linear-gradient(to right, rgba(30, 58, 138, 0.3), rgba(8, 51, 68, 0.3));
-  color: var(--semiont-color-cyan-300);
-}
-
-.semiont-annotation-entry__quote[data-type="assessment"] {
-  background: rgba(254, 226, 226, 0.5);
-  color: var(--semiont-color-red-700);
-}
-
-[data-theme="dark"] .semiont-annotation-entry__quote[data-type="assessment"] {
-  background: rgba(127, 29, 29, 0.3);
-  color: var(--semiont-color-red-300);
-}
-
-.semiont-annotation-entry__quote[data-type="highlight"] {
-  background: var(--semiont-color-yellow-200);
-  color: var(--semiont-color-gray-900);
-}
-
-[data-theme="dark"] .semiont-annotation-entry__quote[data-type="highlight"] {
-  background: rgba(113, 63, 18, 0.5);
-  color: var(--semiont-color-yellow-300);
-}
-
-.semiont-annotation-entry__quote[data-type="comment"] {
-  background: var(--semiont-color-gray-100);
-  color: var(--semiont-color-gray-700);
-}
-
-[data-theme="dark"] .semiont-annotation-entry__quote[data-type="comment"] {
-  background: rgba(55, 65, 81, 0.3);
-  color: var(--semiont-color-gray-300);
-}
-
-.semiont-annotation-entry__quote[data-type="tag"] {
-  background: linear-gradient(to right, rgba(254, 237, 213, 0.4), rgba(254, 243, 199, 0.4));
-  color: var(--semiont-color-orange-700);
-}
-
-[data-theme="dark"] .semiont-annotation-entry__quote[data-type="tag"] {
-  background: linear-gradient(to right, rgba(124, 45, 18, 0.5), rgba(120, 53, 15, 0.5));
-  color: var(--semiont-color-orange-300);
-}
+/* Motivation-specific quote styles are handled in /styles/motivations/*.css */
 
 /* Body content */
 .semiont-annotation-entry__body {
@@ -204,15 +66,7 @@
   color: var(--semiont-text-primary);
 }
 
-.semiont-annotation-entry__body[data-type="assessment"] {
-  display: flex;
-  gap: 0.25rem;
-  color: var(--semiont-color-warning);
-}
-
-[data-theme="dark"] .semiont-annotation-entry__body[data-type="assessment"] {
-  color: var(--semiont-color-warning);
-}
+/* Motivation-specific body styles are handled in /styles/motivations/*.css */
 
 /* Metadata */
 .semiont-annotation-entry__metadata,
@@ -281,132 +135,4 @@
   margin-top: 0.5rem;
 }
 
-/* Reference-specific styles */
-.semiont-reference-icon {
-  font-size: 1.25rem;
-  flex-shrink: 0;
-}
-
-.semiont-reference-link {
-  font-size: var(--semiont-text-sm);
-  color: var(--semiont-color-cyan-600);
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-top: 0.25rem;
-}
-
-[data-theme="dark"] .semiont-reference-link {
-  color: var(--semiont-color-cyan-400);
-}
-
-/* Focus styles for reference links */
-.semiont-reference-link:focus-visible {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-
-[data-theme="dark"] .semiont-reference-link:focus-visible {
-  outline-color: var(--semiont-color-primary-400);
-}
-
-.semiont-reference-link:focus:not(:focus-visible) {
-  outline: none;
-}
-
-@media (prefers-contrast: more) {
-  .semiont-reference-link:focus-visible {
-    outline-width: 3px;
-  }
-}
-
-/* Reference Entry Action Buttons - match the blue/cyan theme */
-.semiont-reference-button {
-  padding: 0.25rem 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.125rem;
-  border-radius: 0.5rem;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  border: 1px solid transparent;
-}
-
-.semiont-reference-button--primary {
-  background: var(--semiont-gradient-primary);
-  color: var(--semiont-color-cyan-700);
-  border-color: var(--semiont-gradient-cyan-30);
-}
-
-[data-theme="dark"] .semiont-reference-button--primary {
-  background: var(--semiont-gradient-primary);
-  color: var(--semiont-color-cyan-400);
-  border-color: var(--semiont-gradient-cyan-30);
-}
-
-.semiont-reference-button--primary:hover {
-  background: linear-gradient(to right, rgb(8, 145, 178), rgb(59, 130, 246));
-  color: var(--semiont-color-white);
-  border-color: rgb(8, 145, 178);
-}
-
-[data-theme="dark"] .semiont-reference-button--primary:hover {
-  background: linear-gradient(to right, rgb(6, 182, 212), rgb(59, 130, 246));
-  color: var(--semiont-color-white);
-  border-color: rgb(6, 182, 212);
-}
-
-.semiont-reference-button--secondary {
-  background-color: rgba(0, 0, 0, 0.1);
-  color: var(--semiont-text-primary);
-  border-color: rgba(0, 0, 0, 0.2);
-}
-
-[data-theme="dark"] .semiont-reference-button--secondary {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--semiont-text-primary);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.semiont-reference-button--secondary:hover {
-  background-color: rgba(0, 0, 0, 0.2);
-}
-
-[data-theme="dark"] .semiont-reference-button--secondary:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-.semiont-reference-button--full {
-  flex: 1;
-}
-
-.semiont-reference-button--wide {
-  width: 100%;
-}
-
-/* Focus styles for reference buttons */
-.semiont-reference-button:focus-visible {
-  outline: 2px solid var(--semiont-color-cyan-500);
-  outline-offset: 2px;
-}
-
-[data-theme="dark"] .semiont-reference-button:focus-visible {
-  outline-color: var(--semiont-color-cyan-400);
-}
-
-.semiont-reference-button:focus:not(:focus-visible) {
-  outline: none;
-}
-
-@media (prefers-contrast: more) {
-  .semiont-reference-button:focus-visible {
-    outline-width: 3px;
-  }
-}
-
-.semiont-reference-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* Reference-specific styles moved to /styles/motivations/motivation-reference.css */
