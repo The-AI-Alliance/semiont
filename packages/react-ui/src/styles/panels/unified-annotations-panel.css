@@ -35,7 +35,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.375rem;
+  gap: calc(var(--semiont-panel-padding-xs) * 1.5);
 }
 
 [data-theme="dark"] .semiont-unified-panel__tab {
