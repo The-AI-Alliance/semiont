@@ -54,45 +54,6 @@
   border-color: var(--semiont-color-primary-500);
 }
 
-.semiont-tagging-panel__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--semiont-panel-padding-xs);
-}
-
-.semiont-tagging-panel__tag {
-  /* Use global tag styles from tags.css */
-  display: inline-flex;
-  align-items: center;
-  gap: var(--semiont-panel-padding-xs);
-  padding: var(--semiont-panel-padding-xs) var(--semiont-panel-padding-sm);
-  background: var(--semiont-color-primary-100);
-  color: var(--semiont-color-primary-700);
-  border-radius: var(--semiont-radius-full);
-  font-size: var(--semiont-text-xs);
-  font-weight: var(--semiont-font-medium);
-  transition: all 0.2s ease;
-}
-
-[data-theme="dark"] .semiont-tagging-panel__tag {
-  background: rgba(59, 130, 246, 0.2);
-  color: var(--semiont-color-primary-300);
-}
-
-.semiont-tagging-panel__tag-remove {
-  cursor: pointer;
-  color: var(--semiont-color-primary-500);
-  font-weight: bold;
-}
-
-[data-theme="dark"] .semiont-tagging-panel__tag-remove {
-  color: var(--semiont-color-primary-500);
-}
-
-.semiont-tagging-panel__tag-remove:hover {
-  color: var(--semiont-color-primary-700);
-}
-
-[data-theme="dark"] .semiont-tagging-panel__tag-remove:hover {
-  color: var(--semiont-color-primary-200);
-}
+/* Tags now use centralized styles from components/tags.css
+   Tagging panel uses: .semiont-tags container with .semiont-tag children
+   Remove buttons use: .semiont-tag__remove */

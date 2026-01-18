@@ -102,11 +102,11 @@ export function EntityTagsPage({
 
           {/* Existing tags */}
           <div className="semiont-entity-tags__tags-section">
-            <div className="semiont-entity-tags__tags-list">
+            <div className="semiont-tags">
               {entityTypes.map((tag: string) => (
                 <span
                   key={tag}
-                  className="semiont-entity-tags__tag"
+                  className="semiont-tag semiont-tag--info semiont-tag--rounded-md"
                 >
                   {tag}
                 </span>

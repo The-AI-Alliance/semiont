@@ -383,36 +383,5 @@
   margin-bottom: 0.25rem;
 }
 
-.semiont-resource-card__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: auto;
-}
-
-.semiont-resource-card__tag {
-  padding: 0.25rem 0.5rem;
-  background: var(--semiont-color-gray-100);
-  color: var(--semiont-color-gray-700);
-  border-radius: var(--semiont-radius-sm);
-  font-size: 0.75rem;
-}
-
-[data-theme="dark"] .semiont-resource-card__tag {
-  background: var(--semiont-bg-tertiary);
-  color: var(--semiont-color-gray-300);
-}
-
-.semiont-resource-card__tag-more {
-  padding: 0.25rem 0.5rem;
-  background: var(--semiont-color-gray-200);
-  color: var(--semiont-color-gray-600);
-  border-radius: var(--semiont-radius-sm);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-[data-theme="dark"] .semiont-resource-card__tag-more {
-  background: var(--semiont-color-gray-600);
-  color: var(--semiont-color-gray-300);
-}
+/* Tags now use centralized styles from components/tags.css
+   Resource cards use: .semiont-tag.semiont-tag--secondary.semiont-tag--compact.semiont-tag--rounded-sm */

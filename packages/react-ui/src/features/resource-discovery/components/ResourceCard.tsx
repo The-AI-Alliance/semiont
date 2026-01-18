@@ -53,17 +53,17 @@ export const ResourceCard = React.memo(({
     <div className="semiont-resource-card__metadata">
       <span className="semiont-resource-card__date">{createdLabel} {resource.dateCreated ? new Date(resource.dateCreated).toLocaleDateString() : 'N/A'}</span>
       {resource.entityTypes && resource.entityTypes.length > 0 && (
-        <div className="semiont-resource-card__tags">
+        <div className="semiont-tags">
           {resource.entityTypes.slice(0, 2).map((type) => (
             <span
               key={type}
-              className="semiont-resource-card__tag"
+              className="semiont-tag semiont-tag--secondary semiont-tag--compact semiont-tag--rounded-sm"
             >
               {type}
             </span>
           ))}
           {resource.entityTypes.length > 2 && (
-            <span className="semiont-resource-card__tag-more">
+            <span className="semiont-tag semiont-tag--secondary semiont-tag--compact semiont-tag--rounded-sm">
               +{resource.entityTypes.length - 2}
             </span>
           )}

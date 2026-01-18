@@ -1,6 +1,22 @@
 /* ============================================
    Tags Component
    Global reusable tag/chip elements
+
+   This is the authoritative source for all tag styles.
+   All tag implementations should use these classes with
+   appropriate modifiers.
+
+   Usage Examples:
+   - Default tag: .semiont-tag
+   - Gray tag: .semiont-tag.semiont-tag--secondary
+   - Small gray tag: .semiont-tag.semiont-tag--secondary.semiont-tag--small
+   - Compact rounded tag: .semiont-tag.semiont-tag--compact.semiont-tag--rounded-sm
+   - Info tag with border: .semiont-tag.semiont-tag--info
+
+   Compatibility Mappings (use base classes above instead):
+   - .semiont-resource-card__tag → .semiont-tag.semiont-tag--secondary.semiont-tag--compact.semiont-tag--rounded-sm
+   - .semiont-entity-tags__tag → .semiont-tag.semiont-tag--info.semiont-tag--rounded-md
+   - .semiont-tagging-panel__tag → .semiont-tag
    ============================================ */
 
 /* Tags Container */
@@ -132,6 +148,38 @@
   font-size: var(--semiont-text-2xs);
 }
 
+/* Compact Tag Variant (for resource cards) */
+.semiont-tag--compact {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* Rounded Corner Variants */
+.semiont-tag--rounded-sm {
+  border-radius: var(--semiont-radius-sm);
+}
+
+.semiont-tag--rounded-md {
+  border-radius: var(--semiont-radius-md);
+}
+
+.semiont-tag--rounded-lg {
+  border-radius: var(--semiont-radius-lg);
+}
+
+/* Info Tag Variant (subtle blue background) */
+.semiont-tag--info {
+  background: rgba(59, 130, 246, 0.05);
+  color: var(--semiont-color-blue-700);
+  border: 1px solid var(--semiont-color-blue-200);
+}
+
+[data-theme="dark"] .semiont-tag--info {
+  background: rgba(30, 58, 138, 0.3);
+  color: var(--semiont-color-blue-300);
+  border-color: var(--semiont-color-blue-800);
+}
+
 /* Outlined Tag Variant */
 .semiont-tag--outlined {
   background: transparent;
@@ -142,4 +190,14 @@
 [data-theme="dark"] .semiont-tag--outlined {
   border-color: var(--semiont-color-primary-400);
   color: var(--semiont-color-primary-300);
+}
+
+.semiont-tag--outlined.semiont-tag--secondary {
+  border-color: var(--semiont-color-gray-400);
+  color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-tag--outlined.semiont-tag--secondary {
+  border-color: var(--semiont-color-gray-500);
+  color: var(--semiont-color-gray-300);
 }
