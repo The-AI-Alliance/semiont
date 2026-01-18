@@ -1,0 +1,90 @@
+/* ============================================
+   CollaborationPanel Component
+   Styles for user collaboration features
+   ============================================ */
+
+.semiont-collaboration-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.semiont-collaboration-panel__user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.semiont-collaboration-panel__user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-md);
+  transition: background-color 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-collaboration-panel__user {
+  background: var(--semiont-bg-tertiary);
+}
+
+.semiont-collaboration-panel__user:hover {
+  background: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-collaboration-panel__user:hover {
+  background: var(--semiont-color-gray-700);
+}
+
+.semiont-collaboration-panel__avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--semiont-radius-full);
+  background: var(--semiont-color-primary-100);
+  color: var(--semiont-color-primary-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--semiont-font-semibold);
+  font-size: var(--semiont-text-sm);
+}
+
+[data-theme="dark"] .semiont-collaboration-panel__avatar {
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--semiont-color-primary-300);
+}
+
+.semiont-collaboration-panel__user-info {
+  flex: 1;
+}
+
+.semiont-collaboration-panel__username {
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-collaboration-panel__username {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-collaboration-panel__user-status {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+}
+
+[data-theme="dark"] .semiont-collaboration-panel__user-status {
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-collaboration-panel__indicator {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--semiont-radius-full);
+  background: var(--semiont-color-success);
+}
+
+.semiont-collaboration-panel__indicator--offline {
+  background: var(--semiont-color-gray-400);
+}

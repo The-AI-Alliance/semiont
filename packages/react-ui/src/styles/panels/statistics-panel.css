@@ -1,0 +1,95 @@
+/* ============================================
+   StatisticsPanel Component
+   Statistics and metrics display panel
+   ============================================ */
+
+.semiont-statistics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--semiont-bg-primary);
+  border-radius: var(--semiont-radius-lg);
+}
+
+[data-theme="dark"] .semiont-statistics-panel {
+  background: var(--semiont-bg-secondary);
+}
+
+.semiont-statistics-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.semiont-statistics-panel__card {
+  padding: 0.75rem;
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-statistics-panel__card {
+  background: var(--semiont-bg-tertiary);
+}
+
+.semiont-statistics-panel__card-label {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-theme="dark"] .semiont-statistics-panel__card-label {
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-statistics-panel__card-value {
+  font-size: var(--semiont-text-2xl);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-statistics-panel__card-value {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-statistics-panel__card-change {
+  font-size: var(--semiont-text-xs);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.semiont-statistics-panel__card-change--positive {
+  color: var(--semiont-color-success);
+}
+
+[data-theme="dark"] .semiont-statistics-panel__card-change--positive {
+  color: var(--semiont-color-success);
+}
+
+.semiont-statistics-panel__card-change--negative {
+  color: var(--semiont-color-error);
+}
+
+[data-theme="dark"] .semiont-statistics-panel__card-change--negative {
+  color: var(--semiont-color-error);
+}
+
+.semiont-statistics-panel__chart {
+  padding: 1rem;
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-md);
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--semiont-text-tertiary);
+}
+
+[data-theme="dark"] .semiont-statistics-panel__chart {
+  background: var(--semiont-bg-tertiary);
+}

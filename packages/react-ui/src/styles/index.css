@@ -32,7 +32,11 @@
 @import './components/tables.css';
 @import './components/toast.css';
 @import './components/status-display.css';
-@import './components/panels.css';
+@import './components/toggles.css';
+@import './components/tags.css';
+@import './components/badges.css';
+@import './components/panels-base.css';
+@import './components/panel-sections.css';
 @import './components/modals.css';
 @import './components/branding.css';
 @import './components/toolbar.css';
@@ -44,6 +48,19 @@
 @import './components/annotations.css';
 @import './components/annotation-entries.css';
 @import './components/skip-links.css';
+
+/* Individual Panel Styles */
+@import './panels/collaboration-panel.css';
+@import './panels/jsonld-panel.css';
+@import './panels/references-panel.css';
+@import './panels/unified-annotations-panel.css';
+@import './panels/resource-info-panel.css';
+@import './panels/tagging-panel.css';
+@import './panels/highlight-panel.css';
+@import './panels/comments-panel.css';
+@import './panels/assessment-panel.css';
+@import './panels/statistics-panel.css';
+@import './panels/history-panel.css';
 
 /* Features */
 @import './features/admin.css';

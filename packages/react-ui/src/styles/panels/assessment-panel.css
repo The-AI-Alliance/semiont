@@ -1,0 +1,91 @@
+/* ============================================
+   AssessmentPanel Component
+   Rating and assessment panel
+   ============================================ */
+
+.semiont-assessment-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--semiont-bg-primary);
+  border-radius: var(--semiont-radius-lg);
+}
+
+[data-theme="dark"] .semiont-assessment-panel {
+  background: var(--semiont-bg-secondary);
+}
+
+.semiont-assessment-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.semiont-assessment-panel__label {
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-theme="dark"] .semiont-assessment-panel__label {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-assessment-panel__rating {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.semiont-assessment-panel__star {
+  font-size: 1.5rem;
+  color: var(--semiont-color-gray-300);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-assessment-panel__star {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-assessment-panel__star:hover {
+  color: var(--semiont-color-warning);
+}
+
+.semiont-assessment-panel__star--filled {
+  color: var(--semiont-color-warning);
+}
+
+[data-theme="dark"] .semiont-assessment-panel__star--filled {
+  color: var(--semiont-color-warning);
+}
+
+.semiont-assessment-panel__textarea {
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--semiont-bg-secondary);
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: var(--semiont-radius-md);
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+  resize: vertical;
+  min-height: 100px;
+  transition: border-color 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-assessment-panel__textarea {
+  background: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-assessment-panel__textarea:focus {
+  outline: none;
+  border-color: var(--semiont-color-primary-500);
+}
+
+.semiont-assessment-panel__actions {
+  display: flex;
+  gap: 0.5rem;
+}

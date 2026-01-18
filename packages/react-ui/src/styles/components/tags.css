@@ -1,0 +1,145 @@
+/* ============================================
+   Tags Component
+   Global reusable tag/chip elements
+   ============================================ */
+
+/* Tags Container */
+.semiont-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.semiont-tags--spaced {
+  gap: 0.5rem;
+}
+
+/* Individual Tag */
+.semiont-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--semiont-color-primary-100);
+  color: var(--semiont-color-primary-700);
+  border-radius: var(--semiont-radius-full);
+  font-size: var(--semiont-text-xs);
+  font-weight: var(--semiont-font-medium);
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-tag {
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--semiont-color-primary-300);
+}
+
+/* Tag Variants */
+.semiont-tag--secondary {
+  background: var(--semiont-color-gray-100);
+  color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-tag--secondary {
+  background: rgba(156, 163, 175, 0.2);
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-tag--success {
+  background: var(--semiont-color-success-light);
+  color: var(--semiont-color-success-dark);
+}
+
+[data-theme="dark"] .semiont-tag--success {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--semiont-color-success-light);
+}
+
+.semiont-tag--warning {
+  background: var(--semiont-color-warning-light);
+  color: var(--semiont-color-warning-dark);
+}
+
+[data-theme="dark"] .semiont-tag--warning {
+  background: rgba(251, 146, 60, 0.2);
+  color: var(--semiont-color-warning-light);
+}
+
+.semiont-tag--error {
+  background: var(--semiont-color-error-light);
+  color: var(--semiont-color-error-dark);
+}
+
+[data-theme="dark"] .semiont-tag--error {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--semiont-color-error-light);
+}
+
+/* Clickable Tag */
+.semiont-tag--clickable {
+  cursor: pointer;
+}
+
+.semiont-tag--clickable:hover {
+  background: var(--semiont-color-primary-200);
+}
+
+[data-theme="dark"] .semiont-tag--clickable:hover {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.semiont-tag--clickable:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+/* Tag with Remove Button */
+.semiont-tag__remove {
+  cursor: pointer;
+  color: var(--semiont-color-primary-500);
+  font-weight: bold;
+  margin-left: 0.25rem;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-tag__remove {
+  color: var(--semiont-color-primary-400);
+}
+
+.semiont-tag__remove:hover {
+  color: var(--semiont-color-primary-700);
+}
+
+[data-theme="dark"] .semiont-tag__remove:hover {
+  color: var(--semiont-color-primary-200);
+}
+
+/* Tag Icon */
+.semiont-tag__icon {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+/* Large Tag Variant */
+.semiont-tag--large {
+  padding: 0.375rem 0.75rem;
+  font-size: var(--semiont-text-sm);
+}
+
+/* Small Tag Variant */
+.semiont-tag--small {
+  padding: 0.125rem 0.375rem;
+  font-size: 0.625rem;
+}
+
+/* Outlined Tag Variant */
+.semiont-tag--outlined {
+  background: transparent;
+  border: 1px solid var(--semiont-color-primary-500);
+  color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-tag--outlined {
+  border-color: var(--semiont-color-primary-400);
+  color: var(--semiont-color-primary-300);
+}

@@ -3,15 +3,15 @@
    ============================================ */
 
 .semiont-settings-panel {
-  padding: 1rem;
+  padding: var(--semiont-panel-padding);
   background: var(--semiont-bg-primary);
-  border-radius: var(--semiont-radius-lg);
+  border-radius: var(--semiont-panel-border-radius);
 }
 
 .semiont-settings-panel__title {
-  margin: 0 0 1.5rem;
-  font-size: var(--semiont-text-lg);
-  font-weight: 600;
+  margin: 0 0 var(--semiont-panel-header-margin-bottom);
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
   color: var(--semiont-text-primary);
 }
 
@@ -22,14 +22,14 @@
 .semiont-settings-panel__content {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--semiont-panel-section-gap);
 }
 
 /* Field Container */
 .semiont-settings-panel__field {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--semiont-panel-field-gap);
 }
 
 /* Labels */

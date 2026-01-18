@@ -1,0 +1,120 @@
+/* ============================================
+   UnifiedAnnotationsPanel Component
+   Unified annotations panel with tabs
+   ============================================ */
+
+.semiont-unified-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.semiont-unified-panel__tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-md);
+}
+
+[data-theme="dark"] .semiont-unified-panel__tabs {
+  background: var(--semiont-bg-tertiary);
+}
+
+.semiont-unified-panel__tab {
+  flex: 1;
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--semiont-radius-sm);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-unified-panel__tab:hover {
+  background: var(--semiont-bg-tertiary);
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab:hover {
+  background: var(--semiont-color-gray-700);
+}
+
+.semiont-unified-panel__tab--active {
+  background: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab--active {
+  background: var(--semiont-bg-secondary);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-unified-panel__tab-icon {
+  font-size: 1.125rem;
+}
+
+.semiont-unified-panel__content {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Detection Section Color Schemes */
+.semiont-detect-section[data-type="highlight"] {
+  border-color: var(--semiont-color-warning);
+}
+
+[data-theme="dark"] .semiont-detect-section[data-type="highlight"] {
+  border-color: var(--semiont-color-warning-dark);
+}
+
+.semiont-detect-section[data-type="assessment"] {
+  border-color: var(--semiont-color-error);
+}
+
+[data-theme="dark"] .semiont-detect-section[data-type="assessment"] {
+  border-color: var(--semiont-color-error-dark);
+}
+
+.semiont-detect-section[data-type="comment"] {
+  border-color: var(--semiont-color-purple-500);
+}
+
+[data-theme="dark"] .semiont-detect-section[data-type="comment"] {
+  border-color: var(--semiont-color-purple-600);
+}
+
+/* Detection Button Gradients */
+.semiont-detect-button[data-type="highlight"] {
+  background: linear-gradient(to right, var(--semiont-color-warning), var(--semiont-color-warning-dark));
+}
+
+.semiont-detect-button[data-type="highlight"]:hover {
+  background: linear-gradient(to right, var(--semiont-color-warning-dark), #d97706);
+}
+
+.semiont-detect-button[data-type="assessment"] {
+  background: linear-gradient(to right, var(--semiont-color-error), #ec4899);
+}
+
+.semiont-detect-button[data-type="assessment"]:hover {
+  background: linear-gradient(to right, var(--semiont-color-error-dark), #db2777);
+}
+
+.semiont-detect-button[data-type="comment"] {
+  background: linear-gradient(to right, var(--semiont-color-purple-600), var(--semiont-color-indigo-600));
+}
+
+.semiont-detect-button[data-type="comment"]:hover {
+  background: linear-gradient(to right, var(--semiont-color-purple-700), var(--semiont-color-indigo-700));
+}

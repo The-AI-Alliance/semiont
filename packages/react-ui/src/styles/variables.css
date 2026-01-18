@@ -275,6 +275,17 @@
   --semiont-z-80: 80;
   --semiont-z-90: 90;
   --semiont-z-100: 100;
+
+  /* Panel Component Tokens */
+  /* These define the standard sizing for all panels */
+  --semiont-panel-padding: 1rem;
+  --semiont-panel-gap: 1rem;
+  --semiont-panel-header-margin-bottom: 0.75rem;
+  --semiont-panel-title-size: var(--semiont-text-sm);
+  --semiont-panel-title-weight: var(--semiont-font-semibold);
+  --semiont-panel-section-gap: 1.5rem;
+  --semiont-panel-field-gap: 0.5rem;
+  --semiont-panel-border-radius: var(--semiont-radius-lg);
 }
 
 /* Dark Mode Support */

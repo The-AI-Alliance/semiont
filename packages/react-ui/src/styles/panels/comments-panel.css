@@ -1,0 +1,130 @@
+/* ============================================
+   CommentsPanel Component
+   Comments and discussion panel
+   ============================================ */
+
+.semiont-comments-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--semiont-bg-primary);
+  border-radius: var(--semiont-radius-lg);
+}
+
+[data-theme="dark"] .semiont-comments-panel {
+  background: var(--semiont-bg-secondary);
+}
+
+.semiont-comments-panel__header {
+  padding: var(--semiont-panel-padding);
+  border-bottom: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-comments-panel__header {
+  border-bottom-color: var(--semiont-color-gray-700);
+}
+
+.semiont-comments-panel__title {
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+  margin-bottom: var(--semiont-panel-header-margin-bottom);
+}
+
+[data-theme="dark"] .semiont-comments-panel__title {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-comments-panel__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.semiont-comments-panel__comment {
+  padding: 0.75rem;
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-md);
+  border-left: 3px solid var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-comments-panel__comment {
+  background: var(--semiont-bg-tertiary);
+}
+
+.semiont-comments-panel__comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.semiont-comments-panel__comment-author {
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-comments-panel__comment-author {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-comments-panel__comment-time {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+}
+
+[data-theme="dark"] .semiont-comments-panel__comment-time {
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-comments-panel__comment-text {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+  line-height: 1.5;
+}
+
+[data-theme="dark"] .semiont-comments-panel__comment-text {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-comments-panel__input-area {
+  padding: 1rem;
+  border-top: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-comments-panel__input-area {
+  border-top-color: var(--semiont-color-gray-700);
+}
+
+.semiont-comments-panel__input {
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--semiont-bg-secondary);
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: var(--semiont-radius-md);
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+  resize: vertical;
+  min-height: 80px;
+  transition: border-color 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-comments-panel__input {
+  background: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-comments-panel__input:focus {
+  outline: none;
+  border-color: var(--semiont-color-primary-500);
+}
+
+.semiont-comments-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
