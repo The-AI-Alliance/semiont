@@ -46,18 +46,20 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
 
   // Handle ESC key to close modal
   useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
     const handleEsc = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) {
+      if (event.key === 'Escape') {
         onClose();
       }
     };
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEsc);
-      return () => {
-        document.removeEventListener('keydown', handleEsc);
-      };
-    }
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('keydown', handleEsc);
+    };
   }, [isOpen, onClose]);
 
   const handleSave = async () => {
