@@ -49,6 +49,13 @@
 @import './components/annotation-entries.css';
 @import './components/skip-links.css';
 
+/* Motivation-Specific Styles (W3C Web Annotation) */
+@import './motivations/motivation-reference.css';
+@import './motivations/motivation-highlight.css';
+@import './motivations/motivation-assessment.css';
+@import './motivations/motivation-comment.css';
+@import './motivations/motivation-tag.css';
+
 /* Individual Panel Styles */
 @import './panels/collaboration-panel.css';
 @import './panels/jsonld-panel.css';

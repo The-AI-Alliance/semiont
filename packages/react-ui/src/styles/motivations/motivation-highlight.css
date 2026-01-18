@@ -1,0 +1,176 @@
+/**
+ * Motivation: Highlighting
+ * Color Theme: Yellow
+ * W3C Web Annotation: highlighting motivation
+ *
+ * This file defines all styles for highlight annotations
+ * across text, panels, and image annotations.
+ */
+
+/* ============================================
+   Color Variables
+   ============================================ */
+:root {
+  /* Light theme colors */
+  --semiont-motivation-highlight-primary: var(--semiont-color-yellow-500);
+  --semiont-motivation-highlight-bg: var(--semiont-color-yellow-200);
+  --semiont-motivation-highlight-bg-hover: var(--semiont-color-yellow-300);
+  --semiont-motivation-highlight-border: rgba(251, 191, 36, 0.3);
+  --semiont-motivation-highlight-border-hover: rgba(251, 191, 36, 0.5);
+  --semiont-motivation-highlight-text: var(--semiont-color-gray-900);
+
+  /* Dark theme colors */
+  --semiont-motivation-highlight-dark-bg: rgba(113, 63, 18, 0.5);
+  --semiont-motivation-highlight-dark-bg-hover: rgba(113, 63, 18, 0.6);
+  --semiont-motivation-highlight-dark-text: var(--semiont-color-white);
+  --semiont-motivation-highlight-dark-outline: rgba(251, 191, 36, 0.6);
+  --semiont-motivation-highlight-dark-primary: var(--semiont-color-yellow-300);
+
+  /* Panel backgrounds */
+  --semiont-motivation-highlight-panel-bg: rgba(254, 249, 195, 0.3);
+  --semiont-motivation-highlight-panel-bg-dark: rgba(113, 63, 18, 0.2);
+
+  /* Button colors */
+  --semiont-motivation-highlight-button-bg: var(--semiont-color-warning);
+  --semiont-motivation-highlight-button-bg-hover: var(--semiont-color-warning-dark);
+}
+
+/* ============================================
+   Inline Text Annotations
+   ============================================ */
+.semiont-motivation-highlight,
+.annotation-highlight {
+  border-radius: 0.25rem;
+  padding: 0 0.125rem;
+  cursor: pointer;
+  transition: all 200ms;
+  background: var(--semiont-motivation-highlight-bg);
+  color: var(--semiont-motivation-highlight-text);
+}
+
+.semiont-motivation-highlight:hover,
+.annotation-highlight:hover {
+  background: var(--semiont-motivation-highlight-bg-hover);
+}
+
+[data-theme="dark"] .semiont-motivation-highlight,
+[data-theme="dark"] .annotation-highlight {
+  background: var(--semiont-motivation-highlight-dark-bg);
+  color: var(--semiont-motivation-highlight-dark-text);
+  outline: 2px dashed var(--semiont-motivation-highlight-dark-outline);
+  outline-offset: 1px;
+}
+
+[data-theme="dark"] .semiont-motivation-highlight:hover,
+[data-theme="dark"] .annotation-highlight:hover {
+  background: var(--semiont-motivation-highlight-dark-bg-hover);
+}
+
+/* ============================================
+   Panel Entry Styling
+   ============================================ */
+.semiont-motivation-highlight-entry,
+.semiont-annotation-entry[data-type="highlight"] {
+  border-color: var(--semiont-motivation-highlight-border);
+}
+
+.semiont-motivation-highlight-entry:hover,
+.semiont-annotation-entry[data-type="highlight"]:hover {
+  background: var(--semiont-motivation-highlight-panel-bg);
+  border-color: var(--semiont-motivation-highlight-border-hover);
+}
+
+[data-theme="dark"] .semiont-motivation-highlight-entry:hover,
+[data-theme="dark"] .semiont-annotation-entry[data-type="highlight"]:hover {
+  background: var(--semiont-motivation-highlight-panel-bg-dark);
+}
+
+/* ============================================
+   Quote/Excerpt Styling in Panels
+   ============================================ */
+.semiont-motivation-highlight-quote,
+.semiont-annotation-entry__quote[data-type="highlight"] {
+  background: var(--semiont-motivation-highlight-bg);
+  color: var(--semiont-motivation-highlight-text);
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--semiont-radius-sm);
+}
+
+[data-theme="dark"] .semiont-motivation-highlight-quote,
+[data-theme="dark"] .semiont-annotation-entry__quote[data-type="highlight"] {
+  background: var(--semiont-motivation-highlight-dark-bg);
+  color: var(--semiont-motivation-highlight-dark-primary);
+}
+
+/* ============================================
+   Detection Section in Unified Panel
+   ============================================ */
+.semiont-motivation-highlight-section,
+.semiont-detect-section[data-type="highlight"] {
+  border-color: var(--semiont-motivation-highlight-button-bg);
+}
+
+[data-theme="dark"] .semiont-motivation-highlight-section,
+[data-theme="dark"] .semiont-detect-section[data-type="highlight"] {
+  border-color: var(--semiont-motivation-highlight-button-bg-hover);
+}
+
+/* ============================================
+   Button Styling
+   ============================================ */
+.semiont-motivation-highlight-button,
+.semiont-detect-button[data-type="highlight"] {
+  background: linear-gradient(to right, var(--semiont-motivation-highlight-button-bg), var(--semiont-motivation-highlight-button-bg-hover));
+  color: var(--semiont-color-white);
+  border: 1px solid var(--semiont-motivation-highlight-border);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.semiont-motivation-highlight-button:hover,
+.semiont-detect-button[data-type="highlight"]:hover {
+  background: linear-gradient(to right, var(--semiont-motivation-highlight-button-bg-hover), #d97706);
+  border-color: var(--semiont-motivation-highlight-primary);
+}
+
+[data-theme="dark"] .semiont-motivation-highlight-button {
+  border-color: var(--semiont-motivation-highlight-dark-outline);
+}
+
+[data-theme="dark"] .semiont-motivation-highlight-button:hover {
+  border-color: var(--semiont-motivation-highlight-dark-primary);
+}
+
+/* ============================================
+   Image Annotation Overlays
+   ============================================ */
+.semiont-image-annotation-highlight {
+  stroke: var(--semiont-motivation-highlight-primary);
+  stroke-width: 2px;
+  fill: var(--semiont-motivation-highlight-border);
+}
+
+.semiont-image-annotation-highlight:hover {
+  stroke-width: 3px;
+  fill: var(--semiont-motivation-highlight-border-hover);
+}
+
+[data-theme="dark"] .semiont-image-annotation-highlight {
+  stroke: var(--semiont-motivation-highlight-dark-primary);
+  fill: rgba(251, 191, 36, 0.2);
+}
+
+/* ============================================
+   Highlight-specific Visual Elements
+   ============================================ */
+.semiont-highlight-marker {
+  background: var(--semiont-motivation-highlight-bg);
+  display: inline-block;
+  padding: 0 0.125rem;
+  border-radius: 0.125rem;
+}
+
+[data-theme="dark"] .semiont-highlight-marker {
+  background: var(--semiont-motivation-highlight-dark-bg);
+  outline: 1px dashed var(--semiont-motivation-highlight-dark-outline);
+}
